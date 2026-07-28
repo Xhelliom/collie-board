@@ -19,6 +19,7 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
+import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
 import type { BoardDb } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
@@ -223,7 +224,14 @@ export class Copilot {
     private readonly cfg: Config,
     /** The copilot's own working directory — it needs one, and it must not be a real repo. */
     private readonly workDir: string,
+    /** Per-agent divergence (the reset command). See adapters.ts. */
+    private readonly adapters: Record<string, AgentAdapter> = {},
   ) {}
+
+  /** The agent kind the copilot runs, and its adapter. */
+  private get adapter(): AgentAdapter {
+    return adapterFor(this.adapters, this.cfg.boardCopilotKind || this.cfg.boardAgentKind);
+  }
 
   get enabled(): boolean {
     return this.cfg.boardCopilot;
@@ -301,11 +309,16 @@ export class Copilot {
     this.requestsSinceReset = 0;
   }
 
-  /** Reset the session's context. The reset command is per agent kind (see adapters). */
+  /**
+   * Reset the session's context. The command is the agent's, from the adapter table — an agent with
+   * no reset command simply doesn't get one, and the pane is left to fill up (still bounded, since
+   * every prompt here is self-contained).
+   */
   private async reset(): Promise<void> {
-    if (!this.paneId) return;
+    const clear = this.cfg.boardCopilotClear || this.adapter.clear;
+    if (!this.paneId || !clear) return;
     try {
-      await promptAndConfirm(this.herdr, this.paneId, this.cfg.boardCopilotClear);
+      await promptAndConfirm(this.herdr, this.paneId, clear);
       this.requestsSinceReset = 0;
     } catch {
       // A failed clear only means a fuller context next request — not worth failing over.

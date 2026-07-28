@@ -16,6 +16,7 @@
 // Agents sidebar — so the gauge is visible in the TUI too, not only in the phone app. TTL'd, so a
 // bridge that stops reporting leaves no stale figure behind rather than a lie that never expires.
 
+import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { BoardDb } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -57,6 +58,8 @@ export class ContextTracker {
     private readonly herdr: HerdrClient,
     private readonly source: TranscriptSource,
     private readonly windowTokens: number,
+    /** Per-agent divergence — an agent with no readable transcript is skipped entirely. */
+    private readonly adapters: Record<string, AgentAdapter> = {},
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -80,6 +83,9 @@ export class ContextTracker {
 
     const due = this.db.listOpenSessions().filter((s) => {
       if (!s.paneId || !live.has(s.paneId)) return false;
+      // Level 3 by construction: an agent whose transcript format we can't read gets no gauge, and
+      // no wasted filesystem scan either.
+      if (s.agentKind && !adapterFor(this.adapters, s.agentKind).context) return false;
       if (!s.agentSessionId && !cwdOf.get(s.paneId)) return false;
       const last = this.lastRead.get(s.paneId);
       return last === undefined || this.now() - last >= REFRESH_MS;

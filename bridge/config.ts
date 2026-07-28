@@ -213,8 +213,13 @@ export interface Config {
   boardCopilot: boolean;
   /** Agent kind for the copilot — it can be a cheaper one than the workers. Empty = same. */
   boardCopilotKind: string;
-  /** The agent's context-reset command; per-kind (see `adapters/`). */
+  /**
+   * Override the copilot's context-reset command. Empty (the default) means "use the adapter table
+   * for whatever kind the copilot runs" — see `adapters/agents.toml`.
+   */
   boardCopilotClear: string;
+  /** Where to look for agent adapter tables, in increasing precedence. */
+  adapterPaths: string[];
 }
 
 /**
@@ -273,6 +278,14 @@ export function loadConfig(): Config {
     boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
     boardCopilot: envBool("COLLIE_BOARD_COPILOT", false),
     boardCopilotKind: (process.env.COLLIE_BOARD_COPILOT_KIND ?? "").trim(),
-    boardCopilotClear: process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "/clear",
+    boardCopilotClear: (process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "").trim(),
+    adapterPaths: [
+      // Shipped defaults, then the operator's. `bridge/` sits one level under the plugin root.
+      join(import.meta.dir, "..", "adapters", "agents.toml"),
+      join(
+        process.env.HERDR_PLUGIN_CONFIG_DIR ?? join(homedir(), ".config", "collie-board"),
+        "agents.toml",
+      ),
+    ],
   };
 }

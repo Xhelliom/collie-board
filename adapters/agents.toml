@@ -1,0 +1,40 @@
+# Per-agent divergence for collie-board. See bridge/adapters.ts for what each field means and why
+# there are only four of them.
+#
+# Herdr already normalises agent DETECTION and STATE for 16 agents with no configuration, so almost
+# everything the board does is agent-agnostic by construction. This table only describes what herdr
+# cannot know for us.
+#
+# Override any single field by dropping a file with the same shape at:
+#   ~/.config/collie-board/agents.toml
+# Values are merged per field, so changing one line does not mean restating the table.
+#
+#   clear      the command that resets the agent's context ("" when it has none)
+#   context    does this agent write a Claude-Code-shaped JSONL transcript with `message.usage`?
+#              Only turn this on for an agent whose format bridge/transcript.ts can actually read —
+#              a confident wrong percentage is worse than no gauge (see bridge/context.ts).
+#   session_id does the agent report a native session id to herdr?
+
+[agent.claude]
+clear      = "/clear"
+context    = true
+session_id = true
+
+# Everything below is a placeholder until someone verifies it against the real CLI. Left explicitly
+# false rather than guessed: `context = true` on an unverified transcript format would produce a
+# number the handoff decision then leans on.
+
+[agent.codex]
+clear      = ""
+context    = false
+session_id = false
+
+[agent.gemini]
+clear      = ""
+context    = false
+session_id = false
+
+[agent.opencode]
+clear      = ""
+context    = false
+session_id = false

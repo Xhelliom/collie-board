@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.24.0] - 2026-07-28
+
+### Added
+- **Agent adapters** (`bridge/adapters.ts`, `adapters/agents.toml`): the four points where agents diverge — launch kind, context-reset command, whether the transcript is readable, whether a native session id is reported. Merged per FIELD from `~/.config/collie-board/agents.toml`, so overriding one line doesn't restate the table.
+- The context tracker skips agents whose transcript format isn't readable (level 3 by construction), and the copilot takes its reset command from the table.
+- `UPSTREAM.md` — what is PR-able, what is fork-only, and the (short) list of upstream files this fork touches.
+- README: a board section with configuration, endpoints and what is deliberately not built. `ARCHITECTURE.md` §9 and the fork's rules in `CLAUDE.md`.
+
 ## [0.23.0] - 2026-07-28
 
 ### Added

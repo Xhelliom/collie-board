@@ -1,4 +1,10 @@
-# Collie
+# Collie Board
+
+> **A fork of [`AltanS/collie`](https://github.com/AltanS/collie) (MIT), with a durable Kanban layer
+> on top.** Everything below is Collie's — the bridge, the security posture, the PWA — and still
+> works exactly as documented. What the fork adds is [**the board**](#the-board-what-this-fork-adds):
+> a task that outlives the pane working on it. See [`UPSTREAM.md`](./UPSTREAM.md) for the fork's
+> posture and what is meant to go back.
 
 <p align="center">
   <img src="assets/collie-hero.webp" alt="A collie herding a flock of sheep" width="640">
@@ -16,6 +22,7 @@ serving a Vite + React + shadcn PWA.
 
 ## Contents
 
+- [The board (what this fork adds)](#the-board-what-this-fork-adds)
 - [Demo](#demo)
 - [Security — read first](#%EF%B8%8F-security--read-before-you-run-it)
 - [Requirements](#requirements)
@@ -51,6 +58,69 @@ notification the moment an agent is waiting on input.
     <td align="center" width="50%"><img src="assets/settings.png" alt="Settings — notifications and diagnostics" width="250"><br><sub><b>Settings</b> — notifications, DND, diagnostics</sub></td>
   </tr>
 </table>
+
+## The board (what this fork adds)
+
+Collie answers **"which agent needs me right now"**. It is deliberately stateless: a mirror of the
+herd, wiped every tick. Collie Board answers the other question — **"where is this task, and what
+happened in the three sessions before this one"** — and that needs memory Collie doesn't keep.
+
+A **card** is durable. A **session** is not. That one rule is the whole design.
+
+| | |
+|---|---|
+| **Card → branch → workspace** | Starting a card runs `worktree.create`: its own checkout, its own herdr workspace, its own agent. One tap, no keyboard. |
+| **Cards move themselves** | Reconciliation rides the snapshot poll Collie already runs. `working` → In progress, `blocked` → Needs you, `done` → To review. A pane that vanishes makes its card **orphaned** — relaunchable from its last handoff, never an error. |
+| **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is just its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed. |
+| **Context gauge** | Read from the agent's own transcript, and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. |
+| **Handoff** | The outgoing agent writes `.board/handoff.md`; the pane is replaced in the same worktree; the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
+| **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other. Turns a dictated brain dump into a card, and reviews finished work — its follow-ups become new cards, which is what refills the board. |
+
+### Board configuration
+
+| Variable | Default | What it does |
+|---|---|---|
+| `COLLIE_BOARD_AGENT_KIND` | `claude` | Agent kind launched for a card that doesn't name its own. |
+| `COLLIE_BOARD_MAX_AGENTS` | `3` | How many cards may run at once. A **quota** guard, not a performance one. |
+| `COLLIE_BOARD_BRANCH_PREFIX` | `board/` | Prefix for branches the board creates. |
+| `COLLIE_BOARD_CTX_WINDOW` | `200000` | Context window the gauge is a percentage of. Set `1000000` for a 1M-context model. |
+| `COLLIE_BOARD_HANDOFF_PCT` | `70` | Context percentage past which the Handoff button goes prominent. Advisory only. |
+| `COLLIE_BOARD_COPILOT` | `off` | Enable the copilot. **Off by default** — it is a second agent on the same subscription. |
+| `COLLIE_BOARD_COPILOT_KIND` | *(same as workers)* | Let the copilot run a cheaper agent. |
+| `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
+
+Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — four fields, merged
+per field from `~/.config/collie-board/agents.toml`.
+
+### Board endpoints
+
+```
+GET    /api/cards                       list + live herd state merged in
+POST   /api/cards                       {title|rawInput, repoPath, baseRef, …}
+GET    /api/cards/:id                   card + sessions + reviews + journal
+PATCH  /api/cards/:id                   edit / move a column
+DELETE /api/cards/:id
+POST   /api/cards/:id/start             worktree + workspace + agent + the spec
+POST   /api/cards/:id/prompt            a follow-up instruction
+POST   /api/cards/:id/handoff           ask for the note; the poll loop swaps the session
+GET    /api/cards/:id/diff              ?mode=stat|file&path=
+GET    /api/cards/:id/sessions          the handoff chain
+```
+
+Every write goes through the same `guard()` as typing into a pane, and is audited. The board is
+bound to the **primary** herdr session: a pane id means nothing in another server.
+
+### What is deliberately NOT built
+
+- **No multi-machine.** It would invert the architecture (headless bridge + central server). Not a
+  `TODO` in disguise — a different project.
+- **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
+- **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
+  miserable. Buttons on the card.
+- **No heuristic context gauge** (level 2 of the design). It could only produce a number that looks
+  authoritative and isn't, on exactly the agents we know least about. No gauge is the honest answer;
+  Handoff works regardless.
+- **No PTY streaming.** Same parking-lot reasoning as upstream — see `ARCHITECTURE.md` §8.
 
 ## Motivation
 

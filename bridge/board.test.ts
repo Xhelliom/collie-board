@@ -13,6 +13,12 @@ import {
 import type { Config } from "./config.ts";
 import { parseCardBody } from "./board-routes.ts";
 import { BoardDb, type Card, type CardSession } from "./db.ts";
+import {
+  adapterFor,
+  BUILTIN_ADAPTERS,
+  loadAdapters,
+  mergeAdapters,
+} from "./adapters.ts";
 import { contextPercent } from "./context.ts";
 import {
   parseJsonish,
@@ -1062,5 +1068,68 @@ describe("copilot prompts", () => {
     expect(p).toContain("we chose X because Y");
     expect(p).toContain("- tests pass");
     expect(p).toContain(".board/out/cd34.json");
+  });
+});
+
+describe("agent adapters", () => {
+  it("ships claude as the only agent claiming a readable transcript", () => {
+    expect(BUILTIN_ADAPTERS.claude).toEqual({
+      kind: "claude",
+      clear: "/clear",
+      context: true,
+      sessionId: true,
+    });
+    // Everything else is explicitly false rather than guessed — a confident wrong percentage is
+    // worse than no gauge (see bridge/context.ts).
+    for (const [kind, a] of Object.entries(BUILTIN_ADAPTERS)) {
+      if (kind !== "claude") expect(a.context).toBe(false);
+    }
+  });
+
+  it("assumes nothing about an agent nobody described", () => {
+    const a = adapterFor(BUILTIN_ADAPTERS, "someagent");
+    expect(a).toEqual({ kind: "someagent", clear: "", context: false, sessionId: false });
+  });
+
+  it("merges per FIELD, so overriding one line doesn't silently drop the rest", () => {
+    const merged = mergeAdapters(BUILTIN_ADAPTERS, { agent: { claude: { clear: "/reset" } } });
+    expect(merged.claude).toEqual({
+      kind: "claude",
+      clear: "/reset",
+      context: true,
+      sessionId: true,
+    });
+  });
+
+  it("accepts a new agent the built-ins never heard of", () => {
+    const merged = mergeAdapters(BUILTIN_ADAPTERS, {
+      agent: { droid: { clear: "/new", session_id: true } },
+    });
+    expect(merged.droid).toEqual({ kind: "droid", clear: "/new", context: false, sessionId: true });
+  });
+
+  it("accepts either spelling of session_id", () => {
+    expect(mergeAdapters({}, { agent: { x: { sessionId: true } } }).x!.sessionId).toBe(true);
+    expect(mergeAdapters({}, { agent: { x: { session_id: true } } }).x!.sessionId).toBe(true);
+  });
+
+  it("ignores junk rather than corrupting the table", () => {
+    expect(mergeAdapters(BUILTIN_ADAPTERS, null)).toEqual(BUILTIN_ADAPTERS);
+    expect(mergeAdapters(BUILTIN_ADAPTERS, { agent: "nope" })).toEqual(BUILTIN_ADAPTERS);
+    expect(mergeAdapters(BUILTIN_ADAPTERS, { agent: { claude: 3 } })).toEqual(BUILTIN_ADAPTERS);
+    // A wrong-typed field falls back to the current value instead of poisoning it.
+    expect(mergeAdapters(BUILTIN_ADAPTERS, { agent: { claude: { context: "yes" } } }).claude!.context).toBe(
+      true,
+    );
+  });
+
+  it("parses the shipped table without losing claude's capabilities", () => {
+    const shipped = loadAdapters([new URL("../adapters/agents.toml", import.meta.url).pathname]);
+    expect(shipped.claude).toEqual({ kind: "claude", clear: "/clear", context: true, sessionId: true });
+    expect(shipped.codex!.context).toBe(false);
+  });
+
+  it("survives a missing file and a broken one", () => {
+    expect(loadAdapters(["/nonexistent/agents.toml"])).toEqual(BUILTIN_ADAPTERS);
   });
 });

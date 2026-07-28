@@ -60,7 +60,8 @@ function cfg(overrides: Partial<Config> = {}): Config {
     boardCtxWindow: 200_000,
     boardCopilot: false,
     boardCopilotKind: "",
-    boardCopilotClear: "/clear",
+    boardCopilotClear: "",
+    adapterPaths: [],
     ...overrides,
   };
 }

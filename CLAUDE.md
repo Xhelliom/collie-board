@@ -1,6 +1,11 @@
 # CLAUDE.md — working agreement for this repo
 
-**Collie** (repo `AltanS/collie`) — a phone web UI for your Herdr agent herd, served over
+> **This is Collie Board**, a fork of `AltanS/collie`. Everything below is upstream's working
+> agreement and still applies verbatim — the versioning gate, the build traps, the security posture.
+> The fork's own rules are in [*The board*](#the-board-fork-only-rules) at the bottom, and its
+> posture toward upstream in [`UPSTREAM.md`](./UPSTREAM.md).
+
+**Collie** (upstream repo `AltanS/collie`) — a phone web UI for your Herdr agent herd, served over
 Tailscale. A mobile-first PWA (Vite + React + TS + Tailwind v4 + shadcn) plus a Bun/TS bridge that
 talks to Herdr's Unix socket, letting you monitor and reply to agents from a phone. The Herdr
 plugin id is `herdr.collie-board` (manifest: `herdr-plugin.toml`). Orientation:
@@ -117,3 +122,25 @@ the mapping in `tailscale-managed-handler`, and only ever tears down a mapping m
 Every other tunnel (NetBird, ZeroTier, Cloudflare Tunnel) is `COLLIE_BOARD_SKIP_SERVE=1` + README Variant
 E: the operator owns the ingress, Collie publishes nothing. **Don't add a second managed front
 door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
+
+
+## The board (fork-only rules)
+
+- **Keep the upstream surface narrow.** New behaviour goes in new files with a hook, not into
+  `server.ts`/`index.ts`. The list of touched upstream files is in `UPSTREAM.md` and is meant to stay
+  short — that list *is* the rebase cost.
+- **No new poll loop.** Anything periodic hangs off `engine.onUpdate`. If it's expensive, throttle it
+  *inside* the consumer (see `ContextTracker`), don't add a timer.
+- **`card` durable, `session` ephemeral.** Never persist runtime state. If a fact can be read from
+  the snapshot, read it from the snapshot.
+- **Ignore a `disconnected` snapshot.** Every consumer of `EngineSnapshot` must bail on it; a socket
+  blip must never look like "the whole herd vanished".
+- **Never call `agent.start` or `agent.prompt` directly.** Use `launchAgent()` and
+  `promptAndConfirm()` — they carry three live-verified herdr races (see `ARCHITECTURE.md` §9). A
+  direct call is how you get a pane with a shell prompt and no agent in it.
+- **`bridge/git.ts` is the only place we shell out.** argv elements, never a shell; the one
+  client-supplied path is validated and always follows `--`.
+- **The copilot spends the user's quota.** It stays off by default, serialised to one request, and
+  reviews from `--stat` — never the full diff.
+- **A gauge that might be wrong is worse than no gauge.** Only claim `context = true` in
+  `adapters/agents.toml` for a transcript format `latestUsage()` has actually been verified against.

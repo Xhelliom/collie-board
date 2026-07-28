@@ -1,5 +1,10 @@
 # Architecture — Collie (a Herdr web bridge over Tailscale)
 
+> **Fork note.** This document is upstream Collie's and still describes the bridge accurately —
+> the deployment model, the interaction loop and especially §6's security posture are unchanged and
+> remain load-bearing. What Collie Board adds sits on top of it and is described in §9; the fork's
+> posture toward upstream is in [`UPSTREAM.md`](./UPSTREAM.md).
+
 > **Why Collie is shaped the way it is.** The deployment model, the interaction loop, and especially
 > the security posture — the reasoning the code can't state itself. This describes what is built; a
 > few deliberate *non*-decisions are called out as such, and §8 parks ideas that are not built on
@@ -263,3 +268,46 @@ so they don't get re-discovered from scratch or acted on by accident.
   "pane output is React text nodes only" XSS boundary. Adopt this deliberately, with a real
   terminal-emulator library and a re-examined threat model — or not at all. This is the designated
   parking spot for that idea; don't half-do it.
+
+
+## 9. The board (this fork)
+
+Collie is an ephemeral mirror: every tick re-reads the snapshot and nothing is persisted. That is
+right for "which agent needs me now" and useless for "where is this task". The board adds the second
+question, and exactly one rule carries the design: **`card` is durable, `session` is ephemeral.**
+
+- **One store, no ORM** — `bun:sqlite` and raw SQL in `bridge/db.ts`. The schema is four tables wide
+  and the bridge's dependency story stays "Bun + `node:*`". Additive migrations only.
+- **No new loop.** Reconciliation, the context gauge, handoff completion and the copilot's review
+  trigger are all `engine.onUpdate` hooks on the poll that already runs. There is no second source of
+  truth and nothing to resync — the same reasoning as §5.
+- **A DISCONNECTED snapshot is ignored, everywhere.** Its pane list is the last good one, and
+  treating "the bridge lost herdr" as "every pane vanished" would orphan the entire board on a blip.
+- **Nothing runtime is persisted.** The database holds intent and history. A card's status, cwd and
+  agent still come from the snapshot on every read.
+- **1 card = 1 branch = 1 workspace.** `worktree.create` returns a checkout, a workspace, a tab and a
+  pane in one RPC, so the card's diff needs no scoping logic: it is that checkout against its fork
+  point. The relationship falls out of herdr's model rather than being bookkeeping we maintain.
+- **Primary session only.** A pane id means nothing in another herdr server. Multi-session cards
+  would need a session column on every row for a use case that doesn't exist.
+- **Security is not re-implemented.** `bridge/board-routes.ts` receives the same `guard()` every
+  other route uses, so a board write is gated exactly like typing into a pane — which is what
+  starting a card eventually is. `bridge/git.ts` is the only place the bridge shells out: argv
+  elements, never a shell; the one client-supplied path is validated and always follows `--`.
+
+### Three herdr behaviours the docs don't state
+
+Live-probed against 0.7.5 on 2026-07-28. Each one silently breaks the obvious implementation:
+
+1. **`agent.start` does not wait.** The CLI's help says success means the agent "is ready for input",
+   but that is the CLI polling afterwards. The socket method returns in ~2 ms with
+   `agent_status: "unknown"` and leaves `launch_pending: true`. Poll `agent.get` for
+   `interactive_ready` (`launchAgent()`).
+2. **`agent.prompt` does not reliably submit.** A multi-line prompt lands in Claude Code's box as
+   `[Pasted text #N +M lines]` and sits there; one `Enter` afterwards submits it untouched. Same
+   class as the `send_text` + `send_keys` race HERDR_API.md already documents. Read the state back
+   and look (`promptAndConfirm()`).
+3. **`agent_session` is absent by default.** It only appears once `herdr integration install claude`
+   has planted its hook — not one agent pane in a plain install carried it, which means Collie's own
+   pane History is unavailable by default too. The gauge falls back to resolving the transcript from
+   the directory the agent was launched in, which is sound only because the board created it.

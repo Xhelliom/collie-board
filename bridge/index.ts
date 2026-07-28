@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { reconcile } from "./cards.ts";
 import { loadConfig } from "./config.ts";
@@ -65,12 +66,16 @@ const audit = new AuditLog(fileAuditAppender(join(cfg.stateDir, "audit.log")));
 // subscriptions, so a single `rm -rf` of that directory resets the whole plugin's state.
 const board = new BoardDb(join(cfg.stateDir, "board.db"));
 
+// Per-agent divergence, resolved once at boot: shipped adapters/agents.toml, then the operator's.
+const adapters = loadAdapters(cfg.adapterPaths);
+
 // The copilot: one long-lived agent in its own workspace, driven exactly like a worker. Off unless
 // COLLIE_BOARD_COPILOT is set — it draws on the same subscription the cards do.
 const copilot = new Copilot(
   new HerdrClient(cfg.socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode),
   cfg,
   join(cfg.stateDir, "copilot"),
+  adapters,
 );
 const copilotBoard = new CopilotCoordinator(board, copilot, cfg);
 if (cfg.boardCopilot) console.log("[copilot] enabled");
@@ -170,6 +175,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       herdr,
       new ClaudeTranscriptSource(cfg.transcriptRoot),
       cfg.boardCtxWindow,
+      adapters,
     );
     engine.onUpdate((snap) => void context.update(snap));
     // Handoffs finish here too: the request only prompts the agent, and this notices when it has
