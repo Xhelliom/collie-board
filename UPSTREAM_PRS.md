@@ -132,7 +132,7 @@ Tiny, one file, and it fixes the primary screen of a phone-first app.
 
 | | |
 |---|---|
-| Commit | `<this one>` |
+| Commit | `9fa4248` *fix(web): wrap the mirror by default on a phone* |
 | Files | `web/src/hooks/use-display-prefs.ts` |
 | Extraction | **Clean cherry-pick.** |
 
@@ -153,7 +153,7 @@ The smallest brick here and the most annoying to diagnose, which is exactly why 
 
 | | |
 |---|---|
-| Commit | `<this one>` |
+| Commit | `e52a993` *feat(board): a split makes real cards…* (the fix is the one file below) |
 | Files | `web/src/test/setup.ts` |
 | Extraction | **Clean cherry-pick.** |
 
