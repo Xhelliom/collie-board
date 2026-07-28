@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.29.1] - 2026-07-28
+
+### Added
+- `UPSTREAM_PRS.md` — the upstream PR ledger: each generic brick with the commits that carry it, the files, and whether it is a clean cherry-pick or needs extraction. `CLAUDE.md` now requires updating it in the same commit that introduces a PR-able change.
+
+### Fixed
+- `processStartedAt()` rejects a computed start time in the future or before boot — the only way a wrong `USER_HZ` could manifest, and it now degrades to the by-directory fallback instead of returning a confident bad number.
+
 ## [0.29.0] - 2026-07-28
 
 ### Added

@@ -12,7 +12,16 @@
 
 import { readFileSync } from "node:fs";
 
-/** Ticks per second for the values in /proc/<pid>/stat. Linux fixes this at 100 in practice. */
+/**
+ * Ticks per second for the values in /proc/<pid>/stat — `sysconf(_SC_CLK_TCK)`, which no JS runtime
+ * exposes. This is USER_HZ, not the kernel's CONFIG_HZ: the kernel scales its numbers to USER_HZ
+ * before putting them in procfs precisely so this constant can be stable, and it is 100 on x86,
+ * x86_64, arm and arm64 — every realistic target. A couple of historical architectures used 1024.
+ *
+ * Getting it wrong is SAFE by construction, which is why hardcoding it is acceptable: too small a
+ * divisor puts the computed start time in the future, the guard below rejects it, and the caller
+ * falls back to the by-directory guess. It can never silently produce a wrong-but-plausible answer.
+ */
 const CLOCK_TICKS_PER_SEC = 100;
 
 /** Boot time (epoch seconds), read once — it cannot change while we run. */
@@ -55,7 +64,11 @@ export function processStartedAt(pid: number): number | null {
   try {
     const ticks = parseStartTicks(readFileSync(`/proc/${pid}/stat`, "utf8"));
     if (ticks === null) return null;
-    return (boot + ticks / CLOCK_TICKS_PER_SEC) * 1000;
+    const startedAt = (boot + ticks / CLOCK_TICKS_PER_SEC) * 1000;
+    // A process cannot have started in the future or before boot. Either means our tick rate is
+    // wrong for this architecture — say "unknown" rather than hand back a confident bad number.
+    if (startedAt > Date.now() + 60_000 || startedAt < boot * 1000) return null;
+    return startedAt;
   } catch {
     return null; // no /proc, or the process is already gone
   }

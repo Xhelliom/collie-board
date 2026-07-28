@@ -55,7 +55,7 @@ import {
   repoRootOf,
   scanRootsFor,
 } from "./repos.ts";
-import { parseStartTicks } from "./proc.ts";
+import { parseStartTicks, processStartedAt } from "./proc.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -1508,5 +1508,20 @@ describe("parseStartTicks", () => {
     expect(parseStartTicks("")).toBeNull();
     expect(parseStartTicks("no parens here")).toBeNull();
     expect(parseStartTicks("1 (x) S")).toBeNull();
+  });
+});
+
+describe("processStartedAt", () => {
+  it("agrees with the current process's own start time", () => {
+    // The only end-to-end assertion available without mocking /proc: our own pid must resolve to a
+    // moment in the past, and not an implausible one.
+    const started = processStartedAt(process.pid);
+    if (started === null) return; // no /proc — macOS/Windows, where the caller falls back
+    expect(started).toBeLessThanOrEqual(Date.now() + 1000);
+    expect(Date.now() - started).toBeLessThan(24 * 60 * 60 * 1000);
+  });
+
+  it("returns null for a pid that does not exist rather than throwing", () => {
+    expect(processStartedAt(2 ** 30)).toBeNull();
   });
 });
