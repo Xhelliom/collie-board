@@ -1913,15 +1913,55 @@ describe("CopilotCoordinator.reformulate — the split", () => {
     expect(store.listChildren(card.id).map((c) => c.title)).toEqual(["one", "two", "three"]);
   });
 
-  it("does not split twice — a re-run is exactly when that would happen", async () => {
+  it("REPLACES an untouched split on a re-run instead of duplicating it", async () => {
+    // The re-run button exists because the first split came out wrong, so declining to touch the
+    // split would decline the only thing it is for.
     const store = db();
     const card = store.createCard({ title: "x", rawInput: "two things" });
-    const answer = { title: "x", split: [{ title: "a" }, { title: "b" }] };
-    const copilot = new CopilotCoordinator(store, fakeCopilot(answer), cfg);
-    await copilot.reformulate(card.id);
-    await copilot.reformulate(card.id);
+    await new CopilotCoordinator(store, fakeCopilot({
+      title: "x",
+      split: [{ title: "a" }, { title: "b" }],
+    }), cfg).reformulate(card.id);
+    await new CopilotCoordinator(store, fakeCopilot({
+      title: "x",
+      split: [{ title: "better a" }, { title: "better b" }, { title: "and c" }],
+    }), cfg).reformulate(card.id);
 
-    expect(store.listChildren(card.id)).toHaveLength(2);
+    expect(store.listChildren(card.id).map((c) => c.title)).toEqual([
+      "better a",
+      "better b",
+      "and c",
+    ]);
+  });
+
+  it("keeps the whole split once ONE sub-task has been started", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "two things" });
+    await new CopilotCoordinator(store, fakeCopilot({
+      title: "x",
+      split: [{ title: "a" }, { title: "b" }],
+    }), cfg).reformulate(card.id);
+    // A card with a worktree behind it is not something a second opinion gets to delete.
+    const [first] = store.listChildren(card.id);
+    store.patchCard(first!.id, { branch: "board/a", workspaceId: "wZ" });
+
+    await new CopilotCoordinator(store, fakeCopilot({
+      title: "x",
+      split: [{ title: "totally different" }],
+    }), cfg).reformulate(card.id);
+
+    expect(store.listChildren(card.id).map((c) => c.title)).toEqual(["a", "b"]);
+    expect(store.listEvents(card.id).some((e) => e.type === "copilot.split_kept")).toBe(true);
+  });
+
+  it("puts the replaced title and spec in the journal — a re-run must not lose a hand edit", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "one thing", spec: "what I typed myself" });
+    await new CopilotCoordinator(store, fakeCopilot({ title: "Rewritten", spec: "the copilot's" }), cfg)
+      .reformulate(card.id);
+
+    const event = store.listEvents(card.id).find((e) => e.type === "copilot.reformulated")!;
+    expect((event.payload as { replaced: { spec: string } }).replaced.spec).toBe("what I typed myself");
   });
 
   it("still keeps a single-task card startable, branch and all", async () => {

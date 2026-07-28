@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.33.0] - 2026-07-28
+
+### Added
+- **Re-running the copilot on a container now replaces its split**, instead of silently declining to touch it. That button exists *because* the split came out wrong, so refusing the split was refusing the only thing it is for. Guarded on the state that matters rather than on a flag: the old sub-tasks are replaced only while every one of them is still untouched (backlog/ready, no branch, no workspace, no session, no children of its own). One started sub-task and the whole split is kept — a card with a worktree behind it is not something a second opinion gets to delete — and `copilot.split_kept` says so in the journal. (e52a993)
+
+### Changed
+- `copilot.reformulated` now records the title, spec and acceptance it **replaced**. A re-run overwrites a spec you may have edited by hand, and the card view already renders the journal, so the previous text is one tap away rather than gone.
+- `CopilotCoordinator.reformulate`'s doc claimed it "never overwrites what a human typed". It always did, and only the branch was ever held back. The comment now describes the code.
+
 ## [0.32.0] - 2026-07-28
 
 ### Added

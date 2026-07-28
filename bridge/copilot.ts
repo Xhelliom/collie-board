@@ -21,7 +21,7 @@ import { join } from "node:path";
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
-import type { BoardDb } from "./db.ts";
+import type { BoardDb, Card } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -495,7 +495,10 @@ export class CopilotCoordinator {
    * agent turn. The card exists immediately with a derived title; this fills it in a minute later and
    * the board picks it up on the next poll.
    *
-   * NEVER overwrites what a human typed — only fields still at their derived defaults.
+   * IT DOES OVERWRITE the title, spec and acceptance — that is what a re-run is FOR, and on create
+   * there is nothing there but a derived title anyway. What it must never do is lose the previous
+   * text, so the replaced values go into the card's journal (`copilot.reformulated`), which the card
+   * view already renders. The branch is the one field held back: a worktree may exist at it.
    */
   async reformulate(cardId: string, source?: string): Promise<void> {
     const card = this.db.getCard(cardId);
@@ -512,10 +515,23 @@ export class CopilotCoordinator {
     }
     const fresh = this.db.getCard(cardId);
     if (!fresh) return;
-    // Splitting a card that has already been split would duplicate every sub-task, and a re-run is
-    // exactly when that happens (the button exists precisely because the first answer disappointed).
-    const split = this.db.listChildren(cardId).length > 0 ? undefined : result.split;
+    // RE-SPLITTING. A re-run on a container is asked for precisely because the split was wrong, so
+    // refusing to touch it outright would decline the one thing that button is for — but blindly
+    // splitting again would duplicate every sub-task. So: replace the old children only while they
+    // are all still untouched, which is exactly the case that matters (you split it a minute ago
+    // and it came out wrong). One started sub-task and the whole split is kept, because a card with
+    // a worktree, a session or a diff behind it is not something a second opinion gets to delete.
+    const existing = this.db.listChildren(cardId);
+    const started = existing.filter((c) => !this.isUntouched(c));
+    const mayResplit = existing.length === 0 || started.length === 0;
+    const split = mayResplit ? result.split : undefined;
     const isContainer = (split?.length ?? 0) > 0;
+    if (existing.length > 0 && !mayResplit) {
+      this.db.recordEvent(cardId, "copilot.split_kept", {
+        children: existing.length,
+        started: started.map((c) => c.title),
+      });
+    }
 
     this.db.patchCard(cardId, {
       ...(result.title ? { title: result.title } : {}),
@@ -530,12 +546,20 @@ export class CopilotCoordinator {
         ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
         : {}),
     });
+    // The journal carries what was REPLACED, not just what landed. A re-run overwrites a spec you
+    // may have edited by hand, and this is what makes that recoverable instead of destructive — the
+    // card view already renders these events, so the previous text is one tap away.
     this.db.recordEvent(cardId, "copilot.reformulated", {
       title: result.title,
       acceptance: result.acceptance?.length ?? 0,
       split: split?.length ?? 0,
+      replaced: { title: fresh.title, spec: fresh.spec, acceptance: fresh.acceptance },
     });
     if (!isContainer) return;
+
+    // Replacing a split means removing what it replaces. Reached only when every existing child was
+    // untouched (see above), so nothing with a worktree or a session behind it can be deleted here.
+    for (const child of existing) this.db.deleteCard(child.id);
 
     // A dump that is plainly several tasks becomes several cards, in the backlog, for you to
     // triage — each a whole card, and each pointing back at the one it came from.
@@ -562,6 +586,20 @@ export class CopilotCoordinator {
         ...(task.dependsOn === undefined ? {} : { after: split![task.dependsOn]?.title }),
       });
     }
+  }
+
+  /**
+   * Has this card had nothing happen to it yet? The test that decides whether a re-split may delete
+   * it, so it is deliberately conservative: a branch, a session or anything past `ready` all count
+   * as touched, and only a card that is still exactly as the split left it may go.
+   *
+   * `branch` matters even without a session — `startCard` records it before launching the agent, so
+   * a card whose start failed still owns a worktree on disk.
+   */
+  private isUntouched(card: Card): boolean {
+    if (card.status !== "backlog" && card.status !== "ready") return false;
+    if (card.branch !== null || card.workspaceId !== null) return false;
+    return this.db.listSessions(card.id).length === 0 && this.db.listChildren(card.id).length === 0;
   }
 
   /**
