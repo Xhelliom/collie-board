@@ -1954,14 +1954,19 @@ describe("CopilotCoordinator.reformulate — the split", () => {
     expect(store.listEvents(card.id).some((e) => e.type === "copilot.split_kept")).toBe(true);
   });
 
-  it("puts the replaced title and spec in the journal — a re-run must not lose a hand edit", async () => {
+  it("journals the replaced text as a plain edit — a re-run must not lose a hand edit", async () => {
+    // Recorded by patchCard, NOT by the copilot: a hand edit through PATCH has to be just as
+    // recoverable, and one mechanism is the only way both stay in step.
     const store = db();
     const card = store.createCard({ title: "x", rawInput: "one thing", spec: "what I typed myself" });
     await new CopilotCoordinator(store, fakeCopilot({ title: "Rewritten", spec: "the copilot's" }), cfg)
       .reformulate(card.id);
 
-    const event = store.listEvents(card.id).find((e) => e.type === "copilot.reformulated")!;
-    expect((event.payload as { replaced: { spec: string } }).replaced.spec).toBe("what I typed myself");
+    const event = store.listEvents(card.id).find((e) => e.type === "card.edited")!;
+    const payload = event.payload as { reason: string; replaced: { spec: string; title: string } };
+    expect(payload.reason).toBe("copilot");
+    expect(payload.replaced.spec).toBe("what I typed myself");
+    expect(payload.replaced.title).toBe("x");
   });
 
   it("still keeps a single-task card startable, branch and all", async () => {
@@ -1977,5 +1982,132 @@ describe("CopilotCoordinator.reformulate — the split", () => {
 
     expect(store.listChildren(card.id)).toHaveLength(0);
     expect(store.getCard(card.id)!.branch).toBe("board/ship-it");
+  });
+});
+
+// ── the edit history, and putting it back ─────────────────────────────────────
+//
+// No version table and no undo stack. `patchCard` is the one choke point every writer routes
+// through, so journalling the overwrite there covers the copilot's re-run and a hand edit with one
+// mechanism — and the journal is append-only, so it already IS the history.
+
+describe("patchCard — the edit journal", () => {
+  it("records what an overwrite replaced, with its cause", () => {
+    const store = db();
+    const card = store.createCard({ title: "old", spec: "mine", acceptance: ["a"] });
+    store.patchCard(card.id, { title: "new", spec: "theirs" }, "copilot");
+
+    const event = store.listEvents(card.id).find((e) => e.type === "card.edited")!;
+    expect(event.payload).toEqual({ reason: "copilot", replaced: { title: "old", spec: "mine" } });
+  });
+
+  it("records only the fields that actually CHANGED", () => {
+    const store = db();
+    const card = store.createCard({ title: "same", spec: "old" });
+    store.patchCard(card.id, { title: "same", spec: "new" });
+
+    const event = store.listEvents(card.id).find((e) => e.type === "card.edited")!;
+    expect(event.payload).toEqual({ reason: "edit", replaced: { spec: "old" } });
+  });
+
+  it("stays silent when no written field is touched — startCard patches on every launch", () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    store.patchCard(card.id, { branch: "board/x", workspaceId: "wZ", baseRef: "main" });
+    store.setStatus(card.id, "working", "test");
+
+    expect(store.listEvents(card.id).some((e) => e.type === "card.edited")).toBe(false);
+  });
+
+  it("notices an acceptance list that changed by value, not by identity", () => {
+    const store = db();
+    const card = store.createCard({ title: "x", acceptance: ["a", "b"] });
+    store.patchCard(card.id, { acceptance: ["a", "b"] });
+    expect(store.listEvents(card.id).some((e) => e.type === "card.edited")).toBe(false);
+
+    store.patchCard(card.id, { acceptance: ["a"] });
+    const event = store.listEvents(card.id).find((e) => e.type === "card.edited")!;
+    expect((event.payload as { replaced: { acceptance: string[] } }).replaced.acceptance).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+});
+
+describe("POST /api/cards/<id>/revert", () => {
+  /** The board context these route tests need — auth already granted, herdr never reached. */
+  function ctx(store: BoardDb) {
+    return {
+      db: store,
+      engine: { current: () => snapshot([]) },
+      cfg: {} as Config,
+      audit: { record: () => {} },
+      session: "default",
+      guard: () => null,
+      device: null,
+      json: (data: unknown, status = 200) =>
+        new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } }),
+      text: (body: string, status: number) => new Response(body, { status }),
+    } as never;
+  }
+  const post = (id: string, body?: unknown) =>
+    new Request(`http://x/api/cards/${id}/revert`, {
+      method: "POST",
+      ...(body === undefined
+        ? {}
+        : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+    });
+
+  it("puts back the text the last overwrite replaced", async () => {
+    const store = db();
+    const card = store.createCard({ title: "dictated", spec: "what I said" });
+    store.patchCard(card.id, { title: "reformulated", spec: "what it wrote" }, "copilot");
+
+    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    expect(res!.status).toBe(200);
+    expect(store.getCard(card.id)!.spec).toBe("what I said");
+    expect(store.getCard(card.id)!.title).toBe("dictated");
+  });
+
+  it("restores ONE named entry, so you needn't undo three things to reach the one you meant", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", spec: "first" });
+    store.patchCard(card.id, { spec: "second" });
+    store.patchCard(card.id, { spec: "third" });
+
+    // Oldest edit event — the one holding "first".
+    const wanted = store.listEvents(card.id).filter((e) => e.type === "card.edited").at(-1)!;
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/revert`,
+      post(card.id, { eventId: wanted.id }),
+      ctx(store),
+    );
+
+    expect(res!.status).toBe(200);
+    expect(store.getCard(card.id)!.spec).toBe("first");
+  });
+
+  it("is itself an edit, so it can be undone in turn", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", spec: "original" });
+    store.patchCard(card.id, { spec: "replacement" });
+    await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    expect(store.getCard(card.id)!.spec).toBe("original");
+
+    await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    expect(store.getCard(card.id)!.spec).toBe("replacement");
+  });
+
+  it("answers 409 on a card that has never been overwritten", async () => {
+    const store = db();
+    const card = store.createCard({ title: "untouched" });
+    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    expect(res!.status).toBe(409);
+    expect(await res!.json()).toMatchObject({ kind: "no-history" });
+  });
+
+  it("404s an unknown card rather than reporting no history", async () => {
+    const res = await handleBoardRoute("/api/cards/nope/revert", post("nope"), ctx(db()));
+    expect(res!.status).toBe(404);
   });
 });

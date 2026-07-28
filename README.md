@@ -119,14 +119,21 @@ persisted: a stored list of repos would go stale the moment you moved one.
 GET    /api/cards                       list + live herd state merged in
 POST   /api/cards                       {title|rawInput, repoPath, baseRef, …}
 GET    /api/cards/:id                   card + sessions + reviews + journal
-PATCH  /api/cards/:id                   edit / move a column
+PATCH  /api/cards/:id                   edit / move a column / link (parentId, dependsOn)
 DELETE /api/cards/:id
 POST   /api/cards/:id/start             worktree + workspace + agent + the spec
 POST   /api/cards/:id/prompt            a follow-up instruction
 POST   /api/cards/:id/handoff           ask for the note; the poll loop swaps the session
+POST   /api/cards/:id/reformulate       hand the card back to the copilot
+POST   /api/cards/:id/revert            {eventId?} — put back text an edit overwrote
 GET    /api/cards/:id/diff              ?mode=stat|file&path=
 GET    /api/cards/:id/sessions          the handoff chain
 ```
+
+Every overwrite of a card's **written** fields (title, spec, acceptance) is journalled with what it
+replaced, by whom — so a copilot re-run that discards a spec you edited by hand is recoverable, not
+destructive. `revert` reads one entry back. There is no version table and no undo stack: the journal
+is append-only, so it already is the history.
 
 Every write goes through the same `guard()` as typing into a pane, and is audited. The board is
 bound to the **primary** herdr session: a pane id means nothing in another server.

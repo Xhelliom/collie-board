@@ -533,27 +533,29 @@ export class CopilotCoordinator {
       });
     }
 
-    this.db.patchCard(cardId, {
-      ...(result.title ? { title: result.title } : {}),
-      // The spec starts life as a copy of the dump, so replacing it is an improvement, not a loss —
-      // and rawInput keeps the original either way.
-      ...(result.spec ? { spec: result.spec } : {}),
-      ...(result.acceptance ? { acceptance: result.acceptance } : {}),
-      // A branch the card already has is load-bearing (a worktree may exist at it) — never touch it.
-      // A container gets none at all: it is not startable, and a branch on it would only ever be a
-      // name nobody checks out.
-      ...(result.branchName && !fresh.branch && !isContainer
-        ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
-        : {}),
-    });
-    // The journal carries what was REPLACED, not just what landed. A re-run overwrites a spec you
-    // may have edited by hand, and this is what makes that recoverable instead of destructive — the
-    // card view already renders these events, so the previous text is one tap away.
+    this.db.patchCard(
+      cardId,
+      {
+        ...(result.title ? { title: result.title } : {}),
+        // The spec starts life as a copy of the dump, so replacing it is an improvement, not a loss
+        // — and rawInput keeps the original either way.
+        ...(result.spec ? { spec: result.spec } : {}),
+        ...(result.acceptance ? { acceptance: result.acceptance } : {}),
+        // A branch the card already has is load-bearing (a worktree may exist at it) — never touch
+        // it. A container gets none at all: it is not startable, and a branch on it would only ever
+        // be a name nobody checks out.
+        ...(result.branchName && !fresh.branch && !isContainer
+          ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
+          : {}),
+      },
+      // What the journal shows as the cause — and what makes the resulting `card.edited` revertable
+      // by the same route a hand edit is. patchCard records what was replaced; nothing to do here.
+      "copilot",
+    );
     this.db.recordEvent(cardId, "copilot.reformulated", {
       title: result.title,
       acceptance: result.acceptance?.length ?? 0,
       split: split?.length ?? 0,
-      replaced: { title: fresh.title, spec: fresh.spec, acceptance: fresh.acceptance },
     });
     if (!isContainer) return;
 

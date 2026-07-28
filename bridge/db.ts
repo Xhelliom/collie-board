@@ -502,8 +502,20 @@ export class BoardDb {
       .map(toCard);
   }
 
-  /** Apply a partial update. Returns the fresh card, or null if the id is unknown. */
-  patchCard(id: string, patch: CardPatch): Card | null {
+  /**
+   * Apply a partial update. Returns the fresh card, or null if the id is unknown.
+   *
+   * Every overwrite of the card's THREE WRITTEN FIELDS (title, spec, acceptance) is journalled with
+   * what it replaced, and this is the only place that happens — deliberately, because it is the one
+   * choke point every writer routes through. Put it in the copilot instead and a hand edit through
+   * `PATCH /api/cards/<id>` is silently unrecoverable; put it in the route as well and there are two
+   * mechanisms to keep in step. `reason` is what the journal shows as the cause.
+   *
+   * The prior values are stored WHOLE, not truncated: a half-restored spec is worse than none. The
+   * journal is append-only and never pruned, which on a board with a few hundred cards is a few
+   * hundred kilobytes — cheap enough that bounding it would be the more expensive decision.
+   */
+  patchCard(id: string, patch: CardPatch, reason = "edit"): Card | null {
     const sets: string[] = [];
     const values: (string | number | null)[] = [];
     for (const [key, column] of Object.entries(PATCH_COLUMNS) as [keyof CardPatch, string][]) {
@@ -513,10 +525,32 @@ export class BoardDb {
       values.push(key === "acceptance" ? JSON.stringify(value ?? []) : (value as string | number | null));
     }
     if (sets.length === 0) return this.getCard(id);
+
+    const before = this.getCard(id);
     sets.push("updated_at = ?");
     values.push(this.now(), id);
     this.db.query(`UPDATE card SET ${sets.join(", ")} WHERE id = ?`).run(...values);
+    if (before) this.recordEdit(before, patch, reason);
     return this.getCard(id);
+  }
+
+  /**
+   * Journal an overwrite of written text, if that is what just happened. Only fields the patch
+   * actually CHANGED are recorded: `startCard` patches a branch and a workspace on every launch, and
+   * an edit history full of "nothing was edited" is one nobody reads.
+   */
+  private recordEdit(before: Card, patch: CardPatch, reason: string): void {
+    const replaced: { title?: string; spec?: string | null; acceptance?: string[] } = {};
+    if (patch.title !== undefined && patch.title !== before.title) replaced.title = before.title;
+    if (patch.spec !== undefined && patch.spec !== before.spec) replaced.spec = before.spec;
+    if (
+      patch.acceptance !== undefined &&
+      JSON.stringify(patch.acceptance) !== JSON.stringify(before.acceptance)
+    ) {
+      replaced.acceptance = before.acceptance;
+    }
+    if (Object.keys(replaced).length === 0) return;
+    this.recordEvent(before.id, "card.edited", { reason, replaced });
   }
 
   /**

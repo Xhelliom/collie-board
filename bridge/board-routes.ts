@@ -29,7 +29,7 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -353,6 +353,53 @@ async function route(
       session: ctx.session,
       device: ctx.device,
       detail: { cardId: id },
+    });
+    return json({ ok: true, card: cardView(db, engine.current(), id) });
+  }
+
+  // ── revert: put back the text an edit overwrote ───────────────────────────
+  //
+  // No version table and no undo stack: `patchCard` already journals every overwrite of the card's
+  // written fields with the values it replaced, and the journal is append-only, so it IS the
+  // history. This just reads one entry back out.
+  //
+  // Takes an OPTIONAL event id rather than only undoing the last change — the card view already
+  // renders the journal, so "restore this one" on any entry costs nothing extra here and is more
+  // honest than a stack, which forces you to undo three things to reach the one you meant.
+  if (action === "revert" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    let wanted: string | undefined;
+    if (req.headers.get("content-type")?.includes("json")) {
+      const body = (await req.json().catch(() => null)) as { eventId?: unknown } | null;
+      if (body?.eventId !== undefined) {
+        if (typeof body.eventId !== "number") return text("bad eventId", 400);
+        wanted = String(body.eventId);
+      }
+    }
+    // Newest first, so with no id this lands on the most recent overwrite.
+    const event = db
+      .listEvents(id)
+      .find((e) => e.type === "card.edited" && (wanted === undefined || String(e.id) === wanted));
+    const replaced = (event?.payload as { replaced?: Record<string, unknown> } | null)?.replaced;
+    if (!event || !replaced) {
+      return ctx.json({ ok: false, error: "nothing to restore on this card", kind: "no-history" }, 409);
+    }
+    // Only the three written fields are ever journalled, so this cannot restore a branch or a
+    // status by accident. Reverting is itself an edit, and journals as one — so it can be undone.
+    const patch: CardPatch = {};
+    if (typeof replaced.title === "string") patch.title = replaced.title;
+    if ("spec" in replaced) patch.spec = typeof replaced.spec === "string" ? replaced.spec : null;
+    if (Array.isArray(replaced.acceptance)) {
+      patch.acceptance = replaced.acceptance.filter((a): a is string => typeof a === "string");
+    }
+    db.patchCard(id, patch, "revert");
+    ctx.audit.record({
+      action: "card.revert",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, eventId: event.id },
     });
     return json({ ok: true, card: cardView(db, engine.current(), id) });
   }

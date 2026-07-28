@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.34.0] - 2026-07-28
+
+### Added
+- **Every overwrite of a card's written fields is journalled with what it replaced**, and `POST /api/cards/:id/revert` (optional `{eventId}`) puts one back. No version table and no undo stack — the journal is append-only, so it already *is* the history; this only reads an entry back out. Taking an event id rather than only undoing the last change is not extra code, and it beats a stack that makes you undo three things to reach the one you meant. A revert journals as an edit too, so it can be undone in turn.
+
+### Changed
+- The "what was replaced" record moved from the copilot into **`patchCard`** — the one choke point every writer routes through. In 0.33.0 it only covered the copilot's re-run, which left a hand edit through `PATCH /api/cards/:id` silently unrecoverable; one mechanism is also the only way both stay in step. Only fields that actually changed are recorded, so `startCard` patching a branch on every launch doesn't fill the journal with "nothing was edited". (90cb727)
+
 ## [0.33.0] - 2026-07-28
 
 ### Added
