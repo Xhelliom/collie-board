@@ -44,7 +44,45 @@ SERVE_MODE="${COLLIE_BOARD_SERVE_MODE:-https}"
 # Records the ONE `tailscale serve` root mount Collie published, so teardown can prove the mapping
 # it is about to remove is still the one it created. Format: `<mode>:<port>|<HostPort>|<proxy>`.
 TAILSCALE_HANDLER_FILE="${CONFIG_DIR}/tailscale-managed-handler"
-BUN="$(command -v bun || true)"
+# Resolve bun, and do NOT rely on PATH alone.
+#
+# Herdr runs plugin actions in a NON-INTERACTIVE shell, which sources no ~/.zshrc or ~/.bashrc — so
+# the `~/.bun/bin` entry bun's own installer adds to your shell rc simply isn't there. `start` from
+# the plugin action then dies with "bun not found" while `bun --version` works fine in your
+# terminal, which is a maddening way to spend twenty minutes. Check the standard install locations
+# too. (The generated systemd unit records the ABSOLUTE path, so the service is unaffected once this
+# resolves.)
+resolve_bun() {
+  local c
+  for c in \
+    "$(command -v bun 2>/dev/null || true)" \
+    "${BUN_INSTALL:-}/bin/bun" \
+    "${HOME}/.bun/bin/bun" \
+    "${XDG_DATA_HOME:-${HOME}/.local/share}/reflex/bun" \
+    /usr/local/bin/bun \
+    /opt/homebrew/bin/bun
+  do
+    [ -n "$c" ] && [ -x "$c" ] && { echo "$c"; return 0; }
+  done
+  # Found nothing. Return 0 anyway: under `set -e`, a failing command substitution in an assignment
+  # kills the script — and "bun is missing" must reach require_bun's message, not exit silently.
+  return 0
+}
+BUN="$(resolve_bun)"
+
+# One message for every "no bun" exit, because the cause is almost never "bun isn't installed".
+require_bun() {
+  [ -n "$BUN" ] && return 0
+  echo "error: bun not found." >&2
+  echo "  Looked on PATH, \$BUN_INSTALL/bin, ~/.bun/bin, /usr/local/bin and /opt/homebrew/bin." >&2
+  if [ -x "${HOME}/.bun/bin/bun" ]; then
+    echo "  (It IS at ~/.bun/bin/bun — this shell just can't see it.)" >&2
+  fi
+  echo "  Herdr runs plugin actions in a non-interactive shell, so your shell rc's PATH doesn't apply." >&2
+  echo "  Install it (https://bun.sh) or point at it explicitly in the plugin .env:" >&2
+  echo "      PATH=${HOME}/.bun/bin:\$PATH" >&2
+  exit 1
+}
 WEB_DIST="${PLUGIN_ROOT}/web/dist/index.html"
 
 have_systemd() { command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; }
@@ -52,7 +90,7 @@ have_systemd() { command -v systemctl >/dev/null && systemctl --user show-enviro
 # Build the Vite/React PWA into web/dist. The bridge serves that directory; without it the API
 # still runs but the UI 503s. Safe to call repeatedly (no-op if already built, unless forced).
 cmd_build() {
-  [ -n "$BUN" ] || { echo "error: bun not found on PATH" >&2; exit 1; }
+  require_bun
   # Version gate: refuse to build a release whose version files / CHANGELOG disagree.
   # Override (e.g. mid-refactor) with SKIP_VERSION_CHECK=1.
   if [ "${SKIP_VERSION_CHECK:-}" != "1" ]; then
@@ -91,7 +129,13 @@ ensure_build() {
 }
 
 self_dnsname() {
-  tailscale status --json 2>/dev/null | bun -e \
+  # Capture BEFORE piping. The script runs under `pipefail`, so `tailscale | bun` propagates
+  # tailscale's exit code — and a tailscale that is installed but not connected then kills the whole
+  # script through `set -e` instead of degrading to "unknown". Verified by the bun-offpath test.
+  [ -n "$BUN" ] || return 0
+  local status_json; status_json="$(tailscale status --json 2>/dev/null || true)"
+  [ -n "$status_json" ] || return 0
+  printf '%s' "$status_json" | "$BUN" -e \
     "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{process.stdout.write(JSON.parse(d).Self.DNSName.replace(/\.\$/,''))}catch{}})"
 }
 
@@ -165,7 +209,7 @@ print_status_banner() {
 }
 
 write_unit() {
-  [ -n "$BUN" ] || { echo "error: bun not found on PATH" >&2; exit 1; }
+  require_bun
   mkdir -p "$(dirname "$UNIT_FILE")" "$CONFIG_DIR"
   cat > "$UNIT_FILE" <<EOF
 [Unit]
@@ -205,7 +249,7 @@ cmd_start() {
   else
     # Fallback: background process with a pidfile (e.g. macOS without lingering systemd).
     mkdir -p "$CONFIG_DIR"
-    [ -n "$BUN" ] || { echo "error: bun not found" >&2; exit 1; }
+    require_bun
     HERDR_SOCKET_PATH="$SOCKET" COLLIE_BOARD_PORT="$PORT" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" \
       nohup "$BUN" run "${PLUGIN_ROOT}/bridge/index.ts" >>"${CONFIG_DIR}/collie.log" 2>&1 &
     echo $! > "${CONFIG_DIR}/collie.pid"
@@ -502,6 +546,33 @@ ensure_tailscale_root_available() {
   fi
 }
 
+
+# Explain why `tailscale serve` refused, based on what it actually said.
+#
+# The two failures look identical from here and have completely different fixes, so a fixed message
+# is worse than none: "serve config denied" is the operator permission (a one-time sudo), while a
+# cert failure is the Headscale / HTTPS-not-enabled case. Telling someone who just enabled HTTPS to
+# fall back to plain HTTP is the wrong answer to the wrong problem.
+explain_serve_failure() {
+  local out="$1" mode="$2"
+  case "$out" in
+    *"Access denied"*|*"denied"*|*"operator"*)
+      echo "note: tailscale refused the serve config — this is a permission, not a certificate." >&2
+      echo "  Grant it once, then re-run start:" >&2
+      echo "      sudo tailscale set --operator=\$USER" >&2
+      ;;
+    *)
+      if [ "$mode" = https ]; then
+        echo "note: tailscale serve (https) failed. If this tailnet has no HTTPS certificate" >&2
+        echo "  (Headscale, or HTTPS Certificates off in the admin console), set COLLIE_BOARD_SERVE_MODE=http:" >&2
+      else
+        echo "note: tailscale serve (http) failed:" >&2
+      fi
+      ;;
+  esac
+  cat "$out_file" >&2 2>/dev/null || true
+}
+
 cmd_serve() {
   if [ "${COLLIE_BOARD_SKIP_SERVE:-}" = "1" ]; then
     # Still tear down: skipping teardown would strand a mapping published before the flag was
@@ -529,8 +600,7 @@ cmd_serve() {
       echo "tailscale serve (http) → tailnet :${PORT} -> 127.0.0.1:${PORT}"
     else
       rm -f "$TAILSCALE_HANDLER_FILE"
-      echo "note: tailscale serve failed (try 'sudo tailscale set --operator=\$USER'):"
-      cat "$out"
+      out_file="$out" explain_serve_failure "$(cat "$out")" http
       return 1
     fi
   else
@@ -540,8 +610,7 @@ cmd_serve() {
       echo "tailscale serve (https) → tailnet :443 -> 127.0.0.1:${PORT}"
     else
       rm -f "$TAILSCALE_HANDLER_FILE"
-      echo "note: tailscale serve (https) failed — on Headscale/.internal domains use COLLIE_BOARD_SERVE_MODE=http:"
-      cat "$out"
+      out_file="$out" explain_serve_failure "$(cat "$out")" https
       return 1
     fi
   fi
@@ -568,14 +637,26 @@ cmd_unserve() { stop_tailscale_serve; }
 
 # The tailnet login of whoever owns this node, e.g. "you@example.com". Empty if tailscale is down.
 tailnet_login() {
-  tailscale status --json 2>/dev/null | bun -e \
+  # Capture BEFORE piping. The script runs under `pipefail`, so `tailscale | bun` propagates
+  # tailscale's exit code — and a tailscale that is installed but not connected then kills the whole
+  # script through `set -e` instead of degrading to "unknown". Verified by the bun-offpath test.
+  [ -n "$BUN" ] || return 0
+  local status_json; status_json="$(tailscale status --json 2>/dev/null || true)"
+  [ -n "$status_json" ] || return 0
+  printf '%s' "$status_json" | "$BUN" -e \
     "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);process.stdout.write(j.User[String(j.Self.UserID)].LoginName||'')}catch{}})"
 }
 
 # Whether the tailnet has HTTPS enabled (a cert domain). `tailscale serve` in https mode needs it;
 # without it the default mode fails and http mode is the working fallback.
 tailnet_has_https() {
-  tailscale status --json 2>/dev/null | bun -e \
+  # Capture BEFORE piping. The script runs under `pipefail`, so `tailscale | bun` propagates
+  # tailscale's exit code — and a tailscale that is installed but not connected then kills the whole
+  # script through `set -e` instead of degrading to "unknown". Verified by the bun-offpath test.
+  [ -n "$BUN" ] || return 0
+  local status_json; status_json="$(tailscale status --json 2>/dev/null || true)"
+  [ -n "$status_json" ] || return 0
+  printf '%s' "$status_json" | "$BUN" -e \
     "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{process.stdout.write((JSON.parse(d).CertDomains||[]).length?'yes':'')}catch{}})"
 }
 
@@ -584,7 +665,7 @@ cmd_setup() {
   echo "Checking prerequisites…"
 
   if [ -n "$BUN" ]; then echo "  ✓ bun          $BUN"
-  else echo "  ✗ bun          not on PATH — install from https://bun.sh (the web UI can't build without it)"; problems=1; fi
+  else echo "  ✗ bun          not found (PATH, \$BUN_INSTALL/bin, ~/.bun/bin, /usr/local/bin, /opt/homebrew/bin)"; problems=1; fi
 
   if command -v herdr >/dev/null; then echo "  ✓ herdr        $(herdr --version 2>/dev/null || echo present)"
   else echo "  ✗ herdr        not on PATH"; problems=1; fi

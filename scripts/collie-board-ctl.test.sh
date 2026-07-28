@@ -187,6 +187,38 @@ EOF
   echo "  setup: reports missing settings instead of overwriting a user's .env"
 }
 
+
+# Herdr runs plugin actions in a non-interactive shell, so bun's installer entry in ~/.zshrc does
+# not apply. Resolving bun from PATH alone made `start` fail with "bun not found" on a completely
+# standard install — this is that regression.
+test_bun_resolves_outside_path() {
+  setup_case bun-offpath
+  mkdir -p "${HOME_DIR}/.bun/bin"
+  printf '#!/bin/sh\nexit 0\n' > "${HOME_DIR}/.bun/bin/bun"
+  chmod +x "${HOME_DIR}/.bun/bin/bun"
+  cat > "${BIN_DIR}/tailscale" <<'EOF'
+#!/bin/sh
+exit 2
+EOF
+  cat > "${BIN_DIR}/herdr" <<'EOF'
+#!/bin/sh
+[ "$1" = plugin ] && [ "$2" = list ] && { echo "No plugins installed."; exit 0; }
+exit 0
+EOF
+  chmod +x "${BIN_DIR}/tailscale" "${BIN_DIR}/herdr"
+  mkdir -p "${HOME_DIR}/.config/herdr"
+  python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" \
+    "${HOME_DIR}/.config/herdr/herdr.sock"
+
+  # A PATH with NO bun on it, exactly like a herdr plugin action gets.
+  out="$(HOME="$HOME_DIR" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" PATH="${BIN_DIR}:/usr/bin:/bin" \
+    HERDR_SOCKET_PATH="${HOME_DIR}/.config/herdr/herdr.sock" \
+    bash "$CTL" setup 2>&1)" || fail "setup failed with bun off PATH: $out"
+  assert_contains "$out" "✓ bun          ${HOME_DIR}/.bun/bin/bun"
+
+  echo "  bun: resolved from ~/.bun/bin when it is not on PATH"
+}
+
 # Publishing must move cleanly between ports and modes, and must never clobber a root mount Collie
 # didn't create.
 test_tailscale_cutovers_and_collisions() {
@@ -427,6 +459,7 @@ test_state_delete_failures
 test_adopts_preexisting_collie_mount
 test_serve_failure_does_not_abort_start
 
+test_bun_resolves_outside_path
 test_setup_writes_the_security_config
 test_setup_falls_back_to_http_without_a_cert
 test_setup_never_rewrites_existing_config

@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.25.1] - 2026-07-28
+
+### Fixed
+- **`start` failed with "bun not found" on a completely standard install.** Herdr runs plugin actions in a non-interactive shell, so the `~/.bun/bin` entry bun's installer adds to your shell rc doesn't apply. `resolve_bun()` now also checks `$BUN_INSTALL/bin`, `~/.bun/bin`, `/usr/local/bin` and `/opt/homebrew/bin`, and the error message names the real cause.
+- `tailscale status --json | bun` ran under `pipefail`, so a tailscale that is installed but not connected killed the whole script through `set -e` instead of degrading to "unknown". Output is captured before it is piped.
+- `self_dnsname` / the setup helpers called bare `bun`, so they degraded silently (empty URL, no derived config) in exactly the environment that couldn't find bun on PATH. They use the resolved path.
+- `tailscale serve` failures are now diagnosed from what tailscale actually said: "serve config denied" is a permission (`sudo tailscale set --operator=$USER`), not the missing-certificate case the https branch used to blame unconditionally.
+
 ## [0.25.0] - 2026-07-28
 
 ### Added

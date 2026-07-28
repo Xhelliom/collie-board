@@ -52,6 +52,8 @@ useful with no card in sight, and each is one commit here:
 | **`launchAgent()` + `promptAndConfirm()`** | Two herdr races, live-verified and fixed once (`agent_pane_busy`, and `agent.prompt` not reliably submitting). Anything that starts an agent hits both. |
 | **`resolveByCwd()`** | Herdr reports no `agent_session` without `herdr integration install claude` — which means Collie's own History feature is unavailable by default. This fixes that. |
 | **TOML agent adapters** | Benefits anyone driving more than one agent kind. |
+| **`collie-ctl.sh` bun/PATH + pipefail fixes** | Upstream has the identical bugs: herdr runs plugin actions in a non-interactive shell, so a standard `~/.bun/bin` install makes `start` fail with "bun not found"; and `tailscale … \| bun` under `pipefail` kills the script when tailscaled is down. Both are ~15 lines and hit every user. |
+| **`serve` failure diagnosis** | The https branch blames a missing certificate whatever the error, which sends someone hitting the `--operator` permission to exactly the wrong fix. |
 
 **Fork-only** — these change the nature of the project. Collie is deliberately stateless: an
 ephemeral, single-operator mirror. Grafting a database onto it is a change of kind, not an
