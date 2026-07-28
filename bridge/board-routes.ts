@@ -16,8 +16,12 @@ import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
+import { listRepos } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
+
+/** `/api/repos` — the new-card picker's source (see repos.ts). */
+const REPOS_ROUTE = "/api/repos";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE = /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review))?$/;
@@ -100,6 +104,14 @@ export async function handleBoardRoute(
   req: Request,
   ctx: BoardContext,
 ): Promise<Response | null> {
+  // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
+  if (pathname === REPOS_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    return ctx.json({ repos: await listRepos(ctx.db, ctx.engine.current(), ctx.cfg.boardRepoRoots) });
+  }
+
   const match = pathname.match(CARD_ROUTE);
   if (!match) return null;
 

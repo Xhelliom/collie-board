@@ -259,3 +259,23 @@ export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
     method: "POST",
   });
 }
+
+// ── repo picker ──────────────────────────────────────────────────────────────
+
+export interface RepoChoice {
+  path: string;
+  name: string;
+  /** Where the bridge learned about it: a previous card, the live herd, or a configured scan root. */
+  source: "card" | "herd" | "scan";
+  lastUsedAt?: number;
+  /** Pre-fills the card's base ref, so that field doesn't have to be typed either. */
+  defaultBranch?: string;
+}
+
+/**
+ * The repositories a card can be started in. Fetched when the new-card sheet opens, not on the poll:
+ * the bridge shells out to git per distinct pane cwd to build it.
+ */
+export function fetchRepos(signal?: AbortSignal): Promise<{ repos: RepoChoice[] }> {
+  return apiRequest<{ repos: RepoChoice[] }>("/api/repos", { signal });
+}

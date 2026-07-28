@@ -61,6 +61,7 @@ function cfg(overrides: Partial<Config> = {}): Config {
     boardCopilot: false,
     boardCopilotKind: "",
     boardCopilotClear: "",
+    boardRepoRoots: [],
     adapterPaths: [],
     ...overrides,
   };

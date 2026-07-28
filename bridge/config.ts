@@ -218,6 +218,13 @@ export interface Config {
    * for whatever kind the copilot runs" — see `adapters/agents.toml`.
    */
   boardCopilotClear: string;
+  /**
+   * Directories to scan for git repositories when building the new-card repo picker. Opt-in: the
+   * picker already knows every repo you have carded (from the database) and every repo open in the
+   * herd (from pane cwds), so this is only for the cold start — a repo you have never opened and
+   * never carded. Comma-separated, e.g. `~/git,~/work`.
+   */
+  boardRepoRoots: string[];
   /** Where to look for agent adapter tables, in increasing precedence. */
   adapterPaths: string[];
 }
@@ -279,6 +286,10 @@ export function loadConfig(): Config {
     boardCopilot: envBool("COLLIE_BOARD_COPILOT", false),
     boardCopilotKind: (process.env.COLLIE_BOARD_COPILOT_KIND ?? "").trim(),
     boardCopilotClear: (process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "").trim(),
+    // `~` is what an operator types in a .env and what nothing else expands there.
+    boardRepoRoots: envList("COLLIE_BOARD_REPO_ROOTS").map((p) =>
+      p.startsWith("~/") ? join(homedir(), p.slice(2)) : p,
+    ),
     adapterPaths: [
       // Shipped defaults, then the operator's. `bridge/` sits one level under the plugin root.
       join(import.meta.dir, "..", "adapters", "agents.toml"),

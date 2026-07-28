@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.26.0] - 2026-07-28
+
+### Added
+- **Repo picker on the new-card sheet** (`bridge/repos.ts`, `GET /api/repos`). Typing a path on a phone was the worst part of creating a card. The list is DERIVED, not stored: repos you have carded (`card.repo_path`, newest first) + repos open in the herd (pane `cwd` → `git rev-parse`) + an opt-in scan root (`COLLIE_BOARD_REPO_ROOTS`).
+- The repo's default branch pre-fills the base ref — `origin/HEAD` first, so a repo sitting on a previous card's branch doesn't fork the next card off it.
+- A card's own worktree collapses onto its source repo via `--git-common-dir`, so "start a card in another card's worktree" is never offered.
+- Manual path entry stays available for a repo the bridge cannot know about.
+
+### Notes
+- No `repo` table on purpose: it would be a second copy of `card.repo_path` with nothing to invalidate it, so a moved or deleted repo would sit in the picker forever.
+- `workspace.worktree.repo_root` is NOT a usable source — live-verified on herdr 0.7.5, it is populated for some workspaces and not others (one of four, all git repos). Pane `cwd` is the field that is always there.
+
 ## [0.25.1] - 2026-07-28
 
 ### Fixed

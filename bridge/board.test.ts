@@ -33,6 +33,7 @@ import {
   parseNumstat,
   parseUntracked,
   parseWorktreeList,
+  type GitRunner,
 } from "./git.ts";
 import {
   continuationPrompt,
@@ -41,6 +42,13 @@ import {
   handoffPrompt,
   requestHandoff,
 } from "./handoff.ts";
+import {
+  basename,
+  defaultBranchOf,
+  listRepos,
+  mergeRepoChoices,
+  repoRootOf,
+} from "./repos.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -1131,5 +1139,131 @@ describe("agent adapters", () => {
 
   it("survives a missing file and a broken one", () => {
     expect(loadAdapters(["/nonexistent/agents.toml"])).toEqual(BUILTIN_ADAPTERS);
+  });
+});
+
+describe("repo picker", () => {
+  it("takes the last path segment as the display name", () => {
+    expect(basename("/home/me/code/collie-board")).toBe("collie-board");
+    expect(basename("/home/me/code/collie-board/")).toBe("collie-board");
+    expect(basename("/")).toBe("/");
+  });
+
+  it("orders cards by most-recently-used, then the herd, then the scan", () => {
+    const merged = mergeRepoChoices(
+      [
+        { path: "/r/old", lastUsedAt: 100 },
+        { path: "/r/new", lastUsedAt: 900 },
+      ],
+      ["/r/open"],
+      ["/r/found"],
+    );
+    expect(merged.map((r) => r.path)).toEqual(["/r/new", "/r/old", "/r/open", "/r/found"]);
+    expect(merged.map((r) => r.source)).toEqual(["card", "card", "herd", "scan"]);
+  });
+
+  it("de-duplicates, and a carded repo stays 'card' even when it's also open", () => {
+    const merged = mergeRepoChoices([{ path: "/r/a", lastUsedAt: 1 }], ["/r/a"], ["/r/a"]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.source).toBe("card");
+  });
+
+  it("resolves a repo root from a SUBDIRECTORY — a pane's cwd drifts as the agent works", async () => {
+    const git: GitRunner = async (args, cwd) => {
+      expect(cwd).toBe("/repo/src/deep");
+      if (args.includes("--show-toplevel")) return { ok: true, stdout: "/repo\n", stderr: "" };
+      return { ok: true, stdout: "/repo/.git\n", stderr: "" };
+    };
+    expect(await repoRootOf("/repo/src/deep", git)).toBe("/repo");
+  });
+
+  it("collapses a CARD'S WORKTREE onto its source repo, not a repo of its own", async () => {
+    // Live-verified shape: a linked worktree reports its own toplevel but the SHARED git dir.
+    const git: GitRunner = async (args) => {
+      if (args.includes("--show-toplevel")) {
+        return { ok: true, stdout: "/home/me/.herdr/worktrees/proj/board-x\n", stderr: "" };
+      }
+      return { ok: true, stdout: "/home/me/code/proj/.git\n", stderr: "" };
+    };
+    expect(await repoRootOf("/home/me/.herdr/worktrees/proj/board-x", git)).toBe("/home/me/code/proj");
+  });
+
+  it("falls back to the toplevel when the git dir isn't a plain <root>/.git", async () => {
+    const git: GitRunner = async (args) => {
+      if (args.includes("--show-toplevel")) return { ok: true, stdout: "/repo\n", stderr: "" };
+      return { ok: true, stdout: "/elsewhere/gitdirs/repo\n", stderr: "" };
+    };
+    expect(await repoRootOf("/repo", git)).toBe("/repo");
+  });
+
+  it("returns null for a directory that isn't in a repo", async () => {
+    const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "not a git repository" });
+    expect(await repoRootOf("/tmp", git)).toBeNull();
+  });
+
+  it("prefers origin/HEAD for the default branch, not whatever is checked out", async () => {
+    // The repo is ON a board branch — taking HEAD would fork the next card off the previous card's
+    // work, silently chaining unrelated changes.
+    const git: GitRunner = async (args) => {
+      if (args[1] === "--short") return { ok: true, stdout: "origin/main\n", stderr: "" };
+      return { ok: true, stdout: "board/previous-card\n", stderr: "" };
+    };
+    expect(await defaultBranchOf("/repo", git)).toBe("main");
+  });
+
+  it("falls back to main/master when there is no remote", async () => {
+    const git: GitRunner = async (args) => {
+      if (args[1] === "--short") return { ok: false, stdout: "", stderr: "no origin" };
+      if (args[0] === "rev-parse" && args.includes("refs/heads/main")) {
+        return { ok: true, stdout: "abc123\n", stderr: "" };
+      }
+      return { ok: false, stdout: "", stderr: "" };
+    };
+    expect(await defaultBranchOf("/repo", git)).toBe("main");
+  });
+
+  it("falls back to the current branch for a repo with no remote and no main/master", async () => {
+    const git: GitRunner = async (args) => {
+      if (args[1] === "--short") return { ok: false, stdout: "", stderr: "" };
+      if (args.includes("--verify")) return { ok: false, stdout: "", stderr: "" };
+      return { ok: true, stdout: "trunk\n", stderr: "" };
+    };
+    expect(await defaultBranchOf("/repo", git)).toBe("trunk");
+  });
+
+  it("reports no default branch for a detached HEAD rather than the literal 'HEAD'", async () => {
+    const git: GitRunner = async (args) => {
+      if (args[1] === "--short" || args.includes("--verify")) return { ok: false, stdout: "", stderr: "" };
+      return { ok: true, stdout: "HEAD\n", stderr: "" };
+    };
+    expect(await defaultBranchOf("/repo", git)).toBeUndefined();
+  });
+
+  it("asks git ONCE per distinct cwd, not once per pane", async () => {
+    const store = db();
+    const seen: string[] = [];
+    const git: GitRunner = async (args, cwd) => {
+      if (args.includes("--show-toplevel")) {
+        seen.push(cwd);
+        return { ok: true, stdout: "/repo\n", stderr: "" };
+      }
+      if (args.includes("--git-common-dir")) return { ok: true, stdout: "/repo/.git\n", stderr: "" };
+      return { ok: true, stdout: "main\n", stderr: "" };
+    };
+    // Four panes, one directory.
+    const panes = ["w1:p1", "w1:p2", "w1:p3", "w1:p4"].map((id) => pane(id, "idle", { cwd: "/repo" }));
+    const repos = await listRepos(store, snapshot(panes), [], git);
+
+    expect(seen).toEqual(["/repo"]);
+    expect(repos.map((r) => r.path)).toEqual(["/repo"]);
+    expect(repos[0]!.defaultBranch).toBe("main");
+  });
+
+  it("surfaces a carded repo even when nothing is open in the herd", async () => {
+    const store = db();
+    store.createCard({ title: "x", repoPath: "/repo/carded" });
+    const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "" });
+    const repos = await listRepos(store, snapshot([]), [], git);
+    expect(repos.map((r) => `${r.source}:${r.path}`)).toEqual(["card:/repo/carded"]);
   });
 });

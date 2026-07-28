@@ -88,9 +88,18 @@ A **card** is durable. A **session** is not. That one rule is the whole design.
 | `COLLIE_BOARD_COPILOT` | `off` | Enable the copilot. **Off by default** — it is a second agent on the same subscription. |
 | `COLLIE_BOARD_COPILOT_KIND` | *(same as workers)* | Let the copilot run a cheaper agent. |
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
+| `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
 
 Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — four fields, merged
 per field from `~/.config/collie-board/agents.toml`.
+
+**Picking a repo** is a list, not a text field — typing `/home/you/code/project` on a phone is the
+pain this project exists to remove. The list comes from three places that already know, and there is
+no repo table: every repo you have **carded** (`card.repo_path`, newest first), every repo **open in
+the herd** (each pane's `cwd`, one `git rev-parse` away), and optionally a **scan root**
+(`COLLIE_BOARD_REPO_ROOTS`) for the cold start. It can't go stale, because it is recomputed from
+things that are true. A card's own worktree collapses onto the repo it came from, and the repo's
+default branch pre-fills the base ref — so the common case is dictate, tap, done.
 
 ### Board endpoints
 

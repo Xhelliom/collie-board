@@ -32,10 +32,6 @@ export function BoardRoute() {
 
   const byStatus = new Map(BOARD_COLUMNS.map((s) => [s, data.cards.filter((c) => c.status === s)]));
   const empty = data.cards.length === 0;
-  // Pre-fill the next card's repo with the one you last used — on a phone, typing a path twice is
-  // two times too many.
-  const lastRepo = data.cards.find((c) => c.repoPath)?.repoPath ?? undefined;
-
   async function create(input: CardInput) {
     await createCard(input);
     revalidator.revalidate();
@@ -92,12 +88,7 @@ export function BoardRoute() {
         <StatusArea />
       </div>
 
-      <NewCardSheet
-        open={newOpen}
-        onClose={() => setNewOpen(false)}
-        onCreate={create}
-        defaultRepoPath={lastRepo}
-      />
+      <NewCardSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
     </div>
   );
 }
