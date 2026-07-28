@@ -89,8 +89,12 @@ Two resolutions, in order:
 - `resolveForProcess(cwd, startedAt)` — `pane.process_info` gives the pane's foreground PID,
   `/proc/<pid>/stat` its start time, and the log born closest after it is that process's. Measured
   gap: 7 s. Exact even with two agents live in one directory.
-- `resolveByCwd(cwd)` — newest log in the mangled project directory. The fallback for no `/proc`
-  (macOS, Windows) or no birth times.
+- `resolveByCwd(cwd)` — newest log in the mangled project directory. The fallback when neither start
+  time nor birth times are available.
+
+Both platforms Collie targets are covered: `/proc/<pid>/stat` on Linux, `ps -o etime=` on macOS
+(`lstart` is locale-dependent — it prints "mar. juil. 28 …" on a French machine). Verified against
+each other on one process: 1.3 s apart. Windows has neither and falls back.
 
 A wrong `USER_HZ` can only push the computed start into the future, which the guard rejects → the
 fallback answers. It cannot produce a wrong-but-plausible file.

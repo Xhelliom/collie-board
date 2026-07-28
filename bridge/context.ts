@@ -126,7 +126,7 @@ export class ContextTracker {
   private async resolveWithoutIntegration(paneId: string, cwd: string): Promise<string | null> {
     try {
       const proc = await this.herdr.paneProcess(paneId);
-      const startedAt = proc ? processStartedAt(proc.pid) : null;
+      const startedAt = proc ? await processStartedAt(proc.pid) : null;
       if (proc && startedAt !== null) {
         return await this.source.resolveForProcess(proc.cwd || cwd, startedAt);
       }

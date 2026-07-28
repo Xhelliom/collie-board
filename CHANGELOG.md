@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.30.0] - 2026-07-28
+
+### Added
+- **macOS gets the exact transcript resolution too.** `processStartedAt()` falls back from `/proc/<pid>/stat` to `ps -o etime=`, so the PID→transcript match works on both platforms Collie targets rather than degrading on one of them — macOS's `birthtime` support is native on APFS/HFS+, so giving up there for want of a start time would have been perverse. `etime` rather than `lstart`: the latter is locale-dependent (it prints `mar. juil. 28 …` here). Verified against `/proc` on the same process: 1.3 s apart.
+
+### Fixed
+- `parseEtime("-1:00")` returned 60 seconds — an empty days field parsed as 0. It matches a strict grammar now.
+
 ## [0.29.1] - 2026-07-28
 
 ### Added

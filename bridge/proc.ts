@@ -1,14 +1,22 @@
-// When a process started, from /proc. Linux only, by design.
+// When a process started.
 //
 // This exists for ONE job: tying a pane's agent to its own transcript file when herdr reports no
 // `agent_session` — which is the default, because that field only appears once the optional
 // `herdr integration install <agent>` hook is in place. A session log is created within seconds of
-// the process that writes it (measured here: process 18:45:30, log born 18:45:37), so the start
-// time is enough to pick the right file out of a directory holding dozens.
+// the process that writes it (measured: process 18:45:30, log born 18:45:37), so the start time is
+// enough to pick the right file out of a directory holding dozens.
 //
-// Everything about this degrades rather than fails: on macOS or Windows there is no /proc, the
-// function returns null, and the caller falls back to "newest log in the directory" — a worse
-// answer for the rare case of two agents in one directory, never a crash.
+// TWO WAYS TO ASK, because Collie runs on Linux and macOS:
+//
+//   - `/proc/<pid>/stat` on Linux. A file read, no subprocess, exact.
+//   - `ps -o etime=` everywhere else. macOS has no procfs, and its `birthtime` support is actually
+//     BETTER than Linux's (native on APFS/HFS+), so it would be perverse to give up there for want
+//     of a start time. `etime` — elapsed seconds since start — is used rather than `lstart` because
+//     `lstart` is LOCALE-DEPENDENT: on this machine it prints "mar. juil. 28 14:43:55 2026", which
+//     is not something to write a parser against.
+//
+// Everything degrades rather than fails: no answer at all → the caller falls back to "newest log in
+// the directory", a worse answer for the rare case of two agents in one directory, never a crash.
 
 import { readFileSync } from "node:fs";
 
@@ -57,8 +65,23 @@ export function parseStartTicks(stat: string): number | null {
   return Number.isFinite(ticks) ? ticks : null;
 }
 
-/** When `pid` started, as epoch milliseconds, or null when it can't be determined. */
-export function processStartedAt(pid: number): number | null {
+/**
+ * Parse `ps -o etime=` — elapsed time since the process started, as seconds.
+ *
+ * Three shapes, and no others: `MM:SS`, `HH:MM:SS`, `DD-HH:MM:SS`. Pure + exported, because it is
+ * the only parsing in the macOS path and it is trivially wrong if you assume a fixed field count.
+ */
+export function parseEtime(raw: string): number | null {
+  // A strict shape, deliberately: splitting on ":" and "-" by hand accepted "-1:00" as 60 seconds,
+  // because an empty days field parsed as 0. The grammar is small enough to just state.
+  const m = /^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+)$/.exec(raw.trim());
+  if (!m) return null;
+  const [, d = "0", h = "0", min, sec] = m;
+  return ((Number(d) * 24 + Number(h)) * 60 + Number(min)) * 60 + Number(sec);
+}
+
+/** Linux: read it straight out of procfs. Null when there is no /proc or the pid is gone. */
+function startedAtFromProc(pid: number): number | null {
   const boot = bootTime();
   if (boot === null) return null;
   try {
@@ -70,6 +93,27 @@ export function processStartedAt(pid: number): number | null {
     if (startedAt > Date.now() + 60_000 || startedAt < boot * 1000) return null;
     return startedAt;
   } catch {
-    return null; // no /proc, or the process is already gone
+    return null;
   }
+}
+
+/** Everywhere else (macOS): ask `ps`. One subprocess, on a path that runs every 30 s at most. */
+async function startedAtFromPs(pid: number): Promise<number | null> {
+  try {
+    const proc = Bun.spawn(["ps", "-o", "etime=", "-p", String(pid)], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    if (code !== 0) return null;
+    const elapsed = parseEtime(out);
+    return elapsed === null ? null : Date.now() - elapsed * 1000;
+  } catch {
+    return null;
+  }
+}
+
+/** When `pid` started, as epoch milliseconds, or null when it can't be determined. */
+export async function processStartedAt(pid: number): Promise<number | null> {
+  return startedAtFromProc(pid) ?? (await startedAtFromPs(pid));
 }

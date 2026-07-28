@@ -55,7 +55,7 @@ import {
   repoRootOf,
   scanRootsFor,
 } from "./repos.ts";
-import { parseStartTicks, processStartedAt } from "./proc.ts";
+import { parseEtime, parseStartTicks, processStartedAt } from "./proc.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -1512,16 +1512,36 @@ describe("parseStartTicks", () => {
 });
 
 describe("processStartedAt", () => {
-  it("agrees with the current process's own start time", () => {
-    // The only end-to-end assertion available without mocking /proc: our own pid must resolve to a
-    // moment in the past, and not an implausible one.
-    const started = processStartedAt(process.pid);
-    if (started === null) return; // no /proc — macOS/Windows, where the caller falls back
-    expect(started).toBeLessThanOrEqual(Date.now() + 1000);
-    expect(Date.now() - started).toBeLessThan(24 * 60 * 60 * 1000);
+  it("agrees with the current process's own start time, on whichever path this platform uses", async () => {
+    // End-to-end on the real machine: our own pid must resolve to a moment in the past, and not an
+    // implausible one. Exercises /proc on Linux and `ps` on macOS.
+    const started = await processStartedAt(process.pid);
+    expect(started).not.toBeNull();
+    expect(started!).toBeLessThanOrEqual(Date.now() + 1000);
+    expect(Date.now() - started!).toBeLessThan(24 * 60 * 60 * 1000);
   });
 
-  it("returns null for a pid that does not exist rather than throwing", () => {
-    expect(processStartedAt(2 ** 30)).toBeNull();
+  it("returns null for a pid that does not exist rather than throwing", async () => {
+    expect(await processStartedAt(2 ** 30)).toBeNull();
+  });
+});
+
+describe("parseEtime — the macOS path", () => {
+  it("reads the three shapes `ps` emits", () => {
+    expect(parseEtime("00:00")).toBe(0);
+    expect(parseEtime("01:30")).toBe(90);
+    expect(parseEtime("08:37:34")).toBe(8 * 3600 + 37 * 60 + 34);
+    expect(parseEtime("2-03:04:05")).toBe(2 * 86400 + 3 * 3600 + 4 * 60 + 5);
+  });
+
+  it("tolerates the leading whitespace ps pads with", () => {
+    expect(parseEtime("      08:37:34\n")).toBe(8 * 3600 + 37 * 60 + 34);
+  });
+
+  it("returns null on anything else rather than a plausible wrong number", () => {
+    expect(parseEtime("")).toBeNull();
+    expect(parseEtime("garbage")).toBeNull();
+    expect(parseEtime("1:2:3:4")).toBeNull();
+    expect(parseEtime("-1:00")).toBeNull();
   });
 });

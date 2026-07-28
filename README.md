@@ -72,7 +72,7 @@ A **card** is durable. A **session** is not. That one rule is the whole design.
 | **Card → branch → workspace** | Starting a card runs `worktree.create`: its own checkout, its own herdr workspace, its own agent. One tap, no keyboard. |
 | **Cards move themselves** | Reconciliation rides the snapshot poll Collie already runs. `working` → In progress, `blocked` → Needs you, `done` → To review. A pane that vanishes makes its card **orphaned** — relaunchable from its last handoff, never an error. |
 | **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is just its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed. |
-| **Context gauge** | Read from the agent's own transcript, and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. |
+| **Context gauge** | Read from the agent's own transcript, and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. Works without herdr's optional integration: the pane's PID and start time pick the right log even with two agents in one directory. |
 | **Handoff** | The outgoing agent writes `.board/handoff.md`; the pane is replaced in the same worktree; the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
 | **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other. Turns a dictated brain dump into a card, and reviews finished work — its follow-ups become new cards, which is what refills the board. |
 
