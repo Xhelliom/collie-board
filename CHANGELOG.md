@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.31.0] - 2026-07-28
+
+### Changed
+- **Line wrap now defaults ON below 640px.** The pane mirror shipped with `wrap: false`, so on a phone most lines ran off the edge and reading it meant panning horizontally — measured on a real herd, panes run a median of 81 columns and a max of 233 against the ~50 a phone shows. The default follows the viewport rather than flipping globally: no-wrap is right on a wide screen, where column alignment is what makes a TUI's boxes readable. The existing toggle still wins the moment it is touched.
+- The card's file-diff sheet wraps on a phone too, in pure CSS (`sm:` breakpoint), so it follows a rotation with no re-render.
+
 ## [0.30.2] - 2026-07-28
 
 ### Fixed

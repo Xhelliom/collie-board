@@ -126,7 +126,28 @@ as documentation of the socket's real behaviour if not as code — `HERDR_API.md
 
 ---
 
-## 5. ⚪ Diff view on the focused pane's `cwd`
+## 5. 🔵 Wrap the pane mirror by default on a phone
+
+Tiny, one file, and it fixes the primary screen of a phone-first app.
+
+| | |
+|---|---|
+| Commit | `<this one>` |
+| Files | `web/src/hooks/use-display-prefs.ts` |
+| Extraction | **Clean cherry-pick.** |
+
+`DEFAULTS.wrap` is `false`, so the mirror pans horizontally out of the box. Measured on a real herd:
+panes run a **median of 81 columns and a max of 233**, while a phone shows about 50 at 12px
+monospace — so most lines run off the edge, on the one screen Collie exists for.
+
+Not wrap-always: the no-wrap default is *right* on a wide screen, where preserving column alignment
+is what makes a TUI's boxes and tables readable at all. So the default follows the viewport
+(`wrapDefaultFor`, < 640px = the app's own `max-w-screen-sm`), and the instant the user touches the
+existing toggle their choice is stored and wins forever. Nothing else changes.
+
+---
+
+## 6. ⚪ Diff view on the focused pane's `cwd`
 
 | | |
 |---|---|
@@ -143,7 +164,7 @@ Check `persiyanov/herdr-reviewr` before proposing — it may already cover this.
 
 ---
 
-## 6. ⚪ TOML agent adapters
+## 7. ⚪ TOML agent adapters
 
 | | |
 |---|---|

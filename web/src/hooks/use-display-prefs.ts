@@ -20,7 +20,32 @@ export interface DisplayPrefs {
 const STORAGE_KEY = "collie:display-prefs:v3";
 const FONT_MIN = 9;
 const FONT_MAX = 16;
-const DEFAULTS: DisplayPrefs = { wrap: false, fontSize: 12, rawTerminal: false };
+/**
+ * Width below which line wrap defaults ON.
+ *
+ * At 12px monospace a character is ~7px, so ~80 columns needs ~560px. Panes here measure a median
+ * of 81 columns and a max of 233 — on a phone that means most lines run off the edge, and reading
+ * the mirror becomes a horizontal pan. Matches the app's own `max-w-screen-sm` container.
+ */
+const WRAP_BELOW_PX = 640;
+
+/**
+ * Whether wrap should START on, given the viewport width.
+ *
+ * NOT wrap-always: upstream's no-wrap default is right on a wide screen, where preserving column
+ * alignment is what makes a TUI's boxes and tables readable at all — wrapping scatters their
+ * borders. It is wrong on a phone, which cannot show the columns in the first place. So the default
+ * follows the screen, and the moment the user touches the toggle their choice is stored and wins
+ * forever after. Pure + exported so the threshold is testable without a DOM.
+ */
+export function wrapDefaultFor(viewportWidth: number): boolean {
+  return viewportWidth > 0 && viewportWidth < WRAP_BELOW_PX;
+}
+
+function defaults(): DisplayPrefs {
+  const width = typeof window === "undefined" ? 0 : window.innerWidth;
+  return { wrap: wrapDefaultFor(width), fontSize: 12, rawTerminal: false };
+}
 
 function clampFont(n: number): number {
   return Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(n)));
@@ -29,6 +54,7 @@ function clampFont(n: number): number {
 function loadPrefs(): DisplayPrefs {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+    const DEFAULTS = defaults();
     if (!raw) return DEFAULTS;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return DEFAULTS;
@@ -39,7 +65,7 @@ function loadPrefs(): DisplayPrefs {
       rawTerminal: typeof p.rawTerminal === "boolean" ? p.rawTerminal : DEFAULTS.rawTerminal,
     };
   } catch {
-    return DEFAULTS;
+    return defaults();
   }
 }
 

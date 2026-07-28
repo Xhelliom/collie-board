@@ -159,10 +159,19 @@ function FileDiffSheet({
       {error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : (
+        /* Wraps on a phone, panning-free; keeps column alignment from `sm:` up, where the width
+           exists to show it. Pure CSS so it follows a rotation without a re-render — unlike the
+           pane mirror, which has a user-facing toggle and so has to decide in JS. */
         <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background">
-          <pre className="min-w-max p-2 font-mono text-[11px] leading-snug">
+          <pre className="p-2 font-mono text-[11px] leading-snug sm:min-w-max">
             {diff.split("\n").map((line, i) => (
-              <div key={i} className={cn("whitespace-pre", lineClass(line))}>
+              <div
+                key={i}
+                className={cn(
+                  "whitespace-pre-wrap break-all sm:whitespace-pre sm:break-normal",
+                  lineClass(line),
+                )}
+              >
                 {line || " "}
               </div>
             ))}
