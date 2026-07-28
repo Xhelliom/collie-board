@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.30.1] - 2026-07-28
+
+### Fixed
+- Two GNU-only commands in the fork's own additions, both of which would have failed on macOS — a platform this plugin declares support for: `date -Iseconds` in `setup` (BSD `date` has no `-I`) and `stat -c '%a'` in the control-script tests (BSD wants `stat -f '%A'`).
+
 ## [0.30.0] - 2026-07-28
 
 ### Added

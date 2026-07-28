@@ -21,6 +21,11 @@ assert_eq() {
   [ "$1" = "$2" ] || fail "expected '$2', got '$1'"
 }
 
+# Permission bits, portably: `stat -c` is GNU, `stat -f` is BSD (macOS). Collie targets both.
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%A' "$1"
+}
+
 assert_contains() {
   case "$1" in
     *"$2"*) ;;
@@ -124,7 +129,7 @@ EOF
     *$'\n'COLLIE_BOARD_SERVE_MODE=http*) fail "forced http mode despite a valid cert domain" ;;
   esac
   # Owner-only: it names the trusted tailnet identity.
-  assert_eq "$(stat -c '%a' "$env_file")" "600"
+  assert_eq "$(file_mode "$env_file")" "600"
   # And it must not start or publish anything.
   assert_contains "$out" "Nothing is running or published yet"
 

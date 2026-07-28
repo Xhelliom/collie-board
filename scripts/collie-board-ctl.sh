@@ -717,7 +717,7 @@ cmd_setup() {
     cp "${PLUGIN_ROOT}/.env.example" "$env_file"
     {
       echo
-      echo "# --- Written by \`collie-board-ctl.sh setup\` on $(date -Iseconds) ---"
+      echo "# --- Written by \`collie-board-ctl.sh setup\` on $(date +%Y-%m-%dT%H:%M:%S%z) ---"
       echo "# Derived from \`tailscale status\`. These two are the security settings; the file is"
       echo "# sourced top-to-bottom, so anything set here wins over the commented examples above."
       if [ -n "$login" ]; then
