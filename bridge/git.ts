@@ -239,3 +239,28 @@ export async function diffFile(
   const truncated = r.stdout.length > MAX_DIFF_BYTES;
   return { ok: true, diff: truncated ? r.stdout.slice(0, MAX_DIFF_BYTES) : r.stdout, truncated };
 }
+
+/**
+ * A one-screen `--stat` summary of a card's diff, as text — the copilot's review input.
+ *
+ * Explicitly NOT the full diff: the stat is enough to judge drift from the acceptance criteria, and
+ * the full patch would burn the quota the copilot is meant to be careful with. Returns a plain
+ * sentence when there is nothing to summarise, so the prompt never contains an empty section.
+ */
+export async function cardDiffSummary(
+  db: { getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null },
+  cardId: string,
+): Promise<string> {
+  const card = db.getCard(cardId);
+  if (!card?.repoPath || !card.branch) return "(no branch for this card)";
+  const cwd = await worktreePathFor(card.repoPath, card.branch);
+  if (!cwd) return "(no worktree for this card)";
+  const stat = await diffStat(cwd, card.baseRef);
+  if (stat.files.length === 0) return "(no changes on this branch)";
+  const lines = stat.files
+    .slice(0, 100)
+    .map((f) => `${f.path} | ${f.kind === "text" ? `+${f.added} -${f.removed}` : f.kind}`);
+  if (stat.files.length > 100) lines.push(`… and ${stat.files.length - 100} more files`);
+  lines.push(`${stat.files.length} files changed, ${stat.added} insertions(+), ${stat.removed} deletions(-)`);
+  return lines.join("\n");
+}

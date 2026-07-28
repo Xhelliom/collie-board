@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
+import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
@@ -101,8 +102,10 @@ export function startServer(opts: {
   audit: AuditLog;
   /** The board's durable store (the fork's addition). */
   board: BoardDb;
+  /** The copilot, for the reformulation a card creation can request. Inert when disabled. */
+  copilot: CopilotCoordinator;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board } = opts;
+  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot } = opts;
   // One transcript store for the process: it caches parsed session logs across requests, and the
   // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
   // can front panes whose agents write into the same ~/.claude/projects root).
@@ -168,6 +171,7 @@ export function startServer(opts: {
         if (!rt) return unknownSession();
         const boardRes = await handleBoardRoute(pathname, req, {
           db: board,
+          copilot,
           engine: rt.engine,
           herdr: rt.herdr,
           cfg,

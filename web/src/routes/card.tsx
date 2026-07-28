@@ -185,6 +185,27 @@ export function CardRoute() {
               </div>
             </Section>
 
+            {detail && detail.reviews.length > 0 && (
+              <Section label="Review">
+                <div className="flex flex-col gap-2">
+                  {detail.reviews.map((r) => (
+                    <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium capitalize">{r.verdict ?? "reviewed"}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+                      </div>
+                      {r.notes && <MarkdownText text={r.notes} />}
+                      {r.todos.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          {r.todos.length} follow-up{r.todos.length === 1 ? "" : "s"} added to the backlog
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              </Section>
+            )}
+
             {detail && detail.sessions.length > 0 && (
               <Section label={`Sessions (${detail.sessions.length})`}>
                 <div className="flex flex-col gap-2">

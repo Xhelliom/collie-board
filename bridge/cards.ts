@@ -343,6 +343,26 @@ export function runningCards(db: BoardDb): number {
  * an agent still sitting at `idle`/`done` after the settle window has a draft in its box, and gets
  * one `Enter`. That nudge is safe when we're wrong: Enter on an empty Claude prompt is a no-op.
  */
+
+/**
+ * Launch an agent in a pane and don't return until it will accept a prompt.
+ *
+ * Wraps the two herdr races this project keeps tripping over (see the TRANSIENT_CODES comment): the
+ * pane's shell may still be sourcing its rc, and `agent.start` returns long before the agent is a
+ * valid prompt target. Every caller that starts an agent must go through here — a direct
+ * `startAgent` is how you get a pane with a shell prompt and no agent in it.
+ */
+export async function launchAgent(
+  herdr: HerdrClient,
+  paneId: string,
+  kind: string,
+  name: string,
+  wait: (ms: number) => Promise<void> = sleep,
+): Promise<void> {
+  await retryWhileNotReady(() => herdr.startAgent({ paneId, kind, name }), wait);
+  await waitForAgentReady(herdr, paneId, wait);
+}
+
 export async function promptAndConfirm(
   herdr: HerdrClient,
   paneId: string,
@@ -427,12 +447,7 @@ export async function startCard(
 
   try {
     const wait = opts.sleep ?? sleep;
-    await retryWhileNotReady(
-      () => herdr.startAgent({ paneId: worktree.paneId, kind, name: agentNameFor(branch) }),
-      wait,
-    );
-    // agent.start is fire-and-forget; this is the part that actually waits.
-    await waitForAgentReady(herdr, worktree.paneId, wait);
+    await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait);
   } catch (err) {
     // The agent never came up, so this session never existed in any meaningful sense — close it and
     // put the card back where it can be retried. Leaving it open would wedge the card: its pane is a

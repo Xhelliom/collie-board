@@ -11,6 +11,7 @@
 import type { AuditLog } from "./audit.ts";
 import { cardView, cardViews, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
+import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
@@ -24,6 +25,8 @@ const CARD_ROUTE = /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|s
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
   db: BoardDb;
+  /** Reformulation on create. Inert when the copilot is disabled, so callers never branch on it. */
+  copilot: CopilotCoordinator;
   engine: StateEngine;
   /** The primary session's socket client — starting a card and handing it off both drive Herdr. */
   herdr: HerdrClient;
@@ -123,6 +126,9 @@ export async function handleBoardRoute(
       const parsed = parseCardBody(body, { requireTitle: true });
       if (!parsed.ok) return text(parsed.error, 400);
       const card = db.createCard({ ...parsed.value, title: parsed.value.title! });
+      // Reformulation is deliberately NOT awaited: creating a card has to be instant on a phone,
+      // and this is an agent turn. The card is usable now and improves itself a minute later.
+      if (card.rawInput) void ctx.copilot.reformulate(card.id);
       ctx.audit.record({
         action: "card.create",
         session: ctx.session,

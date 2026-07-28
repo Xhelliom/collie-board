@@ -6,6 +6,7 @@ import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { reconcile } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
+import { Copilot, CopilotCoordinator } from "./copilot.ts";
 import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
@@ -28,6 +29,7 @@ import {
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
+import { cardDiffSummary } from "./git.ts";
 import { ClaudeTranscriptSource } from "./transcript.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 
@@ -62,6 +64,16 @@ const audit = new AuditLog(fileAuditAppender(join(cfg.stateDir, "audit.log")));
 // The board's durable store. Lives in the state dir next to the audit log and the push
 // subscriptions, so a single `rm -rf` of that directory resets the whole plugin's state.
 const board = new BoardDb(join(cfg.stateDir, "board.db"));
+
+// The copilot: one long-lived agent in its own workspace, driven exactly like a worker. Off unless
+// COLLIE_BOARD_COPILOT is set — it draws on the same subscription the cards do.
+const copilot = new Copilot(
+  new HerdrClient(cfg.socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode),
+  cfg,
+  join(cfg.stateDir, "copilot"),
+);
+const copilotBoard = new CopilotCoordinator(board, copilot, cfg);
+if (cfg.boardCopilot) console.log("[copilot] enabled");
 
 // ── Update-availability monitor ───────────────────────────────────────────────
 // The running plugin version, captured NOW at module load — never re-read from disk later, or a
@@ -164,6 +176,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
     const handoffs = new HandoffCoordinator(board, herdr, cfg);
     engine.onUpdate((snap) => handoffs.update(snap));
+    // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
+    // lazily so a disabled copilot costs no git subprocesses at all.
+    engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)));
   }
 
   engine.start();
@@ -222,7 +237,17 @@ const sweepTimer = setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 sweepTimer.unref();
 
-const server = startServer({ cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board });
+const server = startServer({
+  cfg,
+  registry,
+  push,
+  snooze,
+  notifyPrefs,
+  updateMonitor,
+  audit,
+  board,
+  copilot: copilotBoard,
+});
 
 const shutdown = async () => {
   console.log("\n[bridge] shutting down");

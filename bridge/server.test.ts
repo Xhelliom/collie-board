@@ -58,6 +58,9 @@ function cfg(overrides: Partial<Config> = {}): Config {
     boardBranchPrefix: "board/",
     boardHandoffPct: 70,
     boardCtxWindow: 200_000,
+    boardCopilot: false,
+    boardCopilotKind: "",
+    boardCopilotClear: "/clear",
     ...overrides,
   };
 }

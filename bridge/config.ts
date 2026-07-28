@@ -205,6 +205,16 @@ export interface Config {
    * 1M-context model. A wrong value only skews the percentage — nothing depends on it being right.
    */
   boardCtxWindow: number;
+  /**
+   * The copilot (reformulation + post-`done` review). OFF by default, deliberately: it is a second
+   * agent drawing on the same subscription as the workers, and spending someone's quota in the
+   * background is not a default anyone should inherit by upgrading. `COLLIE_BOARD_COPILOT=on`.
+   */
+  boardCopilot: boolean;
+  /** Agent kind for the copilot — it can be a cheaper one than the workers. Empty = same. */
+  boardCopilotKind: string;
+  /** The agent's context-reset command; per-kind (see `adapters/`). */
+  boardCopilotClear: string;
 }
 
 /**
@@ -261,5 +271,8 @@ export function loadConfig(): Config {
     boardBranchPrefix: process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/",
     boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
     boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
+    boardCopilot: envBool("COLLIE_BOARD_COPILOT", false),
+    boardCopilotKind: (process.env.COLLIE_BOARD_COPILOT_KIND ?? "").trim(),
+    boardCopilotClear: process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "/clear",
   };
 }

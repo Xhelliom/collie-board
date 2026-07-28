@@ -15,6 +15,14 @@ import { parseCardBody } from "./board-routes.ts";
 import { BoardDb, type Card, type CardSession } from "./db.ts";
 import { contextPercent } from "./context.ts";
 import {
+  parseJsonish,
+  reformulatePrompt,
+  reviewPrompt,
+  slugBranch,
+  toReformulation,
+  toReviewResult,
+} from "./copilot.ts";
+import {
   isSafeDiffPath,
   parseNumstat,
   parseUntracked,
@@ -981,5 +989,78 @@ describe("promptAndConfirm", () => {
     await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
     expect(calls.filter((c) => c === "sendPaneKeys")).toHaveLength(1);
     expect(calls.indexOf("promptAgent")).toBeLessThan(calls.indexOf("sendPaneKeys"));
+  });
+});
+
+describe("copilot output contract", () => {
+  it("parses a bare JSON answer", () => {
+    expect(parseJsonish('{"title":"x"}')).toEqual({ title: "x" });
+  });
+
+  it("accepts a fenced ```json block — the one deviation agents actually make", () => {
+    expect(parseJsonish('```json\n{"title":"x"}\n```')).toEqual({ title: "x" });
+    expect(parseJsonish('```\n{"title":"x"}\n```')).toEqual({ title: "x" });
+  });
+
+  it("returns null on prose, an empty file, or a half-written one", () => {
+    expect(parseJsonish("Sure! Here is the JSON:")).toBeNull();
+    expect(parseJsonish("")).toBeNull();
+    expect(parseJsonish('{"title":"x"')).toBeNull();
+  });
+
+  it("keeps only well-formed fields of a reformulation, in either casing", () => {
+    expect(
+      toReformulation({
+        title: " Ship it ",
+        spec: "do the thing",
+        acceptance: ["a", "", 3, " b "],
+        branch_name: "Ship It!",
+        split_suggestion: [],
+      }),
+    ).toEqual({ title: "Ship it", spec: "do the thing", acceptance: ["a", "b"], branchName: "Ship It!" });
+  });
+
+  it("rejects a non-object answer rather than half-applying it", () => {
+    expect(toReformulation(["a"])).toBeNull();
+    expect(toReformulation("nope")).toBeNull();
+    expect(toReformulation({ unrelated: 1 })).toBeNull();
+  });
+
+  it("keeps only well-formed fields of a review", () => {
+    expect(toReviewResult({ verdict: "drift", notes: "  ", todos: ["fix the parser"] })).toEqual({
+      verdict: "drift",
+      todos: ["fix the parser"],
+    });
+  });
+
+  it("sanitises a model-suggested branch name — it lands in `git worktree add`", () => {
+    expect(slugBranch("Ship It!")).toBe("ship-it");
+    expect(slugBranch("réécrire~le/parseur")).toBe("reecrire-le-parseur");
+    expect(slugBranch("!!!")).toBe("card");
+  });
+});
+
+describe("copilot prompts", () => {
+  it("tells the reformulator NOT to do the work — a coding agent otherwise starts editing", () => {
+    const p = reformulatePrompt("make the parser streaming", ".board/out/ab12.json");
+    expect(p).toMatch(/do NOT do the work/i);
+    expect(p).toContain(".board/out/ab12.json");
+    expect(p).toContain("make the parser streaming");
+  });
+
+  it("reviews from the STAT, never the full diff — that is the quota decision", () => {
+    const p = reviewPrompt({
+      title: "ship it",
+      spec: "spec here",
+      acceptance: ["tests pass"],
+      statSummary: "src/a.ts | +12 -3",
+      handoffMd: "we chose X because Y",
+      outPath: ".board/out/cd34.json",
+    });
+    expect(p).toContain("git diff --stat");
+    expect(p).toContain("src/a.ts | +12 -3");
+    expect(p).toContain("we chose X because Y");
+    expect(p).toContain("- tests pass");
+    expect(p).toContain(".board/out/cd34.json");
   });
 });

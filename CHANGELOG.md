@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.23.0] - 2026-07-28
+
+### Added
+- **Copilot** (`bridge/copilot.ts`) — one long-lived agent in a dedicated `board` workspace, driven through the same `agent.prompt` the cards use. No API key, no SDK; the session is openable in the TUI when an answer goes wrong.
+- Output contract is a FILE, never terminal scraping: each prompt ends with "write the JSON to `.board/out/<id>.json`", and the file appearing is the completion signal.
+- **Reformulation** — a dictated brain dump becomes title + spec + acceptance criteria + branch name, in the background (creating a card stays instant). `split_suggestion` becomes extra backlog cards.
+- **Post-`done` review** — verdict + notes + todos from `git diff --stat` and the handoff note, never the full diff. The todos become cards, which is what refills the board from what agents left undone.
+- Serialised to one request at a time (one pane is one queue), `/clear` every 8 requests, and **off by default**: `COLLIE_BOARD_COPILOT=on`. Also `COLLIE_BOARD_COPILOT_KIND`, `COLLIE_BOARD_COPILOT_CLEAR`.
+
+### Fixed
+- `launchAgent()` is now the single path for starting an agent (retry on `agent_pane_busy`, then wait for `interactive_ready`). Calling `agent.start` directly is how you get a pane with a shell prompt and no agent in it — which is exactly what the copilot did on its first run.
+
 ## [0.22.0] - 2026-07-28
 
 ### Added

@@ -18,7 +18,7 @@
 import { join } from "node:path";
 
 import type { Config } from "./config.ts";
-import { agentNameFor, promptAndConfirm, waitForAgentReady } from "./cards.ts";
+import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -222,12 +222,7 @@ export class HandoffCoordinator {
         noteChars: note?.length ?? 0,
       });
 
-      await this.herdr.startAgent({
-        paneId: created.paneId,
-        kind,
-        name: agentNameFor(card.branch ?? card.title),
-      });
-      await waitForAgentReady(this.herdr, created.paneId);
+      await launchAgent(this.herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title));
       await promptAndConfirm(this.herdr, created.paneId, continuationPrompt(card));
       db.setStatus(card.id, "working", "handed off to a fresh session");
     } catch (err) {
