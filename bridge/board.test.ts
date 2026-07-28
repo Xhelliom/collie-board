@@ -1,8 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   agentNameFor,
   isTransientHerdrError,
+  promptAndConfirm,
   branchFromTitle,
   cardViews,
   initialPrompt,
@@ -21,6 +25,7 @@ import {
 } from "./adapters.ts";
 import { contextPercent } from "./context.ts";
 import {
+  Copilot,
   parseJsonish,
   reformulatePrompt,
   reviewPrompt,
@@ -1341,5 +1346,145 @@ describe("repo preferences", () => {
     store.setRepoHidden("/repo/deleted-long-ago", true);
     const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "" });
     expect(await listRepos(store, snapshot([]), [], git)).toEqual([]);
+  });
+});
+
+describe("promptAndConfirm — a prompt swallowed by a first-run modal", () => {
+  /**
+   * Claude Code's trust dialog is up, herdr reports `interactive_ready` anyway, and the prompt is
+   * eaten whole: nothing typed, nothing runs, and its Enter answers the dialog. Live-verified.
+   */
+  function swallowingHerdr(promptsEaten: number) {
+    const calls: string[] = [];
+    let prompts = 0;
+    let status: AgentStatus = "idle";
+    return {
+      calls,
+      client: {
+        async promptAgent() {
+          calls.push("promptAgent");
+          prompts++;
+          // A prompt past the modal actually starts the agent.
+          if (prompts > promptsEaten) status = "working";
+        },
+        async sendPaneKeys() {
+          calls.push("sendPaneKeys"); // dismisses the dialog; the agent stays idle
+        },
+        async getAgent() {
+          return { agent_status: status };
+        },
+      },
+    };
+  }
+
+  it("re-sends once when the first prompt after a launch left the agent idle", async () => {
+    const { client, calls } = swallowingHerdr(1);
+    await promptAndConfirm(client as never, "w1:p1", "do the thing", async () => {}, {
+      firstAfterLaunch: true,
+    });
+    expect(calls).toEqual(["promptAgent", "sendPaneKeys", "promptAgent"]);
+  });
+
+  it("does NOT re-send a follow-up prompt — the agent would do the work twice", async () => {
+    const { client, calls } = swallowingHerdr(99);
+    await promptAndConfirm(client as never, "w1:p1", "do the thing", async () => {});
+    expect(calls).toEqual(["promptAgent", "sendPaneKeys"]);
+  });
+
+  it("stops at the first attempt when the prompt plainly landed", async () => {
+    const { client, calls } = swallowingHerdr(0);
+    await promptAndConfirm(client as never, "w1:p1", "x", async () => {}, { firstAfterLaunch: true });
+    expect(calls).toEqual(["promptAgent"]);
+  });
+
+  it("stops after the Enter nudge when that was enough (the unsubmitted paste)", async () => {
+    const calls: string[] = [];
+    let status: AgentStatus = "idle";
+    const client = {
+      async promptAgent() {
+        calls.push("promptAgent");
+      },
+      async sendPaneKeys() {
+        calls.push("sendPaneKeys");
+        status = "working"; // the draft was submitted
+      },
+      async getAgent() {
+        return { agent_status: status };
+      },
+    };
+    await promptAndConfirm(client as never, "w1:p1", "x", async () => {}, { firstAfterLaunch: true });
+    expect(calls).toEqual(["promptAgent", "sendPaneKeys"]);
+  });
+});
+
+describe("Copilot.ensurePane — adoption", () => {
+  // A real (empty, throwaway) directory: ensurePane mkdirs its work dir before anything else.
+  const WD = mkdtempSync(join(tmpdir(), "copilot-test-"));
+
+  function copilotWith(snap: EngineSnapshot, fail: Set<string> = new Set()) {
+    const calls: string[] = [];
+    const herdr = {
+      async createWorkspace() {
+        calls.push("createWorkspace");
+        if (fail.has("createWorkspace")) throw new Error("nope");
+        return { paneId: "wNEW:p1", workspaceId: "wNEW", tabId: "wNEW:t1", cwd: WD };
+      },
+      async startAgent() {
+        calls.push("startAgent");
+        if (fail.has("startAgent")) throw new Error("herdr agent.start: agent_name_taken: …");
+      },
+      async getAgent() {
+        return { interactive_ready: true, agent_status: "working" as AgentStatus };
+      },
+      async promptAgent() {
+        calls.push("promptAgent");
+      },
+      async sendPaneKeys() {
+        calls.push("sendPaneKeys");
+      },
+    };
+    const cfg = { boardCopilot: true, boardAgentKind: "claude", boardCopilotKind: "" } as Config;
+    // Tiny deadline: these tests are about which panes get adopted, not about waiting for an answer
+    // file the fake agent never writes.
+    return {
+      calls,
+      copilot: new Copilot(herdr as never, cfg, WD, () => snap, {}, { timeoutMs: 30, pollMs: 10 }),
+    };
+  }
+
+  it("adopts an agent already running in its directory — a restart must not build a second one", async () => {
+    // Herdr agent names are globally unique, so a second `board` agent fails outright; and the
+    // attempt leaves an orphan workspace behind first.
+    const { calls, copilot } = copilotWith(snapshot([pane("wOLD:p1", "idle", { cwd: WD })]));
+    await copilot.ask(() => "hi");
+    expect(calls).not.toContain("createWorkspace");
+    expect(calls).not.toContain("startAgent");
+    expect(calls).toContain("promptAgent");
+  });
+
+  it("relaunches into a leftover SHELL in its directory rather than stacking a workspace", async () => {
+    const snap: EngineSnapshot = {
+      agents: [],
+      shellPanes: [pane("wOLD:p1", "unknown", { cwd: WD, kind: "shell" })],
+      workspaces: [],
+      tabs: [],
+      bridge: "connected",
+    };
+    const { calls, copilot } = copilotWith(snap);
+    await copilot.ask(() => "hi");
+    expect(calls).not.toContain("createWorkspace");
+    expect(calls[0]).toBe("startAgent");
+  });
+
+  it("creates a workspace only when nothing of ours is in the herd", async () => {
+    const { calls, copilot } = copilotWith(snapshot([pane("wX:p1", "idle", { cwd: "/somewhere/else" })]));
+    await copilot.ask(() => "hi");
+    expect(calls[0]).toBe("createWorkspace");
+    expect(calls[1]).toBe("startAgent");
+  });
+
+  it("returns null and drops the pane when the launch fails, so the next request retries", async () => {
+    const { copilot } = copilotWith(snapshot([]), new Set(["startAgent"]));
+    expect(await copilot.ask(() => "hi")).toBeNull();
   });
 });

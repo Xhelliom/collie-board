@@ -250,7 +250,7 @@ export function loadConfig(): Config {
   const stateDir =
     process.env.HERDR_PLUGIN_STATE_DIR ??
     process.env.COLLIE_BOARD_STATE_DIR ??
-    join(homedir(), ".local", "state", "collie");
+    join(homedir(), ".local", "state", "collie-board");
 
   const submitKeys = envList("COLLIE_BOARD_SUBMIT_KEYS");
 

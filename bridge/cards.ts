@@ -330,18 +330,27 @@ export function runningCards(db: BoardDb): number {
  */
 
 /**
- * Send a prompt and make sure it was actually SUBMITTED.
+ * Send a prompt and make sure it was actually RECEIVED. Two failures, both live-verified on herdr
+ * 0.7.5 (2026-07-28), and neither of which the ack tells you about:
  *
- * ⚠️ Live-verified on herdr 0.7.5 (2026-07-28): `agent.prompt` does not reliably submit. A
- * multi-line prompt lands in Claude Code's input box as `[Pasted text #N +M lines]` and just SITS
- * there — a single `Enter` afterwards submits it untouched. This is the same class of race
- * HERDR_API.md already documents for `send_text` + `send_keys`: an ack means herdr took the bytes,
- * never that the TUI acted on them.
+ * 1. **The prompt is typed but not submitted.** A multi-line prompt lands in Claude Code's box as
+ *    `[Pasted text #N +M lines]` and sits there; one `Enter` afterwards submits it untouched. Same
+ *    class as the `send_text` + `send_keys` race HERDR_API.md documents — an ack means herdr took
+ *    the bytes, never that the TUI acted on them.
  *
- * So we do what `web/src/lib/reply-action.ts` does for replies — read the state back and look. A
- * prompt that landed drives the agent to `working` (or straight to `blocked` if it asks something);
- * an agent still sitting at `idle`/`done` after the settle window has a draft in its box, and gets
- * one `Enter`. That nudge is safe when we're wrong: Enter on an empty Claude prompt is a no-op.
+ * 2. **The prompt is swallowed whole by a first-run modal.** Claude Code asks "Is this a project you
+ *    trust?" the first time it runs in a directory — and herdr reports `interactive_ready: true`
+ *    while that dialog is up, so there is no state to wait for. The prompt text is eaten by the
+ *    select and its Enter answers "Yes, I trust this folder". Nothing is typed, nothing runs, and
+ *    the pane looks perfectly normal afterwards. This hits EVERY card, because every card gets a
+ *    brand-new worktree directory, and it is silent.
+ *
+ * So: read the state back and look, the same rule `web/src/lib/reply-action.ts` applies to replies.
+ * An agent that received a prompt is `working` (or `blocked`); one still `idle` did not.
+ *
+ * `firstAfterLaunch` enables the second re-send, and is set ONLY right after a launch — where the
+ * modal can appear. Re-sending a follow-up whose turn merely finished inside the settle window
+ * would make the agent do the work twice.
  */
 
 /**
@@ -368,16 +377,36 @@ export async function promptAndConfirm(
   paneId: string,
   text: string,
   wait: (ms: number) => Promise<void> = sleep,
+  opts: { firstAfterLaunch?: boolean } = {},
 ): Promise<void> {
+  const status = async (): Promise<AgentStatus | undefined> => {
+    try {
+      return (await herdr.getAgent(paneId)).agent_status;
+    } catch {
+      return undefined;
+    }
+  };
+  // "It landed" = the agent is doing something. `idle` after a prompt means it never saw it.
+  const landed = (s: AgentStatus | undefined) => s === "working" || s === "blocked";
+
   await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
   await wait(PROMPT_SETTLE_MS);
-  try {
-    const agent = await herdr.getAgent(paneId);
-    if (agent.agent_status === "working" || agent.agent_status === "blocked") return;
-  } catch {
-    // Can't tell — nudging is the cheaper mistake than a prompt that never runs.
-  }
+  if (landed(await status())) return;
+
+  // Either the text is sitting unsubmitted in the box, or a modal is in front of it. One Enter
+  // covers both: it submits the draft, or it answers the modal.
   await herdr.sendPaneKeys(paneId, ["Enter"]);
+  await wait(PROMPT_SETTLE_MS);
+  if (landed(await status()) || !opts.firstAfterLaunch) return;
+
+  // Still nothing, on the FIRST prompt after a launch — the text was swallowed whole. Re-send it
+  // now that whatever ate it is gone. Only ever on a first prompt (see the header): re-sending a
+  // follow-up whose turn merely finished fast would make the agent do the work twice.
+  await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
+  await wait(PROMPT_SETTLE_MS);
+  if (!landed(await status())) {
+    console.warn(`[board] pane ${paneId}: prompt did not take after two attempts`);
+  }
 }
 
 export async function startCard(
@@ -462,7 +491,8 @@ export async function startCard(
 
   const text = opts.promptText ?? initialPrompt(card);
   try {
-    await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep);
+    // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
+    await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });
     db.recordEvent(cardId, "card.prompted", { chars: text.length });
   } catch (err) {
     // The agent IS up; only the prompt failed. That's recoverable by hand (or by POST …/prompt), so

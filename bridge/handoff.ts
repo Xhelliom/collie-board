@@ -223,7 +223,9 @@ export class HandoffCoordinator {
       });
 
       await launchAgent(this.herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title));
-      await promptAndConfirm(this.herdr, created.paneId, continuationPrompt(card));
+      await promptAndConfirm(this.herdr, created.paneId, continuationPrompt(card), undefined, {
+        firstAfterLaunch: true,
+      });
       db.setStatus(card.id, "working", "handed off to a fresh session");
     } catch (err) {
       // Whatever failed, the marker is cleared and the card keeps whatever session it has — the

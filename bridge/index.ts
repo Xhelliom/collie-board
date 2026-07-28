@@ -23,7 +23,7 @@ import {
   type SessionFactory,
 } from "./sessions.ts";
 import { Snooze } from "./snooze.ts";
-import { StateEngine } from "./state-engine.ts";
+import { StateEngine, type EngineSnapshot } from "./state-engine.ts";
 import {
   bridgeStampSync,
   githubTagsFetcher,
@@ -71,10 +71,20 @@ const adapters = loadAdapters(cfg.adapterPaths);
 
 // The copilot: one long-lived agent in its own workspace, driven exactly like a worker. Off unless
 // COLLIE_BOARD_COPILOT is set — it draws on the same subscription the cards do.
+// `snapshotRef` is filled in by the primary session factory below — the copilot needs the live herd
+// to adopt an existing pane, and it is constructed before the engine exists.
+let snapshotRef: () => EngineSnapshot = () => ({
+  agents: [],
+  shellPanes: [],
+  workspaces: [],
+  tabs: [],
+  bridge: "disconnected",
+});
 const copilot = new Copilot(
   new HerdrClient(cfg.socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode),
   cfg,
   join(cfg.stateDir, "copilot"),
+  () => snapshotRef(),
   adapters,
 );
 const copilotBoard = new CopilotCoordinator(board, copilot, cfg);
@@ -167,6 +177,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   // Board reconciliation rides the SAME snapshot poll — no second loop, no second source of truth.
   // Primary session only: a card's pane id is meaningless in another herdr server (see server.ts).
   if (isPrimary) {
+    snapshotRef = () => engine.current();
     engine.onUpdate((snap) => reconcile(board, snap));
     // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
     // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.

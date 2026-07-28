@@ -215,6 +215,8 @@ export function reviewPrompt(input: {
 export class Copilot {
   /** The pane the copilot lives in, once it has one. */
   private paneId: string | null = null;
+  /** Set by ensurePane, consumed by the next prompt — see promptAndConfirm's `firstAfterLaunch`. */
+  private justLaunched = false;
   /** Serialises requests: one pane is one queue, which is free rate limiting. */
   private queue: Promise<unknown> = Promise.resolve();
   private requestsSinceReset = 0;
@@ -224,8 +226,12 @@ export class Copilot {
     private readonly cfg: Config,
     /** The copilot's own working directory — it needs one, and it must not be a real repo. */
     private readonly workDir: string,
+    /** The live herd, for adopting a copilot pane that already exists (see ensurePane). */
+    private readonly snapshot: () => EngineSnapshot,
     /** Per-agent divergence (the reset command). See adapters.ts. */
     private readonly adapters: Record<string, AgentAdapter> = {},
+    /** Deadline + poll cadence for one request. Injectable so the tests don't wait five minutes. */
+    private readonly timing: { timeoutMs?: number; pollMs?: number } = {},
   ) {}
 
   /** The agent kind the copilot runs, and its adapter. */
@@ -267,13 +273,25 @@ export class Copilot {
       if (this.requestsSinceReset >= RESET_EVERY) await this.reset();
       this.requestsSinceReset++;
 
-      // Same submit race as everywhere else (see promptAndConfirm): an unsubmitted prompt would sit
-      // in the box and this request would burn its whole five-minute deadline waiting for a file
-      // nobody was ever going to write.
-      await promptAndConfirm(this.herdr, this.paneId, buildPrompt(rel));
+      // Same delivery problems as everywhere else (see promptAndConfirm): an unsubmitted prompt, or
+      // one eaten whole by the first-run trust dialog, would burn this request's five-minute
+      // deadline waiting for a file nobody was ever going to write.
+      const first = this.justLaunched;
+      this.justLaunched = false;
+      await promptAndConfirm(this.herdr, this.paneId, buildPrompt(rel), undefined, {
+        firstAfterLaunch: first,
+      });
       const answer = await this.awaitFile(abs);
+      if (answer === null) {
+        console.warn(`[copilot] no answer at ${rel} within the deadline — see pane ${this.paneId}`);
+      }
       return answer;
-    } catch {
+    } catch (err) {
+      // Never rethrow — the copilot is optional by design — but never go quiet either. A silent
+      // catch here is exactly what made a swallowed first prompt take an hour to find.
+      console.warn(`[copilot] request failed: ${(err as Error).message}`);
+      // The pane may be the problem; drop it so the next request rebuilds one.
+      this.paneId = null;
       return null;
     } finally {
       await rm(abs, { force: true }).catch(() => {});
@@ -282,9 +300,10 @@ export class Copilot {
 
   /** Poll for the answer file. Its APPEARANCE is the completion signal — see the header. */
   private async awaitFile(abs: string): Promise<unknown | null> {
-    const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+    const poll = this.timing.pollMs ?? POLL_MS;
+    const deadline = Date.now() + (this.timing.timeoutMs ?? REQUEST_TIMEOUT_MS);
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, POLL_MS));
+      await new Promise((r) => setTimeout(r, poll));
       const file = Bun.file(abs);
       if (!(await file.exists())) continue;
       // A file that exists but doesn't parse yet is very likely a half-written write; one retry
@@ -295,18 +314,49 @@ export class Copilot {
     return null;
   }
 
-  /** Find or create the copilot's workspace + agent. Idempotent; called before every request. */
+  /**
+   * Find or create the copilot's workspace + agent. Idempotent, and it has to be: a bridge restart
+   * loses `paneId` while the pane keeps living in the herd.
+   *
+   * ADOPTION FIRST, and not as an optimisation. Herdr agent names are globally unique, so blindly
+   * creating a second copilot fails with `agent_name_taken` — and it leaves an orphan `board`
+   * workspace behind on every restart before it does. Found live: the copilot was dead for exactly
+   * that reason, silently, until this class started logging.
+   */
   private async ensurePane(): Promise<void> {
     if (this.paneId) return;
     await mkdir(this.workDir, { recursive: true, mode: 0o700 });
-    const created = await this.herdr.createWorkspace({
-      cwd: this.workDir,
-      label: COPILOT_WORKSPACE_LABEL,
-    });
+
+    const snap = this.snapshot();
+    const mine = (paneId: string) => snap.agents.some((a) => a.paneId === paneId);
+    const here = [...snap.agents, ...snap.shellPanes].filter((p) => p.cwd === this.workDir);
+
+    // An agent already running in our directory IS the copilot — reuse it as-is.
+    const running = here.find((p) => mine(p.paneId));
+    if (running) {
+      this.paneId = running.paneId;
+      console.log(`[copilot] adopted the existing agent in ${running.paneId}`);
+      return;
+    }
+
+    // A bare shell left over from a previous life: relaunch into it rather than stacking another
+    // workspace next to it.
+    const shell = here[0];
+    const paneId =
+      shell?.paneId ??
+      (
+        await this.herdr.createWorkspace({
+          cwd: this.workDir,
+          label: COPILOT_WORKSPACE_LABEL,
+        })
+      ).paneId;
+
     const kind = this.cfg.boardCopilotKind || this.cfg.boardAgentKind;
-    await launchAgent(this.herdr, created.paneId, kind, agentNameFor(COPILOT_WORKSPACE_LABEL));
-    this.paneId = created.paneId;
+    await launchAgent(this.herdr, paneId, kind, agentNameFor(COPILOT_WORKSPACE_LABEL));
+    this.paneId = paneId;
     this.requestsSinceReset = 0;
+    this.justLaunched = true;
+    console.log(`[copilot] agent ready in ${paneId} (${this.workDir})`);
   }
 
   /**

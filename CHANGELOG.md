@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.28.0] - 2026-07-28
+
+### Fixed
+- **Every card's first prompt could be silently swallowed.** Claude Code shows a "Is this a project you trust?" dialog the first time it runs in a directory — and herdr reports `interactive_ready: true` while it is up, so there is no state to wait for. The prompt text is eaten by the select and its Enter answers the dialog: nothing typed, nothing runs, pane looks normal. **Every card gets a brand-new worktree directory**, so this hit every card. `promptAndConfirm(..., { firstAfterLaunch: true })` now verifies the agent actually started working and re-sends once.
+- **The copilot never adopted its existing pane.** `ensurePane()` always created a new workspace, so after any bridge restart `agent.start` failed with `agent_name_taken` (herdr agent names are globally unique) — leaving an orphan `board` workspace behind each time. It now adopts a running agent in its work dir, or relaunches into a leftover shell.
+- **The copilot swallowed every error silently.** `catch { return null }` with no output is why the two bugs above took an hour to find. Failures are logged, and a failed request drops the pane so the next one rebuilds.
+- **State dir was still upstream Collie's** — `~/.local/state/collie` instead of `~/.local/state/collie-board`. A fork-rename miss (the path is built from separate segments, so the rename pass didn't match it). Move an existing one by hand: `mv ~/.local/state/collie ~/.local/state/collie-board` **with the service stopped** — a running agent caches its cwd as a string and will keep writing to the old path.
+
+### Changed
+- `Copilot` takes a snapshot accessor (for adoption) and injectable request timings (so the tests don't wait five minutes).
+
 ## [0.27.0] - 2026-07-28
 
 ### Added
