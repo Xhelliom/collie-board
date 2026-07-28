@@ -80,23 +80,31 @@ added below it, which is what MIT requires and also just the right thing to do.
 
 Herdr is AGPL, but nothing here links its binary — a socket client is not a derived work.
 
-## Marketplace
+## Marketplace — decided
 
-The herdr marketplace index reads GitHub repository search, and **GitHub excludes forks from search
-results by default**. A true fork may therefore never appear in the listing, even with the
-`herdr-plugin` topic. That is the trade:
+**Decision (2026-07-28): a real GitHub fork**, [`Xhelliom/collie-board`](https://github.com/Xhelliom/collie-board),
+public. Contributing back won over discoverability, because **GitHub only accepts a pull request
+whose head repository is a fork of the base** — from a standalone repo, every brick in the PR-able
+list above would need a second repo and a cherry-pick before it could even be offered. The whole
+upstream strategy hangs on that one mechanic, so it decided the question.
+
+The cost, and it is real: the herdr marketplace index reads GitHub repository search, and **GitHub
+excludes forks from search results by default**. This repo may therefore never appear in the
+listing, even with the `herdr-plugin` topic. If that turns out to matter more than expected, a
+standalone mirror can be pushed alongside later — the reverse (turning a plain repo into a fork) is
+not possible at all, which is the other half of why this way round is the safer bet.
 
 | Option | Gain | Cost |
 |---|---|---|
-| **GitHub fork** | trivial PRs, visible lineage | listing uncertain |
-| **Fresh repo** | indexed normally | upstream remote added by hand |
-
-Forking is the right call while contributing back and staying rebaseable is the priority. Moving to
-a fresh repo later is easy; the reverse is not.
+| **GitHub fork** ← chosen | PRs upstream are trivial; lineage visible | listing uncertain |
+| Standalone repo | indexed normally | no PR to upstream without a second repo |
 
 ## Open questions
 
-- [ ] Public or private at first.
-- [ ] If public: add the `herdr-plugin` topic (auto-indexed, ~30 min refresh, no review).
-- [ ] Set `COLLIE_BOARD_UPDATE_REPO` once the fork is published — the release check is opt-in
-      precisely because pointing it at upstream would nag about versions this tree isn't.
+- [x] Public or private at first → **public**, 2026-07-28.
+- [x] Fork vs standalone → **fork** (above).
+- [ ] Confirm whether the `herdr-plugin` topic gets the fork listed anyway (~30 min refresh). If
+      not, decide whether a standalone mirror is worth maintaining.
+- [ ] Set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board` in the plugin `.env` so the in-app update
+      banner works. It is opt-in precisely because pointing it at upstream would nag about versions
+      this tree isn't.
