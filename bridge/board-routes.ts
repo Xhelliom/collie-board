@@ -9,7 +9,7 @@
 // a card eventually does.
 
 import type { AuditLog } from "./audit.ts";
-import { cardView, cardViews } from "./cards.ts";
+import { cardView, cardViews, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
@@ -33,7 +33,8 @@ export interface BoardContext {
   guard: (level: "read" | "write") => Response | null;
   /** The authorised device id for audit attribution, or null. */
   device: string | null;
-  json: (data: unknown) => Response;
+  /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
+  json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
 }
 
@@ -198,6 +199,61 @@ export async function handleBoardRoute(
     if (denied) return denied;
     if (!db.getCard(id)) return text("card not found", 404);
     return json({ events: db.listEvents(id) });
+  }
+
+  // ── start: worktree + workspace + pane + agent + the spec, in one tap ─────
+  if (action === "start" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    const result = await startCard(db, ctx.herdr, ctx.cfg, id);
+    ctx.audit.record({
+      action: "card.start",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      // 409 for "the board says no" (busy / already running / no repo) vs 502 for a herdr failure —
+      // the phone shows the message either way, but the status tells a script which is retryable.
+      const status = result.error.kind === "herdr" ? 502 : 409;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, card: cardView(db, engine.current(), id) });
+  }
+
+  // ── prompt: a follow-up instruction to the card's running agent ───────────
+  if (action === "prompt" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const promptText = (body as { text?: unknown }).text;
+    if (typeof promptText !== "string" || promptText.trim() === "") return text("text required", 400);
+    const session = db.openSessionFor(id);
+    if (!session?.paneId) {
+      return ctx.json({ ok: false, error: "this card has no running agent", kind: "no-session" }, 409);
+    }
+    try {
+      await ctx.herdr.promptAgent({ target: session.paneId, text: promptText });
+    } catch (err) {
+      return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
+    }
+    db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true });
+    ctx.audit.record({
+      action: "card.prompt",
+      paneId: session.paneId,
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, text: promptText },
+    });
+    return json({ ok: true, card: cardView(db, engine.current(), id) });
   }
 
   return text("method not allowed", 405);

@@ -176,6 +176,29 @@ export interface Config {
    * and per-device auth ({@link deviceHeader}) becomes the way to gate writes (README → Variant C).
    */
   skipServe: boolean;
+
+  // ── Board (the fork) ────────────────────────────────────────────────────────
+
+  /**
+   * Herdr agent kind launched for a card that doesn't name its own (`claude`, `codex`, …; the set
+   * is herdr's, see `herdr agent start --help`). Per-card `agentKind` overrides it.
+   */
+  boardAgentKind: string;
+  /**
+   * How many cards may have an agent running at once.
+   *
+   * This is a QUOTA guard, not a performance one: every worker and the copilot draw on the same
+   * subscription, and four agents burning through a plan in parallel is how you discover the limit
+   * at the worst moment. Deliberately low; raise it when you know your own ceiling.
+   */
+  boardMaxAgents: number;
+  /** Prefix for branches the board creates, so a card's branch is recognisable in `git branch`. */
+  boardBranchPrefix: string;
+  /**
+   * Context percentage above which a card is flagged as worth handing off. Advisory ONLY — the
+   * handoff is always a manual tap (a handoff fired mid-refactor costs more than it saves).
+   */
+  boardHandoffPct: number;
 }
 
 /**
@@ -227,5 +250,9 @@ export function loadConfig(): Config {
     stateDir,
     multiSession: envBool("COLLIE_BOARD_MULTI_SESSION", true),
     skipServe: envBool("COLLIE_BOARD_SKIP_SERVE", false),
+    boardAgentKind: (process.env.COLLIE_BOARD_AGENT_KIND ?? "claude").trim() || "claude",
+    boardMaxAgents: envInt("COLLIE_BOARD_MAX_AGENTS", 3, { min: 1, max: 32 }),
+    boardBranchPrefix: process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/",
+    boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
   };
 }

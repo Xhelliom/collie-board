@@ -179,3 +179,24 @@ export function patchCard(id: string, input: CardInput): Promise<{ ok: true; car
 export function deleteCard(id: string): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
+
+/**
+ * Start (or relaunch) a card: worktree → agent → the spec, in one call.
+ *
+ * The bridge answers 409 for a refusal it decided itself (no repo path, semaphore full, already
+ * running) and 502 for a herdr failure — both carry a human `error` string. `apiRequest` throws on
+ * any non-2xx, so callers catch and surface `err.message`, which already contains the body.
+ */
+export function startCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/start`, {
+    method: "POST",
+  });
+}
+
+/** Send a follow-up instruction to the card's running agent (`agent.prompt`, text + submit). */
+export function promptCard(id: string, text: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/prompt`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}

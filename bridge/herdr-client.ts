@@ -35,7 +35,7 @@ interface WireTab {
 }
 
 /** Raw wire shape of a pane from `pane.list` (and, identically, inside `session.snapshot`). */
-interface WirePane {
+export interface WirePane {
   pane_id: string;
   terminal_id: string;
   workspace_id: string;
@@ -119,6 +119,57 @@ let idCounter = 0;
 /** Per-request wall-clock budget. Exported so callers can pass it explicitly alongside a dial mode. */
 export const DEFAULT_TIMEOUT_MS = 5000;
 
+/** Budget for `agent.start`, which blocks server-side until the agent's TUI is ready for input. */
+export const AGENT_START_TIMEOUT_MS = 45_000;
+
+/** Raw `worktree.create` / `worktree.open` reply. */
+interface WireWorktreeResult {
+  worktree: { path: string; branch?: string | null };
+  workspace: WireWorkspace;
+  tab: WireTab;
+  root_pane: WirePane;
+  /** `worktree.open` only — true when the worktree was already open (idempotent re-open). */
+  already_open?: boolean;
+}
+
+/**
+ * Raw `agent.get` reply. A superset of {@link WirePane} with the launch-state fields — which are
+ * present ONLY on agent records, and only while they mean something (herdr omits them once settled,
+ * so `undefined` reads as "not launching" / "unknown", never as false).
+ */
+export interface WireAgent extends WirePane {
+  name?: string | null;
+  /** True while herdr is still bringing the agent up; `agent.prompt` is refused until it clears. */
+  launch_pending?: boolean;
+  /** True once the agent's TUI will accept a prompt. THE readiness signal. */
+  interactive_ready?: boolean;
+}
+
+/** A worktree-backed workspace, ready to launch an agent in. */
+export interface CreatedWorktree {
+  /** Absolute path of the checkout — the cwd every `git` call for this card runs in. */
+  checkoutPath: string;
+  branch: string | null;
+  workspaceId: string;
+  workspaceLabel: string;
+  tabId: string;
+  paneId: string;
+  /** True when the workspace was already open, so nothing was created. */
+  alreadyOpen: boolean;
+}
+
+function toCreatedWorktree(r: WireWorktreeResult): CreatedWorktree {
+  return {
+    checkoutPath: r.worktree.path,
+    branch: r.worktree.branch ?? null,
+    workspaceId: r.workspace.workspace_id,
+    workspaceLabel: r.workspace.label,
+    tabId: r.tab.tab_id,
+    paneId: r.root_pane.pane_id,
+    alreadyOpen: r.already_open === true,
+  };
+}
+
 export class HerdrClient {
   constructor(
     private readonly socketPath: string,
@@ -127,8 +178,19 @@ export class HerdrClient {
     private readonly dialMode: DialMode = "auto",
   ) {}
 
-  /** One request, one reply, one connection. Rejects on error reply, timeout, or early close. */
-  private request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  /**
+   * One request, one reply, one connection. Rejects on error reply, timeout, or early close.
+   *
+   * `timeoutMs` overrides the client-wide budget for the handful of methods that legitimately take
+   * much longer than an RPC: `agent.start` waits for the agent to become interactively ready
+   * (30 s default, server-side), and `agent.prompt`/`agent.wait` with a `wait` clause block until
+   * the agent reaches a state. Applying the 5 s default to those would time out every single call.
+   */
+  private request<T>(
+    method: string,
+    params: Record<string, unknown> = {},
+    timeoutMs: number = this.timeoutMs,
+  ): Promise<T> {
     const id = `b${++idCounter}`;
     return new Promise<T>((resolve, reject) => {
       let buf = "";
@@ -167,8 +229,8 @@ export class HerdrClient {
         cancelDial = null;
       };
       const timer = setTimeout(
-        () => finish(() => reject(new Error(`herdr ${method}: timed out after ${this.timeoutMs}ms`))),
-        this.timeoutMs,
+        () => finish(() => reject(new Error(`herdr ${method}: timed out after ${timeoutMs}ms`))),
+        timeoutMs,
       );
 
       dialHerdr(this.socketPath, {
@@ -457,6 +519,142 @@ export class HerdrClient {
    */
   closeTab(tabId: string): Promise<void> {
     return this.request<void>("tab.close", { tab_id: tabId });
+  }
+
+  // ── Board additions (the fork) ────────────────────────────────────────────
+  // Everything below is used by the card lifecycle. Verified against the bundled schema of the
+  // installed server (`herdr api schema --json`) and live-probed on 0.7.5, 2026-07-28.
+
+  /**
+   * Create a git worktree AND open it as a workspace with a shell pane — checkout, workspace, tab
+   * and pane in one RPC. `base` seeds a NEW branch; when the branch already exists it is reused and
+   * `base` is ignored (live-verified).
+   *
+   * ⚠️ Live-verified failure mode: if the checkout DIRECTORY already exists, herdr fails with
+   * `worktree_create_failed` ("… existe déjà" straight from git) rather than reusing it. That is
+   * what {@link openWorktree} is for — see `startCard` in cards.ts, which falls back to it.
+   */
+  async createWorktree(opts: {
+    cwd: string;
+    branch: string;
+    base?: string | null;
+    label?: string;
+  }): Promise<CreatedWorktree> {
+    const params: Record<string, unknown> = { cwd: opts.cwd, branch: opts.branch, focus: false };
+    if (opts.base) params.base = opts.base;
+    if (opts.label) params.label = opts.label;
+    const r = await this.request<WireWorktreeResult>("worktree.create", params);
+    return toCreatedWorktree(r);
+  }
+
+  /**
+   * Open an EXISTING worktree as a workspace. Idempotent: a worktree already open returns
+   * `already_open: true` with the live workspace and its root pane (live-verified), which is exactly
+   * what relaunching an orphaned card needs.
+   */
+  async openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
+    const params: Record<string, unknown> = { cwd: opts.cwd, branch: opts.branch, focus: false };
+    if (opts.label) params.label = opts.label;
+    const r = await this.request<WireWorktreeResult>("worktree.open", params);
+    return toCreatedWorktree(r);
+  }
+
+  /**
+   * Launch a supported agent in a pane sitting at its interactive shell prompt. `kind` is one of
+   * herdr's known agent kinds (claude, codex, …); `name` must match `^[a-z][a-z0-9_-]{0,31}$`.
+   *
+   * ⚠️ **This does NOT wait for the agent to be usable.** The CLI's help says success means the
+   * agent "is ready for input", but that is the CLI polling afterwards — the socket method itself
+   * returns in ~2 ms with `agent_status: "unknown"` and leaves `launch_pending: true` on the pane
+   * (live-probed on 0.7.5, 2026-07-28). Prompting in that window fails with `agent_not_ready`.
+   * Callers must poll {@link getAgent} until `interactive_ready` — see `waitForAgentReady` in
+   * cards.ts. `timeout_ms` is herdr's own startup deadline, not a wait on our side.
+   */
+  async startAgent(opts: {
+    paneId: string;
+    kind: string;
+    name: string;
+    args?: string[];
+    timeoutMs?: number;
+  }): Promise<void> {
+    const timeout = opts.timeoutMs ?? AGENT_START_TIMEOUT_MS;
+    const params: Record<string, unknown> = {
+      pane_id: opts.paneId,
+      kind: opts.kind,
+      name: opts.name,
+      // Herdr's own startup deadline (must be > 3000). It bounds the launch, not this call.
+      timeout_ms: Math.max(3001, timeout),
+    };
+    if (opts.args?.length) params.args = opts.args;
+    await this.request<unknown>("agent.start", params, DEFAULT_TIMEOUT_MS);
+  }
+
+  /**
+   * One agent's live record. `interactive_ready` is the field that matters: it is the only signal
+   * that `agent.prompt` will be accepted (see {@link startAgent}). `target` takes a pane id or the
+   * agent's name — both live-verified.
+   */
+  async getAgent(target: string): Promise<WireAgent> {
+    const r = await this.request<{ agent: WireAgent }>("agent.get", { target });
+    return r.agent;
+  }
+
+  /**
+   * Submit a prompt to an agent — the text AND its submit keystroke, handled by herdr per agent.
+   * Distinct from `agent.send` / `pane.send_text`, which type literal text and leave it unsent.
+   *
+   * With `until`, herdr blocks until the agent reaches one of those states; the request budget then
+   * has to cover the agent's whole turn, which is why `timeoutMs` is a parameter and not a constant.
+   */
+  async promptAgent(opts: {
+    target: string;
+    text: string;
+    until?: AgentStatus[];
+    timeoutMs?: number;
+  }): Promise<void> {
+    const params: Record<string, unknown> = { target: opts.target, text: opts.text };
+    if (opts.until?.length) {
+      params.wait = { until: opts.until, timeout_ms: (opts.timeoutMs ?? DEFAULT_TIMEOUT_MS) - 2000 };
+    }
+    await this.request<unknown>("agent.prompt", params, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  }
+
+  /** Block until an agent reaches one of `until`. Same budget caveat as {@link promptAgent}. */
+  async waitAgent(opts: { target: string; until: AgentStatus[]; timeoutMs: number }): Promise<void> {
+    await this.request<unknown>(
+      "agent.wait",
+      { target: opts.target, until: opts.until, timeout_ms: opts.timeoutMs - 2000 },
+      opts.timeoutMs,
+    );
+  }
+
+  /** One pane's current record — `cwd` / `foreground_cwd` are what the card's diff is scoped to. */
+  async getPane(paneId: string): Promise<WirePane> {
+    const r = await this.request<{ pane: WirePane }>("pane.get", { pane_id: paneId });
+    return r.pane;
+  }
+
+  /**
+   * Push display-only metadata onto a pane. We use it for one thing: the context gauge, which then
+   * renders as `$ctx` in herdr's own Agents sidebar — so the number is visible in the TUI, not just
+   * in the phone app. `ttl_ms` makes it self-expiring, so a bridge that stops reporting leaves no
+   * stale number behind.
+   *
+   * Token KEYS are constrained server-side to `^[A-Za-z0-9_-]{1,32}$`; values are free strings.
+   */
+  reportPaneMetadata(opts: {
+    paneId: string;
+    source: string;
+    tokens: Record<string, string | null>;
+    ttlMs?: number;
+  }): Promise<void> {
+    const params: Record<string, unknown> = {
+      pane_id: opts.paneId,
+      source: opts.source,
+      tokens: opts.tokens,
+    };
+    if (opts.ttlMs) params.ttl_ms = opts.ttlMs;
+    return this.request<void>("pane.report_metadata", params);
   }
 
   /** Reachability check for the connected/disconnected banner. */

@@ -175,7 +175,15 @@ export function startServer(opts: {
           session: rt.name,
           guard: (level) => guard(req, cfg, level),
           device: deviceAuth(req, cfg).device,
-          json: (data) => json(data, req.headers.get("accept-encoding")),
+          json: (data, status) =>
+            status === undefined
+              ? json(data, req.headers.get("accept-encoding"))
+              : secure(
+                  new Response(JSON.stringify(data), {
+                    status,
+                    headers: { "content-type": "application/json; charset=utf-8" },
+                  }),
+                ),
           text,
         });
         if (boardRes) return boardRes;

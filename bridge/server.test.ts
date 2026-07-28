@@ -53,6 +53,10 @@ function cfg(overrides: Partial<Config> = {}): Config {
     stateDir: "/tmp/state",
     multiSession: true,
     skipServe: false,
+    boardAgentKind: "claude",
+    boardMaxAgents: 3,
+    boardBranchPrefix: "board/",
+    boardHandoffPct: 70,
     ...overrides,
   };
 }

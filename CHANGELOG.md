@@ -7,6 +7,24 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.20.0] - 2026-07-28
+
+### Added
+- **Start a card from the phone**: `POST /api/cards/:id/start` runs `worktree.create` → `agent.start` → readiness poll → `agent.prompt` (spec + acceptance criteria) and opens a session. 1 card = 1 branch = 1 workspace.
+- `POST /api/cards/:id/prompt` — a follow-up instruction to the card's running agent.
+- Concurrency semaphore (`COLLIE_BOARD_MAX_AGENTS`, default 3), counted from the database so a restart doesn't forget.
+- Config: `COLLIE_BOARD_AGENT_KIND`, `COLLIE_BOARD_MAX_AGENTS`, `COLLIE_BOARD_BRANCH_PREFIX`, `COLLIE_BOARD_HANDOFF_PCT`.
+- PWA: Start / Relaunch button and a prompt box on the card page.
+
+### Fixed
+- `bridge/herdr-client.ts`: per-request timeout, so `agent.start` isn't judged by the 5 s RPC budget.
+
+### Notes — herdr 0.7.5, live-probed 2026-07-28
+- `agent.start` does **not** wait for readiness (returns in ~2 ms, `launch_pending: true`); prompting in that window fails `agent_not_ready`. The bridge polls `agent.get` for `interactive_ready` instead.
+- `agent.start` right after `worktree.create` fails `agent_pane_busy` while the shell sources its rc — retried, and only on that code.
+- `agent.start` names must match `^[a-z][a-z0-9_-]{0,31}$`, so a branch name can't be used as-is.
+- `worktree.create` reuses an existing BRANCH, but fails if the checkout DIRECTORY exists; `worktree.open` is idempotent and returns `already_open` — that pair is the relaunch path.
+
 ## [0.19.0] - 2026-07-28
 
 ### Added
