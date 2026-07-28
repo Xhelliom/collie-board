@@ -657,6 +657,23 @@ export class HerdrClient {
     return this.request<void>("pane.report_metadata", params);
   }
 
+  /**
+   * The foreground process running in a pane: its pid and cwd.
+   *
+   * This is how a pane is tied to its agent's transcript WITHOUT herdr's optional integration —
+   * see `resolveForProcess` in transcript.ts. `pane.process_info` is plain herdr, always available.
+   */
+  async paneProcess(paneId: string): Promise<{ pid: number; cwd: string; name: string } | null> {
+    const r = await this.request<{
+      process_info: {
+        foreground_processes?: { pid: number; cwd?: string | null; name?: string }[];
+      };
+    }>("pane.process_info", { pane_id: paneId });
+    const proc = r.process_info?.foreground_processes?.[0];
+    if (!proc || typeof proc.pid !== "number") return null;
+    return { pid: proc.pid, cwd: proc.cwd ?? "", name: proc.name ?? "" };
+  }
+
   /** Reachability check for the connected/disconnected banner. */
   async ping(): Promise<boolean> {
     try {

@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.29.0] - 2026-07-28
+
+### Added
+- **Exact transcript resolution without herdr's integration** (`bridge/proc.ts`, `TranscriptSource.resolveForProcess`). `pane.process_info` gives a pane's foreground PID, `/proc/<pid>/stat` its start time, and the session log born closest after it is that process's — measured gap on this machine: 7 s. This removes the one place the cwd fallback could be WRONG rather than merely absent: two agents live in one directory made "newest file in the folder" a coin flip, and a coin flip there means reporting another session's context. Degrades to the cwd guess with no `/proc` (macOS/Windows) or no birth times.
+- **`POST /api/cards/:id/reformulate`** + a Reformulate button: hand a card back to the copilot. Creation already does this, so it covers the two cases it can't — a card written while the copilot was off, and a reformulation you didn't like.
+- **Card editing** (`web/src/components/card-editor.tsx`): title, spec, acceptance criteria (as a list, not a newline blob) and base ref. Until now the only way to change a spec was to delete the card, which also threw away its sessions and journal. The branch is deliberately not editable — a worktree may exist at it.
+
 ## [0.28.0] - 2026-07-28
 
 ### Fixed

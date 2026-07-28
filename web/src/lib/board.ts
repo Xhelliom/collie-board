@@ -301,3 +301,17 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
     body: JSON.stringify({ path, hidden }),
   });
 }
+
+/**
+ * Hand the card back to the copilot for a fresh title / spec / acceptance criteria.
+ *
+ * Creation does this automatically, so this is for the two cases it can't cover: a card written
+ * while the copilot was off, and a reformulation you didn't like. Returns immediately — the card
+ * rewrites itself on a later poll, exactly as on create.
+ */
+export function reformulateCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(
+    `/api/cards/${encodeURIComponent(id)}/reformulate`,
+    { method: "POST" },
+  );
+}

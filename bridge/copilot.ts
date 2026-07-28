@@ -412,10 +412,14 @@ export class CopilotCoordinator {
    *
    * NEVER overwrites what a human typed — only fields still at their derived defaults.
    */
-  async reformulate(cardId: string): Promise<void> {
+  async reformulate(cardId: string, source?: string): Promise<void> {
     const card = this.db.getCard(cardId);
-    if (!card?.rawInput || !this.copilot.enabled) return;
-    const parsed = await this.copilot.ask((out) => reformulatePrompt(card.rawInput!, out));
+    if (!this.copilot.enabled) return;
+    // On create the raw dump is the input; a re-run may be asked for a card that never had one, and
+    // then the spec is what there is to work from.
+    const input = source ?? card?.rawInput;
+    if (!card || !input?.trim()) return;
+    const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out));
     const result = toReformulation(parsed);
     if (!result) {
       this.db.recordEvent(cardId, "copilot.reformulate_failed", {});

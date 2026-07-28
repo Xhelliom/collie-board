@@ -55,6 +55,7 @@ import {
   repoRootOf,
   scanRootsFor,
 } from "./repos.ts";
+import { parseStartTicks } from "./proc.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -1486,5 +1487,26 @@ describe("Copilot.ensurePane — adoption", () => {
   it("returns null and drops the pane when the launch fails, so the next request retries", async () => {
     const { copilot } = copilotWith(snapshot([]), new Set(["startAgent"]));
     expect(await copilot.ask(() => "hi")).toBeNull();
+  });
+});
+
+describe("parseStartTicks", () => {
+  it("splits on the LAST ')' — a process name can contain spaces and parens", () => {
+    // Field 2 is the executable in parentheses; splitting on whitespace shifts every later field.
+    const fields = Array.from({ length: 30 }, (_, i) => String(i + 3)).join(" ");
+    expect(parseStartTicks(`1234 (weird (name) here) S ${fields}`)).toBe(21);
+  });
+
+  it("reads field 22 from a realistic line", () => {
+    const stat =
+      "259346 (claude) S 99176 259346 99176 34816 259346 4194304 100 0 0 0 10 5 0 0 20 0 12 0 " +
+      "987654 100 200 300";
+    expect(parseStartTicks(stat)).toBe(987654);
+  });
+
+  it("returns null on junk rather than a wrong number", () => {
+    expect(parseStartTicks("")).toBeNull();
+    expect(parseStartTicks("no parens here")).toBeNull();
+    expect(parseStartTicks("1 (x) S")).toBeNull();
   });
 });

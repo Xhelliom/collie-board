@@ -28,7 +28,8 @@ const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
-const CARD_ROUTE = /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review))?$/;
+const CARD_ROUTE =
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -275,6 +276,34 @@ export async function handleBoardRoute(
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
+    return json({ ok: true, card: cardView(db, engine.current(), id) });
+  }
+
+  // ── reformulate: hand the card back to the copilot ───────────────────────
+  // Creation runs this automatically, but a card written while the copilot was off (or one whose
+  // reformulation you simply didn't like) has no other way back in. Runs in the background: the
+  // request returns immediately and the card improves itself on a later poll, same as on create.
+  if (action === "reformulate" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    if (!ctx.cfg.boardCopilot) {
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    }
+    // Reformulating needs SOMETHING to work from. The spec is the fallback for a card typed by hand,
+    // which never had a raw dump.
+    const source = card.rawInput ?? card.spec;
+    if (!source?.trim()) {
+      return ctx.json({ ok: false, error: "this card has nothing to reformulate", kind: "empty" }, 409);
+    }
+    void ctx.copilot.reformulate(id, source);
+    ctx.audit.record({
+      action: "card.reformulate",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id },
+    });
     return json({ ok: true, card: cardView(db, engine.current(), id) });
   }
 

@@ -405,6 +405,22 @@ export interface TranscriptSource {
   /** Absolute path of the log for `sessionId`, or null when it isn't on disk. */
   resolve(sessionId: string): Promise<string | null>;
   /**
+   * Absolute path of the log belonging to the agent process `pid`, or null.
+   *
+   * The exact answer without herdr's integration. `startedAtMs` is the process's own start time, and
+   * a session log is created when the session starts — measured on this machine, the gap is a few
+   * seconds (copilot process 18:45:30, its log created 18:45:37). So among the candidates in the
+   * directory, the one whose BIRTH time sits closest after the process started is that process's.
+   *
+   * This is what {@link resolveByCwd} cannot do: with two agents live in one directory, "newest
+   * mtime" is a coin flip, and a coin flip here means showing another session's context percentage.
+   *
+   * Falls back to {@link resolveByCwd} wherever birth times aren't available (they need statx, so
+   * some filesystems and platforms report 0) — a worse answer, never a wrong crash.
+   */
+  resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null>;
+
+  /**
    * Absolute path of the newest log written by an agent STARTED in `cwd`, or null.
    *
    * The fallback for when herdr reports no `agent_session` for a pane — which is the DEFAULT state:
@@ -522,6 +538,36 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     return best.path;
   }
 
+  async resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null> {
+    const dir = join(this.root, mangleProjectDir(cwd));
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return null;
+    }
+    // A log created BEFORE the process started belongs to an earlier session; a small negative slack
+    // absorbs clock granularity. Among the rest, closest-after wins.
+    const SLACK_MS = 5_000;
+    let best: { path: string; delta: number } | null = null;
+    for (const name of names) {
+      if (!name.endsWith(".jsonl")) continue;
+      const candidate = join(dir, name);
+      try {
+        const st = await stat(candidate);
+        const birth = st.birthtimeMs;
+        if (!birth) continue; // statx unavailable here — the cwd fallback will answer instead
+        const delta = birth - startedAtMs;
+        if (delta < -SLACK_MS) continue;
+        if (!best || delta < best.delta) best = { path: candidate, delta };
+      } catch {
+        continue;
+      }
+    }
+    if (best === null) return this.resolveByCwd(cwd);
+    return this.contained(best.path);
+  }
+
   async resolveByCwd(cwd: string): Promise<string | null> {
     const dir = join(this.root, mangleProjectDir(cwd));
     let names: string[];
@@ -544,8 +590,15 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       }
     }
     if (best === null) return null;
-    // Same containment rule as resolve(): a symlinked project dir must not become a file-read gadget.
-    const real = await realpath(best.path).catch(() => null);
+    return this.contained(best.path);
+  }
+
+  /**
+   * Same containment rule as resolve(): a project dir symlinked outside the root must not become a
+   * way to read arbitrary files, even though nothing here comes from a request.
+   */
+  private async contained(path: string): Promise<string | null> {
+    const real = await realpath(path).catch(() => null);
     const realRoot = await realpath(this.root).catch(() => null);
     if (real === null || realRoot === null) return null;
     return real === realRoot || real.startsWith(realRoot + sep) ? real : null;

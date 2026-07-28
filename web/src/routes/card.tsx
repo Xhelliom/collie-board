@@ -1,6 +1,16 @@
 import { useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
-import { ArrowLeft, GitBranch, Play, Send, Shuffle, TerminalSquare, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  GitBranch,
+  Pencil,
+  Play,
+  Send,
+  Shuffle,
+  Sparkles,
+  TerminalSquare,
+  Trash2,
+} from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -10,6 +20,7 @@ import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
+import { CardEditor } from "@/components/card-editor";
 import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
@@ -20,7 +31,9 @@ import {
   handoffCard,
   patchCard,
   promptCard,
+  reformulateCard,
   startCard,
+  type CardInput,
   type CardSession,
   type CardStatus,
   type CardView,
@@ -47,6 +60,7 @@ export function CardRoute() {
   const revalidator = useRevalidator();
   const stalled = useLoadingStalled();
   const [starting, setStarting] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const detail = data.detail;
   const card = detail?.card;
@@ -73,6 +87,25 @@ export function CardRoute() {
       setStarting(false);
       revalidator.revalidate();
     }
+  }
+
+  async function save(patch: CardInput) {
+    if (!card) return;
+    await patchCard(card.id, patch);
+    revalidator.revalidate();
+  }
+
+  // Hand the card back to the copilot. Background, like on create — the card rewrites itself on a
+  // later poll rather than holding the request open for an agent turn.
+  async function reformulate() {
+    if (!card) return;
+    try {
+      await reformulateCard(card.id);
+      setStatus("Sent to the copilot — the card rewrites itself in a minute.", "info");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
   }
 
   async function remove() {
@@ -175,6 +208,19 @@ export function CardRoute() {
 
             <CardDiff cardId={card.id} statusKey={card.status} />
 
+            <Section label="Rework">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
+                  <Pencil className="size-4" />
+                  Edit
+                </Button>
+                <Button variant="outline" size="sm" className="h-9 gap-2" onClick={reformulate}>
+                  <Sparkles className="size-4" />
+                  Reformulate
+                </Button>
+              </div>
+            </Section>
+
             <Section label="Move to">
               <div className="flex flex-wrap gap-2">
                 {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
@@ -239,6 +285,10 @@ export function CardRoute() {
           </>
         )}
       </div>
+
+      {card && (
+        <CardEditor card={card} open={editing} onClose={() => setEditing(false)} onSave={save} />
+      )}
 
       {/* The app's one status surface — start/prompt failures land here rather than in a dialog. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">

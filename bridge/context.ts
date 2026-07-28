@@ -21,6 +21,7 @@ import type { BoardDb } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { latestUsage, type TranscriptSource } from "./transcript.ts";
+import { processStartedAt } from "./proc.ts";
 
 /**
  * How often one session's transcript is re-read. The snapshot poll ticks every 1.5 s; re-reading a
@@ -98,7 +99,7 @@ export class ContextTracker {
         try {
           const path = session.agentSessionId
             ? await this.source.resolve(session.agentSessionId)
-            : await this.source.resolveByCwd(cwdOf.get(paneId)!);
+            : await this.resolveWithoutIntegration(paneId, cwdOf.get(paneId)!);
           if (path === null) return; // level 3: no log for this agent, and that is fine
           const { text } = await this.source.load(path);
           const usage = latestUsage(text);
@@ -111,6 +112,28 @@ export class ContextTracker {
         }
       }),
     );
+  }
+
+  /**
+   * Find a pane's transcript when herdr reports no `agent_session` — i.e. whenever the optional
+   * `herdr integration install <agent>` hook isn't in place, which is the default.
+   *
+   * Ask herdr for the pane's foreground PID, read that process's start time, and pick the log born
+   * closest after it. Exact even with two agents live in the same directory, where "newest file in
+   * the folder" is a coin flip — and a coin flip here means reporting another session's context.
+   * Everything degrades: no pid, no /proc, no birth times → the by-directory guess.
+   */
+  private async resolveWithoutIntegration(paneId: string, cwd: string): Promise<string | null> {
+    try {
+      const proc = await this.herdr.paneProcess(paneId);
+      const startedAt = proc ? processStartedAt(proc.pid) : null;
+      if (proc && startedAt !== null) {
+        return await this.source.resolveForProcess(proc.cwd || cwd, startedAt);
+      }
+    } catch {
+      // herdr couldn't tell us, or this platform has no /proc — fall through.
+    }
+    return this.source.resolveByCwd(cwd);
   }
 
   /** Push `$ctx` onto the pane so herdr's own Agents sidebar shows the same number the phone does. */
