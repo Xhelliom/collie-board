@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.30.2] - 2026-07-28
+
+### Fixed
+- An unexpected throw in a board route reached `Bun.serve` and came back as a 500 **HTML** page to a client polling JSON, with the cause visible only in `journalctl`. `handleBoardRoute` now nets those into `{ok:false, kind:"internal"}` and logs them.
+
+### Notes
+- A repository under `/tmp` is invisible to the service: the unit sets `PrivateTmp=yes`, so git fails with `ENOENT … posix_spawn 'git'` — which reads as "git is missing" when it is the working directory that is. Documented in the README.
+
 ## [0.30.1] - 2026-07-28
 
 ### Fixed

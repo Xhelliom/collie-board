@@ -15,7 +15,7 @@ import {
   startCard,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
-import { parseCardBody } from "./board-routes.ts";
+import { handleBoardRoute, parseCardBody } from "./board-routes.ts";
 import { BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   adapterFor,
@@ -1543,5 +1543,50 @@ describe("parseEtime — the macOS path", () => {
     expect(parseEtime("garbage")).toBeNull();
     expect(parseEtime("1:2:3:4")).toBeNull();
     expect(parseEtime("-1:00")).toBeNull();
+  });
+});
+
+describe("handleBoardRoute — the net under unexpected failures", () => {
+  function ctx(overrides: Record<string, unknown> = {}) {
+    const store = db();
+    return {
+      db: store,
+      engine: { current: () => snapshot([]) },
+      herdr: {},
+      cfg: { boardRepoRoots: [] },
+      audit: { record() {} },
+      session: "default",
+      guard: () => null,
+      device: null,
+      json: (data: unknown, status?: number) =>
+        new Response(JSON.stringify(data), {
+          status: status ?? 200,
+          headers: { "content-type": "application/json" },
+        }),
+      text: (body: string, status: number) => new Response(body, { status }),
+      copilot: { async reformulate() {} },
+      ...overrides,
+    } as never;
+  }
+
+  it("turns a thrown error into JSON, not Bun's HTML error page", async () => {
+    // A git failure — a deleted repo, a permission problem, a cwd the service can't see — used to
+    // reach Bun.serve and come back as a 500 HTML document to a client polling JSON.
+    const boom = ctx({
+      engine: {
+        current() {
+          throw new Error("git exploded");
+        },
+      },
+    });
+    const res = await handleBoardRoute("/api/cards", new Request("http://x/api/cards"), boom);
+    expect(res!.status).toBe(500);
+    expect(res!.headers.get("content-type")).toContain("json");
+    expect(await res!.json()).toEqual({ ok: false, error: "git exploded", kind: "internal" });
+  });
+
+  it("still returns null for a path that isn't ours, so the caller falls through", async () => {
+    const res = await handleBoardRoute("/api/snapshot", new Request("http://x/api/snapshot"), ctx());
+    expect(res).toBeNull();
   });
 });

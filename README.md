@@ -76,6 +76,12 @@ A **card** is durable. A **session** is not. That one rule is the whole design.
 | **Handoff** | The outgoing agent writes `.board/handoff.md`; the pane is replaced in the same worktree; the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
 | **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other. Turns a dictated brain dump into a card, and reviews finished work — its follow-ups become new cards, which is what refills the board. |
 
+> ⚠️ **Keep your repositories out of `/tmp`.** The systemd unit sets `PrivateTmp=yes` (upstream
+> hardening), so the service sees its own empty `/tmp` — a repo under there simply doesn't exist for
+> it, and git fails with a baffling `ENOENT … posix_spawn 'git'` that looks like git is missing when
+> it is the working directory that is. Nobody keeps a real project in `/tmp`, but a scratch repo made
+> for a quick test will do this.
+
 ### Board configuration
 
 | Variable | Default | What it does |

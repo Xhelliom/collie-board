@@ -109,6 +109,22 @@ export async function handleBoardRoute(
   req: Request,
   ctx: BoardContext,
 ): Promise<Response | null> {
+  try {
+    return await route(pathname, req, ctx);
+  } catch (err) {
+    // An unhandled throw here reaches Bun.serve, which answers with its own HTML error page and a
+    // 500 — so a client polling JSON gets a document, and the cause is only visible in journalctl.
+    // Every expected failure is already handled below; this is the net under the unexpected ones.
+    console.error(`[board] ${req.method} ${pathname} failed: ${(err as Error).message}`);
+    return ctx.json({ ok: false, error: (err as Error).message, kind: "internal" }, 500);
+  }
+}
+
+async function route(
+  pathname: string,
+  req: Request,
+  ctx: BoardContext,
+): Promise<Response | null> {
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {
     if (req.method !== "GET") return ctx.text("method not allowed", 405);
