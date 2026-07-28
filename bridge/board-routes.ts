@@ -9,11 +9,12 @@
 // a card eventually does.
 
 import type { AuditLog } from "./audit.ts";
-import { cardView, cardViews, startCard } from "./cards.ts";
+import { cardView, cardViews, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
+import { requestHandoff } from "./handoff.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
@@ -250,6 +251,25 @@ export async function handleBoardRoute(
     return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
   }
 
+  // ── handoff: ask the agent to write its note; the poll loop does the rest ──
+  if (action === "handoff" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    const result = await requestHandoff(db, ctx.herdr, id);
+    ctx.audit.record({
+      action: "card.handoff",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      const status = result.error.kind === "herdr" ? 502 : 409;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, card: cardView(db, engine.current(), id) });
+  }
+
   // ── prompt: a follow-up instruction to the card's running agent ───────────
   if (action === "prompt" && req.method === "POST") {
     const denied = ctx.guard("write");
@@ -269,7 +289,7 @@ export async function handleBoardRoute(
       return ctx.json({ ok: false, error: "this card has no running agent", kind: "no-session" }, 409);
     }
     try {
-      await ctx.herdr.promptAgent({ target: session.paneId, text: promptText });
+      await promptAndConfirm(ctx.herdr, session.paneId, promptText);
     } catch (err) {
       return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
     }

@@ -29,6 +29,8 @@ export interface CardSession {
   ctxPct: number | null;
   handoffMd: string | null;
   outcome: "handoff" | "done" | "abandoned" | "lost" | null;
+  /** Set while a handoff has been asked for but the agent hasn't written its note yet. */
+  handoffRequestedAt: number | null;
   startedAt: number;
   endedAt: number | null;
 }
@@ -245,4 +247,15 @@ export function fetchDiffFile(
   const q = new URLSearchParams({ mode: "file", path });
   if (untracked) q.set("untracked", "1");
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/diff?${q}`, { signal });
+}
+
+/**
+ * Ask the card's agent to write its handoff note. Returns as soon as the prompt is delivered — the
+ * bridge finishes the swap (read the note, replace the pane, re-prompt) off its own poll loop, so
+ * the card simply moves on its own a minute later. Never automatic: this is always a tap.
+ */
+export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/handoff`, {
+    method: "POST",
+  });
 }

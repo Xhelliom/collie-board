@@ -20,6 +20,13 @@ import {
   parseUntracked,
   parseWorktreeList,
 } from "./git.ts";
+import {
+  continuationPrompt,
+  HandoffCoordinator,
+  HANDOFF_REL_PATH,
+  handoffPrompt,
+  requestHandoff,
+} from "./handoff.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -156,6 +163,7 @@ describe("reconcileOne", () => {
     ctxPct: null,
     handoffMd: null,
     outcome: null,
+    handoffRequestedAt: null,
     startedAt,
     endedAt: null,
   });
@@ -392,13 +400,19 @@ function fakeHerdr(fail: Set<string> = new Set(), readyAfter?: number) {
         alreadyOpen: true,
       };
     },
+    async sendPaneKeys() {
+      calls.push("sendPaneKeys");
+    },
     async getAgent() {
       calls.push("getAgent");
       // Ready only once the caller has polled at least once — mirrors herdr, where agent.start
       // returns long before `interactive_ready` flips.
       const polls = calls.filter((c) => c === "getAgent").length;
       if (fail.has("neverReady")) return { interactive_ready: false };
-      return { interactive_ready: polls >= (readyAfter ?? 1) };
+      // `promptSwallowed` reproduces herdr's real behaviour: the prompt lands in the input box but
+      // is never submitted, so the agent stays idle and needs an Enter.
+      const agent_status = fail.has("promptSwallowed") ? "idle" : "working";
+      return { interactive_ready: polls >= (readyAfter ?? 1), agent_status };
     },
     async startAgent() {
       calls.push("startAgent");
@@ -429,10 +443,11 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo", baseRef: "main", status: "ready" });
     const { client, calls } = fakeHerdr();
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(true);
-    expect(calls).toEqual(["createWorktree", "startAgent", "getAgent", "promptAgent"]);
+    // The trailing getAgent is promptAndConfirm checking the prompt actually got submitted.
+    expect(calls).toEqual(["createWorktree", "startAgent", "getAgent", "promptAgent", "getAgent"]);
     const after = store.getCard(card.id)!;
     expect(after.status).toBe("starting");
     expect(after.branch).toBe("board/ship-it");
@@ -444,17 +459,24 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it" });
     const { client, calls } = fakeHerdr(new Set(["createWorktree"]));
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(true);
-    expect(calls).toEqual(["createWorktree", "openWorktree", "startAgent", "getAgent", "promptAgent"]);
+    expect(calls).toEqual([
+      "createWorktree",
+      "openWorktree",
+      "startAgent",
+      "getAgent",
+      "promptAgent",
+      "getAgent",
+    ]);
   });
 
   it("refuses a card with no repo path instead of guessing one", async () => {
     const store = db();
     const card = store.createCard({ title: "ship it" });
     const { client, calls } = fakeHerdr();
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res).toMatchObject({ ok: false, error: { kind: "no-repo" } });
     expect(calls).toEqual([]);
@@ -465,7 +487,7 @@ describe("startCard", () => {
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     store.openSession({ cardId: card.id, paneId: "wZ:p1" });
     const { client } = fakeHerdr();
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
     expect(res).toMatchObject({ ok: false, error: { kind: "already-running" } });
   });
 
@@ -477,7 +499,7 @@ describe("startCard", () => {
     }
     const card = store.createCard({ title: "third", repoPath: "/repo" });
     const { client, calls } = fakeHerdr();
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res).toMatchObject({ ok: false, error: { kind: "busy" } });
     expect(calls).toEqual([]);
@@ -487,7 +509,7 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     const { client } = fakeHerdr(new Set(["startAgent"]));
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(false);
     const after = store.getCard(card.id)!;
@@ -500,7 +522,7 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     const failing = fakeHerdr(new Set(["startAgent"]));
-    await startCard(store, failing.client as never, startCfg, card.id);
+    await startCard(store, failing.client as never, startCfg, card.id, { sleep: async () => {} });
 
     // The session is closed and the card is startable again — the pane is a bare shell, so
     // reconciliation would never orphan it and "already running" would be permanent.
@@ -508,7 +530,7 @@ describe("startCard", () => {
     expect(store.getCard(card.id)!.status).toBe("ready");
 
     const retry = fakeHerdr(new Set(["createWorktree"]));
-    const res = await startCard(store, retry.client as never, startCfg, card.id);
+    const res = await startCard(store, retry.client as never, startCfg, card.id, { sleep: async () => {} });
     expect(res.ok).toBe(true);
     expect(retry.calls).toContain("openWorktree");
   });
@@ -517,7 +539,7 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     const { client } = fakeHerdr(new Set(["promptAgent"]));
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(false);
     expect(store.openSessionFor(card.id)).not.toBeNull();
@@ -527,7 +549,7 @@ describe("startCard", () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
     const { client } = fakeHerdr(new Set(["createWorktree", "openWorktree"]));
-    const res = await startCard(store, client as never, startCfg, card.id);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
     expect(res).toMatchObject({ ok: false, error: { kind: "herdr", message: "existe déjà" } });
   });
 });
@@ -617,9 +639,16 @@ describe("waitForAgentReady (through startCard)", () => {
     const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(res.ok).toBe(true);
-    expect(calls.filter((c) => c === "getAgent")).toHaveLength(3);
-    // The prompt must come AFTER the readiness polls, never interleaved with them.
-    expect(calls.lastIndexOf("getAgent")).toBeLessThan(calls.indexOf("promptAgent"));
+    // 3 readiness polls, then the prompt, then promptAndConfirm's own check.
+    expect(calls).toEqual([
+      "createWorktree",
+      "startAgent",
+      "getAgent",
+      "getAgent",
+      "getAgent",
+      "promptAgent",
+      "getAgent",
+    ]);
   });
 
   it("fails the start when the agent never becomes ready, instead of prompting into the void", async () => {
@@ -778,5 +807,179 @@ describe("contextPercent", () => {
   it("returns null for nonsense inputs instead of NaN", () => {
     expect(contextPercent(0, 200_000)).toBeNull();
     expect(contextPercent(1000, 0)).toBeNull();
+  });
+});
+
+describe("handoff prompts", () => {
+  const card: Card = {
+    id: "c1",
+    title: "rewrite the parser",
+    spec: "Rewrite the parser to be streaming.",
+    rawInput: null,
+    acceptance: ["handles a 2GB file", "no new deps"],
+    status: "working",
+    repoPath: "/repo",
+    baseRef: "main",
+    branch: "board/rewrite",
+    workspaceId: "wZ",
+    agentKind: "claude",
+    position: 0,
+    createdAt: 0,
+    updatedAt: 0,
+  };
+
+  it("asks for decisions-and-why, not a file list git already has", () => {
+    const p = handoffPrompt();
+    expect(p).toContain(HANDOFF_REL_PATH);
+    expect(p).toMatch(/AND WHY/);
+    expect(p).toMatch(/next step/i);
+  });
+
+  it("opens the incoming agent on the note, the spec and the acceptance criteria", () => {
+    const p = continuationPrompt(card);
+    expect(p).toContain(HANDOFF_REL_PATH);
+    expect(p).toContain("Rewrite the parser to be streaming.");
+    expect(p).toContain("- handles a 2GB file");
+  });
+
+  it("falls back to the title when a card has no spec", () => {
+    expect(continuationPrompt({ ...card, spec: null, acceptance: [] })).toContain("rewrite the parser");
+  });
+});
+
+describe("requestHandoff", () => {
+  const noSleep = async () => {};
+  const herdrOk = {
+    async promptAgent() {},
+    async getAgent() {
+      return { agent_status: "working" };
+    },
+    async sendPaneKeys() {},
+  };
+
+  it("refuses a card with no running agent", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    const res = await requestHandoff(store, herdrOk as never, card.id, noSleep);
+    expect(res).toMatchObject({ ok: false, error: { kind: "no-session" } });
+  });
+
+  it("stamps the request on the session so it survives a bridge restart", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working" });
+    const s = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    const res = await requestHandoff(store, herdrOk as never, card.id, noSleep);
+
+    expect(res.ok).toBe(true);
+    expect(store.getSession(s.id)!.handoffRequestedAt).not.toBeNull();
+    expect(store.listEvents(card.id).some((e) => e.type === "handoff.requested")).toBe(true);
+  });
+
+  it("refuses a second request while one is in flight", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working" });
+    store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    await requestHandoff(store, herdrOk as never, card.id, noSleep);
+    const again = await requestHandoff(store, herdrOk as never, card.id, noSleep);
+    expect(again).toMatchObject({ ok: false, error: { kind: "already-requested" } });
+  });
+
+  it("does NOT stamp the session when the prompt itself fails", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working" });
+    const s = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    const failing = {
+      async promptAgent() {
+        throw new Error("socket closed");
+      },
+    };
+    const res = await requestHandoff(store, failing as never, card.id, noSleep);
+    expect(res).toMatchObject({ ok: false, error: { kind: "herdr" } });
+    expect(store.getSession(s.id)!.handoffRequestedAt).toBeNull();
+  });
+});
+
+describe("HandoffCoordinator", () => {
+  /** A coordinator whose clock we control, over a card with a requested handoff. */
+  function setup(requestedAgoMs: number) {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working", repoPath: "/repo" });
+    const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    const t0 = 1_000_000;
+    store.patchSession(session.id, { handoffRequestedAt: t0 });
+    const now = () => t0 + requestedAgoMs;
+    const calls: string[] = [];
+    const herdr = {
+      async createTab() {
+        calls.push("createTab");
+        return { paneId: "w1:p2", workspaceId: "wZ", tabId: "wZ:t2", cwd: "/wt" };
+      },
+      async closePane() {
+        calls.push("closePane");
+      },
+      async startAgent() {
+        calls.push("startAgent");
+      },
+      async promptAgent() {
+        calls.push("promptAgent");
+      },
+      async getAgent() {
+        return { interactive_ready: true };
+      },
+    };
+    const co = new HandoffCoordinator(store, herdr as never, startCfg, now);
+    return { store, card, session, co, calls };
+  }
+
+  it("ignores the idle state the agent was in when it was prompted (the settle window)", () => {
+    const { store, session, co, calls } = setup(2_000);
+    co.update(snapshot([pane("w1:p1", "idle")]));
+    expect(calls).toEqual([]);
+    expect(store.getSession(session.id)!.handoffRequestedAt).not.toBeNull();
+  });
+
+  it("never swaps the pane of a BLOCKED agent — that would throw its question away", () => {
+    const { co, calls } = setup(60_000);
+    co.update(snapshot([pane("w1:p1", "blocked")]));
+    expect(calls).toEqual([]);
+  });
+
+  it("waits while the agent is still working", () => {
+    const { co, calls } = setup(60_000);
+    co.update(snapshot([pane("w1:p1", "working")]));
+    expect(calls).toEqual([]);
+  });
+
+  it("gives up on a handoff the agent never wrote, rather than firing it days later", () => {
+    const { store, card, session, co, calls } = setup(31 * 60 * 1000);
+    co.update(snapshot([pane("w1:p1", "idle")]));
+    expect(calls).toEqual([]);
+    expect(store.getSession(session.id)!.handoffRequestedAt).toBeNull();
+    expect(store.listEvents(card.id).some((e) => e.type === "handoff.expired")).toBe(true);
+  });
+
+  it("does nothing at all on a disconnected snapshot", () => {
+    const { co, calls } = setup(60_000);
+    co.update(snapshot([pane("w1:p1", "idle")], "disconnected"));
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("promptAndConfirm", () => {
+  it("does nothing extra when the prompt visibly landed (the agent went to work)", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", repoPath: "/repo" });
+    const { client, calls } = fakeHerdr();
+    await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+    expect(calls).not.toContain("sendPaneKeys");
+  });
+
+  it("sends one Enter when the agent is still idle — herdr's prompt does not always submit", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", repoPath: "/repo" });
+    const { client, calls } = fakeHerdr(new Set(["promptSwallowed"]));
+    await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+    expect(calls.filter((c) => c === "sendPaneKeys")).toHaveLength(1);
+    expect(calls.indexOf("promptAgent")).toBeLessThan(calls.indexOf("sendPaneKeys"));
   });
 });

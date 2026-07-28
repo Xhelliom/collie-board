@@ -247,6 +247,9 @@ const TRANSIENT_CODES = ["agent_pane_busy", "agent_not_ready"];
 const AGENT_READY_TIMEOUT_MS = 60_000;
 const AGENT_READY_POLL_MS = 1000;
 
+/** How long to give a prompt to visibly land before we check whether it was submitted at all. */
+const PROMPT_SETTLE_MS = 1500;
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** True only for the two documented "not yet" codes above. Pure + exported for the test. */
@@ -274,10 +277,10 @@ async function retryWhileNotReady<T>(fn: () => Promise<T>, wait: (ms: number) =>
  * ~2 ms, `agent_status: "unknown"`, `launch_pending: true`). A read that fails mid-launch is
  * treated as "not ready yet" rather than fatal: the pane is being rewritten under us.
  */
-async function waitForAgentReady(
+export async function waitForAgentReady(
   herdr: HerdrClient,
   paneId: string,
-  wait: (ms: number) => Promise<void>,
+  wait: (ms: number) => Promise<void> = sleep,
   budgetMs = AGENT_READY_TIMEOUT_MS,
 ): Promise<void> {
   const attempts = Math.max(1, Math.ceil(budgetMs / AGENT_READY_POLL_MS));
@@ -325,6 +328,38 @@ export function runningCards(db: BoardDb): number {
  *
  * `promptText` defaults to the card's spec. A relaunch passes the handoff instead (see handoff.ts).
  */
+
+/**
+ * Send a prompt and make sure it was actually SUBMITTED.
+ *
+ * ⚠️ Live-verified on herdr 0.7.5 (2026-07-28): `agent.prompt` does not reliably submit. A
+ * multi-line prompt lands in Claude Code's input box as `[Pasted text #N +M lines]` and just SITS
+ * there — a single `Enter` afterwards submits it untouched. This is the same class of race
+ * HERDR_API.md already documents for `send_text` + `send_keys`: an ack means herdr took the bytes,
+ * never that the TUI acted on them.
+ *
+ * So we do what `web/src/lib/reply-action.ts` does for replies — read the state back and look. A
+ * prompt that landed drives the agent to `working` (or straight to `blocked` if it asks something);
+ * an agent still sitting at `idle`/`done` after the settle window has a draft in its box, and gets
+ * one `Enter`. That nudge is safe when we're wrong: Enter on an empty Claude prompt is a no-op.
+ */
+export async function promptAndConfirm(
+  herdr: HerdrClient,
+  paneId: string,
+  text: string,
+  wait: (ms: number) => Promise<void> = sleep,
+): Promise<void> {
+  await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
+  await wait(PROMPT_SETTLE_MS);
+  try {
+    const agent = await herdr.getAgent(paneId);
+    if (agent.agent_status === "working" || agent.agent_status === "blocked") return;
+  } catch {
+    // Can't tell — nudging is the cheaper mistake than a prompt that never runs.
+  }
+  await herdr.sendPaneKeys(paneId, ["Enter"]);
+}
+
 export async function startCard(
   db: BoardDb,
   herdr: HerdrClient,
@@ -412,10 +447,7 @@ export async function startCard(
 
   const text = opts.promptText ?? initialPrompt(card);
   try {
-    await retryWhileNotReady(
-      () => herdr.promptAgent({ target: worktree.paneId, text }),
-      opts.sleep ?? sleep,
-    );
+    await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep);
     db.recordEvent(cardId, "card.prompted", { chars: text.length });
   } catch (err) {
     // The agent IS up; only the prompt failed. That's recoverable by hand (or by POST …/prompt), so

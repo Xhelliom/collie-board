@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.22.0] - 2026-07-28
+
+### Added
+- **Handoff** (`bridge/handoff.ts`, `POST /api/cards/:id/handoff`): the outgoing agent writes `.board/handoff.md`, the pane is replaced in the SAME workspace (same worktree, same branch), and the incoming agent opens on the note plus the original spec. Sessions chain on the card.
+- Asynchronous by design — the request only prompts; the poll loop completes the swap once the note lands. The marker is a database column (`session.handoff_requested_at`), so a pending handoff survives a bridge restart.
+- Additive schema migrations in `BoardDb.migrate()`.
+- PWA: Hand-off button (prominent past `COLLIE_BOARD_HANDOFF_PCT`), pending state, and each session's note readable inline on the card.
+
+### Fixed
+- **`agent.prompt` does not reliably submit.** Live-verified on herdr 0.7.5: a multi-line prompt lands in Claude Code's box as `[Pasted text #N]` and just sits there; one `Enter` afterwards submits it untouched. `promptAndConfirm()` now checks the agent actually started working and nudges with `Enter` when it didn't — the same "read it back and look" rule Collie already applies to replies.
+- `.board/` is excluded from a card's diff — it's board plumbing, not the card's work.
+
 ## [0.21.0] - 2026-07-28
 
 ### Added

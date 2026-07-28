@@ -8,6 +8,7 @@ import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
 import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
+import { HandoffCoordinator } from "./handoff.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
 import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
@@ -159,6 +160,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       cfg.boardCtxWindow,
     );
     engine.onUpdate((snap) => void context.update(snap));
+    // Handoffs finish here too: the request only prompts the agent, and this notices when it has
+    // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
+    const handoffs = new HandoffCoordinator(board, herdr, cfg);
+    engine.onUpdate((snap) => handoffs.update(snap));
   }
 
   engine.start();

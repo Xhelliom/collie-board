@@ -166,6 +166,15 @@ export async function resolveBase(
   return "HEAD";
 }
 
+/**
+ * The board's own scratch directory — where the outgoing agent writes its handoff note. It is
+ * plumbing, not the card's work, and it would otherwise sit at the top of every diff of a handed-off
+ * card. Pure + exported for the test.
+ */
+export function isBoardPath(path: string): boolean {
+  return path === ".board" || path.startsWith(".board/");
+}
+
 /** Everything the card's checkout differs from its fork point by, as a file list. */
 export async function diffStat(
   cwd: string,
@@ -177,9 +186,10 @@ export async function diffStat(
     git(["diff", "--numstat", base], cwd),
     git(["status", "--porcelain"], cwd),
   ]);
-  const files = numstat.ok ? parseNumstat(numstat.stdout) : [];
+  const files = numstat.ok ? parseNumstat(numstat.stdout).filter((f) => !isBoardPath(f.path)) : [];
   if (status.ok) {
     for (const path of parseUntracked(status.stdout)) {
+      if (isBoardPath(path)) continue;
       files.push({ path, added: 0, removed: 0, kind: "untracked" });
     }
   }

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
-import { ArrowLeft, GitBranch, Play, Send, TerminalSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, GitBranch, Play, Send, Shuffle, TerminalSquare, Trash2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   CARD_STATUS_CHIP,
   CARD_STATUS_LABEL,
   deleteCard,
+  handoffCard,
   patchCard,
   promptCard,
   startCard,
@@ -131,13 +132,27 @@ export function CardRoute() {
             <ContextGauge session={card.session} />
 
             {card.runtime ? (
-              <PromptBox
-                onSend={async (text) => {
-                  await promptCard(card.id, text);
-                  setStatus("Sent", "success");
-                  revalidator.revalidate();
-                }}
-              />
+              <>
+                <PromptBox
+                  onSend={async (text) => {
+                    await promptCard(card.id, text);
+                    setStatus("Sent", "success");
+                    revalidator.revalidate();
+                  }}
+                />
+                <HandoffButton
+                  card={card}
+                  onHandoff={async () => {
+                    try {
+                      await handoffCard(card.id);
+                      setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+                    } catch (e) {
+                      setStatus((e as Error).message, "error", null);
+                    }
+                    revalidator.revalidate();
+                  }}
+                />
+              </>
             ) : (
               <StartButton card={card} pending={starting} onStart={start} />
             )}
@@ -324,7 +339,13 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
   );
 }
 
+/**
+ * One link in the handoff chain. The note is the point of the whole feature — it is what a session
+ * knew that the diff can't show — so it is readable in place, collapsed by default so a three-session
+ * card still fits on a phone screen.
+ */
 function SessionRow({ session, index }: { session: CardSession; index: number }) {
+  const [open, setOpen] = useState(false);
   return (
     <Card className="gap-1 rounded-xl px-3.5 py-2.5">
       <div className="flex items-center gap-2 text-sm">
@@ -337,8 +358,62 @@ function SessionRow({ session, index }: { session: CardSession; index: number })
       <div className="text-xs text-muted-foreground">
         started {timeAgo(session.startedAt)}
         {session.ctxPct != null && ` · ctx ${Math.round(session.ctxPct)}%`}
+        {session.handoffRequestedAt != null && session.endedAt === null && " · handoff pending"}
       </div>
+      {session.handoffMd && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="self-start text-xs underline underline-offset-4"
+          >
+            {open ? "Hide handoff note" : "Handoff note"}
+          </button>
+          {open && (
+            <div className="mt-1 rounded-lg border bg-background p-2">
+              <MarkdownText text={session.handoffMd} />
+            </div>
+          )}
+        </>
+      )}
     </Card>
+  );
+}
+
+/**
+ * Hand this session off to a fresh one. Semi-automatic by design: the gauge can nudge (the button
+ * goes prominent past the threshold) but a handoff fired mid-refactor costs more than it saves, so
+ * the decision is always this tap.
+ */
+function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  const requested = card.session?.handoffRequestedAt != null;
+  const worthIt = (card.session?.ctxPct ?? 0) >= 70;
+
+  if (requested) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        Handoff asked for. The card swaps to a fresh session once the agent has written its note.
+      </p>
+    );
+  }
+  return (
+    <Button
+      variant={worthIt ? "default" : "outline"}
+      onClick={async () => {
+        setPending(true);
+        try {
+          await onHandoff();
+        } finally {
+          setPending(false);
+        }
+      }}
+      disabled={pending}
+      className="h-11 w-full gap-2"
+    >
+      <Shuffle className="size-4" />
+      {pending ? "Asking…" : "Hand off to a fresh session"}
+    </Button>
   );
 }
 

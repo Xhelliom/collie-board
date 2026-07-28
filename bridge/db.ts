@@ -91,6 +91,11 @@ export interface CardSession {
   ctxPct: number | null;
   handoffMd: string | null;
   outcome: SessionOutcome | null;
+  /**
+   * When a handoff was asked for, or null. The handoff can't complete synchronously — the agent has
+   * to finish writing `.board/handoff.md` first — so this is the marker the poll loop looks for.
+   */
+  handoffRequestedAt: number | null;
   startedAt: number;
   endedAt: number | null;
 }
@@ -142,6 +147,7 @@ interface SessionRow {
   ctx_pct: number | null;
   handoff_md: string | null;
   outcome: string | null;
+  handoff_requested_at: number | null;
   started_at: number;
   ended_at: number | null;
 }
@@ -210,6 +216,7 @@ function toSession(r: SessionRow): CardSession {
     ctxPct: r.ctx_pct,
     handoffMd: r.handoff_md,
     outcome: (r.outcome as SessionOutcome | null) ?? null,
+    handoffRequestedAt: r.handoff_requested_at ?? null,
     startedAt: r.started_at,
     endedAt: r.ended_at,
   };
@@ -255,6 +262,7 @@ CREATE TABLE IF NOT EXISTS session (
   ctx_pct          REAL,
   handoff_md       TEXT,
   outcome          TEXT,
+  handoff_requested_at INTEGER,
   started_at       INTEGER NOT NULL,
   ended_at         INTEGER
 );
@@ -338,6 +346,7 @@ export class BoardDb {
     this.db.exec("PRAGMA busy_timeout = 3000");
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(SCHEMA);
+    this.migrate();
     // Owner-only, like audit.log: a card's spec is as sensitive as the reply text that log echoes.
     // The 0700 state dir already bounds it — this is the belt to that brace, and it costs one call.
     // WAL/SHM siblings inherit the directory's protection; only the main file is ours to set.
@@ -352,6 +361,29 @@ export class BoardDb {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Additive migrations. `CREATE TABLE IF NOT EXISTS` gets a NEW database right and does nothing at
+   * all for an existing one, so a column added after someone's board has cards in it needs this.
+   *
+   * Deliberately the dumbest thing that works: a list of `ADD COLUMN`s, applied when the column
+   * isn't already there. Additive only — no renames, no drops, no version table — because every
+   * change so far is a nullable column, and a migration framework for that would be exactly the
+   * kind of machinery this project doesn't buy.
+   */
+  private migrate(): void {
+    const additions: { table: string; column: string; ddl: string }[] = [
+      // 0.22: the handoff is asynchronous (the agent has to finish writing the file first), so the
+      // request has to survive a bridge restart — a board whose whole point is durable memory can't
+      // hold a pending handoff in RAM.
+      { table: "session", column: "handoff_requested_at", ddl: "INTEGER" },
+    ];
+    for (const { table, column, ddl } of additions) {
+      const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
+      if (cols.some((c) => c.name === column)) continue;
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+    }
   }
 
   // ── cards ───────────────────────────────────────────────────────────────────
@@ -510,6 +542,7 @@ export class BoardDb {
       ctxTokens?: number | null;
       ctxPct?: number | null;
       handoffMd?: string | null;
+      handoffRequestedAt?: number | null;
     },
   ): CardSession | null {
     const columns: Record<string, string> = {
@@ -518,6 +551,7 @@ export class BoardDb {
       ctxTokens: "ctx_tokens",
       ctxPct: "ctx_pct",
       handoffMd: "handoff_md",
+      handoffRequestedAt: "handoff_requested_at",
     };
     const sets: string[] = [];
     const values: (string | number | null)[] = [];
