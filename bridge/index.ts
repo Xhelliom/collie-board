@@ -3,7 +3,9 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { AuditLog, fileAuditAppender } from "./audit.ts";
+import { reconcile } from "./cards.ts";
 import { loadConfig } from "./config.ts";
+import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
 import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
@@ -53,6 +55,10 @@ await notifyPrefs.load();
 // Append-only audit trail of write-level actions (see audit.ts). A write failure here is swallowed
 // inside record() so it can never break the user action it's auditing.
 const audit = new AuditLog(fileAuditAppender(join(cfg.stateDir, "audit.log")));
+
+// The board's durable store. Lives in the state dir next to the audit log and the push
+// subscriptions, so a single `rm -rf` of that directory resets the whole plugin's state.
+const board = new BoardDb(join(cfg.stateDir, "board.db"));
 
 // ── Update-availability monitor ───────────────────────────────────────────────
 // The running plugin version, captured NOW at module load — never re-read from disk later, or a
@@ -138,6 +144,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   engine.onTransition((agent, from, to) => notifications.onTransition(agent, from, to));
   engine.onRemove((paneId) => notifications.onRemove(paneId));
 
+  // Board reconciliation rides the SAME snapshot poll — no second loop, no second source of truth.
+  // Primary session only: a card's pane id is meaningless in another herdr server (see server.ts).
+  if (isPrimary) engine.onUpdate((snap) => reconcile(board, snap));
+
   engine.start();
   poker.start();
   return { herdr, engine, poker, notifications };
@@ -194,7 +204,7 @@ const sweepTimer = setInterval(() => {
 }, SWEEP_INTERVAL_MS);
 sweepTimer.unref();
 
-const server = startServer({ cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit });
+const server = startServer({ cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board });
 
 const shutdown = async () => {
   console.log("\n[bridge] shutting down");
@@ -206,6 +216,7 @@ const shutdown = async () => {
   clearInterval(sweepTimer);
   clearTimeout(updateFirstCheck);
   clearInterval(updateTimer);
+  board.close();
   process.exit(0);
 };
 process.on("SIGINT", shutdown);

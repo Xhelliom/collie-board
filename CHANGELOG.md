@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.19.0] - 2026-07-28
+
+### Added
+- **Cards** — a durable board on top of the ephemeral herd: `bridge/db.ts` (bun:sqlite, raw SQL, no ORM), `bridge/cards.ts`, `bridge/board-routes.ts`.
+- Card reconciliation rides the existing `session.snapshot` poll: a pane that vanishes moves its card to `orphaned` (never an error) and closes its session as `lost`; a live pane drives the card's column from `agent_status`.
+- REST: `GET/POST /api/cards`, `GET/PATCH/DELETE /api/cards/:id`, `GET /api/cards/:id/{sessions,events}` — all behind the existing `guard()`, all audited.
+- PWA: `/board` (columns, urgency first) and `/card/:id` (spec, acceptance, session chain, journal), plus a Board row on the dashboard.
+
 ## [0.18.0] - 2026-07-28
 
 ### Changed

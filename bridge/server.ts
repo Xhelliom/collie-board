@@ -2,6 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
 import type { AuditLog } from "./audit.ts";
+import { handleBoardRoute } from "./board-routes.ts";
+import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
 import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
@@ -97,8 +99,10 @@ export function startServer(opts: {
   notifyPrefs: NotifyPrefsStore;
   updateMonitor: UpdateMonitor;
   audit: AuditLog;
+  /** The board's durable store (the fork's addition). */
+  board: BoardDb;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit } = opts;
+  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board } = opts;
   // One transcript store for the process: it caches parsed session logs across requests, and the
   // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
   // can front panes whose agents write into the same ~/.claude/projects root).
@@ -153,6 +157,28 @@ export function startServer(opts: {
           } satisfies SnapshotResponse, req.headers.get("accept-encoding")),
           await buildId(),
         );
+      }
+
+      // ── Board (the fork's addition) ──────────────────────────────────────
+      // Bound to the PRIMARY herdr session, deliberately: a card's pane id only means anything
+      // inside the server that issued it, and the board is a single-machine, single-herd object.
+      // Multi-session cards would need a session column on every row for no use case that exists.
+      if (pathname.startsWith("/api/cards")) {
+        const rt = registry.get();
+        if (!rt) return unknownSession();
+        const boardRes = await handleBoardRoute(pathname, req, {
+          db: board,
+          engine: rt.engine,
+          herdr: rt.herdr,
+          cfg,
+          audit,
+          session: rt.name,
+          guard: (level) => guard(req, cfg, level),
+          device: deviceAuth(req, cfg).device,
+          json: (data) => json(data, req.headers.get("accept-encoding")),
+          text,
+        });
+        if (boardRes) return boardRes;
       }
 
       // ── Structural creates: new tab / new space (each opens a fresh shell pane) ──

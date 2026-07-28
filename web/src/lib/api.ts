@@ -362,3 +362,12 @@ export function uploadImage(paneId: string, file: File, session?: string): Promi
     })(),
   );
 }
+
+/**
+ * Generic authenticated request against the bridge, for API surfaces that live outside this file
+ * (the board — see lib/board.ts). Same busy-tracking, build-header capture, timeouts and error
+ * shape as every call above; exported so the fork's routes don't re-implement the fetch plumbing.
+ */
+export function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return req<T>(path, init);
+}

@@ -6,7 +6,10 @@ import { SpaceRoute } from "@/routes/space";
 import { DetailRoute } from "@/routes/detail";
 import { HistoryRoute } from "@/routes/history";
 import { SettingsRoute } from "@/routes/settings";
+import { BoardRoute } from "@/routes/board";
+import { CardRoute } from "@/routes/card";
 import { historyLoader, rootLoader, paneLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
+import { boardLoader, cardLoader } from "@/lib/board-loaders";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
 // sessionStorage ("remix-router-transitions") and replays a phantom same-location transition on every
@@ -35,6 +38,10 @@ export const router = createBrowserRouter([
     HydrateFallback: BootSplash,
     children: [
       { index: true, element: <HomeRoute /> },
+      // The board and a card's page. Both are children of the root, so the root's poll tick
+      // revalidates them for free — no board-specific polling.
+      { path: "board", loader: boardLoader, element: <BoardRoute /> },
+      { path: "card/:cardId", loader: cardLoader, element: <CardRoute /> },
       { path: "space/:spaceId", element: <SpaceRoute /> },
       { path: "settings", element: <SettingsRoute /> },
       { path: "pane/:paneId", loader: paneLoader, element: <DetailRoute /> },

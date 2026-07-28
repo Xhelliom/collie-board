@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useRouteLoaderData } from "react-router";
+import { ChevronRight, Layers } from "lucide-react";
 
 import { AppHeader, SettingsGear } from "@/components/app-header";
 import { SessionSwitcher } from "@/components/session-switcher";
@@ -13,6 +14,7 @@ import { UpdateBanner } from "@/components/update-banner";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { AGENT_GROUPS } from "@/lib/agent-groups";
+import { boardPath } from "@/lib/board";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath, spacePath } from "@/lib/nav";
 
@@ -54,6 +56,19 @@ export function HomeRoute() {
       {/* Content region below the header: a viewport-clipped internal scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <ReadOnlyBanner device={data.device} />
+
+        {/* The fork's entry point: the durable board sits one tap from the ephemeral triage. Kept as
+            a row rather than a nav bar — the dashboard answers "who needs me now", the board answers
+            "where is this task", and they are two lenses, not two apps. */}
+        <button
+          type="button"
+          onClick={() => navigate(boardPath())}
+          className="mx-3 mt-3 flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left transition-transform active:scale-[0.99]"
+        >
+          <Layers className="size-5 shrink-0 text-muted-foreground" />
+          <span className="flex-1 text-sm font-medium">Board</span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </button>
 
         <main className="flex-1">
           {/* Needs-you first — the most urgent triage, hoisted above the spaces overview. Renders
