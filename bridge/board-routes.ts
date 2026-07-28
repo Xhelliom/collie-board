@@ -8,6 +8,9 @@
 // route, so a board write is gated exactly like typing into a pane — because that is what starting
 // a card eventually does.
 
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+
 import type { AuditLog } from "./audit.ts";
 import { cardView, cardViews, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
@@ -16,12 +19,13 @@ import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
-import { listRepos } from "./repos.ts";
+import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
-/** `/api/repos` — the new-card picker's source (see repos.ts). */
+/** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
+const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE = /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review))?$/;
@@ -109,7 +113,39 @@ export async function handleBoardRoute(
     if (req.method !== "GET") return ctx.text("method not allowed", 405);
     const denied = ctx.guard("read");
     if (denied) return denied;
-    return ctx.json({ repos: await listRepos(ctx.db, ctx.engine.current(), ctx.cfg.boardRepoRoots) });
+    const roots = scanRootsFor(ctx.cfg.boardRepoRoots, homedir(), existsSync);
+    const all = await listRepos(ctx.db, ctx.engine.current(), roots);
+    // `?all=1` is how the client shows the hidden ones so they can be brought back.
+    const showAll = new URL(req.url).searchParams.get("all") === "1";
+    return ctx.json({
+      repos: showAll ? all : all.filter((r) => !r.hidden),
+      hiddenCount: all.filter((r) => r.hidden).length,
+    });
+  }
+
+  // Hide / unhide one repo. A preference, not a terminal action — but it writes, so it takes the
+  // write gate like everything else that writes.
+  if (pathname === REPOS_HIDE_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path, hidden } = (body ?? {}) as { path?: unknown; hidden?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (typeof hidden !== "boolean") return ctx.text("hidden must be a boolean", 400);
+    ctx.db.setRepoHidden(path.trim(), hidden);
+    ctx.audit.record({
+      action: "repo.hide",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { path: path.trim(), hidden },
+    });
+    return ctx.json({ ok: true });
   }
 
   const match = pathname.match(CARD_ROUTE);

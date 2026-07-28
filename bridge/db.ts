@@ -289,6 +289,19 @@ CREATE TABLE IF NOT EXISTS event (
   ts      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS event_card_idx ON event(card_id, ts);
+
+-- The ONLY thing stored about a repository, and deliberately so.
+--
+-- The pickable-repo list is derived (cards + the live herd + a directory scan — see repos.ts),
+-- because those are FACTS and a stored copy of a fact goes stale: move or delete a repo and it
+-- would sit in the picker forever. What cannot be derived is the operator's DECISION that a repo
+-- they own is not one they want offered. That is a preference, it has no other source, and it is
+-- what this table holds. One row per hidden path, nothing else.
+CREATE TABLE IF NOT EXISTS repo_pref (
+  path       TEXT PRIMARY KEY,
+  hidden     INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
 `;
 
 /** Fields a caller may set when creating a card. Everything else is derived or defaulted. */
@@ -614,6 +627,33 @@ export class BoardDb {
       .query<ReviewRow, [string]>("SELECT * FROM review WHERE card_id = ? ORDER BY created_at")
       .all(cardId)
       .map(toReview);
+  }
+
+  // ── repo preferences ────────────────────────────────────────────────────────
+
+  /** Paths the operator has hidden from the picker. */
+  hiddenRepos(): Set<string> {
+    const rows = this.db
+      .query<{ path: string }, []>("SELECT path FROM repo_pref WHERE hidden = 1")
+      .all();
+    return new Set(rows.map((r) => r.path));
+  }
+
+  /**
+   * Hide or unhide a repo. Un-hiding DELETES the row rather than storing `hidden = 0`: the default
+   * is "visible", so a row that says so is a row that means nothing and would accumulate forever.
+   */
+  setRepoHidden(path: string, hidden: boolean): void {
+    if (!hidden) {
+      this.db.query("DELETE FROM repo_pref WHERE path = ?").run(path);
+      return;
+    }
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, hidden, updated_at) VALUES (?, 1, ?)
+         ON CONFLICT(path) DO UPDATE SET hidden = 1, updated_at = excluded.updated_at`,
+      )
+      .run(path, this.now());
   }
 
   // ── journal ─────────────────────────────────────────────────────────────────

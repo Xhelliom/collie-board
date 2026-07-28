@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Check, FolderGit2, Pencil } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchRepos, type CardInput, type RepoChoice } from "@/lib/board";
+import { fetchRepos, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
+import { useLongPress } from "@/hooks/use-long-press";
 
 interface NewCardSheetProps {
   open: boolean;
@@ -29,6 +30,8 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
   const [manual, setManual] = useState(false);
   const [manualPath, setManualPath] = useState("");
   const [baseRef, setBaseRef] = useState("");
+  const [hiddenCount, setHiddenCount] = useState(0);
+  const [showHidden, setShowHidden] = useState(false);
 
   // A self-update reload must not eat a half-dictated brain dump.
   useHoldReload("new-card", open);
@@ -39,18 +42,27 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
     setManual(false);
     setManualPath("");
     let cancelled = false;
+    setShowHidden(false);
     void fetchRepos()
-      .then(({ repos: list }) => {
+      .then(({ repos: list, hiddenCount: n }) => {
         if (cancelled) return;
         setRepos(list);
+        setHiddenCount(n);
+        // Nothing found at all — no cards, an empty herd, nothing under the scan roots. Drop
+        // straight into the text field rather than showing a lone "type a path instead" link and
+        // making the user work out that the picker is empty on purpose.
+        if (list.length === 0) {
+          setManual(true);
+          return;
+        }
         // The first entry is the most recently carded repo — the likely answer, pre-selected so the
         // common case is "dictate, tap Add".
-        const first = list[0] ?? null;
+        const first = list[0]!;
         setSelected(first);
-        setBaseRef(first?.defaultBranch ?? "");
+        setBaseRef(first.defaultBranch ?? "");
       })
       .catch(() => {
-        // No list is not a blocker: fall straight through to typing a path.
+        // The bridge couldn't answer. Not a blocker: fall through to typing a path.
         if (!cancelled) setManual(true);
       });
     return () => {
@@ -62,6 +74,30 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
     setSelected(repo);
     setManual(false);
     setBaseRef(repo.defaultBranch ?? "");
+  }
+
+  /** Refetch after a hide/unhide so the list and the count stay honest. */
+  async function reload(all: boolean) {
+    const { repos: list, hiddenCount: n } = await fetchRepos({ all });
+    setRepos(list);
+    setHiddenCount(n);
+    // The selection may have just been hidden out from under us.
+    if (selected && !list.some((r) => r.path === selected.path && !r.hidden)) {
+      const first = list.find((r) => !r.hidden) ?? null;
+      setSelected(first);
+      setBaseRef(first?.defaultBranch ?? "");
+    }
+  }
+
+  async function toggleHidden(repo: RepoChoice) {
+    await setRepoHidden(repo.path, !repo.hidden);
+    await reload(showHidden);
+  }
+
+  async function toggleShowHidden() {
+    const next = !showHidden;
+    setShowHidden(next);
+    await reload(next);
   }
 
   const title = deriveTitle(text);
@@ -98,41 +134,42 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
         </label>
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Repo</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Repo{repos.length > 4 && " · long-press to hide one"}
+          </span>
           {repos.length > 0 && (
             <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
-              {repos.map((repo) => {
-                const active = !manual && selected?.path === repo.path;
-                return (
-                  <button
-                    key={repo.path}
-                    type="button"
-                    onClick={() => pick(repo)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg border px-3 py-2 text-left active:scale-[0.99]",
-                      active ? "border-primary bg-primary/10" : "border-border bg-background",
-                    )}
-                  >
-                    <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{repo.name}</span>
-                      <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                        {repo.path}
-                      </span>
-                    </span>
-                    {repo.source === "herd" && (
-                      <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        open
-                      </span>
-                    )}
-                    {active && <Check className="size-4 shrink-0 text-primary" />}
-                  </button>
-                );
-              })}
+              {repos.map((repo) => (
+                <RepoRow
+                  key={repo.path}
+                  repo={repo}
+                  active={!manual && selected?.path === repo.path}
+                  onPick={() => pick(repo)}
+                  onToggleHidden={() => void toggleHidden(repo)}
+                />
+              ))}
             </div>
           )}
 
+          {(hiddenCount > 0 || showHidden) && (
+            <button
+              type="button"
+              onClick={() => void toggleShowHidden()}
+              className="flex items-center gap-1.5 self-start px-1 py-1 text-xs text-muted-foreground underline underline-offset-4"
+            >
+              {showHidden ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+              {showHidden ? "Hide them again" : `${hiddenCount} hidden — show`}
+            </button>
+          )}
+
           {manual ? (
+            <>
+              {repos.length === 0 && (
+                <p className="pb-1 text-xs text-muted-foreground">
+                  No repos found yet — none carded, none open in the herd. Type a path; the next card
+                  will offer it back.
+                </p>
+              )}
             <input
               value={manualPath}
               onChange={(e) => setManualPath(e.target.value)}
@@ -142,6 +179,7 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
               spellCheck={false}
               className="h-11 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             />
+            </>
           ) : (
             <button
               type="button"
@@ -179,6 +217,56 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
         </Button>
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * One repo in the picker. Tap selects; LONG-PRESS hides it — the same gesture the pane switcher
+ * already uses for per-item actions, so it needs no explaining, and unlike a per-row ✕ it cannot be
+ * mistapped while scrolling a list of thirty.
+ *
+ * Hiding is the one thing about a repo the board stores, because it is the one thing it cannot
+ * derive: a scan that finds every repo you own has no idea which three you actually card.
+ */
+function RepoRow({
+  repo,
+  active,
+  onPick,
+  onToggleHidden,
+}: {
+  repo: RepoChoice;
+  active: boolean;
+  onPick: () => void;
+  onToggleHidden: () => void;
+}) {
+  const longPress = useLongPress(onToggleHidden);
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      {...longPress}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-2 text-left active:scale-[0.99]",
+        active ? "border-primary bg-primary/10" : "border-border bg-background",
+        repo.hidden && "opacity-50",
+      )}
+    >
+      <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{repo.name}</span>
+        <span className="block truncate font-mono text-[11px] text-muted-foreground">{repo.path}</span>
+      </span>
+      {repo.hidden ? (
+        <EyeOff className="size-3.5 shrink-0 text-muted-foreground" />
+      ) : (
+        repo.source === "herd" && (
+          <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+            open
+          </span>
+        )
+      )}
+      {active && !repo.hidden && <Check className="size-4 shrink-0 text-primary" />}
+    </button>
   );
 }
 

@@ -94,12 +94,18 @@ Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) �
 per field from `~/.config/collie-board/agents.toml`.
 
 **Picking a repo** is a list, not a text field — typing `/home/you/code/project` on a phone is the
-pain this project exists to remove. The list comes from three places that already know, and there is
-no repo table: every repo you have **carded** (`card.repo_path`, newest first), every repo **open in
-the herd** (each pane's `cwd`, one `git rev-parse` away), and optionally a **scan root**
-(`COLLIE_BOARD_REPO_ROOTS`) for the cold start. It can't go stale, because it is recomputed from
-things that are true. A card's own worktree collapses onto the repo it came from, and the repo's
-default branch pre-fills the base ref — so the common case is dictate, tap, done.
+pain this project exists to remove. The list is **derived**, from three things that are true: every
+repo you have **carded** (`card.repo_path`, newest first), every repo **open in the herd** (each
+pane's `cwd`, one `git rev-parse` away), and a **scan** of `COLLIE_BOARD_REPO_ROOTS` — or, if you
+haven't set that, of the conventional locations (`~/git`, `~/code`, `~/dev`, …). That last one is
+what makes the very first card possible on a fresh install, where there are no cards and possibly no
+open panes. A card's own worktree collapses onto the repo it came from, and the repo's default
+branch pre-fills the base ref, so the common case is dictate, tap, done.
+
+The one thing that IS stored is what can't be derived: **long-press a repo to hide it**. A scan that
+finds all 27 repos you own has no idea which three you actually card, and that is a decision, not a
+fact. Hidden repos come back with the "*N* hidden — show" toggle. Nothing else about a repo is
+persisted: a stored list of repos would go stale the moment you moved one.
 
 ### Board endpoints
 

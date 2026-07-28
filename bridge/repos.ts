@@ -36,6 +36,34 @@ const SCAN_MAX = 200;
 /** Directory names never worth descending into while hunting for repos. */
 const SCAN_SKIP = new Set(["node_modules", ".git", "target", "dist", "build", ".cache", "vendor"]);
 
+/**
+ * Where people keep repositories, when nobody has said.
+ *
+ * This is the COLD START, and it is the case that actually matters: a fresh install has no cards,
+ * and if herdr is empty it has no pane cwds either — so without this the picker would be blank on
+ * the very first card, which is the worst possible moment to hand someone a text field.
+ *
+ * Cheap enough to do unconditionally: measured at 12 ms for 27 repos across `~/git` (depth 3, with
+ * the skip list above). Only directories that exist are walked.
+ */
+const CONVENTIONAL_ROOTS = ["git", "code", "dev", "src", "projects", "work", "repos", "Documents/GitHub"];
+
+/**
+ * The scan roots to walk: the operator's if they configured any, otherwise the conventional ones
+ * that exist. Explicit config REPLACES the defaults rather than adding to them — someone who names
+ * their roots has said where to look, and quietly walking `~/code` as well would be ignoring them.
+ *
+ * Pure given `exists`, so the precedence is testable without a filesystem.
+ */
+export function scanRootsFor(
+  configured: string[],
+  home: string,
+  exists: (path: string) => boolean,
+): string[] {
+  if (configured.length > 0) return configured;
+  return CONVENTIONAL_ROOTS.map((r) => join(home, r)).filter(exists);
+}
+
 export interface RepoChoice {
   /** Absolute path of the repository root. */
   path: string;
@@ -47,6 +75,12 @@ export interface RepoChoice {
   lastUsedAt?: number;
   /** The repo's default branch, when it could be resolved. Pre-fills the card's base ref. */
   defaultBranch?: string;
+  /**
+   * The operator hid this one. A DECISION, not a fact — it is the single thing about a repo that
+   * cannot be derived from cards, the herd or the disk, which is exactly why it is the only thing
+   * stored (see `repo_pref` in db.ts).
+   */
+  hidden?: boolean;
 }
 
 /**
@@ -171,6 +205,7 @@ export async function listRepos(
   scanRoots: string[],
   git: GitRunner = runGit,
 ): Promise<RepoChoice[]> {
+  const hidden = db.hiddenRepos();
   // 1. Cards — already persisted, newest first.
   const carded = new Map<string, number>();
   for (const card of db.listCards({ includeArchived: true })) {
@@ -183,7 +218,8 @@ export async function listRepos(
   const roots = await Promise.all([...cwds].map((cwd) => repoRootOf(cwd, git).catch(() => null)));
   const herd = roots.filter((r): r is string => r !== null);
 
-  // 3. The opt-in scan.
+  // 3. The scan. Roots are resolved by the CALLER (scanRootsFor) — this function must not reach for
+  //    homedir() or the filesystem on its own, or its own tests start finding the machine's repos.
   const scanned = new Set<string>();
   for (const root of scanRoots) await scanRoot(root, scanned);
 
@@ -193,12 +229,20 @@ export async function listRepos(
     [...scanned],
   );
 
+  for (const choice of choices) {
+    if (hidden.has(choice.path)) choice.hidden = true;
+  }
+
   // Resolve default branches in parallel — it pre-fills the card's base ref, which is the OTHER
   // field nobody wants to type on a phone. Best-effort: an unresolvable one just stays blank.
+  // Only for the ones that will actually be offered — a hidden repo's base ref is never used, and on
+  // a machine with 200 repos that is 200 subprocesses saved.
   await Promise.all(
-    choices.map(async (choice) => {
-      choice.defaultBranch = await defaultBranchOf(choice.path, git).catch(() => undefined);
-    }),
+    choices
+      .filter((c) => !c.hidden)
+      .map(async (choice) => {
+        choice.defaultBranch = await defaultBranchOf(choice.path, git).catch(() => undefined);
+      }),
   );
   return choices;
 }

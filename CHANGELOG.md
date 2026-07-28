@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.27.0] - 2026-07-28
+
+### Added
+- **Cold start for the repo picker**: with no cards and an empty herd the list used to be blank. The scan now falls back to conventional locations (`~/git`, `~/code`, `~/dev`, `~/src`, `~/projects`, `~/work`, `~/repos`, `~/Documents/GitHub`) when `COLLIE_BOARD_REPO_ROOTS` isn't set. Measured at 12 ms for 27 repos. Explicit config REPLACES the defaults.
+- **Hide a repo** — long-press in the picker; `repo_pref` table, `POST /api/repos/hide`, `GET /api/repos?all=1`, and an "*N* hidden — show" toggle. This is the only thing the board stores about a repo, because it's the only thing it can't derive: a scan finds every repo you own and has no idea which ones you card.
+- The sheet drops straight into manual path entry when nothing is found at all, instead of showing a lone "type a path instead" link.
+
+### Fixed
+- `listRepos()` reached for `homedir()` / `existsSync` internally, so its own tests found the machine's real repositories. Scan roots are resolved by the caller.
+- A hidden repo no longer costs a `git symbolic-ref` to resolve a default branch that will never be shown.
+
 ## [0.26.0] - 2026-07-28
 
 ### Added

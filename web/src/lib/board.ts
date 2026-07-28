@@ -270,12 +270,34 @@ export interface RepoChoice {
   lastUsedAt?: number;
   /** Pre-fills the card's base ref, so that field doesn't have to be typed either. */
   defaultBranch?: string;
+  /** The operator hid it. Only ever present when the list was fetched with `all`. */
+  hidden?: boolean;
 }
 
 /**
  * The repositories a card can be started in. Fetched when the new-card sheet opens, not on the poll:
  * the bridge shells out to git per distinct pane cwd to build it.
  */
-export function fetchRepos(signal?: AbortSignal): Promise<{ repos: RepoChoice[] }> {
-  return apiRequest<{ repos: RepoChoice[] }>("/api/repos", { signal });
+export function fetchRepos(
+  opts: { all?: boolean } = {},
+  signal?: AbortSignal,
+): Promise<{ repos: RepoChoice[]; hiddenCount: number }> {
+  return apiRequest<{ repos: RepoChoice[]; hiddenCount: number }>(
+    `/api/repos${opts.all ? "?all=1" : ""}`,
+    { signal },
+  );
+}
+
+/**
+ * Hide a repo from the picker, or bring it back.
+ *
+ * The only thing the board stores ABOUT a repo. The list itself is derived from cards, the live herd
+ * and a directory scan — all facts, all recomputed. This is a decision, it has no other source, and
+ * a directory scan that turns up 27 repos when you card 3 is exactly why it needs one.
+ */
+export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>("/api/repos/hide", {
+    method: "POST",
+    body: JSON.stringify({ path, hidden }),
+  });
 }

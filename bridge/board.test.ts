@@ -48,6 +48,7 @@ import {
   listRepos,
   mergeRepoChoices,
   repoRootOf,
+  scanRootsFor,
 } from "./repos.ts";
 import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -1265,5 +1266,80 @@ describe("repo picker", () => {
     const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "" });
     const repos = await listRepos(store, snapshot([]), [], git);
     expect(repos.map((r) => `${r.source}:${r.path}`)).toEqual(["card:/repo/carded"]);
+  });
+});
+
+describe("scanRootsFor", () => {
+  const exists = (p: string) => ["/home/me/git", "/home/me/code"].includes(p);
+
+  it("falls back to the conventional roots that exist — this is the cold start", () => {
+    expect(scanRootsFor([], "/home/me", exists)).toEqual(["/home/me/git", "/home/me/code"]);
+  });
+
+  it("REPLACES the defaults with the operator's roots rather than adding to them", () => {
+    // Someone who names their roots has said where to look; also walking ~/code ignores them.
+    expect(scanRootsFor(["/srv/repos"], "/home/me", exists)).toEqual(["/srv/repos"]);
+  });
+
+  it("returns nothing when no conventional root exists, instead of walking missing dirs", () => {
+    expect(scanRootsFor([], "/home/me", () => false)).toEqual([]);
+  });
+});
+
+describe("repo preferences", () => {
+  it("stores a hidden repo and reports it back", () => {
+    const store = db();
+    expect(store.hiddenRepos().size).toBe(0);
+    store.setRepoHidden("/repo/noisy", true);
+    expect([...store.hiddenRepos()]).toEqual(["/repo/noisy"]);
+  });
+
+  it("un-hiding DELETES the row rather than storing 'visible' forever", () => {
+    const store = db();
+    store.setRepoHidden("/repo/a", true);
+    store.setRepoHidden("/repo/a", false);
+    expect(store.hiddenRepos().size).toBe(0);
+    // The default IS visible, so a row saying so carries no information and must not accumulate.
+    store.setRepoHidden("/repo/never-hidden", false);
+    expect(store.hiddenRepos().size).toBe(0);
+  });
+
+  it("hiding twice is idempotent", () => {
+    const store = db();
+    store.setRepoHidden("/repo/a", true);
+    store.setRepoHidden("/repo/a", true);
+    expect([...store.hiddenRepos()]).toEqual(["/repo/a"]);
+  });
+
+  it("marks a hidden repo in the listing instead of dropping it — the route decides", async () => {
+    const store = db();
+    store.createCard({ title: "x", repoPath: "/repo/kept" });
+    store.createCard({ title: "y", repoPath: "/repo/noisy" });
+    store.setRepoHidden("/repo/noisy", true);
+    const git: GitRunner = async () => ({ ok: true, stdout: "main\n", stderr: "" });
+    const repos = await listRepos(store, snapshot([]), [], git);
+
+    expect(repos.find((r) => r.path === "/repo/noisy")?.hidden).toBe(true);
+    expect(repos.find((r) => r.path === "/repo/kept")?.hidden).toBeUndefined();
+  });
+
+  it("does not resolve a default branch for a hidden repo — it is never offered", async () => {
+    const store = db();
+    store.createCard({ title: "y", repoPath: "/repo/noisy" });
+    store.setRepoHidden("/repo/noisy", true);
+    let branchCalls = 0;
+    const git: GitRunner = async (args) => {
+      if (args[0] === "symbolic-ref") branchCalls++;
+      return { ok: true, stdout: "main\n", stderr: "" };
+    };
+    await listRepos(store, snapshot([]), [], git);
+    expect(branchCalls).toBe(0);
+  });
+
+  it("survives a hidden repo that no longer exists anywhere — the row is simply inert", async () => {
+    const store = db();
+    store.setRepoHidden("/repo/deleted-long-ago", true);
+    const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "" });
+    expect(await listRepos(store, snapshot([]), [], git)).toEqual([]);
   });
 });
