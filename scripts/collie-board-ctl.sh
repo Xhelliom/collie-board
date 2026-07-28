@@ -5,16 +5,16 @@
 set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UNIT="collie"
+UNIT="collie-board"
 UNIT_FILE="${HOME}/.config/systemd/user/${UNIT}.service"
-PLUGIN_ID="herdr.collie"
+PLUGIN_ID="herdr.collie-board"
 
 # Resolve the plugin config dir (where .env lives) the SAME way no matter how we're launched.
-# Herdr injects HERDR_PLUGIN_CONFIG_DIR when it runs our actions, but a direct `collie-ctl.sh` call
+# Herdr injects HERDR_PLUGIN_CONFIG_DIR when it runs our actions, but a direct `collie-board-ctl.sh` call
 # doesn't get it — so we ask Herdr for the canonical path (`herdr plugin config-dir`, plain text).
-# Without this, the two entry points read DIFFERENT .env files (Herdr's dir vs a ~/.config/collie
-# fallback), so a setting like COLLIE_SERVE_MODE applied one way and was silently ignored the other.
-# Order: injected env → Herdr CLI → Herdr's conventional path (if it has a .env) → ~/.config/collie.
+# Without this, the two entry points read DIFFERENT .env files (Herdr's dir vs a ~/.config/collie-board
+# fallback), so a setting like COLLIE_BOARD_SERVE_MODE applied one way and was silently ignored the other.
+# Order: injected env → Herdr CLI → Herdr's conventional path (if it has a .env) → ~/.config/collie-board.
 resolve_config_dir() {
   if [ -n "${HERDR_PLUGIN_CONFIG_DIR:-}" ]; then echo "$HERDR_PLUGIN_CONFIG_DIR"; return; fi
   if command -v herdr >/dev/null; then
@@ -23,24 +23,24 @@ resolve_config_dir() {
   fi
   local conventional="${HOME}/.config/herdr/plugins/config/${PLUGIN_ID}"
   if [ -f "${conventional}/.env" ]; then echo "$conventional"; return; fi
-  echo "${HOME}/.config/collie"
+  echo "${HOME}/.config/collie-board"
 }
 CONFIG_DIR="$(resolve_config_dir)"
 
-# If a legacy ~/.config/collie/.env exists but isn't the resolved dir, it's being ignored — say so
+# If a legacy ~/.config/collie-board/.env exists but isn't the resolved dir, it's being ignored — say so
 # rather than silently dropping config that used to apply via the old fallback.
-if [ "$CONFIG_DIR" != "${HOME}/.config/collie" ] && [ -f "${HOME}/.config/collie/.env" ]; then
-  echo "note: ignoring legacy ${HOME}/.config/collie/.env — config now lives in ${CONFIG_DIR}/.env (move it there)." >&2
+if [ "$CONFIG_DIR" != "${HOME}/.config/collie-board" ] && [ -f "${HOME}/.config/collie-board/.env" ]; then
+  echo "note: ignoring legacy ${HOME}/.config/collie-board/.env — config now lives in ${CONFIG_DIR}/.env (move it there)." >&2
 fi
 
 # Source the plugin .env so both this script and the systemd unit share one config source.
 if [ -f "${CONFIG_DIR}/.env" ]; then set -a; . "${CONFIG_DIR}/.env"; set +a; fi
 
-PORT="${COLLIE_PORT:-8787}"
+PORT="${COLLIE_BOARD_PORT:-8788}"
 SOCKET="${HERDR_SOCKET_PATH:-${HOME}/.config/herdr/herdr.sock}"
 # How tailscale serve exposes the bridge: "https" (default, needs a cert from the control
 # server) or "http" (plain HTTP over the tailnet — use this on Headscale / .internal domains).
-SERVE_MODE="${COLLIE_SERVE_MODE:-https}"
+SERVE_MODE="${COLLIE_BOARD_SERVE_MODE:-https}"
 # Records the ONE `tailscale serve` root mount Collie published, so teardown can prove the mapping
 # it is about to remove is still the one it created. Format: `<mode>:<port>|<HostPort>|<proxy>`.
 TAILSCALE_HANDLER_FILE="${CONFIG_DIR}/tailscale-managed-handler"
@@ -148,15 +148,15 @@ print_status_banner() {
   if bridge_ready; then
     echo "  ✓ Collie is running  ·  v${ver}"
   else
-    echo "  ⚠ Collie isn't answering on :${PORT} yet (v${ver}) — check 'collie-ctl.sh logs'"
+    echo "  ⚠ Collie isn't answering on :${PORT} yet (v${ver}) — check 'collie-board-ctl.sh logs'"
   fi
   echo "    service   ${svc}"
   echo "    local     http://127.0.0.1:${PORT}"
-  if [ "${COLLIE_SKIP_SERVE:-}" = "1" ]; then
-    if [ -n "${COLLIE_PUBLIC_URL:-}" ]; then
-      echo "    proxy     ${COLLIE_PUBLIC_URL}"
+  if [ "${COLLIE_BOARD_SKIP_SERVE:-}" = "1" ]; then
+    if [ -n "${COLLIE_BOARD_PUBLIC_URL:-}" ]; then
+      echo "    proxy     ${COLLIE_BOARD_PUBLIC_URL}"
     else
-      echo "    proxy     (COLLIE_SKIP_SERVE=1 — set COLLIE_PUBLIC_URL to your reverse-proxy URL)"
+      echo "    proxy     (COLLIE_BOARD_SKIP_SERVE=1 — set COLLIE_BOARD_PUBLIC_URL to your reverse-proxy URL)"
     fi
   else
     echo "    tailnet   $(bridge_url)"
@@ -186,7 +186,7 @@ RestartSec=5
 NoNewPrivileges=yes
 PrivateTmp=yes
 Environment=HERDR_SOCKET_PATH=${SOCKET}
-Environment=COLLIE_PORT=${PORT}
+Environment=COLLIE_BOARD_PORT=${PORT}
 Environment=HERDR_PLUGIN_CONFIG_DIR=${CONFIG_DIR}
 EnvironmentFile=-${CONFIG_DIR}/.env
 
@@ -206,7 +206,7 @@ cmd_start() {
     # Fallback: background process with a pidfile (e.g. macOS without lingering systemd).
     mkdir -p "$CONFIG_DIR"
     [ -n "$BUN" ] || { echo "error: bun not found" >&2; exit 1; }
-    HERDR_SOCKET_PATH="$SOCKET" COLLIE_PORT="$PORT" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" \
+    HERDR_SOCKET_PATH="$SOCKET" COLLIE_BOARD_PORT="$PORT" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" \
       nohup "$BUN" run "${PLUGIN_ROOT}/bridge/index.ts" >>"${CONFIG_DIR}/collie.log" 2>&1 &
     echo $! > "${CONFIG_DIR}/collie.pid"
     echo "bridge started (pid $(cat "${CONFIG_DIR}/collie.pid"), no systemd)"
@@ -233,7 +233,7 @@ cmd_restart() { cmd_stop; cmd_start; }
 # Tear the service down completely (the inverse of `start`): stop + disable it, remove the
 # systemd --user unit, remove Collie's tailscale serve mapping, and drop the pidfile. Deliberately leaves your
 # config (${CONFIG_DIR}/.env) and the on-disk checkout in place — `uninstall` removes only what
-# `start` created. To remove the plugin registration too, run `herdr plugin uninstall herdr.collie`
+# `start` created. To remove the plugin registration too, run `herdr plugin uninstall herdr.collie-board`
 # (or, for a linked clone, just delete the checkout).
 cmd_uninstall() {
   cmd_stop
@@ -255,7 +255,7 @@ cmd_uninstall() {
 cmd_update() {
   echo "updating Collie (git pull --ff-only)…"
   git -C "$PLUGIN_ROOT" pull --ff-only
-  exec bash "${PLUGIN_ROOT}/scripts/collie-ctl.sh" _apply-update
+  exec bash "${PLUGIN_ROOT}/scripts/collie-board-ctl.sh" _apply-update
 }
 
 # After an update, Herdr's plugin registry still has the action set + version CACHED from the last
@@ -307,13 +307,13 @@ tailscale_root_fingerprint() {
   status_json="$(tailscale serve status --json 2>/dev/null)" || return 1
   result="$(
     printf '%s' "$status_json" |
-      COLLIE_SERVE_HOST_PORT="$host_port" COLLIE_SERVE_PORT="$port" "$BUN" -e '
+      COLLIE_BOARD_SERVE_HOST_PORT="$host_port" COLLIE_BOARD_SERVE_PORT="$port" "$BUN" -e '
         let data = "";
         process.stdin.on("data", chunk => data += chunk).on("end", () => {
           try {
             const config = JSON.parse(data || "{}");
-            const hostPort = process.env.COLLIE_SERVE_HOST_PORT;
-            const port = process.env.COLLIE_SERVE_PORT;
+            const hostPort = process.env.COLLIE_BOARD_SERVE_HOST_PORT;
+            const port = process.env.COLLIE_BOARD_SERVE_PORT;
             const handlers = config?.Web?.[hostPort]?.Handlers ?? {};
             if (!Object.prototype.hasOwnProperty.call(handlers, "/")) {
               process.stdout.write("absent");
@@ -439,15 +439,15 @@ ensure_tailscale_root_available() {
   fi
   if ! result="$(
     printf '%s' "$status_json" |
-      COLLIE_SERVE_PORT="$port" COLLIE_SERVE_PROTOCOL="$protocol" \
-      COLLIE_SERVE_EXPECTED_PROXY="$expected_proxy" "$BUN" -e '
+      COLLIE_BOARD_SERVE_PORT="$port" COLLIE_BOARD_SERVE_PROTOCOL="$protocol" \
+      COLLIE_BOARD_SERVE_EXPECTED_PROXY="$expected_proxy" "$BUN" -e '
         let data = "";
         process.stdin.on("data", chunk => data += chunk).on("end", () => {
           try {
             const config = JSON.parse(data || "{}");
-            const port = process.env.COLLIE_SERVE_PORT;
-            const protocol = process.env.COLLIE_SERVE_PROTOCOL;
-            const expectedProxy = process.env.COLLIE_SERVE_EXPECTED_PROXY;
+            const port = process.env.COLLIE_BOARD_SERVE_PORT;
+            const protocol = process.env.COLLIE_BOARD_SERVE_PROTOCOL;
+            const expectedProxy = process.env.COLLIE_BOARD_SERVE_EXPECTED_PROXY;
             // Proxy targets of every root handler bound to our port, in one serve config level.
             const rootTargets = serveConfig =>
               Object.entries(serveConfig?.Web ?? {})
@@ -503,11 +503,11 @@ ensure_tailscale_root_available() {
 }
 
 cmd_serve() {
-  if [ "${COLLIE_SKIP_SERVE:-}" = "1" ]; then
+  if [ "${COLLIE_BOARD_SKIP_SERVE:-}" = "1" ]; then
     # Still tear down: skipping teardown would strand a mapping published before the flag was
     # flipped on, leaving the app reachable by a path the operator thinks is closed.
     stop_tailscale_serve || return 1
-    echo "tailscale serve skipped (COLLIE_SKIP_SERVE=1) — bridge is on 127.0.0.1:${PORT} only"
+    echo "tailscale serve skipped (COLLIE_BOARD_SKIP_SERVE=1) — bridge is on 127.0.0.1:${PORT} only"
     return
   fi
   stop_tailscale_serve || return 1
@@ -540,7 +540,7 @@ cmd_serve() {
       echo "tailscale serve (https) → tailnet :443 -> 127.0.0.1:${PORT}"
     else
       rm -f "$TAILSCALE_HANDLER_FILE"
-      echo "note: tailscale serve (https) failed — on Headscale/.internal domains use COLLIE_SERVE_MODE=http:"
+      echo "note: tailscale serve (https) failed — on Headscale/.internal domains use COLLIE_BOARD_SERVE_MODE=http:"
       cat "$out"
       return 1
     fi
@@ -552,8 +552,8 @@ cmd_unserve() { stop_tailscale_serve; }
 
 cmd_status() {
   print_status_banner
-  if [ "${COLLIE_SKIP_SERVE:-}" = "1" ]; then
-    echo "  serve config: skipped (COLLIE_SKIP_SERVE=1)"
+  if [ "${COLLIE_BOARD_SKIP_SERVE:-}" = "1" ]; then
+    echo "  serve config: skipped (COLLIE_BOARD_SKIP_SERVE=1)"
   else
     echo "  serve config:"; tailscale serve status 2>/dev/null | sed 's/^/    /' || true
   fi
@@ -574,7 +574,7 @@ cmd_push_test() {
   "$BUN" run "${PLUGIN_ROOT}/scripts/push-test.ts" "$@"
 }
 
-# Sourced (by scripts/collie-ctl.test.sh) rather than run: define the functions and stop before the
+# Sourced (by scripts/collie-board-ctl.test.sh) rather than run: define the functions and stop before the
 # dispatch, so a test can call one function in isolation with its dependencies stubbed out.
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then
   return 0
@@ -595,5 +595,5 @@ case "${1:-}" in
   version) cmd_version ;;
   push-test) shift || true; cmd_push_test "$@" ;;
   logs)    cmd_logs "${2:-50}" ;;
-  *) echo "usage: collie-ctl.sh {start|stop|restart|uninstall|update|version|push-test|build|serve|unserve|status|url|logs}" >&2; exit 2 ;;
+  *) echo "usage: collie-board-ctl.sh {start|stop|restart|uninstall|update|version|push-test|build|serve|unserve|status|url|logs}" >&2; exit 2 ;;
 esac

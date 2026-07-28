@@ -59,7 +59,7 @@ watching the TUI. A long-lived network daemon must be supervised independently.
   restarts on failure, survives Herdr restarts.
 - **The Herdr plugin stays — as a thin registration/launcher,** so the bridge shows up in
   `herdr plugin list` and Herdr conventions still apply. Its `[[actions]]` do things like
-  `systemctl --user start collie` and **print the tailnet URL**; they do *not* host the server. A
+  `systemctl --user start collie-board` and **print the tailnet URL**; they do *not* host the server. A
   `[[build]]` step builds the web UI on `herdr plugin install` (GitHub); local `link` installs skip
   it and build lazily on first `start`. Concretely that's `[[actions]]` + `[[build]]` and nothing
   else: `[[panes]]` is what this section argues against, and `[[events]]` would duplicate the
@@ -128,7 +128,7 @@ app. Closing this needs the server-side blocking-message capture described above
   on Windows (named after the full socket path). `bridge/dial.ts` is the only place that knows the
   difference: `Bun.connect({unix})` on POSIX, `node:net` on Windows. The wire protocol is identical —
   the `interprocess` crate Herdr uses inserts no framing or metadata, so the same newline-delimited
-  JSON-RPC speaks to both, streaming `events.subscribe` included. `COLLIE_HERDR_DIAL=net` forces the
+  JSON-RPC speaks to both, streaming `events.subscribe` included. `COLLIE_BOARD_HERDR_DIAL=net` forces the
   Windows dialer anywhere, which is how that branch stays tested off Windows.
 - **Output model: poll, not stream — event-poked.** Herdr exposes `pane.read` (snapshot) and
   `pane.output_matched` (regex event) but **no raw output-stream event**, so there is nothing to
@@ -138,8 +138,8 @@ app. Closing this needs the server-side blocking-message capture described above
   (full contract in [`HERDR_API.md`](./HERDR_API.md)). A long-lived `events.subscribe` stream runs
   alongside purely to **poke** that poll: lifecycle events plus a per-agent-pane
   `pane.agent_status_changed` subscription trigger an immediate debounced re-poll, while the interval
-  relaxes to `COLLIE_POLL_IDLE_MS` (12 s default) whenever the stream is healthy and drops back to
-  the fast `COLLIE_POLL_MS` when it isn't. **The snapshot poll stays the source of truth throughout —
+  relaxes to `COLLIE_BOARD_POLL_IDLE_MS` (12 s default) whenever the stream is healthy and drops back to
+  the fast `COLLIE_BOARD_POLL_MS` when it isn't. **The snapshot poll stays the source of truth throughout —
   a missed event costs one interval, never correctness.**
 - **Scrollback comes from the transcript, not the terminal.** An agent's TUI runs on the *alternate
   screen* (`ESC[?1049h`), so the emulator keeps no scrollback ring and `pane.read` can never return
@@ -181,7 +181,7 @@ default). These four are genuine RCE vectors and are **load-bearing — do not r
   owning uid; a TCP port bounds callers to the network namespace, which every uid on the host shares.
   So a process running as a *different* user — an agent you deliberately put under
   `sudo -u agent-review` to contain it — cannot open your herdr socket but **can** open
-  `127.0.0.1:$COLLIE_PORT` and drive any pane in the herd. Installing Collie removes that uid
+  `127.0.0.1:$COLLIE_BOARD_PORT` and drive any pane in the herd. Installing Collie removes that uid
   boundary; if it is the containment you were relying on, the device gate below makes that port
   **read-only** — the one write gate that doesn't rest on "local means trusted". Note its scope: it
   gates writes and only writes, so that uid keeps reading snapshots, pane output and transcript
@@ -190,15 +190,15 @@ default). These four are genuine RCE vectors and are **load-bearing — do not r
   owner-match filter such as nftables `meta skuid`); a plain port firewall rule won't stop a
   same-host peer (raised in [#33](https://github.com/AltanS/collie/issues/33)).
   Under `tailscale serve`, the `Tailscale-User-Login` header is the person gate — trusted **only**
-  when the request source is loopback (i.e. it came from tailscaled). `COLLIE_TRUSTED_USER` rejects a
+  when the request source is loopback (i.e. it came from tailscaled). `COLLIE_BOARD_TRUSTED_USER` rejects a
   *mismatching* login and **passes an absent one**: it narrows which tailnet user is trusted, it does
   not mandate the header. That is safe under `tailscale serve`, which injects it on every request, and
   not safe behind anything that might stop injecting it — the header exists **only** under
   `tailscale serve` ingress. Under a reverse-proxy front door
   ([README → Variant C](./README.md#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale))
-  there is none, and the equivalent write gate is **per-device auth** (`COLLIE_DEVICE_HEADER`) with
+  there is none, and the equivalent write gate is **per-device auth** (`COLLIE_BOARD_DEVICE_HEADER`) with
   the proxy contract (README Variant B/C requirements) as the load-bearing piece. That gate **fails
-  closed since 0.15.0**: with `COLLIE_DEVICE_HEADER` set, a request arriving without the header is
+  closed since 0.15.0**: with `COLLIE_BOARD_DEVICE_HEADER` set, a request arriving without the header is
   read-only, so reaching the port is no longer sufficient to write. Device ids are names your proxy
   asserts, not secrets — treat them as guessable and keep the front door and its ACL as the real
   containment.
@@ -213,7 +213,7 @@ default). These four are genuine RCE vectors and are **load-bearing — do not r
   reverse proxy / TLS terminator (custom domain, load balancer, Headscale + upstream TLS, or a
   reverse-proxy front door — [README → Variant C](./README.md#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale)),
   the public origin no longer matches the forwarded `Host` — list that exact origin in
-  `COLLIE_ALLOWED_ORIGINS` (the only sanctioned way to widen the gate; never bind off-loopback to
+  `COLLIE_BOARD_ALLOWED_ORIGINS` (the only sanctioned way to widen the gate; never bind off-loopback to
   "fix" it).
 - **Idle timeout.** Tailscale identity proves the *device*, not *who's holding it*. The PWA stays
   "signed in" with no session, so a stolen unlocked phone would be a root shell. The idle-lock

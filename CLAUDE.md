@@ -3,7 +3,7 @@
 **Collie** (repo `AltanS/collie`) — a phone web UI for your Herdr agent herd, served over
 Tailscale. A mobile-first PWA (Vite + React + TS + Tailwind v4 + shadcn) plus a Bun/TS bridge that
 talks to Herdr's Unix socket, letting you monitor and reply to agents from a phone. The Herdr
-plugin id is `herdr.collie` (manifest: `herdr-plugin.toml`). Orientation:
+plugin id is `herdr.collie-board` (manifest: `herdr-plugin.toml`). Orientation:
 [`README.md`](./README.md) · [`ARCHITECTURE.md`](./ARCHITECTURE.md) · verified API
 [`HERDR_API.md`](./HERDR_API.md) · decisions [`.adr/`](./.adr/).
 
@@ -42,7 +42,7 @@ manifest) you MUST:
 Doc-only changes (`*.md`) don't need a bump. This is enforced two ways, but **you are the first
 line — do it as part of the change, not after**:
 
-- `scripts/check-version.sh` runs inside `scripts/collie-ctl.sh build` (a release can't build while
+- `scripts/check-version.sh` runs inside `scripts/collie-board-ctl.sh build` (a release can't build while
   versions disagree).
 - A **git pre-commit hook** (`scripts/git-hooks/pre-commit`, activate once with
   `scripts/install-hooks.sh`) blocks commits where functional code changed but the version didn't.
@@ -58,8 +58,8 @@ a doc-only change and needs no version bump.)
 **Update notice (user-facing).** The app's in-app update banner links to the newest release's GitHub
 page and shows the command to run. Pushing a `v*` tag auto-creates that GitHub Release (with the
 commands) via `.github/workflows/release.yml`. **Always express user-facing update/restart
-instructions as Herdr plugin actions** — `herdr plugin action invoke update --plugin herdr.collie`
-(or `restart`) — never `collie-ctl.sh …` / `systemctl … collie`, which depend on the caller's cwd and
+instructions as Herdr plugin actions** — `herdr plugin action invoke update --plugin herdr.collie-board`
+(or `restart`) — never `collie-board-ctl.sh …` / `systemctl … collie`, which depend on the caller's cwd and
 the unit name; the Herdr action runs from anywhere.
 
 ## Build / run (operational facts that are easy to forget)
@@ -68,8 +68,8 @@ the unit name; the Herdr action runs from anywhere.
   The bridge serves `web/dist` **from disk at request time**, so on the deployment host
   a rebuild is **immediately live — no restart**.
 - **Backend changes** (`bridge/*.ts`): Bun does **not** hot-reload the service — you must
-  `systemctl --user restart collie`. Forgetting this is the #1 "my change didn't take" trap.
-- `bun run build` (root) and `collie-ctl.sh build` **typecheck both sides first** (root tsc + web
+  `systemctl --user restart collie-board`. Forgetting this is the #1 "my change didn't take" trap.
+- `bun run build` (root) and `collie-board-ctl.sh build` **typecheck both sides first** (root tsc + web
   tsc), then build web to `dist-staging` and swap it in atomically — a failed build never empties a
   live `web/dist`. Bare `cd web && bun run build` still skips typechecking; don't ship from it.
 - **Tests:** frontend `cd web && bun run test` (Vitest + jsdom + Testing Library + MSW; no headless
@@ -78,7 +78,7 @@ the unit name; the Herdr action runs from anywhere.
   every push — override once with `SKIP_TESTS=1 git push`. The bits that genuinely need `Bun.serve` /
   `Bun.connect` (HTTP handlers, the socket client) stay unit-untested — Vitest-on-Node can't run them,
   so keep new backend logic pure/injectable enough for `bun test`, or exercise it through `web/`.
-- Service: `systemd --user` unit `collie` on the deployment host; logs `journalctl --user -u collie -f`.
+- Service: `systemd --user` unit `collie` on the deployment host; logs `journalctl --user -u collie-board -f`.
 - TS is strict on both sides, with `noUnusedLocals/Parameters` everywhere. **`web/` additionally**
   enforces `verbatimModuleSyntax` + `erasableSyntaxOnly` (use `import type`, no parameter-property
   shorthand there). The **bridge** tsconfig does not enable those two — bridge code uses
@@ -108,12 +108,12 @@ the unit name; the Herdr action runs from anywhere.
 ## Security posture (don't regress)
 
 Loopback bind only · exactly one hardened front door — `tailscale serve` (never `funnel`) or a
-conforming reverse proxy per README Variant C (`COLLIE_SKIP_SERVE=1`) · same-origin gate · optional
+conforming reverse proxy per README Variant C (`COLLIE_BOARD_SKIP_SERVE=1`) · same-origin gate · optional
 identity/device gates · strict CSP. A socket call can type into a real terminal — treat the bridge as
 remote shell access.
 
-**Collie manages exactly one front door: `tailscale serve`** — `collie-ctl.sh` publishes it, records
+**Collie manages exactly one front door: `tailscale serve`** — `collie-board-ctl.sh` publishes it, records
 the mapping in `tailscale-managed-handler`, and only ever tears down a mapping matching that record.
-Every other tunnel (NetBird, ZeroTier, Cloudflare Tunnel) is `COLLIE_SKIP_SERVE=1` + README Variant
+Every other tunnel (NetBird, ZeroTier, Cloudflare Tunnel) is `COLLIE_BOARD_SKIP_SERVE=1` + README Variant
 E: the operator owns the ingress, Collie publishes nothing. **Don't add a second managed front
 door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).

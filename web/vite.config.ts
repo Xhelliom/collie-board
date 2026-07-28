@@ -9,26 +9,26 @@ import { resolve } from "node:path";
 // The bridge (Bun server) serves the built app from `web/dist` and proxies nothing — the
 // browser talks to the same origin for both static files and /api. In `vite dev`, proxy the
 // bridge so the SPA can hit the real socket-backed API while you iterate on the UI.
-const BRIDGE = process.env.COLLIE_DEV_TARGET ?? "http://127.0.0.1:8787";
+const BRIDGE = process.env.COLLIE_BOARD_DEV_TARGET ?? "http://127.0.0.1:8788";
 
-// Dev-only: extra Host headers to accept besides localhost. Set COLLIE_DEV_HOSTS to a comma-separated
+// Dev-only: extra Host headers to accept besides localhost. Set COLLIE_BOARD_DEV_HOSTS to a comma-separated
 // list (or "*" for any) when viewing the dev server from another device — e.g. a tailnet MagicDNS
 // name like "bluefin". Vite blocks unknown Hosts by default (a DNS-rebinding guard). No effect on the
 // production bundle: the bridge, not Vite, serves prod.
-const devHosts = (process.env.COLLIE_DEV_HOSTS ?? "")
+const devHosts = (process.env.COLLIE_BOARD_DEV_HOSTS ?? "")
   .split(",")
   .map((h) => h.trim())
   .filter(Boolean);
-// `COLLIE_DEV_HOSTS="*"` maps to Vite's `allowedHosts: true`, which turns OFF the dev server's
+// `COLLIE_BOARD_DEV_HOSTS="*"` maps to Vite's `allowedHosts: true`, which turns OFF the dev server's
 // DNS-rebinding protection (any Host header is accepted). Dev-server-only — the bridge, not Vite,
 // serves prod — but still worth a loud warning: prefer listing explicit hostnames (e.g.
-// COLLIE_DEV_HOSTS="bluefin,localhost") so a malicious page can't rebind to your dev server.
+// COLLIE_BOARD_DEV_HOSTS="bluefin,localhost") so a malicious page can't rebind to your dev server.
 const wildcardDevHost = devHosts.includes("*");
 if (wildcardDevHost) {
   console.warn(
-    '\n\x1b[33m⚠ COLLIE_DEV_HOSTS="*" accepts ANY Host header on the Vite dev server, disabling its\n' +
+    '\n\x1b[33m⚠ COLLIE_BOARD_DEV_HOSTS="*" accepts ANY Host header on the Vite dev server, disabling its\n' +
       "  DNS-rebinding guard. This is DEV-ONLY (prod is served by the bridge), but prefer explicit\n" +
-      '  hostnames instead, e.g. COLLIE_DEV_HOSTS="bluefin,localhost".\x1b[0m\n',
+      '  hostnames instead, e.g. COLLIE_BOARD_DEV_HOSTS="bluefin,localhost".\x1b[0m\n',
   );
 }
 const allowedHosts = wildcardDevHost ? true : devHosts.length > 0 ? devHosts : undefined;
@@ -129,9 +129,9 @@ export default defineConfig({
       filename: "sw.ts", // source; compiled to dist/sw.js (the bridge sets Service-Worker-Allowed: /)
       includeAssets: ["favicon.svg", "favicon.ico", "favicon-96x96.png", "apple-touch-icon.png"],
       manifest: {
-        name: "Collie",
-        short_name: "Collie",
-        description: "Monitor and reply to your Herdr agent herd from your phone",
+        name: "Collie Board",
+        short_name: "Collie Board",
+        description: "Kanban board over your Herdr agent herd, from your phone",
         id: "/",
         start_url: "/",
         scope: "/",

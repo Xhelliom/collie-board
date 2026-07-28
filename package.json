@@ -1,9 +1,9 @@
 {
-  "name": "collie",
-  "version": "0.17.0",
+  "name": "collie-board",
+  "version": "0.18.0",
   "private": true,
   "license": "MIT",
-  "description": "Collie — a mobile web UI to monitor and reply to your Herdr agent herd over Tailscale",
+  "description": "Collie Board — durable Kanban cards over your Herdr agent herd, served over Tailscale",
   "type": "module",
   "scripts": {
     "start": "bun run bridge/index.ts",
@@ -11,8 +11,8 @@
     "build": "bun run typecheck && cd web && bun install && bun run typecheck && bun run build",
     "build:web": "cd web && bun run build",
     "web:dev": "cd web && bun run dev",
-    "test": "bun test ./bridge && bash scripts/collie-ctl.test.sh",
-    "test:ctl": "bash scripts/collie-ctl.test.sh",
+    "test": "bun test ./bridge && bash scripts/collie-board-ctl.test.sh",
+    "test:ctl": "bash scripts/collie-board-ctl.test.sh",
     "typecheck": "bunx tsc --noEmit"
   },
   "devDependencies": {

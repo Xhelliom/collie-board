@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Lifecycle tests for scripts/collie-ctl.sh — the first coverage the control script has ever had.
+# Lifecycle tests for scripts/collie-board-ctl.sh — the first coverage the control script has ever had.
 # Everything the script shells out to (tailscale, systemctl) is faked on a scratch PATH, with a
 # throwaway $HOME and config dir, so these run anywhere and touch nothing real.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CTL="${ROOT}/scripts/collie-ctl.sh"
+CTL="${ROOT}/scripts/collie-board-ctl.sh"
 BASE_PATH="$PATH"
 TMP_ROOT="$(mktemp -d)"
 
@@ -94,24 +94,24 @@ test_tailscale_cutovers_and_collisions() {
   install_fake_tailscale
 
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=8787
 EOF
   run_ctl serve > "${CASE_DIR}/start-8787.out"
   assert_eq "$(cat "${CONFIG_DIR}/tailscale-managed-handler")" \
     'http:8787|host.example:8787|http://127.0.0.1:8787'
 
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=9999
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=9999
 EOF
   run_ctl serve > "${CASE_DIR}/start-9999.out"
   assert_eq "$(cat "${CONFIG_DIR}/tailscale-managed-handler")" \
     'http:9999|host.example:9999|http://127.0.0.1:9999'
 
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SKIP_SERVE=1
-COLLIE_PORT=9999
+COLLIE_BOARD_SKIP_SERVE=1
+COLLIE_BOARD_PORT=9999
 EOF
   run_ctl serve > "${CASE_DIR}/to-proxy.out"
   [ ! -e "${CONFIG_DIR}/tailscale-managed-handler" ] || fail "Tailscale ownership survived proxy cutover"
@@ -120,8 +120,8 @@ EOF
   collision='{"TCP":{"8787":{"HTTP":true}},"Web":{"host.example:8787":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:7000"}}}}}'
   printf '%s\n' "$collision" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=8787
 EOF
   if run_ctl serve > "${CASE_DIR}/collision.out" 2>&1; then
     fail "unowned Tailscale root collision was overwritten"
@@ -139,8 +139,8 @@ EOF
   opposite_http='{"TCP":{"443":{"HTTP":true}},"Web":{"host.example:443":{"Handlers":{"/other":{"Proxy":"http://127.0.0.1:7003"}}}}}'
   printf '%s\n' "$opposite_http" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=https
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=https
+COLLIE_BOARD_PORT=8787
 EOF
   if run_ctl serve > "${CASE_DIR}/opposite-http.out" 2>&1; then
     fail "HTTPS publication replaced an unrelated HTTP sibling listener"
@@ -149,8 +149,8 @@ EOF
   [ ! -e "${CONFIG_DIR}/tailscale-managed-handler" ] || fail "protocol mismatch created ownership state"
 
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=8787
 EOF
 
   # Once we own a root, someone replacing it out from under us must stop teardown cold: removing a
@@ -161,8 +161,8 @@ EOF
   protocol_replacement='{"TCP":{"8787":{"HTTPS":true}},"Web":{"host.example:8787":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8787"}}}}}'
   printf '%s\n' "$protocol_replacement" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SKIP_SERVE=1
-COLLIE_PORT=8787
+COLLIE_BOARD_SKIP_SERVE=1
+COLLIE_BOARD_PORT=8787
 EOF
   if run_ctl serve > "${CASE_DIR}/protocol-replacement.out" 2>&1; then
     fail "protocol-only Tailscale root replacement was removed"
@@ -172,8 +172,8 @@ EOF
   replacement='{"TCP":{"8787":{"HTTP":true}},"Web":{"host.example:8787":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:7001"}}}}}'
   printf '%s\n' "$replacement" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SKIP_SERVE=1
-COLLIE_PORT=8787
+COLLIE_BOARD_SKIP_SERVE=1
+COLLIE_BOARD_PORT=8787
 EOF
   if run_ctl serve > "${CASE_DIR}/replacement.out" 2>&1; then
     fail "externally replaced Tailscale root was removed"
@@ -187,7 +187,7 @@ test_missing_tailscale_cli() {
   ln -s "$(command -v dirname)" "${BIN_DIR}/dirname"
   ln -s "$(command -v tr)" "${BIN_DIR}/tr"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_PORT=8787
+COLLIE_BOARD_PORT=8787
 EOF
 
   set +e
@@ -258,8 +258,8 @@ test_adopts_preexisting_collie_mount() {
   local preexisting='{"TCP":{"8787":{"HTTP":true}},"Web":{"host.example:8787":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8787"}}}}}'
   printf '%s\n' "$preexisting" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=8787
 EOF
   [ ! -e "${CONFIG_DIR}/tailscale-managed-handler" ] || fail "fixture already had ownership state"
 
@@ -273,7 +273,7 @@ EOF
   install_fake_tailscale
   printf '%s\n' '{"TCP":{"443":{"HTTPS":true}},"Web":{"host.example:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8787"}}}}}' > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_PORT=8787
+COLLIE_BOARD_PORT=8787
 EOF
   run_ctl serve > "${CASE_DIR}/adopt-https.out" 2>&1 ||
     fail "serve refused to adopt Collie's own pre-existing HTTPS mount"
@@ -287,8 +287,8 @@ EOF
   foreign='{"TCP":{"8787":{"HTTP":true}},"Web":{"host.example:8787":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:7000"}}}}}'
   printf '%s\n' "$foreign" > "$TS_STATUS"
   cat > "${CONFIG_DIR}/.env" <<'EOF'
-COLLIE_SERVE_MODE=http
-COLLIE_PORT=8787
+COLLIE_BOARD_SERVE_MODE=http
+COLLIE_BOARD_PORT=8787
 EOF
   if run_ctl serve > "${CASE_DIR}/adopt-foreign.out" 2>&1; then
     fail "adoption swallowed a foreign root mount"
@@ -327,4 +327,4 @@ test_state_delete_failures
 test_adopts_preexisting_collie_mount
 test_serve_failure_does_not_abort_start
 
-echo "collie-ctl lifecycle tests: passed"
+echo "collie-board-ctl lifecycle tests: passed"

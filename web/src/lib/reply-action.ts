@@ -126,7 +126,7 @@ async function oneShot(args: GuardedReplyArgs): Promise<ReplyOutcome> {
 
 /**
  * Empty text + submit: `sendReplySteps` skips the send_text step entirely and sends ONLY the
- * bridge's configured submit keys (COLLIE_SUBMIT_KEYS). So the submit-key contract stays
+ * bridge's configured submit keys (COLLIE_BOARD_SUBMIT_KEYS). So the submit-key contract stays
  * server-owned and this whole guard needs no bridge change.
  */
 async function submitOnly(args: GuardedReplyArgs): Promise<ReplyOutcome> {

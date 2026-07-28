@@ -7,29 +7,29 @@ import { defaultSocketPath, loadConfig } from "./config.ts";
 // process.env + homedir), so we drive it by mutating the environment and restoring it after.
 
 const KEYS = [
-  "COLLIE_PORT",
-  "COLLIE_HOST",
-  "COLLIE_POLL_MS",
-  "COLLIE_POLL_IDLE_MS",
-  "COLLIE_NOTIFY_DELAY_MS",
-  "COLLIE_READ_LINES",
-  "COLLIE_TRANSCRIPT",
-  "COLLIE_TRANSCRIPT_ROOT",
-  "COLLIE_SUBMIT_KEYS",
-  "COLLIE_TRUSTED_USER",
-  "COLLIE_DEVICE_HEADER",
-  "COLLIE_DEVICE_ALLOWLIST",
-  "COLLIE_ALLOWED_ORIGINS",
-  "COLLIE_PUBLIC_HOSTS",
-  "COLLIE_VAPID_PUBLIC",
-  "COLLIE_VAPID_PRIVATE",
-  "COLLIE_VAPID_SUBJECT",
-  "COLLIE_STATE_DIR",
-  "COLLIE_MULTI_SESSION",
-  "COLLIE_SKIP_SERVE",
+  "COLLIE_BOARD_PORT",
+  "COLLIE_BOARD_HOST",
+  "COLLIE_BOARD_POLL_MS",
+  "COLLIE_BOARD_POLL_IDLE_MS",
+  "COLLIE_BOARD_NOTIFY_DELAY_MS",
+  "COLLIE_BOARD_READ_LINES",
+  "COLLIE_BOARD_TRANSCRIPT",
+  "COLLIE_BOARD_TRANSCRIPT_ROOT",
+  "COLLIE_BOARD_SUBMIT_KEYS",
+  "COLLIE_BOARD_TRUSTED_USER",
+  "COLLIE_BOARD_DEVICE_HEADER",
+  "COLLIE_BOARD_DEVICE_ALLOWLIST",
+  "COLLIE_BOARD_ALLOWED_ORIGINS",
+  "COLLIE_BOARD_PUBLIC_HOSTS",
+  "COLLIE_BOARD_VAPID_PUBLIC",
+  "COLLIE_BOARD_VAPID_PRIVATE",
+  "COLLIE_BOARD_VAPID_SUBJECT",
+  "COLLIE_BOARD_STATE_DIR",
+  "COLLIE_BOARD_MULTI_SESSION",
+  "COLLIE_BOARD_SKIP_SERVE",
   "HERDR_SOCKET_PATH",
   "HERDR_PLUGIN_STATE_DIR",
-  "COLLIE_HERDR_DIAL",
+  "COLLIE_BOARD_HERDR_DIAL",
 ];
 
 let saved: Record<string, string | undefined>;
@@ -53,7 +53,7 @@ afterEach(() => {
 describe("loadConfig", () => {
   test("uses safe single-user defaults", () => {
     const cfg = loadConfig();
-    expect(cfg.port).toBe(8787);
+    expect(cfg.port).toBe(8788);
     expect(cfg.host).toBe("127.0.0.1");
     expect(cfg.pollMs).toBe(1500);
     expect(cfg.pollIdleMs).toBe(12_000);
@@ -76,109 +76,109 @@ describe("loadConfig", () => {
     expect(cfg.skipServe).toBe(false);
   });
 
-  test("parses COLLIE_MULTI_SESSION as a boolean toggle (default on)", () => {
+  test("parses COLLIE_BOARD_MULTI_SESSION as a boolean toggle (default on)", () => {
     // Falsey spellings turn it off (pin to the primary session only).
     for (const off of ["off", "0", "false", "no", "OFF", " False "]) {
-      process.env.COLLIE_MULTI_SESSION = off;
+      process.env.COLLIE_BOARD_MULTI_SESSION = off;
       expect(loadConfig().multiSession).toBe(false);
     }
     // Truthy spellings keep it on.
     for (const on of ["on", "1", "true", "yes", "ON", " True "]) {
-      process.env.COLLIE_MULTI_SESSION = on;
+      process.env.COLLIE_BOARD_MULTI_SESSION = on;
       expect(loadConfig().multiSession).toBe(true);
     }
     // Garbage and empty fall back to the default (on).
-    process.env.COLLIE_MULTI_SESSION = "banana";
+    process.env.COLLIE_BOARD_MULTI_SESSION = "banana";
     expect(loadConfig().multiSession).toBe(true);
-    process.env.COLLIE_MULTI_SESSION = "";
+    process.env.COLLIE_BOARD_MULTI_SESSION = "";
     expect(loadConfig().multiSession).toBe(true);
   });
 
-  test("parses COLLIE_SKIP_SERVE as a boolean toggle (default off)", () => {
+  test("parses COLLIE_BOARD_SKIP_SERVE as a boolean toggle (default off)", () => {
     // Truthy spellings turn it on (reverse-proxy mode; bypass tailscale serve).
     for (const on of ["on", "1", "true", "yes", "ON", " True "]) {
-      process.env.COLLIE_SKIP_SERVE = on;
+      process.env.COLLIE_BOARD_SKIP_SERVE = on;
       expect(loadConfig().skipServe).toBe(true);
     }
     // Falsey spellings keep it off (the default tailscale serve path).
     for (const off of ["off", "0", "false", "no", "OFF", " False "]) {
-      process.env.COLLIE_SKIP_SERVE = off;
+      process.env.COLLIE_BOARD_SKIP_SERVE = off;
       expect(loadConfig().skipServe).toBe(false);
     }
     // Garbage and empty fall back to the default (off).
-    process.env.COLLIE_SKIP_SERVE = "banana";
+    process.env.COLLIE_BOARD_SKIP_SERVE = "banana";
     expect(loadConfig().skipServe).toBe(false);
-    process.env.COLLIE_SKIP_SERVE = "";
+    process.env.COLLIE_BOARD_SKIP_SERVE = "";
     expect(loadConfig().skipServe).toBe(false);
   });
 
-  test("parses COLLIE_TRANSCRIPT as a boolean toggle (default ON)", () => {
+  test("parses COLLIE_BOARD_TRANSCRIPT as a boolean toggle (default ON)", () => {
     for (const off of ["off", "0", "false", "no", "OFF"]) {
-      process.env.COLLIE_TRANSCRIPT = off;
+      process.env.COLLIE_BOARD_TRANSCRIPT = off;
       expect(loadConfig().transcript).toBe(false);
     }
     for (const on of ["on", "1", "true", "yes"]) {
-      process.env.COLLIE_TRANSCRIPT = on;
+      process.env.COLLIE_BOARD_TRANSCRIPT = on;
       expect(loadConfig().transcript).toBe(true);
     }
     // Garbage falls back to the default — a typo must not silently remove the only scrollback a
     // Claude pane has.
-    process.env.COLLIE_TRANSCRIPT = "banana";
+    process.env.COLLIE_BOARD_TRANSCRIPT = "banana";
     expect(loadConfig().transcript).toBe(true);
   });
 
-  test("COLLIE_TRANSCRIPT_ROOT relocates the transcript root", () => {
-    process.env.COLLIE_TRANSCRIPT_ROOT = "/srv/claude/projects";
+  test("COLLIE_BOARD_TRANSCRIPT_ROOT relocates the transcript root", () => {
+    process.env.COLLIE_BOARD_TRANSCRIPT_ROOT = "/srv/claude/projects";
     expect(loadConfig().transcriptRoot).toBe("/srv/claude/projects");
   });
 
   test("reads the per-device auth header and allowlist", () => {
-    process.env.COLLIE_DEVICE_HEADER = "  X-Device-Id  ";
-    process.env.COLLIE_DEVICE_ALLOWLIST = " phone , laptop ,";
+    process.env.COLLIE_BOARD_DEVICE_HEADER = "  X-Device-Id  ";
+    process.env.COLLIE_BOARD_DEVICE_ALLOWLIST = " phone , laptop ,";
     const cfg = loadConfig();
     expect(cfg.deviceHeader).toBe("X-Device-Id");
     expect(cfg.deviceAllowlist).toEqual(["phone", "laptop"]);
   });
 
   test("parses integer env vars and falls back to the default on garbage", () => {
-    process.env.COLLIE_PORT = "9999";
+    process.env.COLLIE_BOARD_PORT = "9999";
     expect(loadConfig().port).toBe(9999);
-    process.env.COLLIE_PORT = "not-a-number";
-    expect(loadConfig().port).toBe(8787);
+    process.env.COLLIE_BOARD_PORT = "not-a-number";
+    expect(loadConfig().port).toBe(8788);
   });
 
   test("rejects trailing-garbage integers (parseInt would have accepted '8080abc')", () => {
-    process.env.COLLIE_PORT = "8080abc";
-    expect(loadConfig().port).toBe(8787);
+    process.env.COLLIE_BOARD_PORT = "8080abc";
+    expect(loadConfig().port).toBe(8788);
     // Surrounding whitespace is still fine.
-    process.env.COLLIE_READ_LINES = "  120  ";
+    process.env.COLLIE_BOARD_READ_LINES = "  120  ";
     expect(loadConfig().readLines).toBe(120);
   });
 
   test("clamps out-of-range integers back to the default", () => {
-    process.env.COLLIE_PORT = "0";
-    expect(loadConfig().port).toBe(8787);
-    process.env.COLLIE_PORT = "70000";
-    expect(loadConfig().port).toBe(8787);
-    process.env.COLLIE_POLL_MS = "100"; // below the 250 floor
+    process.env.COLLIE_BOARD_PORT = "0";
+    expect(loadConfig().port).toBe(8788);
+    process.env.COLLIE_BOARD_PORT = "70000";
+    expect(loadConfig().port).toBe(8788);
+    process.env.COLLIE_BOARD_POLL_MS = "100"; // below the 250 floor
     expect(loadConfig().pollMs).toBe(1500);
-    process.env.COLLIE_POLL_IDLE_MS = "500"; // below the 1000 floor
+    process.env.COLLIE_BOARD_POLL_IDLE_MS = "500"; // below the 1000 floor
     expect(loadConfig().pollIdleMs).toBe(12_000);
-    process.env.COLLIE_NOTIFY_DELAY_MS = "-5"; // below the 0 floor
+    process.env.COLLIE_BOARD_NOTIFY_DELAY_MS = "-5"; // below the 0 floor
     expect(loadConfig().notifyDelayMs).toBe(30_000);
   });
 
   test("accepts an in-range integer and a zero notify delay", () => {
-    process.env.COLLIE_POLL_MS = "250";
+    process.env.COLLIE_BOARD_POLL_MS = "250";
     expect(loadConfig().pollMs).toBe(250);
-    process.env.COLLIE_POLL_IDLE_MS = "30000";
+    process.env.COLLIE_BOARD_POLL_IDLE_MS = "30000";
     expect(loadConfig().pollIdleMs).toBe(30_000);
-    process.env.COLLIE_NOTIFY_DELAY_MS = "0";
+    process.env.COLLIE_BOARD_NOTIFY_DELAY_MS = "0";
     expect(loadConfig().notifyDelayMs).toBe(0);
   });
 
   test("reads the public-hosts allowlist, trimming and dropping blanks", () => {
-    process.env.COLLIE_PUBLIC_HOSTS = " collie.example.ts.net , collie.example.com:8443 ,";
+    process.env.COLLIE_BOARD_PUBLIC_HOSTS = " collie.example.ts.net , collie.example.com:8443 ,";
     expect(loadConfig().publicHosts).toEqual([
       "collie.example.ts.net",
       "collie.example.com:8443",
@@ -186,20 +186,20 @@ describe("loadConfig", () => {
   });
 
   test("splits comma lists, trimming whitespace and dropping blanks", () => {
-    process.env.COLLIE_SUBMIT_KEYS = " ctrl+a , Enter ,";
+    process.env.COLLIE_BOARD_SUBMIT_KEYS = " ctrl+a , Enter ,";
     expect(loadConfig().submitKeys).toEqual(["ctrl+a", "Enter"]);
-    process.env.COLLIE_ALLOWED_ORIGINS = "https://a.example.com, https://b.example.com";
+    process.env.COLLIE_BOARD_ALLOWED_ORIGINS = "https://a.example.com, https://b.example.com";
     expect(loadConfig().allowedOrigins).toEqual(["https://a.example.com", "https://b.example.com"]);
   });
 
-  test("falls back to [Enter] when COLLIE_SUBMIT_KEYS is empty", () => {
-    process.env.COLLIE_SUBMIT_KEYS = "";
+  test("falls back to [Enter] when COLLIE_BOARD_SUBMIT_KEYS is empty", () => {
+    process.env.COLLIE_BOARD_SUBMIT_KEYS = "";
     expect(loadConfig().submitKeys).toEqual(["Enter"]);
   });
 
   test("honours an explicit trusted user and host override", () => {
-    process.env.COLLIE_TRUSTED_USER = "me@example.com";
-    process.env.COLLIE_HOST = "0.0.0.0";
+    process.env.COLLIE_BOARD_TRUSTED_USER = "me@example.com";
+    process.env.COLLIE_BOARD_HOST = "0.0.0.0";
     const cfg = loadConfig();
     expect(cfg.trustedUser).toBe("me@example.com");
     expect(cfg.host).toBe("0.0.0.0");
@@ -207,14 +207,14 @@ describe("loadConfig", () => {
 
   test("dial mode defaults to auto and accepts a forced dialer", () => {
     expect(loadConfig().dialMode).toBe("auto");
-    process.env.COLLIE_HERDR_DIAL = "net";
+    process.env.COLLIE_BOARD_HERDR_DIAL = "net";
     expect(loadConfig().dialMode).toBe("net");
-    process.env.COLLIE_HERDR_DIAL = "BUN"; // case-insensitive
+    process.env.COLLIE_BOARD_HERDR_DIAL = "BUN"; // case-insensitive
     expect(loadConfig().dialMode).toBe("bun");
   });
 
   test("an unrecognised dial mode falls back to auto rather than dialling nothing", () => {
-    process.env.COLLIE_HERDR_DIAL = "carrier-pigeon";
+    process.env.COLLIE_BOARD_HERDR_DIAL = "carrier-pigeon";
     expect(loadConfig().dialMode).toBe("auto");
   });
 });

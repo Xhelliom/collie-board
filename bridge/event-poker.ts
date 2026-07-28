@@ -17,7 +17,7 @@ export type Subscription = { type: string; pane_id?: string };
 // workspace.moved / tab.moved: they're new in herdr 0.7.2, and one unknown subscription type
 // rejects the whole subscribe — which would keep the stream permanently down on exactly the older
 // servers the session.snapshot fallback supports. Moves are rare and the safety-net poll covers
-// them within one COLLIE_POLL_IDLE_MS.
+// them within one COLLIE_BOARD_POLL_IDLE_MS.
 const GLOBAL_SUBSCRIPTIONS: readonly string[] = [
   "workspace.created",
   "workspace.updated",

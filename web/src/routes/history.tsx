@@ -29,7 +29,7 @@ import type { TranscriptEntry } from "@/lib/types";
 
 /** Why the strip is empty, in the user's terms. Each is an ordinary state, not an error. */
 const UNAVAILABLE_COPY: Record<NonNullable<HistoryData["unavailable"]>, string> = {
-  disabled: "Transcript history is switched off on this bridge (COLLIE_TRANSCRIPT).",
+  disabled: "Transcript history is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
   "no-session": "This pane has no agent session, so there's no transcript to read.",
   "no-log": "No transcript file was found for this pane's session yet.",
   error: "Couldn't read the transcript. Pull back and try again.",

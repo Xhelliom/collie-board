@@ -67,14 +67,16 @@ const currentVersion = (
 const updateStore = new UpdateStateStore(cfg);
 await updateStore.load();
 
-// The repo the release check + release links point at. Defaults to Collie's own; overridable for a
-// fork (or a synthetic test target) via COLLIE_UPDATE_REPO.
-const updateRepo = process.env.COLLIE_UPDATE_REPO?.trim() || "AltanS/collie";
+// The repo the release check + release links point at. This fork has no published releases, and
+// pointing it at upstream would nag about versions this code isn't — so the RELEASE half is opt-in:
+// set COLLIE_BOARD_UPDATE_REPO to `owner/name` once the fork is published. `bridgeStale` (the
+// rebuilt-but-not-restarted detector) is local and keeps working either way.
+const updateRepo = process.env.COLLIE_BOARD_UPDATE_REPO?.trim() || "";
 const updateMonitor = new UpdateMonitor({
   repo: updateRepo,
   current: currentVersion,
   startupStamp: bridgeStampSync(bridgeDir, rootDir),
-  fetchTags: githubTagsFetcher(updateRepo),
+  fetchTags: updateRepo ? githubTagsFetcher(updateRepo) : async () => [],
   bridgeStamp: () => bridgeStampSync(bridgeDir, rootDir),
   store: updateStore,
   now: Date.now,
@@ -93,11 +95,16 @@ const updateMonitor = new UpdateMonitor({
 });
 
 // First check delayed (don't probe mid-boot); then every few hours. unref() so neither timer holds
-// the process open; both cleared on shutdown.
+// the process open; both cleared on shutdown. Not scheduled at all without an update repo — there'd
+// be nothing to fetch.
 const updateFirstCheck = setTimeout(() => void updateMonitor.checkRelease(), UPDATE_FIRST_DELAY_MS);
 updateFirstCheck.unref();
 const updateTimer = setInterval(() => void updateMonitor.checkRelease(), UPDATE_INTERVAL_MS);
 updateTimer.unref();
+if (!updateRepo) {
+  clearTimeout(updateFirstCheck);
+  clearInterval(updateTimer);
+}
 
 // ── Per-session runtime factory ──────────────────────────────────────────────
 // One HerdrClient + StateEngine + EventPoker + NotificationCoordinator per herdr session. The

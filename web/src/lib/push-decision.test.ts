@@ -61,7 +61,7 @@ describe("decidePush", () => {
       decidePush(
         {
           title: "Collie 0.12.0 available",
-          body: "collie-ctl.sh update",
+          body: "collie-board-ctl.sh update",
           data: { target: "settings" },
         },
         false,

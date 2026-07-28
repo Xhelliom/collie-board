@@ -42,8 +42,8 @@ describe("CollieHome", () => {
 
   it("shows the wordmark only when asked", () => {
     const { rerender } = render(<CollieHome trouble={false} />);
-    expect(screen.queryByText("Collie")).toBeNull();
+    expect(screen.queryByText("Collie Board")).toBeNull();
     rerender(<CollieHome trouble={false} wordmark />);
-    expect(screen.getByText("Collie")).toBeInTheDocument();
+    expect(screen.getByText("Collie Board")).toBeInTheDocument();
   });
 });

@@ -256,9 +256,9 @@ Collie now polls `session.snapshot` (above) as the source of truth, and addition
 long-lived `events.subscribe` stream — global lifecycle events plus a per-agent-pane
 `pane.agent_status_changed` subscription, resubscribed whenever the agent-pane set changes —
 purely to **poke** the poller: an event triggers an immediate debounced re-poll, it never updates
-state by itself. While the stream is healthy, interval polling relaxes to `COLLIE_POLL_IDLE_MS`
+state by itself. While the stream is healthy, interval polling relaxes to `COLLIE_BOARD_POLL_IDLE_MS`
 (default 12000 ms, min 1000 ms); when the stream is down or reconnecting, it drops back to the
-fast `COLLIE_POLL_MS` cadence. Events accelerate; the snapshot stays authoritative — a missed
+fast `COLLIE_BOARD_POLL_MS` cadence. Events accelerate; the snapshot stays authoritative — a missed
 event costs one interval, never correctness.
 
 Also visible in the 0.7.2 schema but unused by Collie: `events.wait`, `pane.send_input`,

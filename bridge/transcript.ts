@@ -30,7 +30,7 @@
 //  - the resolved file must still be inside the transcript root after symlink resolution;
 //  - reads are byte-capped, so a pathological log can't balloon the bridge's memory.
 // The transcript is exactly as sensitive as the pane mirror Collie already serves (it is the same
-// conversation), but it reaches further back — `COLLIE_TRANSCRIPT=off` disables the feature wholesale.
+// conversation), but it reaches further back — `COLLIE_BOARD_TRANSCRIPT=off` disables the feature wholesale.
 
 import { readdir, realpath, stat } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";

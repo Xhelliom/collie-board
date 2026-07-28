@@ -38,14 +38,14 @@ describe("AppHeader — the one shared header shell", () => {
     expect(container.querySelector(".dog-gallop")).toBeNull(); // mark at rest (static icon)
     expect(screen.getByText("webapp › main")).toBeInTheDocument(); // the breadcrumb slot
     expect(screen.getByText("working")).toBeInTheDocument(); // the agent status badge
-    expect(screen.queryByText("Collie")).toBeNull(); // no wordmark in a pane
+    expect(screen.queryByText("Collie Board")).toBeNull(); // no wordmark in a pane
   });
 
   it("is calm in the DASHBOARD variant while live — wordmark + settings gear, resting mark", () => {
     const { container } = renderHeader(
       <AppHeader bridge="connected" error={false} wordmark rightTrail={<SettingsGear />} />,
     );
-    expect(screen.getByText("Collie")).toBeInTheDocument(); // wordmark
+    expect(screen.getByText("Collie Board")).toBeInTheDocument(); // wordmark
     expect(container.querySelector(".dog-gallop")).toBeNull(); // mark at rest while live
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
   });

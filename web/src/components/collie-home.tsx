@@ -59,7 +59,7 @@ export function CollieHome({ onHome, trouble, lost = false, wordmark = false, cl
           <img src="/favicon.svg" alt="" className="size-8" />
         )}
       </span>
-      {wordmark && <span className="text-lg font-semibold tracking-tight">Collie</span>}
+      {wordmark && <span className="text-lg font-semibold tracking-tight">Collie Board</span>}
     </button>
   );
 }

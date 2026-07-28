@@ -19,7 +19,7 @@ set -euo pipefail
 PANE="${1:?usage: capture-fixture.sh <paneId> <name> [lines]}"
 NAME="${2:?usage: capture-fixture.sh <paneId> <name> [lines]}"
 LINES="${3:-300}"
-PORT="${COLLIE_PORT:-8787}"
+PORT="${COLLIE_BOARD_PORT:-8787}"
 
 DIR="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)/web/src/fixtures/panes"
 mkdir -p "$DIR"

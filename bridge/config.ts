@@ -77,7 +77,7 @@ export interface Config {
    * Which dialer opens that socket. `auto` (the default) is correct everywhere: `node:net` on
    * Windows, where herdr's socket is a named pipe, and Bun's native transport elsewhere. Forcing
    * `net` on Linux/macOS exercises the Windows dial path against the real socket — the only way to
-   * run that code without a Windows box. Set via `COLLIE_HERDR_DIAL`.
+   * run that code without a Windows box. Set via `COLLIE_BOARD_HERDR_DIAL`.
    *
    * Optional so it stays out of unrelated test fixtures: `loadConfig` always resolves it, and an
    * absent value means the same thing as `auto` at the one place it's consumed.
@@ -150,7 +150,7 @@ export interface Config {
    * in to strict Host validation: any request whose `Host` header isn't a loopback form, one of
    * these, or a host parsed from {@link allowedOrigins} is rejected before the Origin check. This
    * closes the DNS-rebinding hole (Host==Origin==evil.com would otherwise pass), which matters most
-   * under `COLLIE_SERVE_MODE=http` (no TLS). Empty = validation off (legacy behaviour) — set this
+   * under `COLLIE_BOARD_SERVE_MODE=http` (no TLS). Empty = validation off (legacy behaviour) — set this
    * to your MagicDNS name (`collie.<tailnet>.ts.net`), especially in http serve mode.
    */
   publicHosts: string[];
@@ -169,7 +169,7 @@ export interface Config {
    */
   multiSession: boolean;
   /**
-   * Whether `tailscale serve` is bypassed (COLLIE_SKIP_SERVE=1) because an operator-run reverse
+   * Whether `tailscale serve` is bypassed (COLLIE_BOARD_SKIP_SERVE=1) because an operator-run reverse
    * proxy (Caddy/Nginx) fronts the loopback bridge instead. The bridge itself handles every request
    * identically either way — this flag only informs the startup warnings: without `tailscale serve`
    * in front, the `Tailscale-User-Login` header is never injected, so {@link trustedUser} is inert
@@ -198,34 +198,34 @@ export function defaultSocketPath(
 export function loadConfig(): Config {
   const stateDir =
     process.env.HERDR_PLUGIN_STATE_DIR ??
-    process.env.COLLIE_STATE_DIR ??
+    process.env.COLLIE_BOARD_STATE_DIR ??
     join(homedir(), ".local", "state", "collie");
 
-  const submitKeys = envList("COLLIE_SUBMIT_KEYS");
+  const submitKeys = envList("COLLIE_BOARD_SUBMIT_KEYS");
 
   return {
     socketPath: process.env.HERDR_SOCKET_PATH ?? defaultSocketPath(),
-    dialMode: envEnum("COLLIE_HERDR_DIAL", ["auto", "net", "bun"] as const, "auto"),
-    port: envInt("COLLIE_PORT", 8787, { min: 1, max: 65535 }),
-    host: process.env.COLLIE_HOST ?? "127.0.0.1",
-    pollMs: envInt("COLLIE_POLL_MS", 1500, { min: 250 }),
-    pollIdleMs: envInt("COLLIE_POLL_IDLE_MS", 12_000, { min: 1000 }),
-    notifyDelayMs: envInt("COLLIE_NOTIFY_DELAY_MS", 30_000, { min: 0 }),
-    readLines: envInt("COLLIE_READ_LINES", 200, { min: 1 }),
-    transcript: envBool("COLLIE_TRANSCRIPT", true),
+    dialMode: envEnum("COLLIE_BOARD_HERDR_DIAL", ["auto", "net", "bun"] as const, "auto"),
+    port: envInt("COLLIE_BOARD_PORT", 8788, { min: 1, max: 65535 }),
+    host: process.env.COLLIE_BOARD_HOST ?? "127.0.0.1",
+    pollMs: envInt("COLLIE_BOARD_POLL_MS", 1500, { min: 250 }),
+    pollIdleMs: envInt("COLLIE_BOARD_POLL_IDLE_MS", 12_000, { min: 1000 }),
+    notifyDelayMs: envInt("COLLIE_BOARD_NOTIFY_DELAY_MS", 30_000, { min: 0 }),
+    readLines: envInt("COLLIE_BOARD_READ_LINES", 200, { min: 1 }),
+    transcript: envBool("COLLIE_BOARD_TRANSCRIPT", true),
     transcriptRoot:
-      process.env.COLLIE_TRANSCRIPT_ROOT ?? join(homedir(), ".claude", "projects"),
+      process.env.COLLIE_BOARD_TRANSCRIPT_ROOT ?? join(homedir(), ".claude", "projects"),
     submitKeys: submitKeys.length ? submitKeys : ["Enter"],
-    trustedUser: process.env.COLLIE_TRUSTED_USER ?? "",
-    deviceHeader: (process.env.COLLIE_DEVICE_HEADER ?? "").trim(),
-    deviceAllowlist: envList("COLLIE_DEVICE_ALLOWLIST"),
-    allowedOrigins: envList("COLLIE_ALLOWED_ORIGINS"),
-    publicHosts: envList("COLLIE_PUBLIC_HOSTS"),
-    vapidPublic: process.env.COLLIE_VAPID_PUBLIC ?? "",
-    vapidPrivate: process.env.COLLIE_VAPID_PRIVATE ?? "",
-    vapidSubject: process.env.COLLIE_VAPID_SUBJECT ?? "mailto:admin@example.com",
+    trustedUser: process.env.COLLIE_BOARD_TRUSTED_USER ?? "",
+    deviceHeader: (process.env.COLLIE_BOARD_DEVICE_HEADER ?? "").trim(),
+    deviceAllowlist: envList("COLLIE_BOARD_DEVICE_ALLOWLIST"),
+    allowedOrigins: envList("COLLIE_BOARD_ALLOWED_ORIGINS"),
+    publicHosts: envList("COLLIE_BOARD_PUBLIC_HOSTS"),
+    vapidPublic: process.env.COLLIE_BOARD_VAPID_PUBLIC ?? "",
+    vapidPrivate: process.env.COLLIE_BOARD_VAPID_PRIVATE ?? "",
+    vapidSubject: process.env.COLLIE_BOARD_VAPID_SUBJECT ?? "mailto:admin@example.com",
     stateDir,
-    multiSession: envBool("COLLIE_MULTI_SESSION", true),
-    skipServe: envBool("COLLIE_SKIP_SERVE", false),
+    multiSession: envBool("COLLIE_BOARD_MULTI_SESSION", true),
+    skipServe: envBool("COLLIE_BOARD_SKIP_SERVE", false),
   };
 }

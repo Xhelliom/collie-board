@@ -37,13 +37,13 @@ jobs:
             echo "Update the plugin — pulls, rebuilds, restarts, and re-links (runs from any directory):"
             echo
             echo '```'
-            echo "herdr plugin action invoke update --plugin herdr.collie"
+            echo "herdr plugin action invoke update --plugin herdr.collie-board"
             echo '```'
             echo
             echo "Or just restart the bridge to pick up an already-built change:"
             echo
             echo '```'
-            echo "herdr plugin action invoke restart --plugin herdr.collie"
+            echo "herdr plugin action invoke restart --plugin herdr.collie-board"
             echo '```'
           } > "$notes"
           echo "file=$notes" >> "$GITHUB_OUTPUT"

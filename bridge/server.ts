@@ -217,7 +217,7 @@ export function startServer(opts: {
       if (pathname === "/api/config") {
         // Read-level, like the other non-terminal endpoints. Nothing here is secret — the VAPID
         // public key is handed to every browser by design — but this was the one route that skipped
-        // checkAccess entirely, so COLLIE_PUBLIC_HOSTS didn't cover it and a rebound DNS name could
+        // checkAccess entirely, so COLLIE_BOARD_PUBLIC_HOSTS didn't cover it and a rebound DNS name could
         // still read the build id. The client only ever calls this same-origin, and a refusal can't
         // be mistaken for an outage: ConnectionBanner short-circuits to AuthErrorBanner before its
         // red-state probe runs. Noted in #32.
@@ -325,7 +325,7 @@ export function startServer(opts: {
  * unit-testable without standing up Bun.serve; the bootstrap in {@link startServer} just logs each
  * via `console.warn`. The identity-gate advice forks on {@link Config.skipServe}: behind a reverse
  * proxy the `Tailscale-User-Login` header is never injected, so trustedUser is inert (nag toward
- * COLLIE_DEVICE_HEADER instead), whereas under `tailscale serve` an empty trustedUser is the open
+ * COLLIE_BOARD_DEVICE_HEADER instead), whereas under `tailscale serve` an empty trustedUser is the open
  * door Variant A closes.
  */
 export function startupWarnings(cfg: Config): string[] {
@@ -337,7 +337,7 @@ export function startupWarnings(cfg: Config): string[] {
   }
   if (cfg.deviceHeader && cfg.deviceAllowlist.length === 0) {
     warnings.push(
-      `[bridge] WARNING: COLLIE_DEVICE_HEADER set but COLLIE_DEVICE_ALLOWLIST is empty — every device is read-only`,
+      `[bridge] WARNING: COLLIE_BOARD_DEVICE_HEADER set but COLLIE_BOARD_DEVICE_ALLOWLIST is empty — every device is read-only`,
     );
   }
   if (cfg.skipServe) {
@@ -345,17 +345,17 @@ export function startupWarnings(cfg: Config): string[] {
     // an identity to enforce — trustedUser is dead config. Only nag when it's set (a likely mistake).
     if (cfg.trustedUser) {
       warnings.push(
-        `[bridge] WARNING: COLLIE_TRUSTED_USER has no effect under COLLIE_SKIP_SERVE=1 — without tailscale serve in front, the Tailscale-User-Login header is never injected. Use COLLIE_DEVICE_HEADER for per-device auth (see README → Variant C).`,
+        `[bridge] WARNING: COLLIE_BOARD_TRUSTED_USER has no effect under COLLIE_BOARD_SKIP_SERVE=1 — without tailscale serve in front, the Tailscale-User-Login header is never injected. Use COLLIE_BOARD_DEVICE_HEADER for per-device auth (see README → Variant C).`,
       );
     }
   } else if (!cfg.trustedUser) {
     warnings.push(
-      `[bridge] WARNING: COLLIE_TRUSTED_USER is empty — any tailnet device/user that reaches the bridge gets full write access. Set it to your tailnet login (see README → Variant A).`,
+      `[bridge] WARNING: COLLIE_BOARD_TRUSTED_USER is empty — any tailnet device/user that reaches the bridge gets full write access. Set it to your tailnet login (see README → Variant A).`,
     );
   }
   if (cfg.publicHosts.length === 0) {
     warnings.push(
-      `[bridge] WARNING: COLLIE_PUBLIC_HOSTS is empty — Host-header validation is OFF (DNS rebinding not blocked). Set it to your MagicDNS name, especially under plain-HTTP serve mode or behind a reverse proxy.`,
+      `[bridge] WARNING: COLLIE_BOARD_PUBLIC_HOSTS is empty — Host-header validation is OFF (DNS rebinding not blocked). Set it to your MagicDNS name, especially under plain-HTTP serve mode or behind a reverse proxy.`,
     );
   }
   return warnings;
@@ -849,11 +849,11 @@ async function uploadPane(
 
 /**
  * Access gate for the API:
- *  - Host allowlist (opt-in): when COLLIE_PUBLIC_HOSTS is set, the request's Host header must be a
+ *  - Host allowlist (opt-in): when COLLIE_BOARD_PUBLIC_HOSTS is set, the request's Host header must be a
  *    loopback form, one of those hosts, or the host of an allowed origin — otherwise rejected,
  *    BEFORE any Origin logic (fail-closed). This defeats DNS rebinding, where a browser is tricked
  *    into sending Host==Origin==evil.example so a bare same-origin check trivially passes — acute
- *    under COLLIE_SERVE_MODE=http (no TLS). Empty COLLIE_PUBLIC_HOSTS keeps the legacy behaviour so
+ *    under COLLIE_BOARD_SERVE_MODE=http (no TLS). Empty COLLIE_BOARD_PUBLIC_HOSTS keeps the legacy behaviour so
  *    existing deployments don't break (see the startup warning).
  *  - Same-origin only (Origin host must equal Host) — defeats cross-site requests/CSRF. Browsers
  *    omit Origin on same-origin GETs (so the snapshot poll passes); they send it on POSTs.
@@ -871,7 +871,7 @@ export function checkAccess(
 ): { ok: true } | { ok: false; reason: string } {
   const host = req.headers.get("host") ?? "";
 
-  // Host-header allowlist — only when the operator opted in (COLLIE_PUBLIC_HOSTS non-empty). Fail
+  // Host-header allowlist — only when the operator opted in (COLLIE_BOARD_PUBLIC_HOSTS non-empty). Fail
   // closed, before the Origin logic, so a rebinding request (Host==Origin==evil) never reaches it.
   if (cfg.publicHosts.length > 0 && !isHostAllowed(host, cfg)) {
     return { ok: false, reason: "host not allowed" };
@@ -906,7 +906,7 @@ export function checkAccess(
 
 /**
  * Whether a Host header is one the bridge will answer to under the opt-in host allowlist: a loopback
- * form, an explicit COLLIE_PUBLIC_HOSTS entry, or the host of a configured allowed origin. Pure +
+ * form, an explicit COLLIE_BOARD_PUBLIC_HOSTS entry, or the host of a configured allowed origin. Pure +
  * exported for tests.
  */
 export function isHostAllowed(host: string, cfg: Config): boolean {
@@ -942,7 +942,7 @@ export function guard(req: Request, cfg: Config, level: "read" | "write"): Respo
 
 /**
  * Optional per-device authorisation, layered on top of {@link checkAccess}. Off by default; enabled
- * by setting COLLIE_DEVICE_HEADER to the header a trusted upstream proxy injects, carrying an opaque
+ * by setting COLLIE_BOARD_DEVICE_HEADER to the header a trusted upstream proxy injects, carrying an opaque
  * device identifier. The header is trusted only because the bridge binds loopback behind the proxy,
  * so a direct client can't forge it (the same trust basis as the Tailscale identity header). Matrix:
  *

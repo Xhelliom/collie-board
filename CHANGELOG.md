@@ -1,10 +1,18 @@
 # Changelog
 
-All notable changes to Collie are recorded here. The format follows
+All notable changes to Collie Board are recorded here. Entries at 0.17.0 and below are
+inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project uses
 [Semantic Versioning](https://semver.org/). The newest `## [x.y.z]` heading **must** match the
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
+
+## [0.18.0] - 2026-07-28
+
+### Changed
+- Forked upstream Collie as **Collie Board**: plugin id `herdr.collie-board`, systemd unit `collie-board`, env prefix `COLLIE_BOARD_*`, default port 8788, config/state dirs `~/.config/collie-board` / `~/.local/state/collie-board`, control script `scripts/collie-board-ctl.sh` — so both plugins can be installed on one machine.
+- Upstream release check is opt-in via `COLLIE_BOARD_UPDATE_REPO`; the local `bridgeStale` detector is unchanged.
+- `LICENSE` keeps Collie's MIT copyright and adds the fork's.
 
 ## [0.17.0] - 2026-07-27
 

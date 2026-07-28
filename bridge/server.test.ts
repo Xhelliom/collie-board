@@ -87,7 +87,7 @@ describe("checkAccess — same-origin / CSRF gate", () => {
     });
   });
 
-  test("allows an explicitly-configured extra origin (COLLIE_ALLOWED_ORIGINS)", () => {
+  test("allows an explicitly-configured extra origin (COLLIE_BOARD_ALLOWED_ORIGINS)", () => {
     const c = cfg({ allowedOrigins: ["https://collie.example.com"] });
     const r = checkAccess(
       req({ origin: "https://collie.example.com", host: "collie.example.ts.net" }),
@@ -132,7 +132,7 @@ describe("checkAccess — Tailscale identity gate", () => {
   });
 });
 
-describe("checkAccess — Host-header validation (COLLIE_PUBLIC_HOSTS)", () => {
+describe("checkAccess — Host-header validation (COLLIE_BOARD_PUBLIC_HOSTS)", () => {
   const c = cfg({ publicHosts: ["collie.example.ts.net"] });
 
   test("DNS-rebinding: Origin==Host==evil host is rejected once publicHosts is set", () => {
@@ -171,7 +171,7 @@ describe("checkAccess — Host-header validation (COLLIE_PUBLIC_HOSTS)", () => {
 
   test("empty publicHosts keeps legacy behaviour (Host==Origin==evil still passes reads)", () => {
     // Without opting in, an evil host that also sets a matching Origin passes the bare same-origin
-    // check — the documented legacy hole COLLIE_PUBLIC_HOSTS closes. Proves the default is unchanged.
+    // check — the documented legacy hole COLLIE_BOARD_PUBLIC_HOSTS closes. Proves the default is unchanged.
     expect(
       checkAccess(req({ origin: "https://evil.example.com", host: "evil.example.com" }), cfg()),
     ).toEqual({ ok: true });
@@ -492,8 +492,8 @@ describe("startupWarnings — security-posture nags", () => {
 
   test("skipServe + trustedUser: warns the identity gate is inert and points at the device header", () => {
     const ws = startupWarnings(cfg({ skipServe: true, trustedUser: "me@example.com" }));
-    expect(has(ws, "COLLIE_TRUSTED_USER has no effect")).toBe(true);
-    expect(has(ws, "COLLIE_DEVICE_HEADER")).toBe(true);
+    expect(has(ws, "COLLIE_BOARD_TRUSTED_USER has no effect")).toBe(true);
+    expect(has(ws, "COLLIE_BOARD_DEVICE_HEADER")).toBe(true);
     expect(has(ws, "Variant C")).toBe(true);
     // The Variant-A empty-trustedUser nag must NOT also fire (it's meaningless behind a proxy).
     expect(has(ws, "any tailnet device/user")).toBe(false);
@@ -501,30 +501,30 @@ describe("startupWarnings — security-posture nags", () => {
 
   test("skipServe + empty trustedUser: no empty-trustedUser warning at all", () => {
     const ws = startupWarnings(cfg({ skipServe: true, trustedUser: "" }));
-    expect(has(ws, "COLLIE_TRUSTED_USER")).toBe(false);
+    expect(has(ws, "COLLIE_BOARD_TRUSTED_USER")).toBe(false);
   });
 
   test("no skipServe + empty trustedUser: the existing Variant-A warning still fires", () => {
     const ws = startupWarnings(cfg({ skipServe: false, trustedUser: "" }));
-    expect(has(ws, "COLLIE_TRUSTED_USER is empty")).toBe(true);
+    expect(has(ws, "COLLIE_BOARD_TRUSTED_USER is empty")).toBe(true);
     expect(has(ws, "Variant A")).toBe(true);
   });
 
   test("no skipServe + trustedUser set: no identity warning (correctly configured)", () => {
     const ws = startupWarnings(cfg({ skipServe: false, trustedUser: "me@example.com" }));
-    expect(has(ws, "COLLIE_TRUSTED_USER")).toBe(false);
+    expect(has(ws, "COLLIE_BOARD_TRUSTED_USER")).toBe(false);
   });
 
-  test("empty publicHosts: the Host-validation warning fires and no longer names COLLIE_SERVE_MODE", () => {
+  test("empty publicHosts: the Host-validation warning fires and no longer names COLLIE_BOARD_SERVE_MODE", () => {
     const ws = startupWarnings(cfg({ publicHosts: [] }));
-    expect(has(ws, "COLLIE_PUBLIC_HOSTS is empty")).toBe(true);
-    // The reworded clause must not reference the script-only COLLIE_SERVE_MODE var.
-    expect(has(ws, "COLLIE_SERVE_MODE")).toBe(false);
+    expect(has(ws, "COLLIE_BOARD_PUBLIC_HOSTS is empty")).toBe(true);
+    // The reworded clause must not reference the script-only COLLIE_BOARD_SERVE_MODE var.
+    expect(has(ws, "COLLIE_BOARD_SERVE_MODE")).toBe(false);
   });
 
   test("populated publicHosts: no Host-validation warning", () => {
     const ws = startupWarnings(cfg({ publicHosts: ["collie.example.ts.net"] }));
-    expect(has(ws, "COLLIE_PUBLIC_HOSTS")).toBe(false);
+    expect(has(ws, "COLLIE_BOARD_PUBLIC_HOSTS")).toBe(false);
   });
 });
 

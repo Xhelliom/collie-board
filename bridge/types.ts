@@ -99,7 +99,7 @@ export interface SessionSummary {
  * bridge (or a response from before the feature existed) simply reads as "not enforced".
  */
 export interface DeviceAuth {
-  /** Whether per-device authorisation is enforced at all (COLLIE_DEVICE_HEADER is set). */
+  /** Whether per-device authorisation is enforced at all (COLLIE_BOARD_DEVICE_HEADER is set). */
   enforced: boolean;
   /** The opaque device identifier from the trusted header, or null if absent / feature off. */
   device: string | null;
@@ -148,7 +148,7 @@ export interface UpdateStatus {
   latestUrl: string | null;
   /** `latest` is strictly newer than `current`. */
   releaseAvailable: boolean;
-  /** The running process is behind the on-disk bridge source — needs `systemctl --user restart collie`. */
+  /** The running process is behind the on-disk bridge source — needs `systemctl --user restart collie-board`. */
   bridgeStale: boolean;
   /** When the upstream check last completed (epoch ms), or null if it hasn't run yet. */
   checkedAt: number | null;
