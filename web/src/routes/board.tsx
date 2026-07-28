@@ -5,11 +5,20 @@ import { Plus } from "lucide-react";
 import { AppHeader, SettingsGear } from "@/components/app-header";
 import { SectionLabel } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
+import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
 import { NewCardSheet } from "@/components/new-card-sheet";
+import { boardEntries, dependencyMet, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
-import { BOARD_COLUMNS, CARD_STATUS_LABEL, cardPath, createCard, type CardInput } from "@/lib/board";
+import {
+  BOARD_COLUMNS,
+  CARD_STATUS_LABEL,
+  cardPath,
+  createCard,
+  type CardInput,
+  type CardView,
+} from "@/lib/board";
 import type { BoardData } from "@/lib/board-loaders";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { homePath } from "@/lib/nav";
@@ -30,7 +39,13 @@ export function BoardRoute() {
   const stalled = useLoadingStalled();
   const [newOpen, setNewOpen] = useState(false);
 
-  const byStatus = new Map(BOARD_COLUMNS.map((s) => [s, data.cards.filter((c) => c.status === s)]));
+  // Cards first become ENTRIES — a split container and its sub-tasks are one entry, placed in the
+  // container's derived column — and only then get bucketed by column.
+  const entries = boardEntries(data.cards);
+  const byStatus = new Map(
+    BOARD_COLUMNS.map((s) => [s, entries.filter((e) => entryStatus(e) === s)]),
+  );
+  const byId = new Map(data.cards.map((c) => [c.id, c]));
   const empty = data.cards.length === 0;
   async function create(input: CardInput) {
     await createCard(input);
@@ -57,18 +72,33 @@ export function BoardRoute() {
             </div>
           ) : (
             BOARD_COLUMNS.map((status) => {
-              const cards = byStatus.get(status) ?? [];
-              if (cards.length === 0) return null;
+              const column = byStatus.get(status) ?? [];
+              if (column.length === 0) return null;
               return (
                 <section key={status} className="px-3 pt-4">
                   <div className="flex items-baseline gap-2 pb-2">
                     <SectionLabel>{CARD_STATUS_LABEL[status]}</SectionLabel>
-                    <span className="text-[11px] text-muted-foreground/70">{cards.length}</span>
+                    <span className="text-[11px] text-muted-foreground/70">{column.length}</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {cards.map((card) => (
-                      <CardTile key={card.id} card={card} onClick={() => navigate(cardPath(card.id))} />
-                    ))}
+                    {column.map((entry) =>
+                      entry.kind === "group" ? (
+                        <CardGroup
+                          key={entryKey(entry)}
+                          container={entry.container}
+                          subTasks={entry.children}
+                          byId={byId}
+                          onOpen={(cardId) => navigate(cardPath(cardId))}
+                        />
+                      ) : (
+                        <CardTile
+                          key={entryKey(entry)}
+                          card={entry.card}
+                          onClick={() => navigate(cardPath(entry.card.id))}
+                          waitingOn={waitingOn(entry.card, byId)}
+                        />
+                      ),
+                    )}
                   </div>
                 </section>
               );
@@ -91,4 +121,14 @@ export function BoardRoute() {
       <NewCardSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
     </div>
   );
+}
+
+/**
+ * The predecessor's title when it still holds this card back. A dependency can be set on any card,
+ * not only on a split sub-task, so a top-level tile needs this as much as a nested one does.
+ */
+function waitingOn(card: CardView, byId: Map<string, CardView>): string | undefined {
+  if (!card.dependsOn) return undefined;
+  const predecessor = byId.get(card.dependsOn);
+  return dependencyMet(predecessor) ? undefined : predecessor?.title;
 }

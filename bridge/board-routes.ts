@@ -15,7 +15,7 @@ import type { AuditLog } from "./audit.ts";
 import { cardView, cardViews, promptAndConfirm, startCard, wouldCycle } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
-import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
+import type { BoardDb, Card, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
@@ -109,6 +109,11 @@ export function parseCardBody(
   }
 
   return { ok: true, value: out };
+}
+
+/** Just enough of a linked card to name it on screen. Never the whole card — this is a label. */
+function linkSummary(card: Card): { id: string; title: string; status: CardStatus } {
+  return { id: card.id, title: card.title, status: card.status };
 }
 
 /**
@@ -244,8 +249,17 @@ async function route(
       if (denied) return denied;
       const view = cardView(db, engine.current(), id);
       if (!view) return text("card not found", 404);
+      // The two links, RESOLVED — the detail page has only this card, so without them it cannot say
+      // "waiting on X" or know it is a container, and would have to fetch the whole board to find
+      // out. Two queries here, and only on the detail: doing it in `cardViews` would be N+1 on
+      // every poll of the list.
+      const predecessor = view.dependsOn ? db.getCard(view.dependsOn) : null;
+      const parent = view.parentId ? db.getCard(view.parentId) : null;
       return json({
         card: view,
+        predecessor: predecessor ? linkSummary(predecessor) : null,
+        parent: parent ? linkSummary(parent) : null,
+        children: db.listChildren(id).map(linkSummary),
         sessions: db.listSessions(id),
         reviews: db.listReviews(id),
         events: db.listEvents(id),

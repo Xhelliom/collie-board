@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.35.0] - 2026-07-28
+
+### Added
+- **The board shows a split as one entry.** A container card and its sub-tasks render together, placed in the container's derived column — which is what that derivation was for. The alternative (children scattered into their own columns with a breadcrumb) loses the fact that they are one piece of work.
+- **A group's collapsed state follows its column's job**, not a stored preference: open in Blocked/Review/Working/Starting/Orphaned, where you act — hiding a blocked sub-task behind a chevron would put an extra tap on the most urgent thing on the board — and closed in Backlog/Ready/Done, where five rows for one dictation is the mess this feature exists to clean up. A tap overrides it for the session.
+- **A card held back by a predecessor says so on the tile** (`after "…"`, dashed, a lock instead of a status chip) and on its own page, instead of letting Start return a 409. `dependencyMet()` mirrors the bridge's gate exactly.
+- `GET /api/cards/:id` resolves `parent`, `blockedBy` and `children` — the detail page holds one card, so without them it could not name what it waits on or know it is a container. Detail only: doing it in the list would be N+1 on every poll.
+- Navigation both ways — a sub-task links back to the dictation it came from, a container lists its sub-tasks. (143b314)
+- A container hides its branch name: it is never checked out, so naming one is a promise nothing keeps. Clearing it in the database would not be safe — a card that became a container by hand-linking may name a real worktree from before.
+
 ## [0.34.1] - 2026-07-28
 
 ### Fixed

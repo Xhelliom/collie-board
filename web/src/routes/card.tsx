@@ -2,7 +2,10 @@ import { useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
   ArrowLeft,
+  ChevronRight,
   GitBranch,
+  Layers,
+  Lock,
   Pencil,
   Play,
   Send,
@@ -25,6 +28,7 @@ import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
   boardPath,
+  cardPath,
   CARD_STATUS_CHIP,
   CARD_STATUS_LABEL,
   deleteCard,
@@ -34,10 +38,12 @@ import {
   reformulateCard,
   startCard,
   type CardInput,
+  type CardLink,
   type CardSession,
   type CardStatus,
   type CardView,
 } from "@/lib/board";
+import { dependencyMet } from "@/lib/board-groups";
 import type { CardData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -140,6 +146,18 @@ export function CardRoute() {
         ) : (
           <>
             <header className="flex flex-col gap-2">
+              {/* Where this card came from. A sub-task's spec is an extract of a dictation that
+                  lives on its container — without a way back, that context is unreachable. */}
+              {detail?.parent && (
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.parent!.id))}
+                  className="flex min-w-0 items-center gap-1 self-start text-xs text-muted-foreground"
+                >
+                  <Layers className="size-3 shrink-0" />
+                  <span className="truncate">{detail.parent.title}</span>
+                </button>
+              )}
               <h1 className="text-lg font-semibold leading-tight">{card.title}</h1>
               <div className="flex flex-wrap items-center gap-2">
                 <span
@@ -151,7 +169,11 @@ export function CardRoute() {
                   {CARD_STATUS_LABEL[card.status]}
                 </span>
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
-                {card.branch && (
+                {/* A container never gets checked out, so a branch name on it is a promise nothing
+                    keeps. The copilot withholds one when IT splits a card, but a card that became a
+                    container by hand-linking children afterwards keeps whatever it already had —
+                    and clearing that is not safe, since it may name a real worktree from before. */}
+                {card.branch && !detail?.children.length && (
                   <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
                     <GitBranch className="size-3" />
                     {card.branch}
@@ -187,7 +209,39 @@ export function CardRoute() {
                 />
               </>
             ) : (
-              <StartButton card={card} pending={starting} onStart={start} />
+              <StartButton
+                card={card}
+                pending={starting}
+                onStart={start}
+                predecessor={detail?.predecessor}
+                childCount={detail?.children.length}
+              />
+            )}
+
+            {detail && detail.children.length > 0 && (
+              <Section label="Sub-tasks">
+                <div className="flex flex-col gap-1">
+                  {detail.children.map((child) => (
+                    <button
+                      key={child.id}
+                      type="button"
+                      onClick={() => navigate(cardPath(child.id))}
+                      className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
+                    >
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                          CARD_STATUS_CHIP[child.status],
+                        )}
+                      >
+                        {child.status}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{child.title}</span>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              </Section>
             )}
 
             {card.spec && (
@@ -309,13 +363,42 @@ function StartButton({
   card,
   pending,
   onStart,
+  predecessor,
+  childCount,
 }: {
   card: CardView;
   pending: boolean;
   onStart: () => void;
+  /** The card this one follows, from the detail response — finished or not. */
+  predecessor?: CardLink | null;
+  /** How many sub-tasks this card holds — non-zero makes it a container. */
+  childCount?: number;
 }) {
   if (card.status === "done" || card.status === "archived") return null;
   const relaunch = card.sessionCount > 0;
+
+  // The two refusals the bridge would answer with (`container`, `blocked-by`), said here instead.
+  // Both are knowable before the tap, and on a phone a 409 you could have foreseen is a round trip
+  // for nothing. The wording is the server's reasoning, not a generic "not allowed".
+  if (childCount) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        This card holds {childCount} sub-task{childCount === 1 ? "" : "s"} — the work is in those.
+        Start one of them.
+      </p>
+    );
+  }
+  if (predecessor && !dependencyMet(predecessor)) {
+    return (
+      <p className="flex items-center gap-2 rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        <Lock className="size-3.5 shrink-0" />
+        <span>
+          Waiting on <span className="text-foreground">“{predecessor.title}”</span> to finish. It
+          starts on that branch, so it needs the work first.
+        </span>
+      </p>
+    );
+  }
   if (!card.repoPath) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">

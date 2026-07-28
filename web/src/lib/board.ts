@@ -86,8 +86,25 @@ export interface CardView {
   sessionCount: number;
 }
 
+/** Just enough of a linked card to name it on screen — the bridge resolves these on the detail. */
+export interface CardLink {
+  id: string;
+  title: string;
+  status: CardStatus;
+}
+
 export interface CardDetail {
   card: CardView;
+  /**
+   * The card this one declares it follows, resolved — present even once it is finished, because
+   * "after X" is context worth keeping, not only a reason to refuse. Whether it still HOLDS is
+   * `dependencyMet()`, which mirrors the bridge.
+   */
+  predecessor: CardLink | null;
+  /** The container this was split out of — the card holding the dictation it came from. */
+  parent: CardLink | null;
+  /** The sub-tasks this card was split into. Non-empty makes it a container: not startable. */
+  children: CardLink[];
   sessions: CardSession[];
   reviews: Review[];
   events: BoardEvent[];
