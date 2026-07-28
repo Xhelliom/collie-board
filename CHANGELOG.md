@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.34.1] - 2026-07-28
+
+### Fixed
+- `reconcileParents` listed and decoded **every card on the board, archived included, on every poll tick** to answer a question about two columns. It is one narrow `SELECT parent_id, status` now. (560df7b)
+- `revert` searched `listEvents`, which is capped at 100 for the card view — so a named entry older than that answered "nothing to restore" for something the user could still see. A named entry is fetched by id, and checked to belong to this card and to be an edit. (560df7b)
+
 ## [0.34.0] - 2026-07-28
 
 ### Added

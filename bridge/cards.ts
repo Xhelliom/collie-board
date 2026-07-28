@@ -192,14 +192,7 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
  * sit in `backlog` while all its children finished.
  */
 function reconcileParents(db: BoardDb): void {
-  const byParent = new Map<string, CardStatus[]>();
-  for (const card of db.listCards({ includeArchived: true })) {
-    if (!card.parentId) continue;
-    const list = byParent.get(card.parentId);
-    if (list) list.push(card.status);
-    else byParent.set(card.parentId, [card.status]);
-  }
-  for (const [parentId, statuses] of byParent) {
+  for (const [parentId, statuses] of db.childStatusesByParent()) {
     const parent = db.getCard(parentId);
     // An archived container is one you have put away on purpose — its children don't get to
     // resurrect it.

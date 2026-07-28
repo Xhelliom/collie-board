@@ -2111,3 +2111,89 @@ describe("POST /api/cards/<id>/revert", () => {
     expect(res!.status).toBe(404);
   });
 });
+
+describe("revert — reaching past the card view's event cap", () => {
+  function ctx(store: BoardDb) {
+    return {
+      db: store,
+      engine: { current: () => snapshot([]) },
+      cfg: {} as Config,
+      audit: { record: () => {} },
+      session: "default",
+      guard: () => null,
+      device: null,
+      json: (data: unknown, status = 200) =>
+        new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } }),
+      text: (body: string, status: number) => new Response(body, { status }),
+    } as never;
+  }
+  const post = (id: string, body: unknown) =>
+    new Request(`http://x/api/cards/${id}/revert`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("restores an entry older than the 100 listEvents returns", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", spec: "the one I want back" });
+    store.patchCard(card.id, { spec: "v2" });
+    const wanted = store.listEvents(card.id).find((e) => e.type === "card.edited")!;
+    // Bury it well past the cap.
+    for (let i = 0; i < 120; i++) store.recordEvent(card.id, "card.status", { i });
+    expect(store.listEvents(card.id).some((e) => e.id === wanted.id)).toBe(false);
+
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/revert`,
+      post(card.id, { eventId: wanted.id }),
+      ctx(store),
+    );
+    expect(res!.status).toBe(200);
+    expect(store.getCard(card.id)!.spec).toBe("the one I want back");
+  });
+
+  it("refuses an entry belonging to another card", async () => {
+    const store = db();
+    const mine = store.createCard({ title: "mine", spec: "mine v1" });
+    const theirs = store.createCard({ title: "theirs", spec: "theirs v1" });
+    store.patchCard(theirs.id, { spec: "theirs v2" });
+    const foreign = store.listEvents(theirs.id).find((e) => e.type === "card.edited")!;
+
+    const res = await handleBoardRoute(
+      `/api/cards/${mine.id}/revert`,
+      post(mine.id, { eventId: foreign.id }),
+      ctx(store),
+    );
+    expect(res!.status).toBe(400);
+    expect(store.getCard(mine.id)!.spec).toBe("mine v1");
+  });
+
+  it("refuses a journal entry that is not an edit at all", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    const created = store.listEvents(card.id).find((e) => e.type === "card.created")!;
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/revert`,
+      post(card.id, { eventId: created.id }),
+      ctx(store),
+    );
+    expect(res!.status).toBe(400);
+  });
+});
+
+describe("childStatusesByParent", () => {
+  it("groups only the cards that have a parent, archived included", () => {
+    const store = db();
+    const a = store.createCard({ title: "container A" });
+    const b = store.createCard({ title: "container B" });
+    store.createCard({ title: "1", parentId: a.id, status: "working" });
+    store.createCard({ title: "2", parentId: a.id, status: "archived" });
+    store.createCard({ title: "3", parentId: b.id });
+    store.createCard({ title: "loose" });
+
+    const map = store.childStatusesByParent();
+    expect(map.size).toBe(2);
+    expect(map.get(a.id)!.sort()).toEqual(["archived", "working"]);
+    expect(map.get(b.id)).toEqual(["backlog"]);
+  });
+});

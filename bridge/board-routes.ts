@@ -370,18 +370,26 @@ async function route(
     const denied = ctx.guard("write");
     if (denied) return denied;
     if (!db.getCard(id)) return text("card not found", 404);
-    let wanted: string | undefined;
+    let wanted: number | undefined;
     if (req.headers.get("content-type")?.includes("json")) {
       const body = (await req.json().catch(() => null)) as { eventId?: unknown } | null;
       if (body?.eventId !== undefined) {
         if (typeof body.eventId !== "number") return text("bad eventId", 400);
-        wanted = String(body.eventId);
+        wanted = body.eventId;
       }
     }
-    // Newest first, so with no id this lands on the most recent overwrite.
-    const event = db
-      .listEvents(id)
-      .find((e) => e.type === "card.edited" && (wanted === undefined || String(e.id) === wanted));
+    // A named entry is fetched BY ID, not searched for in listEvents — that one is capped at 100 for
+    // the card view, so scanning it would answer "nothing to restore" for an older entry the user is
+    // looking at. With no id, the newest overwrite is what the cap can always reach anyway.
+    const event =
+      wanted === undefined
+        ? db.listEvents(id).find((e) => e.type === "card.edited")
+        : (db.getEvent(wanted) ?? undefined);
+    // An id from another card must not reach through — the write gate is per-request, not per-card,
+    // but the audit trail and the UI both assume an entry belongs to the card it is restored onto.
+    if (event && (event.cardId !== id || event.type !== "card.edited")) {
+      return text("that journal entry is not an edit of this card", 400);
+    }
     const replaced = (event?.payload as { replaced?: Record<string, unknown> } | null)?.replaced;
     if (!event || !replaced) {
       return ctx.json({ ok: false, error: "nothing to restore on this card", kind: "no-history" }, 409);

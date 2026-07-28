@@ -567,6 +567,28 @@ export class BoardDb {
     return card;
   }
 
+  /**
+   * Every container's children's statuses, keyed by parent. One narrow query because this runs on
+   * the reconciliation hot path — every poll tick, forever. Listing *all* cards instead (which is
+   * what this replaced) re-read and JSON-parsed the acceptance list of every archived card on the
+   * board, several times a second, to answer a question about two columns.
+   */
+  childStatusesByParent(): Map<string, CardStatus[]> {
+    const rows = this.db
+      .query<{ parent_id: string; status: string }, []>(
+        "SELECT parent_id, status FROM card WHERE parent_id IS NOT NULL",
+      )
+      .all();
+    const out = new Map<string, CardStatus[]>();
+    for (const r of rows) {
+      const status = isCardStatus(r.status) ? r.status : "backlog";
+      const list = out.get(r.parent_id);
+      if (list) list.push(status);
+      else out.set(r.parent_id, [status]);
+    }
+    return out;
+  }
+
   /** A card's split children, in board order. Empty for the overwhelming majority of cards. */
   listChildren(parentId: string): Card[] {
     return this.db
@@ -764,6 +786,23 @@ export class BoardDb {
     } catch {
       // A journal write must never break the action it records (same rule as the audit log).
     }
+  }
+
+  /**
+   * One journal entry by id. Separate from {@link listEvents} because that one is CAPPED at 100 for
+   * the card view — scanning its result to find an entry to restore silently makes the 101st-oldest
+   * unreachable, and answers "nothing to restore" for an entry the user can see.
+   */
+  getEvent(id: number): BoardEvent | null {
+    const r = this.db.query<EventRow, [number]>("SELECT * FROM event WHERE id = ?").get(id);
+    if (!r) return null;
+    return {
+      id: r.id,
+      cardId: r.card_id,
+      type: r.type,
+      payload: r.payload === null ? null : safeJson(r.payload),
+      ts: r.ts,
+    };
   }
 
   /** A card's journal, newest first. */
