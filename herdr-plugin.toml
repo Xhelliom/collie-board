@@ -1,6 +1,6 @@
 id = "herdr.collie-board"
 name = "Collie Board"
-version = "0.24.0"
+version = "0.25.0"
 min_herdr_version = "0.7.0"
 description = "Durable Kanban cards over your Herdr agent herd — worktree per card, handoffs, mobile PWA"
 platforms = ["linux", "macos"]
@@ -17,6 +17,14 @@ platforms = ["linux", "macos"]
 [[build]]
 command = ["bash", "scripts/collie-board-ctl.sh", "build"]
 platforms = ["linux", "macos"]
+
+# First-run bootstrap: preflight, link, and derive the two security settings from `tailscale status`
+# so the safe configuration is the default one. Deliberately starts and publishes nothing.
+[[actions]]
+id = "setup"
+title = "Set up (preflight + config)"
+contexts = ["workspace"]
+command = ["bash", "scripts/collie-board-ctl.sh", "setup"]
 
 [[actions]]
 id = "start"

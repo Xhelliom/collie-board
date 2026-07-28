@@ -217,6 +217,25 @@ Push](#web-push-optional)).
 
 ## Install
 
+**The short version** — from a checkout, one bootstrap then one start:
+
+```bash
+bash scripts/collie-board-ctl.sh setup     # preflight, link the plugin, write the security config
+herdr plugin action invoke start --plugin herdr.collie-board
+```
+
+`setup` exists for one reason: it derives `COLLIE_BOARD_TRUSTED_USER` and `COLLIE_BOARD_PUBLIC_HOSTS`
+from `tailscale status`. Those are the two settings that turn "anyone on my tailnet has a shell on
+this box" into "only me", and they are exactly the two people skip. It also notices when your tailnet
+has no HTTPS certificate and configures the http fallback instead of letting `serve` fail.
+
+It never overwrites a `.env` you already have — it tells you what's missing and leaves the file
+alone. It starts nothing and publishes nothing; `start` is the step that puts you on the tailnet.
+
+The long version, and every deployment variant, follows.
+
+
+
 On the host, not your phone. Two ways in.
 
 **From GitHub (turnkey)** — Herdr clones and builds for you:

@@ -87,6 +87,106 @@ EOF
   chmod +x "${BIN_DIR}/tailscale"
 }
 
+
+# `setup` exists for exactly one reason: to derive the two security settings people skip. So that is
+# what it gets tested on — the derivation, and the refusal to touch config someone already owns.
+test_setup_writes_the_security_config() {
+  setup_case setup-fresh
+  cat > "${BIN_DIR}/tailscale" <<'EOF'
+#!/bin/sh
+if [ "$1" = status ] && [ "$2" = --json ]; then
+  echo '{"Self":{"DNSName":"host.example.ts.net.","UserID":1},"User":{"1":{"LoginName":"me@example.com"}},"CertDomains":["host.example.ts.net"]}'
+  exit 0
+fi
+exit 2
+EOF
+  cat > "${BIN_DIR}/herdr" <<'EOF'
+#!/bin/sh
+[ "$1" = plugin ] && [ "$2" = list ] && { echo "No plugins installed."; exit 0; }
+[ "$1" = plugin ] && [ "$2" = link ] && exit 0
+[ "$1" = plugin ] && [ "$2" = config-dir ] && { echo "$HERDR_PLUGIN_CONFIG_DIR"; exit 0; }
+exit 0
+EOF
+  chmod +x "${BIN_DIR}/tailscale" "${BIN_DIR}/herdr"
+  mkdir -p "${HOME_DIR}/.config/herdr" && : > "${HOME_DIR}/.config/herdr/herdr.sock"
+  # A socket, not a regular file — the preflight checks for one.
+  rm -f "${HOME_DIR}/.config/herdr/herdr.sock"
+  python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" \
+    "${HOME_DIR}/.config/herdr/herdr.sock"
+
+  out="$(run_ctl setup 2>&1)" || fail "setup exited non-zero: $out"
+  env_file="${CONFIG_DIR}/.env"
+  [ -f "$env_file" ] || fail "setup wrote no .env"
+  assert_contains "$(cat "$env_file")" "COLLIE_BOARD_TRUSTED_USER=me@example.com"
+  assert_contains "$(cat "$env_file")" "COLLIE_BOARD_PUBLIC_HOSTS=host.example.ts.net"
+  # HTTPS IS available here, so it must not force the http fallback.
+  case "$(cat "$env_file")" in
+    *$'\n'COLLIE_BOARD_SERVE_MODE=http*) fail "forced http mode despite a valid cert domain" ;;
+  esac
+  # Owner-only: it names the trusted tailnet identity.
+  assert_eq "$(stat -c '%a' "$env_file")" "600"
+  # And it must not start or publish anything.
+  assert_contains "$out" "Nothing is running or published yet"
+
+  echo "  setup: derives the security config from tailscale"
+}
+
+test_setup_falls_back_to_http_without_a_cert() {
+  setup_case setup-nocert
+  cat > "${BIN_DIR}/tailscale" <<'EOF'
+#!/bin/sh
+if [ "$1" = status ] && [ "$2" = --json ]; then
+  echo '{"Self":{"DNSName":"host.example.ts.net.","UserID":1},"User":{"1":{"LoginName":"me@example.com"}},"CertDomains":[]}'
+  exit 0
+fi
+exit 2
+EOF
+  cat > "${BIN_DIR}/herdr" <<'EOF'
+#!/bin/sh
+[ "$1" = plugin ] && [ "$2" = list ] && { echo "No plugins installed."; exit 0; }
+exit 0
+EOF
+  chmod +x "${BIN_DIR}/tailscale" "${BIN_DIR}/herdr"
+  mkdir -p "${HOME_DIR}/.config/herdr"
+  python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" \
+    "${HOME_DIR}/.config/herdr/herdr.sock"
+
+  run_ctl setup >/dev/null 2>&1 || fail "setup exited non-zero"
+  assert_contains "$(cat "${CONFIG_DIR}/.env")" "COLLIE_BOARD_SERVE_MODE=http"
+
+  echo "  setup: falls back to http when the tailnet has no cert"
+}
+
+test_setup_never_rewrites_existing_config() {
+  setup_case setup-existing
+  cat > "${BIN_DIR}/tailscale" <<'EOF'
+#!/bin/sh
+if [ "$1" = status ] && [ "$2" = --json ]; then
+  echo '{"Self":{"DNSName":"host.example.ts.net.","UserID":1},"User":{"1":{"LoginName":"me@example.com"}},"CertDomains":["host.example.ts.net"]}'
+  exit 0
+fi
+exit 2
+EOF
+  cat > "${BIN_DIR}/herdr" <<'EOF'
+#!/bin/sh
+[ "$1" = plugin ] && [ "$2" = list ] && { echo "No plugins installed."; exit 0; }
+exit 0
+EOF
+  chmod +x "${BIN_DIR}/tailscale" "${BIN_DIR}/herdr"
+  mkdir -p "${HOME_DIR}/.config/herdr"
+  python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" \
+    "${HOME_DIR}/.config/herdr/herdr.sock"
+
+  printf 'COLLIE_BOARD_PORT=9999\n' > "${CONFIG_DIR}/.env"
+  out="$(run_ctl setup 2>&1)" || fail "setup exited non-zero: $out"
+  assert_eq "$(cat "${CONFIG_DIR}/.env")" "COLLIE_BOARD_PORT=9999"
+  # It must SAY what is missing rather than silently editing.
+  assert_contains "$out" "COLLIE_BOARD_TRUSTED_USER=me@example.com"
+  assert_contains "$out" "COLLIE_BOARD_PUBLIC_HOSTS=host.example.ts.net"
+
+  echo "  setup: reports missing settings instead of overwriting a user's .env"
+}
+
 # Publishing must move cleanly between ports and modes, and must never clobber a root mount Collie
 # didn't create.
 test_tailscale_cutovers_and_collisions() {
@@ -326,5 +426,9 @@ test_missing_tailscale_cli
 test_state_delete_failures
 test_adopts_preexisting_collie_mount
 test_serve_failure_does_not_abort_start
+
+test_setup_writes_the_security_config
+test_setup_falls_back_to_http_without_a_cert
+test_setup_never_rewrites_existing_config
 
 echo "collie-board-ctl lifecycle tests: passed"

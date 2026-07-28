@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.25.0] - 2026-07-28
+
+### Added
+- `collie-board-ctl.sh setup` (+ a `setup` plugin action): first-run bootstrap. Preflight (bun / herdr / socket / tailscale), links the plugin, and **derives `COLLIE_BOARD_TRUSTED_USER` and `COLLIE_BOARD_PUBLIC_HOSTS` from `tailscale status`** — the two security settings people skip. Detects a tailnet with no HTTPS certificate and writes the `SERVE_MODE=http` fallback instead of letting `serve` fail.
+- Refuses to touch an existing `.env`: it reports what's missing and prints the exact lines. Starts nothing, publishes nothing.
+
 ## [0.24.0] - 2026-07-28
 
 ### Added

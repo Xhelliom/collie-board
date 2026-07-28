@@ -550,6 +550,131 @@ cmd_serve() {
 # The inverse of cmd_serve: remove Collie's own mapping and nothing else.
 cmd_unserve() { stop_tailscale_serve; }
 
+
+# ── setup ─────────────────────────────────────────────────────────────────────
+# First-run bootstrap. Everything it does is something you could do by hand in three commands —
+# EXCEPT the two settings people actually get wrong, which is why this exists at all:
+#
+#   COLLIE_BOARD_TRUSTED_USER   rejects a different tailnet user. Without it, any device that
+#                               reaches the bridge has write access — i.e. a shell on this host.
+#   COLLIE_BOARD_PUBLIC_HOSTS   closes DNS rebinding (Host == Origin == evil.com otherwise passes
+#                               the bare same-origin check).
+#
+# Both are derivable from `tailscale status --json`, so the safe configuration can be the DEFAULT
+# one instead of a paragraph in the README that gets skimmed. That is the whole justification.
+#
+# It deliberately does NOT start anything: `start` publishes a tailnet mapping, and publishing a
+# host to a network is not something a setup script should do while you read its output.
+
+# The tailnet login of whoever owns this node, e.g. "you@example.com". Empty if tailscale is down.
+tailnet_login() {
+  tailscale status --json 2>/dev/null | bun -e \
+    "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);process.stdout.write(j.User[String(j.Self.UserID)].LoginName||'')}catch{}})"
+}
+
+# Whether the tailnet has HTTPS enabled (a cert domain). `tailscale serve` in https mode needs it;
+# without it the default mode fails and http mode is the working fallback.
+tailnet_has_https() {
+  tailscale status --json 2>/dev/null | bun -e \
+    "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{process.stdout.write((JSON.parse(d).CertDomains||[]).length?'yes':'')}catch{}})"
+}
+
+cmd_setup() {
+  local problems=0
+  echo "Checking prerequisites…"
+
+  if [ -n "$BUN" ]; then echo "  ✓ bun          $BUN"
+  else echo "  ✗ bun          not on PATH — install from https://bun.sh (the web UI can't build without it)"; problems=1; fi
+
+  if command -v herdr >/dev/null; then echo "  ✓ herdr        $(herdr --version 2>/dev/null || echo present)"
+  else echo "  ✗ herdr        not on PATH"; problems=1; fi
+
+  if [ -S "$SOCKET" ]; then echo "  ✓ herdr socket $SOCKET"
+  else echo "  ✗ herdr socket $SOCKET missing — start herdr first"; problems=1; fi
+
+  local login dnsname https
+  if command -v tailscale >/dev/null; then
+    login="$(tailnet_login)"; dnsname="$(self_dnsname)"; https="$(tailnet_has_https)"
+    if [ -n "$dnsname" ]; then echo "  ✓ tailscale    ${dnsname} (${login:-unknown user})"
+    else echo "  ! tailscale    installed but not connected — can't derive the front door"; fi
+  else
+    echo "  ! tailscale    not found — you'll need COLLIE_BOARD_SKIP_SERVE=1 and your own reverse proxy (README → Variant C)"
+  fi
+
+  [ "$problems" -eq 0 ] || { echo; echo "Fix the ✗ items above, then re-run setup." >&2; exit 1; }
+
+  echo
+  echo "Registering the plugin…"
+  if herdr plugin list 2>/dev/null | grep -q "$PLUGIN_ID"; then
+    echo "  ✓ ${PLUGIN_ID} already linked"
+  elif herdr plugin link "$PLUGIN_ROOT" >/dev/null 2>&1; then
+    echo "  ✓ linked ${PLUGIN_ROOT}"
+    CONFIG_DIR="$(resolve_config_dir)"
+  else
+    echo "  ! could not link automatically — run: herdr plugin link ${PLUGIN_ROOT}"
+  fi
+
+  echo
+  mkdir -p "$CONFIG_DIR"
+  local env_file="${CONFIG_DIR}/.env"
+  if [ -f "$env_file" ]; then
+    # Never rewrite config someone already owns. Report what's missing and let them decide.
+    echo "Config already exists at ${env_file} — leaving it alone."
+    local missing=0
+    if [ -z "${COLLIE_BOARD_TRUSTED_USER:-}" ]; then
+      echo "  ! COLLIE_BOARD_TRUSTED_USER is unset — any tailnet user reaching the bridge gets write access."
+      [ -n "$login" ] && echo "      add:  COLLIE_BOARD_TRUSTED_USER=${login}"
+      missing=1
+    fi
+    if [ -z "${COLLIE_BOARD_PUBLIC_HOSTS:-}" ]; then
+      echo "  ! COLLIE_BOARD_PUBLIC_HOSTS is unset — DNS rebinding is not blocked."
+      [ -n "$dnsname" ] && echo "      add:  COLLIE_BOARD_PUBLIC_HOSTS=${dnsname}"
+      missing=1
+    fi
+    [ "$missing" -eq 0 ] && echo "  ✓ both security settings are present"
+  else
+    cp "${PLUGIN_ROOT}/.env.example" "$env_file"
+    {
+      echo
+      echo "# --- Written by \`collie-board-ctl.sh setup\` on $(date -Iseconds) ---"
+      echo "# Derived from \`tailscale status\`. These two are the security settings; the file is"
+      echo "# sourced top-to-bottom, so anything set here wins over the commented examples above."
+      if [ -n "$login" ]; then
+        echo "COLLIE_BOARD_TRUSTED_USER=${login}"
+      else
+        echo "# COLLIE_BOARD_TRUSTED_USER=   <- set this: tailscale was unreachable at setup time"
+      fi
+      if [ -n "$dnsname" ]; then
+        echo "COLLIE_BOARD_PUBLIC_HOSTS=${dnsname}"
+      else
+        echo "# COLLIE_BOARD_PUBLIC_HOSTS=   <- set this: tailscale was unreachable at setup time"
+      fi
+      # No cert domain means `tailscale serve` https will fail; pick the mode that works.
+      if [ -n "$dnsname" ] && [ -z "$https" ]; then
+        echo
+        echo "# This tailnet reports no HTTPS certificate, so serve --https would fail. Plain HTTP over"
+        echo "# the tailnet works today; enable HTTPS in the Tailscale admin console (DNS -> HTTPS"
+        echo "# Certificates) and delete this line to get the installable PWA and Web Push back."
+        echo "COLLIE_BOARD_SERVE_MODE=http"
+      fi
+    } >> "$env_file"
+    chmod 600 "$env_file"
+    echo "Wrote ${env_file}:"
+    [ -n "$login" ]   && echo "  ✓ COLLIE_BOARD_TRUSTED_USER=${login}"
+    [ -n "$dnsname" ] && echo "  ✓ COLLIE_BOARD_PUBLIC_HOSTS=${dnsname}"
+    if [ -n "$dnsname" ] && [ -z "$https" ]; then
+      echo "  ! COLLIE_BOARD_SERVE_MODE=http  (no HTTPS cert on this tailnet — see the note in the file)"
+    fi
+  fi
+
+  echo
+  echo "Ready. Nothing is running or published yet — next:"
+  echo "  herdr plugin action invoke start --plugin ${PLUGIN_ID}"
+  echo
+  echo "That builds the web UI, installs the systemd --user service, and publishes the tailnet"
+  echo "front door. Then open the URL it prints on your phone and Add to Home Screen."
+}
+
 cmd_status() {
   print_status_banner
   if [ "${COLLIE_BOARD_SKIP_SERVE:-}" = "1" ]; then
@@ -581,6 +706,7 @@ if [ "${BASH_SOURCE[0]}" != "$0" ]; then
 fi
 
 case "${1:-}" in
+  setup)   cmd_setup ;;
   start)   cmd_start ;;
   stop)    cmd_stop ;;
   restart) cmd_restart ;;
@@ -595,5 +721,5 @@ case "${1:-}" in
   version) cmd_version ;;
   push-test) shift || true; cmd_push_test "$@" ;;
   logs)    cmd_logs "${2:-50}" ;;
-  *) echo "usage: collie-board-ctl.sh {start|stop|restart|uninstall|update|version|push-test|build|serve|unserve|status|url|logs}" >&2; exit 2 ;;
+  *) echo "usage: collie-board-ctl.sh {setup|start|stop|restart|uninstall|update|version|push-test|build|serve|unserve|status|url|logs}" >&2; exit 2 ;;
 esac
