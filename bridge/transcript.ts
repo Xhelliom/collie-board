@@ -110,6 +110,19 @@ export function isSessionId(value: string): boolean {
   return SESSION_ID_RE.test(value);
 }
 
+/**
+ * Claude Code's project-directory name for a working directory: every non-alphanumeric byte becomes
+ * `-`. Verified against the installed version (2026-07-28) —
+ * `/home/me/.herdr/worktrees/repo/board-x` → `-home-me--herdr-worktrees-repo-board-x`.
+ *
+ * The mangling is LOSSY (two different paths can collide), which is why `resolve()` never uses it.
+ * It is sound for {@link TranscriptSource.resolveByCwd} only because the caller supplies a checkout
+ * root it created itself, not a pane's drifting cwd. Pure + exported for the test.
+ */
+export function mangleProjectDir(cwd: string): string {
+  return cwd.replace(/[^A-Za-z0-9]/g, "-");
+}
+
 // CSI/SGR and two-character escapes. Transcript text is NOT a terminal mirror — nothing downstream
 // interprets escapes, so a `\x1b[2m` left in place renders as garbage glyphs on the phone.
 const ANSI_RE = /\[[0-9;?]*[ -/]*[@-~]|[@-Z\\-_]/g;
@@ -391,6 +404,19 @@ export function conversationRoot(text: string): string | null {
 export interface TranscriptSource {
   /** Absolute path of the log for `sessionId`, or null when it isn't on disk. */
   resolve(sessionId: string): Promise<string | null>;
+  /**
+   * Absolute path of the newest log written by an agent STARTED in `cwd`, or null.
+   *
+   * The fallback for when herdr reports no `agent_session` for a pane — which is the DEFAULT state:
+   * that field only appears once `herdr integration install claude` has planted its hook, and a
+   * plain install has none (verified on 0.7.5, 2026-07-28: not one agent pane in the herd carried
+   * it). Without this, the context gauge would be dead for most users.
+   *
+   * Only sound because the CALLER knows the exact directory the agent was launched in — the board
+   * creates the worktree itself. `resolve()` deliberately refuses to derive a path from a pane's
+   * reported cwd, because that drifts as the agent works; a checkout root does not.
+   */
+  resolveByCwd(cwd: string): Promise<string | null>;
   /** Tail-read a log. `complete` is false when the byte cap clipped the head. */
   load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }>;
 }
@@ -496,6 +522,35 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     return best.path;
   }
 
+  async resolveByCwd(cwd: string): Promise<string | null> {
+    const dir = join(this.root, mangleProjectDir(cwd));
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return null; // no project dir for that cwd — nothing has run there
+    }
+    // Newest wins: a resumed/forked conversation writes a fresh file, exactly as followContinuation
+    // handles for the id path.
+    let best: { path: string; mtimeMs: number } | null = null;
+    for (const name of names) {
+      if (!name.endsWith(".jsonl")) continue;
+      const candidate = join(dir, name);
+      try {
+        const st = await stat(candidate);
+        if (!best || st.mtimeMs > best.mtimeMs) best = { path: candidate, mtimeMs: st.mtimeMs };
+      } catch {
+        continue;
+      }
+    }
+    if (best === null) return null;
+    // Same containment rule as resolve(): a symlinked project dir must not become a file-read gadget.
+    const real = await realpath(best.path).catch(() => null);
+    const realRoot = await realpath(this.root).catch(() => null);
+    if (real === null || realRoot === null) return null;
+    return real === realRoot || real.startsWith(realRoot + sep) ? real : null;
+  }
+
   async load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }> {
     const st = await stat(path);
     const size = st.size;
@@ -567,4 +622,70 @@ export class TranscriptStore {
       fileTruncated: !complete,
     };
   }
+}
+
+// ── context telemetry ─────────────────────────────────────────────────────────
+//
+// The board's context gauge is an extension of THIS file rather than a new subsystem: the path
+// resolution, the tail read and the JSONL walk already exist here, and the number we need is one
+// field the parser above deliberately drops. That is the whole reason this lives in transcript.ts.
+//
+// VERIFIED against the installed Claude Code (2026-07-28): every `assistant` row carries
+// `message.usage` with `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` and
+// `output_tokens`. The first three are what occupies the context window on the NEXT turn — the
+// output isn't in the window until it is sent back, and by then it shows up inside the cache read.
+// So the gauge is the sum of those three on the newest non-sidechain assistant row.
+
+/** Context occupancy read off a transcript's newest assistant turn. */
+export interface ContextUsage {
+  /** input + cache_creation + cache_read on the newest assistant turn. */
+  tokens: number;
+  /** That turn's output tokens — informational; NOT counted in {@link tokens}. */
+  outputTokens: number;
+}
+
+interface RawUsage {
+  input_tokens?: unknown;
+  cache_creation_input_tokens?: unknown;
+  cache_read_input_tokens?: unknown;
+  output_tokens?: unknown;
+}
+
+function num(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+/**
+ * Context occupancy from a Claude session log, or null when the log carries none (a fresh session,
+ * a non-Claude agent, a tail window that clipped every assistant row).
+ *
+ * Two filters matter and neither is optional:
+ *  - **sidechains are skipped.** Subagent turns are a different conversation with its own small
+ *    context; letting one be "newest" makes a 90 %-full session read as 5 %.
+ *  - **the NEWEST row wins**, not the largest. `/compact` genuinely shrinks the window, and a gauge
+ *    that took the max would stay pinned at the pre-compaction figure forever.
+ *
+ * PURE — no fs, no clock — like the rest of this file's parsing.
+ */
+export function latestUsage(text: string): ContextUsage | null {
+  let found: ContextUsage | null = null;
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    let row: { type?: unknown; isSidechain?: unknown; message?: unknown };
+    try {
+      row = JSON.parse(line) as typeof row;
+    } catch {
+      continue; // partial trailing write, or the clipped first line of a tail read
+    }
+    if (row.type !== "assistant" || row.isSidechain === true) continue;
+    const message = row.message;
+    if (message === null || typeof message !== "object") continue;
+    const usage = (message as { usage?: unknown }).usage as RawUsage | undefined;
+    if (usage === null || typeof usage !== "object") continue;
+    const tokens =
+      num(usage.input_tokens) + num(usage.cache_creation_input_tokens) + num(usage.cache_read_input_tokens);
+    if (tokens === 0) continue; // a usage block with nothing in it tells us nothing
+    found = { tokens, outputTokens: num(usage.output_tokens) };
+  }
+  return found;
 }

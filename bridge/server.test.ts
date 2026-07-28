@@ -57,6 +57,7 @@ function cfg(overrides: Partial<Config> = {}): Config {
     boardMaxAgents: 3,
     boardBranchPrefix: "board/",
     boardHandoffPct: 70,
+    boardCtxWindow: 200_000,
     ...overrides,
   };
 }

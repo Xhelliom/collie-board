@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { reconcile } from "./cards.ts";
 import { loadConfig } from "./config.ts";
+import { ContextTracker } from "./context.ts";
 import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
@@ -26,6 +27,7 @@ import {
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
+import { ClaudeTranscriptSource } from "./transcript.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 
 // How often the registry rescans the filesystem for sessions that appeared/disappeared after boot.
@@ -146,7 +148,18 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
 
   // Board reconciliation rides the SAME snapshot poll — no second loop, no second source of truth.
   // Primary session only: a card's pane id is meaningless in another herdr server (see server.ts).
-  if (isPrimary) engine.onUpdate((snap) => reconcile(board, snap));
+  if (isPrimary) {
+    engine.onUpdate((snap) => reconcile(board, snap));
+    // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
+    // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.
+    const context = new ContextTracker(
+      board,
+      herdr,
+      new ClaudeTranscriptSource(cfg.transcriptRoot),
+      cfg.boardCtxWindow,
+    );
+    engine.onUpdate((snap) => void context.update(snap));
+  }
 
   engine.start();
   poker.start();

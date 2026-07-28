@@ -200,3 +200,49 @@ export function promptCard(id: string, text: string): Promise<{ ok: true; card: 
     body: JSON.stringify({ text }),
   });
 }
+
+// ── diff ─────────────────────────────────────────────────────────────────────
+//
+// Scoped by construction: the card owns a branch, herdr gave that branch its own worktree, so the
+// bridge diffs that checkout against its fork point. Nothing here passes a scope — there is none to
+// get wrong.
+
+export interface DiffFile {
+  path: string;
+  added: number;
+  removed: number;
+  /** `binary` carries no line counts; `untracked` never reached the index (a brand-new file). */
+  kind: "text" | "binary" | "untracked";
+}
+
+export interface DiffStat {
+  ok: true;
+  /** The commit the diff is measured from. */
+  base: string;
+  cwd: string;
+  files: DiffFile[];
+  added: number;
+  removed: number;
+}
+
+/** A 409 from the diff route: the card has no branch, or its worktree is gone. */
+export interface DiffUnavailable {
+  ok: false;
+  error: string;
+  kind?: string;
+}
+
+export function fetchDiffStat(id: string, signal?: AbortSignal): Promise<DiffStat> {
+  return apiRequest<DiffStat>(`/api/cards/${encodeURIComponent(id)}/diff`, { signal });
+}
+
+export function fetchDiffFile(
+  id: string,
+  path: string,
+  untracked: boolean,
+  signal?: AbortSignal,
+): Promise<{ ok: true; path: string; diff: string; truncated: boolean }> {
+  const q = new URLSearchParams({ mode: "file", path });
+  if (untracked) q.set("untracked", "1");
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/diff?${q}`, { signal });
+}

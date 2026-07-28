@@ -13,6 +13,14 @@ import {
 import type { Config } from "./config.ts";
 import { parseCardBody } from "./board-routes.ts";
 import { BoardDb, type Card, type CardSession } from "./db.ts";
+import { contextPercent } from "./context.ts";
+import {
+  isSafeDiffPath,
+  parseNumstat,
+  parseUntracked,
+  parseWorktreeList,
+} from "./git.ts";
+import { latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
@@ -625,5 +633,150 @@ describe("waitForAgentReady (through startCard)", () => {
     // And the card is left retryable, not wedged (same rule as a failed agent.start).
     expect(store.openSessionFor(card.id)).toBeNull();
     expect(store.getCard(card.id)!.status).toBe("ready");
+  });
+});
+
+describe("git — worktree resolution and diff parsing", () => {
+  it("parses `git worktree list --porcelain` into (path, branch) pairs", () => {
+    const out = [
+      "worktree /home/me/repo",
+      "HEAD abc123",
+      "branch refs/heads/main",
+      "",
+      "worktree /home/me/.herdr/worktrees/repo/board-x",
+      "HEAD def456",
+      "branch refs/heads/board/x",
+      "",
+    ].join("\n");
+    expect(parseWorktreeList(out)).toEqual([
+      { path: "/home/me/repo", branch: "main" },
+      { path: "/home/me/.herdr/worktrees/repo/board-x", branch: "board/x" },
+    ]);
+  });
+
+  it("reports a detached worktree with a null branch rather than dropping it", () => {
+    const out = ["worktree /tmp/det", "HEAD abc123", "detached", ""].join("\n");
+    expect(parseWorktreeList(out)).toEqual([{ path: "/tmp/det", branch: null }]);
+  });
+
+  it("parses numstat, treating a binary file's '-' counts as zero", () => {
+    const out = "12\t3\tsrc/a.ts\n-\t-\tassets/logo.png\n";
+    expect(parseNumstat(out)).toEqual([
+      { path: "src/a.ts", added: 12, removed: 3, kind: "text" },
+      { path: "assets/logo.png", added: 0, removed: 0, kind: "binary" },
+    ]);
+  });
+
+  it("keeps a path containing a tab intact", () => {
+    expect(parseNumstat("1\t0\tweird\tname.ts\n")[0]!.path).toBe("weird\tname.ts");
+  });
+
+  it("picks untracked files out of status --porcelain and ignores tracked changes", () => {
+    const out = " M src/a.ts\n?? src/new.ts\n?? docs/\nA  src/added.ts\n";
+    expect(parseUntracked(out)).toEqual(["src/new.ts", "docs/"]);
+  });
+});
+
+describe("isSafeDiffPath", () => {
+  it("accepts a path inside the checkout", () => {
+    expect(isSafeDiffPath("/wt/card", "src/a.ts")).toBe(true);
+  });
+
+  it("rejects traversal out of the checkout", () => {
+    expect(isSafeDiffPath("/wt/card", "../../etc/passwd")).toBe(false);
+    expect(isSafeDiffPath("/wt/card", "/etc/passwd")).toBe(false);
+  });
+
+  it("rejects an option-looking argument even though call sites also use `--`", () => {
+    expect(isSafeDiffPath("/wt/card", "--output=/tmp/x")).toBe(false);
+    expect(isSafeDiffPath("/wt/card", "-p")).toBe(false);
+  });
+
+  it("rejects an empty path and an embedded NUL", () => {
+    expect(isSafeDiffPath("/wt/card", "")).toBe(false);
+    expect(isSafeDiffPath("/wt/card", "a\0b")).toBe(false);
+  });
+
+  it("does not let a sibling directory that shares the prefix through", () => {
+    expect(isSafeDiffPath("/wt/card", "../card-evil/x")).toBe(false);
+  });
+});
+
+describe("latestUsage", () => {
+  const row = (o: Record<string, unknown>) => JSON.stringify(o);
+
+  it("sums input + cache_creation + cache_read on the newest assistant turn", () => {
+    const log = [
+      row({ type: "assistant", message: { usage: { input_tokens: 1, cache_read_input_tokens: 10 } } }),
+      row({
+        type: "assistant",
+        message: {
+          usage: {
+            input_tokens: 2,
+            cache_creation_input_tokens: 1458,
+            cache_read_input_tokens: 397568,
+            output_tokens: 1054,
+          },
+        },
+      }),
+    ].join("\n");
+    expect(latestUsage(log)).toEqual({ tokens: 399_028, outputTokens: 1054 });
+  });
+
+  it("SKIPS sidechains — a subagent's small window would read as a nearly-empty session", () => {
+    const log = [
+      row({ type: "assistant", message: { usage: { cache_read_input_tokens: 180_000 } } }),
+      row({
+        type: "assistant",
+        isSidechain: true,
+        message: { usage: { cache_read_input_tokens: 4_000 } },
+      }),
+    ].join("\n");
+    expect(latestUsage(log)!.tokens).toBe(180_000);
+  });
+
+  it("takes the NEWEST turn, not the largest — /compact really does shrink the window", () => {
+    const log = [
+      row({ type: "assistant", message: { usage: { cache_read_input_tokens: 190_000 } } }),
+      row({ type: "assistant", message: { usage: { cache_read_input_tokens: 12_000 } } }),
+    ].join("\n");
+    expect(latestUsage(log)!.tokens).toBe(12_000);
+  });
+
+  it("returns null for a log with no assistant usage at all (level 3)", () => {
+    expect(latestUsage("")).toBeNull();
+    expect(latestUsage(row({ type: "user", message: { content: "hi" } }))).toBeNull();
+  });
+
+  it("survives the clipped first line of a tail read and other junk", () => {
+    const log = [
+      '{"type":"assistant","message":{"usage":{"cache_re',
+      row({ type: "assistant", message: { usage: { cache_read_input_tokens: 5 } } }),
+    ].join("\n");
+    expect(latestUsage(log)!.tokens).toBe(5);
+  });
+
+  it("ignores a usage block that sums to zero rather than reporting 0 %", () => {
+    const log = [
+      row({ type: "assistant", message: { usage: { cache_read_input_tokens: 900 } } }),
+      row({ type: "assistant", message: { usage: { output_tokens: 40 } } }),
+    ].join("\n");
+    expect(latestUsage(log)!.tokens).toBe(900);
+  });
+});
+
+describe("contextPercent", () => {
+  it("rounds to a whole percent", () => {
+    expect(contextPercent(100_000, 200_000)).toBe(50);
+    expect(contextPercent(399_028, 1_000_000)).toBe(40);
+  });
+
+  it("clamps above the window rather than showing 130 %", () => {
+    expect(contextPercent(260_000, 200_000)).toBe(100);
+  });
+
+  it("returns null for nonsense inputs instead of NaN", () => {
+    expect(contextPercent(0, 200_000)).toBeNull();
+    expect(contextPercent(1000, 0)).toBeNull();
   });
 });

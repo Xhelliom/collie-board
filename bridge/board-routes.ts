@@ -13,6 +13,7 @@ import { cardView, cardViews, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
+import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
@@ -220,6 +221,33 @@ export async function handleBoardRoute(
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
     return json({ ok: true, card: cardView(db, engine.current(), id) });
+  }
+
+  // ── diff: what this card has written, scoped by construction ─────────────
+  // No path filtering and no per-card bookkeeping: the card owns a branch, herdr gave that branch
+  // its own worktree, so the checkout's diff against its fork point IS the card's diff.
+  if (action === "diff" && req.method === "GET") {
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    if (!card.repoPath || !card.branch) {
+      return ctx.json({ ok: false, error: "this card has no branch yet", kind: "no-branch" }, 409);
+    }
+    const cwd = await worktreePathFor(card.repoPath, card.branch);
+    if (!cwd) {
+      return ctx.json({ ok: false, error: "no worktree for this branch", kind: "no-worktree" }, 409);
+    }
+    const url = new URL(req.url);
+    if (url.searchParams.get("mode") === "file") {
+      const path = url.searchParams.get("path") ?? "";
+      const result = await diffFile(cwd, card.baseRef, path, {
+        untracked: url.searchParams.get("untracked") === "1",
+      });
+      if (!result.ok) return ctx.json({ ok: false, error: result.error }, 400);
+      return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
+    }
+    return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
   }
 
   // ── prompt: a follow-up instruction to the card's running agent ───────────

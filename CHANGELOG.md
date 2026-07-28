@@ -7,6 +7,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.21.0] - 2026-07-28
+
+### Added
+- **Card diff** (`bridge/git.ts`, `GET /api/cards/:id/diff?mode=stat|file&path=`): the card's checkout against its fork point, so committed AND uncommitted work show up, plus untracked files (which `git diff` cannot see). `--stat` first on mobile, tap for the unified patch.
+- **Context gauge** (`bridge/context.ts`, `latestUsage()` in `bridge/transcript.ts`): input + cache_creation + cache_read of the newest non-sidechain assistant turn, refreshed per pane every 30 s off the existing poll.
+- The gauge is pushed to herdr with `pane.report_metadata`, so it renders as `$ctx` in the TUI's Agents sidebar too. TTL'd (90 s) so a stopped bridge leaves no stale figure.
+- `TranscriptSource.resolveByCwd()` — finds an agent's log from the directory it was launched in, for the (default) case where herdr reports no `agent_session`.
+- Config: `COLLIE_BOARD_CTX_WINDOW` (default 200000; set 1000000 for a 1M-context model).
+
+### Notes
+- Level 2 of the telemetry design (a transitions/output heuristic) is **deliberately not built** — see the header of `bridge/context.ts`. Level 3 (no gauge, Handoff always available) is the degradation.
+- herdr reports `agent_session` only once `herdr integration install claude` has run; without it, Collie's own pane History is unavailable too. The gauge works either way thanks to the cwd fallback.
+
 ## [0.20.0] - 2026-07-28
 
 ### Added

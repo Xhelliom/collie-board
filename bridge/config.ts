@@ -199,6 +199,12 @@ export interface Config {
    * handoff is always a manual tap (a handoff fired mid-refactor costs more than it saves).
    */
   boardHandoffPct: number;
+  /**
+   * Context-window size the gauge is a percentage OF, in tokens. Herdr doesn't know it and the
+   * transcript doesn't state it, so it is config: 200k for a stock Claude Code, 1_000_000 for a
+   * 1M-context model. A wrong value only skews the percentage — nothing depends on it being right.
+   */
+  boardCtxWindow: number;
 }
 
 /**
@@ -254,5 +260,6 @@ export function loadConfig(): Config {
     boardMaxAgents: envInt("COLLIE_BOARD_MAX_AGENTS", 3, { min: 1, max: 32 }),
     boardBranchPrefix: process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/",
     boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
+    boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
   };
 }

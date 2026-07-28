@@ -9,6 +9,8 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
+import { CardDiff } from "@/components/card-diff";
+import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
   boardPath,
@@ -126,6 +128,8 @@ export function CardRoute() {
 
             <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
 
+            <ContextGauge session={card.session} />
+
             {card.runtime ? (
               <PromptBox
                 onSend={async (text) => {
@@ -153,6 +157,8 @@ export function CardRoute() {
                 </ul>
               </Section>
             )}
+
+            <CardDiff cardId={card.id} statusKey={card.status} />
 
             <Section label="Move to">
               <div className="flex flex-wrap gap-2">
