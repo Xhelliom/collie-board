@@ -295,6 +295,37 @@ question, and exactly one rule carries the design: **`card` is durable, `session
   starting a card eventually is. `bridge/git.ts` is the only place the bridge shells out: argv
   elements, never a shell; the one client-supplied path is validated and always follows `--`.
 
+### Splitting one dump into several cards
+
+A dictated note routinely names three things. The copilot's reformulation can therefore return a
+`split`, and two nullable self-references on `card` carry what comes out of it. They are kept
+separate because they answer different questions:
+
+- **`parent_id` — provenance.** "These came from the same brain dump." A card WITH children is a
+  **container**: it keeps the original dictation, is refused a branch, is refused a start, and
+  derives its status from its children (urgency first, so one blocked child outranks three that are
+  working). The parent used to keep one of the tasks itself, which is precisely how the same work
+  ended up on two cards.
+- **`depends_on` — ordering.** One edge per card, not a list. Independent (null everywhere), serial
+  (a chain) and the realistic mixed case all fall out of the same column, where a two-mode
+  "parallel or sequential" flag can only express the first two. In the split answer it is an index
+  pointing **backward**, which makes a cycle unrepresentable rather than merely unlikely; a hand
+  edit through the API gets an explicit cycle check instead.
+
+**The dependency is a gate, not a trigger.** A finished predecessor makes its successor
+start*able* — it never starts it. An agent that launches itself writes code and spends the user's
+quota with nobody watching, which is the one thing this board is arranged against, and it is the
+same reasoning that keeps the copilot off by default.
+
+**What actually passes between two cards is the branch.** A dependent card forks from its
+predecessor's branch rather than the repo's base, because a serial task needs the previous one's
+code, not a summary of it; its opening prompt says the branch is *not* clean and carries the
+predecessor's review notes. The resolved base is persisted onto the card, since `base_ref` is also
+the left side of its diff — left at `main` the card would display its predecessor's work as its own.
+This is deliberately **not** the `.board/handoff.md` mechanism: that one is for context exhaustion
+inside a single card, where the next agent inherits the same worktree and can read the note from its
+own cwd. Across two cards the file isn't even there.
+
 ### Three herdr behaviours the docs don't state
 
 Live-probed against 0.7.5 on 2026-07-28. Each one silently breaks the obvious implementation:

@@ -35,9 +35,12 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/lib/api.ts` | `apiRequest` re-export |
 | `web/src/router.tsx` | two routes |
 | `web/src/routes/home.tsx` | a Board row |
+| `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`) |
+| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's |
 
-Rebasing means resolving those eight, not the whole tree. Keep it that way: if a change wants to
-spread, it usually wants to be a new module with a hook instead.
+Rebasing means resolving those nine, not the whole tree. Keep it that way: if a change wants to
+spread, it usually wants to be a new module with a hook instead. The last two are pure bug fixes
+that belong upstream — they are in the ledger, and once merged they leave this list again.
 
 ## What is PR-able, and what isn't
 

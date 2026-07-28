@@ -1,0 +1,3 @@
+
+# tsc -b incremental cache — a local artefact, never a commit.
+tsconfig.tsbuildinfo

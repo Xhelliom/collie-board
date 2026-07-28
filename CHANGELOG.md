@@ -7,6 +7,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.32.0] - 2026-07-28
+
+### Added
+- **A split now produces real cards, linked.** The copilot's `split_suggestion` was a list of *titles*, so a dictated note naming three tasks became three context-free stubs that had to be rewritten by hand — while the dump they came from, the only place that context existed, sat open in front of the copilot. Each entry is now a whole card (spec + acceptance), and `split` replaces `split_suggestion` (the old name still parses).
+- **`card.parent_id` and `card.depends_on`** — provenance and ordering, kept apart on purpose. A card with children is a **container**: it holds the original dictation, isn't startable, and derives its status from its children (urgency first, so one blocked child outranks three that are working).
+- **The dependency is a gate, never a trigger.** A card that declares a predecessor refuses to start until it is `done` and names what it waits on; a finished predecessor makes its successor start*able*, and you start it. Nothing here ever launches an agent on its own.
+- **A dependent card forks from its predecessor's branch**, not from the repo's base — a serial task needs the previous one's code, not a summary of it — and its prompt says so, with the predecessor's review notes. The resolved base is persisted, so the card's diff still shows only its own work.
+
+### Changed
+- The reformulation prompt decides one-task-vs-several first, and on "several" puts *every* task in `split` with the top-level card as their container. It used to keep one task at the top level, which is how the same work ended up on two cards.
+- `depends_on` is an index pointing **backward** in the split list, so a dependency cycle is unrepresentable rather than merely unlikely. Hand edits go through an explicit cycle check (`PATCH /api/cards/<id>` → 400).
+
+### Fixed
+- Node 24+ defines a `localStorage` global that stays undefined without `--localstorage-file` and shadows jsdom's, so 17 frontend tests broke the day the machine's Node was upgraded, with nothing in the repo having changed. The test setup installs a real one when it's missing.
+
 ## [0.31.0] - 2026-07-28
 
 ### Changed

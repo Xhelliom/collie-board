@@ -67,13 +67,31 @@ export function parseJsonish(raw: string): unknown | null {
   }
 }
 
+/**
+ * One task carved out of a multi-task dump. A FULL card, not a title: the dump is the only place
+ * the context ever existed, and the copilot has it open — dropping everything but the title (which
+ * is what the first version of this did) throws that away and leaves you retyping it by hand.
+ */
+export interface SplitTask {
+  title: string;
+  spec?: string;
+  acceptance?: string[];
+  /**
+   * Index of an EARLIER task in the same list that must finish first, or absent for "independent".
+   *
+   * Backward-only by construction, which is what makes a dependency cycle unrepresentable rather
+   * than merely unlikely — no graph validation, no visited set, nothing to get wrong at 3am.
+   */
+  dependsOn?: number;
+}
+
 /** What a reformulation is expected to produce. Absent/typo'd fields simply don't get applied. */
 export interface Reformulation {
   title?: string;
   spec?: string;
   acceptance?: string[];
   branchName?: string;
-  splitSuggestion?: string[];
+  split?: SplitTask[];
 }
 
 /** What a post-`done` review is expected to produce. */
@@ -112,6 +130,53 @@ function strList(o: Record<string, unknown>, key: string): string[] | undefined 
   return list.length ? list : undefined;
 }
 
+/**
+ * Coerce the `split` field into {@link SplitTask}s, dropping anything malformed. Pure + exported.
+ *
+ * Accepts BOTH the object form and a bare list of titles: the prompt asks for objects, but the
+ * older shape is exactly what a model falls back to under pressure, and answering a good split with
+ * "nothing" over its shape would be the worst of both. A title is the one field that must be there.
+ *
+ * `depends_on` is only honoured when it points BACKWARD in the list. A forward or self reference is
+ * dropped to "independent" — worst case you start something a beat early, whereas honouring it
+ * would build a cycle that wedges both cards behind each other permanently.
+ */
+export function toSplit(v: unknown): SplitTask[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: SplitTask[] = [];
+  // Indices in the answer are the MODEL's, and a malformed entry shifts everything after it — so
+  // `depends_on` is translated through this rather than used raw. Without it, one dropped entry
+  // silently re-points every dependency that follows at the wrong task.
+  const kept = new Map<number, number>();
+  for (const [i, entry] of v.entries()) {
+    if (typeof entry === "string") {
+      if (!entry.trim()) continue;
+      kept.set(i, out.length);
+      out.push({ title: entry.trim() });
+      continue;
+    }
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const o = entry as Record<string, unknown>;
+    const title = str(o, "title");
+    if (!title) continue;
+    const task: SplitTask = { title };
+    const spec = str(o, "spec");
+    if (spec) task.spec = spec;
+    const acceptance = strList(o, "acceptance");
+    if (acceptance) task.acceptance = acceptance;
+    const dep = o.depends_on ?? o.dependsOn;
+    if (typeof dep === "number" && Number.isInteger(dep) && dep >= 0 && dep < i) {
+      const mapped = kept.get(dep);
+      // A dependency on an entry that was itself dropped becomes "independent" — there is nothing
+      // left to wait for.
+      if (mapped !== undefined) task.dependsOn = mapped;
+    }
+    kept.set(i, out.length);
+    out.push(task);
+  }
+  return out.length ? out : undefined;
+}
+
 /** Coerce a parsed answer into a {@link Reformulation}, dropping anything malformed. Pure. */
 export function toReformulation(parsed: unknown): Reformulation | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -125,8 +190,10 @@ export function toReformulation(parsed: unknown): Reformulation | null {
   if (branch) out.branchName = branch;
   const acceptance = strList(o, "acceptance");
   if (acceptance) out.acceptance = acceptance;
-  const split = strList(o, "split_suggestion") ?? strList(o, "splitSuggestion");
-  if (split) out.splitSuggestion = split;
+  // `split_suggestion` is the field name this used to have, kept as an alias so a reformulation
+  // that comes back in the old shape still splits instead of silently doing nothing.
+  const split = toSplit(o.split) ?? toSplit(o.split_suggestion) ?? toSplit(o.splitSuggestion);
+  if (split) out.split = split;
   return Object.keys(out).length ? out : null;
 }
 
@@ -152,12 +219,28 @@ export function toReviewResult(parsed: unknown): ReviewResult | null {
 export function reformulatePrompt(rawInput: string, outPath: string): string {
   return [
     "You are triaging a task for a kanban board. Do NOT do the work, do not write any code, do not",
-    "read any repository. Turn the note below into one well-formed card.",
+    "read any repository. Turn the note below into one well-formed card, or into a set of them.",
     "",
     "The note (dictated, so expect stream-of-consciousness):",
     "---",
     rawInput.trim(),
     "---",
+    "",
+    "First decide: is this ONE task, or several?",
+    "",
+    "ONE TASK — fill title/spec/acceptance/branch_name and leave `split` as an empty list.",
+    "",
+    "SEVERAL TASKS — every task goes in `split`, and NONE stays at the top level. The top-level card",
+    "becomes a container holding them; its title should name the theme they share, not any one of",
+    "them. Do not repeat a task in the container's title, and do not leave a task out of `split`.",
+    "Each entry is a COMPLETE card — give it the same care as a single one, with its own spec and",
+    "its own acceptance criteria, drawn from what the note says about THAT task. Never emit a bare",
+    "title: the note is the only place this context exists, and it is in front of you now.",
+    "",
+    "For each entry, `depends_on` is the index of an EARLIER entry that must be finished before this",
+    "one can start — a real ordering constraint (it needs the other one's code or its conclusions),",
+    "not merely a sensible order to work in. Omit it when the task can be started on its own; most",
+    "can. Order the list so any such entry comes after what it depends on.",
     "",
     `Write ONLY this JSON to ${outPath} (create directories as needed) and print nothing else:`,
     "{",
@@ -165,7 +248,9 @@ export function reformulatePrompt(rawInput: string, outPath: string): string {
     '  "spec": "markdown: what to do and any constraint stated in the note. Do not invent requirements.",',
     '  "acceptance": ["checkable statement", "..."],',
     '  "branch_name": "kebab-case, no prefix",',
-    '  "split_suggestion": ["only if the note is clearly several tasks; otherwise an empty list"]',
+    '  "split": [',
+    '    { "title": "…", "spec": "…", "acceptance": ["…"], "depends_on": null }',
+    "  ]",
     "}",
   ].join("\n");
 }
@@ -427,6 +512,11 @@ export class CopilotCoordinator {
     }
     const fresh = this.db.getCard(cardId);
     if (!fresh) return;
+    // Splitting a card that has already been split would duplicate every sub-task, and a re-run is
+    // exactly when that happens (the button exists precisely because the first answer disappointed).
+    const split = this.db.listChildren(cardId).length > 0 ? undefined : result.split;
+    const isContainer = (split?.length ?? 0) > 0;
+
     this.db.patchCard(cardId, {
       ...(result.title ? { title: result.title } : {}),
       // The spec starts life as a copy of the dump, so replacing it is an improvement, not a loss —
@@ -434,22 +524,42 @@ export class CopilotCoordinator {
       ...(result.spec ? { spec: result.spec } : {}),
       ...(result.acceptance ? { acceptance: result.acceptance } : {}),
       // A branch the card already has is load-bearing (a worktree may exist at it) — never touch it.
-      ...(result.branchName && !fresh.branch
+      // A container gets none at all: it is not startable, and a branch on it would only ever be a
+      // name nobody checks out.
+      ...(result.branchName && !fresh.branch && !isContainer
         ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
         : {}),
     });
     this.db.recordEvent(cardId, "copilot.reformulated", {
       title: result.title,
       acceptance: result.acceptance?.length ?? 0,
-      split: result.splitSuggestion?.length ?? 0,
+      split: split?.length ?? 0,
     });
-    // A dump that is plainly several tasks becomes several cards, in the backlog, for you to triage.
-    for (const title of result.splitSuggestion ?? []) {
-      this.db.createCard({
-        title,
+    if (!isContainer) return;
+
+    // A dump that is plainly several tasks becomes several cards, in the backlog, for you to
+    // triage — each a whole card, and each pointing back at the one it came from.
+    //
+    // Positions are assigned explicitly and increasing: createCard's default puts a new card at the
+    // TOP of its column, which applied three times in a row would show the chain backwards.
+    const ids: string[] = [];
+    for (const [i, task] of split!.entries()) {
+      const child = this.db.createCard({
+        title: task.title,
+        spec: task.spec ?? null,
+        acceptance: task.acceptance ?? [],
         status: "backlog",
         repoPath: fresh.repoPath,
         baseRef: fresh.baseRef,
+        parentId: fresh.id,
+        // Backward-only by construction (see toSplit), so the predecessor's id always exists here.
+        dependsOn: task.dependsOn === undefined ? null : (ids[task.dependsOn] ?? null),
+        position: fresh.position + i + 1,
+      });
+      ids.push(child.id);
+      this.db.recordEvent(child.id, "card.split_from", {
+        parentId: fresh.id,
+        ...(task.dependsOn === undefined ? {} : { after: split![task.dependsOn]?.title }),
       });
     }
   }

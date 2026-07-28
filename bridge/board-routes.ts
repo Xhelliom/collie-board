@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 import type { AuditLog } from "./audit.ts";
-import { cardView, cardViews, promptAndConfirm, startCard } from "./cards.ts";
+import { cardView, cardViews, promptAndConfirm, startCard, wouldCycle } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, CardPatch, CardStatus } from "./db.ts";
@@ -72,7 +72,18 @@ export function parseCardBody(
     return { ok: false, error: "title required" };
   }
 
-  for (const key of ["spec", "rawInput", "repoPath", "baseRef", "branch", "agentKind"] as const) {
+  // parentId/dependsOn are card ids, so they get the same string-or-null treatment here and a
+  // SEMANTIC check (does it exist, does it close a loop) in the route, which has the db.
+  for (const key of [
+    "spec",
+    "rawInput",
+    "repoPath",
+    "baseRef",
+    "branch",
+    "agentKind",
+    "parentId",
+    "dependsOn",
+  ] as const) {
     if (!(key in o)) continue;
     const value = o[key];
     if (value !== null && typeof value !== "string") return { ok: false, error: `bad ${key}` };
@@ -98,6 +109,23 @@ export function parseCardBody(
   }
 
   return { ok: true, value: out };
+}
+
+/**
+ * The half of card-link validation that needs the database: the target has to exist, and neither
+ * link may close a loop. Returns an error message, or null when the edit is fine.
+ *
+ * Both matter for the same reason — a card pointing at a card that isn't there, or at itself
+ * through a chain, is a card that can never be started again and never says why.
+ */
+function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | null {
+  for (const field of ["parentId", "dependsOn"] as const) {
+    const target = patch[field];
+    if (target === undefined || target === null) continue;
+    if (!db.getCard(target)) return `${field}: no such card`;
+    if (wouldCycle(db, cardId, target, field)) return `${field}: that would make a loop`;
+  }
+  return null;
 }
 
 /**
@@ -190,6 +218,10 @@ async function route(
       }
       const parsed = parseCardBody(body, { requireTitle: true });
       if (!parsed.ok) return text(parsed.error, 400);
+      // A card that doesn't exist yet can't be in a cycle, but its links still have to point at
+      // something real — hence the empty id, which matches nothing.
+      const linkError = checkLinks(db, "", parsed.value);
+      if (linkError) return text(linkError, 400);
       const card = db.createCard({ ...parsed.value, title: parsed.value.title! });
       // Reformulation is deliberately NOT awaited: creating a card has to be instant on a phone,
       // and this is an agent turn. The card is usable now and improves itself a minute later.
@@ -231,6 +263,8 @@ async function route(
       }
       const parsed = parseCardBody(body, { requireTitle: false });
       if (!parsed.ok) return text(parsed.error, 400);
+      const linkError = checkLinks(db, id, parsed.value);
+      if (linkError) return text(linkError, 400);
       // A status change goes through setStatus so it lands in the card's journal; everything else
       // is a plain field edit.
       const { status, ...fields } = parsed.value;

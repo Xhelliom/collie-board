@@ -40,6 +40,52 @@ const STATUS_COLUMN: Partial<Record<AgentStatus, CardStatus>> = {
   done: "review",
 };
 
+/**
+ * A container card's status, derived from its children's. Urgency first, exactly like the board's
+ * own column order: the point of a container is to answer "does anything under here need me?" in
+ * one glance, so a single blocked child outranks three that are quietly working.
+ *
+ * `archived` children are excluded (archiving one is how you take it out of the reckoning), and a
+ * container whose children are ALL archived derives nothing — `null` means "leave it alone".
+ *
+ * Pure + exported: this is the whole grammar of a container, and it is worth pinning in a test
+ * rather than re-deriving it from a board that looks wrong.
+ */
+export function deriveParentStatus(children: readonly CardStatus[]): CardStatus | null {
+  const live = children.filter((s) => s !== "archived");
+  if (live.length === 0) return null;
+  // An orphaned child sits with the blocked ones: both mean a human has to do something.
+  if (live.some((s) => s === "blocked" || s === "orphaned")) return "blocked";
+  if (live.some((s) => s === "review")) return "review";
+  if (live.some((s) => s === "working" || s === "starting")) return "working";
+  if (live.every((s) => s === "done")) return "done";
+  return "backlog";
+}
+
+/**
+ * Would pointing `cardId`'s `field` at `target` close a loop?
+ *
+ * The copilot cannot produce one (its indices only ever point backward), but a hand edit from the
+ * API can, and a cycle here is not cosmetic: two cards each waiting on the other are two cards that
+ * can never be started again, with no error to explain why. Walks the chain from the proposed
+ * target; `seen` also catches a loop that somehow predates this edit, so the walk always terminates.
+ */
+export function wouldCycle(
+  db: BoardDb,
+  cardId: string,
+  target: string | null,
+  field: "dependsOn" | "parentId",
+): boolean {
+  const seen = new Set<string>();
+  let cursor = target;
+  while (cursor) {
+    if (cursor === cardId || seen.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = db.getCard(cursor)?.[field] ?? null;
+  }
+  return false;
+}
+
 /** The runtime half of a card — read fresh from the snapshot, never stored. */
 export interface CardRuntime {
   paneId: string;
@@ -133,6 +179,33 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
     } else {
       db.setStatus(card.id, action.status, `agent ${pane?.status}`);
     }
+  }
+
+  reconcileParents(db);
+}
+
+/**
+ * Move every container card to whatever its children say. Runs in the same tick as the session
+ * reconciliation and AFTER it, so a child that just changed column is already accounted for.
+ *
+ * A container has no pane of its own, so nothing else would ever move it — without this it would
+ * sit in `backlog` while all its children finished.
+ */
+function reconcileParents(db: BoardDb): void {
+  const byParent = new Map<string, CardStatus[]>();
+  for (const card of db.listCards({ includeArchived: true })) {
+    if (!card.parentId) continue;
+    const list = byParent.get(card.parentId);
+    if (list) list.push(card.status);
+    else byParent.set(card.parentId, [card.status]);
+  }
+  for (const [parentId, statuses] of byParent) {
+    const parent = db.getCard(parentId);
+    // An archived container is one you have put away on purpose — its children don't get to
+    // resurrect it.
+    if (!parent || parent.status === "archived") continue;
+    const want = deriveParentStatus(statuses);
+    if (want && want !== parent.status) db.setStatus(parentId, want, "derived from sub-tasks");
   }
 }
 
@@ -301,6 +374,10 @@ export type StartError =
   | { kind: "no-repo"; message: string }
   | { kind: "busy"; message: string }
   | { kind: "already-running"; message: string }
+  /** The card holds sub-tasks; the work is in those, not in it. */
+  | { kind: "container"; message: string }
+  /** The card declares a predecessor that hasn't finished. A gate, NOT a queue — see below. */
+  | { kind: "blocked-by"; message: string }
   | { kind: "herdr"; message: string };
 
 export interface StartResult {
@@ -418,6 +495,32 @@ export async function startCard(
 ): Promise<{ ok: true; value: StartResult } | { ok: false; error: StartError }> {
   const card = db.getCard(cardId);
   if (!card) return { ok: false, error: { kind: "herdr", message: "card not found" } };
+
+  // A container's children hold the work. Starting it would cut a branch and a worktree for a card
+  // nobody is going to write in, and then its derived status would fight the agent's.
+  const children = db.listChildren(cardId);
+  if (children.length > 0) {
+    return {
+      ok: false,
+      error: {
+        kind: "container",
+        message: `this card holds ${children.length} sub-task${children.length === 1 ? "" : "s"} — start one of those`,
+      },
+    };
+  }
+
+  // THE DEPENDENCY IS A GATE, NOT A TRIGGER. Nothing here ever starts a card on its own: when a
+  // predecessor finishes, its successor becomes startABLE, and you are the one who starts it. An
+  // agent that launches itself writes code and spends quota with nobody watching, which is the one
+  // thing this whole board is arranged against.
+  const predecessor = card.dependsOn ? db.getCard(card.dependsOn) : null;
+  if (predecessor && predecessor.status !== "done" && predecessor.status !== "archived") {
+    return {
+      ok: false,
+      error: { kind: "blocked-by", message: `waiting on “${predecessor.title}” to finish first` },
+    };
+  }
+
   if (!card.repoPath) {
     return {
       ok: false,
@@ -443,12 +546,18 @@ export async function startCard(
   const branch = card.branch ?? branchFromTitle(card.title, cfg.boardBranchPrefix);
   const kind = card.agentKind ?? cfg.boardAgentKind;
 
+  // THE REAL HANDOFF BETWEEN TWO CARDS IS THE BRANCH. A task that follows another needs the code
+  // the first one wrote, not a summary of it — so a dependent card forks from its predecessor's
+  // branch rather than from the repo's base ref. Falls back to its own base when the predecessor
+  // never actually ran (it has no branch), which is also what makes this safe to apply blindly.
+  const base = predecessor?.branch ?? card.baseRef;
+
   let worktree: CreatedWorktree;
   try {
     worktree = await herdr.createWorktree({
       cwd: card.repoPath,
       branch,
-      base: card.baseRef,
+      base,
       label: card.title.slice(0, 40),
     });
   } catch (createErr) {
@@ -463,9 +572,14 @@ export async function startCard(
 
   // Record the workspace BEFORE launching the agent: if agent.start times out, the card must still
   // remember which worktree it owns, or the next attempt would try to create it all over again.
-  db.patchCard(cardId, { branch, workspaceId: worktree.workspaceId, agentKind: kind });
+  // `baseRef` is persisted as RESOLVED, not as configured: it is also the left side of every diff
+  // this card shows (git.ts), so leaving it at "main" after forking from a predecessor would make
+  // the card's diff include the predecessor's work as if this agent had written it.
+  db.patchCard(cardId, { branch, baseRef: base, workspaceId: worktree.workspaceId, agentKind: kind });
   db.recordEvent(cardId, "card.worktree", {
     branch,
+    base,
+    ...(predecessor ? { after: predecessor.title } : {}),
     path: worktree.checkoutPath,
     workspaceId: worktree.workspaceId,
     reused: worktree.alreadyOpen,
@@ -489,7 +603,13 @@ export async function startCard(
     return { ok: false, error: { kind: "herdr", message: `agent.start: ${(err as Error).message}` } };
   }
 
-  const text = opts.promptText ?? initialPrompt(card);
+  // The other half of the warm start: the code is already in the branch, and this says so — plus
+  // whatever the copilot made of the predecessor's work, which is the closest thing to a handoff
+  // note that exists across two cards.
+  const after = predecessor
+    ? { title: predecessor.title, notes: db.listReviews(predecessor.id).at(-1)?.notes ?? null }
+    : undefined;
+  const text = opts.promptText ?? initialPrompt(card, after);
   try {
     // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });
@@ -511,9 +631,23 @@ export async function startCard(
  * The prompt a fresh card opens with. Spec first, acceptance criteria as an explicit checklist —
  * an agent that can see the acceptance criteria writes toward them. Pure + exported so the exact
  * text is reviewable in a test rather than only in a terminal.
+ *
+ * `after` is the finished card this one follows. It matters more than it looks: the agent opens in
+ * a worktree that ALREADY contains someone else's work, and an agent that believes it is on a
+ * clean base will happily re-implement what is sitting next to it.
  */
-export function initialPrompt(card: Card): string {
+export function initialPrompt(card: Card, after?: { title: string; notes: string | null }): string {
   const parts = [card.spec?.trim() || card.title.trim()];
+  if (after) {
+    parts.push(
+      [
+        `This task follows on from “${after.title}”, which is already finished. Its work is ALREADY`,
+        "IN YOUR BRANCH — read the recent commits and the working tree before you start; you are not",
+        "on a clean base.",
+        ...(after.notes?.trim() ? ["", "How that work was reviewed:", after.notes.trim()] : []),
+      ].join("\n"),
+    );
+  }
   if (card.acceptance.length > 0) {
     parts.push(
       ["Acceptance criteria — this task is done when all of these hold:", ...card.acceptance.map((a) => `- ${a}`)].join(

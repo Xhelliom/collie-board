@@ -71,6 +71,20 @@ export interface Card {
   /** Herdr workspace holding the card's worktree. May go stale (Herdr restart) — never trusted blind. */
   workspaceId: string | null;
   agentKind: string | null;
+  /**
+   * The card this one was split out of, or null. PROVENANCE, not ordering: it says "these came from
+   * the same brain dump", which is what lets the board show them together instead of as four
+   * unrelated tiles. A card with children is a CONTAINER — it holds the original dictation and is
+   * not startable; the work is in the children.
+   */
+  parentId: string | null;
+  /**
+   * The card that must finish before this one may start, or null. ORDERING, not provenance — and
+   * deliberately one edge per card rather than a list: independent (null everywhere), serial (a
+   * chain) and the realistic mixed case all fall out of the same nullable column, where a
+   * two-mode "parallel or sequential" flag can only express the first two.
+   */
+  dependsOn: string | null;
   /** Manual ordering within a column. */
   position: number;
   createdAt: number;
@@ -132,6 +146,8 @@ interface CardRow {
   branch: string | null;
   workspace_id: string | null;
   agent_kind: string | null;
+  parent_id: string | null;
+  depends_on: string | null;
   position: number;
   created_at: number;
   updated_at: number;
@@ -199,6 +215,10 @@ function toCard(r: CardRow): Card {
     branch: r.branch,
     workspaceId: r.workspace_id,
     agentKind: r.agent_kind,
+    // Read straight through — a pointer at a deleted card would be a dangling link, so
+    // `deleteCard` clears them rather than leaving the reader to guess.
+    parentId: r.parent_id ?? null,
+    dependsOn: r.depends_on ?? null,
     position: r.position,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -247,6 +267,12 @@ CREATE TABLE IF NOT EXISTS card (
   branch       TEXT,
   workspace_id TEXT,
   agent_kind   TEXT,
+  -- Soft self-references, deliberately WITHOUT a REFERENCES clause. A dangling pointer here has to
+  -- degrade to "no parent" / "not blocked"; a real FK would instead make deleting a card fail
+  -- because something else points at it, which is the wrong answer on a board you triage from a
+  -- phone. deleteCard() clears both, so they never actually dangle.
+  parent_id    TEXT,
+  depends_on   TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
@@ -315,6 +341,14 @@ export interface NewCard {
   baseRef?: string | null;
   branch?: string | null;
   agentKind?: string | null;
+  parentId?: string | null;
+  dependsOn?: string | null;
+  /**
+   * Explicit board position. Omit for the default — new cards land at the TOP of their column,
+   * which is one less tap on a phone. A split passes it, because "top of the column" applied to
+   * three cards created in a row reverses them, and a chain read backwards is worse than useless.
+   */
+  position?: number;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -329,6 +363,8 @@ export interface CardPatch {
   branch?: string | null;
   workspaceId?: string | null;
   agentKind?: string | null;
+  parentId?: string | null;
+  dependsOn?: string | null;
   position?: number;
 }
 
@@ -344,6 +380,8 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   branch: "branch",
   workspaceId: "workspace_id",
   agentKind: "agent_kind",
+  parentId: "parent_id",
+  dependsOn: "depends_on",
   position: "position",
 };
 
@@ -391,6 +429,10 @@ export class BoardDb {
       // request has to survive a bridge restart — a board whose whole point is durable memory can't
       // hold a pending handoff in RAM.
       { table: "session", column: "handoff_requested_at", ddl: "INTEGER" },
+      // 0.32: a split used to produce bare titles with nothing tying them together. These two are
+      // what make a split legible afterwards — where a card came from, and what it waits on.
+      { table: "card", column: "parent_id", ddl: "TEXT" },
+      { table: "card", column: "depends_on", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -413,8 +455,9 @@ export class BoardDb {
     this.db
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
-                           branch, workspace_id, agent_kind, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+                           branch, workspace_id, agent_kind, parent_id, depends_on, position,
+                           created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -427,7 +470,9 @@ export class BoardDb {
         input.baseRef ?? null,
         input.branch ?? null,
         input.agentKind ?? null,
-        (minPos ?? 0) - 1,
+        input.parentId ?? null,
+        input.dependsOn ?? null,
+        input.position ?? (minPos ?? 0) - 1,
         ts,
         ts,
       );
@@ -488,8 +533,22 @@ export class BoardDb {
     return card;
   }
 
+  /** A card's split children, in board order. Empty for the overwhelming majority of cards. */
+  listChildren(parentId: string): Card[] {
+    return this.db
+      .query<CardRow, [string]>("SELECT * FROM card WHERE parent_id = ? ORDER BY position, created_at")
+      .all(parentId)
+      .map(toCard);
+  }
+
   deleteCard(id: string): void {
-    // Children first — the FK is ON, so an ordered delete is the whole "cascade".
+    // Detach anything pointing AT this card before it goes. Deleting a container must not take its
+    // children with it (they are the actual work), and deleting a predecessor must UNBLOCK its
+    // successor rather than leave it waiting on a card that no longer exists — a card wedged
+    // forever behind a ghost is the worst failure this feature could have.
+    this.db.query("UPDATE card SET parent_id = NULL WHERE parent_id = ?").run(id);
+    this.db.query("UPDATE card SET depends_on = NULL WHERE depends_on = ?").run(id);
+    // Then the card's own rows — the FK is ON, so an ordered delete is the whole "cascade".
     this.db.query("DELETE FROM review WHERE card_id = ?").run(id);
     this.db.query("DELETE FROM session WHERE card_id = ?").run(id);
     this.db.query("DELETE FROM event WHERE card_id = ?").run(id);

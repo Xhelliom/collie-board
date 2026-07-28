@@ -74,6 +74,10 @@ export interface CardView {
   branch: string | null;
   workspaceId: string | null;
   agentKind: string | null;
+  /** The card this was split out of. A card WITH children is a container — not startable. */
+  parentId: string | null;
+  /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
+  dependsOn: string | null;
   position: number;
   createdAt: number;
   updatedAt: number;

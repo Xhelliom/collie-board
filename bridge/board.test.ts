@@ -9,10 +9,12 @@ import {
   promptAndConfirm,
   branchFromTitle,
   cardViews,
+  deriveParentStatus,
   initialPrompt,
   reconcile,
   reconcileOne,
   startCard,
+  wouldCycle,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { handleBoardRoute, parseCardBody } from "./board-routes.ts";
@@ -26,12 +28,14 @@ import {
 import { contextPercent } from "./context.ts";
 import {
   Copilot,
+  CopilotCoordinator,
   parseJsonish,
   reformulatePrompt,
   reviewPrompt,
   slugBranch,
   toReformulation,
   toReviewResult,
+  toSplit,
 } from "./copilot.ts";
 import {
   isSafeDiffPath,
@@ -178,6 +182,8 @@ describe("reconcileOne", () => {
     branch: null,
     workspaceId: null,
     agentKind: null,
+    parentId: null,
+    dependsOn: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -381,6 +387,8 @@ describe("initialPrompt", () => {
     branch: null,
     workspaceId: null,
     agentKind: null,
+    parentId: null,
+    dependsOn: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -852,6 +860,8 @@ describe("handoff prompts", () => {
     branch: "board/rewrite",
     workspaceId: "wZ",
     agentKind: "claude",
+    parentId: null,
+    dependsOn: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -1588,5 +1598,344 @@ describe("handleBoardRoute — the net under unexpected failures", () => {
   it("still returns null for a path that isn't ours, so the caller falls through", async () => {
     const res = await handleBoardRoute("/api/snapshot", new Request("http://x/api/snapshot"), ctx());
     expect(res).toBeNull();
+  });
+});
+
+// ── splitting a dump into linked cards ────────────────────────────────────────
+//
+// The first version of the split emitted bare titles with nothing tying them together, so a
+// dictated note that named three tasks produced three cards that each had to be rewritten by hand
+// and looked, on the board, like three unrelated ones. These cover the two links that fixed it —
+// `parentId` (where a card came from) and `dependsOn` (what it waits for) — and the rule that
+// matters most in practice: the dependency is a GATE, never a trigger.
+
+describe("toSplit", () => {
+  it("keeps a whole card per task, not just its title", () => {
+    expect(
+      toSplit([{ title: " Fix the drawer ", spec: "use Vaul", acceptance: ["a drag scrolls", ""] }]),
+    ).toEqual([{ title: "Fix the drawer", spec: "use Vaul", acceptance: ["a drag scrolls"] }]);
+  });
+
+  it("still accepts a bare list of titles — the shape a model falls back to under pressure", () => {
+    expect(toSplit(["desktop mode", "  ", "drawer"])).toEqual([
+      { title: "desktop mode" },
+      { title: "drawer" },
+    ]);
+  });
+
+  it("honours a BACKWARD depends_on, in either casing", () => {
+    const split = toSplit([{ title: "audit" }, { title: "fix", depends_on: 0 }])!;
+    expect(split[1]!.dependsOn).toBe(0);
+    expect(toSplit([{ title: "a" }, { title: "b", dependsOn: 0 }])![1]!.dependsOn).toBe(0);
+  });
+
+  it("drops a forward or self reference instead of building a cycle", () => {
+    // Starting a task a beat early is recoverable; two cards each waiting on the other are two
+    // cards that can never be started again, with nothing on screen to say why.
+    expect(toSplit([{ title: "a", depends_on: 1 }, { title: "b" }])![0]!.dependsOn).toBeUndefined();
+    expect(toSplit([{ title: "a", depends_on: 0 }])![0]!.dependsOn).toBeUndefined();
+    expect(toSplit([{ title: "a" }, { title: "b", depends_on: 1.5 }])![1]!.dependsOn).toBeUndefined();
+  });
+
+  it("re-points depends_on when an earlier entry was dropped — indices are the MODEL's", () => {
+    // Entry 1 is malformed and disappears, so what the model called index 2 is now index 1.
+    const split = toSplit([{ title: "a" }, { nope: true }, { title: "c", depends_on: 0 }])!;
+    expect(split.map((s) => s.title)).toEqual(["a", "c"]);
+    expect(split[1]!.dependsOn).toBe(0);
+  });
+
+  it("drops a dependency on an entry that was itself dropped", () => {
+    const split = toSplit([{ nope: true }, { title: "b", depends_on: 0 }])!;
+    expect(split[0]!.dependsOn).toBeUndefined();
+  });
+
+  it("treats an empty or non-array split as no split at all", () => {
+    expect(toSplit([])).toBeUndefined();
+    expect(toSplit("nope")).toBeUndefined();
+    expect(toSplit([{ spec: "no title" }])).toBeUndefined();
+  });
+
+  it("reaches toReformulation under the new name AND the old one", () => {
+    expect(toReformulation({ title: "x", split: [{ title: "a" }] })!.split).toEqual([{ title: "a" }]);
+    expect(toReformulation({ title: "x", split_suggestion: ["a"] })!.split).toEqual([{ title: "a" }]);
+  });
+});
+
+describe("deriveParentStatus", () => {
+  it("puts urgency first — one blocked child outranks three that are working", () => {
+    expect(deriveParentStatus(["working", "blocked", "done"])).toBe("blocked");
+    expect(deriveParentStatus(["working", "review"])).toBe("review");
+    expect(deriveParentStatus(["backlog", "starting"])).toBe("working");
+  });
+
+  it("counts an orphaned child as needing you, because it does", () => {
+    expect(deriveParentStatus(["done", "orphaned"])).toBe("blocked");
+  });
+
+  it("is done only when every unarchived child is", () => {
+    expect(deriveParentStatus(["done", "done"])).toBe("done");
+    expect(deriveParentStatus(["done", "archived"])).toBe("done");
+    expect(deriveParentStatus(["done", "backlog"])).toBe("backlog");
+  });
+
+  it("derives nothing at all when there is nothing left to derive from", () => {
+    expect(deriveParentStatus([])).toBeNull();
+    expect(deriveParentStatus(["archived", "archived"])).toBeNull();
+  });
+});
+
+describe("reconcile — container cards", () => {
+  it("moves a container when its children move, since it has no pane of its own", () => {
+    const store = db();
+    const parent = store.createCard({ title: "refonte UI" });
+    const a = store.createCard({ title: "desktop", parentId: parent.id });
+    store.createCard({ title: "drawer", parentId: parent.id });
+
+    reconcile(store, snapshot([]), 1000);
+    expect(store.getCard(parent.id)!.status).toBe("backlog");
+
+    store.setStatus(a.id, "blocked", "test");
+    reconcile(store, snapshot([]), 2000);
+    expect(store.getCard(parent.id)!.status).toBe("blocked");
+  });
+
+  it("leaves an archived container alone — its children don't get to resurrect it", () => {
+    const store = db();
+    const parent = store.createCard({ title: "epic", status: "archived" });
+    store.createCard({ title: "child", parentId: parent.id, status: "working" });
+    reconcile(store, snapshot([]), 1000);
+    expect(store.getCard(parent.id)!.status).toBe("archived");
+  });
+});
+
+describe("BoardDb — card links", () => {
+  it("round-trips both links and lists children in board order", () => {
+    const store = db();
+    const parent = store.createCard({ title: "epic" });
+    const a = store.createCard({ title: "first", parentId: parent.id, position: 1 });
+    const b = store.createCard({ title: "second", parentId: parent.id, dependsOn: a.id, position: 2 });
+
+    expect(store.getCard(b.id)!.dependsOn).toBe(a.id);
+    expect(store.listChildren(parent.id).map((c) => c.title)).toEqual(["first", "second"]);
+  });
+
+  it("detaches, never cascades: deleting a container keeps the work it held", () => {
+    const store = db();
+    const parent = store.createCard({ title: "epic" });
+    const child = store.createCard({ title: "the actual work", parentId: parent.id });
+    store.deleteCard(parent.id);
+    expect(store.getCard(child.id)!.parentId).toBeNull();
+  });
+
+  it("UNBLOCKS a successor when its predecessor is deleted", () => {
+    // Otherwise the card waits forever on a ghost, and nothing on screen explains it.
+    const store = db();
+    const first = store.createCard({ title: "first" });
+    const next = store.createCard({ title: "next", dependsOn: first.id });
+    store.deleteCard(first.id);
+    expect(store.getCard(next.id)!.dependsOn).toBeNull();
+  });
+});
+
+describe("wouldCycle", () => {
+  it("catches a direct and an indirect loop, and terminates on a pre-existing one", () => {
+    const store = db();
+    const a = store.createCard({ title: "a" });
+    const b = store.createCard({ title: "b", dependsOn: a.id });
+    const c = store.createCard({ title: "c", dependsOn: b.id });
+
+    expect(wouldCycle(store, a.id, a.id, "dependsOn")).toBe(true);
+    expect(wouldCycle(store, a.id, c.id, "dependsOn")).toBe(true);
+    expect(wouldCycle(store, c.id, a.id, "dependsOn")).toBe(false);
+    expect(wouldCycle(store, a.id, null, "dependsOn")).toBe(false);
+  });
+});
+
+describe("startCard — containers and dependencies", () => {
+  it("refuses a container: the work is in its children, not in it", async () => {
+    const store = db();
+    const parent = store.createCard({ title: "epic", repoPath: "/repo" });
+    store.createCard({ title: "child", parentId: parent.id });
+    const { client, calls } = fakeHerdr();
+    const res = await startCard(store, client as never, startCfg, parent.id, { sleep: async () => {} });
+
+    expect(res).toMatchObject({ ok: false, error: { kind: "container" } });
+    expect(calls).toEqual([]);
+  });
+
+  it("gates a dependent card until its predecessor is done — and names what it waits on", async () => {
+    const store = db();
+    const first = store.createCard({ title: "audit the UI", repoPath: "/repo", status: "working" });
+    const next = store.createCard({ title: "fix the drawer", repoPath: "/repo", dependsOn: first.id });
+    const { client, calls } = fakeHerdr();
+    const res = await startCard(store, client as never, startCfg, next.id, { sleep: async () => {} });
+
+    expect(res).toMatchObject({ ok: false, error: { kind: "blocked-by" } });
+    expect((res as { error: { message: string } }).error.message).toContain("audit the UI");
+    expect(calls).toEqual([]);
+  });
+
+  it("is a GATE, not a trigger: a finished predecessor never starts anything by itself", () => {
+    const store = db();
+    const first = store.createCard({ title: "first", repoPath: "/repo", status: "working" });
+    const next = store.createCard({ title: "next", repoPath: "/repo", dependsOn: first.id });
+    store.setStatus(first.id, "done", "test");
+
+    reconcile(store, snapshot([]), 1000);
+    // Still in the backlog with no session. An agent that launches itself writes code and spends
+    // quota with nobody watching — the whole board is arranged against that.
+    expect(store.getCard(next.id)!.status).toBe("backlog");
+    expect(store.listOpenSessions()).toHaveLength(0);
+  });
+
+  it("forks from the PREDECESSOR'S branch, not from the repo base — the real handoff", async () => {
+    const store = db();
+    const first = store.createCard({ title: "first", repoPath: "/repo", baseRef: "main" });
+    store.patchCard(first.id, { branch: "board/first" });
+    store.setStatus(first.id, "done", "test");
+    const next = store.createCard({
+      title: "next",
+      repoPath: "/repo",
+      baseRef: "main",
+      dependsOn: first.id,
+    });
+
+    const bases: (string | null | undefined)[] = [];
+    const { client } = fakeHerdr();
+    const spy = {
+      ...client,
+      async createWorktree(opts: { branch: string; base?: string | null }) {
+        bases.push(opts.base);
+        return client.createWorktree(opts);
+      },
+    };
+    const res = await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {} });
+
+    expect(res.ok).toBe(true);
+    expect(bases).toEqual(["board/first"]);
+    // Persisted as resolved, because baseRef is also the left side of this card's diff — left at
+    // "main" the card would show the predecessor's work as if this agent had written it.
+    expect(store.getCard(next.id)!.baseRef).toBe("board/first");
+  });
+
+  it("falls back to its own base when the predecessor never actually ran", async () => {
+    const store = db();
+    const first = store.createCard({ title: "first", repoPath: "/repo", status: "done" });
+    const next = store.createCard({
+      title: "next",
+      repoPath: "/repo",
+      baseRef: "main",
+      dependsOn: first.id,
+    });
+    const bases: (string | null | undefined)[] = [];
+    const { client } = fakeHerdr();
+    const spy = {
+      ...client,
+      async createWorktree(opts: { branch: string; base?: string | null }) {
+        bases.push(opts.base);
+        return client.createWorktree(opts);
+      },
+    };
+    await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {} });
+    expect(bases).toEqual(["main"]);
+  });
+});
+
+describe("initialPrompt — the warm start", () => {
+  it("tells the agent the branch is NOT clean, and hands it the predecessor's review", () => {
+    const store = db();
+    const card = store.createCard({ title: "fix the drawer", spec: "use Vaul", acceptance: ["scrolls"] });
+    const text = initialPrompt(store.getCard(card.id)!, {
+      title: "audit the UI",
+      notes: "the drawer closes on a downward drag",
+    });
+
+    expect(text).toContain("audit the UI");
+    expect(text).toContain("ALREADY");
+    expect(text).toContain("the drawer closes on a downward drag");
+    // The checklist still lands last, so it is the final instruction the agent reads.
+    expect(text.indexOf("audit the UI")).toBeLessThan(text.indexOf("Acceptance criteria"));
+  });
+
+  it("says nothing about a predecessor when there isn't one", () => {
+    const store = db();
+    const card = store.createCard({ title: "solo", spec: "do it" });
+    expect(initialPrompt(store.getCard(card.id)!)).toBe("do it");
+  });
+});
+
+describe("CopilotCoordinator.reformulate — the split", () => {
+  /** A copilot whose one answer is fixed, so the test is about what the board DOES with it. */
+  function fakeCopilot(answer: unknown) {
+    return { enabled: true, async ask() { return answer; } } as unknown as Copilot;
+  }
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+
+  it("makes the parent a container and gives every child a real spec", async () => {
+    const store = db();
+    const card = store.createCard({
+      title: "Il faut revoir l'UI",
+      rawInput: "pas de mode desktop, et le drawer se ferme quand on scrolle",
+      repoPath: "/repo",
+      baseRef: "main",
+    });
+    const copilot = new CopilotCoordinator(store, fakeCopilot({
+      title: "Refondre l'interface",
+      branch_name: "refonte-ui",
+      split: [
+        { title: "Mode desktop", spec: "l'interface est mobile-only", acceptance: ["≥ 640px"] },
+        { title: "Drawer", spec: "un drag vers le bas scrolle", depends_on: 0 },
+      ],
+    }), cfg);
+    await copilot.reformulate(card.id);
+
+    const children = store.listChildren(card.id);
+    expect(children.map((c) => c.title)).toEqual(["Mode desktop", "Drawer"]);
+    // The whole point: context, not just a title.
+    expect(children[0]!.spec).toBe("l'interface est mobile-only");
+    expect(children[0]!.acceptance).toEqual(["≥ 640px"]);
+    expect(children[1]!.dependsOn).toBe(children[0]!.id);
+    // Children inherit where the work happens; the container gets NO branch — it isn't startable.
+    expect(children[0]!.repoPath).toBe("/repo");
+    expect(store.getCard(card.id)!.branch).toBeNull();
+    expect(store.getCard(card.id)!.title).toBe("Refondre l'interface");
+  });
+
+  it("keeps the chain in order — the default position would show it backwards", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "three things" });
+    const copilot = new CopilotCoordinator(store, fakeCopilot({
+      title: "x",
+      split: [{ title: "one" }, { title: "two" }, { title: "three" }],
+    }), cfg);
+    await copilot.reformulate(card.id);
+
+    expect(store.listChildren(card.id).map((c) => c.title)).toEqual(["one", "two", "three"]);
+  });
+
+  it("does not split twice — a re-run is exactly when that would happen", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "two things" });
+    const answer = { title: "x", split: [{ title: "a" }, { title: "b" }] };
+    const copilot = new CopilotCoordinator(store, fakeCopilot(answer), cfg);
+    await copilot.reformulate(card.id);
+    await copilot.reformulate(card.id);
+
+    expect(store.listChildren(card.id)).toHaveLength(2);
+  });
+
+  it("still keeps a single-task card startable, branch and all", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "one thing" });
+    const copilot = new CopilotCoordinator(store, fakeCopilot({
+      title: "Ship it",
+      spec: "do the thing",
+      branch_name: "ship-it",
+      split: [],
+    }), cfg);
+    await copilot.reformulate(card.id);
+
+    expect(store.listChildren(card.id)).toHaveLength(0);
+    expect(store.getCard(card.id)!.branch).toBe("board/ship-it");
   });
 });

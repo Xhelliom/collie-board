@@ -26,6 +26,28 @@ afterAll(() => server.close());
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
+
+// NOT a jsdom gap — a Node one, and a confusing one. Node 24+ defines its own `localStorage` global
+// that stays UNDEFINED unless the process was started with `--localstorage-file`, and it takes
+// precedence over the one jsdom installs. So every display-preference test started failing on
+// `localStorage.clear()` the day the machine's Node was upgraded, with nothing in this repo having
+// changed. Put a real one back when it's missing, per worker, in memory.
+if (!globalThis.localStorage) {
+  const store = new Map<string, string>();
+  const shim: Storage = {
+    get length() {
+      return store.size;
+    },
+    key: (i) => [...store.keys()][i] ?? null,
+    getItem: (k) => store.get(k) ?? null,
+    // Storage stringifies everything — a test storing a number must read back a string, or it
+    // would pass here and fail in a browser.
+    setItem: (k, v) => void store.set(k, String(v)),
+    removeItem: (k) => void store.delete(k),
+    clear: () => store.clear(),
+  };
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: shim });
+}
 if (!("matchMedia" in window)) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
