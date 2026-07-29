@@ -429,12 +429,7 @@ export function CardRoute() {
               </Section>
             )}
 
-            <Section label="Danger zone">
-              <Button variant="outline" size="sm" className="h-9 gap-2 text-destructive" onClick={remove}>
-                <Trash2 className="size-4" />
-                Delete card
-              </Button>
-            </Section>
+            <DangerZone cardId={card.id} onDelete={remove} />
           </>
         )}
       </div>
@@ -892,6 +887,34 @@ function IntegrationSection({
           </Button>
         )}
       </div>
+    </Section>
+  );
+}
+
+/**
+ * Delete. The card's one irreversible gesture — the journal goes with it — so it asks the same two
+ * taps as every lesser destructive action here (Kill, /clear, worktree cleanup), through the same
+ * hook, and disarms itself after 3 s.
+ *
+ * Armed under the card's own id: this page is not remounted from one card to the next, and an armed
+ * confirm carried over would fire on the next card's first tap — the opposite of a guard.
+ */
+export function DangerZone({ cardId, onDelete }: { cardId: string; onDelete: () => void }) {
+  const { confirm, pending } = usePendingConfirm();
+  return (
+    <Section label="Danger zone">
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 gap-2 text-destructive"
+        onClick={() => {
+          if (!confirm(cardId)) return;
+          onDelete();
+        }}
+      >
+        <Trash2 className="size-4" />
+        {pending === cardId ? "Delete for good — no undo?" : "Delete card"}
+      </Button>
     </Section>
   );
 }
