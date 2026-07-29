@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.39.0] - 2026-07-29
+
+### Added
+- **"Keep my wording — no rewrite" on the new-card sheet.** For the card you have already worded exactly. On by default, because a dictated dump is what that box is for.
+
+### Notes
+- Implemented by withholding `rawInput`, not by a new column. Creating a card with one is the **only** thing that makes the copilot act unasked (`board-routes.ts` gates on exactly that field); every later run is a button, and since 0.38.0 a confirmed one. So "leave this card alone" is already expressible in a field the schema defines as "a dump, to be processed" — a per-card flag would have been a second way to say the same thing, plus a migration. The spec is set either way, so the card is never left empty.
+- The toggle resets to on each time the sheet opens: it describes one card, not a standing preference. `COLLIE_BOARD_COPILOT=off` remains the way to mean "never, for anything".
+
 ## [0.38.1] - 2026-07-29
 
 ### Fixed

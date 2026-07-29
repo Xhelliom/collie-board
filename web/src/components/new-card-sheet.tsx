@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Pencil } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -30,6 +30,9 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
   const [manual, setManual] = useState(false);
   const [manualPath, setManualPath] = useState("");
   const [baseRef, setBaseRef] = useState("");
+  // Whether the dump goes in as rawInput (and so gets rewritten). Reset per open, deliberately: it
+  // is a property of THIS card, not a preference — most cards are dictated and want the rewrite.
+  const [rewrite, setRewrite] = useState(true);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
 
@@ -39,6 +42,7 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
   useEffect(() => {
     if (!open) return;
     setText("");
+    setRewrite(true);
     setManual(false);
     setManualPath("");
     let cancelled = false;
@@ -107,8 +111,13 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
     if (!title) return;
     onCreate({
       title,
-      rawInput: text.trim(),
-      // Keep the dump as the spec too, so a card is usable before the copilot ever runs.
+      // `rawInput` IS the instruction to rewrite: creating a card with one is the only thing that
+      // makes the copilot act unasked (bridge/board-routes.ts). Withholding it therefore needs no
+      // flag of its own — it says exactly what "leave this card alone" means, and it says it in a
+      // field the schema already defines as "a dump, to be processed".
+      rawInput: rewrite ? text.trim() : null,
+      // The spec is set either way, so the card is usable before the copilot ever runs — and, when
+      // it is off, IS the text, which is what makes a hand-written card survive intact.
       spec: text.trim(),
       status: "backlog",
       repoPath: repoPath || null,
@@ -132,6 +141,24 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
+
+        {/* On by default: a dictated brain dump is what this box is for, and rewriting it is the
+            whole point. Off is for the card you have already worded exactly — and it is the only
+            control that matters, because creating a card is the ONLY moment the copilot rewrites
+            anything without being asked. Every later run is a button, and now a confirmed one. */}
+        <button
+          type="button"
+          onClick={() => setRewrite(!rewrite)}
+          aria-pressed={rewrite}
+          className="flex items-center gap-2 self-start px-1 py-1 text-xs text-muted-foreground"
+        >
+          {rewrite ? (
+            <ToggleRight className="size-4 text-primary" />
+          ) : (
+            <ToggleLeft className="size-4" />
+          )}
+          {rewrite ? "The copilot will rewrite this" : "Keep my wording — no rewrite"}
+        </button>
 
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
