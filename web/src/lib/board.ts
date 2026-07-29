@@ -84,6 +84,11 @@ export interface CardView {
   session: CardSession | null;
   runtime: CardRuntime | null;
   sessionCount: number;
+  /**
+   * The copilot is rewriting or reviewing this card right now. Runtime state, so it is false after a
+   * bridge restart — which is correct: the restart cancelled the work.
+   */
+  copilotBusy: boolean;
 }
 
 /** Just enough of a linked card to name it on screen — the bridge resolves these on the detail. */

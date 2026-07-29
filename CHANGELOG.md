@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.42.0] - 2026-07-29
+
+### Added
+- **"The copilot has this card."** A card being rewritten or reviewed now says so — on its tile and on the card screen. Until now a card waiting on the copilot looked exactly like one it had abandoned, or like a copilot that was switched off.
+
+### Notes
+- In memory, never a column: a bridge restart cancels whatever was in flight, and the set forgets it in the same instant. The wrapup marker is the opposite case and stays in the database — there the work continues in an agent that outlives the bridge.
+
 ## [0.41.0] - 2026-07-29
 
 ### Added

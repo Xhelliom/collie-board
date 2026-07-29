@@ -104,6 +104,14 @@ export interface CardView extends Card {
   runtime: CardRuntime | null;
   /** How many sessions this card has been through — the handoff chain's length. */
   sessionCount: number;
+  /**
+   * The copilot is rewriting or reviewing this card right now.
+   *
+   * Purely a display fact, and the whole point is what it rules out: a card sitting there as a bare
+   * title looks exactly the same whether the copilot has it, is switched off, or died. Runtime only —
+   * a restart cancels the work, and this forgets it in the same instant.
+   */
+  copilotBusy: boolean;
 }
 
 function runtimeOf(pane: AgentView): CardRuntime {
@@ -230,8 +238,17 @@ function reconcileParents(db: BoardDb): void {
   }
 }
 
-/** Assemble the API view of every card, merging in live snapshot state. */
-export function cardViews(db: BoardDb, snap: EngineSnapshot, opts: { includeArchived?: boolean } = {}): CardView[] {
+/**
+ * Assemble the API view of every card, merging in live snapshot state.
+ *
+ * `copilotBusy` is the coordinator's in-flight set, passed in rather than looked up so this stays a
+ * pure function of (database, snapshot, runtime facts).
+ */
+export function cardViews(
+  db: BoardDb,
+  snap: EngineSnapshot,
+  opts: { includeArchived?: boolean; copilotBusy?: ReadonlySet<string> } = {},
+): CardView[] {
   const panes = panesById(snap);
   return db.listCards(opts).map((card) => {
     const session = db.openSessionFor(card.id);
@@ -241,12 +258,18 @@ export function cardViews(db: BoardDb, snap: EngineSnapshot, opts: { includeArch
       session,
       runtime: pane ? runtimeOf(pane) : null,
       sessionCount: db.listSessions(card.id).length,
+      copilotBusy: opts.copilotBusy?.has(card.id) ?? false,
     };
   });
 }
 
 /** One card's view, or null when the id is unknown. */
-export function cardView(db: BoardDb, snap: EngineSnapshot, id: string): CardView | null {
+export function cardView(
+  db: BoardDb,
+  snap: EngineSnapshot,
+  id: string,
+  copilotBusy?: ReadonlySet<string>,
+): CardView | null {
   const card = db.getCard(id);
   if (!card) return null;
   const session = db.openSessionFor(card.id);
@@ -254,6 +277,7 @@ export function cardView(db: BoardDb, snap: EngineSnapshot, id: string): CardVie
   return {
     ...card,
     session,
+    copilotBusy: copilotBusy?.has(card.id) ?? false,
     runtime: pane ? runtimeOf(pane) : null,
     sessionCount: db.listSessions(card.id).length,
   };

@@ -473,13 +473,30 @@ export class Copilot {
  */
 export class CopilotCoordinator {
   /** Cards whose review is in flight, so the poll doesn't queue the same one every 1.5 s. */
-  private readonly reviewing = new Set<string>();
+  /**
+   * Cards the copilot is working on RIGHT NOW — a reformulation or a review in flight.
+   *
+   * In memory on purpose, and the fork's rule is the reason: this is runtime state, so it must not
+   * be persisted. It is also honest that way — a bridge restart cancels whatever was in flight, and
+   * an in-memory set forgets it exactly when it stops being true. (The wrapup marker is the opposite
+   * case and lives in a column: there the work continues in an agent that outlives the bridge.)
+   */
+  private readonly busyCards = new Set<string>();
 
   constructor(
     private readonly db: BoardDb,
     private readonly copilot: Copilot,
     private readonly cfg: Config,
   ) {}
+
+  /**
+   * Which cards are waiting on the copilot. Read into the card view so the board can say "the
+   * copilot has this" instead of showing a card that is inexplicably still a bare title — the one
+   * thing that looks identical to a copilot that is switched off, or that died.
+   */
+  busy(): ReadonlySet<string> {
+    return this.busyCards;
+  }
 
   /**
    * Turn a card's raw brain dump into a real card, in the background.
@@ -500,6 +517,16 @@ export class CopilotCoordinator {
     // then the spec is what there is to work from.
     const input = source ?? card?.rawInput;
     if (!card || !input?.trim()) return;
+    this.busyCards.add(cardId);
+    try {
+      await this.rewrite(cardId, input);
+    } finally {
+      this.busyCards.delete(cardId);
+    }
+  }
+
+  /** The body of a reformulation, split out only so the busy marker above brackets all of it. */
+  private async rewrite(cardId: string, input: string): Promise<void> {
     const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out));
     const result = toReformulation(parsed);
     if (!result) {
@@ -613,7 +640,7 @@ export class CopilotCoordinator {
     if (!this.copilot.enabled || snap.bridge === "disconnected") return;
 
     for (const card of this.db.listReviewableCards()) {
-      if (this.reviewing.has(card.id)) continue;
+      if (this.busyCards.has(card.id)) continue;
       const session = this.db.openSessionFor(card.id) ?? this.db.listSessions(card.id).at(-1);
       if (!session) continue;
       if (this.db.listReviews(card.id).some((r) => r.sessionId === session.id)) continue;
@@ -622,10 +649,10 @@ export class CopilotCoordinator {
       // The wrapup coordinator clears the marker either way, so this never waits forever.
       if (card.status === "done" && isPendingWrapup(session)) continue;
 
-      this.reviewing.add(card.id);
+      this.busyCards.add(card.id);
       void this.review(card.id, session.id, statFor)
         .catch(() => {})
-        .finally(() => this.reviewing.delete(card.id));
+        .finally(() => this.busyCards.delete(card.id));
     }
   }
 

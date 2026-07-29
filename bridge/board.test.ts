@@ -1985,6 +1985,48 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
   });
 });
 
+describe("CopilotCoordinator.busy — telling 'working on it' from 'switched off'", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+
+  it("holds a card for exactly as long as the copilot has it, and lets go on failure too", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "a dictated dump" });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        await gate;
+        // A refused answer: the card must still be released, or it stays "busy" forever.
+        return null;
+      },
+    } as unknown as Copilot;
+    const coordinator = new CopilotCoordinator(store, copilot, cfg);
+
+    expect(coordinator.busy().has(card.id)).toBe(false);
+    const inFlight = coordinator.reformulate(card.id);
+    expect(coordinator.busy().has(card.id)).toBe(true);
+
+    release();
+    await inFlight;
+    expect(coordinator.busy().has(card.id)).toBe(false);
+  });
+
+  it("reaches the card view, which is the only place it is ever read", () => {
+    const store = db();
+    const busy = store.createCard({ title: "busy" });
+    const idle = store.createCard({ title: "idle" });
+
+    const views = cardViews(store, snapshot([]), { copilotBusy: new Set([busy.id]) });
+
+    expect(views.find((v) => v.id === busy.id)!.copilotBusy).toBe(true);
+    expect(views.find((v) => v.id === idle.id)!.copilotBusy).toBe(false);
+  });
+});
+
 describe("CopilotCoordinator.reformulate — the split", () => {
   /** A copilot whose one answer is fixed, so the test is about what the board DOES with it. */
   function fakeCopilot(answer: unknown) {
@@ -2165,6 +2207,9 @@ function routeCtx(store: BoardDb) {
   return {
     db: store,
     engine: { current: () => snapshot([]) },
+    // Every card view asks the copilot what it is working on, so a route test needs one even when
+    // the copilot is beside the point.
+    copilot: { busy: () => new Set<string>(), reformulate: () => {} },
     cfg: {} as Config,
     audit: { record: () => {} },
     session: "default",

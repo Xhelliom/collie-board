@@ -67,6 +67,8 @@ export function CardTile({
             )}
             {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
             {card.session?.ctxPct != null && <span>· ctx {Math.round(card.session.ctxPct)}%</span>}
+            {/* A card the copilot is holding looks identical to one it has abandoned — say which. */}
+            {card.copilotBusy && <span className="animate-pulse">· copilot…</span>}
           </div>
         </div>
 

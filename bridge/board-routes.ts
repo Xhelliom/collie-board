@@ -245,13 +245,17 @@ async function route(
   const id = match[1] ? decodeURIComponent(match[1]) : undefined;
   const action = match[2];
   const { db, engine, json, text } = ctx;
+  // Every card view carries the copilot's in-flight set, including the ones echoed straight back
+  // from a POST — a card created from a dictated dump is busy the instant it exists, and the client
+  // renders that echo before its next poll.
+  const view = (cardId: string) => cardView(db, engine.current(), cardId, ctx.copilot.busy());
 
   // ── collection ───────────────────────────────────────────────────────────
   if (!id) {
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      return json({ cards: cardViews(db, engine.current()) });
+      return json({ cards: cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }) });
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");
@@ -278,7 +282,7 @@ async function route(
         device: ctx.device,
         detail: { cardId: card.id, title: card.title },
       });
-      return json({ ok: true, card: cardView(db, engine.current(), card.id) });
+      return json({ ok: true, card: view(card.id) });
     }
     return text("method not allowed", 405);
   }
@@ -288,16 +292,16 @@ async function route(
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      const view = cardView(db, engine.current(), id);
-      if (!view) return text("card not found", 404);
+      const detail = view(id);
+      if (!detail) return text("card not found", 404);
       // The two links, RESOLVED — the detail page has only this card, so without them it cannot say
       // "waiting on X" or know it is a container, and would have to fetch the whole board to find
       // out. Two queries here, and only on the detail: doing it in `cardViews` would be N+1 on
       // every poll of the list.
-      const predecessor = view.dependsOn ? db.getCard(view.dependsOn) : null;
-      const parent = view.parentId ? db.getCard(view.parentId) : null;
+      const predecessor = detail.dependsOn ? db.getCard(detail.dependsOn) : null;
+      const parent = detail.parentId ? db.getCard(detail.parentId) : null;
       return json({
-        card: view,
+        card: detail,
         predecessor: predecessor ? linkSummary(predecessor) : null,
         parent: parent ? linkSummary(parent) : null,
         children: db.listChildren(id).map(linkSummary),
@@ -344,7 +348,7 @@ async function route(
         device: ctx.device,
         detail: { cardId: id, ...parsed.value },
       });
-      return json({ ok: true, card: cardView(db, engine.current(), id) });
+      return json({ ok: true, card: view(id) });
     }
     if (req.method === "DELETE") {
       const denied = ctx.guard("write");
@@ -394,7 +398,7 @@ async function route(
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
-    return json({ ok: true, card: cardView(db, engine.current(), id) });
+    return json({ ok: true, card: view(id) });
   }
 
   // ── reformulate: hand the card back to the copilot ───────────────────────
@@ -422,7 +426,7 @@ async function route(
       device: ctx.device,
       detail: { cardId: id },
     });
-    return json({ ok: true, card: cardView(db, engine.current(), id) });
+    return json({ ok: true, card: view(id) });
   }
 
   // ── revert: put back the text an edit overwrote ───────────────────────────
@@ -477,7 +481,7 @@ async function route(
       device: ctx.device,
       detail: { cardId: id, eventId: event.id },
     });
-    return json({ ok: true, card: cardView(db, engine.current(), id) });
+    return json({ ok: true, card: view(id) });
   }
 
   // ── diff: what this card has written, scoped by construction ─────────────
@@ -523,7 +527,7 @@ async function route(
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
-    return json({ ok: true, card: cardView(db, engine.current(), id) });
+    return json({ ok: true, card: view(id) });
   }
 
   // ── prompt: a follow-up instruction to the card's running agent ───────────
@@ -557,7 +561,7 @@ async function route(
       device: ctx.device,
       detail: { cardId: id, text: promptText },
     });
-    return json({ ok: true, card: cardView(db, engine.current(), id) });
+    return json({ ok: true, card: view(id) });
   }
 
   return text("method not allowed", 405);

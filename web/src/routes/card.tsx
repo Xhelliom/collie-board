@@ -248,6 +248,15 @@ export function CardRoute() {
               </Section>
             )}
 
+            {/* Above the spec on purpose: this is usually the answer to "why is this card still a
+                bare title", and that question is asked while looking at the empty space below. */}
+            {card.copilotBusy && (
+              <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                <Sparkles className="size-3.5 shrink-0" />
+                <span>The copilot has this card — it rewrites itself in a minute.</span>
+              </div>
+            )}
+
             {card.spec && (
               <Section label="Spec">
                 <MarkdownText text={card.spec} />
