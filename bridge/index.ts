@@ -11,6 +11,7 @@ import { Copilot, CopilotCoordinator } from "./copilot.ts";
 import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
+import { WrapupCoordinator } from "./wrapup.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
 import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
@@ -193,6 +194,11 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
     const handoffs = new HandoffCoordinator(board, herdr, cfg);
     engine.onUpdate((snap) => handoffs.update(snap));
+    // The closing note a card asks for when it is filed as done, collected the same way — it lands
+    // before the review below reads it. Costs one file read per pending wrapup, of which there is
+    // normally none.
+    const wrapups = new WrapupCoordinator(board);
+    engine.onUpdate((snap) => wrapups.update(snap));
     // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
     // lazily so a disabled copilot costs no git subprocesses at all.
     engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)));

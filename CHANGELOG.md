@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.41.0] - 2026-07-29
+
+### Added
+- **A closing report.** Filing a card as Done asks its agent for one last note: what it actually did, a line per acceptance criterion (met / partly / not), and what it left out. It lands on the card and feeds the copilot's review — so what was left undone becomes the next cards instead of being lost with the pane.
+- The copilot now reviews a card the operator files as `done`, not only one that lands in `review` on its own.
+
+### Notes
+- The report is asked for after the card is filed, never before: the card is already `done` and its session already closed, so nothing here can move it back. Reuses the handoff's asynchronous machine (marker in a column so a pending request survives a restart, 30-minute deadline, and the note ON DISK as the real "finished writing" signal). The pane is untouched, per [ADR 0002](./.adr/0002-a-manual-status-ends-the-session-not-the-pane.md).
+- Filing a card as Backlog / Ready / Archive asks for nothing — those mean "not finished".
+
 ## [0.40.1] - 2026-07-29
 
 ### Fixed

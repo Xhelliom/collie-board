@@ -16,6 +16,7 @@ bridge/board-routes.ts  the whole /api/cards surface
 bridge/git.ts           worktree resolution + diff
 bridge/context.ts       the context gauge
 bridge/handoff.ts       the handoff sequence
+bridge/wrapup.ts        the closing report a filed card asks its agent for
 bridge/copilot.ts       the copilot
 bridge/adapters.ts      per-agent divergence
 web/src/lib/board*.ts   the client half
@@ -28,7 +29,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | File | Change |
 |---|---|
 | `bridge/server.ts` | one import + one dispatch block for `/api/cards`, plus `board`/`copilot` in the options |
-| `bridge/index.ts` | construct the board, copilot and adapters; three `engine.onUpdate` hooks |
+| `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks |
 | `bridge/config.ts` | the `board*` config block |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()` and `resolveByCwd()` |

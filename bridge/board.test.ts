@@ -1935,6 +1935,56 @@ describe("initialPrompt — the warm start", () => {
   });
 });
 
+describe("CopilotCoordinator.update — what counts as landed work", () => {
+  /** Counts how many times the copilot was actually asked to review. */
+  function counting() {
+    const state = { asked: 0 };
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        state.asked++;
+        return { verdict: "complete", notes: "ok", todos: [] };
+      },
+    } as unknown as Copilot;
+    return { state, copilot };
+  }
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  const settle = () => new Promise((r) => setTimeout(r, 10));
+
+  /** A card filed as done by hand, its session closed, with the wrapup note already collected. */
+  function filed(store: BoardDb, opts: { wrapupPending: boolean }) {
+    const card = store.createCard({ title: "x", status: "done", repoPath: "/repo" });
+    const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    if (opts.wrapupPending) store.patchSession(session.id, { handoffRequestedAt: 1 });
+    else store.patchSession(session.id, { handoffMd: "here is what I did" });
+    return card;
+  }
+
+  it("reviews a card the operator filed as done — not only one that landed in review", async () => {
+    const store = db();
+    filed(store, { wrapupPending: false });
+    const { state, copilot } = counting();
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(state.asked).toBe(1);
+  });
+
+  it("waits for the closing note first — reviewing early loses the account of what was left undone", async () => {
+    const store = db();
+    filed(store, { wrapupPending: true });
+    const { state, copilot } = counting();
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(state.asked).toBe(0);
+  });
+});
+
 describe("CopilotCoordinator.reformulate — the split", () => {
   /** A copilot whose one answer is fixed, so the test is about what the board DOES with it. */
   function fakeCopilot(answer: unknown) {

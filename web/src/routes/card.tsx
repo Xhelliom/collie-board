@@ -531,6 +531,12 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
  * knew that the diff can't show — so it is readable in place, collapsed by default so a three-session
  * card still fits on a phone screen.
  */
+/** The disclosure label for a session's note. Pure, so the wording is pinned by a test. */
+export function noteLabel(open: boolean, closing: boolean): string {
+  const what = closing ? "closing report" : "handoff note";
+  return open ? `Hide ${what}` : what.charAt(0).toUpperCase() + what.slice(1);
+}
+
 function SessionRow({ session, index }: { session: CardSession; index: number }) {
   const [open, setOpen] = useState(false);
   return (
@@ -545,7 +551,8 @@ function SessionRow({ session, index }: { session: CardSession; index: number })
       <div className="text-xs text-muted-foreground">
         started {timeAgo(session.startedAt)}
         {session.ctxPct != null && ` · ctx ${Math.round(session.ctxPct)}%`}
-        {session.handoffRequestedAt != null && session.endedAt === null && " · handoff pending"}
+        {session.handoffRequestedAt != null &&
+          (session.endedAt === null ? " · handoff pending" : " · closing report pending")}
       </div>
       {session.handoffMd && (
         <>
@@ -554,7 +561,9 @@ function SessionRow({ session, index }: { session: CardSession; index: number })
             onClick={() => setOpen((o) => !o)}
             className="self-start text-xs underline underline-offset-4"
           >
-            {open ? "Hide handoff note" : "Handoff note"}
+            {/* Same column, two different documents: a note written FOR the next agent, and the
+                report an agent writes when the operator files the card. */}
+            {noteLabel(open, session.outcome === "done")}
           </button>
           {open && (
             <div className="mt-1 rounded-lg border bg-background p-2">

@@ -25,6 +25,7 @@ import type { BoardDb, Card } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { isPendingWrapup } from "./wrapup.ts";
 
 /** Where the copilot writes its answers, relative to its own working directory. */
 const OUT_DIR = ".board/out";
@@ -597,8 +598,12 @@ export class CopilotCoordinator {
   }
 
   /**
-   * Review every card that has just landed in `review` and hasn't been reviewed for THIS session.
-   * Keyed on the session, so a card handed off and finished again gets reviewed again.
+   * Review every card whose work has landed and that hasn't been reviewed for THIS session. Keyed on
+   * the session, so a card handed off and finished again gets reviewed again.
+   *
+   * "Landed" is two things: an agent that finished its turn (`review`), and a card the operator
+   * filed as `done` — the second matters because that is the only path that carries the agent's
+   * closing note, and because a review that only ever fired on `review` was a race until 0.40.1.
    *
    * This is what closes the loop: the `todos` become cards, so the board refills itself from what
    * the agents left undone.
@@ -607,11 +612,15 @@ export class CopilotCoordinator {
     this.copilot.observe(snap);
     if (!this.copilot.enabled || snap.bridge === "disconnected") return;
 
-    for (const card of this.db.listLiveCards()) {
-      if (card.status !== "review" || this.reviewing.has(card.id)) continue;
+    for (const card of this.db.listReviewableCards()) {
+      if (this.reviewing.has(card.id)) continue;
       const session = this.db.openSessionFor(card.id) ?? this.db.listSessions(card.id).at(-1);
       if (!session) continue;
       if (this.db.listReviews(card.id).some((r) => r.sessionId === session.id)) continue;
+      // A card filed as done is still owed its agent's closing note — reviewing before it lands
+      // would judge the work on the diff alone and lose the one account of what was left undone.
+      // The wrapup coordinator clears the marker either way, so this never waits forever.
+      if (card.status === "done" && isPendingWrapup(session)) continue;
 
       this.reviewing.add(card.id);
       void this.review(card.id, session.id, statFor)

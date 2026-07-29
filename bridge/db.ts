@@ -502,6 +502,19 @@ export class BoardDb {
     return this.db.query<CardRow, []>(sql).all().map(toCard);
   }
 
+  /**
+   * Cards whose work has landed and is worth a copilot review: an agent that finished its turn, and
+   * a card the operator filed as done. `done` is deliberately included — it is the only path that
+   * carries a wrapup note, and the operator filing a card is the clearest "this work is finished"
+   * signal the board ever gets.
+   */
+  listReviewableCards(): Card[] {
+    return this.db
+      .query<CardRow, []>("SELECT * FROM card WHERE status IN ('review', 'done')")
+      .all()
+      .map(toCard);
+  }
+
   /** Cards whose status says an agent should be running — the reconciliation working set. */
   listLiveCards(): Card[] {
     const marks = LIVE_STATUSES.map(() => "?").join(",");
@@ -667,6 +680,20 @@ export class BoardDb {
   listOpenSessions(): CardSession[] {
     return this.db
       .query<SessionRow, []>("SELECT * FROM session WHERE ended_at IS NULL")
+      .all()
+      .map(toSession);
+  }
+
+  /**
+   * Closed sessions still waiting on a wrapup note. A closed session with the marker still set means
+   * exactly that and nothing else — see `isPendingWrapup`. Normally empty, and the table holds one
+   * row per card session, so this stays a small scan; it gets an index the day that stops being true.
+   */
+  listPendingWrapups(): CardSession[] {
+    return this.db
+      .query<SessionRow, []>(
+        "SELECT * FROM session WHERE ended_at IS NOT NULL AND handoff_requested_at IS NOT NULL",
+      )
       .all()
       .map(toSession);
   }

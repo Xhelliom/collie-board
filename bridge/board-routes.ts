@@ -26,6 +26,7 @@ import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
+import { requestWrapup } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
@@ -325,8 +326,17 @@ async function route(
       const { status, ...fields } = parsed.value;
       db.patchCard(id, fields);
       if (status) {
+        const ending = db.openSessionFor(id);
         releaseSession(db, id, status);
         db.setStatus(id, status, "manual");
+        // Filing a card as DONE asks its agent for one last report — the only account of what was
+        // actually done against the acceptance criteria, which the diff cannot give. Not awaited, for
+        // the same reason reformulation isn't: this is an agent turn, and the card is already filed.
+        // The other manual columns mean "not finished", so there is nothing to report.
+        if (status === "done" && ending?.paneId) {
+          const card = db.getCard(id)!;
+          void requestWrapup(db, ctx.herdr, ending, card);
+        }
       }
       ctx.audit.record({
         action: "card.patch",
