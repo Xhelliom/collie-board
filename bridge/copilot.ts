@@ -26,9 +26,6 @@ import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
-/** Label of the workspace the copilot lives in. Found by label so a restart re-uses it. */
-export const COPILOT_WORKSPACE_LABEL = "board";
-
 /** Where the copilot writes its answers, relative to its own working directory. */
 const OUT_DIR = ".board/out";
 
@@ -426,18 +423,13 @@ export class Copilot {
 
     // A bare shell left over from a previous life: relaunch into it rather than stacking another
     // workspace next to it.
+    const label = this.cfg.boardCopilotWorkspace;
     const shell = here[0];
     const paneId =
-      shell?.paneId ??
-      (
-        await this.herdr.createWorkspace({
-          cwd: this.workDir,
-          label: COPILOT_WORKSPACE_LABEL,
-        })
-      ).paneId;
+      shell?.paneId ?? (await this.herdr.createWorkspace({ cwd: this.workDir, label })).paneId;
 
     const kind = this.cfg.boardCopilotKind || this.cfg.boardAgentKind;
-    await launchAgent(this.herdr, paneId, kind, agentNameFor(COPILOT_WORKSPACE_LABEL));
+    await launchAgent(this.herdr, paneId, kind, agentNameFor(label));
     this.paneId = paneId;
     this.requestsSinceReset = 0;
     this.justLaunched = true;

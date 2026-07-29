@@ -1432,16 +1432,19 @@ describe("Copilot.ensurePane — adoption", () => {
   // A real (empty, throwaway) directory: ensurePane mkdirs its work dir before anything else.
   const WD = mkdtempSync(join(tmpdir(), "copilot-test-"));
 
-  function copilotWith(snap: EngineSnapshot, fail: Set<string> = new Set()) {
+  function copilotWith(snap: EngineSnapshot, fail: Set<string> = new Set(), label = "board") {
     const calls: string[] = [];
+    const named: string[] = [];
     const herdr = {
-      async createWorkspace() {
+      async createWorkspace(opts: { label: string }) {
         calls.push("createWorkspace");
+        named.push(opts.label);
         if (fail.has("createWorkspace")) throw new Error("nope");
         return { paneId: "wNEW:p1", workspaceId: "wNEW", tabId: "wNEW:t1", cwd: WD };
       },
-      async startAgent() {
+      async startAgent(opts: { name: string }) {
         calls.push("startAgent");
+        named.push(opts.name);
         if (fail.has("startAgent")) throw new Error("herdr agent.start: agent_name_taken: …");
       },
       async getAgent() {
@@ -1454,11 +1457,17 @@ describe("Copilot.ensurePane — adoption", () => {
         calls.push("sendPaneKeys");
       },
     };
-    const cfg = { boardCopilot: true, boardAgentKind: "claude", boardCopilotKind: "" } as Config;
+    const cfg = {
+      boardCopilot: true,
+      boardAgentKind: "claude",
+      boardCopilotKind: "",
+      boardCopilotWorkspace: label,
+    } as Config;
     // Tiny deadline: these tests are about which panes get adopted, not about waiting for an answer
     // file the fake agent never writes.
     return {
       calls,
+      named,
       copilot: new Copilot(herdr as never, cfg, WD, () => snap, {}, { timeoutMs: 30, pollMs: 10 }),
     };
   }
@@ -1492,6 +1501,14 @@ describe("Copilot.ensurePane — adoption", () => {
     await copilot.ask(() => "hi");
     expect(calls[0]).toBe("createWorkspace");
     expect(calls[1]).toBe("startAgent");
+  });
+
+  it("names the workspace AND the agent from config — the name is the only thing it changes", async () => {
+    // Adoption is by cwd, so a rename can never orphan a running copilot; both names still have to
+    // follow it, or the workspace says one thing and `herdr agent list` another.
+    const { named, copilot } = copilotWith(snapshot([]), new Set(), "cerveau");
+    await copilot.ask(() => "hi");
+    expect(named).toEqual(["cerveau", "cerveau"]);
   });
 
   it("returns null and drops the pane when the launch fails, so the next request retries", async () => {

@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.40.0] - 2026-07-29
+
+### Added
+- `COLLIE_BOARD_COPILOT_WORKSPACE` — what the copilot's workspace (and its agent) is called in the herd. Default `board`, unchanged.
+
+### Fixed
+- The comment claiming the copilot was found *by label* — it is found by working directory, and always has been. A wrong comment about the one thing that keeps a restart from stacking a second copilot is worse than none.
+- `collie-board-ctl.test.sh` leaked `BUN_INSTALL` into the "bun off PATH" case, so it passed against the developer's real bun instead of the fixture — green for the wrong reason on any dev shell that sets it.
+
+### Notes
+- Renaming is cosmetic and safe: adoption is by `cwd`, so a rename can never orphan the running copilot. It names the *next* workspace — one already open in the herd keeps its label until you close it. Nothing ever closes that workspace; it survives a bridge restart on purpose.
+
 ## [0.39.0] - 2026-07-29
 
 ### Added

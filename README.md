@@ -94,6 +94,7 @@ A **card** is durable. A **session** is not. That one rule is the whole design.
 | `COLLIE_BOARD_COPILOT` | `off` | Enable the copilot. **Off by default** — it is a second agent on the same subscription. |
 | `COLLIE_BOARD_COPILOT_KIND` | *(same as workers)* | Let the copilot run a cheaper agent. |
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
+| `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace (and its agent). Cosmetic — it is found by directory, not by name. |
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
 
 Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — four fields, merged

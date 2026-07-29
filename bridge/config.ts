@@ -219,6 +219,15 @@ export interface Config {
    */
   boardCopilotClear: string;
   /**
+   * Label of the herdr workspace the copilot lives in, and the name of its agent. Default `board`.
+   *
+   * A NAME, nothing more: `ensurePane` adopts an existing copilot by WORKING DIRECTORY, never by
+   * label — which is what makes a restart re-use the pane it left behind, and what makes renaming
+   * this safe. It only names the NEXT workspace; one already open in the herd keeps the label it
+   * was created with until you close it.
+   */
+  boardCopilotWorkspace: string;
+  /**
    * Directories to scan for git repositories when building the new-card repo picker. Opt-in: the
    * picker already knows every repo you have carded (from the database) and every repo open in the
    * herd (from pane cwds), so this is only for the cold start — a repo you have never opened and
@@ -286,6 +295,7 @@ export function loadConfig(): Config {
     boardCopilot: envBool("COLLIE_BOARD_COPILOT", false),
     boardCopilotKind: (process.env.COLLIE_BOARD_COPILOT_KIND ?? "").trim(),
     boardCopilotClear: (process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "").trim(),
+    boardCopilotWorkspace: (process.env.COLLIE_BOARD_COPILOT_WORKSPACE ?? "").trim() || "board",
     // `~` is what an operator types in a .env and what nothing else expands there.
     boardRepoRoots: envList("COLLIE_BOARD_REPO_ROOTS").map((p) =>
       p.startsWith("~/") ? join(homedir(), p.slice(2)) : p,

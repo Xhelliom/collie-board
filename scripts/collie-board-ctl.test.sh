@@ -215,8 +215,12 @@ EOF
   python3 -c "import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])" \
     "${HOME_DIR}/.config/herdr/herdr.sock"
 
-  # A PATH with NO bun on it, exactly like a herdr plugin action gets.
+  # A PATH with NO bun on it, exactly like a herdr plugin action gets. BUN_INSTALL is cleared
+  # explicitly: it is set in most dev shells, it points at the REAL ~/.bun, and it is earlier in
+  # resolve_bun's chain than ~/.bun/bin — so leaving it set makes this case pass against the
+  # developer's own bun and prove nothing.
   out="$(HOME="$HOME_DIR" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" PATH="${BIN_DIR}:/usr/bin:/bin" \
+    BUN_INSTALL= \
     HERDR_SOCKET_PATH="${HOME_DIR}/.config/herdr/herdr.sock" \
     bash "$CTL" setup 2>&1)" || fail "setup failed with bun off PATH: $out"
   assert_contains "$out" "✓ bun          ${HOME_DIR}/.bun/bin/bun"
