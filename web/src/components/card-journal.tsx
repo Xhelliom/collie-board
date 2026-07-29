@@ -123,6 +123,25 @@ function Previous({ label, text }: { label: string; text: string }) {
   );
 }
 
+/**
+ * Has a HUMAN rewritten this card since the copilot last did?
+ *
+ * Reformulate works from the ORIGINAL DICTATION, so it discards whatever you typed by hand. That is
+ * right when the copilot's own draft disappointed you, and wrong when you have just spent five
+ * minutes on the spec — and the journal is the only thing that can tell the two apart. Events come
+ * newest first, so the most recent edit decides and the rest is history.
+ *
+ * Pure + exported: the answer gates a confirmation, and getting it wrong either nags on every card
+ * or silently eats an edit.
+ */
+export function editedByHandSince(events: BoardEvent[]): boolean {
+  for (const e of events) {
+    if (e.type !== "card.edited") continue;
+    return (e.payload as { reason?: string } | null)?.reason !== "copilot";
+  }
+  return false;
+}
+
 /** "the spec", "the title and the spec" — exported for the unit test. */
 export function fieldList(replaced: EditPayload["replaced"] = {}): string {
   const names: string[] = [];

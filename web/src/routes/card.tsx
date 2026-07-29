@@ -24,7 +24,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor } from "@/components/card-editor";
-import { CardJournal } from "@/components/card-journal";
+import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
@@ -68,6 +68,7 @@ export function CardRoute() {
   const stalled = useLoadingStalled();
   const [starting, setStarting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [confirmRework, setConfirmRework] = useState(false);
 
   const detail = data.detail;
   const card = detail?.card;
@@ -257,11 +258,37 @@ export function CardRoute() {
                   <Pencil className="size-4" />
                   Edit
                 </Button>
-                <Button variant="outline" size="sm" className="h-9 gap-2" onClick={reformulate}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2"
+                  onClick={() => {
+                    // Reformulate re-reads the original dictation, so it discards a hand edit. Ask
+                    // once when that is what would happen — a second tap, not a browser dialog,
+                    // which on a PWA is both ugly and easy to dismiss by reflex.
+                    if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
+                      setConfirmRework(true);
+                      return;
+                    }
+                    setConfirmRework(false);
+                    void reformulate();
+                  }}
+                >
                   <Sparkles className="size-4" />
-                  Reformulate
+                  {confirmRework ? "Replace my edits?" : "Reformulate"}
                 </Button>
+                {confirmRework && (
+                  <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
+                    Cancel
+                  </Button>
+                )}
               </div>
+              {confirmRework && (
+                <p className="pt-2 text-xs text-muted-foreground">
+                  It works from what you originally dictated, not from your edit. The current text
+                  goes to the journal, so you can put it back.
+                </p>
+              )}
             </Section>
 
             <Section label="Move to">

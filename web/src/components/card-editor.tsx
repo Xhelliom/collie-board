@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Check, ChevronDown, Layers, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
-import type { CardInput, CardView } from "@/lib/board";
+import { cn } from "@/lib/utils";
+import { fetchCards, type CardInput, type CardView } from "@/lib/board";
 
 // Rework a card by hand.
 //
@@ -32,6 +33,9 @@ export function CardEditor({
   const [spec, setSpec] = useState(card.spec ?? "");
   const [acceptance, setAcceptance] = useState<string[]>(card.acceptance);
   const [baseRef, setBaseRef] = useState(card.baseRef ?? "");
+  const [parentId, setParentId] = useState<string | null>(card.parentId);
+  const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
+  const [others, setOthers] = useState<CardView[]>([]);
   const [saving, setSaving] = useState(false);
 
   useHoldReload("card-editor", open);
@@ -43,6 +47,21 @@ export function CardEditor({
     setSpec(card.spec ?? "");
     setAcceptance(card.acceptance);
     setBaseRef(card.baseRef ?? "");
+    setParentId(card.parentId);
+    setDependsOn(card.dependsOn);
+    // Fetched on OPEN, not polled: linking is a deliberate act, and the list only has to be right
+    // at the moment you pick from it. Rides the ETag cache, so it is usually a 304.
+    let cancelled = false;
+    void fetchCards()
+      .then(({ cards }) => {
+        if (!cancelled) setOthers(cards.filter((c) => c.id !== card.id));
+      })
+      .catch(() => {
+        // No list, no picker — the rest of the editor still works.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, card]);
 
   async function save() {
@@ -55,6 +74,8 @@ export function CardEditor({
         spec: spec.trim() || null,
         acceptance: acceptance.map((a) => a.trim()).filter(Boolean),
         baseRef: baseRef.trim() || null,
+        parentId,
+        dependsOn,
       });
       onClose();
     } finally {
@@ -134,10 +155,121 @@ export function CardEditor({
           </p>
         )}
 
+        <LinkPicker
+          label="Part of"
+          hint="Groups this under another card on the board."
+          value={parentId}
+          cards={others}
+          onChange={setParentId}
+        />
+        <LinkPicker
+          label="After"
+          hint="Won't start until that card is done, and forks from its branch."
+          value={dependsOn}
+          cards={others}
+          onChange={setDependsOn}
+        />
+
         <Button onClick={save} disabled={!title.trim() || saving} className="mt-1 h-11">
           {saving ? "Saving…" : "Save"}
         </Button>
       </div>
     </BottomSheet>
+  );
+}
+
+/**
+ * Pick another card to link this one to, or none.
+ *
+ * Collapsed to its current value until tapped — two of these plus a spec box would otherwise fill
+ * the sheet with lists you rarely touch. Same inline-scrolling-list shape as the repo picker in
+ * `new-card-sheet.tsx`, rather than a nested sheet, because a sheet inside a sheet on a phone is a
+ * back-button trap.
+ *
+ * NO client-side cycle filtering. The bridge already refuses a link that would close a loop, with a
+ * message that says so, and reproducing that graph walk here would put the same rule in two places
+ * for a mistake that is one tap to undo. Only the card itself is excluded, by the caller.
+ */
+function LinkPicker({
+  label,
+  hint,
+  value,
+  cards,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string | null;
+  cards: CardView[];
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = cards.find((c) => c.id === value);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-11 items-center gap-2 rounded-lg border border-border bg-background px-3 text-left"
+      >
+        {selected ? (
+          <>
+            <Layers className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-sm">{selected.title}</span>
+          </>
+        ) : (
+          /* A link this card has that isn't on the board (archived) still reads as set, not as
+             nothing — silently showing "Nothing" would invite clearing it by accident. */
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            {value ? "A card not on the board" : "Nothing"}
+          </span>
+        )}
+        <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground", open && "rotate-180")} />
+      </button>
+      <span className="text-[11px] text-muted-foreground/70">{hint}</span>
+
+      {open && (
+        <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pt-1">
+          <PickerRow active={value === null} onClick={() => { onChange(null); setOpen(false); }}>
+            <span className="text-muted-foreground">Nothing</span>
+          </PickerRow>
+          {cards.map((c) => (
+            <PickerRow
+              key={c.id}
+              active={value === c.id}
+              onClick={() => { onChange(c.id); setOpen(false); }}
+            >
+              <span className="min-w-0 flex-1 truncate">{c.title}</span>
+            </PickerRow>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PickerRow({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm active:scale-[0.99]",
+        active ? "border-primary bg-primary/10" : "border-border bg-background",
+      )}
+    >
+      {children}
+      {active && <Check className="size-4 shrink-0 text-primary" />}
+    </button>
   );
 }

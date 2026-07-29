@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describe as describeEvent, fieldList } from "./card-journal";
+import { describe as describeEvent, editedByHandSince, fieldList } from "./card-journal";
 import type { BoardEvent } from "@/lib/board";
 
 function event(type: string, payload: unknown = {}): BoardEvent {
@@ -56,5 +56,35 @@ describe("describe", () => {
   it("shows the raw type for an event nobody has written a sentence for", () => {
     // A journal with holes in it would be worse than one with a bit of jargon.
     expect(describeEvent(event("card.something_new"))).toBe("card.something_new");
+  });
+});
+
+describe("editedByHandSince", () => {
+  it("says yes when the newest edit is a person's", () => {
+    expect(
+      editedByHandSince([
+        event("card.edited", { reason: "edit" }),
+        event("card.edited", { reason: "copilot" }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("says no when the copilot wrote last — re-running it then loses nothing", () => {
+    expect(
+      editedByHandSince([
+        event("card.edited", { reason: "copilot" }),
+        event("card.edited", { reason: "edit" }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("says no on a card nobody has ever edited", () => {
+    // Otherwise the confirmation would nag on every freshly dictated card.
+    expect(editedByHandSince([event("card.created")])).toBe(false);
+    expect(editedByHandSince([])).toBe(false);
+  });
+
+  it("counts a restore as a hand edit — it is one, and it must not be silently undone", () => {
+    expect(editedByHandSince([event("card.edited", { reason: "revert" })])).toBe(true);
   });
 });

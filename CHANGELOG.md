@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.38.0] - 2026-07-29
+
+### Added
+- **Link two cards by hand.** The editor gains *Part of* and *After*, each collapsed to its current value until tapped — the same inline scrolling list as the repo picker, not a nested sheet, which on a phone is a back-button trap. No client-side cycle filter: the bridge already refuses a loop with a message that says so, and reproducing that graph walk here would put one rule in two places for a mistake that is one tap to undo.
+- **Reformulate asks before it replaces a hand edit.** It works from the original dictation, so it discards what you typed — right when the copilot's draft disappointed you, wrong when you just spent five minutes on the spec. `editedByHandSince()` reads the journal to tell the two apart, and the button becomes *Replace my edits?* rather than raising a browser dialog, which on a PWA is both ugly and dismissed by reflex. A restore counts as a hand edit — it is one.
+
+### Notes
+- Validated on real data rather than fixtures: pressing Reformulate on the container that started all this produced three linked sub-tasks carrying **361–612 characters of spec and 159–377 of acceptance criteria each**, where the first version of the split had emitted three bare titles. That defect, on the cards that exposed it, is closed.
+
 ## [0.37.0] - 2026-07-29
 
 ### Added

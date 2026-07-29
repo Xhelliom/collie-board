@@ -226,6 +226,9 @@ export interface CardInput {
   baseRef?: string | null;
   branch?: string | null;
   agentKind?: string | null;
+  /** Card ids. The bridge validates that they exist and that neither closes a loop. */
+  parentId?: string | null;
+  dependsOn?: string | null;
   position?: number;
 }
 
