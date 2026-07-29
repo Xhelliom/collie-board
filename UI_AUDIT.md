@@ -1249,8 +1249,6 @@ snapshot, pas écrit en base.
 
 ---
 
----
-
 # Partie 3 — Revue du ressenti : conformité aux pratiques actuelles
 
 Les deux premières parties traitent de défauts : ce qui casse, ce qui gêne. Celle-ci traite de
