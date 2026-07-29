@@ -30,6 +30,8 @@ import { contextPercent } from "./context.ts";
 import {
   Copilot,
   CopilotCoordinator,
+  explainPrompt,
+  toExplanation,
   parseJsonish,
   reformulatePrompt,
   reviewPrompt,
@@ -184,6 +186,7 @@ describe("reconcileOne", () => {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -254,7 +257,7 @@ describe("releaseSession", () => {
   it("closes the open session when the operator moves a card out of the live columns", () => {
     for (const [status, outcome] of [
       ["done", "done"],
-      ["archived", "done"],
+      ["archived", "abandoned"],
       ["backlog", "abandoned"],
       ["ready", "abandoned"],
     ] as const) {
@@ -442,6 +445,7 @@ describe("initialPrompt", () => {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -494,6 +498,12 @@ function fakeHerdr(fail: Set<string> = new Set(), readyAfter?: number) {
     async sendPaneKeys() {
       calls.push("sendPaneKeys");
     },
+    // `pane.get` on the start path: "is an agent already sitting in this worktree?". Absent from the
+    // reply unless the fixture says otherwise, which is the ordinary "empty shell" case.
+    async getPane() {
+      calls.push("getPane");
+      return fail.has("agentPresent") ? { agent: "claude" } : {};
+    },
     async getAgent() {
       calls.push("getAgent");
       // Ready only once the caller has polled at least once — mirrors herdr, where agent.start
@@ -538,7 +548,7 @@ describe("startCard", () => {
 
     expect(res.ok).toBe(true);
     // The trailing getAgent is promptAndConfirm checking the prompt actually got submitted.
-    expect(calls).toEqual(["createWorktree", "startAgent", "getAgent", "promptAgent", "getAgent"]);
+    expect(calls).toEqual(["createWorktree", "getPane", "startAgent", "getAgent", "promptAgent", "getAgent"]);
     const after = store.getCard(card.id)!;
     expect(after.status).toBe("starting");
     expect(after.branch).toBe("board/ship-it");
@@ -556,6 +566,7 @@ describe("startCard", () => {
     expect(calls).toEqual([
       "createWorktree",
       "openWorktree",
+      "getPane",
       "startAgent",
       "getAgent",
       "promptAgent",
@@ -733,6 +744,7 @@ describe("waitForAgentReady (through startCard)", () => {
     // 3 readiness polls, then the prompt, then promptAndConfirm's own check.
     expect(calls).toEqual([
       "createWorktree",
+      "getPane",
       "startAgent",
       "getAgent",
       "getAgent",
@@ -915,6 +927,7 @@ describe("handoff prompts", () => {
     workspaceId: "wZ",
     agentKind: "claude",
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -1985,6 +1998,85 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
   });
 });
 
+describe("the duplicate check", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  function answering(answer: unknown) {
+    const prompts: string[] = [];
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask(build: (out: string) => string) {
+        prompts.push(build("/out.json"));
+        return answer;
+      },
+    } as unknown as Copilot;
+    return { prompts, copilot };
+  }
+
+  it("shows the copilot the other cards in the SAME repo, and not the card being triaged", async () => {
+    const store = db();
+    store.createCard({ title: "already there", repoPath: "/repo" });
+    store.createCard({ title: "another project", repoPath: "/elsewhere" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { prompts, copilot } = answering({ title: "New" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(prompts[0]).toContain("already there");
+    expect(prompts[0]).not.toContain("another project");
+    expect(prompts[0]).not.toContain(fresh.id);
+  });
+
+  it("records the link when the copilot names a real card in the same repo", async () => {
+    const store = db();
+    const original = store.createCard({ title: "the original", repoPath: "/repo" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { copilot } = answering({ title: "New", duplicate_of: original.id });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(store.getCard(fresh.id)!.duplicateOf).toBe(original.id);
+  });
+
+  it("DROPS an id that doesn't check out — a dead link is worse than no link", async () => {
+    const store = db();
+    const elsewhere = store.createCard({ title: "other repo", repoPath: "/elsewhere" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+
+    for (const answered of ["no-such-card", fresh.id, elsewhere.id, "null"]) {
+      const { copilot } = answering({ title: "New", duplicate_of: answered });
+      await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+      expect(store.getCard(fresh.id)!.duplicateOf).toBeNull();
+    }
+  });
+
+  it("says nothing about duplicates when the dump splits — which sub-task would it even mean?", async () => {
+    const store = db();
+    const original = store.createCard({ title: "the original", repoPath: "/repo" });
+    const fresh = store.createCard({ title: "new", rawInput: "two things", repoPath: "/repo" });
+    const { copilot } = answering({
+      title: "Container",
+      duplicate_of: original.id,
+      split: [{ title: "one" }, { title: "two" }],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(store.getCard(fresh.id)!.duplicateOf).toBeNull();
+  });
+
+  it("keeps `done` cards as candidates — 'you did this last week' is the useful one", async () => {
+    const store = db();
+    store.createCard({ title: "shipped ages ago", repoPath: "/repo", status: "done" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { prompts, copilot } = answering({ title: "New" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(prompts[0]).toContain("shipped ages ago");
+  });
+});
+
 describe("CopilotCoordinator.busy — telling 'working on it' from 'switched off'", () => {
   const cfg = { boardBranchPrefix: "board/" } as Config;
 
@@ -2407,5 +2499,81 @@ describe("trimEvent — the journal rides a polled response", () => {
       routeCtx(store),
     );
     expect(store.getCard(card.id)!.spec).toBe(long);
+  });
+});
+
+describe("explainPrompt — the copilot as a translator, never an actor", () => {
+  const prompt = explainPrompt({
+    action: "merge",
+    error: "worktree_remove_failed: fatal: contains modified or untracked files, use --force",
+    cardTitle: "Fix the drawer",
+    outPath: "/out.json",
+  });
+
+  it("forbids acting BEFORE it shows the error", () => {
+    // The copilot is a Claude session like any other, so it can reach whatever skills the machine
+    // has — including one that drives this very API. Every action it takes must go through bridge
+    // code, which is gated and journalled; this prompt is what keeps it a translator.
+    expect(prompt).toContain("DO NOT ACT");
+    expect(prompt).toContain("do not call any API or skill");
+    expect(prompt.indexOf("DO NOT ACT")).toBeLessThan(prompt.indexOf("worktree_remove_failed"));
+  });
+
+  it("carries the error verbatim and the card it happened on", () => {
+    expect(prompt).toContain("worktree_remove_failed");
+    expect(prompt).toContain("Fix the drawer");
+  });
+
+  it("asks it to say when the fault looks like the board's own", () => {
+    expect(prompt).toContain("likely_bug");
+  });
+});
+
+describe("toExplanation", () => {
+  it("takes either paragraph, and the bug flag when it is a real boolean", () => {
+    expect(toExplanation({ meaning: "m", next: "n", likely_bug: true })).toEqual({
+      meaning: "m",
+      next: "n",
+      likelyBug: true,
+    });
+    expect(toExplanation({ next: "just this" })).toEqual({ next: "just this" });
+  });
+
+  it("is null when there is no prose — a journal entry of only a flag is worse than none", () => {
+    expect(toExplanation({ likely_bug: false })).toBeNull();
+    expect(toExplanation({})).toBeNull();
+    expect(toExplanation("nope")).toBeNull();
+  });
+});
+
+
+describe("startCard — an agent is already in the worktree", () => {
+  it("ADOPTS it instead of launching a second one over its name", async () => {
+    // How this was found: filing a card ends its session but not its pane (ADR 0002), so a card
+    // marked done still has its agent holding the herdr-global name. Restarting it — to settle the
+    // merge conflict that was blocking it — answered `agent_name_taken`, with no way forward.
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it" });
+    const { client, calls } = fakeHerdr(new Set(["agentPresent"]));
+
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+
+    expect(res.ok).toBe(true);
+    expect(calls).not.toContain("startAgent");
+    // And NOT prompted: this agent already lived the task, so re-sending the spec would make it
+    // start the whole thing again.
+    expect(calls).not.toContain("promptAgent");
+    expect(store.getCard(card.id)!.status).toBe("working");
+    expect(store.openSessionFor(card.id)!.paneId).toBe("wZ:p1");
+  });
+
+  it("still launches when the pane is a bare shell", async () => {
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo" });
+    const { client, calls } = fakeHerdr();
+
+    await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+
+    expect(calls).toContain("startAgent");
   });
 });

@@ -17,6 +17,7 @@ function card(id: string, over: Partial<CardView> = {}): CardView {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,

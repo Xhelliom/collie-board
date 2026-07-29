@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "
 import {
   ArrowLeft,
   ChevronRight,
+  Copy,
   GitBranch,
   GitMerge,
   GitPullRequest,
@@ -35,7 +36,9 @@ import {
   boardPath,
   cardPath,
   CARD_STATUS_LABEL,
+  boardErrorMessage,
   deleteCard,
+  explainError,
   fetchIntegration,
   handoffCard,
   integrateCard,
@@ -45,13 +48,14 @@ import {
   revertCard,
   startCard,
   type CardInput,
+  type BoardEvent,
   type CardLink,
   type CardSession,
   type CardStatus,
   type CardView,
   type Integration,
 } from "@/lib/board";
-import { dependencyMet } from "@/lib/board-groups";
+import { dependencyMet, integrationHistory } from "@/lib/board-groups";
 import type { CardData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -75,6 +79,10 @@ export function CardRoute() {
   const [starting, setStarting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmRework, setConfirmRework] = useState(false);
+  // Lifted out of <IntegrationSection> for one reason: "Done" must not be offered on its own while
+  // the branch still holds commits. Filing first is the order everybody reaches for and it is the
+  // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
+  const [integration, setIntegration] = useState<Integration | null | undefined>(undefined);
 
   const detail = data.detail;
   const card = detail?.card;
@@ -254,6 +262,32 @@ export function CardRoute() {
               </Section>
             )}
 
+            {/* Right under the title, because it is a question about THIS card's right to exist,
+                and it has to be answerable before anyone reads the spec below it. */}
+            {detail?.duplicate && (
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  The copilot thinks this repeats a card you already have:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.duplicate!.id))}
+                  className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
+                >
+                  <Copy className="size-3.5 shrink-0" />
+                  <span className="truncate">{detail.duplicate.title}</span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-fit"
+                  onClick={() => void save({ duplicateOf: null })}
+                >
+                  Not a duplicate
+                </Button>
+              </div>
+            )}
+
             {/* Above the spec on purpose: this is usually the answer to "why is this card still a
                 bare title", and that question is asked while looking at the empty space below. */}
             {card.copilotBusy && (
@@ -322,15 +356,30 @@ export function CardRoute() {
 
             <Section label="Move to">
               <div className="flex flex-wrap gap-2">
-                {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
-                  <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
-                    {CARD_STATUS_LABEL[s]}
-                  </Button>
-                ))}
+                {MANUAL_STATUSES.filter((s) => s !== card.status)
+                  .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
+                  .map((s) => (
+                    <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
+                      {CARD_STATUS_LABEL[s]}
+                    </Button>
+                  ))}
               </div>
+              {integration && integration.ahead > 0 && (
+                <p className="pt-2 text-xs text-muted-foreground">
+                  Done sits below, with the merge — filing this card would send its agent away, and
+                  that agent is who settles a merge conflict.
+                </p>
+              )}
             </Section>
 
-            {card.branch && <IntegrationSection card={card} onDone={() => revalidator.revalidate()} />}
+            {card.branch && (
+              <IntegrationSection
+                card={card}
+                events={detail?.events ?? []}
+                onState={setIntegration}
+                onDone={() => revalidator.revalidate()}
+              />
+            )}
 
             {detail && detail.reviews.length > 0 && (
               <Section label="Review">
@@ -552,29 +601,86 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
  * the only thing that changes any of it, apart from the agent committing, which is what the manual
  * refresh is for.
  */
-function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => void }) {
+function IntegrationSection({
+  card,
+  events,
+  onDone,
+  onState,
+}: {
+  card: CardView;
+  events: readonly BoardEvent[];
+  onDone: () => void;
+  onState: (state: Integration | null | undefined) => void;
+}) {
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [unexplained, setUnexplained] = useState<{ action: string; error: string } | null>(null);
   const { confirm, pending } = usePendingConfirm();
 
+  // What the journal remembers, which outlives the branch. A merged-and-cleaned-up card has nothing
+  // left for git to answer about, and "done" alone never said whether the code actually landed.
+  const past = integrationHistory(events);
+  const history =
+    past.merged || past.pr || past.cleanedUp || past.discarded ? (
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        {past.merged && (
+          <span>
+            Merged into {past.merged.base} · {timeAgo(past.merged.ts)}
+          </span>
+        )}
+        {past.pr && (
+          <span>
+            PR opened {timeAgo(past.pr.ts)}
+            {past.pr.url && (
+              <>
+                {" — "}
+                <a href={past.pr.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                  view on GitHub
+                </a>
+              </>
+            )}
+          </span>
+        )}
+        {/* Second-hand evidence, and worth saying so: cleanup is refused unless nothing was left to
+            integrate, so it landed even when the merge itself happened outside the board. */}
+        {past.cleanedUp && !past.merged && (
+          <span>Worktree cleaned up {timeAgo(past.cleanedUp)} — the branch was fully integrated.</span>
+        )}
+        {past.cleanedUp && past.merged && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
+        {past.discarded && (
+          <span>
+            Discarded {timeAgo(past.discarded.ts)} — {past.discarded.commits} commit
+            {past.discarded.commits === 1 ? "" : "s"} thrown away.
+          </span>
+        )}
+      </div>
+    ) : null;
+
   const load = useCallback(async () => {
+    let next: Integration | null = null;
     try {
-      setState((await fetchIntegration(card.id)).integration);
+      next = (await fetchIntegration(card.id)).integration;
     } catch {
       // A card whose repo has moved under us still has to render; the section simply says nothing.
-      setState(null);
     }
-  }, [card.id]);
+    setState(next);
+    onState(next);
+  }, [card.id, onState]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function run(action: "merge" | "pr" | "resolve" | "cleanup", label: string) {
+  async function run(
+    action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
+    label: string,
+    andDone = false,
+  ) {
     setBusy(action);
     try {
-      const res = await integrateCard(card.id, action);
+      const res = await integrateCard(card.id, action, andDone);
       setConflict(false);
       setStatus(
         action === "pr" && res.url ? `PR opened — ${res.url}` : `${label} done.`,
@@ -583,8 +689,12 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
       onDone();
     } catch (e) {
       // A conflict is the one failure with a next step, so the button for it appears here.
-      const message = (e as Error).message;
+      const message = boardErrorMessage(e);
       setConflict(/conflict/i.test(message));
+      // Raw git/herdr text is the only kind worth an agent turn: our own refusals are already
+      // sentences aimed at a person. `boardErrorMessage` keeps the body, so the kind is in it.
+      const raw = e instanceof Error && /"kind":"(git|herdr)"/.test(e.message);
+      setUnexplained(raw ? { action, error: message } : null);
       setStatus(message, "error", null);
     } finally {
       setBusy(null);
@@ -596,15 +706,22 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
   if (state === null) {
     return (
       <Section label="Integration">
-        <p className="text-xs text-muted-foreground">No branch to integrate.</p>
+        {history ?? <p className="text-xs text-muted-foreground">No branch to integrate.</p>}
       </Section>
     );
   }
 
   const merged = state.ahead === 0;
+  // Only what genuinely stops a merge. `baseDirty` deliberately isn't here: git merges over
+  // uncommitted changes it doesn't touch, and refuses by itself when it would — see refusalFor.
+  const mergeBlocker = !state.baseCheckedOut ? `the repository is not on ${state.base}` : null;
+  // A card that is not filed yet gets the combined gesture. Once it IS done, the same buttons stay
+  // for the case this exists to make rare: filed first, integrated afterwards.
+  const filing = card.status !== "done" && card.status !== "archived";
   return (
     <Section label="Integration">
       <div className="flex flex-col gap-3">
+        {history}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span className="font-mono">{state.branch}</span>
           <span>→</span>
@@ -626,28 +743,65 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
           </p>
         )}
 
+        {/* Both of these are refusals the client can see coming. Saying them here rather than
+            letting the button fail is the difference between "not yet, because X" and an error. */}
+        {!merged && !state.branchDirty && mergeBlocker && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            {mergeBlocker} — a PR still works.
+          </p>
+        )}
+
+        {/* A warning, not a blocker: it only matters if the merge touches the same files, and git
+            is the one that knows. Said here so a refusal afterwards is not a surprise. */}
+        {!merged && state.baseDirty && (
+          <p className="text-xs text-muted-foreground">
+            {state.base} has uncommitted changes. The merge goes through unless it touches the same
+            files — git checks before changing anything.
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
             className="h-9 gap-2"
-            disabled={busy !== null || merged || state.branchDirty}
-            onClick={() => void run("merge", `Merged into ${state.base}`)}
+            disabled={busy !== null || merged || state.branchDirty || mergeBlocker !== null}
+            onClick={() => void run("merge", `Merged into ${state.base}`, filing)}
           >
             <GitMerge className="size-4" />
-            {busy === "merge" ? "Merging…" : `Merge into ${state.base}`}
+            {busy === "merge" ? "Merging…" : filing ? `Merge into ${state.base} & done` : `Merge into ${state.base}`}
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="h-9 gap-2"
             disabled={busy !== null || merged || state.branchDirty}
-            onClick={() => void run("pr", "Pull request opened")}
+            onClick={() => void run("pr", "Pull request opened", filing)}
           >
             <GitPullRequest className="size-4" />
-            {busy === "pr" ? "Opening…" : "Open a PR"}
+            {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
           </Button>
         </div>
+
+        {/* Shown only for text we relayed verbatim from git or herdr. Off when the copilot is,
+            because it costs an agent turn of the user's own quota. */}
+        {unexplained && card.copilotBusy === false && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-fit gap-2"
+            onClick={() => {
+              const asked = unexplained;
+              setUnexplained(null);
+              explainError(card.id, asked)
+                .then(() => setStatus("Asked the copilot — the answer lands in the journal.", "info"))
+                .catch((e) => setStatus(boardErrorMessage(e), "error", null));
+            }}
+          >
+            <Sparkles className="size-4" />
+            What does this mean?
+          </Button>
+        )}
 
         {conflict && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
@@ -655,20 +809,51 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
               Nothing was changed in {state.base}. The agent can settle this on its own branch, then
               the merge goes through.
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 w-fit gap-2"
-              disabled={busy !== null}
-              onClick={() => void run("resolve", "Sent to the agent")}
-            >
-              <Sparkles className="size-4" />
-              {busy === "resolve" ? "Sending…" : "Let the agent resolve it"}
-            </Button>
+            {/* A filed card has no agent any more — its session ended when it was filed. Offering
+                "let the agent resolve it" there is offering a button that answers 409, so the honest
+                one is the button that brings an agent back. It spends quota, so it stays a tap. */}
+            {card.session?.paneId ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-fit gap-2"
+                disabled={busy !== null}
+                onClick={() => void run("resolve", "Sent to the agent")}
+              >
+                <Sparkles className="size-4" />
+                {busy === "resolve" ? "Sending…" : "Let the agent resolve it"}
+              </Button>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  This card has no running agent — start it again and it will pick the task up from
+                  its handoff, conflict included.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-fit gap-2"
+                  disabled={busy !== null || restarting}
+                  onClick={() => {
+                    setRestarting(true);
+                    startCard(card.id)
+                      .then(() => setStatus("Agent started — hand it the conflict once it is up.", "success"))
+                      .catch((e) => setStatus(boardErrorMessage(e), "error", null))
+                      .finally(() => {
+                        setRestarting(false);
+                        onDone();
+                      });
+                  }}
+                >
+                  <Play className="size-4" />
+                  {restarting ? "Starting…" : "Start the agent again"}
+                </Button>
+              </>
+            )}
           </div>
         )}
 
-        {merged && (
+        {merged ? (
           <Button
             variant="outline"
             size="sm"
@@ -681,6 +866,24 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
           >
             <Trash2 className="size-4" />
             {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+          </Button>
+        ) : (
+          /* The one gesture here that destroys work. It says exactly what it is about to lose —
+             a count you can check against the diff above — and takes a second tap to mean it. */
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-fit gap-2 text-destructive"
+            disabled={busy !== null}
+            onClick={() => {
+              if (!confirm("discard")) return;
+              void run("discard", "Discarded");
+            }}
+          >
+            <Trash2 className="size-4" />
+            {pending === "discard"
+              ? `Throw away ${state.ahead} commit${state.ahead === 1 ? "" : "s"}${state.branchDirty ? " and uncommitted work" : ""}?`
+              : "Discard this work"}
           </Button>
         )}
       </div>

@@ -88,6 +88,14 @@ export interface Card {
    */
   parentId: string | null;
   /**
+   * A card the copilot judged this one to be a repeat of, or null.
+   *
+   * A SUGGESTION, never a verdict: it links, it does not merge, and it does not stop the card being
+   * started. Clearing it is one tap, and that is the whole design — a false positive costs a tap, a
+   * missed duplicate costs a second agent doing work that already exists.
+   */
+  duplicateOf: string | null;
+  /**
    * The card that must finish before this one may start, or null. ORDERING, not provenance — and
    * deliberately one edge per card rather than a list: independent (null everywhere), serial (a
    * chain) and the realistic mixed case all fall out of the same nullable column, where a
@@ -156,6 +164,7 @@ interface CardRow {
   workspace_id: string | null;
   agent_kind: string | null;
   parent_id: string | null;
+  duplicate_of: string | null;
   depends_on: string | null;
   position: number;
   created_at: number;
@@ -227,6 +236,7 @@ function toCard(r: CardRow): Card {
     // Read straight through — a pointer at a deleted card would be a dangling link, so
     // `deleteCard` clears them rather than leaving the reader to guess.
     parentId: r.parent_id ?? null,
+    duplicateOf: r.duplicate_of ?? null,
     dependsOn: r.depends_on ?? null,
     position: r.position,
     createdAt: r.created_at,
@@ -281,6 +291,7 @@ CREATE TABLE IF NOT EXISTS card (
   -- because something else points at it, which is the wrong answer on a board you triage from a
   -- phone. deleteCard() clears both, so they never actually dangle.
   parent_id    TEXT,
+  duplicate_of TEXT,
   depends_on   TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
@@ -351,6 +362,7 @@ export interface NewCard {
   branch?: string | null;
   agentKind?: string | null;
   parentId?: string | null;
+  duplicateOf?: string | null;
   dependsOn?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
@@ -373,6 +385,7 @@ export interface CardPatch {
   workspaceId?: string | null;
   agentKind?: string | null;
   parentId?: string | null;
+  duplicateOf?: string | null;
   dependsOn?: string | null;
   position?: number;
 }
@@ -390,6 +403,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   workspaceId: "workspace_id",
   agentKind: "agent_kind",
   parentId: "parent_id",
+  duplicateOf: "duplicate_of",
   dependsOn: "depends_on",
   position: "position",
 };
@@ -441,6 +455,8 @@ export class BoardDb {
       // 0.32: a split used to produce bare titles with nothing tying them together. These two are
       // what make a split legible afterwards — where a card came from, and what it waits on.
       { table: "card", column: "parent_id", ddl: "TEXT" },
+      // 0.44: the copilot's "you may already have this card" suggestion.
+      { table: "card", column: "duplicate_of", ddl: "TEXT" },
       { table: "card", column: "depends_on", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
