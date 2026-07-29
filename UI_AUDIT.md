@@ -23,6 +23,18 @@ sont structurels, lus dans le DOM produit).
 
 ---
 
+## Sommaire
+
+- [Résumé](#résumé) — les huit griefs signalés et leur cause
+- **[Partie 1 — Audit](#partie-1--audit)** : budget d'écran · composer · texte de l'agent · gestes
+  destructeurs · accessibilité · système visuel · **feuilles (drawer)** · **board vs session** ·
+  ce qui est solide
+- **[Partie 2 — Revue](#partie-2--revue--pistes-damélioration)** : pistes A à G, priorisées
+- **[Partie 3 — Ressenti](#partie-3--revue-du-ressenti--conformité-aux-pratiques-actuelles)** :
+  responsive · typographie · couleur · motion · verdict par axe
+- [Ce que l'audit ne recommande pas](#ce-que-laudit-ne-recommande-pas)
+- [Par où commencer](#par-où-commencer)
+
 ## Résumé
 
 L'interface est **bien pensée sur le fond et sous pression sur la forme**. Le raisonnement dans le
@@ -1237,6 +1249,302 @@ snapshot, pas écrit en base.
 
 ---
 
+---
+
+# Partie 3 — Revue du ressenti : conformité aux pratiques actuelles
+
+Les deux premières parties traitent de défauts : ce qui casse, ce qui gêne. Celle-ci traite de
+**craft** — est-ce que l'interface est au niveau de ce qu'on attend d'une app web en 2026, sur trois
+axes : responsive, patterns modernes, qualité visuelle.
+
+Tout ce qui suit est **compté**, pas ressenti. Les commandes sont reproductibles sur `web/src/`.
+
+## Le constat central : le code est artisanal, le design est par défaut
+
+C'est le contraste le plus frappant de tout cet audit.
+
+D'un côté, quelqu'un a écrit **une centaine de lignes** pour gérer un brouillon échoué sur la ligne
+`❯` d'un terminal — un cas limite que personne n'aurait vu venir, avec stabilisation temporelle,
+suppression d'auto-écho et reprise explicite. Quelqu'un a implémenté un garde-fou de course qui
+re-dérive un menu depuis une lecture fraîche avant d'envoyer une touche. Quelqu'un a documenté
+pourquoi `navigator.onLine` ne doit pas gater le polling, avec le bug réel à l'appui.
+
+De l'autre : **aucune échelle typographique n'a été décidée**, **aucune police n'a été choisie**,
+**aucun breakpoint n'a été posé**, et la palette est celle qui sort de la boîte shadcn, chroma zéro,
+jamais touchée.
+
+Ce n'est pas de la négligence — c'est que l'effort est allé **entièrement** dans le comportement, et
+jamais dans la forme. Le résultat est une application qui marche remarquablement bien et qui
+ressemble à un template.
+
+---
+
+## 1. Responsive — le mot ne s'applique pas
+
+**Deux occurrences de breakpoint dans toute l'application.** Les deux dans le même fichier :
+
+```
+components/card-diff.tsx:166   sm:min-w-max
+components/card-diff.tsx:171   sm:whitespace-pre sm:break-normal
+```
+
+C'est tout. Pas un `md:`, pas un `lg:`, pas un `xl:` — nulle part ailleurs.
+
+Ce que l'app fait à la place, c'est **contraindre** : `max-w-screen-sm` (640 px) sur les cinq
+conteneurs de route. Une contrainte de largeur n'est pas du responsive — c'est une mise en boîte.
+L'interface ne s'adapte pas au grand écran, elle s'y refuse.
+
+Il y a une nuance de bonne foi à porter au crédit du projet : c'est une PWA mobile, assumée comme
+telle, et sur ce périmètre les fondamentaux sont **bien** tenus (viewport avec `viewport-fit=cover`
+et `interactive-widget=resizes-content`, `dvh` plutôt que `vh`, 15 usages de `env(safe-area-inset-*)`).
+Ce n'est pas une app desktop mal portée sur mobile : c'est une app mobile qui n'a jamais envisagé
+autre chose.
+
+Mais la question posée est « est-ce que ça suit les bonnes pratiques d'une interface web
+responsive » — et la réponse honnête est **non, parce qu'il n'y a pas de responsive du tout**.
+
+**Le manque le plus moderne** : zéro *container query*, alors que Tailwind 4 les fournit
+nativement et qu'elles sont exactement l'outil dont ce projet aura besoin. Un `CardTile` doit se
+présenter différemment dans une colonne de Kanban à 320 px et en pleine largeur sur téléphone — et
+c'est une propriété de **son conteneur**, pas du viewport. Faire ça en `md:` sur le viewport donnerait
+le mauvais résultat dans la colonne étroite d'un grand écran. À poser en même temps que F1.
+
+---
+
+## 2. Typographie — aucune échelle n'a été décidée
+
+**245 déclarations de taille de texte**, réparties ainsi :
+
+| Taille | Occurrences | Part |
+|---|---|---|
+| `text-xs` (12 px) | 103 | 42 % |
+| `text-sm` (14 px) | 84 | 34 % |
+| **`text-[11px]`** | **32** | 13 % |
+| **`text-[10px]`** | **15** | 6 % |
+| `text-base` (16 px) | 5 | 2 % |
+| `text-lg` (18 px) | 4 | 2 % |
+| `text-[13px]`, `text-[0.95rem]` | 2 | — |
+
+Deux lectures, toutes deux préoccupantes :
+
+**a) 76 % de l'interface est en 12 px ou moins.** Sur un téléphone. Pour référence : iOS HIG place le
+corps de texte à 17 pt et réserve le 11 pt aux légendes ; Material Design donne 14 sp comme plancher
+de corps de texte et 16 sp comme valeur recommandée. Ici, le corps de texte *est* la légende. Le
+`text-base` (16 px), c'est-à-dire la taille de lecture confortable, apparaît **cinq fois** — et
+essentiellement sur les champs de saisie, où il est obligatoire pour éviter le zoom automatique
+d'iOS.
+
+L'app est donc **très dense**, ce qui n'est pas illégitime pour un outil technique — mais c'est un
+choix qui n'a jamais été fait consciemment, il découle de l'absence d'échelle.
+
+**b) 19 % des tailles sont des valeurs arbitraires** (`text-[10px]`, `text-[11px]`, `text-[13px]`,
+`text-[0.95rem]`). Une fois sur cinq, l'échelle Tailwind est contournée. C'est la signature d'une
+typographie ajustée au cas par cas, à l'œil, sans système : quand on a besoin de « un peu plus petit
+que `text-xs` », on écrit `text-[11px]` — et la fois d'après on écrit `text-[10px]`.
+
+### Aucune police n'a été choisie
+
+- **`--font-sans` n'est pas défini du tout.** L'interface tourne donc sur la pile Tailwind par
+  défaut (`ui-sans-serif, system-ui, …`), c'est-à-dire San Francisco sur iOS et Roboto sur Android.
+  Défendable (les polices système sont excellentes et gratuites en poids), mais c'est un défaut, pas
+  une décision.
+- **`--font-mono` déclare `"JetBrains Mono"` en tête** (`index.css:96`) — et elle **n'est jamais
+  chargée** : zéro `@font-face`, zéro preload, aucun `.woff` dans `public/`. Le navigateur ne la
+  trouve donc que si l'utilisateur l'a installée sur son téléphone, ce qui n'arrive jamais. En
+  pratique on tombe silencieusement sur le fallback : Roboto Mono sur Android, SF Mono ou Menlo sur
+  iOS.
+
+Conséquence concrète : **le miroir terminal — l'élément central de cette application — n'a pas la
+même police selon l'appareil**, avec des chasses et des hauteurs d'x différentes. Sur une app dont
+tout le contenu est du texte à chasse fixe, c'est le détail typographique qui compte le plus, et
+c'est celui qui est laissé au hasard.
+
+---
+
+## 3. Couleur — une palette sans identité
+
+**Tous les neutres sont à chroma exactement zéro.** Extrait de `index.css` :
+
+```css
+--background: oklch(0.145 0 0);   /* ← chroma 0 */
+--card:       oklch(0.205 0 0);   /* ← chroma 0 */
+--muted:      oklch(0.269 0 0);   /* ← chroma 0 */
+--border:     oklch(1 0 0 / 12%); /* ← chroma 0 */
+```
+
+Sur **18 tokens neutres, 18 sont du gris parfaitement neutre**. Ce sont les valeurs par défaut du
+thème « neutral » de shadcn, jamais modifiées.
+
+C'est ce qui sépare une interface qui *fonctionne* d'une interface qui *a un caractère*. Les
+interfaces qu'on cite en exemple (Linear, Vercel, Raycast, Arc) teintent toutes légèrement leurs
+neutres — un chroma de 0,005 à 0,02 sur une teinte donnée. On ne le voit pas consciemment ; on
+ressent que l'interface est « froide » ou « chaude », qu'elle a une signature. À chroma zéro, une
+interface est propre et anonyme.
+
+L'ironie est que **le projet sait le faire** : `--status-idle: oklch(0.62 0.02 250)` porte un chroma
+de 0,02 sur une teinte bleue. Un seul token sur dix-huit a reçu ce traitement.
+
+Et il y a un décalage de fond avec le produit : Collie a une mascotte, un chien qui galope en sprite
+animé, un splash de démarrage soigné, un nom. **La personnalité de la marque s'arrête au sprite du
+chien.** Tout le reste est un template gris.
+
+Les cinq couleurs de statut, elles, sont bien pensées : chroma et luminosité ajustés séparément pour
+le clair et le sombre, teintes distinctes et lisibles (`--status-blocked` 24° rouge,
+`--status-working` 80° ambre, `--status-done` 152° vert). C'est la seule partie de la palette qui a
+reçu une décision.
+
+---
+
+## 4. Feedback, états et motion
+
+### Ce qui est bien fait
+
+- **59 usages de `active:`** contre 22 de `hover:` — l'app privilégie correctement le retour tactile
+  (`active:scale-[0.98]` sur les boutons, `active:bg-muted/60` sur les rangées) plutôt que le survol,
+  qui n'existe pas au doigt. C'est le bon réflexe mobile, et rare.
+- **La barre d'activité** (`.busy-bar`, `index.css:160`) est un vrai morceau de finition : elle
+  attend 120 ms avant de devenir visible, donc une action rapide ne produit aucun flash. Ce genre de
+  détail est ce qui sépare une interface soignée d'une interface qui clignote.
+- **11 usages de `tabular-nums`** — les chiffres qui ne dansent pas quand un compteur change. C'est
+  un détail de professionnel.
+- **`prefers-reduced-motion` respecté en 5 endroits**, jusque dans le CSS inline du splash.
+- **112 attributs `aria-*`** : la sémantique d'accessibilité est prise au sérieux (les trous relevés
+  en §5 sont des exceptions, pas une tendance).
+
+### Ce qui manque
+
+- **Aucun retour haptique.** Zéro `navigator.vibrate`. Sur une application dont plusieurs actions
+  passent par une confirmation à deux taps, un pulse de 10 ms au moment où le bouton s'arme est
+  exactement le bon usage — c'est le signal qui dit « j'ai compris, confirme ». Réserve honnête :
+  l'API n'existe pas sur iOS Safari, donc le gain est Android-only.
+- **Le mouvement est générique.** Le point a été traité en détail pour le drawer (§7.5), mais il se
+  généralise : `transition-colors`, `transition-transform`, `duration-200`, et **pas une seule classe
+  `ease-*` dans tout `components/`**. Toutes les animations de l'app tournent sur les courbes par
+  défaut. Un système de motion, c'est deux ou trois courbes nommées et deux durées — c'est peu de
+  travail et ça change la perception d'un produit.
+- **Zéro skeleton, 37 spinners.** Nuance importante : ce n'est *pas* forcément un défaut ici. L'app
+  polle et revalide, donc les données sont généralement déjà à l'écran ; le seul vrai chargement à
+  froid est le splash de démarrage, qui est soigné. Le spinner est légitime pour une action, moins
+  pour du contenu — mais l'app a peu de cas de « contenu qui arrive vide ».
+
+---
+
+## 5. Ce qui est réellement moderne — et à ne pas perdre de vue
+
+La revue serait injuste sans ceci. Le socle CSS est **à jour**, ce qui est loin d'être universel :
+
+| Technique | Usages | Commentaire |
+|---|---|---|
+| `oklch()` pour toute la palette | 44 | espace perceptuellement uniforme — la bonne pratique 2024+ |
+| `dvh` plutôt que `vh` | 7 | corrige le bug de la barre d'URL mobile |
+| `env(safe-area-inset-*)` | 15 | encoches et indicateur home gérés partout |
+| `field-sizing: content` | 1 | textarea auto-extensible **sans JavaScript** — CSS très récent |
+| `:has()` (`has-[>svg]:px-3`) | 3 | sélecteur parent, longtemps impossible |
+| `color-mix()` | 1 | mélange de couleurs en CSS natif |
+| Tailwind v4 avec `@theme inline` | — | la génération actuelle, pas la précédente |
+| PWA complète | — | manifeste, service worker, splash, icônes maskable |
+
+Un socle de 2026, donc. C'est bien ce qui rend l'absence de décisions de design frappante : **les
+outils modernes sont là, ils ne sont simplement pas utilisés pour faire des choix**.
+
+### Ce qui manque du CSS d'aujourd'hui
+
+- **`text-wrap: pretty` / `balance`** : zéro usage. Une ligne de CSS globale (`p { text-wrap: pretty }`)
+  supprime les orphelines dans tous les paragraphes ; `text-balance` sur les titres équilibre les
+  retours à la ligne. C'est le meilleur rapport qualité/effort de toute cette partie.
+- **Container queries** : zéro. Voir §1 — c'est l'outil du board desktop.
+- **`scroll-snap`** : zéro, alors que l'app a **trois** bandes de défilement horizontal (TabStrip,
+  PaneStrip, SpaceStrip). Un `snap-x snap-mandatory` ferait s'aligner les pastilles au lieu de les
+  laisser à moitié coupées au bord — la finition qui distingue un carrousel natif d'un `overflow-x: auto`.
+- **`@starting-style`** : zéro. Permettrait des animations d'entrée sans classe ni JavaScript.
+
+---
+
+## 6. Verdict par axe
+
+| Axe demandé | Verdict | Ce qui le porte |
+|---|---|---|
+| **Interface web responsive** | **Non** | 2 breakpoints en tout ; `max-w-screen-sm` est une contrainte, pas une adaptation |
+| **Interface moderne (patterns)** | **Oui, largement** | polling adaptatif, gel de lecture, PWA, offline, gardes de course, a11y sémantique |
+| **Socle technique moderne** | **Oui** | oklch, dvh, field-sizing, `:has()`, Tailwind 4, safe-area |
+| **Éléments visuellement modernes et bien pensés** | **Non — jamais décidés** | pas d'échelle typo (19 % de valeurs arbitraires), pas de police, chroma 0, pas de courbes de motion |
+
+En une phrase : **c'est une application très bien construite qui n'a jamais reçu de direction
+artistique.** Ce qui relève du comportement est au-dessus de la moyenne du métier ; ce qui relève de
+la forme est resté au réglage d'usine.
+
+Une précision, parce qu'elle compte : « moderne » n'est pas une fin en soi. La densité élevée est
+défendable pour un outil de pilotage, le refus des fioritures aussi, et une bonne partie du charme
+de ce produit vient de sa sobriété. Le problème n'est pas que les choix soient austères — c'est
+qu'**ils n'ont pas été faits**.
+
+---
+
+## 7. Cinq gestes qui changeraient le ressenti
+
+Classés par (impact perçu ÷ effort). Aucun ne touche au comportement, donc aucun ne peut casser une
+des mécaniques du §9.
+
+### R1. Teinter les neutres — 20 valeurs, une heure, transforme tout
+
+Passer les 18 tokens gris de `oklch(L 0 0)` à `oklch(L 0.006 250)` (froid, technique — cohérent avec
+un outil de terminal) ou `oklch(L 0.008 80)` (chaud, plus proche de la mascotte). C'est **le
+changement au plus fort rapport impact/effort de tout ce document** : personne ne le remarque
+consciemment, tout le monde trouve que « ça a l'air mieux fait ».
+
+À faire en même temps que la décision sur le mode clair (§D2), puisque c'est le même fichier.
+
+### R2. Décider une échelle typographique — et remonter le corps de texte
+
+Trois gestes :
+
+1. **Supprimer les 47 valeurs arbitraires** (`text-[10px]`, `text-[11px]`, `text-[13px]`,
+   `text-[0.95rem]`) en les repliant sur l'échelle. Si un cran manque, l'ajouter au thème une fois,
+   pas au cas par cas.
+2. **Remonter d'un cran ce qui est du contenu** : le nom d'un agent, le titre d'une carte, le corps
+   d'un message ne sont pas des légendes. Les `text-xs` qui portent de l'information deviennent
+   `text-sm`, les `text-sm` de contenu principal deviennent `text-base`. Les métadonnées restent
+   petites — c'est justement ce qui crée la hiérarchie qui manque aujourd'hui.
+3. **Poser trois rôles** au lieu de sept tailles : titre / corps / métadonnée. Le reste découle.
+
+Attention : ce geste **consomme de la hauteur d'écran**, qui est déjà le problème du §1. À faire donc
+**après** la refonte du composer (C1), qui en libère.
+
+### R3. Charger une vraie police
+
+Deux décisions distinctes :
+
+- **Mono** : soit fournir réellement JetBrains Mono (une variable font en `woff2`, self-hostée,
+  preloadée — la CSP stricte impose le self-hosting de toute façon), soit **retirer la mention** et
+  assumer la pile système. L'état actuel — la déclarer sans la charger — est le pire des trois :
+  il donne l'illusion d'une décision qui n'a aucun effet.
+- **Sans** : définir `--font-sans` explicitement, même si c'est pour y mettre la pile système. Une
+  décision écrite vaut mieux qu'un défaut hérité.
+
+Le coût réel à peser : une variable font mono self-hostée, c'est ~30-60 ko en woff2 sur une PWA
+servie par tailscale. Sur un réseau local, c'est négligeable ; c'est un choix, pas une évidence.
+
+### R4. Deux ou trois courbes de motion nommées
+
+Ajouter au thème : une courbe d'entrée (décélération), une de sortie (accélération), une durée
+courte (150 ms) et une longue (250 ms). Puis remplacer les `duration-200` nus. C'est une quinzaine de
+lignes dans `index.css` et un passage de recherche/remplacement — et c'est ce qui fait qu'une
+interface « répond » au lieu de « changer d'état ».
+
+Le drawer (§E6) est le cas le plus visible, mais tout en bénéficie.
+
+### R5. Les finitions à une ligne
+
+Toutes indépendantes, toutes triviales :
+
+- `text-wrap: pretty` sur les paragraphes, `text-balance` sur les titres — une règle globale ;
+- `snap-x snap-mandatory` + `snap-start` sur les trois bandes horizontales ;
+- `navigator.vibrate(10)` sur l'armement des confirmations à deux taps (Android) ;
+- retirer les 22 `hover:` — ou plutôt les **garder**, puisque le desktop arrive (F1/E7) : ils
+  cesseront d'être du code mort.
+
+---
+
 ## Ce que l'audit ne recommande pas
 
 Pour fermer des portes que quelqu'un rouvrira :
@@ -1283,12 +1591,17 @@ agréable pour le moins de travail :
 6. **B2** — pouvoir copier. Sur un outil qui sert à récupérer ce qu'un agent produit, c'est une
    lacune de fond.
 
+**En parallèle, sans toucher au comportement** (Partie 3) :
+
+7. **R1 + R5** — teinter les neutres, et les finitions à une ligne (`text-pretty`, `scroll-snap`,
+   haptique). Une heure de travail pour le plus gros gain de ressenti du document.
+
 **Les deux chantiers, à décider explicitement :**
 
-7. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles ouvertes par la droite.
+8. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles ouvertes par la droite.
    Le seul endroit où le desktop apporte ce qu'un téléphone ne peut pas donner : tout voir d'un coup.
 9. **E5** — la migration Vaul, **décidée**. Neuf sites d'appel, neuf tests à revoir, un ADR à
    écrire, et un build avant/après pour le bundle. C'est la seule décision de dépendance de tout ce
    document.
-8. **D1** — la vue Lecture. C'est la seule réponse complète au problème du texte, et 60 % du code
-   existe déjà — il est juste enterré derrière une icône et figé.
+10. **D1** — la vue Lecture. C'est la seule réponse complète au problème du texte, et 60 % du code
+    existe déjà — il est juste enterré derrière une icône et figé.
