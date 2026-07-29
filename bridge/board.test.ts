@@ -13,6 +13,7 @@ import {
   initialPrompt,
   reconcile,
   reconcileOne,
+  releaseSession,
   startCard,
   wouldCycle,
 } from "./cards.ts";
@@ -232,6 +233,59 @@ describe("reconcileOne", () => {
 
   it("leaves the column alone on an unknown agent status", () => {
     expect(reconcileOne(card("working"), session(0), pane("w1:p1", "unknown"), 60_000)).toBeNull();
+  });
+
+  it("KEEPS a reviewing card in review while its agent sits idle — the copilot only reviews what is in review", () => {
+    // Herdr reports `done` for an instant and `idle` for as long as the agent waits at its prompt.
+    // Mirroring that idle bounced cards in and out of review several times a minute (seen live), and
+    // the copilot's review only fires on a card that IS in review at the tick it looks.
+    expect(reconcileOne(card("review"), session(0), pane("w1:p1", "idle"), 60_000)).toBeNull();
+  });
+
+  it("still takes a reviewing card back out when the agent actually resumes, or asks a question", () => {
+    expect(reconcileOne(card("review"), session(0), pane("w1:p1", "working"), 60_000))
+      .toEqual({ kind: "column", status: "working" });
+    expect(reconcileOne(card("review"), session(0), pane("w1:p1", "blocked"), 60_000))
+      .toEqual({ kind: "column", status: "blocked" });
+  });
+});
+
+describe("releaseSession", () => {
+  it("closes the open session when the operator moves a card out of the live columns", () => {
+    for (const [status, outcome] of [
+      ["done", "done"],
+      ["archived", "done"],
+      ["backlog", "abandoned"],
+      ["ready", "abandoned"],
+    ] as const) {
+      const store = db();
+      const card = store.createCard({ title: "x", status: "working" });
+      const s = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+      releaseSession(store, card.id, status);
+      expect(store.getSession(s.id)!.outcome).toBe(outcome);
+      expect(store.openSessionFor(card.id)).toBeNull();
+    }
+  });
+
+  it("leaves the session alone when the card moves BETWEEN live columns", () => {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working" });
+    const s = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    releaseSession(store, card.id, "review");
+    expect(store.getSession(s.id)!.outcome).toBeNull();
+  });
+
+  it("makes a manual Done STICK — without it the next poll reconciles the decision away", () => {
+    const store = db();
+    const card = store.createCard({ title: "x", status: "working" });
+    store.openSession({ cardId: card.id, paneId: "w1:p1" });
+
+    releaseSession(store, card.id, "done");
+    store.setStatus(card.id, "done", "manual");
+
+    // The agent is still sitting in its pane, exactly as it would be in real life.
+    reconcile(store, snapshot([pane("w1:p1", "idle")]));
+    expect(store.getCard(card.id)!.status).toBe("done");
   });
 });
 

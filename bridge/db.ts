@@ -53,6 +53,15 @@ export function isCardStatus(v: unknown): v is CardStatus {
 /** Statuses that mean "an agent is supposed to be running for this card right now". */
 const LIVE_STATUSES: readonly CardStatus[] = ["starting", "working", "blocked", "review"];
 
+/**
+ * The complement of {@link LIVE_STATUSES}: a column that says no agent is meant to be working. Moving
+ * a card into one of these BY HAND is the operator ending the card's session, so it is also the test
+ * the API uses to decide whether to close it (see ADR 0002).
+ */
+export function isLiveStatus(status: CardStatus): boolean {
+  return LIVE_STATUSES.includes(status);
+}
+
 export interface Card {
   id: string;
   title: string;

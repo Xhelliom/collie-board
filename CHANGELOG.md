@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.40.1] - 2026-07-29
+
+### Fixed
+- A card moved by hand to Done / Backlog / Ready / Archive now **stays there**. It didn't: the next poll reconciled it back to whatever its pane was doing, silently. Moving out of the live columns ends the card's session; the pane is left alone.
+- A finished card no longer bounces in and out of `review` every turn. Herdr reports `done` for an instant then `idle` for as long as the agent waits at its prompt, and the board mirrored both — seen live, seven transitions in one session.
+- That bounce made the copilot's review a **race**: it only reviews a card that is in `review` on the tick it looks, so a finished task could go unreviewed with nothing to say so.
+
+### Notes
+- [ADR 0002](./.adr/0002-a-manual-status-ends-the-session-not-the-pane.md) — why the session ends and the pane doesn't, and why neither herdr nor the copilot can be asked to decide a task is finished.
+
 ## [0.40.0] - 2026-07-29
 
 ### Added

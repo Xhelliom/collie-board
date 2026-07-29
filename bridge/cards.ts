@@ -15,7 +15,7 @@
 // status, cwd and agent all still come from the snapshot on every read.
 
 import type { Config } from "./config.ts";
-import type { BoardDb, Card, CardSession, CardStatus } from "./db.ts";
+import { isLiveStatus, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -143,9 +143,37 @@ export function reconcileOne(
     if (now - session.startedAt < ORPHAN_GRACE_MS) return null;
     return card.status === "orphaned" ? null : { kind: "orphan" };
   }
+  // REVIEW IS A LANDING, NOT A READING OF THE PANE. An agent that finished its turn reports `done`
+  // for a moment and then `idle` for as long as it sits at its prompt, so mirroring `idle` bounces
+  // the card straight back out of review — and then in again on the next turn, and out again. That
+  // is not cosmetic: the copilot only ever reviews a card that IS in `review` on the tick it looks
+  // (copilot.ts), so a card can finish its work and never be reviewed, with nothing to say so.
+  // Real work takes it back out (the operator asked for more), and so does a question; sitting
+  // quietly does not.
+  if (card.status === "review" && pane.status === "idle") return null;
   const status = STATUS_COLUMN[pane.status];
   if (!status || status === card.status) return null;
   return { kind: "column", status };
+}
+
+/**
+ * Close the card's open session when the operator moves it out of the live columns by hand.
+ *
+ * Without this a manual status never sticks: `setStatus` records no provenance, so the very next
+ * poll reconciles the card back to whatever its pane is doing, and "Done" on a card whose agent is
+ * still sitting there silently undoes itself a second later.
+ *
+ * The PANE IS LEFT ALONE, deliberately — closing a terminal is irreversible and can throw away
+ * uncommitted work, and it must never be the side effect of moving a card between columns
+ * (ADR 0002). The session row is a board fact; the pane belongs to the herd.
+ */
+export function releaseSession(db: BoardDb, cardId: string, status: CardStatus): void {
+  if (isLiveStatus(status)) return;
+  const session = db.openSessionFor(cardId);
+  if (!session) return;
+  // `done` for the columns that mean the work is finished, `abandoned` for the ones that put it back
+  // on the shelf — the same outcome a failed start already uses for "this session never happened".
+  db.closeSession(session.id, status === "done" || status === "archived" ? "done" : "abandoned");
 }
 
 /**

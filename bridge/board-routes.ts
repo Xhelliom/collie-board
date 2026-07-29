@@ -12,7 +12,14 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 import type { AuditLog } from "./audit.ts";
-import { cardView, cardViews, promptAndConfirm, startCard, wouldCycle } from "./cards.ts";
+import {
+  cardView,
+  cardViews,
+  promptAndConfirm,
+  releaseSession,
+  startCard,
+  wouldCycle,
+} from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus } from "./db.ts";
@@ -313,10 +320,14 @@ async function route(
       const linkError = checkLinks(db, id, parsed.value);
       if (linkError) return text(linkError, 400);
       // A status change goes through setStatus so it lands in the card's journal; everything else
-      // is a plain field edit.
+      // is a plain field edit. Moving the card out of the live columns by hand also ends its
+      // session — otherwise the next poll reconciles the decision away (see `releaseSession`).
       const { status, ...fields } = parsed.value;
       db.patchCard(id, fields);
-      if (status) db.setStatus(id, status, "manual");
+      if (status) {
+        releaseSession(db, id, status);
+        db.setStatus(id, status, "manual");
+      }
       ctx.audit.record({
         action: "card.patch",
         session: ctx.session,
