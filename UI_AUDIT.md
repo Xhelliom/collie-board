@@ -46,7 +46,7 @@ Les huit griefs signalés sont tous réels, et l'audit en donne la mesure et la 
 | Tableaux disloqués | même double wrap, plus le parseur qui les exclut explicitement (§3.2) |
 | Le drawer scintille et se ferme tout seul | **trois bugs distincts**, aucun couvert par un test (§7.1-7.3) |
 | Le mouvement du drawer est trop linéaire | **aucune animation de fermeture**, ni vélocité, ni courbe choisie (§7.5) |
-| Pas de mode desktop | `max-w-screen-sm` sur les 5 routes ; et 8 colonnes de board à regrouper (§F) |
+| Pas de mode desktop | `max-w-screen-sm` sur les 5 routes ; 8 colonnes de board à regrouper (§F) ; feuilles à ouvrir par la droite (§E7) |
 | Board et sessions ne disent pas la même chose | le contexte n'est calculé que pour les panes nés d'une carte (§8) |
 
 Il relève en plus **dix problèmes non signalés**, dont un de gravité supérieure à tous les autres :
@@ -679,7 +679,7 @@ casser une des mécaniques du §9.
 | **B3** | Masquer le handle quand il n'y a qu'un pane | §1.2 | trivial | faible |
 | **E4** | Feuilles : verrou du body + transform hors React | §7.4 | faible | faible |
 | **E6a** | **Feuilles : une animation de fermeture** | §7.5a | faible | nul |
-| **E7** | **Feuilles : dialog centré sur grand écran** | §7.6 | faible | faible |
+| **E7** | **Feuilles : drawer latéral droit sur grand écran** (même composant) | §7.6 | faible | faible |
 | **G1** | **Le contexte sur l'écran pane et l'accueil** | §8.1 | faible | faible |
 | **G2** | Aligner les champs des deux cartes | §8.3 | faible | nul |
 | **C1** | Refonte du composer : une rangée au lieu de trois | §2 | moyen | moyen |
@@ -1008,29 +1008,53 @@ demandent pas le même engagement du poignet.
 
 **C'est le lot le plus difficile à réussir**, et la raison principale de considérer E5.
 
-### E7. La présentation desktop des feuilles
+### E7. La présentation desktop des feuilles — un drawer latéral, pas un dialog
 
-**Pas un autre composant : la même feuille, deux présentations.** Le conteneur actuel est déjà un
-`fixed inset-0 flex flex-col justify-end` avec un panneau dedans (`sheet.tsx:113-145`). Le passage au
-dialog centré est une affaire de classes :
+Une bottom sheet sur un écran de 27 pouces est un idiome déplacé (§7.6). La réponse retenue n'est
+**pas** un second composant : c'est **le même drawer, ouvert par la droite**.
 
+Vaul expose `direction`, et le positionnement vient des classes fournies par l'appelant — c'est le
+patron de sa propre documentation :
+
+```tsx
+const position = {
+  bottom: "inset-x-0 bottom-0 rounded-t-2xl max-h-[82dvh]",
+  right:  "right-0 top-0 bottom-0 w-[420px] rounded-l-2xl",
+};
+
+<Drawer.Root direction={isDesktop ? "right" : "bottom"}>
+  …
+  <Drawer.Content className={position[isDesktop ? "right" : "bottom"]}>
 ```
-mobile   : justify-end   + w-full   rounded-t-2xl  max-h-[82dvh]
-≥ sm     : items-center  + max-w-lg mx-auto rounded-2xl max-h-[85dvh]
-```
 
-Plus trois ajustements : désactiver l'effet tactile au-dessus du point de rupture (le glissement n'a
-pas de sens au pointeur), masquer la poignée en `sm:hidden`, et remplacer `slide-in-from-bottom` par
-un `zoom-in` sur grand écran. **~12 lignes, aucun nouveau composant, aucune dépendance**, et les cinq
-sites d'appel ne bougent pas.
+**Pourquoi c'est meilleur qu'un dialog centré**, dans l'ordre d'importance :
 
-Ce que ça ne couvre pas, et qui relève d'un travail ultérieur : la palette de commandes voudrait être
-ancrée en haut (idiome ⌘K), et les feuilles d'action tab/pane voudraient être des popovers ancrés à
-l'élément long-pressé plutôt que des modales. Les deux sont du raffinement, pas le premier pas.
+1. **Sur le board en quatre colonnes (F1), un panneau latéral laisse le board visible.** Une modale
+   centrée le masque. Garder sous les yeux la colonne d'où vient la carte pendant qu'on l'édite est
+   fonctionnellement supérieur pour un Kanban — ce n'est pas une question de goût.
+2. **Un seul composant, une seule prop.** Plus de classes responsives à écrire, et surtout plus
+   besoin du patron shadcn « Responsive Dialog » (Vaul sur mobile + Radix Dialog sur desktop,
+   arbitrés par un `useMediaQuery`) — la même instance couvre les deux.
+3. **L'idiome latéral est déjà dans le vocabulaire de l'app** : `SideSheet` existe
+   (`sheet.tsx:234`, `slide-in-from-left`, pour le ThreadSidebar). Cette piste **unifie** deux
+   composants aujourd'hui séparés au lieu d'en ajouter un troisième.
 
-À noter : **cette piste est indépendante de E5.** Vaul ne fournit pas de dialog centré (son
-`direction` ne connaît que les quatre bords), donc le travail desktop est le même que l'on garde la
-feuille maison ou non.
+**Ce qu'il reste à écrire** : un `useMediaQuery`. Le dépôt n'en a pas — il lit `window.innerWidth`
+une seule fois, sans réactivité (`use-display-prefs.ts:46`). Une dizaine de lignes sur `matchMedia`
++ `useSyncExternalStore`, réutilisables ensuite par F1 et F2.
+
+**Deux réserves, mineures :**
+
+- La **palette de commandes** reste mal servie par un panneau latéral — l'idiome desktop d'un ⌘K est
+  centré-haut. Une feuille sur neuf ; à traiter séparément, si tant est qu'on y tienne.
+- Changer `direction` **pendant qu'un drawer est ouvert** (redimensionnement de fenêtre, rotation
+  d'une tablette) est un cas limite à vérifier une fois. En pratique : rare, et sans conséquence
+  au-delà d'une animation bancale.
+
+**Conséquence sur l'arbitrage Vaul** : la version précédente de ce document disait « Vaul règle sept
+points sur huit, mais pas le desktop ». **Avec le drawer latéral il les règle tous les huit** —
+l'argument « le desktop reste à écrire dans les deux cas » tombe, et la décision §E5 s'en trouve
+renforcée.
 
 ### E5. Vaul — la recommandation, révisée
 
@@ -1077,9 +1101,13 @@ reproposera ; sans ADR, le prochain contributeur re-renversera le choix dans l'a
 tailscale : le chiffre n'est pas dans ce document et ne doit pas être deviné. Un build avant/après le
 donne, et c'est le seul argument contre qui soit factuel plutôt que doctrinal.
 
-**Ce que la migration ne règle pas** : le desktop (E7 reste à écrire tel quel), et E6 devient sans
-objet — sauf E6a (l'animation de fermeture), qui vaut le coup **tout de suite** si la migration
-n'est pas immédiate, pour ~15 lignes.
+**Ce que la migration règle en plus, depuis la révision de E7** : le desktop. Avec
+`direction="right"` sur grand écran, la même instance couvre mobile et desktop — donc Vaul répond
+aux **huit** défauts de §7, et non sept. Seul reste à écrire un `useMediaQuery` (~10 lignes).
+
+**Ce qu'elle rend sans objet** : E6, sauf **E6a** (l'animation de fermeture), qui vaut le coup
+**tout de suite** si la migration n'est pas immédiate — ~15 lignes pour supprimer la disparition
+instantanée.
 
 **Risque assumé, non bloquant** : dépendance UI d'un seul mainteneur, sur une application destinée à
 durer.
@@ -1257,7 +1285,7 @@ agréable pour le moins de travail :
 
 **Les deux chantiers, à décider explicitement :**
 
-7. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles en dialog centré.
+7. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles ouvertes par la droite.
    Le seul endroit où le desktop apporte ce qu'un téléphone ne peut pas donner : tout voir d'un coup.
 9. **E5** — la migration Vaul, **décidée**. Neuf sites d'appel, neuf tests à revoir, un ADR à
    écrire, et un build avant/après pour le bundle. C'est la seule décision de dépendance de tout ce
