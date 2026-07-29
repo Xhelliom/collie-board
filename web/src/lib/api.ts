@@ -42,7 +42,7 @@ export function isApiErrorStatus(error: unknown, status: number): boolean {
 // catch → stale-data-with-error, and the poller/nav can retry. Budgets by request class:
 //   - GET reads (snapshot/pane polls) are small and frequent — a short leash surfaces a dead link
 //     fast so the UI can show "reconnecting…" and retry on the next tick.
-const GET_TIMEOUT_MS = 10_000;
+export const GET_TIMEOUT_MS = 10_000;
 //   - Mutations drive a real terminal on the host, which can legitimately take a beat — more slack.
 const MUTATION_TIMEOUT_MS = 20_000;
 //   - Uploads carry a whole file over the phone's uplink — the most generous budget.

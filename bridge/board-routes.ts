@@ -15,7 +15,7 @@ import type { AuditLog } from "./audit.ts";
 import { cardView, cardViews, promptAndConfirm, startCard, wouldCycle } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
-import type { BoardDb, Card, CardPatch, CardStatus } from "./db.ts";
+import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
@@ -109,6 +109,39 @@ export function parseCardBody(
   }
 
   return { ok: true, value: out };
+}
+
+/**
+ * How much of a replaced spec the card view carries.
+ *
+ * The journal is polled — it rides `GET /api/cards/:id`, which the card screen re-reads every
+ * 1.5 s — and every edit adds a full copy of the previous title, spec and acceptance to it. Left
+ * whole, one card's response grows without bound with the number of times it has been rewritten.
+ *
+ * A preview is enough to DECIDE, which is all this screen has to support: you recognise your own
+ * paragraph from its opening, and restoring is itself reversible, so the cost of guessing wrong is
+ * one more tap. The full text is never lost — `revert` reads it from the row.
+ */
+const REPLACED_PREVIEW_CHARS = 160;
+
+/**
+ * Trim the bulky part of a journal entry for the polled card view. Only `card.edited` carries text
+ * worth trimming; every other event type is small by construction and passes through untouched.
+ */
+function trimEvent(event: BoardEvent): BoardEvent {
+  const payload = event.payload as { reason?: unknown; replaced?: Record<string, unknown> } | null;
+  if (event.type !== "card.edited" || !payload?.replaced) return event;
+  const replaced: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload.replaced)) {
+    replaced[key] =
+      typeof value === "string" && value.length > REPLACED_PREVIEW_CHARS
+        ? `${value.slice(0, REPLACED_PREVIEW_CHARS)}…`
+        : value;
+  }
+  // `truncated` so the client can say "preview" rather than quietly presenting a clipped spec as
+  // the whole of what it would restore.
+  const truncated = JSON.stringify(replaced) !== JSON.stringify(payload.replaced);
+  return { ...event, payload: { ...payload, replaced, ...(truncated ? { truncated } : {}) } };
 }
 
 /** Just enough of a linked card to name it on screen. Never the whole card — this is a label. */
@@ -262,7 +295,7 @@ async function route(
         children: db.listChildren(id).map(linkSummary),
         sessions: db.listSessions(id),
         reviews: db.listReviews(id),
-        events: db.listEvents(id),
+        events: db.listEvents(id).map(trimEvent),
       });
     }
     if (req.method === "PATCH" || req.method === "POST") {

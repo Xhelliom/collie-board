@@ -2187,3 +2187,59 @@ describe("childStatusesByParent", () => {
     expect(map.get(b.id)).toEqual(["backlog"]);
   });
 });
+
+describe("trimEvent — the journal rides a polled response", () => {
+  const long = "x".repeat(400);
+
+  it("shortens a replaced spec and says it did", async () => {
+    const store = db();
+    const card = store.createCard({ title: "t", spec: long });
+    store.patchCard(card.id, { spec: "short" }, "copilot");
+
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}`,
+      new Request(`http://x/api/cards/${card.id}`),
+      routeCtx(store),
+    );
+    const body = (await res!.json()) as {
+      events: { type: string; payload: { truncated?: boolean; replaced: { spec: string } } }[];
+    };
+    const edit = body.events.find((e) => e.type === "card.edited")!;
+
+    expect(edit.payload.replaced.spec.length).toBeLessThan(long.length);
+    expect(edit.payload.replaced.spec.endsWith("…")).toBe(true);
+    expect(edit.payload.truncated).toBe(true);
+  });
+
+  it("leaves a short one alone, and flags nothing", async () => {
+    const store = db();
+    const card = store.createCard({ title: "t", spec: "brief" });
+    store.patchCard(card.id, { spec: "briefer" });
+
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}`,
+      new Request(`http://x/api/cards/${card.id}`),
+      routeCtx(store),
+    );
+    const body = (await res!.json()) as {
+      events: { type: string; payload: { truncated?: boolean; replaced: { spec: string } } }[];
+    };
+    const edit = body.events.find((e) => e.type === "card.edited")!;
+
+    expect(edit.payload.replaced.spec).toBe("brief");
+    expect(edit.payload.truncated).toBeUndefined();
+  });
+
+  it("restores the WHOLE text, not the preview — trimming is a display concern", async () => {
+    const store = db();
+    const card = store.createCard({ title: "t", spec: long });
+    store.patchCard(card.id, { spec: "short" }, "copilot");
+
+    await handleBoardRoute(
+      `/api/cards/${card.id}/revert`,
+      actionPost(card.id, "revert"),
+      routeCtx(store),
+    );
+    expect(store.getCard(card.id)!.spec).toBe(long);
+  });
+});

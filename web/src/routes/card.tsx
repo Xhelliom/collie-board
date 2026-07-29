@@ -24,6 +24,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor } from "@/components/card-editor";
+import { CardJournal } from "@/components/card-journal";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
@@ -36,6 +37,7 @@ import {
   patchCard,
   promptCard,
   reformulateCard,
+  revertCard,
   startCard,
   type CardInput,
   type CardLink,
@@ -305,15 +307,18 @@ export function CardRoute() {
 
             {detail && detail.events.length > 0 && (
               <Section label="Journal">
-                <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  {detail.events.slice(0, 30).map((e) => (
-                    <li key={e.id} className="flex gap-2">
-                      <span className="w-16 shrink-0 tabular-nums">{timeAgo(e.ts)}</span>
-                      <span className="font-mono">{e.type}</span>
-                      <span className="min-w-0 flex-1 truncate">{summarize(e.payload)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <CardJournal
+                  events={detail.events}
+                  onRestore={async (eventId) => {
+                    try {
+                      await revertCard(card.id, eventId);
+                      setStatus("Restored", "success");
+                    } catch (e) {
+                      setStatus((e as Error).message, "error", null);
+                    }
+                    revalidator.revalidate();
+                  }}
+                />
               </Section>
             )}
 
@@ -558,12 +563,3 @@ function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => P
   );
 }
 
-/** One-line gist of a journal payload — never markup, always a text node. */
-function summarize(payload: unknown): string {
-  if (payload === null || payload === undefined) return "";
-  if (typeof payload === "string") return payload;
-  if (typeof payload !== "object") return String(payload);
-  return Object.entries(payload as Record<string, unknown>)
-    .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
-    .join(" ");
-}

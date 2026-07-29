@@ -7,6 +7,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.37.0] - 2026-07-29
+
+### Added
+- **The journal is readable, and an overwritten spec has a Restore button.** It rendered `card.edited {"reason":"copilot",…}` in monospace — a developer's view of a database table, and nobody restores anything from that. Each entry is a sentence now; an edit expands to the text it replaced with **Restore this version** beside it. An unrecognised event type still shows raw: a journal with holes in it is worse than one with a bit of jargon.
+- The replaced text is **truncated to 160 characters in the polled card response**. The journal rides `GET /api/cards/:id`, so carrying every past spec whole would grow that response without bound with the number of rewrites. A preview is enough to *decide* — you recognise your own paragraph from its opening — and `revert` restores from the row, so the whole text is what comes back. Verified end to end.
+
+### Fixed
+- The board's conditional GET had **no timeout**, while every other fetch in the app wraps its signal in `withTimeout`. The poller only fires again once the revalidator is idle, so one fetch left pending by a black-holed link — a phone waking up, a Tailscale route gone dark — would have stopped the app polling silently and for good. (e669eab)
+- 0.36.0 shipped that cache with no tests at all; six now cover the tag round-trip, the 304-returns-cached-body path, per-URL keying, and the `ApiError` status that keeps a 403 reading as an auth failure.
+
+### Changed
+- The ETag cache comment no longer restates `fetchPane`'s two invariants — it points at them. Two copies of a subtle rule is one too many.
+
 ## [0.36.0] - 2026-07-29
 
 ### Added

@@ -5,7 +5,7 @@
 // The board is bound to the PRIMARY herdr session (see bridge/server.ts), so — unlike every path
 // in lib/nav.ts — none of these carry `?s=`.
 
-import { apiRequest, ApiError } from "./api";
+import { apiRequest, ApiError, GET_TIMEOUT_MS, withTimeout } from "./api";
 import type { AgentStatus } from "./types";
 
 export type CardStatus =
@@ -167,12 +167,10 @@ export function cardPath(cardId: string): string {
 // card detail on every card screen. Both re-transfer their whole body every 1.5 s otherwise, and
 // most of those bodies are identical to the last one.
 //
-// Client-managed, like `fetchPane`'s cache in api.ts and for the same reason: the bridge sends
-// `cache-control: no-store` for privacy, so the browser keeps nothing and cannot revalidate on its
-// own. Both of that cache's invariants are load-bearing here too:
-//   1. the ETag is stored ONLY together with the body it belongs to, never on its own;
-//   2. it is stored only AFTER the body parses, so an aborted or truncated response can't leave an
-//      ETag behind that would 304 every later poll into an empty board.
+// Same client-managed scheme as `fetchPane` in api.ts, INCLUDING ITS TWO INVARIANTS — see the
+// comment there, which is the canonical explanation of why the tag is stored only together with its
+// body and only after that body parses. Restating them here would give the next person two versions
+// of a subtle rule to keep in step.
 const etagCache = new Map<string, { etag: string; body: unknown }>();
 
 /** Bounded so opening many cards over a long session can't grow it forever. FIFO is plenty. */
@@ -180,8 +178,11 @@ const ETAG_CACHE_MAX = 20;
 
 async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
   const cached = etagCache.get(url);
+  // The timeout is the point, not a nicety: the poller only fires again once the revalidator is
+  // idle (use-polling.ts), so ONE fetch left pending by a black-holed link — a phone waking up, a
+  // Tailscale route gone dark — stops the whole app polling, silently and for good.
   const res = await fetch(url, {
-    signal,
+    signal: withTimeout(signal, GET_TIMEOUT_MS),
     headers: cached ? { "if-none-match": cached.etag } : {},
   });
 
@@ -256,6 +257,17 @@ export function deleteCard(id: string): Promise<{ ok: true }> {
 export function startCard(id: string): Promise<{ ok: true; card: CardView }> {
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/start`, {
     method: "POST",
+  });
+}
+
+/**
+ * Put back the text an edit overwrote. With an event id it restores that entry; without one, the
+ * most recent overwrite. Reverting is journalled as an edit itself, so it can be reverted in turn.
+ */
+export function revertCard(id: string, eventId?: number): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/revert`, {
+    method: "POST",
+    body: JSON.stringify(eventId === undefined ? {} : { eventId }),
   });
 }
 
