@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.49.1] - 2026-07-29
+
+### Fixed
+- **Restarting a filed card answered `agent_name_taken`.** Filing a card ends its session but not its pane ([ADR 0002](./.adr/0002-a-manual-status-ends-the-session-not-the-pane.md)) — so its agent is still sitting in the worktree, holding a name herdr requires to be globally unique. Start now **adopts** that agent instead of launching a second one over it. Found on a card that could not be restarted to settle the merge conflict blocking it.
+
+### Notes
+- An adopted agent is deliberately **not** prompted: it already lived the task, and re-sending the spec would make it start over. The card gets its session back and the operator decides what to say next.
+
 ## [0.49.0] - 2026-07-29
 
 ### Added
