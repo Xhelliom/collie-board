@@ -46,6 +46,15 @@ const POLL_MS = 2000;
 const RESET_EVERY = 8;
 
 /**
+ * How many existing cards the duplicate check is shown.
+ *
+ * A ceiling, not a tuning knob: the whole list rides inside the reformulation prompt, and a board
+ * with hundreds of cards would bury the note being triaged under its own history. Newest first, so
+ * what is dropped is the oldest — the cards least likely to be re-dictated today.
+ */
+const DUPLICATE_CANDIDATES = 60;
+
+/**
  * Parse the copilot's answer file.
  *
  * Tolerant on purpose. The instruction says "JSON and nothing else", and agents mostly comply — but
@@ -89,6 +98,8 @@ export interface Reformulation {
   spec?: string;
   acceptance?: string[];
   branchName?: string;
+  /** An existing card id this one repeats, as JUDGED — validated against the board before it lands. */
+  duplicateOf?: string;
   split?: SplitTask[];
 }
 
@@ -188,6 +199,10 @@ export function toReformulation(parsed: unknown): Reformulation | null {
   if (branch) out.branchName = branch;
   const acceptance = strList(o, "acceptance");
   if (acceptance) out.acceptance = acceptance;
+  // Taken as a plain string here and checked against the board by the caller: the model is being
+  // asked to echo back an id it was shown, and "it looks like an id" proves nothing about that.
+  const duplicate = str(o, "duplicate_of") ?? str(o, "duplicateOf");
+  if (duplicate && duplicate !== "null") out.duplicateOf = duplicate;
   // `split_suggestion` is the field name this used to have, kept as an alias so a reformulation
   // that comes back in the old shape still splits instead of silently doing nothing.
   const split = toSplit(o.split) ?? toSplit(o.split_suggestion) ?? toSplit(o.splitSuggestion);
@@ -214,7 +229,12 @@ export function toReviewResult(parsed: unknown): ReviewResult | null {
  * a coding agent handed a task description will start editing files unless told otherwise, and this
  * one has no repo to edit. Pure + exported so the wording is reviewable.
  */
-export function reformulatePrompt(rawInput: string, outPath: string): string {
+export function reformulatePrompt(
+  rawInput: string,
+  outPath: string,
+  /** Cards already on the board for the same repo — the duplicate check's whole input. */
+  existing: { id: string; title: string; status: string }[] = [],
+): string {
   return [
     "You are triaging a task for a kanban board. Do NOT do the work, do not write any code, do not",
     "read any repository. Turn the note below into one well-formed card, or into a set of them.",
@@ -223,6 +243,20 @@ export function reformulatePrompt(rawInput: string, outPath: string): string {
     "---",
     rawInput.trim(),
     "---",
+    ...(existing.length
+      ? [
+          "",
+          "Cards already on this board for the same repository:",
+          ...existing.map((c) => `- ${c.id} [${c.status}] ${c.title}`),
+          "",
+          "If the note describes work ALREADY COVERED by one of them, put that card's id in",
+          "`duplicate_of`. Judge by the work to be done, not by wording: two cards can share half",
+          "their words and be different tasks, and the same task can be described twice with no word",
+          "in common. A card that merely touches the same area is NOT a duplicate. When in doubt,",
+          "leave it null — a wrong link is noise on a board someone has to read.",
+          "Still fill in title/spec/acceptance normally; the link is a note, not a refusal.",
+        ]
+      : []),
     "",
     "First decide: is this ONE task, or several?",
     "",
@@ -246,6 +280,7 @@ export function reformulatePrompt(rawInput: string, outPath: string): string {
     '  "spec": "markdown: what to do and any constraint stated in the note. Do not invent requirements.",',
     '  "acceptance": ["checkable statement", "..."],',
     '  "branch_name": "kebab-case, no prefix",',
+    '  "duplicate_of": "id of an existing card this repeats, or null",',
     '  "split": [',
     '    { "title": "…", "spec": "…", "acceptance": ["…"], "depends_on": null }',
     "  ]",
@@ -525,9 +560,49 @@ export class CopilotCoordinator {
     }
   }
 
+  /**
+   * The cards a new one could be a duplicate OF: same repo, not itself, not a container, not
+   * archived.
+   *
+   * `done` cards are kept deliberately — "you already did this last week" is the most useful
+   * duplicate there is, and the one a person is least likely to remember. Containers are dropped
+   * because they hold no work of their own. Capped, newest first, because this rides in a prompt and
+   * a board of four hundred cards would push the note itself out of the model's attention.
+   */
+  private duplicateCandidates(cardId: string): { id: string; title: string; status: string }[] {
+    const card = this.db.getCard(cardId);
+    if (!card) return [];
+    return this.db
+      .listCards()
+      .filter(
+        (c) =>
+          c.id !== cardId &&
+          c.repoPath === card.repoPath &&
+          c.status !== "archived" &&
+          this.db.listChildren(c.id).length === 0,
+      )
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, DUPLICATE_CANDIDATES)
+      .map((c) => ({ id: c.id, title: c.title, status: c.status }));
+  }
+
+  /**
+   * Is the id the copilot answered with a card this one could actually repeat?
+   *
+   * The model is echoing back an id it was shown, so this checks the board rather than the shape: it
+   * must exist, not be the card itself, and be in the same repo. An unverified id here would put a
+   * dead link on a card, which is worse than no link at all.
+   */
+  private validDuplicate(cardId: string, target: string | undefined): boolean {
+    if (!target || target === cardId) return false;
+    const [card, other] = [this.db.getCard(cardId), this.db.getCard(target)];
+    return !!card && !!other && other.repoPath === card.repoPath;
+  }
+
   /** The body of a reformulation, split out only so the busy marker above brackets all of it. */
   private async rewrite(cardId: string, input: string): Promise<void> {
-    const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out));
+    const siblings = this.duplicateCandidates(cardId);
+    const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out, siblings));
     const result = toReformulation(parsed);
     if (!result) {
       this.db.recordEvent(cardId, "copilot.reformulate_failed", {});
@@ -567,6 +642,12 @@ export class CopilotCoordinator {
         ...(result.branchName && !fresh.branch && !isContainer
           ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
           : {}),
+        // Only ever set on a single card: which of four freshly split sub-tasks a duplicate would
+        // refer to is a question the answer doesn't contain, and guessing it would be worse than
+        // saying nothing.
+        ...(!isContainer && this.validDuplicate(cardId, result.duplicateOf)
+          ? { duplicateOf: result.duplicateOf! }
+          : {}),
       },
       // What the journal shows as the cause — and what makes the resulting `card.edited` revertable
       // by the same route a hand edit is. patchCard records what was replaced; nothing to do here.
@@ -576,6 +657,7 @@ export class CopilotCoordinator {
       title: result.title,
       acceptance: result.acceptance?.length ?? 0,
       split: split?.length ?? 0,
+      ...(this.validDuplicate(cardId, result.duplicateOf) ? { duplicateOf: result.duplicateOf } : {}),
     });
     if (!isContainer) return;
 

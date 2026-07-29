@@ -184,6 +184,7 @@ describe("reconcileOne", () => {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -254,7 +255,7 @@ describe("releaseSession", () => {
   it("closes the open session when the operator moves a card out of the live columns", () => {
     for (const [status, outcome] of [
       ["done", "done"],
-      ["archived", "done"],
+      ["archived", "abandoned"],
       ["backlog", "abandoned"],
       ["ready", "abandoned"],
     ] as const) {
@@ -442,6 +443,7 @@ describe("initialPrompt", () => {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -915,6 +917,7 @@ describe("handoff prompts", () => {
     workspaceId: "wZ",
     agentKind: "claude",
     parentId: null,
+    duplicateOf: null,
     dependsOn: null,
     position: 0,
     createdAt: 0,
@@ -1982,6 +1985,85 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     await settle();
 
     expect(state.asked).toBe(0);
+  });
+});
+
+describe("the duplicate check", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  function answering(answer: unknown) {
+    const prompts: string[] = [];
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask(build: (out: string) => string) {
+        prompts.push(build("/out.json"));
+        return answer;
+      },
+    } as unknown as Copilot;
+    return { prompts, copilot };
+  }
+
+  it("shows the copilot the other cards in the SAME repo, and not the card being triaged", async () => {
+    const store = db();
+    store.createCard({ title: "already there", repoPath: "/repo" });
+    store.createCard({ title: "another project", repoPath: "/elsewhere" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { prompts, copilot } = answering({ title: "New" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(prompts[0]).toContain("already there");
+    expect(prompts[0]).not.toContain("another project");
+    expect(prompts[0]).not.toContain(fresh.id);
+  });
+
+  it("records the link when the copilot names a real card in the same repo", async () => {
+    const store = db();
+    const original = store.createCard({ title: "the original", repoPath: "/repo" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { copilot } = answering({ title: "New", duplicate_of: original.id });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(store.getCard(fresh.id)!.duplicateOf).toBe(original.id);
+  });
+
+  it("DROPS an id that doesn't check out — a dead link is worse than no link", async () => {
+    const store = db();
+    const elsewhere = store.createCard({ title: "other repo", repoPath: "/elsewhere" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+
+    for (const answered of ["no-such-card", fresh.id, elsewhere.id, "null"]) {
+      const { copilot } = answering({ title: "New", duplicate_of: answered });
+      await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+      expect(store.getCard(fresh.id)!.duplicateOf).toBeNull();
+    }
+  });
+
+  it("says nothing about duplicates when the dump splits — which sub-task would it even mean?", async () => {
+    const store = db();
+    const original = store.createCard({ title: "the original", repoPath: "/repo" });
+    const fresh = store.createCard({ title: "new", rawInput: "two things", repoPath: "/repo" });
+    const { copilot } = answering({
+      title: "Container",
+      duplicate_of: original.id,
+      split: [{ title: "one" }, { title: "two" }],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(store.getCard(fresh.id)!.duplicateOf).toBeNull();
+  });
+
+  it("keeps `done` cards as candidates — 'you did this last week' is the useful one", async () => {
+    const store = db();
+    store.createCard({ title: "shipped ages ago", repoPath: "/repo", status: "done" });
+    const fresh = store.createCard({ title: "new", rawInput: "a dump", repoPath: "/repo" });
+    const { prompts, copilot } = answering({ title: "New" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
+
+    expect(prompts[0]).toContain("shipped ages ago");
   });
 });
 

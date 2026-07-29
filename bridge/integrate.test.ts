@@ -101,9 +101,15 @@ describe("refusalFor — the gate all three writes share", () => {
     expect(refusalFor(state({ branchDirty: true }), "pr")).toBe("branch-dirty");
   });
 
-  it("refuses to merge into a dirty base, or one that isn't checked out", () => {
-    expect(refusalFor(state({ baseDirty: true }), "merge")).toBe("base-dirty");
+  it("refuses to merge from a base that isn't checked out", () => {
     expect(refusalFor(state({ baseCheckedOut: false }), "merge")).toBe("base-not-checked-out");
+  });
+
+  it("does NOT refuse merely because the base is dirty — git merges what it doesn't touch", () => {
+    // Measured against a real repository: uncommitted changes outside the merge survive it
+    // untouched, and that is the common case. git refuses by itself when they would collide, before
+    // changing a byte, and it knows the exact intersection. Refusing here blocked most merges.
+    expect(refusalFor(state({ baseDirty: true }), "merge")).toBeNull();
   });
 
   it("lets a PR through on a base that is dirty or elsewhere — a PR never touches it", () => {
@@ -128,7 +134,6 @@ describe("refusalFor — the gate all three writes share", () => {
     for (const reason of [
       "no-branch",
       "nothing-to-merge",
-      "base-dirty",
       "branch-dirty",
       "base-not-checked-out",
       "not-merged",
@@ -186,15 +191,30 @@ describe("mergeIntoBase", () => {
     const r = await mergeIntoBase("/repo", "board/x", git);
 
     expect(r.ok).toBe(false);
-    expect(r.ok === false && r.conflict).toBe(true);
+    expect(r.ok === false && r.kind).toBe("conflict");
     // The repository must not be left mid-merge — the operator is on a phone.
     expect(calls.some((c) => c[0] === "merge" && c[1] === "--abort")).toBe(true);
+  });
+
+  it("tells 'would overwrite your uncommitted work' apart — a different problem, a different fix", () => {
+    // git stops BEFORE touching anything here, so it is a refusal, not a failure. Only the person
+    // who wrote those changes can decide what happens to them.
+    const { git } = fakeGit({
+      merge: {
+        ok: false,
+        stderr:
+          "error: Your local changes to the following files would be overwritten by merge:\n\tbridge/git.ts\nPlease commit your changes or stash them before you merge.",
+      },
+    });
+    return mergeIntoBase("/repo", "board/x", git).then((r) => {
+      expect(r.ok === false && r.kind).toBe("would-overwrite");
+    });
   });
 
   it("does not call a conflict on an unrelated failure", async () => {
     const { git } = fakeGit({ merge: { ok: false, stderr: "fatal: not a git repository" } });
     const r = await mergeIntoBase("/repo", "board/x", git);
-    expect(r.ok === false && r.conflict).toBe(false);
+    expect(r.ok === false && r.kind).toBe("other");
   });
 
   it("merges with --no-ff, so a card stays one unit of work in the history", async () => {

@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "
 import {
   ArrowLeft,
   ChevronRight,
+  Copy,
   GitBranch,
   GitMerge,
   GitPullRequest,
@@ -35,6 +36,7 @@ import {
   boardPath,
   cardPath,
   CARD_STATUS_LABEL,
+  boardErrorMessage,
   deleteCard,
   fetchIntegration,
   handoffCard,
@@ -75,6 +77,10 @@ export function CardRoute() {
   const [starting, setStarting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmRework, setConfirmRework] = useState(false);
+  // Lifted out of <IntegrationSection> for one reason: "Done" must not be offered on its own while
+  // the branch still holds commits. Filing first is the order everybody reaches for and it is the
+  // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
+  const [integration, setIntegration] = useState<Integration | null | undefined>(undefined);
 
   const detail = data.detail;
   const card = detail?.card;
@@ -254,6 +260,32 @@ export function CardRoute() {
               </Section>
             )}
 
+            {/* Right under the title, because it is a question about THIS card's right to exist,
+                and it has to be answerable before anyone reads the spec below it. */}
+            {detail?.duplicate && (
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  The copilot thinks this repeats a card you already have:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.duplicate!.id))}
+                  className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
+                >
+                  <Copy className="size-3.5 shrink-0" />
+                  <span className="truncate">{detail.duplicate.title}</span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-fit"
+                  onClick={() => void save({ duplicateOf: null })}
+                >
+                  Not a duplicate
+                </Button>
+              </div>
+            )}
+
             {/* Above the spec on purpose: this is usually the answer to "why is this card still a
                 bare title", and that question is asked while looking at the empty space below. */}
             {card.copilotBusy && (
@@ -322,15 +354,29 @@ export function CardRoute() {
 
             <Section label="Move to">
               <div className="flex flex-wrap gap-2">
-                {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
-                  <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
-                    {CARD_STATUS_LABEL[s]}
-                  </Button>
-                ))}
+                {MANUAL_STATUSES.filter((s) => s !== card.status)
+                  .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
+                  .map((s) => (
+                    <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
+                      {CARD_STATUS_LABEL[s]}
+                    </Button>
+                  ))}
               </div>
+              {integration && integration.ahead > 0 && (
+                <p className="pt-2 text-xs text-muted-foreground">
+                  Done sits below, with the merge — filing this card would send its agent away, and
+                  that agent is who settles a merge conflict.
+                </p>
+              )}
             </Section>
 
-            {card.branch && <IntegrationSection card={card} onDone={() => revalidator.revalidate()} />}
+            {card.branch && (
+              <IntegrationSection
+                card={card}
+                onState={setIntegration}
+                onDone={() => revalidator.revalidate()}
+              />
+            )}
 
             {detail && detail.reviews.length > 0 && (
               <Section label="Review">
@@ -557,29 +603,43 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
  * the only thing that changes any of it, apart from the agent committing, which is what the manual
  * refresh is for.
  */
-function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => void }) {
+function IntegrationSection({
+  card,
+  onDone,
+  onState,
+}: {
+  card: CardView;
+  onDone: () => void;
+  onState: (state: Integration | null | undefined) => void;
+}) {
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const { confirm, pending } = usePendingConfirm();
 
   const load = useCallback(async () => {
+    let next: Integration | null = null;
     try {
-      setState((await fetchIntegration(card.id)).integration);
+      next = (await fetchIntegration(card.id)).integration;
     } catch {
       // A card whose repo has moved under us still has to render; the section simply says nothing.
-      setState(null);
     }
-  }, [card.id]);
+    setState(next);
+    onState(next);
+  }, [card.id, onState]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function run(action: "merge" | "pr" | "resolve" | "cleanup", label: string) {
+  async function run(
+    action: "merge" | "pr" | "resolve" | "cleanup",
+    label: string,
+    andDone = false,
+  ) {
     setBusy(action);
     try {
-      const res = await integrateCard(card.id, action);
+      const res = await integrateCard(card.id, action, andDone);
       setConflict(false);
       setStatus(
         action === "pr" && res.url ? `PR opened — ${res.url}` : `${label} done.`,
@@ -588,7 +648,7 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
       onDone();
     } catch (e) {
       // A conflict is the one failure with a next step, so the button for it appears here.
-      const message = (e as Error).message;
+      const message = boardErrorMessage(e);
       setConflict(/conflict/i.test(message));
       setStatus(message, "error", null);
     } finally {
@@ -607,6 +667,12 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
   }
 
   const merged = state.ahead === 0;
+  // Only what genuinely stops a merge. `baseDirty` deliberately isn't here: git merges over
+  // uncommitted changes it doesn't touch, and refuses by itself when it would — see refusalFor.
+  const mergeBlocker = !state.baseCheckedOut ? `the repository is not on ${state.base}` : null;
+  // A card that is not filed yet gets the combined gesture. Once it IS done, the same buttons stay
+  // for the case this exists to make rare: filed first, integrated afterwards.
+  const filing = card.status !== "done" && card.status !== "archived";
   return (
     <Section label="Integration">
       <div className="flex flex-col gap-3">
@@ -631,26 +697,43 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
           </p>
         )}
 
+        {/* Both of these are refusals the client can see coming. Saying them here rather than
+            letting the button fail is the difference between "not yet, because X" and an error. */}
+        {!merged && !state.branchDirty && mergeBlocker && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            {mergeBlocker} — a PR still works.
+          </p>
+        )}
+
+        {/* A warning, not a blocker: it only matters if the merge touches the same files, and git
+            is the one that knows. Said here so a refusal afterwards is not a surprise. */}
+        {!merged && state.baseDirty && (
+          <p className="text-xs text-muted-foreground">
+            {state.base} has uncommitted changes. The merge goes through unless it touches the same
+            files — git checks before changing anything.
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
             className="h-9 gap-2"
-            disabled={busy !== null || merged || state.branchDirty}
-            onClick={() => void run("merge", `Merged into ${state.base}`)}
+            disabled={busy !== null || merged || state.branchDirty || mergeBlocker !== null}
+            onClick={() => void run("merge", `Merged into ${state.base}`, filing)}
           >
             <GitMerge className="size-4" />
-            {busy === "merge" ? "Merging…" : `Merge into ${state.base}`}
+            {busy === "merge" ? "Merging…" : filing ? `Merge into ${state.base} & done` : `Merge into ${state.base}`}
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="h-9 gap-2"
             disabled={busy !== null || merged || state.branchDirty}
-            onClick={() => void run("pr", "Pull request opened")}
+            onClick={() => void run("pr", "Pull request opened", filing)}
           >
             <GitPullRequest className="size-4" />
-            {busy === "pr" ? "Opening…" : "Open a PR"}
+            {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
           </Button>
         </div>
 

@@ -76,6 +76,8 @@ export interface CardView {
   agentKind: string | null;
   /** The card this was split out of. A card WITH children is a container — not startable. */
   parentId: string | null;
+  /** A card the copilot judged this one to be a repeat of. A note, never a refusal. */
+  duplicateOf: string | null;
   /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
   dependsOn: string | null;
   position: number;
@@ -108,6 +110,11 @@ export interface CardDetail {
   predecessor: CardLink | null;
   /** The container this was split out of — the card holding the dictation it came from. */
   parent: CardLink | null;
+  /**
+   * A card the copilot thinks this one repeats, resolved. A SUGGESTION: it links, it does not merge,
+   * and dismissing it is one tap.
+   */
+  duplicate: CardLink | null;
   /** The sub-tasks this card was split into. Non-empty makes it a container: not startable. */
   children: CardLink[];
   sessions: CardSession[];
@@ -234,6 +241,8 @@ export interface CardInput {
   /** Card ids. The bridge validates that they exist and that neither closes a loop. */
   parentId?: string | null;
   dependsOn?: string | null;
+  /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
+  duplicateOf?: string | null;
   position?: number;
 }
 
@@ -386,6 +395,29 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
   });
 }
 
+/**
+ * The bridge's own sentence, out of an `apiRequest` failure.
+ *
+ * `apiRequest` builds `"<path> → <status> <body>"`, which is right for a log and wrong for a phone:
+ * the useful half is the `error` field at the very end, so on a narrow screen the user reads a url
+ * and a status code and never reaches the reason. Reported exactly that way against a merge refusal.
+ *
+ * Pure + exported: every board refusal now arrives through here.
+ */
+export function boardErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const brace = raw.indexOf("{");
+  if (brace !== -1) {
+    try {
+      const parsed = JSON.parse(raw.slice(brace)) as { error?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error;
+    } catch {
+      // Not JSON after all — fall through to stripping the prefix.
+    }
+  }
+  return raw.replace(/^\S+\s→\s\d+\s*/, "").trim() || "something went wrong";
+}
+
 /** Where a card's branch stands against the branch it forked from. */
 export interface Integration {
   branch: string;
@@ -418,10 +450,18 @@ export function fetchIntegration(id: string): Promise<{ integration: Integration
 export function integrateCard(
   id: string,
   action: "merge" | "pr" | "resolve" | "cleanup",
+  /**
+   * File the card as done in the same breath — only on success, and only for merge/pr.
+   *
+   * The two belong together because the tempting order is the broken one: filing a card first ends
+   * its session, so the agent that could settle a merge conflict is already gone when the merge
+   * finds one. This way a failed integration leaves the card untouched, agent included.
+   */
+  andDone = false,
 ): Promise<{ ok: true; url?: string | null; base?: string; card: CardView }> {
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
     method: "POST",
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, andDone }),
   });
 }
 

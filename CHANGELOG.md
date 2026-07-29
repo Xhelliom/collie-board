@@ -7,13 +7,49 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.43.1] - 2026-07-29
+## [0.45.1] - 2026-07-29
 
 ### Fixed
 - A drag that starts on a control or inside a scrollable region of a sheet scrolls, it no longer closes it (5151295).
 - No more flicker when reopening a sheet: the drag offset is cleared on close, and `onClose` no longer re-attaches the listeners on every parent render (5151295).
 - Closing a sheet is animated on all four dismiss paths instead of vanishing in one frame; a drag-close keeps the gesture's momentum (5151295).
 - The page behind a sheet is frozen while it is open, and the drag writes its transform straight to the node — one less React render per frame (5151295).
+
+## [0.45.0] - 2026-07-29
+
+### Changed
+- **Merge & done, PR & done — one gesture instead of two.** The natural order is "mark it done, then merge it", and it is the broken one: filing a card ends its session, so the agent that could settle a merge conflict is gone by the time the merge finds one. Integrating now files the card itself, and only if the integration succeeded. A failed merge leaves the card exactly where it was, agent included.
+- `Done` is no longer offered on its own while the branch still holds commits — the card screen points at the combined button instead.
+
+### Fixed
+- Archiving a card whose agent was still running recorded the session as `done`. It is `abandoned`: interrupting a task is not finishing it, and the journal shouldn't claim a completion that never happened.
+
+### Notes
+- The order — close the session, set the column, ask for the closing report — now lives in one function, so the manual Done and the combined gesture cannot drift apart on it.
+
+## [0.44.1] - 2026-07-29
+
+### Fixed
+- **git speaks the system's language, and we were reading it in English.** On a French system a conflict announces itself as `CONFLIT`, so the merge path's conflict test never matched: a conflict was reported as a generic git failure, with no offer to hand it to the agent. Every git and `gh` subprocess now runs under `LC_ALL=C`.
+- **Merge no longer refuses just because the base has uncommitted changes.** Measured: git merges over changes it doesn't touch and preserves them — the common case, since the card worked elsewhere in the tree — and refuses by itself, before changing a byte, when they would collide. It knows the exact intersection; the old check only guessed, and blocked most merges for a collision that wasn't there.
+- A merge that really would overwrite uncommitted work now says which files, and that nothing was changed.
+
+### Notes
+- That last case is deliberately not automated. A stash/pop around the merge conflicts in the working tree exactly when it matters, and an agent committing those changes would be putting a message on work nobody has decided to keep. **Open a PR** needs none of it — it never touches the base.
+
+## [0.44.0] - 2026-07-29
+
+### Added
+- **The copilot checks for a duplicate.** A new card is triaged against the cards already on the board for the same repo; if it repeats one, the card links to it and says so. A suggestion, not a verdict — it never merges, never blocks a start, and "Not a duplicate" is one tap. `done` cards stay candidates: "you already did this last week" is the duplicate you are least likely to remember.
+
+### Fixed
+- A refused integration showed `/api/cards/…/integration → 409 {…}` with the reason off the end of the line. The bridge's own sentence is now what reaches the screen.
+- Merge is disabled, with the reason, when the base has uncommitted changes or isn't checked out — refusals the client can see coming shouldn't need a failed tap to surface.
+
+### Notes
+- The suggestion is only ever made on a single card, never on a split: which of four fresh sub-tasks a duplicate would mean is a question the answer doesn't contain.
+- The id the copilot answers with is checked against the board (exists, not itself, same repo) before it lands. An unverified id would put a dead link on a card, which is worse than no link.
+- At most 60 candidates ride in the prompt, newest first — a board of hundreds would bury the note being triaged under its own history.
 
 ## [0.43.0] - 2026-07-29
 

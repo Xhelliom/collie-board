@@ -179,9 +179,11 @@ export function releaseSession(db: BoardDb, cardId: string, status: CardStatus):
   if (isLiveStatus(status)) return;
   const session = db.openSessionFor(cardId);
   if (!session) return;
-  // `done` for the columns that mean the work is finished, `abandoned` for the ones that put it back
-  // on the shelf — the same outcome a failed start already uses for "this session never happened".
-  db.closeSession(session.id, status === "done" || status === "archived" ? "done" : "abandoned");
+  // `done` for the one column that means the work is finished; `abandoned` for every other, which is
+  // the same outcome a failed start already uses. ARCHIVED IS ABANDONED, not done: archiving a card
+  // whose agent is still running is interrupting it, and recording that as a clean finish would make
+  // the journal claim a completion that never happened.
+  db.closeSession(session.id, status === "done" ? "done" : "abandoned");
 }
 
 /**
