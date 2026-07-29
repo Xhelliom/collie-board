@@ -267,7 +267,9 @@ export async function cleanupCard(
   // else in the app removes one.
   if (card.workspaceId) {
     try {
-      await herdr.removeWorktree({ workspaceId: card.workspaceId });
+      // `force` because herdr counts `.board/` — the notes this bridge writes into every card's
+      // checkout — as untracked work. Our own gate ran first and knows better; see removeWorktree.
+      await herdr.removeWorktree({ workspaceId: card.workspaceId, force: true });
     } catch (err) {
       db.recordEvent(card.id, "card.cleanup_failed", { stage: "worktree", error: (err as Error).message });
       return { ok: false, error: { kind: "herdr", message: (err as Error).message } };

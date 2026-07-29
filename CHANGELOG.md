@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.46.2] - 2026-07-29
+
+### Fixed
+- **Clean up still failed, on the board's own droppings.** herdr refuses to remove a checkout holding untracked files, and `.board/` — the handoff and wrapup notes this bridge writes into every card's worktree — is untracked by construction, so every cleanup hit it. `force: true` is now sent, which overrides *herdr's* check, not the board's: `refusalFor` ran first and knows both that `.board/` is ours and whether the commits are integrated, which herdr cannot.
+
 ## [0.46.1] - 2026-07-29
 
 ### Fixed

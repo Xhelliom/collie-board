@@ -172,8 +172,21 @@ name" from "wrong id" here.
 
 Removing the worktree takes its **workspace** down with it — that is the only way the bridge can
 close a workspace at all, since Collie exposes `pane.close` and `tab.close` but nothing for a
-workspace. A `force` field exists on the CLI (`--force`); the bridge deliberately never sends it (see
-`removeWorktree`).
+workspace.
+
+**`force: true` (a boolean, live-verified) is required in practice.** Without it, herdr refuses any
+checkout holding modified or untracked files:
+
+```
+worktree_remove_failed: fatal: '…/board-auditer-…' contains modified or untracked files,
+use --force to delete it
+```
+
+and `.board/` — the handoff and wrapup notes the bridge itself writes into every card's worktree — is
+untracked by construction, so *every* cleanup hits this. What `force` overrides is **herdr's** check,
+not the board's: `refusalFor` has already run, and unlike herdr it knows `.board/` is the bridge's own
+scratch and whether the branch's commits are integrated. A non-boolean is rejected
+(`invalid type: string "yes", expected a boolean`).
 
 ## Move methods — reorder tabs and workspaces (verified)
 
