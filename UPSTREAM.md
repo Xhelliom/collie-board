@@ -17,6 +17,7 @@ bridge/git.ts           worktree resolution + diff
 bridge/context.ts       the context gauge
 bridge/handoff.ts       the handoff sequence
 bridge/wrapup.ts        the closing report a filed card asks its agent for
+bridge/integrate.ts     merge / PR / conflict-resolve / cleanup for a card's branch
 bridge/copilot.ts       the copilot
 bridge/adapters.ts      per-agent divergence
 web/src/lib/board*.ts   the client half

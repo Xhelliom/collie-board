@@ -560,6 +560,18 @@ export class HerdrClient {
   }
 
   /**
+   * Remove a worktree checkout and the workspace holding it. Takes the WORKSPACE id, not a path —
+   * herdr owns where worktrees live, so it is also the one that takes them away.
+   *
+   * `force` is deliberately not exposed: the caller has already refused to get here while the
+   * checkout holds uncommitted work or unmerged commits, and a `--force` would exist only to defeat
+   * exactly those two checks.
+   */
+  async removeWorktree(opts: { workspaceId: string }): Promise<void> {
+    await this.request("worktree.remove", { workspace: opts.workspaceId });
+  }
+
+  /**
    * Launch a supported agent in a pane sitting at its interactive shell prompt. `kind` is one of
    * herdr's known agent kinds (claude, codex, …); `name` must match `^[a-z][a-z0-9_-]{0,31}$`.
    *

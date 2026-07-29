@@ -7,6 +7,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.43.0] - 2026-07-29
+
+### Added
+- **The end of a branch's life, from the card.** A card with a branch now says where it stands (`3 commits not in main`), and offers four gestures: **Merge into main** (local, nothing pushed), **Open a PR** (pushes the branch, never touches the base), **Let the agent resolve it** after a conflict, and **Clean up worktree** once the work is in.
+- A merge conflict is handed back to the card's own agent, which merges the base **into its branch** and settles it there — so the main repository never enters a conflicted state.
+
+### Notes
+- Every action refuses before it acts, and the gate is shared by the button, the request and the subprocess: nothing to merge · uncommitted work in the card's checkout · a dirty base · the base not checked out · not yet integrated. A refusal is a sentence on the card, never a repository left in a state nobody asked for.
+- A conflicting merge is `--abort`ed before the request returns. The operator is on a phone and cannot resolve anything there.
+- Cleanup is refused while the branch holds commits nobody else has, and `git branch -d` is the second lock on that door.
+- `.board/` no longer counts as uncommitted work. It is this bridge's own scratch directory, so it is untracked in nearly every card checkout — counting it would have refused every cleanup, forever. Caught against a real worktree.
+- The integration state is read ON DEMAND, never on the 1.5 s card poll: it costs git subprocesses.
+
 ## [0.42.0] - 2026-07-29
 
 ### Added

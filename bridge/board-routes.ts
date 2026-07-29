@@ -26,6 +26,7 @@ import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
+import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
 import { requestWrapup } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -37,7 +38,7 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert|integration))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -509,6 +510,59 @@ async function route(
       return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
     }
     return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
+  }
+
+  // ── integration: where the branch stands, and the three taps that end it ──
+  //
+  // One route, three actions, because they share a gate and differ only in which one they ask for.
+  // GET is the state the card screen renders; POST is the tap. Never automatic — see integrate.ts.
+  if (action === "integration") {
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      return json({ integration: await integrationFor(card) });
+    }
+    if (req.method !== "POST") return text("method not allowed", 405);
+
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const what = (body as { action?: unknown }).action;
+    if (what !== "merge" && what !== "pr" && what !== "cleanup" && what !== "resolve") {
+      return text("action must be merge, pr, resolve or cleanup", 400);
+    }
+
+    const result =
+      what === "merge"
+        ? await mergeCard(db, card)
+        : what === "pr"
+          ? await prForCard(db, card)
+          : what === "resolve"
+            ? await resolveConflict(db, ctx.herdr, card)
+            : await cleanupCard(db, ctx.herdr, card);
+
+    ctx.audit.record({
+      action: `card.${what}`,
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      // 409 for "the situation says no" — a refusal, or a conflict, both of which left the
+      // repository exactly as they found it. 502 for a git or herdr failure. The phone shows the
+      // message either way; the status is what tells a script which one is worth retrying.
+      const status = result.error.kind === "refused" || result.error.kind === "conflict" ? 409 : 502;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, ...result.value, card: view(id) });
   }
 
   // ── handoff: ask the agent to write its note; the poll loop does the rest ──

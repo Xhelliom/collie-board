@@ -10,11 +10,16 @@
 // covers committed and uncommitted work in one view, which is what "what has the agent written" means
 // on a phone. Untracked files are listed separately, since `git diff` cannot see them at all.
 //
-// SECURITY. This is the only place the bridge shells out. Two rules hold it shut:
+// SECURITY. This is the only place the bridge shells out — `git`, and `gh` for the one PR call.
+// Two rules hold it shut:
 //   - every argument is passed as an argv element, never through a shell — no `sh -c`, ever;
 //   - the client-supplied `path` is validated (no leading `-`, no traversal) and always follows a
 //     `--` separator, so it can never be read as a git option.
 // The repo path itself is server-side (it comes from the card), never from the request.
+//
+// WRITES. Everything above the `── integration ──` marker only reads. Below it, three calls change
+// the world: a merge, a push, and a branch delete. Each one refuses before it acts rather than
+// unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
 import { resolve, sep } from "node:path";
 
@@ -263,4 +268,276 @@ export async function cardDiffSummary(
   if (stat.files.length > 100) lines.push(`… and ${stat.files.length - 100} more files`);
   lines.push(`${stat.files.length} files changed, ${stat.added} insertions(+), ${stat.removed} deletions(-)`);
   return lines.join("\n");
+}
+
+// ── integration ───────────────────────────────────────────────────────────────
+//
+// Where a card's branch stands against the branch it forked from, and the three writes that end it.
+// Nothing here ever runs on its own: every one of them is a tap, on a card the operator has already
+// decided is finished.
+
+/** Where a card's branch stands relative to its base. */
+export interface Integration {
+  /** The branch the card owns. */
+  branch: string;
+  /** What it would be merged into — the card's `baseRef`, or the main checkout's current branch. */
+  base: string;
+  /** Commits on the branch that the base doesn't have. 0 means "nothing left to integrate". */
+  ahead: number;
+  /** Commits the base has that the branch doesn't. Only informative — a merge handles them. */
+  behind: number;
+  /** Uncommitted work in the MAIN checkout. A merge into a dirty tree is refused. */
+  baseDirty: boolean;
+  /**
+   * Uncommitted work in the CARD's checkout.
+   *
+   * The loudest thing on this screen when it is true: the card's diff view shows working-tree
+   * changes, so a card can look full of work while `ahead` is 0 — merging then integrates nothing,
+   * and cleaning up afterwards would delete it.
+   */
+  branchDirty: boolean;
+  /** The base branch is checked out in the main worktree, which a merge requires. */
+  baseCheckedOut: boolean;
+}
+
+/**
+ * Does `git status --porcelain` show work worth protecting?
+ *
+ * `.board/` is excluded for the same reason it is excluded from every diff (`isBoardPath`): it holds
+ * the handoff and wrapup notes this bridge writes, so it is nearly always "untracked" in a card's
+ * checkout. Counting it as work would refuse the cleanup of every finished card, forever — found
+ * exactly that way, against a real worktree whose only change was `?? .board/`.
+ *
+ * Pure + exported. Handles the rename form (`R  old -> new`) by looking at the destination, which is
+ * the path that would actually be lost.
+ */
+export function hasRealChanges(stdout: string): boolean {
+  return stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .some((line) => {
+      const path = line.slice(2).trim();
+      const arrow = path.lastIndexOf(" -> ");
+      const target = (arrow === -1 ? path : path.slice(arrow + 4)).replace(/^"|"$/g, "");
+      return target !== "" && !isBoardPath(target);
+    });
+}
+
+/** The main checkout's current branch, or null when detached / not a repo. */
+export async function currentBranch(repoPath: string, git: GitRunner = runGit): Promise<string | null> {
+  const r = await git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
+  const name = r.stdout.trim();
+  return r.ok && name && name !== "HEAD" ? name : null;
+}
+
+/**
+ * Parse `git rev-list --count --left-right <base>...<branch>`, whose output is `<behind>\t<ahead>`.
+ * Pure + exported: getting these two the wrong way round would offer to merge nothing, or refuse a
+ * cleanup that is perfectly safe.
+ */
+export function parseLeftRight(stdout: string): { behind: number; ahead: number } | null {
+  const m = /^(\d+)\s+(\d+)$/.exec(stdout.trim());
+  return m ? { behind: Number(m[1]), ahead: Number(m[2]) } : null;
+}
+
+/**
+ * Where a card's branch stands. Read-only, and every failure degrades to "nothing to say" rather
+ * than to an error: this rides the card view, and a repo that has moved under us must not turn the
+ * card screen into a stack trace.
+ */
+export async function integrationOf(
+  repoPath: string,
+  branch: string,
+  baseRef: string | null,
+  git: GitRunner = runGit,
+): Promise<Integration | null> {
+  const head = await currentBranch(repoPath, git);
+  const base = baseRef?.trim() || head;
+  if (!base || base === branch) return null;
+
+  const counts = await git(["rev-list", "--count", "--left-right", `${base}...${branch}`], repoPath);
+  const parsed = counts.ok ? parseLeftRight(counts.stdout) : null;
+  if (!parsed) return null;
+
+  const [baseStatus, checkout] = await Promise.all([
+    git(["status", "--porcelain"], repoPath),
+    worktreePathFor(repoPath, branch, git),
+  ]);
+  const branchStatus = checkout ? await git(["status", "--porcelain"], checkout) : null;
+
+  return {
+    branch,
+    base,
+    ahead: parsed.ahead,
+    behind: parsed.behind,
+    baseDirty: baseStatus.ok && hasRealChanges(baseStatus.stdout),
+    branchDirty: (branchStatus?.ok && hasRealChanges(branchStatus.stdout)) ?? false,
+    baseCheckedOut: head === base,
+  };
+}
+
+export type IntegrationRefusal =
+  | "no-branch"
+  | "nothing-to-merge"
+  | "base-dirty"
+  | "branch-dirty"
+  | "base-not-checked-out"
+  | "not-merged";
+
+/**
+ * The shared gate. Every write below asks this first, and a refusal is a SENTENCE the card screen
+ * shows — not an exception, and never something the operator discovers by finding their repository
+ * in a state they didn't ask for.
+ */
+export function refusalFor(
+  state: Integration | null,
+  action: "merge" | "pr" | "cleanup",
+): IntegrationRefusal | null {
+  if (!state) return "no-branch";
+  if (action === "merge") {
+    if (state.ahead === 0) return "nothing-to-merge";
+    if (state.branchDirty) return "branch-dirty";
+    if (state.baseDirty) return "base-dirty";
+    if (!state.baseCheckedOut) return "base-not-checked-out";
+    return null;
+  }
+  if (action === "pr") {
+    if (state.ahead === 0) return "nothing-to-merge";
+    if (state.branchDirty) return "branch-dirty";
+    return null;
+  }
+  // Cleanup deletes a checkout and a branch. `ahead > 0` means it holds commits nobody else has, and
+  // a dirty checkout means work that was never even committed — both are unrecoverable afterwards.
+  if (state.ahead > 0) return "not-merged";
+  if (state.branchDirty) return "branch-dirty";
+  return null;
+}
+
+/** Every refusal, as the sentence the phone shows. Pure + exported so the wording is reviewable. */
+export function refusalMessage(reason: IntegrationRefusal, state: Integration | null): string {
+  switch (reason) {
+    case "no-branch":
+      return "this card has no branch to integrate";
+    case "nothing-to-merge":
+      return `nothing to merge — ${state?.base ?? "the base"} already has every commit on this branch`;
+    case "branch-dirty":
+      return "the card's checkout has uncommitted work — commit it from the agent's pane first, or it will not be integrated";
+    case "base-dirty":
+      return `${state?.base ?? "the base"} has uncommitted changes — a merge would land on top of them`;
+    case "base-not-checked-out":
+      return `the repository is not on ${state?.base ?? "the base"} right now — switch to it first, so a merge never moves the branch you are working on`;
+    case "not-merged":
+      return `${state?.ahead ?? "some"} commit(s) are on this branch and nowhere else — merge or open a PR before cleaning up`;
+  }
+}
+
+/**
+ * Merge the card's branch into its base, in the MAIN checkout.
+ *
+ * `--no-ff` on purpose: a card is a unit of work, and a merge commit is the only thing that says so
+ * afterwards. On conflict it aborts immediately and reports git's own message — the operator is on a
+ * phone and cannot resolve anything, so leaving a half-merged tree behind would be the worst
+ * possible outcome of a tap.
+ */
+export async function mergeIntoBase(
+  repoPath: string,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true; stdout: string } | { ok: false; error: string; conflict: boolean }> {
+  const r = await git(["merge", "--no-ff", "--no-edit", "--", branch], repoPath);
+  if (r.ok) return { ok: true, stdout: r.stdout.trim() };
+  const out = `${r.stdout}\n${r.stderr}`;
+  // Told apart from any other failure because it is the only one with a REMEDY: the agent that
+  // wrote the branch can resolve it, in its own checkout, and then this merge becomes trivial.
+  const conflict = /conflict/i.test(out);
+  await git(["merge", "--abort"], repoPath);
+  return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n"), conflict };
+}
+
+/** Push the card's branch and set its upstream. Needed before a PR can reference it. */
+export async function pushBranch(
+  repoPath: string,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await git(["push", "--set-upstream", "origin", branch], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+}
+
+/**
+ * Delete the card's branch, with `-d` rather than `-D`.
+ *
+ * The lowercase flag refuses a branch that isn't merged. `refusalFor` already checked that, so this
+ * is a second lock on the same door — and the one that is enforced by git rather than by us.
+ */
+export async function deleteBranch(
+  repoPath: string,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await git(["branch", "-d", "--", branch], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "branch delete failed" };
+}
+
+/** The real `gh` runner. Same rules as {@link runGit}: argv only, hard timeout, no tty. */
+export const runGh: GitRunner = async (args, cwd) => {
+  const proc = Bun.spawn(["gh", ...args], {
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GH_PROMPT_DISABLED: "1", GH_PAGER: "cat" },
+  });
+  const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
+  try {
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    return { ok: code === 0, stdout, stderr };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/** The PR url in `gh pr create`'s output, or null. It prints the url on its own line. Pure. */
+export function parsePrUrl(stdout: string): string | null {
+  const m = /https:\/\/\S*\/pull\/\d+/.exec(stdout);
+  return m ? m[0] : null;
+}
+
+/**
+ * Open a pull request for the card's branch. Assumes {@link pushBranch} has run.
+ *
+ * An EXISTING pr is a success, not an error: `gh` refuses to create a second one and says so, and
+ * "there is already a PR for this branch" is exactly the outcome the operator wanted.
+ */
+export async function createPr(
+  repoPath: string,
+  input: { branch: string; base: string; title: string; body: string },
+  gh: GitRunner = runGh,
+): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
+  const r = await gh(
+    [
+      "pr",
+      "create",
+      "--base",
+      input.base,
+      "--head",
+      input.branch,
+      "--title",
+      input.title,
+      "--body",
+      input.body,
+    ],
+    repoPath,
+  );
+  if (r.ok) return { ok: true, url: parsePrUrl(r.stdout) };
+  const message = (r.stderr || r.stdout).trim();
+  if (/already exists/i.test(message)) {
+    const existing = await gh(["pr", "view", input.branch, "--json", "url", "--jq", ".url"], repoPath);
+    return { ok: true, url: existing.ok ? existing.stdout.trim() || null : null };
+  }
+  return { ok: false, error: message.split("\n").slice(0, 4).join("\n") };
 }

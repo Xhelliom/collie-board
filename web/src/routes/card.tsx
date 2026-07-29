@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
   ArrowLeft,
   ChevronRight,
   GitBranch,
+  GitMerge,
+  GitPullRequest,
   Layers,
   Lock,
   Pencil,
@@ -28,12 +30,15 @@ import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
+import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardPath,
   cardPath,
   CARD_STATUS_LABEL,
   deleteCard,
+  fetchIntegration,
   handoffCard,
+  integrateCard,
   patchCard,
   promptCard,
   reformulateCard,
@@ -44,6 +49,7 @@ import {
   type CardSession,
   type CardStatus,
   type CardView,
+  type Integration,
 } from "@/lib/board";
 import { dependencyMet } from "@/lib/board-groups";
 import type { CardData } from "@/lib/board-loaders";
@@ -324,6 +330,8 @@ export function CardRoute() {
               </div>
             </Section>
 
+            {card.branch && <IntegrationSection card={card} onDone={() => revalidator.revalidate()} />}
+
             {detail && detail.reviews.length > 0 && (
               <Section label="Review">
                 <div className="flex flex-col gap-2">
@@ -540,6 +548,151 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
  * knew that the diff can't show — so it is readable in place, collapsed by default so a three-session
  * card still fits on a phone screen.
  */
+/**
+ * What happens to the branch once the work is done: merge it, open a PR, hand a conflict back to the
+ * agent, or clean the whole thing up.
+ *
+ * Loaded ON DEMAND, never with the polled card loader: every field here costs git subprocesses, and
+ * the card screen re-reads itself every 1.5 s. Re-read after each action instead — the actions are
+ * the only thing that changes any of it, apart from the agent committing, which is what the manual
+ * refresh is for.
+ */
+function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => void }) {
+  const [state, setState] = useState<Integration | null | undefined>(undefined);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
+  const { confirm, pending } = usePendingConfirm();
+
+  const load = useCallback(async () => {
+    try {
+      setState((await fetchIntegration(card.id)).integration);
+    } catch {
+      // A card whose repo has moved under us still has to render; the section simply says nothing.
+      setState(null);
+    }
+  }, [card.id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function run(action: "merge" | "pr" | "resolve" | "cleanup", label: string) {
+    setBusy(action);
+    try {
+      const res = await integrateCard(card.id, action);
+      setConflict(false);
+      setStatus(
+        action === "pr" && res.url ? `PR opened — ${res.url}` : `${label} done.`,
+        "success",
+      );
+      onDone();
+    } catch (e) {
+      // A conflict is the one failure with a next step, so the button for it appears here.
+      const message = (e as Error).message;
+      setConflict(/conflict/i.test(message));
+      setStatus(message, "error", null);
+    } finally {
+      setBusy(null);
+      void load();
+    }
+  }
+
+  if (state === undefined) return null;
+  if (state === null) {
+    return (
+      <Section label="Integration">
+        <p className="text-xs text-muted-foreground">No branch to integrate.</p>
+      </Section>
+    );
+  }
+
+  const merged = state.ahead === 0;
+  return (
+    <Section label="Integration">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="font-mono">{state.branch}</span>
+          <span>→</span>
+          <span className="font-mono">{state.base}</span>
+          <span>
+            ·{" "}
+            {merged
+              ? `already in ${state.base}`
+              : `${state.ahead} commit${state.ahead === 1 ? "" : "s"} not in ${state.base}`}
+          </span>
+          {state.behind > 0 && <span>· {state.behind} behind</span>}
+        </div>
+
+        {/* Loudest thing here when true: the card's diff shows this work, but no merge will take it. */}
+        {state.branchDirty && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            Uncommitted work in the card's checkout — commit it from the agent's pane, or it will not
+            be integrated.
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2"
+            disabled={busy !== null || merged || state.branchDirty}
+            onClick={() => void run("merge", `Merged into ${state.base}`)}
+          >
+            <GitMerge className="size-4" />
+            {busy === "merge" ? "Merging…" : `Merge into ${state.base}`}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2"
+            disabled={busy !== null || merged || state.branchDirty}
+            onClick={() => void run("pr", "Pull request opened")}
+          >
+            <GitPullRequest className="size-4" />
+            {busy === "pr" ? "Opening…" : "Open a PR"}
+          </Button>
+        </div>
+
+        {conflict && (
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Nothing was changed in {state.base}. The agent can settle this on its own branch, then
+              the merge goes through.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-fit gap-2"
+              disabled={busy !== null}
+              onClick={() => void run("resolve", "Sent to the agent")}
+            >
+              <Sparkles className="size-4" />
+              {busy === "resolve" ? "Sending…" : "Let the agent resolve it"}
+            </Button>
+          </div>
+        )}
+
+        {merged && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-fit gap-2 text-destructive"
+            disabled={busy !== null}
+            onClick={() => {
+              if (!confirm("cleanup")) return;
+              void run("cleanup", "Worktree removed");
+            }}
+          >
+            <Trash2 className="size-4" />
+            {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+          </Button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 /** The disclosure label for a session's note. Pure, so the wording is pinned by a test. */
 export function noteLabel(open: boolean, closing: boolean): string {
   const what = closing ? "closing report" : "handoff note";

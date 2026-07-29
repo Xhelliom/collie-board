@@ -386,6 +386,45 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
   });
 }
 
+/** Where a card's branch stands against the branch it forked from. */
+export interface Integration {
+  branch: string;
+  base: string;
+  /** Commits on the branch the base doesn't have. 0 means there is nothing left to integrate. */
+  ahead: number;
+  behind: number;
+  /** The main checkout has uncommitted changes — a merge is refused. */
+  baseDirty: boolean;
+  /** The CARD's checkout has uncommitted work — merging would leave it behind. */
+  branchDirty: boolean;
+  baseCheckedOut: boolean;
+}
+
+/** What a card's branch looks like right now. Null when the card has no branch. */
+export function fetchIntegration(id: string): Promise<{ integration: Integration | null }> {
+  return apiRequest<{ integration: Integration | null }>(
+    `/api/cards/${encodeURIComponent(id)}/integration`,
+  );
+}
+
+/**
+ * The four gestures that end a branch's life. All refuse before they act, so a rejection arrives as
+ * a sentence to show rather than as a repository left in a state nobody asked for.
+ *
+ * `merge` is local and pushes nothing; `pr` pushes the branch and never touches the base; `resolve`
+ * hands a conflict to the card's own agent, to settle on its own branch; `cleanup` removes the
+ * worktree and deletes the branch, and is refused unless the work is already integrated.
+ */
+export function integrateCard(
+  id: string,
+  action: "merge" | "pr" | "resolve" | "cleanup",
+): Promise<{ ok: true; url?: string | null; base?: string; card: CardView }> {
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
 /**
  * Hand the card back to the copilot for a fresh title / spec / acceptance criteria.
  *
