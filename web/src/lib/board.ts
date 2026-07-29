@@ -5,7 +5,7 @@
 // The board is bound to the PRIMARY herdr session (see bridge/server.ts), so — unlike every path
 // in lib/nav.ts — none of these carry `?s=`.
 
-import { apiRequest } from "./api";
+import { apiRequest, ApiError } from "./api";
 import type { AgentStatus } from "./types";
 
 export type CardStatus =
@@ -163,12 +163,55 @@ export function cardPath(cardId: string): string {
 
 // ── api ──────────────────────────────────────────────────────────────────────
 
+// Conditional GET for the two board reads that POLL — the card list on every board screen, the
+// card detail on every card screen. Both re-transfer their whole body every 1.5 s otherwise, and
+// most of those bodies are identical to the last one.
+//
+// Client-managed, like `fetchPane`'s cache in api.ts and for the same reason: the bridge sends
+// `cache-control: no-store` for privacy, so the browser keeps nothing and cannot revalidate on its
+// own. Both of that cache's invariants are load-bearing here too:
+//   1. the ETag is stored ONLY together with the body it belongs to, never on its own;
+//   2. it is stored only AFTER the body parses, so an aborted or truncated response can't leave an
+//      ETag behind that would 304 every later poll into an empty board.
+const etagCache = new Map<string, { etag: string; body: unknown }>();
+
+/** Bounded so opening many cards over a long session can't grow it forever. FIFO is plenty. */
+const ETAG_CACHE_MAX = 20;
+
+async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const cached = etagCache.get(url);
+  const res = await fetch(url, {
+    signal,
+    headers: cached ? { "if-none-match": cached.etag } : {},
+  });
+
+  if (res.status === 304 && cached) return cached.body as T;
+  // ApiError, not Error: the loaders detect an auth failure with an instanceof check, so a plain
+  // Error would turn a 403 from the same-origin gate into a generic "can't reach the board".
+  if (!res.ok) throw new ApiError(`${url} → ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
+
+  const body = (await res.json()) as T;
+  const etag = res.headers.get("etag");
+  if (etag) {
+    etagCache.set(url, { etag, body });
+    if (etagCache.size > ETAG_CACHE_MAX) {
+      const oldest = etagCache.keys().next().value;
+      if (oldest !== undefined) etagCache.delete(oldest);
+    }
+  }
+  return body;
+}
+
+// No invalidation hook, deliberately: the ETag is computed from the bridge's CURRENT data, so after
+// a mutation the next poll sends a stale If-None-Match, the server computes a different tag, and we
+// get the fresh body. A cache that self-corrects needs no cache-busting.
+
 export function fetchCards(signal?: AbortSignal): Promise<{ cards: CardView[] }> {
-  return apiRequest<{ cards: CardView[] }>("/api/cards", { signal });
+  return conditionalGet<{ cards: CardView[] }>("/api/cards", signal);
 }
 
 export function fetchCard(id: string, signal?: AbortSignal): Promise<CardDetail> {
-  return apiRequest<CardDetail>(`/api/cards/${encodeURIComponent(id)}`, { signal });
+  return conditionalGet<CardDetail>(`/api/cards/${encodeURIComponent(id)}`, signal);
 }
 
 /** Fields a create/patch accepts. The bridge validates them again — this is convenience, not a gate. */

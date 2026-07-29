@@ -179,15 +179,28 @@ export function startServer(opts: {
           session: rt.name,
           guard: (level) => guard(req, cfg, level),
           device: deviceAuth(req, cfg).device,
-          json: (data, status) =>
-            status === undefined
-              ? json(data, req.headers.get("accept-encoding"))
-              : secure(
-                  new Response(JSON.stringify(data), {
-                    status,
-                    headers: { "content-type": "application/json; charset=utf-8" },
-                  }),
-                ),
+          json: (data, status) => {
+            if (status !== undefined) {
+              return secure(
+                new Response(JSON.stringify(data), {
+                  status,
+                  headers: { "content-type": "application/json; charset=utf-8" },
+                }),
+              );
+            }
+            // The board's reads are POLLED — the card list on every board screen, the detail on
+            // every card screen — so an unchanged one should cost a 304, exactly like a pane read.
+            // Same client-managed scheme as `fetchPane`: `no-store` stands (privacy), and the
+            // client keeps the (etag, body) pair itself rather than leaning on the browser cache.
+            if (req.method !== "GET") return json(data, req.headers.get("accept-encoding"));
+            const etag = computeEtag(JSON.stringify(data));
+            if (notModified(req.headers.get("if-none-match"), etag)) {
+              return secure(
+                new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } }),
+              );
+            }
+            return secure(gzipJsonResponse(data, req.headers.get("accept-encoding"), { etag }));
+          },
           text,
         });
         if (boardRes) return boardRes;

@@ -32,7 +32,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `bridge/config.ts` | the `board*` config block |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()` and `resolveByCwd()` |
-| `web/src/lib/api.ts` | `apiRequest` re-export |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one |
 | `web/src/router.tsx` | two routes |
 | `web/src/routes/home.tsx` | a Board row |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`) |

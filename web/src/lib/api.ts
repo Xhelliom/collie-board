@@ -18,7 +18,9 @@ import type {
 
 export type { NotifyPrefs, UpdateInfo };
 
-class ApiError extends Error {
+// Exported so a hand-rolled fetch (the board keeps its own conditional-GET cache) can raise an
+// error the loaders still recognise — isApiErrorStatus is an instanceof check, so nothing else can.
+export class ApiError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {
     super(message);

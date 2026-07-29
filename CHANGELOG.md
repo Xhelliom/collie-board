@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.36.0] - 2026-07-29
+
+### Added
+- **Conditional GET on the two board reads that poll.** `/api/cards` and `/api/cards/:id` carry an ETag, and an unchanged poll costs a 304 with an empty body — measured on the live board: **4718 bytes → 0**, every 1.5 s, on whichever screen is open. Same client-managed scheme as the pane mirror (`cache-control: no-store` stands for privacy, so the browser keeps nothing and the client holds the `(etag, body)` pair itself), including both of that cache's invariants: the tag is stored only *with* its body, and only *after* the body parses.
+
+### Changed
+- `ApiError` is exported from `web/src/lib/api.ts`. The loaders detect an auth failure with an `instanceof` check, so the board's own fetch had to be able to raise one — a plain `Error` would have turned a 403 from the same-origin gate into a generic "can't reach the board". (bda33bb)
+
+### Notes
+- No cache-invalidation hook, deliberately: the ETag is computed from the bridge's current data, so after a write the next poll sends a stale `If-None-Match`, the server computes a different tag, and the fresh body comes back. Verified — a `PATCH` turns the next conditional GET from 304 into 200.
+
 ## [0.35.1] - 2026-07-29
 
 ### Changed
