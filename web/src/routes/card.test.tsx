@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
-import { noteLabel } from "./card.tsx";
+import { DangerZone, noteLabel } from "./card.tsx";
 
 // A session carries one of two documents in the same field, and they are not the same thing: a
 // handoff note is written FOR the next agent, a closing report is what the outgoing agent says it
@@ -14,5 +16,21 @@ describe("noteLabel", () => {
   it("turns into its own dismiss label when open", () => {
     expect(noteLabel(true, false)).toBe("Hide handoff note");
     expect(noteLabel(true, true)).toBe("Hide closing report");
+  });
+});
+
+// Deleting a card is the only thing in this app that cannot be undone, so one tap must never do it.
+describe("DangerZone", () => {
+  it("does not delete on the first tap — it arms and says it is final", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    render(<DangerZone cardId="c1" onDelete={onDelete} />);
+
+    await user.click(screen.getByRole("button", { name: /delete card/i }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /no undo/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /no undo/i }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
   });
 });
