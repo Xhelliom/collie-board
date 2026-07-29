@@ -92,17 +92,36 @@ export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base:
     db.recordEvent(card.id, "card.merge_failed", {
       branch: state.branch,
       base: state.base,
-      conflict: merged.conflict,
+      kind: merged.kind,
       error: merged.error,
     });
-    // The repository is already back where it was — `mergeIntoBase` aborts before returning. What
-    // this reports is which of the two situations it is, because only one of them has a next step.
-    if (merged.conflict) {
+    // The repository is already back where it was. What this reports is WHICH failure it was,
+    // because each has a different next step and only one of them is the board's to take.
+    if (merged.kind === "conflict") {
       return {
         ok: false,
         error: {
           kind: "conflict",
           message: `${state.base} has moved on and the merge conflicts. Nothing was changed here — hand it to the agent to settle on its own branch.`,
+        },
+      };
+    }
+    if (merged.kind === "would-overwrite") {
+      // Deliberately NOT offered as something to automate. The uncommitted work in the base is the
+      // operator's own, in progress, and neither a stash nor an agent gets to decide its fate: a
+      // stash pop after this merge would conflict in the working tree, and an agent committing it
+      // would be putting a message on a change nobody chose to keep yet. A PR needs none of it.
+      const files = merged.error
+        .split("\n")
+        .filter((l) => /^\t/.test(l))
+        .map((l) => l.trim());
+      return {
+        ok: false,
+        error: {
+          kind: "refused",
+          message: files.length
+            ? `this merge would overwrite your uncommitted work in ${files.join(", ")} — commit or stash it first, or open a PR instead. Nothing was changed.`
+            : `this merge would overwrite uncommitted work in ${state.base} — commit or stash it first, or open a PR instead. Nothing was changed.`,
         },
       };
     }

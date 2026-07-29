@@ -635,11 +635,9 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
   }
 
   const merged = state.ahead === 0;
-  const mergeBlocker = state.baseDirty
-    ? `${state.base} has uncommitted changes`
-    : !state.baseCheckedOut
-      ? `the repository is not on ${state.base}`
-      : null;
+  // Only what genuinely stops a merge. `baseDirty` deliberately isn't here: git merges over
+  // uncommitted changes it doesn't touch, and refuses by itself when it would — see refusalFor.
+  const mergeBlocker = !state.baseCheckedOut ? `the repository is not on ${state.base}` : null;
   return (
     <Section label="Integration">
       <div className="flex flex-col gap-3">
@@ -669,6 +667,15 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
         {!merged && !state.branchDirty && mergeBlocker && (
           <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
             {mergeBlocker} — a PR still works.
+          </p>
+        )}
+
+        {/* A warning, not a blocker: it only matters if the merge touches the same files, and git
+            is the one that knows. Said here so a refusal afterwards is not a surprise. */}
+        {!merged && state.baseDirty && (
+          <p className="text-xs text-muted-foreground">
+            {state.base} has uncommitted changes. The merge goes through unless it touches the same
+            files — git checks before changing anything.
           </p>
         )}
 

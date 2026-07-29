@@ -58,7 +58,19 @@ export const runGit: GitRunner = async (args, cwd) => {
     stderr: "pipe",
     // A git subprocess must never wait on a credential prompt or a pager — both hang forever
     // under a service with no tty.
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_PAGER: "cat", PAGER: "cat" },
+    //
+    // LC_ALL=C because we READ these messages. git is localised, and on a French system a conflict
+    // announces itself as "CONFLIT", which the merge path's `/conflict/i` silently missed — so a
+    // conflict was reported as a generic git failure, with no offer to hand it to the agent. Every
+    // parser here now sees the same English git the tests do.
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_PAGER: "cat",
+      PAGER: "cat",
+      LC_ALL: "C",
+      LANG: "C",
+    },
   });
   const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
   try {
@@ -380,7 +392,6 @@ export async function integrationOf(
 export type IntegrationRefusal =
   | "no-branch"
   | "nothing-to-merge"
-  | "base-dirty"
   | "branch-dirty"
   | "base-not-checked-out"
   | "not-merged";
@@ -398,8 +409,13 @@ export function refusalFor(
   if (action === "merge") {
     if (state.ahead === 0) return "nothing-to-merge";
     if (state.branchDirty) return "branch-dirty";
-    if (state.baseDirty) return "base-dirty";
     if (!state.baseCheckedOut) return "base-not-checked-out";
+    // `baseDirty` is deliberately NOT a refusal, though it looks like one should be. Measured: git
+    // merges happily over uncommitted changes it does not touch — which is the common case, since
+    // the card worked in a different part of the tree — and preserves them. When the merge WOULD
+    // overwrite them it refuses by itself, before changing anything, and names the files. It knows
+    // the exact intersection; we would only be guessing at it, and guessing conservatively here
+    // means refusing most merges for a collision that isn't there.
     return null;
   }
   if (action === "pr") {
@@ -423,8 +439,6 @@ export function refusalMessage(reason: IntegrationRefusal, state: Integration | 
       return `nothing to merge — ${state?.base ?? "the base"} already has every commit on this branch`;
     case "branch-dirty":
       return "the card's checkout has uncommitted work — commit it from the agent's pane first, or it will not be integrated";
-    case "base-dirty":
-      return `${state?.base ?? "the base"} has uncommitted changes — a merge would land on top of them`;
     case "base-not-checked-out":
       return `the repository is not on ${state?.base ?? "the base"} right now — switch to it first, so a merge never moves the branch you are working on`;
     case "not-merged":
@@ -444,15 +458,27 @@ export async function mergeIntoBase(
   repoPath: string,
   branch: string,
   git: GitRunner = runGit,
-): Promise<{ ok: true; stdout: string } | { ok: false; error: string; conflict: boolean }> {
+): Promise<
+  | { ok: true; stdout: string }
+  | { ok: false; error: string; kind: "conflict" | "would-overwrite" | "other" }
+> {
   const r = await git(["merge", "--no-ff", "--no-edit", "--", branch], repoPath);
   if (r.ok) return { ok: true, stdout: r.stdout.trim() };
   const out = `${r.stdout}\n${r.stderr}`;
-  // Told apart from any other failure because it is the only one with a REMEDY: the agent that
-  // wrote the branch can resolve it, in its own checkout, and then this merge becomes trivial.
-  const conflict = /conflict/i.test(out);
+  // Three outcomes, because each has a different next step and only the middle one is ours to fix:
+  //   conflict        — the branch and the base disagree. The agent can settle it on its branch.
+  //   would-overwrite — the merge collides with UNCOMMITTED work in the base. Only the person who
+  //                     wrote it can decide what happens to it; git stopped before touching a byte.
+  //   other           — anything else, reported verbatim.
+  const kind = /conflict/i.test(out)
+    ? "conflict"
+    : /would be overwritten|Please commit your changes or stash/i.test(out)
+      ? "would-overwrite"
+      : "other";
+  // Only a conflict leaves a merge in progress; the other two failed before starting. Harmless
+  // either way — `merge --abort` on a repo with no merge in flight is a no-op.
   await git(["merge", "--abort"], repoPath);
-  return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n"), conflict };
+  return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 5).join("\n"), kind };
 }
 
 /** Push the card's branch and set its upstream. Needed before a PR can reference it. */

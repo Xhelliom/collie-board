@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.44.1] - 2026-07-29
+
+### Fixed
+- **git speaks the system's language, and we were reading it in English.** On a French system a conflict announces itself as `CONFLIT`, so the merge path's conflict test never matched: a conflict was reported as a generic git failure, with no offer to hand it to the agent. Every git and `gh` subprocess now runs under `LC_ALL=C`.
+- **Merge no longer refuses just because the base has uncommitted changes.** Measured: git merges over changes it doesn't touch and preserves them — the common case, since the card worked elsewhere in the tree — and refuses by itself, before changing a byte, when they would collide. It knows the exact intersection; the old check only guessed, and blocked most merges for a collision that wasn't there.
+- A merge that really would overwrite uncommitted work now says which files, and that nothing was changed.
+
+### Notes
+- That last case is deliberately not automated. A stash/pop around the merge conflicts in the working tree exactly when it matters, and an agent committing those changes would be putting a message on work nobody has decided to keep. **Open a PR** needs none of it — it never touches the base.
+
 ## [0.44.0] - 2026-07-29
 
 ### Added
