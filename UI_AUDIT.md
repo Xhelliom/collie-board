@@ -36,10 +36,26 @@ Le problème est ailleurs, et il est **structurel** : sur l'écran pane — le s
 d'ouvrir cet écran. Chaque bande a une bonne justification prise isolément. Prises ensemble, elles
 laissent au contenu environ **45 % de la hauteur, et 30 % clavier ouvert**.
 
-Les trois griefs signalés dans la carte sont réels, et l'audit en donne la mesure. Il relève en
-plus **dix problèmes non signalés**, dont un de gravité supérieure à tous les autres : **la
-suppression d'une carte se fait en un tap, sans confirmation**, dans une application où tous les
-autres gestes destructeurs — bien moins graves — en demandent deux.
+Les six griefs signalés sont tous réels, et l'audit en donne la mesure et la cause :
+
+| Signalé | Cause trouvée |
+|---|---|
+| Input rogné à droite et à gauche | 31 % de largeur mangée par deux boutons (§2.1) |
+| Boutons trop petits | 5 cibles de 28 px, sous Apple et Material (§2.2) |
+| Retours à la ligne au milieu d'une phrase | **double wrap** : herdr coupe à 81 colonnes, le CSS recoupe à 50 (§3.1) |
+| Tableaux disloqués | même double wrap, plus le parseur qui les exclut explicitement (§3.2) |
+| Le drawer scintille et se ferme tout seul | **trois bugs distincts**, aucun couvert par un test (§7) |
+| Board et sessions ne disent pas la même chose | le contexte n'est calculé que pour les panes nés d'une carte (§8) |
+
+Il relève en plus **dix problèmes non signalés**, dont un de gravité supérieure à tous les autres :
+**la suppression d'une carte se fait en un tap, sans confirmation**, dans une application où tous
+les autres gestes destructeurs — bien moins graves — en demandent deux.
+
+Deux constats orientent les corrections. D'abord, **une bonne partie de ce qui manque existe déjà**
+et n'est pas branchée : le rendu Markdown propre (`TranscriptView`, enterré et figé), la jauge de
+contexte (montée sur un seul écran sur quatre), et jusqu'à `pane.read source: "recent-unwrapped"`
+côté herdr, déclaré et jamais appelé. Ensuite, **les bugs les plus visibles sont les moins chers** :
+les trois défauts du drawer tiennent en une trentaine de lignes dans un seul fichier.
 
 ---
 
@@ -364,7 +380,188 @@ le board et l'accueil parce qu'un pane a eu un souci.
 
 ---
 
-## 7. Ce qui est solide (et qu'il ne faut pas casser en corrigeant le reste)
+## 7. Les feuilles (drawers) — trois bugs distincts dans un seul fichier
+
+`components/ui/sheet.tsx` implémente `BottomSheet` et `SideSheet` à la main, sans Radix ni Vaul —
+choix explicite (`sheet.tsx:22` : *« no Radix, no portals, no extra deps »*). Le geste
+tirer-pour-fermer est écrit à la main (`sheet.tsx:63-108`). Il contient trois défauts indépendants,
+qui expliquent précisément les symptômes signalés.
+
+**Aucun n'est couvert par les tests** : `sheet.test.tsx` teste le focus, le libellé et le rejet par
+le backdrop — jsdom ne simule pas le tactile, donc tout le glissement est non testé.
+
+### 7.1 La feuille se ferme quand on manipule un champ de saisie
+
+Les écouteurs tactiles sont posés sur `panel` — qui est à la fois le conteneur **et** le scroller
+(`sheet.tsx:100-103`). Le `touchstart` **ne filtre pas sa cible** :
+
+```ts
+const onStart = (e: TouchEvent) => {
+  const t = e.touches[0];
+  if (!t) return;
+  drag.current = { startY: t.clientY, atTop: panel.scrollTop <= 0, engaged: false, dy: 0 };
+};
+```
+
+Donc un contact qui commence **dans un `<textarea>` ou un `<input>`** arme le glissement dès que le
+panneau est en haut de son défilement — le cas normal, puisque la feuille s'ouvre en haut. Six
+pixels de mouvement vers le bas (`SLOP = 6`) engagent le drag, qui appelle alors `preventDefault()`
+et **confisque le geste au champ** : placement du curseur, sélection de texte, défilement interne du
+textarea. Au-delà de 90 px (`CLOSE`), la feuille se ferme.
+
+Quatre feuilles contiennent des champs, dont celle qui porte le geste central du produit :
+
+| Feuille | Champs | Source |
+|---|---|---|
+| **New card** (dictée) | `<textarea>` + 2 `<input>` | `new-card-sheet.tsx:136`, `:200`, `:226` |
+| **Edit card** | `<textarea>` + 3 `<input>` | `card-editor.tsx:93-143` |
+| New space | 2 `<input>` | `new-space-sheet.tsx:41`, `:53` |
+| Agent commands | `<input>` de filtre | `command-palette.tsx:63` |
+
+C'est exactement le symptôme décrit : « se ferme facilement quand on scrolle dans une zone d'input ».
+
+### 7.2 Le scintillement, cause n°1 : la position de glissement n'est pas remise à zéro
+
+`sheet.tsx:92-97` :
+
+```ts
+const onEnd = () => {
+  const off = drag.current.dy;
+  drag.current = { startY: 0, atTop: false, engaged: false, dy: 0 };
+  if (off > CLOSE) onClose();   // ← dragY reste à `off`
+  else setDragY(0);
+};
+```
+
+Sur le chemin de **fermeture**, `dragY` conserve sa dernière valeur (par ex. 120 px). Le composant
+n'est pas démonté — `if (!open) return null` est un simple retour anticipé, donc `useState` préserve
+l'état. À la réouverture, le tout premier rendu applique donc :
+
+- `transform: translateY(120px)` (l'état résiduel),
+- `transition: transform 0.2s ease-out`,
+- **et** la classe d'entrée `animate-in slide-in-from-bottom` (`sheet.tsx:143`).
+
+`setDragY(0)` n'intervient qu'ensuite, dans l'effet, **après le premier paint**. Résultat : la
+feuille apparaît décalée vers le bas puis remonte, **pendant que l'animation d'entrée joue aussi**.
+Deux animations concurrentes sur la même propriété `transform`. C'est le scintillement.
+
+### 7.3 Le scintillement, cause n°2 : l'effet se ré-exécute à chaque poll
+
+L'effet tactile dépend de `[open, onClose]` (`sheet.tsx:108`). Or **`onClose` est une fonction
+recréée à chaque rendu chez tous les appelants, sans exception** :
+
+```tsx
+routes/board.tsx:120      onClose={() => setNewOpen(false)}
+routes/card.tsx:377       onClose={() => setEditing(false)}
+components/agent-chat.tsx:768   onClose={closeDrawer}   // const closeDrawer = () => setDrawer(null)
+components/composer.tsx:687     onClose={closeDrawer}   // idem
+```
+
+L'application revalide toutes les **1,5 s** (`use-polling.ts:13`), ce qui re-rend la route, ce qui
+donne un nouveau `onClose`, ce qui relance l'effet. À chaque exécution, l'effet :
+
+1. **retire** les quatre écouteurs tactiles, puis les **réattache** ;
+2. appelle **`setDragY(0)`** (`sheet.tsx:70`).
+
+Donc si l'utilisateur est en train de tirer la feuille quand un poll arrive, **sa position est remise
+à zéro en plein geste** — la feuille saute sous le doigt. Et le cycle détacher/rattacher peut faire
+perdre des événements au milieu d'un glissement.
+
+### 7.4 Deux défauts mineurs du même composant
+
+- **Pas de verrouillage du défilement de l'arrière-plan.** `overscroll-contain` est posé sur le
+  panneau (`sheet.tsx:143`), mais rien ne bloque le document. Sur iOS Safari, l'arrière-plan défile
+  derrière une modale — le symptôme classique.
+- **Un `setState` par frame de `touchmove`** (`sheet.tsx:88`). Chaque frame de glissement re-rend le
+  panneau **et tout son contenu** — un formulaire complet dans le cas de New card. L'écriture directe
+  du `transform` via le ref éviterait React entièrement pendant le geste.
+
+### 7.5 Vaul, ou réparer ?
+
+La carte évoque Vaul. Le constat honnête :
+
+- **Réparer** = ~40 lignes dans un fichier : filtrer la cible du `touchstart`, remettre `dragY` à 0
+  au moment de fermer, stabiliser `onClose` avec `useCallback` chez les quatre appelants (ou retirer
+  `onClose` des dépendances via un ref), verrouiller le body, écrire le transform hors React.
+- **Vaul** = deux dépendances (`vaul` + `@radix-ui/react-dialog`, sa pair-dépendance) dans un
+  `web/package.json` qui n'en compte aujourd'hui que **sept**, et l'abandon d'un choix architectural
+  posé explicitement. En échange : les cinq points ci-dessus résolus par du code éprouvé, plus les
+  points d'accroche (snap points), le repositionnement au clavier, et un vrai piège à focus — que
+  l'implémentation maison n'a pas non plus (`sheet.tsx:7`, *« no full trap »*).
+
+Recommandation en Partie 2 (§E).
+
+---
+
+## 8. Board et session : deux vues du même agent qui ne disent pas la même chose
+
+Un agent apparaît sous deux formes — `AgentCard` (accueil, vue espace) et `CardTile` (board) — et
+elles n'affichent ni les mêmes champs, ni les mêmes champs disponibles.
+
+| Information | `AgentCard` (accueil) | `CardTile` (board) | Page pane | Page carte |
+|---|---|---|---|---|
+| Statut de l'agent | ✅ | ✅ (si pane vivant) | ✅ | ✅ |
+| Répertoire (`cwd`) | ✅ | ❌ | ✅ | ✅ |
+| Branche git | ❌ | ✅ | ❌ | ✅ |
+| Espace / workspace | ✅ | ❌ | ✅ (fil d'Ariane) | ❌ |
+| Nombre de sessions | ❌ | ✅ | ❌ | ✅ |
+| **Contexte utilisé (`ctx %`)** | **❌** | **✅** | **❌** | **✅ (jauge)** |
+
+Sources : `agent-card.tsx:36-57`, `card-tile.tsx:57-71`, `agent-chat.tsx:569-581`, `card.tsx:196-198`.
+
+### 8.1 Le contexte est l'exemple le plus net, et il est à l'envers
+
+Le pourcentage de contexte est une propriété **de la session de l'agent** — pas de la tâche. Or il
+n'est visible que sur les deux écrans « tâche » (board, carte), et **absent des deux écrans
+« agent »** (accueil, pane).
+
+C'est l'inverse de l'usage : on décide de passer la main (`handoff`) **quand on regarde l'agent
+travailler**, pas quand on parcourt le board. Et l'écran pane est justement celui où la décision se
+prend — il porte le composer, on y voit l'agent ramer.
+
+Le seul substitut sur l'écran pane est la statusline brute de Claude, ré-affichée en texte monospace
+(`agent-chat.tsx:736-740`) : elle contient parfois un `ctx%`, **si** Claude l'affiche, **si** la
+grammaire l'extrait, et sans aucune mise en forme — pas la jauge colorée avec ses seuils à 70/85 %
+qui existe pourtant (`context-gauge.tsx`).
+
+### 8.2 La cause est dans le bridge, pas dans l'UI
+
+`bridge/context.ts:84` :
+
+```ts
+const due = this.db.listOpenSessions().filter((s) => { … });
+```
+
+Le `ContextTracker` n'itère **que sur les sessions ouvertes en base**, c'est-à-dire les panes
+démarrés **depuis une carte**. Conséquence en deux temps :
+
+1. Un pane lancé à la main (nouvel onglet dans Collie, ou depuis herdr) **n'a jamais de contexte**,
+   quelle que soit la vue. Ce n'est pas un problème d'affichage : le chiffre n'est jamais calculé.
+2. Même pour un pane adossé à une carte, le chiffre est écrit dans `card_session` en base
+   (`context.ts:107`) — donc il ne remonte que par l'API board, jamais par le snapshot du troupeau
+   qui alimente `AgentView`.
+
+Détail savoureux : le tracker **pousse déjà** ce chiffre dans herdr via `pane.report_metadata`
+(`context.ts:140-147`), pour qu'il s'affiche en `$ctx` dans la barre latérale du TUI. **L'information
+est donc visible dans le terminal herdr, et invisible dans l'app Collie qui l'a calculée.**
+
+### 8.3 Les autres écarts, moins graves mais du même ordre
+
+- **La branche git** est sur la carte du board mais pas sur celle de l'accueil, alors que le pane
+  tourne dans un worktree — c'est souvent la seule chose qui distingue deux panes du même dépôt.
+- **Le `cwd`** est sur la carte de l'accueil mais pas sur celle du board — l'exact miroir.
+- **Le nom affiché** suit deux règles différentes : `paneDisplayName()` pour un pane (libellé
+  utilisateur → nom `/rename` de Claude → nom d'agent, `types.ts:45-49`), et `card.title` pour une
+  carte. Un même agent porte donc deux noms selon l'écran, sans lien visible entre les deux.
+
+Aucun de ces écarts n'est absurde pris isolément — chaque vue montre ce que sa source de données
+porte. Mis bout à bout, ils font que **la même chose ne se lit pas pareil selon la porte d'entrée**,
+alors que le board se présente explicitement comme « une seconde lentille sur le même troupeau »
+(`card-tile.tsx:10-11`).
+
+---
+
+## 9. Ce qui est solide (et qu'il ne faut pas casser en corrigeant le reste)
 
 Un audit qui ne liste que des défauts donne une fausse image. Ce qui suit est au-dessus de la
 moyenne du métier et contraint les propositions de la Partie 2 :
@@ -391,7 +588,7 @@ moyenne du métier et contraint les propositions de la Partie 2 :
 # Partie 2 — Revue : pistes d'amélioration
 
 Classement par **valeur perçue ÷ risque**. « Risque » = surface upstream touchée + probabilité de
-casser une des mécaniques du §7.
+casser une des mécaniques du §9.
 
 | # | Piste | Répond à | Effort | Risque |
 |---|-------|----------|--------|--------|
@@ -399,15 +596,25 @@ casser une des mécaniques du §7.
 | **A2** | Agrandir le rouage Settings | §5.1 | trivial | nul |
 | **A3** | Settings passe sur `AppHeader` | §6.3 | trivial | nul |
 | **A4** | Unifier la couleur de surlignage | §3.5 | trivial | nul |
+| **E1** | **Feuilles : filtrer la cible du glissement** | §7.1 | trivial | nul |
+| **E2** | **Feuilles : remettre `dragY` à 0 en fermant** | §7.2 | trivial | nul |
+| **E3** | **Feuilles : stabiliser `onClose`** | §7.3 | trivial | nul |
 | **B1** | Essayer `recent-unwrapped` | §3.1 | faible | **élevé** |
 | **B2** | Bouton copier sur le miroir et les blocs de code | §6.4 | faible | faible |
 | **B3** | Masquer le handle quand il n'y a qu'un pane | §1.2 | trivial | faible |
+| **E4** | Feuilles : verrou du body + transform hors React | §7.4 | faible | faible |
+| **G1** | **Le contexte sur l'écran pane et l'accueil** | §8.1 | faible | faible |
+| **G2** | Aligner les champs des deux cartes | §8.3 | faible | nul |
 | **C1** | Refonte du composer : une rangée au lieu de trois | §2 | moyen | moyen |
 | **C2** | Tableaux dans le parseur Markdown | §3.2 | moyen | faible |
 | **C3** | Réparer la hiérarchie de titres | §5.2 | faible | nul |
 | **C4** | `errorElement` par route | §6.5 | faible | faible |
+| **F1** | **Board en colonnes sur grand écran** | desktop | moyen | faible |
+| **F2** | Élargir les autres écrans au-delà de 640 px | desktop | moyen | moyen |
+| **G3** | Calculer le contexte pour tout pane, pas seulement ceux d'une carte | §8.2 | moyen | faible |
 | **D1** | **Vue « Lecture » live sur le transcript** | §3.1, §3.2, §3.3 | **élevé** | moyen |
 | **D2** | Trancher le mode clair | §6.1 | faible | faible |
+| **E5** | Adopter Vaul à la place de la feuille maison | §7.5 | moyen | moyen |
 
 ---
 
@@ -459,7 +666,7 @@ en box-drawing**, dont la géométrie dépend de lignes de largeur fixe. Dé-wra
 
 - casser la détection des dialogues → plus de boutons natifs, retour au pilotage clavier ;
 - casser `extractStatusLine` et `extractInputDraft` (`agent-chat.tsx:164-207`) → la statusline
-  disparaît, et le brouillon échoué du §7 cesse d'être détecté ;
+  disparaît, et le brouillon échoué du §9 cesse d'être détecté ;
 - déclencher le `dialogPresent` à tort ou à travers, ce qui **bloque les envois** (`composer.tsx:287`).
 
 **Comment l'évaluer sans risque** : ajouter `recent-unwrapped` comme *source alternative* derrière
@@ -528,7 +735,7 @@ Les principes :
 Bilan : **~64 px rendus au miroir** (2 lignes de terminal en plus), **+80 px de largeur d'input**
 (+30 %), et **toutes les cibles à 44 px**.
 
-À préserver impérativement (§7) : la garde à deux taps sur envoi destructeur, l'aperçu « You
+À préserver impérativement (§9) : la garde à deux taps sur envoi destructeur, l'aperçu « You
 sent: », l'aperçu du brouillon échoué, et le fait que Keys/Quick soient des docks **en flux** et
 non des overlays — c'est ce qui permet de voir le menu qu'on pilote pendant qu'on le pilote
 (`composer.tsx:83-88`, une leçon apprise à la dure d'après le commentaire).
@@ -639,34 +846,250 @@ qui ment sur ses intentions.
 
 ---
 
+## E — Les feuilles
+
+### E1–E3. Les trois corrections qui règlent les symptômes signalés
+
+Trois petits diffs, indépendants, dans `sheet.tsx` :
+
+**E1 — filtrer la cible du glissement.** Un contact qui commence dans un champ, un bouton, ou une
+zone défilable ne doit pas armer le tirer-pour-fermer :
+
+```ts
+const onStart = (e: TouchEvent) => {
+  const t = e.touches[0];
+  if (!t) return;
+  // Un geste qui commence dans un champ ou un contrôle lui appartient — jamais au drawer.
+  if ((e.target as Element | null)?.closest?.("input, textarea, select, button, a, [role='textbox']")) {
+    drag.current = { startY: 0, atTop: false, engaged: false, dy: 0 };
+    return;
+  }
+  drag.current = { startY: t.clientY, atTop: panel.scrollTop <= 0, engaged: false, dy: 0 };
+};
+```
+
+Le sélecteur est déjà écrit ailleurs dans le dépôt, pour exactement la même raison — le tap sur le
+miroir qui ne doit pas voler le geste aux contrôles (`agent-chat.tsx:486`). Le réutiliser tel quel
+garde les deux endroits cohérents.
+
+**E2 — remettre `dragY` à 0 au moment de fermer.** Une ligne :
+
+```ts
+if (off > CLOSE) { setDragY(0); onClose(); }
+```
+
+L'état résiduel disparaît, donc la réouverture ne joue plus que son animation d'entrée. Cause n°1 du
+scintillement réglée.
+
+**E3 — stabiliser `onClose`.** Deux options, la seconde préférable car elle corrige le composant
+plutôt que ses appelants (donc un futur appelant ne peut pas réintroduire le bug) :
+
+- côté appelants : `useCallback` sur les quatre `onClose` (`board.tsx:120`, `card.tsx:377`,
+  `agent-chat.tsx:124`, `composer.tsx:147`) ;
+- **côté `sheet.tsx`** : garder `onClose` dans un ref rafraîchi à chaque rendu, et retirer la
+  dépendance de l'effet. Les écouteurs ne sont alors attachés qu'à l'ouverture, et `setDragY(0)` ne
+  s'exécute plus qu'une fois. Cause n°2 du scintillement réglée, et l'effet Escape (`sheet.tsx:53-61`)
+  en profite au passage.
+
+**Écrire un test.** Le glissement n'est couvert par rien (`sheet.test.tsx` ne teste que focus,
+libellé et backdrop) — ce qui est la raison pour laquelle ces trois bugs vivent tranquillement. jsdom
+sait dispatcher des `TouchEvent` synthétiques : un test qui ouvre une feuille, envoie un
+touchstart/move/end de 120 px **depuis un `<textarea>**, et vérifie qu'elle est toujours ouverte,
+tient en quinze lignes et verrouille E1. Un second qui referme par glissement, rouvre, et vérifie
+`transform` absent au premier rendu verrouille E2.
+
+### E4. Les deux points mineurs
+
+Verrouiller le défilement du document à l'ouverture (`document.body.style.overflow = "hidden"` dans
+l'effet, restauré au cleanup — quatre lignes), et écrire le `transform` directement sur
+`panelRef.current.style` pendant le glissement au lieu de passer par `setDragY`. Le second supprime
+un rendu React par frame sur un panneau qui contient parfois un formulaire entier.
+
+### E5. Vaul — la question posée franchement
+
+Vaul règle les cinq points d'un coup, plus le repositionnement au clavier (utile : quatre feuilles
+sur cinq ont des champs) et un vrai piège à focus que la version maison n'a pas. Le coût :
+
+- **deux dépendances** dans un `package.json` runtime qui en compte sept — soit +29 %, sur une PWA
+  dont l'argument est de tenir dans un budget mobile ;
+- **l'abandon d'un choix explicite** (`sheet.tsx:22`), qui mérite alors un ADR, pas un commit ;
+- Radix Dialog **portale** le contenu à la racine du document, ce qui change le comportement
+  d'empilement de plusieurs feuilles et demande de revérifier les cinq sites d'appel.
+
+**Recommandation : E1–E3 d'abord** (quelques lignes, aucun risque, symptômes réglés), puis juger sur
+pièce. Si après ça le geste reste désagréable — notamment le comportement au clavier, que E1–E4 ne
+touchent pas — Vaul devient un arbitrage légitime, avec son ADR. Adopter une dépendance pour
+contourner trois bugs de vingt lignes serait mettre la charrue avant les bœufs.
+
+---
+
+## F — Le mode desktop, et le vrai Kanban
+
+Le verrou est mécanique : `max-w-screen-sm` (640 px) sur le conteneur racine de **chaque** route —
+`home.tsx:46`, `board.tsx:57`, `card.tsx:140`, `space.tsx:70`, `settings.tsx:56` — plus les overlays
+de statut qui répètent la contrainte (`home.tsx:114`, `board.tsx:110`, `card.tsx:381`,
+`space.tsx:133`). Sur un écran de 27 pouces, l'app occupe donc une colonne centrale de 640 px.
+
+### F1. Le board en colonnes au-delà de `lg`
+
+C'est la partie qui a le meilleur rapport valeur/effort, et l'argument anti-Kanban du code ne s'y
+applique pas. `board.tsx:14-22` refuse le Kanban horizontal **parce qu'un téléphone n'a qu'une
+colonne de large** — le raisonnement est juste, et il ne dit rien du desktop.
+
+**La difficulté réelle : il y a huit colonnes.** `BOARD_COLUMNS` (`lib/board.ts:130-139`) :
+`blocked · review · working · starting · orphaned · ready · backlog · done`. Huit colonnes à 280 px
+font 2 240 px — au-delà de la plupart des écrans, donc on retomberait sur le panoramique horizontal
+que le projet refuse, juste avec une souris.
+
+La proposition est donc de **regrouper pour le desktop**, pas de transposer :
+
+```
+┌────────────┬────────────┬────────────┬────────────┐
+│ Needs you  │ In progress│  Ready     │  Done      │
+│            │            │            │            │
+│ blocked    │ working    │ ready      │ done       │
+│ review     │ starting   │ backlog    │            │
+│ orphaned   │            │            │            │
+└────────────┴────────────┴────────────┴────────────┘
+```
+
+Quatre colonnes = le cycle de vie réel d'une tâche, et chaque colonne reste lisible à 320 px. Les
+sous-statuts restent visibles via le `CardStatusChip` déjà présent sur chaque tuile
+(`card-tile.tsx:80`), donc aucune information n'est perdue.
+
+Mise en œuvre : le regroupement est une constante de plus à côté de `BOARD_COLUMNS`, et le rendu
+devient `grid-cols-1 lg:grid-cols-4` sur la liste de sections existante. **`CardTile` ne change
+pas.** Le corps de `BoardRoute` bouge peu — il itère déjà sur des colonnes.
+
+**Le glisser-déposer n'est pas requis pour la première version**, et le code explique pourquoi :
+les cartes se déplacent toutes seules, réconciliées contre le troupeau à chaque poll
+(`board.tsx:19-21`). Seules quatre colonnes sont manuelles (`MANUAL_STATUSES`, `card.tsx:61`), et la
+page carte offre déjà les boutons « Move to ». Le drag serait un confort desktop, à ajouter après —
+et il implique alors une bibliothèque ou du HTML5 drag-and-drop à la main, donc son propre
+arbitrage.
+
+### F2. Le reste des écrans
+
+Plus délicat, et à faire **après** F1 :
+
+- **L'accueil et la vue espace** gagneraient une grille à deux ou trois colonnes de cartes agent au
+  lieu d'une liste étirée — `AgentCard` est déjà une tuile autonome, donc c'est surtout un conteneur
+  à changer.
+- **L'écran pane est le cas difficile.** Tout son dimensionnement suppose le mobile : le miroir se
+  replie sur `wrapDefaultFor(viewportWidth)` qui bascule justement à 640 px
+  (`use-display-prefs.ts:33` — donc le no-wrap desktop est **déjà** prévu et fonctionne), mais le
+  composer, les bandes de navigation et la feuille de bascule de pane sont pensés pour le pouce. Un
+  desktop honnête voudrait ici une disposition en deux volets (liste de panes à gauche, miroir à
+  droite) — c'est un chantier à part entière, pas un `md:` à ajouter.
+- **La page carte** s'y prête bien : deux colonnes (durable à gauche : spec, acceptance, journal ;
+  live à droite : pane, contexte, prompt, handoff). Le découpage en `<Section>` existe déjà.
+
+Ordre suggéré : **F1 seul d'abord**. C'est là que le grand écran apporte quelque chose qu'un
+téléphone ne peut structurellement pas donner — voir tout le board d'un coup — et c'est le
+changement le plus contenu.
+
+---
+
+## G — Faire dire la même chose aux deux vues
+
+### G1. Le contexte là où la décision se prend
+
+Deux ajouts, aucune nouvelle donnée à calculer pour le premier :
+
+- **Écran pane** : monter `<ContextGauge>` au-dessus du composer, à côté de la statusline
+  (`agent-chat.tsx:736`). Le composant existe, il gère déjà l'absence de chiffre en ne rendant rien
+  (`context-gauge.tsx:12`), donc c'est sans risque. Il faut que le pane sache s'il est adossé à une
+  carte — l'API board le sait déjà, le pane non ; le plus simple est d'ajouter `ctxPct` /
+  `ctxTokens` à `AgentView` (voir G3, qui rend le chiffre disponible pour tous).
+- **Accueil** : le pourcentage en texte sur `AgentCard`, comme `CardTile` le fait déjà
+  (`card-tile.tsx:69`) — une ligne, une fois la donnée disponible.
+
+### G2. Aligner les champs des deux tuiles
+
+Décider ce qu'une tuile d'agent montre, et l'appliquer aux deux. Proposition : **branche + cwd
+raccourci + ctx%** partout, l'espace en plus sur l'accueil (où l'on trie par espace) et le nombre de
+sessions en plus sur le board (où il raconte l'historique de la tâche). L'essentiel est que les
+champs communs ne soient plus présents d'un côté et absents de l'autre sans raison.
+
+Note : `paneDisplayName()` (`types.ts:45`) est déjà l'arbitre du nom d'un pane. Une tuile de board
+adossée à un pane vivant gagnerait à montrer les deux — titre de carte **et** nom de pane — puisque
+c'est précisément le lien tâche ↔ agent que le board existe pour établir.
+
+### G3. Calculer le contexte pour tout pane
+
+C'est le correctif de fond, et il est côté bridge. `ContextTracker.update()` itère sur
+`db.listOpenSessions()` (`context.ts:84`) — donc uniquement les panes nés d'une carte. Le faire
+itérer sur **les panes du snapshot** (`snap.agents`) rendrait le chiffre disponible partout, y
+compris pour un pane lancé à la main.
+
+Le coût est réel et doit être regardé en face : une lecture de transcript par pane vivant toutes les
+30 s (`REFRESH_MS`), là où aujourd'hui seuls les panes adossés à une carte sont lus. Sur un troupeau
+de dix agents dont deux ont une carte, c'est cinq fois plus de lectures de fichiers. Les garde-fous
+existent déjà — le throttle par pane, l'ignorance des agents sans transcript lisible
+(`context.ts:87`), et le fait que tout échec dégrade silencieusement au « niveau 3 ». Reste que la
+règle du dépôt est explicite (*« si c'est coûteux, throttle-le dans le consommateur »*, `CLAUDE.md`),
+donc la cadence mériterait d'être mesurée avant d'être élargie.
+
+Un intermédiaire moins coûteux : ne calculer que pour le pane **actuellement ouvert** plus ceux
+adossés à une carte. Ça couvre le besoin réel — on regarde le contexte de l'agent qu'on est en train
+de piloter — sans multiplier les lectures.
+
+Le stockage bougerait aussi : `ctxPct` vit aujourd'hui dans `card_session` (`context.ts:107`), une
+table durable. Pour un pane sans carte, c'est de l'état runtime — et la règle du fork est
+explicite : *« `card` durable, `session` éphémère. Ne jamais persister d'état runtime »*
+(`CLAUDE.md`). Le chiffre devrait donc vivre en mémoire dans le tracker et être servi avec le
+snapshot, pas écrit en base.
+
+---
+
 ## Ce que l'audit ne recommande pas
 
 Pour fermer des portes que quelqu'un rouvrira :
 
-- **Un Kanban horizontal sur le board.** `board.tsx:14-22` explique déjà pourquoi : un téléphone a
-  une colonne de large, et le panoramique horizontal pour trouver la carte qui vous attend est
-  exactement l'interaction que ce projet existe pour éviter. C'est un choix, pas un manque.
+- **Un Kanban horizontal sur mobile.** `board.tsx:14-22` explique pourquoi : un téléphone a une
+  colonne de large, et le panoramique horizontal pour trouver la carte qui vous attend est exactement
+  l'interaction que ce projet existe pour éviter. Ce raisonnement vaut pour le mobile — sur grand
+  écran il ne s'applique pas, d'où F1.
+- **Transposer les huit colonnes telles quelles sur desktop.** 8 × 280 px = 2 240 px, donc on
+  retomberait sur le panoramique horizontal avec une souris. Le regroupement en quatre (F1) est la
+  condition pour que le Kanban desktop ait un sens.
 - **Réintroduire TanStack Query.** `CLAUDE.md` l'interdit et la couche loaders/revalidator fait le
   travail. Rien dans cet audit n'appelle une autre couche de données.
 - **Une bibliothèque Markdown externe.** Elle produirait du HTML, et détruirait la frontière XSS qui
   est le pilier de la posture de sécurité du dépôt (`transcript-view.tsx:15-18`). Les tableaux (C2)
   s'ajoutent au parseur maison.
-- **Un mode desktop et le comportement du drawer mobile** — hors périmètre, traités par leurs
-  propres cartes. Note pour la carte desktop : le verrou est `max-w-screen-sm` (640 px) posé sur le
-  conteneur racine de chaque route (`home.tsx:46`, `board.tsx:57`, `card.tsx:140`, `space.tsx:70`,
-  `settings.tsx:56`) — cinq endroits, plus les overlays de statut qui le répètent.
+- **Vaul avant d'avoir essayé E1–E3.** Deux dépendances pour contourner trois bugs de vingt lignes.
+  L'arbitrage redevient légitime si le geste reste mauvais après correction — avec un ADR, puisque
+  c'est un choix architectural posé explicitement.
+- **Le glisser-déposer sur le board, en première version.** Les cartes se déplacent seules
+  (`board.tsx:19-21`), quatre statuts seulement sont manuels, et la page carte a déjà « Move to ».
+  C'est un confort desktop à ajouter après F1, avec son propre arbitrage de dépendance.
 
 ---
 
-## Les cinq choses à faire en premier
+## Par où commencer
 
-Si rien d'autre n'est fait :
+**Aujourd'hui, quelques lignes chacune, aucun risque** — c'est le lot qui rend l'app nettement plus
+agréable pour le moins de travail :
 
 1. **A1** — confirmer la suppression d'une carte. C'est de la perte de données, aujourd'hui, en un tap.
-2. **C1** — la refonte du composer. C'est la demande explicite de la carte, et le gain est mesurable :
-   +30 % de largeur d'input, deux lignes de terminal rendues, toutes les cibles au standard.
+2. **E1 + E2 + E3** — les trois bugs de drawer. Ils règlent la fermeture pendant la saisie **et** le
+   scintillement, et ils tiennent en une trentaine de lignes dans un seul fichier. Avec les deux
+   tests tactiles qui manquent, pour qu'ils ne reviennent pas.
 3. **A2 + A3** — le rouage à 20 px, et Settings qui ne montre pas l'état de la connexion.
-4. **B2** — pouvoir copier. Sur un outil qui sert à récupérer ce qu'un agent produit, c'est une
+
+**Ensuite, les vrais gains :**
+
+4. **C1** — la refonte du composer : +30 % de largeur d'input, deux lignes de terminal rendues,
+   toutes les cibles au standard. C'est la demande explicite de la carte.
+5. **G1** — le contexte sur l'écran pane. C'est là qu'on décide de passer la main, et c'est le seul
+   écran où le chiffre n'est pas affiché.
+6. **B2** — pouvoir copier. Sur un outil qui sert à récupérer ce qu'un agent produit, c'est une
    lacune de fond.
-5. **D1** — la vue Lecture. C'est le chantier, mais c'est la seule réponse complète au problème du
-   texte, et 60 % du code existe déjà.
+
+**Les deux chantiers, à décider explicitement :**
+
+7. **F1** — le board en quatre colonnes sur grand écran. Le seul endroit où le desktop apporte ce
+   qu'un téléphone ne peut pas donner : tout voir d'un coup.
+8. **D1** — la vue Lecture. C'est la seule réponse complète au problème du texte, et 60 % du code
+   existe déjà — il est juste enterré derrière une icône et figé.
