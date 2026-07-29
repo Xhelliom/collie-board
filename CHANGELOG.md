@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.46.0] - 2026-07-29
+
+### Added
+- **Discard.** For a card you are giving up on: closes the pane, removes the worktree, deletes the branch with `-D`, and files the card as `archived`. The one gesture in the board that destroys work knowingly, so it names what it is about to lose — "Throw away 3 commits and uncommitted work?" — and takes a second tap to mean it.
+- Cleanup and discard now also handle a card whose workspace **herdr no longer knows** (a restart, a workspace closed by hand): the checkout is removed through git instead. Those were unreachable from the phone forever — `git branch -d` refuses while a worktree holds the branch, and nothing else in the app removes one.
+
+### Notes
+- `discard` is a separate action, not a `force` flag on cleanup, precisely so it cannot be reached for to make a refusal go away. It is the only thing here that skips the gate — overriding that gate is what it *is*.
+- A discarded session is recorded as `abandoned`, and the card as `archived`, never `done`: a card whose branch was thrown away was not finished.
+- Closing a *workspace* has no equivalent in the app (upstream closes panes and tabs only), which is why a finished card's space used to linger with no way to shift it. The card's own Clean up / Discard is that door.
+
 ## [0.45.0] - 2026-07-29
 
 ### Changed

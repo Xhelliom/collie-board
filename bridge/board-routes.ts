@@ -539,8 +539,14 @@ async function route(
       return text("bad body", 400);
     }
     const what = (body as { action?: unknown }).action;
-    if (what !== "merge" && what !== "pr" && what !== "cleanup" && what !== "resolve") {
-      return text("action must be merge, pr, resolve or cleanup", 400);
+    if (
+      what !== "merge" &&
+      what !== "pr" &&
+      what !== "cleanup" &&
+      what !== "resolve" &&
+      what !== "discard"
+    ) {
+      return text("action must be merge, pr, resolve, cleanup or discard", 400);
     }
     const andDone = (body as { andDone?: unknown }).andDone === true;
 
@@ -551,7 +557,7 @@ async function route(
           ? await prForCard(db, card)
           : what === "resolve"
             ? await resolveConflict(db, ctx.herdr, card)
-            : await cleanupCard(db, ctx.herdr, card);
+            : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its

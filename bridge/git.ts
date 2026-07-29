@@ -501,9 +501,28 @@ export async function deleteBranch(
   repoPath: string,
   branch: string,
   git: GitRunner = runGit,
+  /** `true` only on discard, where throwing the commits away IS the request. */
+  force = false,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await git(["branch", "-d", "--", branch], repoPath);
+  const r = await git(["branch", force ? "-D" : "-d", "--", branch], repoPath);
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "branch delete failed" };
+}
+
+/**
+ * Remove a worktree checkout through git rather than through herdr.
+ *
+ * The fallback for a checkout herdr has no workspace for — a bridge restart, a workspace closed by
+ * hand, a worktree that outlived the session that made it. Without it those are unreachable from the
+ * phone forever: `git branch -d` refuses while a worktree holds the branch, and nothing else in the
+ * app removes one. `--force` because a discard has already accepted losing what is in there.
+ */
+export async function removeWorktreeAt(
+  repoPath: string,
+  checkout: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await git(["worktree", "remove", "--force", "--", checkout], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "worktree remove failed" };
 }
 
 /** The real `gh` runner. Same rules as {@link runGit}: argv only, hard timeout, no tty. */

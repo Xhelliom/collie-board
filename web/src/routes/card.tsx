@@ -633,7 +633,7 @@ function IntegrationSection({
   }, [load]);
 
   async function run(
-    action: "merge" | "pr" | "resolve" | "cleanup",
+    action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
     label: string,
     andDone = false,
   ) {
@@ -756,7 +756,7 @@ function IntegrationSection({
           </div>
         )}
 
-        {merged && (
+        {merged ? (
           <Button
             variant="outline"
             size="sm"
@@ -769,6 +769,24 @@ function IntegrationSection({
           >
             <Trash2 className="size-4" />
             {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+          </Button>
+        ) : (
+          /* The one gesture here that destroys work. It says exactly what it is about to lose —
+             a count you can check against the diff above — and takes a second tap to mean it. */
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-fit gap-2 text-destructive"
+            disabled={busy !== null}
+            onClick={() => {
+              if (!confirm("discard")) return;
+              void run("discard", "Discarded");
+            }}
+          >
+            <Trash2 className="size-4" />
+            {pending === "discard"
+              ? `Throw away ${state.ahead} commit${state.ahead === 1 ? "" : "s"}${state.branchDirty ? " and uncommitted work" : ""}?`
+              : "Discard this work"}
           </Button>
         )}
       </div>

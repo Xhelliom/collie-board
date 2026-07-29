@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  deleteBranch,
   hasRealChanges,
   integrationOf,
   mergeIntoBase,
@@ -8,6 +9,7 @@ import {
   parsePrUrl,
   refusalFor,
   refusalMessage,
+  removeWorktreeAt,
   type GitRunner,
   type Integration,
 } from "./git.ts";
@@ -221,6 +223,30 @@ describe("mergeIntoBase", () => {
     const { git, calls } = fakeGit({ merge: { stdout: "Merge made by the 'ort' strategy." } });
     await mergeIntoBase("/repo", "board/x", git);
     expect(calls[0]).toEqual(["merge", "--no-ff", "--no-edit", "--", "board/x"]);
+  });
+});
+
+describe("deleteBranch", () => {
+  it("uses -d by default, so git itself refuses an unmerged branch", async () => {
+    const { git, calls } = fakeGit({});
+    await deleteBranch("/repo", "board/x", git);
+    expect(calls[0]).toEqual(["branch", "-d", "--", "board/x"]);
+  });
+
+  it("uses -D only on a discard, where losing the commits IS the request", async () => {
+    const { git, calls } = fakeGit({});
+    await deleteBranch("/repo", "board/x", git, true);
+    expect(calls[0]).toEqual(["branch", "-D", "--", "board/x"]);
+  });
+});
+
+describe("removeWorktreeAt", () => {
+  it("removes a checkout herdr has no workspace for — otherwise it is unreachable from the phone", async () => {
+    // The real case: a worktree whose workspace was closed by hand. `git branch -d` refuses while a
+    // worktree holds the branch, and nothing else in the app removes one.
+    const { git, calls } = fakeGit({});
+    await removeWorktreeAt("/repo", "/wt/board-x", git);
+    expect(calls[0]).toEqual(["worktree", "remove", "--force", "--", "/wt/board-x"]);
   });
 });
 

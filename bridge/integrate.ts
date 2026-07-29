@@ -1,19 +1,25 @@
 // Integration — what happens to a card's branch once the work on it is done.
 //
 // Until now the board opened a worktree and never closed the loop: a card could be filed as done
-// while its branch sat outside `main` with nobody to say so. Three gestures end that, and all three
+// while its branch sat outside `main` with nobody to say so. Five gestures end that, and all five
 // are TAPS — nothing here ever runs on a poll tick, on a status change, or on the copilot's word.
 // That is the same rule the dependency gate follows (`cards.ts`): the board makes a thing possible,
 // the operator decides it happens.
 //
 //   merge    — `git merge --no-ff` into the base, in the main checkout. Nothing is pushed.
 //   pr       — push the branch, then `gh pr create`. The base is never touched.
+//   resolve  — hand a conflict to the card's own agent, to settle on its own branch.
 //   cleanup  — close the pane, remove the worktree, delete the branch. Refused unless integrated.
+//   discard  — the same, on work that will NEVER be integrated. The one destructive gesture.
 //
-// EVERY ONE REFUSES BEFORE IT ACTS. The gate is `refusalFor` in git.ts, and it is shared so the
-// button, the request and the subprocess cannot disagree about what is allowed. The refusals matter
-// more than the actions: the operator is on a phone and cannot fix a half-merged repository, so
-// "no, and here is why" is the only acceptable outcome of a doubtful tap.
+// EVERY ONE BUT THE LAST REFUSES BEFORE IT ACTS. The gate is `refusalFor` in git.ts, and it is
+// shared so the button, the request and the subprocess cannot disagree about what is allowed. The
+// refusals matter more than the actions: the operator is on a phone and cannot fix a half-merged
+// repository, so "no, and here is why" is the only acceptable outcome of a doubtful tap.
+//
+// `discard` is the exception, and it is a separate word rather than a `force` flag precisely so it
+// cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
+// work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
 import { promptAndConfirm } from "./cards.ts";
 import type { BoardDb, Card } from "./db.ts";
@@ -25,6 +31,8 @@ import {
   pushBranch,
   refusalFor,
   refusalMessage,
+  removeWorktreeAt,
+  worktreePathFor,
   type Integration,
 } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -224,10 +232,24 @@ export async function cleanupCard(
   db: BoardDb,
   herdr: HerdrClient,
   card: Card,
-): Promise<Result<{ branch: string }>> {
-  const checked = await gate(card, "cleanup");
-  if (!checked.ok) return checked;
-  const { state } = checked;
+  /**
+   * DISCARD: throw the work away instead of refusing to.
+   *
+   * The one gesture in the board that destroys work on purpose, so it is a separate word rather than
+   * a `force` flag someone reaches for to make an error go away. It skips the "is it integrated"
+   * gate — that gate IS what it overrides — deletes the branch with `-D`, and files the card as
+   * `archived`, because a card whose branch was thrown away is not done.
+   */
+  opts: { discard?: boolean } = {},
+): Promise<Result<{ branch: string; discarded: number }>> {
+  const state = await integrationFor(card);
+  if (!opts.discard) {
+    const checked = await gate(card, "cleanup");
+    if (!checked.ok) return checked;
+  } else if (!state) {
+    return { ok: false, error: { kind: "refused", message: "this card has no branch to discard" } };
+  }
+  const branch = state!.branch;
 
   const session = db.openSessionFor(card.id);
   if (session?.paneId) {
@@ -236,9 +258,13 @@ export async function cleanupCard(
     } catch {
       // Already gone is the outcome we wanted. Anything else surfaces on the next step anyway.
     }
-    db.closeSession(session.id, "done");
+    db.closeSession(session.id, opts.discard ? "abandoned" : "done");
   }
 
+  // Two ways a checkout gets removed, and the second one matters more than it looks: a card whose
+  // workspace herdr no longer knows (a restart, a workspace closed by hand) would otherwise be
+  // unreachable forever — `git branch -d` refuses while a worktree holds the branch, and nothing
+  // else in the app removes one.
   if (card.workspaceId) {
     try {
       await herdr.removeWorktree({ workspaceId: card.workspaceId });
@@ -246,15 +272,30 @@ export async function cleanupCard(
       db.recordEvent(card.id, "card.cleanup_failed", { stage: "worktree", error: (err as Error).message });
       return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
     }
+  } else {
+    const checkout = await worktreePathFor(card.repoPath!, branch);
+    if (checkout) {
+      const removed = await removeWorktreeAt(card.repoPath!, checkout);
+      if (!removed.ok) {
+        db.recordEvent(card.id, "card.cleanup_failed", { stage: "worktree", error: removed.error });
+        return { ok: false, error: { kind: "git", message: removed.error } };
+      }
+    }
   }
 
-  const deleted = await deleteBranch(card.repoPath!, state.branch);
+  const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard);
   if (!deleted.ok) {
     // The checkout is already gone, so say what actually happened rather than claiming a clean run.
     db.recordEvent(card.id, "card.cleanup_failed", { stage: "branch", error: deleted.error });
     return { ok: false, error: { kind: "git", message: `worktree removed, but the branch is still there: ${deleted.error}` } };
   }
 
-  db.recordEvent(card.id, "card.cleaned_up", { branch: state.branch });
-  return { ok: true, value: { branch: state.branch } };
+  if (opts.discard) {
+    db.setStatus(card.id, "archived", "work discarded");
+  }
+  db.recordEvent(card.id, opts.discard ? "card.discarded" : "card.cleaned_up", {
+    branch,
+    ...(opts.discard ? { commits: state!.ahead, uncommitted: state!.branchDirty } : {}),
+  });
+  return { ok: true, value: { branch, discarded: opts.discard ? state!.ahead : 0 } };
 }

@@ -449,7 +449,7 @@ export function fetchIntegration(id: string): Promise<{ integration: Integration
  */
 export function integrateCard(
   id: string,
-  action: "merge" | "pr" | "resolve" | "cleanup",
+  action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
   /**
    * File the card as done in the same breath — only on success, and only for merge/pr.
    *
@@ -458,7 +458,7 @@ export function integrateCard(
    * finds one. This way a failed integration leaves the card untouched, agent included.
    */
   andDone = false,
-): Promise<{ ok: true; url?: string | null; base?: string; card: CardView }> {
+): Promise<{ ok: true; url?: string | null; base?: string; discarded?: number; card: CardView }> {
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
     method: "POST",
     body: JSON.stringify({ action, andDone }),
