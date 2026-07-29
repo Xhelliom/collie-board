@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.43.1] - 2026-07-29
+
+### Fixed
+- Deleting a card takes two taps — the app's only irreversible gesture was its only unprotected one. Same `usePendingConfirm` as every other destructive action, armed on the card's own id, disarming after 3 s. (eda1aed)
+
 ## [0.43.0] - 2026-07-29
 
 ### Added
