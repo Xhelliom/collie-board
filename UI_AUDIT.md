@@ -36,7 +36,7 @@ Le problème est ailleurs, et il est **structurel** : sur l'écran pane — le s
 d'ouvrir cet écran. Chaque bande a une bonne justification prise isolément. Prises ensemble, elles
 laissent au contenu environ **45 % de la hauteur, et 30 % clavier ouvert**.
 
-Les six griefs signalés sont tous réels, et l'audit en donne la mesure et la cause :
+Les huit griefs signalés sont tous réels, et l'audit en donne la mesure et la cause :
 
 | Signalé | Cause trouvée |
 |---|---|
@@ -44,7 +44,9 @@ Les six griefs signalés sont tous réels, et l'audit en donne la mesure et la c
 | Boutons trop petits | 5 cibles de 28 px, sous Apple et Material (§2.2) |
 | Retours à la ligne au milieu d'une phrase | **double wrap** : herdr coupe à 81 colonnes, le CSS recoupe à 50 (§3.1) |
 | Tableaux disloqués | même double wrap, plus le parseur qui les exclut explicitement (§3.2) |
-| Le drawer scintille et se ferme tout seul | **trois bugs distincts**, aucun couvert par un test (§7) |
+| Le drawer scintille et se ferme tout seul | **trois bugs distincts**, aucun couvert par un test (§7.1-7.3) |
+| Le mouvement du drawer est trop linéaire | **aucune animation de fermeture**, ni vélocité, ni courbe choisie (§7.5) |
+| Pas de mode desktop | `max-w-screen-sm` sur les 5 routes ; et 8 colonnes de board à regrouper (§F) |
 | Board et sessions ne disent pas la même chose | le contexte n'est calculé que pour les panes nés d'une carte (§8) |
 
 Il relève en plus **dix problèmes non signalés**, dont un de gravité supérieure à tous les autres :
@@ -476,20 +478,93 @@ perdre des événements au milieu d'un glissement.
   panneau **et tout son contenu** — un formulaire complet dans le cas de New card. L'écriture directe
   du `transform` via le ref éviterait React entièrement pendant le geste.
 
-### 7.5 Vaul, ou réparer ?
+### 7.5 Le mouvement n'a aucune physique — cinq constats
 
-La carte évoque Vaul. Le constat honnête :
+C'est le point « animation trop linéaire ». Il est plus large que l'easing : le geste n'a
+**aucun** des comportements qu'on attend d'un drawer.
 
-- **Réparer** = ~40 lignes dans un fichier : filtrer la cible du `touchstart`, remettre `dragY` à 0
-  au moment de fermer, stabiliser `onClose` avec `useCallback` chez les quatre appelants (ou retirer
-  `onClose` des dépendances via un ref), verrouiller le body, écrire le transform hors React.
-- **Vaul** = deux dépendances (`vaul` + `@radix-ui/react-dialog`, sa pair-dépendance) dans un
-  `web/package.json` qui n'en compte aujourd'hui que **sept**, et l'abandon d'un choix architectural
-  posé explicitement. En échange : les cinq points ci-dessus résolus par du code éprouvé, plus les
-  points d'accroche (snap points), le repositionnement au clavier, et un vrai piège à focus — que
-  l'implémentation maison n'a pas non plus (`sheet.tsx:7`, *« no full trap »*).
+**a) Il n'y a pas d'animation de fermeture. Du tout.** `sheet.tsx:109` et `:221` :
 
-Recommandation en Partie 2 (§E).
+```ts
+if (!open) return null;
+```
+
+La feuille s'ouvre en 200 ms avec `animate-in slide-in-from-bottom`, et **disparaît en 0 ms**. Il
+n'y a pas un seul `animate-out` / `slide-out-to-bottom` dans le fichier. Cette asymétrie est
+probablement la plus grosse part de la sensation de brutalité — plus que l'easing lui-même. Elle
+touche les deux composants, et les quatre chemins de fermeture (croix, backdrop, Escape, glissement).
+
+**b) Aucune courbe n'est choisie.** Pas une seule classe `ease-*` sur le panneau, ni nulle part dans
+`components/`. L'entrée tourne donc sur le timing par défaut, et le retour de glissement sur
+`ease-out` (`sheet.tsx:140`) — la courbe générique de CSS, pas une courbe de drawer. C'est
+littéralement « ce qu'on obtient quand on ne décide rien ».
+
+**c) Le retour est à durée fixe, quelle que soit la distance.** `transform 0.2s`, que la feuille
+revienne de 10 px ou de 89 px. Donc un petit glissement remonte au ralenti et un grand remonte d'un
+coup — l'inverse de la sensation naturelle, où la durée suit la distance parcourue.
+
+**d) La fermeture ne regarde que la distance, jamais la vitesse.** `if (off > CLOSE)` avec
+`CLOSE = 90` (`sheet.tsx:65`, `:95`). Un **flick** rapide et court — le geste le plus naturel pour
+congédier quelque chose — ne ferme pas, parce qu'il n'a pas parcouru 90 px. Il faut tirer lentement
+et loin. C'est le contraire de ce que fait n'importe quelle feuille native.
+
+**e) Butée dure vers le haut.** `const off = Math.max(0, dy)` (`sheet.tsx:86`) : le mouvement est
+bloqué net à zéro, sans la résistance élastique qui indique « il n'y a rien au-delà ». Et vers le
+bas, le suivi est strictement 1:1 avec le doigt, sans aucune décélération à l'approche du seuil.
+
+### 7.6 Sur grand écran, la feuille est un idiome déplacé
+
+La `BottomSheet` est collée en bas, pleine largeur, avec des coins arrondis en haut et un plafond à
+`max-h-[82dvh]` (`sheet.tsx:143`). Sur un écran de 27 pouces, un formulaire « New card » s'étale
+donc sur toute la largeur, ancré au bord inférieur, avec une poignée de tirage qu'aucune souris ne
+peut utiliser — et un tirer-pour-fermer qui n'a pas de sens au pointeur.
+
+Les cinq feuilles n'ont d'ailleurs pas la même réponse desktop :
+
+| Feuille | Idiome desktop attendu |
+|---|---|
+| New card, Edit card, New space | **dialog centré**, largeur bornée |
+| Agent commands | palette **centrée en haut** (le geste ⌘K) |
+| Tab actions, Pane actions | **popover ancré** à l'élément, pas une modale |
+| Card diff | panneau large, voire pleine page |
+
+Le premier cas est le plus fréquent et le plus choquant ; les deux autres relèvent du raffinement.
+
+### 7.7 Vaul, ou réparer ? Le décompte honnête
+
+**Ce que Vaul apporte, vérifié dans sa documentation** (props de `Drawer.Root`) :
+
+| Défaut | Réponse de Vaul |
+|---|---|
+| §7.1 fermeture pendant la saisie | `scrollLockTimeout` (verrouille le drag après un scroll) + `handleOnly` (ne tirer que par la poignée) |
+| §7.2 position résiduelle | n'existe pas — le cycle d'animation est géré |
+| §7.3 effet relancé à chaque poll | n'existe pas |
+| §7.4 verrou du body | actif par défaut (`noBodyStyles` pour le désactiver) |
+| §7.5 physique du mouvement | **c'est le cœur de la bibliothèque** : animation de sortie, décélération, seuil de fermeture en **fraction** de hauteur (`closeThreshold`, 0.25 par défaut) plutôt qu'en pixels fixes |
+| clavier | `repositionInputs`, activé par défaut — la version maison n'a rien |
+| piège à focus | fourni (la version maison ne le fait pas : `sheet.tsx:7`, *« no full trap »*) |
+| **§7.6 desktop** | **rien.** `direction` accepte `bottom/top/left/right` — donc un panneau latéral, jamais un dialog centré |
+
+**Vaul règle donc sept points sur huit, mais pas le desktop.** Le patron de référence (shadcn
+« Responsive Dialog ») fait cohabiter Vaul sur mobile et un Dialog sur desktop, arbitrés par un
+`useMediaQuery` — donc le desktop reste à écrire dans les deux scénarios.
+
+**Ce que réparer coûte**, ligne à ligne :
+
+| Lot | Nature | Volume |
+|---|---|---|
+| §7.1–7.3 | **bugs** | ~30 lignes |
+| §7.4 | verrou body + transform hors React | ~10 lignes |
+| §7.5 | **physique** (sortie, vélocité, durée proportionnelle, rubber-band, courbe) | ~30 lignes **à régler empiriquement** |
+| §7.6 | desktop, en classes responsives | ~12 lignes |
+
+**Le seul lot où l'écriture maison perd vraiment est la physique.** Un bug se corrige une fois et
+c'est fini ; la sensation d'un drawer se règle à tâtons, et on n'atteint pas par tâtonnement ce
+qu'une bibliothèque a calibré sur des milliers d'utilisateurs. Les trente lignes de §7.5 sont
+faciles à écrire et difficiles à *bien* écrire.
+
+Recommandation en Partie 2 (§E) — elle est **révisée** par rapport à la première version de ce
+document, qui sous-estimait §7.5 en la classant comme finition.
 
 ---
 
@@ -603,6 +678,8 @@ casser une des mécaniques du §9.
 | **B2** | Bouton copier sur le miroir et les blocs de code | §6.4 | faible | faible |
 | **B3** | Masquer le handle quand il n'y a qu'un pane | §1.2 | trivial | faible |
 | **E4** | Feuilles : verrou du body + transform hors React | §7.4 | faible | faible |
+| **E6a** | **Feuilles : une animation de fermeture** | §7.5a | faible | nul |
+| **E7** | **Feuilles : dialog centré sur grand écran** | §7.6 | faible | faible |
 | **G1** | **Le contexte sur l'écran pane et l'accueil** | §8.1 | faible | faible |
 | **G2** | Aligner les champs des deux cartes | §8.3 | faible | nul |
 | **C1** | Refonte du composer : une rangée au lieu de trois | §2 | moyen | moyen |
@@ -614,7 +691,8 @@ casser une des mécaniques du §9.
 | **G3** | Calculer le contexte pour tout pane, pas seulement ceux d'une carte | §8.2 | moyen | faible |
 | **D1** | **Vue « Lecture » live sur le transcript** | §3.1, §3.2, §3.3 | **élevé** | moyen |
 | **D2** | Trancher le mode clair | §6.1 | faible | faible |
-| **E5** | Adopter Vaul à la place de la feuille maison | §7.5 | moyen | moyen |
+| **E6b–d** | Feuilles : vélocité, seuil proportionnel, élasticité | §7.5b-e | moyen | faible |
+| **E5** | *ou* adopter Vaul à la place de la feuille maison | §7.5, §7.7 | moyen | moyen |
 
 ---
 
@@ -905,21 +983,87 @@ l'effet, restauré au cleanup — quatre lignes), et écrire le `transform` dire
 `panelRef.current.style` pendant le glissement au lieu de passer par `setDragY`. Le second supprime
 un rendu React par frame sur un panneau qui contient parfois un formulaire entier.
 
-### E5. Vaul — la question posée franchement
+### E6. La physique du mouvement
 
-Vaul règle les cinq points d'un coup, plus le repositionnement au clavier (utile : quatre feuilles
-sur cinq ont des champs) et un vrai piège à focus que la version maison n'a pas. Le coût :
+Quatre correctifs, dans l'ordre d'impact ressenti :
 
-- **deux dépendances** dans un `package.json` runtime qui en compte sept — soit +29 %, sur une PWA
-  dont l'argument est de tenir dans un budget mobile ;
-- **l'abandon d'un choix explicite** (`sheet.tsx:22`), qui mérite alors un ADR, pas un commit ;
-- Radix Dialog **portale** le contenu à la racine du document, ce qui change le comportement
-  d'empilement de plusieurs feuilles et demande de revérifier les cinq sites d'appel.
+**a) Une animation de fermeture.** C'est le plus gros gain pour le plus petit diff. Aujourd'hui la
+feuille disparaît instantanément (`sheet.tsx:109`). Il faut retarder le démontage du temps de
+l'animation : un état local `closing`, la classe `animate-out slide-out-to-bottom` pendant ~200 ms,
+puis `return null`. Une quinzaine de lignes, et les quatre chemins de fermeture en profitent d'un
+coup.
 
-**Recommandation : E1–E3 d'abord** (quelques lignes, aucun risque, symptômes réglés), puis juger sur
-pièce. Si après ça le geste reste désagréable — notamment le comportement au clavier, que E1–E4 ne
-touchent pas — Vaul devient un arbitrage légitime, avec son ADR. Adopter une dépendance pour
-contourner trois bugs de vingt lignes serait mettre la charrue avant les bœufs.
+**b) Fermer sur la vélocité, pas seulement sur la distance.** Mémoriser `(dy, t)` au dernier
+`touchmove` et calculer les px/ms au relâchement ; fermer si la vitesse dépasse un seuil **ou** si
+la distance dépasse le seuil actuel. C'est ce qui rend le *flick* possible — le geste que tout le
+monde fait en premier.
+
+**c) Un seuil proportionnel plutôt que 90 px fixes.** Vaul emploie une fraction de la hauteur
+(`closeThreshold`, 0.25 par défaut). 90 px sur une feuille de 200 px et sur une de 700 px ne
+demandent pas le même engagement du poignet.
+
+**d) Une durée de retour proportionnelle à la distance**, et une résistance élastique vers le haut
+(`dy < 0 ? dy / 3 : dy` au lieu de `Math.max(0, dy)`). Plus une vraie courbe de drawer à la place du
+`ease-out` générique.
+
+**C'est le lot le plus difficile à réussir**, et la raison principale de considérer E5.
+
+### E7. La présentation desktop des feuilles
+
+**Pas un autre composant : la même feuille, deux présentations.** Le conteneur actuel est déjà un
+`fixed inset-0 flex flex-col justify-end` avec un panneau dedans (`sheet.tsx:113-145`). Le passage au
+dialog centré est une affaire de classes :
+
+```
+mobile   : justify-end   + w-full   rounded-t-2xl  max-h-[82dvh]
+≥ sm     : items-center  + max-w-lg mx-auto rounded-2xl max-h-[85dvh]
+```
+
+Plus trois ajustements : désactiver l'effet tactile au-dessus du point de rupture (le glissement n'a
+pas de sens au pointeur), masquer la poignée en `sm:hidden`, et remplacer `slide-in-from-bottom` par
+un `zoom-in` sur grand écran. **~12 lignes, aucun nouveau composant, aucune dépendance**, et les cinq
+sites d'appel ne bougent pas.
+
+Ce que ça ne couvre pas, et qui relève d'un travail ultérieur : la palette de commandes voudrait être
+ancrée en haut (idiome ⌘K), et les feuilles d'action tab/pane voudraient être des popovers ancrés à
+l'élément long-pressé plutôt que des modales. Les deux sont du raffinement, pas le premier pas.
+
+À noter : **cette piste est indépendante de E5.** Vaul ne fournit pas de dialog centré (son
+`direction` ne connaît que les quatre bords), donc le travail desktop est le même que l'on garde la
+feuille maison ou non.
+
+### E5. Vaul — la recommandation, révisée
+
+La première version de ce document recommandait « réparer, puis juger sur pièce », en classant
+l'animation comme de la finition. **L'examen du code a changé la pesée** : il n'y a aucune animation
+de fermeture, aucune vélocité, aucune courbe choisie (§7.5). Ce n'est pas de la finition, c'est la
+moitié de la sensation — et c'est précisément ce que décrit la demande.
+
+Le coût de Vaul, inchangé et réel :
+
+- **deux dépendances** (`vaul` + `@radix-ui/react-dialog`, sa pair-dépendance) dans un
+  `package.json` runtime qui en compte sept — sur une PWA dont l'argument est de tenir dans un budget
+  mobile ;
+- **l'abandon d'un choix explicite** (`sheet.tsx:22`), qui mérite un **ADR**, pas un commit — le
+  dépôt a exactement ce format pour ça (`.adr/`) ;
+- Radix Dialog **portale** à la racine du document, donc l'empilement des feuilles et les cinq sites
+  d'appel sont à revérifier ;
+- et **le desktop reste à écrire** (E7) dans les deux cas.
+
+**Recommandation en deux temps, à assumer comme telle :**
+
+1. **E1–E3 maintenant, quoi qu'il arrive.** Ce sont des bugs, pas des préférences ; ils cassent la
+   saisie dans la feuille de dictée. ~30 lignes, plus les deux tests tactiles manquants. À faire même
+   si Vaul est adopté ensuite — parce que « ensuite » peut prendre des mois, et la feuille New card
+   est cassée aujourd'hui.
+2. **Puis trancher sur la physique.** E6 (~30 lignes à régler à tâtons, résultat incertain) contre
+   E5 (deux dépendances, un ADR, résultat éprouvé). Mon avis : si la qualité du geste est un objectif
+   — et la demande dit que oui — **Vaul se défend**, parce que c'est le seul lot où l'écriture maison
+   perd structurellement. Si le geste doit seulement cesser d'être cassé, E1–E3 suffisent et le reste
+   peut attendre.
+
+Ce qui ne se défend pas, c'est l'ordre inverse : adopter Vaul pour contourner trois bugs de trente
+lignes, sans avoir décidé qu'on veut sa physique.
 
 ---
 
@@ -1073,9 +1217,10 @@ Pour fermer des portes que quelqu'un rouvrira :
 agréable pour le moins de travail :
 
 1. **A1** — confirmer la suppression d'une carte. C'est de la perte de données, aujourd'hui, en un tap.
-2. **E1 + E2 + E3** — les trois bugs de drawer. Ils règlent la fermeture pendant la saisie **et** le
-   scintillement, et ils tiennent en une trentaine de lignes dans un seul fichier. Avec les deux
-   tests tactiles qui manquent, pour qu'ils ne reviennent pas.
+2. **E1 + E2 + E3 + E6a** — les trois bugs de drawer, **plus l'animation de fermeture**. Les trois
+   premiers règlent la fermeture pendant la saisie et le scintillement ; le quatrième supprime la
+   disparition instantanée, qui est la plus grosse part de la sensation de brutalité. ~45 lignes dans
+   un seul fichier, avec les deux tests tactiles qui manquent pour qu'ils ne reviennent pas.
 3. **A2 + A3** — le rouage à 20 px, et Settings qui ne montre pas l'état de la connexion.
 
 **Ensuite, les vrais gains :**
@@ -1089,7 +1234,9 @@ agréable pour le moins de travail :
 
 **Les deux chantiers, à décider explicitement :**
 
-7. **F1** — le board en quatre colonnes sur grand écran. Le seul endroit où le desktop apporte ce
-   qu'un téléphone ne peut pas donner : tout voir d'un coup.
+7. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles en dialog centré.
+   Le seul endroit où le desktop apporte ce qu'un téléphone ne peut pas donner : tout voir d'un coup.
+9. **E6b–d ou E5** — la physique du geste, ou Vaul. C'est la seule décision de dépendance de tout ce
+   document ; elle mérite un ADR quel que soit le choix.
 8. **D1** — la vue Lecture. C'est la seule réponse complète au problème du texte, et 60 % du code
    existe déjà — il est juste enterré derrière une icône et figé.
