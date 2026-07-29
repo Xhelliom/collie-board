@@ -157,6 +157,24 @@ Two sibling structural ops remove panes. `tab.close` live-verified 2026-07-19 on
 - **Errors:** unknown id → `{code:"tab_not_found", message:"tab <id> not found"}`; a missing `tab_id`
   → ``{code:"invalid_request", message:"invalid request: missing field `tab_id` …"}``.
 
+### `worktree.remove` — takes `workspace_id`, not `workspace` (live-probed 0.7.5, 2026-07-29)
+
+| Method | Params | Returns | Error (unknown id) |
+|---|---|---|---|
+| `worktree.remove` | `{workspace_id}` | `ok` | `workspace_not_found` |
+
+**The CLI flag and the socket field disagree**, and this is the trap: `herdr worktree remove` takes
+`--workspace <ID>`, so copying that name into the socket call is the obvious thing to do — and it
+answers ``{code:"invalid_request", message:"invalid request: missing field `workspace_id` …"}``.
+Probed by sending `{workspace}`, `{workspace_id}` and `{id}` against a nonexistent workspace: only
+the second reaches the handler at all (`workspace_not_found`), which is how you tell "wrong field
+name" from "wrong id" here.
+
+Removing the worktree takes its **workspace** down with it — that is the only way the bridge can
+close a workspace at all, since Collie exposes `pane.close` and `tab.close` but nothing for a
+workspace. A `force` field exists on the CLI (`--force`); the bridge deliberately never sends it (see
+`removeWorktree`).
+
 ## Move methods — reorder tabs and workspaces (verified)
 
 Two sibling structural ops reorder objects. Both live-verified 2026-07-20 on the sandbox session.

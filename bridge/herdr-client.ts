@@ -568,7 +568,9 @@ export class HerdrClient {
    * exactly those two checks.
    */
   async removeWorktree(opts: { workspaceId: string }): Promise<void> {
-    await this.request("worktree.remove", { workspace: opts.workspaceId });
+    // `workspace_id`, NOT `workspace` — the CLI flag is `--workspace`, the socket field is not, and
+    // copying the flag name gets you `invalid_request` (live-probed on 0.7.5, 2026-07-29).
+    await this.request("worktree.remove", { workspace_id: opts.workspaceId });
   }
 
   /**

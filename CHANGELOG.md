@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.46.1] - 2026-07-29
+
+### Fixed
+- **Clean up / Discard answered `herdr worktree.remove: invalid_request`.** The socket field is `workspace_id`; the CLI flag is `--workspace`, and the flag name is what got copied. Live-probed against 0.7.5 and written down in [`HERDR_API.md`](./HERDR_API.md) — the CLI and the socket disagreeing is exactly the kind of trap that file exists for.
+
 ## [0.46.0] - 2026-07-29
 
 ### Added
