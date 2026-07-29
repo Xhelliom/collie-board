@@ -3,8 +3,9 @@ import { ChevronDown, ChevronRight, Layers } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { CardTile } from "@/components/card-tile";
-import { BOARD_COLUMNS, CARD_STATUS_CHIP, type CardView } from "@/lib/board";
-import { dependencyMet, groupOpenByDefault } from "@/lib/board-groups";
+import { CardStatusChip } from "@/components/card-status-chip";
+import { BOARD_COLUMNS, type CardView } from "@/lib/board";
+import { groupOpenByDefault, waitingOn } from "@/lib/board-groups";
 
 // A container card and the sub-tasks it was split into, as one entry on the board.
 //
@@ -84,12 +85,6 @@ export function CardGroup({
   );
 }
 
-/** The predecessor's title when it still holds this card back, else undefined. */
-function waitingOn(card: CardView, byId: Map<string, CardView>): string | undefined {
-  if (!card.dependsOn) return undefined;
-  const predecessor = byId.get(card.dependsOn);
-  return dependencyMet(predecessor) ? undefined : predecessor?.title;
-}
 
 /**
  * What a collapsed group says about itself: one chip per distinct sub-task status, most urgent
@@ -105,16 +100,9 @@ function GroupSummary({ cards }: { cards: CardView[] }) {
   return (
     <span className="flex shrink-0 items-center gap-1">
       {ordered.map(([status, n]) => (
-        <span
-          key={status}
-          title={`${n} ${status}`}
-          className={cn(
-            "rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
-            CARD_STATUS_CHIP[status],
-          )}
-        >
-          {n}
-        </span>
+        <CardStatusChip key={status} status={status} className="px-1.5 tabular-nums">
+          <span title={`${n} ${status}`}>{n}</span>
+        </CardStatusChip>
       ))}
     </span>
   );

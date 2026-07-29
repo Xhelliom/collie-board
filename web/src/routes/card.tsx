@@ -24,12 +24,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor } from "@/components/card-editor";
+import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
   boardPath,
   cardPath,
-  CARD_STATUS_CHIP,
   CARD_STATUS_LABEL,
   deleteCard,
   handoffCard,
@@ -49,7 +49,6 @@ import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
-import { cn } from "@/lib/utils";
 
 // A card's own page: the durable half (spec, acceptance, history) beside the live half (which pane
 // is on it right now, and what that agent is doing). This is the screen that answers "where is this
@@ -160,14 +159,9 @@ export function CardRoute() {
               )}
               <h1 className="text-lg font-semibold leading-tight">{card.title}</h1>
               <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                    CARD_STATUS_CHIP[card.status],
-                  )}
-                >
+                <CardStatusChip status={card.status}>
                   {CARD_STATUS_LABEL[card.status]}
-                </span>
+                </CardStatusChip>
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
                 {/* A container never gets checked out, so a branch name on it is a promise nothing
                     keeps. The copilot withholds one when IT splits a card, but a card that became a
@@ -228,14 +222,7 @@ export function CardRoute() {
                       onClick={() => navigate(cardPath(child.id))}
                       className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
                     >
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                          CARD_STATUS_CHIP[child.status],
-                        )}
-                      >
-                        {child.status}
-                      </span>
+                      <CardStatusChip status={child.status} className="px-1.5" />
                       <span className="min-w-0 flex-1 truncate text-sm">{child.title}</span>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                     </button>

@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.35.1] - 2026-07-29
+
+### Changed
+- Review of 0.35.0's own code. `waitingOn()` had been written twice, byte for byte, in `board.tsx` and `card-group.tsx` — it lives in `board-groups.ts` beside `dependencyMet()`, where both callers already look. (34fce8e)
+- The status-chip class string had been copied to four call sites and had already drifted (`px-2` here, `px-1.5` there); it is a `<CardStatusChip>`, sibling to the existing `<StatusBadge>`. `children` covers the one real variation — the collapsed group summary shows a count in the same shell.
+- Two route-test suites had grown identical `ctx()` and `post()` helpers; hoisted to `routeCtx()` / `actionPost()`.
+
 ## [0.35.0] - 2026-07-28
 
 ### Added

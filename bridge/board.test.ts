@@ -2034,36 +2034,46 @@ describe("patchCard — the edit journal", () => {
   });
 });
 
+// ── shared fixtures for the route-level tests ────────────────────────────────
+
+/**
+ * The board context a route test needs: auth already granted, herdr never reached. Shared because
+ * two suites had grown byte-identical copies of it.
+ */
+function routeCtx(store: BoardDb) {
+  return {
+    db: store,
+    engine: { current: () => snapshot([]) },
+    cfg: {} as Config,
+    audit: { record: () => {} },
+    session: "default",
+    guard: () => null,
+    device: null,
+    json: (data: unknown, status = 200) =>
+      new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } }),
+    text: (body: string, status: number) => new Response(body, { status }),
+  } as never;
+}
+
+/** A POST to a card action, with an optional JSON body. */
+function actionPost(id: string, action: string, body?: unknown): Request {
+  return new Request(`http://x/api/cards/${id}/${action}`, {
+    method: "POST",
+    ...(body === undefined
+      ? {}
+      : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+  });
+}
+
 describe("POST /api/cards/<id>/revert", () => {
   /** The board context these route tests need — auth already granted, herdr never reached. */
-  function ctx(store: BoardDb) {
-    return {
-      db: store,
-      engine: { current: () => snapshot([]) },
-      cfg: {} as Config,
-      audit: { record: () => {} },
-      session: "default",
-      guard: () => null,
-      device: null,
-      json: (data: unknown, status = 200) =>
-        new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } }),
-      text: (body: string, status: number) => new Response(body, { status }),
-    } as never;
-  }
-  const post = (id: string, body?: unknown) =>
-    new Request(`http://x/api/cards/${id}/revert`, {
-      method: "POST",
-      ...(body === undefined
-        ? {}
-        : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
-    });
 
   it("puts back the text the last overwrite replaced", async () => {
     const store = db();
     const card = store.createCard({ title: "dictated", spec: "what I said" });
     store.patchCard(card.id, { title: "reformulated", spec: "what it wrote" }, "copilot");
 
-    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, actionPost(card.id, "revert"), routeCtx(store));
     expect(res!.status).toBe(200);
     expect(store.getCard(card.id)!.spec).toBe("what I said");
     expect(store.getCard(card.id)!.title).toBe("dictated");
@@ -2079,8 +2089,8 @@ describe("POST /api/cards/<id>/revert", () => {
     const wanted = store.listEvents(card.id).filter((e) => e.type === "card.edited").at(-1)!;
     const res = await handleBoardRoute(
       `/api/cards/${card.id}/revert`,
-      post(card.id, { eventId: wanted.id }),
-      ctx(store),
+      actionPost(card.id, "revert", { eventId: wanted.id }),
+      routeCtx(store),
     );
 
     expect(res!.status).toBe(200);
@@ -2091,48 +2101,28 @@ describe("POST /api/cards/<id>/revert", () => {
     const store = db();
     const card = store.createCard({ title: "x", spec: "original" });
     store.patchCard(card.id, { spec: "replacement" });
-    await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    await handleBoardRoute(`/api/cards/${card.id}/revert`, actionPost(card.id, "revert"), routeCtx(store));
     expect(store.getCard(card.id)!.spec).toBe("original");
 
-    await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    await handleBoardRoute(`/api/cards/${card.id}/revert`, actionPost(card.id, "revert"), routeCtx(store));
     expect(store.getCard(card.id)!.spec).toBe("replacement");
   });
 
   it("answers 409 on a card that has never been overwritten", async () => {
     const store = db();
     const card = store.createCard({ title: "untouched" });
-    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, post(card.id), ctx(store));
+    const res = await handleBoardRoute(`/api/cards/${card.id}/revert`, actionPost(card.id, "revert"), routeCtx(store));
     expect(res!.status).toBe(409);
     expect(await res!.json()).toMatchObject({ kind: "no-history" });
   });
 
   it("404s an unknown card rather than reporting no history", async () => {
-    const res = await handleBoardRoute("/api/cards/nope/revert", post("nope"), ctx(db()));
+    const res = await handleBoardRoute("/api/cards/nope/revert", actionPost("nope", "revert"), routeCtx(db()));
     expect(res!.status).toBe(404);
   });
 });
 
 describe("revert — reaching past the card view's event cap", () => {
-  function ctx(store: BoardDb) {
-    return {
-      db: store,
-      engine: { current: () => snapshot([]) },
-      cfg: {} as Config,
-      audit: { record: () => {} },
-      session: "default",
-      guard: () => null,
-      device: null,
-      json: (data: unknown, status = 200) =>
-        new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } }),
-      text: (body: string, status: number) => new Response(body, { status }),
-    } as never;
-  }
-  const post = (id: string, body: unknown) =>
-    new Request(`http://x/api/cards/${id}/revert`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
 
   it("restores an entry older than the 100 listEvents returns", async () => {
     const store = db();
@@ -2145,8 +2135,8 @@ describe("revert — reaching past the card view's event cap", () => {
 
     const res = await handleBoardRoute(
       `/api/cards/${card.id}/revert`,
-      post(card.id, { eventId: wanted.id }),
-      ctx(store),
+      actionPost(card.id, "revert", { eventId: wanted.id }),
+      routeCtx(store),
     );
     expect(res!.status).toBe(200);
     expect(store.getCard(card.id)!.spec).toBe("the one I want back");
@@ -2161,8 +2151,8 @@ describe("revert — reaching past the card view's event cap", () => {
 
     const res = await handleBoardRoute(
       `/api/cards/${mine.id}/revert`,
-      post(mine.id, { eventId: foreign.id }),
-      ctx(store),
+      actionPost(mine.id, "revert", { eventId: foreign.id }),
+      routeCtx(store),
     );
     expect(res!.status).toBe(400);
     expect(store.getCard(mine.id)!.spec).toBe("mine v1");
@@ -2174,8 +2164,8 @@ describe("revert — reaching past the card view's event cap", () => {
     const created = store.listEvents(card.id).find((e) => e.type === "card.created")!;
     const res = await handleBoardRoute(
       `/api/cards/${card.id}/revert`,
-      post(card.id, { eventId: created.id }),
-      ctx(store),
+      actionPost(card.id, "revert", { eventId: created.id }),
+      routeCtx(store),
     );
     expect(res!.status).toBe(400);
   });

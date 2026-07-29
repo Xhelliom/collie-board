@@ -4,7 +4,8 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
 import { StatusBadge } from "@/components/status-badge";
-import { CARD_STATUS_CHIP, type CardView } from "@/lib/board";
+import { CardStatusChip } from "@/components/card-status-chip";
+import type { CardView } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
 // the board is a second lens on the same herd, not a different app.
@@ -74,14 +75,7 @@ export function CardTile({
         ) : card.runtime ? (
           <StatusBadge status={card.runtime.agentStatus} />
         ) : (
-          <span
-            className={cn(
-              "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-              CARD_STATUS_CHIP[card.status],
-            )}
-          >
-            {card.status}
-          </span>
+          <CardStatusChip status={card.status} />
         )}
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </Card>

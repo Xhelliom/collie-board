@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
 import { NewCardSheet } from "@/components/new-card-sheet";
-import { boardEntries, dependencyMet, entryKey, entryStatus } from "@/lib/board-groups";
+import { boardEntries, entryKey, entryStatus, waitingOn } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
@@ -17,7 +17,6 @@ import {
   cardPath,
   createCard,
   type CardInput,
-  type CardView,
 } from "@/lib/board";
 import type { BoardData } from "@/lib/board-loaders";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -123,12 +122,3 @@ export function BoardRoute() {
   );
 }
 
-/**
- * The predecessor's title when it still holds this card back. A dependency can be set on any card,
- * not only on a split sub-task, so a top-level tile needs this as much as a nested one does.
- */
-function waitingOn(card: CardView, byId: Map<string, CardView>): string | undefined {
-  if (!card.dependsOn) return undefined;
-  const predecessor = byId.get(card.dependsOn);
-  return dependencyMet(predecessor) ? undefined : predecessor?.title;
-}
