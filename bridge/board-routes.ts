@@ -27,7 +27,7 @@ import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
-import { requestWrapup } from "./wrapup.ts";
+import { fileAsDone } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
@@ -338,18 +338,13 @@ async function route(
       // session — otherwise the next poll reconciles the decision away (see `releaseSession`).
       const { status, ...fields } = parsed.value;
       db.patchCard(id, fields);
-      if (status) {
-        const ending = db.openSessionFor(id);
+      if (status === "done") {
+        // The whole sequence — close the session, set the column, ask for the closing report — lives
+        // in one place so this route and merge-and-done cannot drift apart on its order.
+        fileAsDone(db, ctx.herdr, db.getCard(id)!);
+      } else if (status) {
         releaseSession(db, id, status);
         db.setStatus(id, status, "manual");
-        // Filing a card as DONE asks its agent for one last report — the only account of what was
-        // actually done against the acceptance criteria, which the diff cannot give. Not awaited, for
-        // the same reason reformulation isn't: this is an agent turn, and the card is already filed.
-        // The other manual columns mean "not finished", so there is nothing to report.
-        if (status === "done" && ending?.paneId) {
-          const card = db.getCard(id)!;
-          void requestWrapup(db, ctx.herdr, ending, card);
-        }
       }
       ctx.audit.record({
         action: "card.patch",
@@ -547,6 +542,7 @@ async function route(
     if (what !== "merge" && what !== "pr" && what !== "cleanup" && what !== "resolve") {
       return text("action must be merge, pr, resolve or cleanup", 400);
     }
+    const andDone = (body as { andDone?: unknown }).andDone === true;
 
     const result =
       what === "merge"
@@ -557,11 +553,24 @@ async function route(
             ? await resolveConflict(db, ctx.herdr, card)
             : await cleanupCard(db, ctx.herdr, card);
 
+    // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
+    // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its
+    // session, so the agent that could have settled a merge conflict is gone by the time the merge
+    // discovers one. A failed integration leaves the card exactly where it was, agent included.
+    if (result.ok && andDone && (what === "merge" || what === "pr")) {
+      fileAsDone(db, ctx.herdr, db.getCard(id)!);
+    }
+
     ctx.audit.record({
       action: `card.${what}`,
       session: ctx.session,
       device: ctx.device,
-      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+      detail: {
+        cardId: id,
+        ok: result.ok,
+        ...(andDone ? { andDone } : {}),
+        ...(result.ok ? {} : { error: result.error.message }),
+      },
     });
     if (!result.ok) {
       // 409 for "the situation says no" — a refusal, or a conflict, both of which left the

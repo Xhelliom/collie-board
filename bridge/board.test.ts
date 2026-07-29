@@ -255,7 +255,7 @@ describe("releaseSession", () => {
   it("closes the open session when the operator moves a card out of the live columns", () => {
     for (const [status, outcome] of [
       ["done", "done"],
-      ["archived", "done"],
+      ["archived", "abandoned"],
       ["backlog", "abandoned"],
       ["ready", "abandoned"],
     ] as const) {

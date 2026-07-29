@@ -450,10 +450,18 @@ export function fetchIntegration(id: string): Promise<{ integration: Integration
 export function integrateCard(
   id: string,
   action: "merge" | "pr" | "resolve" | "cleanup",
+  /**
+   * File the card as done in the same breath — only on success, and only for merge/pr.
+   *
+   * The two belong together because the tempting order is the broken one: filing a card first ends
+   * its session, so the agent that could settle a merge conflict is already gone when the merge
+   * finds one. This way a failed integration leaves the card untouched, agent included.
+   */
+  andDone = false,
 ): Promise<{ ok: true; url?: string | null; base?: string; card: CardView }> {
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
     method: "POST",
-    body: JSON.stringify({ action }),
+    body: JSON.stringify({ action, andDone }),
   });
 }
 

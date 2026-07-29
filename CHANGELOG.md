@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.45.0] - 2026-07-29
+
+### Changed
+- **Merge & done, PR & done — one gesture instead of two.** The natural order is "mark it done, then merge it", and it is the broken one: filing a card ends its session, so the agent that could settle a merge conflict is gone by the time the merge finds one. Integrating now files the card itself, and only if the integration succeeded. A failed merge leaves the card exactly where it was, agent included.
+- `Done` is no longer offered on its own while the branch still holds commits — the card screen points at the combined button instead.
+
+### Fixed
+- Archiving a card whose agent was still running recorded the session as `done`. It is `abandoned`: interrupting a task is not finishing it, and the journal shouldn't claim a completion that never happened.
+
+### Notes
+- The order — close the session, set the column, ask for the closing report — now lives in one function, so the manual Done and the combined gesture cannot drift apart on it.
+
 ## [0.44.1] - 2026-07-29
 
 ### Fixed

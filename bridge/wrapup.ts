@@ -18,7 +18,7 @@
 
 import { join } from "node:path";
 
-import { promptAndConfirm } from "./cards.ts";
+import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -112,6 +112,21 @@ export async function requestWrapup(
   db.patchSession(session.id, { handoffRequestedAt: Date.now() });
   db.recordEvent(card.id, "wrapup.requested", { sessionId: session.id, paneId: session.paneId });
   return true;
+}
+
+/**
+ * File a card as done: end its session, set the column, ask the agent for its closing note.
+ *
+ * One function because the ORDER is a rule, not a detail. The session closes before the status is
+ * set, or the next poll reconciles the decision away (ADR 0002); the wrapup is asked for last,
+ * against the session that just closed. Callers that need this are the manual "Done" and the
+ * merge-and-done gesture, and they must not each rediscover the sequence.
+ */
+export function fileAsDone(db: BoardDb, herdr: HerdrClient, card: Card): void {
+  const ending = db.openSessionFor(card.id);
+  releaseSession(db, card.id, "done");
+  db.setStatus(card.id, "done", "manual");
+  if (ending?.paneId) void requestWrapup(db, herdr, ending, card);
 }
 
 /**
