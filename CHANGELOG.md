@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.48.0] - 2026-07-29
+
+### Added
+- **A card remembers whether its work landed.** "Merged into main · 2 h ago", the PR's link, "Worktree cleaned up — the branch was fully integrated", "Discarded — 4 commits thrown away". Read from the journal, which outlives the branch, the worktree and the pane; `done` on its own never said whether the code actually shipped.
+- A conflict on a card with no running agent now offers to **start one again** instead of a button that answers 409. A filed card's session ended when it was filed — and that agent is exactly who settles the conflict.
+
+### Notes
+- The PR's *state* is deliberately not tracked. GitHub owns it; a copy here would be a second truth free to go stale the moment the bridge isn't looking, and it would cost a network call per card on a loop the fork's rules say not to add. The link is kept, and it is one tap.
+- Nothing new is stored: the events were already written when the actions happened. This only reads them.
+- A cleanup with no merge event is shown as evidence the work landed — cleanup is refused unless nothing is left to integrate, so it happening at all proves the branch was in. That is the case for anything merged by hand in a terminal.
+
 ## [0.47.0] - 2026-07-29
 
 ### Added
