@@ -691,8 +691,8 @@ casser une des mécaniques du §9.
 | **G3** | Calculer le contexte pour tout pane, pas seulement ceux d'une carte | §8.2 | moyen | faible |
 | **D1** | **Vue « Lecture » live sur le transcript** | §3.1, §3.2, §3.3 | **élevé** | moyen |
 | **D2** | Trancher le mode clair | §6.1 | faible | faible |
-| **E6b–d** | Feuilles : vélocité, seuil proportionnel, élasticité | §7.5b-e | moyen | faible |
-| **E5** | *ou* adopter Vaul à la place de la feuille maison | §7.5, §7.7 | moyen | moyen |
+| **E5** | **Migrer les feuilles sur Vaul** — *décidé, cf. §E5* | §7.5, §7.7 | moyen | moyen |
+| ~~E6b–d~~ | ~~vélocité, seuil proportionnel, élasticité~~ — sans objet si E5 | §7.5b-e | — | — |
 
 ---
 
@@ -1050,20 +1050,43 @@ Le coût de Vaul, inchangé et réel :
   d'appel sont à revérifier ;
 - et **le desktop reste à écrire** (E7) dans les deux cas.
 
-**Recommandation en deux temps, à assumer comme telle :**
+**Décision retenue (2026-07-29) : oui à Vaul, sous trois conditions.** La qualité du geste est un
+objectif explicite, et c'est le seul lot où l'écriture maison perd structurellement — un bug se
+corrige une fois, une sensation se règle à tâtons. Deux points renforcent le choix et n'avaient pas
+été pesés plus haut :
 
-1. **E1–E3 maintenant, quoi qu'il arrive.** Ce sont des bugs, pas des préférences ; ils cassent la
-   saisie dans la feuille de dictée. ~30 lignes, plus les deux tests tactiles manquants. À faire même
-   si Vaul est adopté ensuite — parce que « ensuite » peut prendre des mois, et la feuille New card
-   est cassée aujourd'hui.
-2. **Puis trancher sur la physique.** E6 (~30 lignes à régler à tâtons, résultat incertain) contre
-   E5 (deux dépendances, un ADR, résultat éprouvé). Mon avis : si la qualité du geste est un objectif
-   — et la demande dit que oui — **Vaul se défend**, parce que c'est le seul lot où l'écriture maison
-   perd structurellement. Si le geste doit seulement cesser d'être cassé, E1–E3 suffisent et le reste
-   peut attendre.
+- **`repositionInputs`** : quatre feuilles sur cinq ont des champs, et la version maison ne fait
+  *rien* pour le clavier. Sur une app dont le geste central est de dicter dans une bottom sheet, ce
+  n'est pas du confort.
+- **Le garde-fou `backdropArmed`** (`sheet.tsx:41-49`) devient gratuit : c'est une réimplémentation
+  manuelle de la règle outside-pointerdown de Radix — le commentaire du code le dit lui-même. Une
+  trentaine de lignes maison disparaissent avec la migration.
 
-Ce qui ne se défend pas, c'est l'ordre inverse : adopter Vaul pour contourner trois bugs de trente
-lignes, sans avoir décidé qu'on veut sa physique.
+**Condition 1 — E1–E3 d'abord, sans attendre la migration.** Ce sont des bugs, pas des préférences,
+et ils cassent la saisie dans la feuille de dictée. ~30 lignes plus les deux tests tactiles
+manquants. La migration, elle, touche **neuf sites d'appel**, les **neuf tests existants** de
+`sheet.test.tsx` (qui testent le comportement maison et deviendraient des tests de Vaul), et demande
+un ADR : c'est une carte à part entière. Si elle met des semaines à remonter dans le planning, ce
+sont des semaines de dictée cassée pour rien.
+
+**Condition 2 — un ADR, pas un commit.** *« no Radix, no portals, no extra deps »* est écrit dans
+`sheet.tsx:22`. `.adr/` existe précisément pour les décisions qui ferment une option que quelqu'un
+reproposera ; sans ADR, le prochain contributeur re-renversera le choix dans l'autre sens.
+
+**Condition 3 — mesurer le bundle avant de s'engager.** Vaul + Radix Dialog sur une PWA servie par
+tailscale : le chiffre n'est pas dans ce document et ne doit pas être deviné. Un build avant/après le
+donne, et c'est le seul argument contre qui soit factuel plutôt que doctrinal.
+
+**Ce que la migration ne règle pas** : le desktop (E7 reste à écrire tel quel), et E6 devient sans
+objet — sauf E6a (l'animation de fermeture), qui vaut le coup **tout de suite** si la migration
+n'est pas immédiate, pour ~15 lignes.
+
+**Risque assumé, non bloquant** : dépendance UI d'un seul mainteneur, sur une application destinée à
+durer.
+
+Ce qui ne se défend pas, en revanche, c'est l'ordre inverse : adopter Vaul pour contourner trois bugs
+de trente lignes, sans avoir décidé qu'on voulait sa physique. La décision porte sur §7.5, pas sur
+§7.1–7.3.
 
 ---
 
@@ -1236,7 +1259,8 @@ agréable pour le moins de travail :
 
 7. **F1 + E7** — le board en quatre colonnes sur grand écran, et les feuilles en dialog centré.
    Le seul endroit où le desktop apporte ce qu'un téléphone ne peut pas donner : tout voir d'un coup.
-9. **E6b–d ou E5** — la physique du geste, ou Vaul. C'est la seule décision de dépendance de tout ce
-   document ; elle mérite un ADR quel que soit le choix.
+9. **E5** — la migration Vaul, **décidée**. Neuf sites d'appel, neuf tests à revoir, un ADR à
+   écrire, et un build avant/après pour le bundle. C'est la seule décision de dépendance de tout ce
+   document.
 8. **D1** — la vue Lecture. C'est la seule réponse complète au problème du texte, et 60 % du code
    existe déjà — il est juste enterré derrière une icône et figé.
