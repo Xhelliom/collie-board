@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import { mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   deleteBranch,
+  ensureBoardExcluded,
   hasRealChanges,
   integrationOf,
   mergeIntoBase,
@@ -223,6 +227,46 @@ describe("mergeIntoBase", () => {
     const { git, calls } = fakeGit({ merge: { stdout: "Merge made by the 'ort' strategy." } });
     await mergeIntoBase("/repo", "board/x", git);
     expect(calls[0]).toEqual(["merge", "--no-ff", "--no-edit", "--", "board/x"]);
+  });
+});
+
+describe("ensureBoardExcluded", () => {
+  /** A throwaway git repo, so this exercises the real file rather than a mock of it. */
+  async function repo(): Promise<string> {
+    const dir = join(tmpdir(), `collie-exclude-${Math.random().toString(36).slice(2)}`);
+    await mkdir(join(dir, ".git", "info"), { recursive: true });
+    return dir;
+  }
+  const fakeRevParse: GitRunner = async () => ({ ok: true, stdout: ".git\n", stderr: "" });
+
+  it("adds the pattern once, and says so only the first time", async () => {
+    const dir = await repo();
+    expect(await ensureBoardExcluded(dir, fakeRevParse)).toBe(true);
+    expect(await ensureBoardExcluded(dir, fakeRevParse)).toBe(false);
+
+    const text = await Bun.file(join(dir, ".git", "info", "exclude")).text();
+    expect(text.split("\n").filter((l) => l.trim() === ".board/")).toHaveLength(1);
+    // The line has to explain itself: someone will find it in a repo of theirs one day.
+    expect(text).toContain("Collie Board");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("appends to an existing exclude file without eating its last line", async () => {
+    const dir = await repo();
+    // No trailing newline — the shape that silently merges two lines if you just concatenate.
+    await Bun.write(join(dir, ".git", "info", "exclude"), "*.log");
+
+    await ensureBoardExcluded(dir, fakeRevParse);
+
+    const lines = (await Bun.file(join(dir, ".git", "info", "exclude")).text()).split("\n");
+    expect(lines).toContain("*.log");
+    expect(lines).toContain(".board/");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("stays quiet when git says no — a start must never fail over this", async () => {
+    const failing: GitRunner = async () => ({ ok: false, stdout: "", stderr: "not a repo" });
+    expect(await ensureBoardExcluded("/nope", failing)).toBe(false);
   });
 });
 

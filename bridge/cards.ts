@@ -16,6 +16,7 @@
 
 import type { Config } from "./config.ts";
 import { isLiveStatus, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
+import { ensureBoardExcluded } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -598,6 +599,12 @@ export async function startCard(
   // branch rather than from the repo's base ref. Falls back to its own base when the predecessor
   // never actually ran (it has no branch), which is also what makes this safe to apply blindly.
   const base = predecessor?.branch ?? card.baseRef;
+
+  // Before the checkout exists, so the notes this bridge is about to write into it are invisible to
+  // git from the first `status`. In `.git/info/exclude`, never the project's `.gitignore` — see
+  // `ensureBoardExcluded`. Idempotent and best-effort: an unwritable .git is not a reason to refuse
+  // to start a card.
+  void ensureBoardExcluded(card.repoPath).catch(() => {});
 
   let worktree: CreatedWorktree;
   try {

@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.47.0] - 2026-07-29
+
+### Added
+- **The board teaches your repo to ignore `.board/`, once, in `.git/info/exclude`.** Added when a card's worktree is created, idempotent, best-effort — an unwritable `.git` just means things stay as they were. It also carries a line saying where it came from, because someone will find it in a repo of theirs one day.
+
+### Changed
+- `worktree.remove` is now forced **only on discard**, where throwing uncommitted work away is the request itself. A cleanup has already been refused unless the checkout is clean, so it has nothing to force — and if herdr refuses it anyway, something really is in there and the refusal is right.
+
+### Notes
+- Why `info/exclude` and not the two obvious alternatives: committing the notes would carry them into the base branch on the first merge and make two cards that both handed off conflict over a file that has nothing to do with either; and `.gitignore` is versioned and shared with everyone who clones, while the board writes into repositories that have never heard of it. `info/exclude` is git's own answer — local, unversioned, one line, and shared by every worktree of the repo.
+
 ## [0.46.2] - 2026-07-29
 
 ### Fixed
