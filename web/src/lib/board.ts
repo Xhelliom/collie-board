@@ -418,6 +418,20 @@ export function boardErrorMessage(err: unknown): string {
   return raw.replace(/^\S+\s→\s\d+\s*/, "").trim() || "something went wrong";
 }
 
+/**
+ * Ask the copilot what a RAW tool error means and what to do about it.
+ *
+ * Only for text relayed from git or herdr — the board's own refusals are already written for a
+ * person. Returns immediately; the answer lands in the card's journal a minute later, like every
+ * other copilot call.
+ */
+export function explainError(id: string, input: { action: string; error: string }): Promise<{ ok: true }> {
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/explain`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 /** Where a card's branch stands against the branch it forked from. */
 export interface Integration {
   branch: string;

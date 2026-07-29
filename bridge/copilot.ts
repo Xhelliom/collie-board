@@ -103,6 +103,13 @@ export interface Reformulation {
   split?: SplitTask[];
 }
 
+/** What an error explanation is expected to produce. */
+export interface Explanation {
+  meaning?: string;
+  next?: string;
+  likelyBug?: boolean;
+}
+
 /** What a post-`done` review is expected to produce. */
 export interface ReviewResult {
   verdict?: string;
@@ -210,6 +217,22 @@ export function toReformulation(parsed: unknown): Reformulation | null {
   return Object.keys(out).length ? out : null;
 }
 
+/** Coerce a parsed answer into an {@link Explanation}. Pure. */
+export function toExplanation(parsed: unknown): Explanation | null {
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const o = parsed as Record<string, unknown>;
+  const out: Explanation = {};
+  const meaning = str(o, "meaning");
+  const next = str(o, "next");
+  if (meaning) out.meaning = meaning;
+  if (next) out.next = next;
+  const bug = o.likely_bug ?? o.likelyBug;
+  if (typeof bug === "boolean") out.likelyBug = bug;
+  // Without at least one of the two paragraphs there is nothing to show, and a card journal entry
+  // saying only "likely_bug: false" would be worse than the raw error it replaced.
+  return out.meaning || out.next ? out : null;
+}
+
 /** Coerce a parsed answer into a {@link ReviewResult}. Pure. */
 export function toReviewResult(parsed: unknown): ReviewResult | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -284,6 +307,59 @@ export function reformulatePrompt(
     '  "split": [',
     '    { "title": "…", "spec": "…", "acceptance": ["…"], "depends_on": null }',
     "  ]",
+    "}",
+  ].join("\n");
+}
+
+/**
+ * Ask the copilot to translate a raw tool error into something the operator can act on.
+ *
+ * SCOPED TO THE MESSAGES WE DID NOT WRITE. The board's own refusals are already sentences aimed at a
+ * person ("main has uncommitted changes — a merge would land on top of them"); handing those to an
+ * agent would only add noise. What this is for is the text relayed verbatim from git or herdr —
+ * `worktree_remove_failed: fatal: … use --force to delete it` — which is jargon from a tool the
+ * operator may never use directly.
+ *
+ * IT MUST NOT ACT. The copilot is a Claude session like any other, so it can reach whatever skills
+ * the machine has — including, since this board grew one, a skill that drives this very API. That is
+ * a capability we never want it to use: every action the copilot takes today goes through bridge
+ * code, which is deterministic, gated and journalled, and "the board makes a thing possible, the
+ * operator decides it happens" is the rule the whole design rests on. Hence the refusal at the top
+ * of the prompt, stated before the error is even shown.
+ *
+ * Pure + exported so the wording is reviewable.
+ */
+export function explainPrompt(input: {
+  action: string;
+  error: string;
+  cardTitle: string;
+  outPath: string;
+}): string {
+  return [
+    "Someone is driving a kanban board from their phone. It runs agents in git worktrees for them,",
+    "and one of its actions just failed with an error from an underlying tool. Explain it to them.",
+    "",
+    "DO NOT ACT. Do not run any command, do not call any API or skill, do not read or change any",
+    "repository, and do not try to fix this yourself. You are being asked for two paragraphs, and the",
+    "person will decide what to do. Acting here would be taking a decision that is theirs.",
+    "",
+    `What they tried: ${input.action}`,
+    `On the card: ${input.cardTitle}`,
+    "The error, verbatim:",
+    "---",
+    input.error.trim(),
+    "---",
+    "",
+    "Assume they know their own project but not this tool's internals, and possibly not git's.",
+    "Say what actually went wrong in plain words, then the most likely thing THEY can do about it —",
+    "concretely, naming a command if there is one. If it looks like a bug in the board rather than",
+    "something they did, say so plainly instead of inventing a workaround.",
+    "",
+    `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
+    "{",
+    '  "meaning": "one short paragraph: what the error actually says",',
+    '  "next": "one short paragraph: what they can do now",',
+    '  "likely_bug": true or false',
     "}",
   ].join("\n");
 }
@@ -597,6 +673,38 @@ export class CopilotCoordinator {
     if (!target || target === cardId) return false;
     const [card, other] = [this.db.getCard(cardId), this.db.getCard(target)];
     return !!card && !!other && other.repoPath === card.repoPath;
+  }
+
+  /**
+   * Explain a raw tool error, in the background, into the card's journal.
+   *
+   * Background for the same reason reformulation is: this is an agent turn, and the copilot is
+   * serialised to one request — a phone cannot hold a request open behind whatever else is queued.
+   * The answer lands as a `copilot.explained` event, which the card screen already renders, so there
+   * is no new column and nothing to clean up if it never comes.
+   */
+  async explain(cardId: string, input: { action: string; error: string }): Promise<void> {
+    const card = this.db.getCard(cardId);
+    if (!this.copilot.enabled || !card) return;
+    this.busyCards.add(cardId);
+    try {
+      const parsed = await this.copilot.ask((out) =>
+        explainPrompt({ action: input.action, error: input.error, cardTitle: card.title, outPath: out }),
+      );
+      const result = toExplanation(parsed);
+      if (!result) {
+        this.db.recordEvent(cardId, "copilot.explain_failed", { action: input.action });
+        return;
+      }
+      this.db.recordEvent(cardId, "copilot.explained", {
+        action: input.action,
+        meaning: result.meaning ?? null,
+        next: result.next ?? null,
+        likelyBug: result.likelyBug ?? false,
+      });
+    } finally {
+      this.busyCards.delete(cardId);
+    }
   }
 
   /** The body of a reformulation, split out only so the busy marker above brackets all of it. */

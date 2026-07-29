@@ -30,6 +30,8 @@ import { contextPercent } from "./context.ts";
 import {
   Copilot,
   CopilotCoordinator,
+  explainPrompt,
+  toExplanation,
   parseJsonish,
   reformulatePrompt,
   reviewPrompt,
@@ -2489,5 +2491,49 @@ describe("trimEvent — the journal rides a polled response", () => {
       routeCtx(store),
     );
     expect(store.getCard(card.id)!.spec).toBe(long);
+  });
+});
+
+describe("explainPrompt — the copilot as a translator, never an actor", () => {
+  const prompt = explainPrompt({
+    action: "merge",
+    error: "worktree_remove_failed: fatal: contains modified or untracked files, use --force",
+    cardTitle: "Fix the drawer",
+    outPath: "/out.json",
+  });
+
+  it("forbids acting BEFORE it shows the error", () => {
+    // The copilot is a Claude session like any other, so it can reach whatever skills the machine
+    // has — including one that drives this very API. Every action it takes must go through bridge
+    // code, which is gated and journalled; this prompt is what keeps it a translator.
+    expect(prompt).toContain("DO NOT ACT");
+    expect(prompt).toContain("do not call any API or skill");
+    expect(prompt.indexOf("DO NOT ACT")).toBeLessThan(prompt.indexOf("worktree_remove_failed"));
+  });
+
+  it("carries the error verbatim and the card it happened on", () => {
+    expect(prompt).toContain("worktree_remove_failed");
+    expect(prompt).toContain("Fix the drawer");
+  });
+
+  it("asks it to say when the fault looks like the board's own", () => {
+    expect(prompt).toContain("likely_bug");
+  });
+});
+
+describe("toExplanation", () => {
+  it("takes either paragraph, and the bug flag when it is a real boolean", () => {
+    expect(toExplanation({ meaning: "m", next: "n", likely_bug: true })).toEqual({
+      meaning: "m",
+      next: "n",
+      likelyBug: true,
+    });
+    expect(toExplanation({ next: "just this" })).toEqual({ next: "just this" });
+  });
+
+  it("is null when there is no prose — a journal entry of only a flag is worse than none", () => {
+    expect(toExplanation({ likely_bug: false })).toBeNull();
+    expect(toExplanation({})).toBeNull();
+    expect(toExplanation("nope")).toBeNull();
   });
 });

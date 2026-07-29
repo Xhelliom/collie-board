@@ -38,6 +38,7 @@ import {
   CARD_STATUS_LABEL,
   boardErrorMessage,
   deleteCard,
+  explainError,
   fetchIntegration,
   handoffCard,
   integrateCard,
@@ -620,6 +621,7 @@ function IntegrationSection({
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [unexplained, setUnexplained] = useState<{ action: string; error: string } | null>(null);
   const { confirm, pending } = usePendingConfirm();
 
   // What the journal remembers, which outlives the branch. A merged-and-cleaned-up card has nothing
@@ -694,6 +696,10 @@ function IntegrationSection({
       // A conflict is the one failure with a next step, so the button for it appears here.
       const message = boardErrorMessage(e);
       setConflict(/conflict/i.test(message));
+      // Raw git/herdr text is the only kind worth an agent turn: our own refusals are already
+      // sentences aimed at a person. `boardErrorMessage` keeps the body, so the kind is in it.
+      const raw = e instanceof Error && /"kind":"(git|herdr)"/.test(e.message);
+      setUnexplained(raw ? { action, error: message } : null);
       setStatus(message, "error", null);
     } finally {
       setBusy(null);
@@ -781,6 +787,26 @@ function IntegrationSection({
             {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
           </Button>
         </div>
+
+        {/* Shown only for text we relayed verbatim from git or herdr. Off when the copilot is,
+            because it costs an agent turn of the user's own quota. */}
+        {unexplained && card.copilotBusy === false && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-fit gap-2"
+            onClick={() => {
+              const asked = unexplained;
+              setUnexplained(null);
+              explainError(card.id, asked)
+                .then(() => setStatus("Asked the copilot — the answer lands in the journal.", "info"))
+                .catch((e) => setStatus(boardErrorMessage(e), "error", null));
+            }}
+          >
+            <Sparkles className="size-4" />
+            What does this mean?
+          </Button>
+        )}
 
         {conflict && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">

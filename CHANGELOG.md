@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.49.0] - 2026-07-29
+
+### Added
+- **"What does this mean?" on a raw tool error.** Hands the verbatim git/herdr text to the copilot, which answers in two paragraphs — what it says, and what you can do — into the card's journal. It also says when the fault reads like a bug in the board rather than something you did.
+
+### Notes
+- Shown **only** for text relayed from git or herdr. The board's own refusals are already sentences aimed at a person; running an agent over them would add noise and spend quota for nothing.
+- The prompt forbids acting before it shows the error, and says so in those words. The copilot is a Claude session like any other, so it can reach whatever skills the machine has — including one that drives this very API. Every action the copilot takes must keep going through bridge code, which is deterministic, gated and journalled: *the board makes a thing possible, the operator decides it happens.*
+- Off when the copilot is off, like everything else it does — this spends the user's own quota.
+
 ## [0.48.0] - 2026-07-29
 
 ### Added
