@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describe as describeEvent, editedByHandSince, fieldList } from "./card-journal";
+import { describeEvent, editedByHandSince, fieldList } from "./card-journal";
 import type { BoardEvent } from "@/lib/board";
 
 function event(type: string, payload: unknown = {}): BoardEvent {

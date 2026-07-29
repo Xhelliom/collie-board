@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronDown, Layers, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,9 @@ export function CardEditor({
     return () => {
       cancelled = true;
     };
-  }, [open, card]);
+    // card.ID, not the card: the object is new on every poll that changes anything, and re-seeding
+    // then would wipe what is being typed. Opening the sheet is the moment to read the card.
+  }, [open, card.id]);
 
   async function save() {
     const trimmed = title.trim();
@@ -257,7 +259,7 @@ function PickerRow({
 }: {
   active: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <button

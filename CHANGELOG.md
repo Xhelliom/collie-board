@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.38.1] - 2026-07-29
+
+### Fixed
+- **The reformulate confirmation followed you to the next card.** One `<CardRoute />` serves every `/card/:cardId`, so the component is not remounted when you move between cards — an armed confirmation stayed armed and would have fired on the next card's first tap. The exact opposite of a guard. Reset on card id. (f5b9668)
+- **A rejected save said nothing.** Linking two cards can now fail for a reason you can act on ("that would make a loop"), where before a patch only failed if the bridge was unreachable — and neither `save()` had a `catch`, so the sheet just sat there looking saved. It surfaces the bridge's message and keeps the sheet open.
+- The editor re-seeded its fields from `card`, which is a new object on every poll that changes anything — typing into the spec while an agent moved the card would have been wiped. Keyed on `card.id`: opening the sheet is the moment to read the card.
+
+### Changed
+- `card-journal.tsx` exported a function called `describe`, which collides with the test runner's own — the test had to alias it on import, which was the smell. It is `describeEvent`.
+
 ## [0.38.0] - 2026-07-29
 
 ### Added

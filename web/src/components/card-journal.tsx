@@ -39,7 +39,7 @@ export function CardJournal({
         ) : (
           <li key={e.id} className="flex gap-2 text-xs text-muted-foreground">
             <span className="w-16 shrink-0 tabular-nums">{timeAgo(e.ts)}</span>
-            <span className="min-w-0 flex-1 truncate">{describe(e)}</span>
+            <span className="min-w-0 flex-1 truncate">{describeEvent(e)}</span>
           </li>
         ),
       )}
@@ -158,7 +158,7 @@ export function fieldList(replaced: EditPayload["replaced"] = {}): string {
  * hiding an event nobody has written a sentence for yet — a journal with holes in it is worse than
  * one with a bit of jargon.
  */
-export function describe(event: BoardEvent): string {
+export function describeEvent(event: BoardEvent): string {
   const p = (event.payload ?? {}) as Record<string, unknown>;
   switch (event.type) {
     case "card.created":

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
   ArrowLeft,
@@ -73,6 +73,11 @@ export function CardRoute() {
   const detail = data.detail;
   const card = detail?.card;
 
+  // One <CardRoute /> serves every /card/:cardId, so this component is NOT remounted when you move
+  // from one card to another — an armed confirmation would follow you to the next card and fire on
+  // its first tap, which is the exact opposite of a guard.
+  useEffect(() => setConfirmRework(false), [card?.id]);
+
   async function move(status: CardStatus) {
     if (!card) return;
     await patchCard(card.id, { status });
@@ -97,10 +102,19 @@ export function CardRoute() {
     }
   }
 
+  // Rethrows so the editor keeps the sheet open on failure — linking two cards can now fail for a
+  // reason the user can act on ("that would make a loop"), where before a patch only failed if the
+  // bridge was unreachable. Silence would look like a save that worked.
   async function save(patch: CardInput) {
     if (!card) return;
-    await patchCard(card.id, patch);
-    revalidator.revalidate();
+    try {
+      await patchCard(card.id, patch);
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+      throw e;
+    } finally {
+      revalidator.revalidate();
+    }
   }
 
   // Hand the card back to the copilot. Background, like on create — the card rewrites itself on a
