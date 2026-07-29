@@ -92,6 +92,7 @@ export function parseCardBody(
     "agentKind",
     "parentId",
     "dependsOn",
+    "duplicateOf",
   ] as const) {
     if (!(key in o)) continue;
     const value = o[key];
@@ -172,6 +173,9 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
     if (!db.getCard(target)) return `${field}: no such card`;
     if (wouldCycle(db, cardId, target, field)) return `${field}: that would make a loop`;
   }
+  // `duplicateOf` gets the existence check but NOT the cycle check: it blocks nothing and is walked
+  // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
+  if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
   return null;
 }
 
@@ -301,10 +305,14 @@ async function route(
       // every poll of the list.
       const predecessor = detail.dependsOn ? db.getCard(detail.dependsOn) : null;
       const parent = detail.parentId ? db.getCard(detail.parentId) : null;
+      const duplicate = detail.duplicateOf ? db.getCard(detail.duplicateOf) : null;
       return json({
         card: detail,
         predecessor: predecessor ? linkSummary(predecessor) : null,
         parent: parent ? linkSummary(parent) : null,
+        // Resolved here for the same reason the other two are: the card screen has only this card,
+        // and "you may already have this" is useless without the other one's title.
+        duplicate: duplicate ? linkSummary(duplicate) : null,
         children: db.listChildren(id).map(linkSummary),
         sessions: db.listSessions(id),
         reviews: db.listReviews(id),

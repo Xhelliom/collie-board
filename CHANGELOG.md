@@ -7,6 +7,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.44.0] - 2026-07-29
+
+### Added
+- **The copilot checks for a duplicate.** A new card is triaged against the cards already on the board for the same repo; if it repeats one, the card links to it and says so. A suggestion, not a verdict — it never merges, never blocks a start, and "Not a duplicate" is one tap. `done` cards stay candidates: "you already did this last week" is the duplicate you are least likely to remember.
+
+### Fixed
+- A refused integration showed `/api/cards/…/integration → 409 {…}` with the reason off the end of the line. The bridge's own sentence is now what reaches the screen.
+- Merge is disabled, with the reason, when the base has uncommitted changes or isn't checked out — refusals the client can see coming shouldn't need a failed tap to surface.
+
+### Notes
+- The suggestion is only ever made on a single card, never on a split: which of four fresh sub-tasks a duplicate would mean is a question the answer doesn't contain.
+- The id the copilot answers with is checked against the board (exists, not itself, same repo) before it lands. An unverified id would put a dead link on a card, which is worse than no link.
+- At most 60 candidates ride in the prompt, newest first — a board of hundreds would bury the note being triaged under its own history.
+
 ## [0.43.0] - 2026-07-29
 
 ### Added

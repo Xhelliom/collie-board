@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "
 import {
   ArrowLeft,
   ChevronRight,
+  Copy,
   GitBranch,
   GitMerge,
   GitPullRequest,
@@ -35,6 +36,7 @@ import {
   boardPath,
   cardPath,
   CARD_STATUS_LABEL,
+  boardErrorMessage,
   deleteCard,
   fetchIntegration,
   handoffCard,
@@ -252,6 +254,32 @@ export function CardRoute() {
                   ))}
                 </div>
               </Section>
+            )}
+
+            {/* Right under the title, because it is a question about THIS card's right to exist,
+                and it has to be answerable before anyone reads the spec below it. */}
+            {detail?.duplicate && (
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  The copilot thinks this repeats a card you already have:
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.duplicate!.id))}
+                  className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
+                >
+                  <Copy className="size-3.5 shrink-0" />
+                  <span className="truncate">{detail.duplicate.title}</span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-fit"
+                  onClick={() => void save({ duplicateOf: null })}
+                >
+                  Not a duplicate
+                </Button>
+              </div>
             )}
 
             {/* Above the spec on purpose: this is usually the answer to "why is this card still a
@@ -588,7 +616,7 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
       onDone();
     } catch (e) {
       // A conflict is the one failure with a next step, so the button for it appears here.
-      const message = (e as Error).message;
+      const message = boardErrorMessage(e);
       setConflict(/conflict/i.test(message));
       setStatus(message, "error", null);
     } finally {
@@ -607,6 +635,11 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
   }
 
   const merged = state.ahead === 0;
+  const mergeBlocker = state.baseDirty
+    ? `${state.base} has uncommitted changes`
+    : !state.baseCheckedOut
+      ? `the repository is not on ${state.base}`
+      : null;
   return (
     <Section label="Integration">
       <div className="flex flex-col gap-3">
@@ -631,12 +664,20 @@ function IntegrationSection({ card, onDone }: { card: CardView; onDone: () => vo
           </p>
         )}
 
+        {/* Both of these are refusals the client can see coming. Saying them here rather than
+            letting the button fail is the difference between "not yet, because X" and an error. */}
+        {!merged && !state.branchDirty && mergeBlocker && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            {mergeBlocker} — a PR still works.
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
             className="h-9 gap-2"
-            disabled={busy !== null || merged || state.branchDirty}
+            disabled={busy !== null || merged || state.branchDirty || mergeBlocker !== null}
             onClick={() => void run("merge", `Merged into ${state.base}`)}
           >
             <GitMerge className="size-4" />
