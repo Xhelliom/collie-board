@@ -209,7 +209,7 @@ export function CardRoute() {
 
             <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
 
-            <ContextGauge session={card.session} />
+            <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
 
             {card.runtime ? (
               <>

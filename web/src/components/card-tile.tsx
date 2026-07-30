@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
 import { StatusBadge } from "@/components/status-badge";
 import { CardStatusChip } from "@/components/card-status-chip";
+import { shortCwd } from "@/lib/format";
+import { paneDisplayName } from "@/lib/types";
 import type { CardView } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
@@ -27,6 +29,12 @@ export function CardTile({
   waitingOn?: string;
 }) {
   const urgent = card.status === "blocked";
+  // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
+  // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
+  const paneName =
+    card.runtime && (card.runtime.paneLabel || card.runtime.sessionName)
+      ? paneDisplayName(card.runtime)
+      : null;
   return (
     <button
       type="button"
@@ -51,22 +59,36 @@ export function CardTile({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{card.title}</div>
+          <div className="flex items-baseline gap-1.5 truncate">
+            <span className="truncate font-medium">{card.title}</span>
+            {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
+          </div>
           {waitingOn && (
             <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
               <CornerDownRight className="size-3 shrink-0" />
               <span className="truncate">after “{waitingOn}”</span>
             </div>
           )}
+          {/* Branch gets its OWN row: unbounded length, and packing it alongside cwd/sessionCount/
+              ctx%/copilot below starved them of room (confirmed in a real browser at phone width —
+              several of them got clipped with no ellipsis, not just visually tight). */}
+          {card.branch && (
+            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <GitBranch className="size-3 shrink-0" />
+              <span className="truncate font-mono">{card.branch}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-            {card.branch && (
-              <span className="flex min-w-0 items-center gap-1">
-                <GitBranch className="size-3 shrink-0" />
-                <span className="truncate font-mono">{card.branch}</span>
-              </span>
+            {/* Only known once a pane backs the card — same restriction as ctx%, same reason. */}
+            {card.runtime && <span className="truncate font-mono">{shortCwd(card.runtime.cwd)}</span>}
+            {/* ctx% right after cwd, and shrink-0: it's the whole point of G1, so if the row is tight,
+                cwd truncates (it already did, above) and sessionCount/copilotBusy get pushed off —
+                not this. Confirmed in a real browser: with ctx% listed after sessionCount it was the
+                one silently clipped. */}
+            {card.session?.ctxPct != null && (
+              <span className="shrink-0">· ctx {Math.round(card.session.ctxPct)}%</span>
             )}
             {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
-            {card.session?.ctxPct != null && <span>· ctx {Math.round(card.session.ctxPct)}%</span>}
             {/* A card the copilot is holding looks identical to one it has abandoned — say which. */}
             {card.copilotBusy && <span className="animate-pulse">· copilot…</span>}
           </div>

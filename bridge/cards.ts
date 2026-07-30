@@ -95,6 +95,9 @@ export interface CardRuntime {
   cwd: string;
   workspaceId: string;
   workspaceLabel: string;
+  /** Mirrors AgentView's own naming fields, so `paneDisplayName()` can name the PANE, not just the card. */
+  paneLabel?: string;
+  sessionName?: string;
 }
 
 /** A card as the API serves it: durable fields, its open session, and live herd state. */
@@ -123,7 +126,36 @@ function runtimeOf(pane: AgentView): CardRuntime {
     cwd: pane.cwd,
     workspaceId: pane.workspaceId,
     workspaceLabel: pane.workspaceLabel,
+    paneLabel: pane.paneLabel,
+    sessionName: pane.sessionName,
   };
+}
+
+/**
+ * Overlay board-card fields (branch, context occupancy) onto the panes that back an open session —
+ * the same numbers `CardView`/`CardTile` already carry, made available to the pane screen and the
+ * home list, which read `AgentView` rather than `CardView` (UI_AUDIT.md G1/G2). A pane with no open
+ * session is returned untouched; nothing here reads a transcript or shells out — it's a join against
+ * data `ContextTracker`/reconciliation already computed this tick.
+ *
+ * Takes the open-session list rather than re-querying it, so a caller enriching both `agents` and
+ * `shellPanes` off one snapshot (server.ts) pays for `listOpenSessions()` once, not twice.
+ */
+export function withCardFields(panes: AgentView[], sessions: CardSession[], db: BoardDb): AgentView[] {
+  const open = sessions.filter((s) => s.paneId);
+  if (open.length === 0) return panes;
+  const byPane = new Map(open.map((s) => [s.paneId!, s]));
+  return panes.map((p) => {
+    const session = byPane.get(p.paneId);
+    if (!session) return p;
+    const card = db.getCard(session.cardId);
+    return {
+      ...p,
+      branch: card?.branch ?? undefined,
+      ctxPct: session.ctxPct ?? undefined,
+      ctxTokens: session.ctxTokens ?? undefined,
+    };
+  });
 }
 
 /** Index a snapshot's panes (agents AND bare shells) by pane id. */

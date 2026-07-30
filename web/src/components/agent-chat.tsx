@@ -17,6 +17,7 @@ import { splitLines } from "@/lib/blocks";
 import { adapterFor } from "@/lib/harness";
 import { FindBar } from "@/components/find-bar";
 import { Composer, type ComposerHandle } from "@/components/composer";
+import { ContextGauge } from "@/components/context-gauge";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
@@ -736,6 +737,15 @@ export function AgentChat({
           {statusLine && (
             <div className="truncate border-t border-border/40 px-3 py-1 font-mono text-[11px] leading-tight text-muted-foreground/80">
               {statusLine}
+            </div>
+          )}
+
+          {/* The same gauge CardTile/the card screen show, for the pane this session actually backs
+              (see ContextGauge) — only known when this pane is running a board card. Omitted entirely
+              otherwise, so a pane with no card looks exactly as it did before (UI_AUDIT.md G1). */}
+          {agent?.ctxPct != null && (
+            <div className="border-t border-border/40 px-3 py-1.5">
+              <ContextGauge pct={agent.ctxPct} tokens={agent.ctxTokens} />
             </div>
           )}
 

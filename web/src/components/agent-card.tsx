@@ -1,4 +1,4 @@
-import { ChevronRight, TerminalSquare } from "lucide-react";
+import { ChevronRight, GitBranch, TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -39,8 +39,21 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
             <span className="truncate font-medium">{paneDisplayName(agent)}</span>
             <span className="truncate text-xs text-muted-foreground">· {agent.workspaceLabel}</span>
           </div>
-          <div className="truncate font-mono text-xs text-muted-foreground">
-            {shortCwd(agent.cwd)}
+          {/* Branch gets its OWN row: unlike cwd/ctx% it's unbounded length, and packing it into the
+              row below starved ctx% of room (confirmed in a real browser at phone width — the branch
+              icon and the ctx% number both got clipped with no ellipsis, not just visually tight).
+              Only ever appears for a pane backing an open board card — see bridge `withCardFields`.
+              Same fields CardTile shows, so a card ↔ agent pair reads the same on both screens
+              (UI_AUDIT.md G2). */}
+          {agent.branch && (
+            <div className="flex items-center gap-1 truncate font-mono text-xs text-muted-foreground">
+              <GitBranch className="size-3 shrink-0" />
+              <span className="truncate">{agent.branch}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+            <span className="truncate font-mono">{shortCwd(agent.cwd)}</span>
+            {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
         </div>
         {isShell ? <ShellBadge /> : <StatusBadge status={agent.status} />}

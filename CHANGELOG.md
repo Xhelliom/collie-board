@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.50.0] - 2026-07-30
+
+### Added
+- Context% now shows on the pane screen (by the statusline) and on the home agent tile — the two places you actually decide to hand off, which were the only two that didn't have it.
+- Agent tiles (home) and board tiles now show the same fields: branch, short cwd, ctx% on both. A board tile backed by a live pane also shows its pane name next to the card title.
+
 ## [0.49.2] - 2026-07-29
 
 ### Fixed

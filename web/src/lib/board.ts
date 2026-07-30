@@ -42,6 +42,9 @@ export interface CardRuntime {
   cwd: string;
   workspaceId: string;
   workspaceLabel: string;
+  /** Mirrors AgentView's own naming fields, so `paneDisplayName()` can name the PANE, not just the card. */
+  paneLabel?: string;
+  sessionName?: string;
 }
 
 export interface Review {

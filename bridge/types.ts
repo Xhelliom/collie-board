@@ -49,6 +49,17 @@ export interface AgentView {
    * here, because the alt screen keeps no scrollback ring at all. Absent on older Herdr servers.
    */
   readableLines?: number;
+  /**
+   * Fields from the board's card layer, present only when this pane backs an open card session (the
+   * fork's addition — see cards.ts `withCardFields`). NOT in lockstep: `branch` is set as soon as the
+   * session opens (it's the card's own field), while `ctxPct`/`ctxTokens` lag until `ContextTracker`'s
+   * first successful transcript read (REFRESH_MS, and possibly never — level 3). A card-backed pane
+   * commonly has `branch` with no `ctxPct` yet; a pane with no card has neither
+   * (UI_AUDIT.md G1/G2 — making this available to every pane is G3).
+   */
+  branch?: string;
+  ctxPct?: number;
+  ctxTokens?: number;
 }
 
 /** A Herdr workspace ("space") — a project-scoped container of tabs. From `workspace.list`. */
