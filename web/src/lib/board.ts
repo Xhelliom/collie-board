@@ -47,13 +47,20 @@ export interface CardRuntime {
   sessionName?: string;
 }
 
+/** A follow-up the review suggested, resolved to the card it became — the bridge nulls `card` once
+ *  that card is deleted, so the title survives even after the link doesn't. */
+export interface ReviewTodo {
+  title: string;
+  card: CardLink | null;
+}
+
 export interface Review {
   id: string;
   cardId: string;
   sessionId: string | null;
   verdict: string | null;
   notes: string | null;
-  todos: string[];
+  todos: ReviewTodo[];
   createdAt: number;
 }
 

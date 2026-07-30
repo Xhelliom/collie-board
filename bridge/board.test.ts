@@ -2085,9 +2085,9 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(state.asked).toBe(0);
   });
 
-  it("turns a review todo into a full backlog card, not a bare title", async () => {
+  it("turns a review todo into a full backlog card, not a bare title, and links the review to it", async () => {
     const store = db();
-    filed(store, { wrapupPending: false });
+    const reviewed = filed(store, { wrapupPending: false });
     const copilot = {
       enabled: true,
       observe() {},
@@ -2107,6 +2107,11 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(created?.spec).toBe("handles trailing commas");
     expect(created?.acceptance).toEqual(["a"]);
     expect(created?.status).toBe("backlog");
+
+    // The review points at the card it produced — what lets the reviewed card's page link to it,
+    // rather than only saying "1 follow-up added".
+    const [review] = store.listReviews(reviewed.id);
+    expect(review?.todos).toEqual([{ title: "fix the parser", cardId: created!.id }]);
   });
 });
 

@@ -21,7 +21,7 @@ import { join } from "node:path";
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
-import { isPendingWrapup, type BoardDb, type Card } from "./db.ts";
+import { isPendingWrapup, type BoardDb, type Card, type ReviewTodo } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -875,17 +875,11 @@ export class CopilotCoordinator {
       this.db.recordEvent(cardId, "copilot.review_failed", { sessionId });
       return;
     }
-    this.db.createReview({
-      cardId,
-      sessionId,
-      verdict: result.verdict ?? null,
-      notes: result.notes ?? null,
-      todos: (result.todos ?? []).map((t) => t.title),
-    });
     // The loop closes here: what the agent left in plan becomes the next cards. A full card, not a
-    // bare title — see the warning on SplitTask.
-    for (const todo of result.todos ?? []) {
-      this.db.createCard({
+    // bare title — see the warning on SplitTask. Created BEFORE the review record so the review can
+    // link to what it produced — the card the user taps through to from "N follow-ups added".
+    const todos: ReviewTodo[] = (result.todos ?? []).map((todo) => {
+      const created = this.db.createCard({
         title: todo.title,
         spec: todo.spec ?? null,
         acceptance: todo.acceptance ?? [],
@@ -893,6 +887,14 @@ export class CopilotCoordinator {
         repoPath: card.repoPath,
         baseRef: card.baseRef,
       });
-    }
+      return { title: todo.title, cardId: created.id };
+    });
+    this.db.createReview({
+      cardId,
+      sessionId,
+      verdict: result.verdict ?? null,
+      notes: result.notes ?? null,
+      todos,
+    });
   }
 }

@@ -394,8 +394,29 @@ export function CardRoute() {
                       </div>
                       {r.notes && <MarkdownText text={r.notes} />}
                       {r.todos.length > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          {r.todos.length} follow-up{r.todos.length === 1 ? "" : "s"} added to the backlog
+                        <div className="flex flex-col gap-1">
+                          {r.todos.map((todo, i) =>
+                            todo.card ? (
+                              <button
+                                key={todo.card.id}
+                                type="button"
+                                onClick={() => navigate(cardPath(todo.card!.id))}
+                                className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
+                              >
+                                <CardStatusChip status={todo.card.status} className="px-1.5" />
+                                <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
+                                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                              </button>
+                            ) : (
+                              // Deleted since — the title is what's left to show.
+                              <div
+                                key={i}
+                                className="truncate rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground line-through"
+                              >
+                                {todo.title}
+                              </div>
+                            ),
+                          )}
                         </div>
                       )}
                     </Card>
