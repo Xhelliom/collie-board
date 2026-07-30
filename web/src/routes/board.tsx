@@ -64,6 +64,8 @@ export function BoardRoute() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <main className="flex-1 pb-24">
+          {/* The screen's one h1 — the header already says "Board", but as a SectionLabel span. */}
+          <h1 className="sr-only">Board</h1>
           {empty ? (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground">
               <p>No cards yet.</p>

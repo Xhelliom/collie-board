@@ -23,7 +23,9 @@ export function SpaceView({ workspace, tabs, agents, shellPanes, selectedTab, on
   return (
     <div className="flex flex-col gap-5 px-3 py-4">
       <div className="px-1">
-        <h2 className="truncate text-sm font-semibold">{workspace.label}</h2>
+        {/* The space screen's one h1 — it's already the visible title of the screen, so it says so.
+            The per-tab headings below hang off it at h2. */}
+        <h1 className="truncate text-sm font-semibold">{workspace.label}</h1>
         <p className="text-xs text-muted-foreground">
           {workspace.tabCount} {workspace.tabCount === 1 ? "tab" : "tabs"} ·{" "}
           {workspace.paneCount} {workspace.paneCount === 1 ? "pane" : "panes"}
@@ -33,9 +35,9 @@ export function SpaceView({ workspace, tabs, agents, shellPanes, selectedTab, on
       {groups.map((g) => (
         <section key={g.tabId} className="flex flex-col gap-2">
           {selectedTab === null && (
-            <h3 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {g.label}
-            </h3>
+            </h2>
           )}
           {g.panes.length === 0 ? (
             <p className="px-1 text-xs text-muted-foreground">(empty tab)</p>

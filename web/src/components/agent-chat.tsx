@@ -499,6 +499,15 @@ export function AgentChat({
     composerRef.current?.focusInput();
   }
 
+  // The pane's name: a user-set pane label leads (the identifier they chose), then Claude's own
+  // /rename session name, otherwise the default space › tab. Shown in the header title block AND
+  // used as the screen's h1 — one string so the two can't drift.
+  const paneTitle = agent
+    ? (agent.paneLabel ??
+      agent.sessionName ??
+      `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`)
+    : "(agent gone)";
+
   return (
     <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden">
       {/* Header — the SAME AppHeader shell the dashboard and space mount, so the Collie mark is
@@ -595,14 +604,8 @@ export function AgentChat({
               <AgentIcon agent={agent.agent} className="size-6" />
             )}
             <div className="min-w-0 flex-1">
-              {/* A user-set pane label leads when present (the identifier they chose), then Claude's
-                  own /rename session name, otherwise the default space › tab. The cwd subline keeps
-                  context either way. */}
-              <div className="truncate font-semibold leading-tight">
-                {agent.paneLabel ??
-                  agent.sessionName ??
-                  `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`}
-              </div>
+              {/* The pane's name (see paneTitle), with the cwd subline keeping context either way. */}
+              <div className="truncate font-semibold leading-tight">{paneTitle}</div>
               <div className="truncate font-mono text-xs leading-tight text-muted-foreground">
                 {shortCwd(agent.cwd)}
               </div>
@@ -614,6 +617,11 @@ export function AgentChat({
           </div>
         )}
       </AppHeader>
+
+      {/* The screen's one h1. sr-only because the visible pane title lives inside the header's
+          "open the space" button, and a heading inside a button isn't exposed as one — so without
+          this, the pane switcher's section headings had no parent to hang off. */}
+      <h1 className="sr-only">{paneTitle}</h1>
 
       {/* Content region below the header — the mirror inside is the scroller. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

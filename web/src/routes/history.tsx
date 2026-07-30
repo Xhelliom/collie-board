@@ -239,7 +239,8 @@ export function HistoryRoute() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <ScrollText className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate font-semibold leading-tight">History</span>
+            {/* The screen's one h1 — it's already the visible title, so it just needed to say so. */}
+            <h1 className="truncate font-semibold leading-tight">History</h1>
           </div>
           <div className="truncate text-xs leading-tight text-muted-foreground">{title}</div>
         </div>
