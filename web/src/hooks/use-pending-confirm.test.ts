@@ -58,7 +58,9 @@ describe("usePendingConfirm", () => {
     expect(() => act(() => void result.current.confirm("kill"))).not.toThrow();
 
     const vibrate = vi.fn();
-    vi.stubGlobal("navigator", { ...navigator, vibrate });
+    // Spreading `navigator` would yield {} — its properties live on the prototype — so stub the one
+    // member the hook touches rather than pretending to clone the real thing.
+    vi.stubGlobal("navigator", { vibrate });
     act(() => {
       result.current.confirm("other"); // arms (different id) → buzz
     });
