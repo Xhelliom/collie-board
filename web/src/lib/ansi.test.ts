@@ -86,8 +86,8 @@ describe("parseAnsi — SGR colour & weight", () => {
 
   it("swaps fg/bg for inverse video (7m), with sensible fallbacks", () => {
     const segs = parseAnsi(`${ESC}[7mx`);
-    expect(segs[0]!.fg).toBe("var(--background)");
-    expect(segs[0]!.bg).toBe("var(--foreground)");
+    expect(segs[0]!.fg).toBe("var(--terminal-background)");
+    expect(segs[0]!.bg).toBe("var(--terminal-foreground)");
   });
 
   it("skips OSC sequences (window title) without leaking them into the text", () => {

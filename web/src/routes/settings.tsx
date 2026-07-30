@@ -10,6 +10,7 @@ import { ConnectionInfo } from "@/components/connection-info";
 import { Card } from "@/components/ui/card";
 import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 import { SnoozeControl } from "@/components/snooze-control";
+import { ThemeControl } from "@/components/theme-control";
 import { UpdateCheckControl } from "@/components/update-check-control";
 import { Switch } from "@/components/ui/switch";
 import { fetchConfig } from "@/lib/api";
@@ -19,7 +20,7 @@ import { homePath } from "@/lib/nav";
 import { useSession } from "@/lib/session";
 import type { PushAvailability } from "@/lib/push";
 
-// Settings page — currently just the push-notification toggle. Reachable from the home header gear.
+// Settings page — appearance + the push-notification toggle. Reachable from the home header gear.
 // Lives under the root route, so the snapshot polling/push-setup in RootLayout keeps running behind it.
 export function SettingsRoute() {
   const navigate = useNavigate();
@@ -64,6 +65,8 @@ export function SettingsRoute() {
       />
 
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4">
+        <ThemeControl />
+
         <Card className="gap-0 py-0">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="flex min-w-0 items-start gap-3">

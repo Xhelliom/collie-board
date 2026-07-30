@@ -213,7 +213,7 @@ function ReviewStep({
         </dl>
       )}
       {wizard.incomplete && (
-        <div className="flex items-center gap-1.5 text-xs text-yellow-500">
+        <div className="flex items-center gap-1.5 text-xs text-status-working">
           <AlertTriangle className="size-3.5 shrink-0" />
           You have not answered all questions
         </div>

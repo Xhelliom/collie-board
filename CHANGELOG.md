@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.54.0] - 2026-07-30
+
+### Added
+- Appearance setting (UI_AUDIT D2): Light / Dark / System toggle in Settings, replacing the hard-coded `class="dark"` — an anti-FOUC inline script in `index.html` and `useThemeSync` keep it live, including on OS theme changes.
+
+### Changed
+- The 18 flat neutral tokens (UI_AUDIT R1) now carry a cold tint — `oklch(L 0.006 250)` instead of `oklch(L 0 0)` — matching `--status-idle`/`--status-unknown`'s existing hue.
+- Header and composer chrome bars, the collie-mark ring badge, and the incomplete-answers warnings (UI_AUDIT §6.2) now read from tokens (`--chrome`, `--muted-foreground`, `--status-working`) instead of hard-coded `zinc-800`/`zinc-500`/`yellow-500`.
+- The terminal mirror (`ansi-output.tsx`) now renders on its own pinned-dark surface (`--terminal-background`/`--terminal-foreground`/`--terminal-muted`) instead of following the app theme, so the VS-Code-dark ANSI palette stays readable in light mode too.
+
 ## [0.53.1] - 2026-07-30
 
 ### Fixed
