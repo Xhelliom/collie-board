@@ -42,11 +42,18 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1) |
 | `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile` |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`) |
-| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's |
+| `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
+| `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
+| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture |
 
-Rebasing means resolving those fourteen, not the whole tree. Keep it that way: if a change wants to
-spread, it usually wants to be a new module with a hook instead. The last two are pure bug fixes
-that belong upstream — they are in the ledger, and once merged they leave this list again.
+Rebasing means resolving those sixteen, not the whole tree. Keep it that way: if a change wants to
+spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix and
+`use-display-prefs.ts` are pure bug fixes that belong upstream — they are in the ledger, and once
+merged they leave this list again.
+
+The sheet is the one entry here that is **not** meant to leave: upstream has not taken the Vaul
+dependency and this fork is not arguing that it should. Its bug fix is still PR-able, but only from
+the commit that made it — see brick 9 in [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md).
 
 ## What is PR-able, and what isn't
 

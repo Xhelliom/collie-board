@@ -206,7 +206,7 @@ alongside brick 2 or 4; on its own it configures nothing.
 |---|---|
 | Commit | `5151295` *fix(sheet): a drag in a list no longer closes the drawer, and closing is animated* |
 | Files | `web/src/components/ui/sheet.tsx`, `web/src/components/ui/sheet.test.tsx` |
-| Extraction | **Clean cherry-pick.** The file is upstream's, untouched by the board, and the two new tests come with it. |
+| Extraction | **Clean cherry-pick — from `5151295` only.** The file has since been rewritten over Vaul ([ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md)), so offer that commit, never the current file: upstream has not taken that dependency and this brick must not smuggle it in. |
 
 Every Collie user on a phone hits this: a drag down inside a sheet's list closes the sheet instead
 of scrolling it, reopening one flickers, and closing is a hard cut with no animation. Three separate

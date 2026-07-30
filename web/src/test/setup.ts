@@ -26,6 +26,14 @@ afterAll(() => server.close());
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
+// jsdom implements pointer EVENTS but not pointer CAPTURE, and Vaul claims the pointer on every
+// pointerdown inside a sheet. Without these, any test that clicks inside a sheet throws an uncaught
+// TypeError from outside the assertion path — the suite still went green while spraying 54 errors.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+  Element.prototype.hasPointerCapture = () => false;
+}
 
 // NOT a jsdom gap — a Node one, and a confusing one. Node 24+ defines its own `localStorage` global
 // that stays UNDEFINED unless the process was started with `--localstorage-file`, and it takes

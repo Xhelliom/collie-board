@@ -97,6 +97,10 @@ the unit name; the Herdr action runs from anywhere.
   followed by `revalidator.revalidate()`. There is **no TanStack Query** — don't reintroduce it.
 - Routes: `/` (home) and `/pane/:paneId` (detail). The idle-lock in `App.tsx` unmounts the
   `RouterProvider` to pause polling; the router instance is module-scoped so it keeps its location.
+- **The sheets are Vaul's.** `components/ui/sheet.tsx` is one `SheetShell` over `Drawer.Root`;
+  `BottomSheet` and `SideSheet` are one `direction` apart. Don't hand-roll the drag again, and keep
+  `data-vaul-no-drag` on everything below the header — that marking *is* the fix for "a drag in a
+  list closes the drawer". [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md).
 - **PWA** via `vite-plugin-pwa` (`web/vite.config.ts`): manifest + `sw.js`, registered manually
   from `virtual:pwa-register` in `main.tsx` (bundled = CSP-safe). Install/SW need a **secure
   context** — over plain HTTP they no-op silently (Chrome insecure-origin flag, or HTTPS, to test).

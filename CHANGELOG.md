@@ -7,6 +7,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.56.0] - 2026-07-30
+
+### Changed
+- The sheets run on Vaul: dismiss on velocity (a flick), a close threshold proportional to the panel's height, elastic edges, and a return whose duration follows the distance (0dade2b).
+- `BottomSheet` and `SideSheet` are one component, one `direction` apart; their props are unchanged, so the nine call sites moved untouched (0dade2b).
+- The iOS keyboard is handled in the four sheets with fields — Safari ignores the `interactive-widget` hint that covers Chrome (0dade2b).
+- Decision and measured bundle cost (+20.3 kB gzip): [ADR 0003](.adr/0003-vaul-owns-the-sheet-gesture.md) (0dade2b).
+
+### Fixed
+- A sheet traps focus properly, lands it on the panel rather than the ✕, and returns it to the opener (0dade2b).
+- A sheet's rounded top corners are visible again, and the bright line along its top edge is gone: the header kept the opaque background and backdrop-blur it needed as a `sticky` element inside the scroller, and as a flex sibling nothing passes under it (c1a173b).
+
+### Removed
+- The hand-rolled drag, the `backdropArmed` guard, and `session-switcher`'s manual portal — all made redundant. Net −170 lines (0dade2b).
+
 ## [0.55.0] - 2026-07-30
 
 ### Added
