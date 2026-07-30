@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.52.0] - 2026-07-30
+
+### Changed
+- Composer redesign (UI_AUDIT C1): the reply input is now full-width on its own line; the View + Controls rows collapse into one 44px-target action row (Keys/Quick/Agent/Attach/View). Find-in-output moved to the pane header.
+
 ## [0.51.0] - 2026-07-30
 
 ### Added
