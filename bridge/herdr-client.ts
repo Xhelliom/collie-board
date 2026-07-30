@@ -125,6 +125,16 @@ export const DEFAULT_TIMEOUT_MS = 5000;
 /** Budget for `agent.start`, which blocks server-side until the agent's TUI is ready for input. */
 export const AGENT_START_TIMEOUT_MS = 45_000;
 
+/**
+ * Budget for `worktree.create` / `worktree.open`: unlike most RPCs, the reply carries a live
+ * workspace, tab AND pane — herdr waits for a real shell to come up in the new checkout before
+ * replying. `git worktree add` itself is near-instant, so under normal conditions this returns
+ * fast; under load (several panes/workspaces already open, a loaded shell rc) it can outrun the
+ * generic 5 s budget and surface as a false `herdr worktree.create: timed out` — nothing was
+ * actually wrong, the operation was just still running server-side.
+ */
+export const WORKTREE_TIMEOUT_MS = 20_000;
+
 /** Raw `worktree.create` / `worktree.open` reply. */
 interface WireWorktreeResult {
   worktree: { path: string; branch?: string | null };
@@ -546,7 +556,7 @@ export class HerdrClient {
     const params: Record<string, unknown> = { cwd: opts.cwd, branch: opts.branch, focus: false };
     if (opts.base) params.base = opts.base;
     if (opts.label) params.label = opts.label;
-    const r = await this.request<WireWorktreeResult>("worktree.create", params);
+    const r = await this.request<WireWorktreeResult>("worktree.create", params, WORKTREE_TIMEOUT_MS);
     return toCreatedWorktree(r);
   }
 
@@ -558,7 +568,7 @@ export class HerdrClient {
   async openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
     const params: Record<string, unknown> = { cwd: opts.cwd, branch: opts.branch, focus: false };
     if (opts.label) params.label = opts.label;
-    const r = await this.request<WireWorktreeResult>("worktree.open", params);
+    const r = await this.request<WireWorktreeResult>("worktree.open", params, WORKTREE_TIMEOUT_MS);
     return toCreatedWorktree(r);
   }
 
