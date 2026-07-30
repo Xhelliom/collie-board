@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.57.0] - 2026-07-30
+
+### Added
+- Raw terminal now reads herdr's un-wrapped scrollback, so the mirror's own wrap is the only one left — the mode already bypasses every Claude grammar, so nothing depends on the terminal's fixed-width lines there (06c1b56).
+
+### Fixed
+- `pane.read`'s un-wrapped source is `recent_unwrapped`, not the hyphenated name the client's type and `HERDR_API.md` both carried — the socket rejects the hyphen with `invalid_request` (06c1b56).
+
+### Changed
+- UI_AUDIT §B1 answered on measurements, not on argument: un-wrapping changes **nothing** on a Claude pane (129 → 129 lines, zero lines past the terminal width — Claude's TUI wraps its own prose first), so it does not fix the transcript's double wrap. Real only on shell panes: 599 → 501 lines (06c1b56).
+
 ## [0.56.2] - 2026-07-30
 
 ### Fixed
