@@ -35,21 +35,23 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()` and `resolveByCwd()` |
 | `bridge/types.ts` | `AgentView.branch/ctxPct/ctxTokens`, set only for a pane backing an open card session (G1/G2) |
-| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag |
+| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
 | `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too |
 | `web/src/router.tsx` | two routes |
 | `web/src/routes/home.tsx` | a Board row |
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1) |
 | `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile` |
-| `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`) |
+| `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`); `rawTerminalPref()` for the loader |
 | `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
 | `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture |
 
-Rebasing means resolving those sixteen, not the whole tree. Keep it that way: if a change wants to
-spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix and
-`use-display-prefs.ts` are pure bug fixes that belong upstream — they are in the ledger, and once
-merged they leave this list again.
+Rebasing means resolving those seventeen, not the whole tree. Keep it that way: if a change wants to
+spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix,
+`use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` / `api.ts` /
+`loaders.ts`) are pure upstream material — they are in the ledger, and once merged they leave this
+list again.
 
 The sheet is the one entry here that is **not** meant to leave: upstream has not taken the Vaul
 dependency and this fork is not arguing that it should. Its bug fix is still PR-able, but only from

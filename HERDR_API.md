@@ -31,7 +31,9 @@ the socket assumptions behind the design in [`ARCHITECTURE.md`](./ARCHITECTURE.m
 | `pane.send_keys` | `{pane_id, keys}` | (ack) |
 | `agent.send` | `{target, text}` | (ack) — writes **literal** text, no Enter |
 
-- `pane.read` `source` ∈ `visible | recent | recent-unwrapped`; `format` ∈ `text | ansi`.
+- `pane.read` `source` ∈ `visible | recent | recent_unwrapped | detection`; `format` ∈ `text | ansi`.
+  **Snake_case on the wire** — the CLI advertises `--source recent-unwrapped`, but the socket rejects
+  the hyphen (`invalid_request: unknown variant`). Live-probed 2026-07-30 (herdr 0.7.x).
   **`format: "text"` returns clean plain text (no ANSI escapes)** → safe to render, no XSS surface.
 - `agent.send` writes literal text only; to submit a reply, follow with an Enter keypress
   (`pane.send_keys {keys: ["Enter"]}`) — submit-key name needs live confirmation per agent.

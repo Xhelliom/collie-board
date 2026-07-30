@@ -158,9 +158,22 @@ export async function fetchPane(
   lines?: number,
   session?: string,
   signal?: AbortSignal,
+  // Un-wrapped scrollback — the raw-terminal display path only (see the pane loader). Left OFF for
+  // the grammar callers (reply-action's verify-before-submit, harness/guard): their box-drawing
+  // detection needs the terminal's fixed-width lines, so they keep reading the wrapped source.
+  // Deliberately NOT part of the ETag cache key: the server's ETag is derived from the body it
+  // serves, so a 304 can only mean byte-identical text — a source switch always mismatches and
+  // refetches in full.
+  unwrapped = false,
 ): Promise<PaneReadResponse> {
-  const q = lines ? `?lines=${lines}` : "";
-  const url = withSession(`/api/pane/${encodeURIComponent(paneId)}${q}`, session);
+  const params = new URLSearchParams();
+  if (lines) params.set("lines", String(lines));
+  if (unwrapped) params.set("unwrapped", "1");
+  const qs = params.toString();
+  const url = withSession(
+    `/api/pane/${encodeURIComponent(paneId)}${qs ? `?${qs}` : ""}`,
+    session,
+  );
   // Pane ids are per-session (each session is a separate Herdr server), so the ETag/body cache must
   // be keyed by session too — otherwise a "w1:p1" in one session would 304 into another's mirror.
   const cacheKey = `${session ?? ""}\u0000${paneId}`;

@@ -69,6 +69,17 @@ function loadPrefs(): DisplayPrefs {
   }
 }
 
+/**
+ * The raw-terminal pref, read straight from storage for non-React callers.
+ *
+ * The pane loader has to pick Herdr's read source before any component renders, and a loader can't
+ * call a hook. Same storage, same parsing — so the source and the grammars can never disagree about
+ * which mode we're in.
+ */
+export function rawTerminalPref(): boolean {
+  return loadPrefs().rawTerminal;
+}
+
 function savePrefs(prefs: DisplayPrefs): void {
   try {
     if (typeof localStorage !== "undefined") {

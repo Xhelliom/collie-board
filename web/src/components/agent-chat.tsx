@@ -114,6 +114,15 @@ export function AgentChat({
   // Raw-terminal escape hatch: when on, every Claude grammar is bypassed and the plain mirror shows,
   // so a mis-detected/mis-rendered dialog can always be driven by hand with the keys pad.
   const grammarsOn = !prefs.rawTerminal;
+  // The toggle also switches Herdr's read source (raw = un-wrapped scrollback, see paneLoader), so
+  // refetch the moment it flips instead of leaving the old buffer up until the next poll. The effect
+  // runs after commit, i.e. after the pref has been written to storage the loader reads.
+  const lastRaw = useRef(prefs.rawTerminal);
+  useEffect(() => {
+    if (lastRaw.current === prefs.rawTerminal) return;
+    lastRaw.current = prefs.rawTerminal;
+    revalidator.revalidate();
+  }, [prefs.rawTerminal, revalidator]);
   const isShell = agent?.kind === "shell";
   // This device isn't allowlisted to type into agents: the backend rejects every write, so the
   // composer drops to read-only (and shows a banner). The mirror still polls (reading is fine).

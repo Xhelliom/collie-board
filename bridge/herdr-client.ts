@@ -111,7 +111,10 @@ export interface PaneRead {
   revision: number;
 }
 
-type ReadSource = "visible" | "recent" | "recent-unwrapped";
+// SNAKE_case on the wire — `recent-unwrapped` (the CLI's `--source` spelling, and what this type
+// said until 2026-07-30) is rejected with `invalid_request: unknown variant`. Live-probed against
+// herdr's socket; the hyphenated form has never worked.
+type ReadSource = "visible" | "recent" | "recent_unwrapped";
 type ReadFormat = "text" | "ansi";
 
 let idCounter = 0;
