@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.56.2] - 2026-07-30
+
+### Fixed
+- The "has uncommitted changes" merge warning no longer names a base branch that isn't actually checked out — it only fires when the repository really is on `state.base`, so it stops misattributing dirt from an unrelated checkout to a stale predecessor branch. (c4f672c)
+
 ## [0.56.1] - 2026-07-30
 
 ### Fixed
