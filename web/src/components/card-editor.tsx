@@ -230,7 +230,7 @@ function LinkPicker({
         )}
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground", open && "rotate-180")} />
       </button>
-      <span className="text-[11px] text-muted-foreground/70">{hint}</span>
+      <span className="text-xs text-muted-foreground/70">{hint}</span>
 
       {open && (
         <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pt-1">

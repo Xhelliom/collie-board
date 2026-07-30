@@ -271,7 +271,7 @@ export function HistoryRoute() {
                   {loading ? "Loading…" : "Load older"}
                 </button>
               ) : (
-                <div className="mb-3 text-center text-[11px] text-muted-foreground">
+                <div className="mb-3 text-center text-xs text-muted-foreground">
                   {data.fileTruncated
                     ? "Start of the readable transcript (the log was clipped at the read cap)"
                     : "Start of the conversation"}

@@ -45,3 +45,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0001](./0001-one-managed-front-door.md) | Collie manages exactly one front door | Accepted |
 | [0002](./0002-a-manual-status-ends-the-session-not-the-pane.md) | A manual status ends the session, never the pane | Accepted |
 | [0003](./0003-vaul-owns-the-sheet-gesture.md) | Vaul owns the sheet gesture | Accepted |
+| [0004](./0004-the-terminal-mirror-uses-the-platform-mono.md) | The terminal mirror uses the platform's mono | Accepted |

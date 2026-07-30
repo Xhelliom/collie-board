@@ -129,9 +129,77 @@
   --color-terminal-background: var(--terminal-background);
   --color-terminal-foreground: var(--terminal-foreground);
   --color-terminal-muted: var(--terminal-muted);
+}
 
-  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Roboto Mono", ui-monospace,
-    SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+/* Type, fonts and motion — a plain @theme, not @theme inline. These are literal values, not
+   pointers at a token that flips with the theme, and `inline` would keep --font-sans out of :root,
+   where Preflight's --default-font-family has to find it to actually set the document's face. */
+@theme {
+  /* ── Type: three roles, not seven sizes (R2) ────────────────────────────────────────────────
+     Deliberately adds no rung. The 47 arbitrary px call sites all pinned 10px or 11px — BELOW
+     Tailwind’s smallest rung, not between two of them. That is a missing decision, not a missing
+     size, so they fold onto the bottom rung instead of minting a new one. The roles:
+
+       text-base (16px)  content you read      card title, agent name, the body of a message
+       text-sm   (14px)  supporting content    a field value, a heading inside prose
+       text-xs   (12px)  metadata you scan     labels, counters, timestamps, chips — and verbatim
+                                               monospace blocks, where density IS the function
+                                               (a diff must not rewrap to read bigger)
+
+     Two ratios further down (.agent-initials, .code-inline) are NOT rungs: they size themselves
+     from whatever hosts them, which no fixed rung can express. */
+
+  /* Was never declared — the app ran on Tailwind’s default and nobody had decided anything (R3).
+     The decision is the system stack: it already ships the optical sizing, hinting and tracking
+     tables the device was tuned for. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+
+  /* "JetBrains Mono" led this list and was NEVER loaded — no @font-face, no preload, no woff2 in
+     public/ — so the terminal mirror, the centre of the app, quietly fell through to whatever each
+     device happened to have. A face declared but not loaded is a decision with no effect, which is
+     worse than either real answer; this is the other real answer. Self-hosting a woff2 stays a live
+     option (there is no font-src directive, so fonts already fall to a self-only default-src) — the
+     reasoning, and what would justify reversing it, is in .adr/0004. */
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Roboto Mono",
+    "Liberation Mono", "Droid Sans Mono", monospace;
+
+  /* ── Motion: two curves, two durations (R4) ─────────────────────────────────────────────────
+     Every animation in the app ran on Tailwind’s stock curves, which is why state changes read as
+     swaps rather than as the interface answering. Two named curves cover the whole surface:
+
+       ease-enter  decelerates — anything arriving, and any press/colour feedback. Strongest at the
+                   first frame, which is the frame the user is watching.
+       ease-exit   accelerates — anything leaving. It has already been read; get it off screen.
+
+     Never put ease-exit on an entrance: starting slow is exactly what makes an interface feel
+     sluggish. Durations stay under the 300ms where UI motion starts reading as latency.
+
+     `duration-short`/`duration-long` are referenced as duration-(--duration-short) at the call
+     site: Tailwind namespaces --ease-* into an `ease-<name>` utility but has no --duration-*
+     namespace, so the variable syntax is how a named duration reaches a class.
+
+     @starting-style was evaluated here and NOT adopted (UI_AUDIT.md part 3 §5). The one call site
+     it fits is connection-banner’s mount-then-flip-a-flag-next-tick, and it would remove only the
+     enter half: the exit still needs the flag, because the node has to outlive its own collapse
+     before unmounting. Half a mechanism replaced by a second mechanism jsdom cannot see, in
+     exchange for one setTimeout(…, 0). Revisit if a surface appears that enters without also
+     needing a delayed unmount — there isn’t one today. */
+  --ease-enter: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --duration-short: 150ms;
+  --duration-long: 250ms;
+
+  /* The 44 bare `transition-colors` in the app inherit these. Retuning the default is one line and
+     reaches every one of them — the alternative was 44 edits that would drift apart again. Which
+     also settles what the short duration is FOR: it is the default, so a transition only names a
+     duration when it wants the long one. Kept literal rather than var(--duration-short) — Tailwind
+     only emits a theme variable it can see used, and a default that resolves to nothing would fail
+     silently everywhere at once. */
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @layer base {
@@ -161,6 +229,26 @@
   h6 {
     text-wrap: balance;
   }
+}
+
+/* ── The two sizes that are ratios, not rungs ───────────────────────────────────────────────────
+   Both are `em`: they resolve against the text that hosts them, so they follow that text wherever
+   it lands instead of pinning a rung the host may not be on. Neither belongs in the type scale
+   (R2) — a rung would be wrong at one of the two call sites by construction. Kept as named classes
+   so the value is decided once here rather than re-typed per call site. */
+
+/* agent-icon.tsx — initials fallback for an agent with no logo. The tile is sized by its caller
+   (size-4 in a transcript line, size-9 on a card tile), so a fixed rung either overflows the small
+   tile or floats inside the large one. */
+.agent-initials {
+  font-size: 0.5em;
+}
+
+/* markdown-text.tsx — inline `code` inside prose. Monospace reads optically larger than the body
+   face at the same px, so it's set slightly under the line it interrupts; matching the body exactly
+   makes code spans bulge. Runs on the body rung, whatever that rung is. */
+.code-inline {
+  font-size: 0.9em;
 }
 
 /* We don't use view transitions (removed). But React Router can still fire document.startViewTransition
@@ -216,7 +304,7 @@
   height: 2px;
   overflow: hidden;
   background: color-mix(in oklab, var(--primary) 22%, transparent);
-  animation: busy-bar-appear 140ms ease-out 120ms both;
+  animation: busy-bar-appear 140ms var(--ease-enter) 120ms both;
 }
 .busy-bar__indicator {
   display: block;

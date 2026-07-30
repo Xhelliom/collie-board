@@ -89,7 +89,7 @@ function Section({
     <section className="flex flex-col gap-0.5">
       <h3
         className={cn(
-          "flex items-center gap-1.5 px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide",
+          "flex items-center gap-1.5 px-2 pb-1 text-xs font-semibold uppercase tracking-wide",
           accent ? "text-status-blocked" : "text-muted-foreground",
         )}
       >
@@ -132,10 +132,12 @@ function PaneRow({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{name}</span>
-          <span className="truncate text-[11px] text-muted-foreground">· {pane.workspaceLabel}</span>
+          {/* The agent's name is what this row is FOR — it reads at the content rung, and the
+              workspace next to it stays metadata (R2). */}
+          <span className="truncate text-base font-medium">{name}</span>
+          <span className="truncate text-xs text-muted-foreground">· {pane.workspaceLabel}</span>
         </div>
-        <div className="truncate font-mono text-[11px] text-muted-foreground">
+        <div className="truncate font-mono text-xs text-muted-foreground">
           {shortCwd(pane.cwd)}
         </div>
       </div>

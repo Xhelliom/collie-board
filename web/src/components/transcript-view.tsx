@@ -90,7 +90,7 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
         )}
       </button>
       {open && result && (
-        <pre className="overflow-x-auto border-t px-2 py-1.5 font-mono text-[11px] leading-snug whitespace-pre-wrap">
+        <pre className="overflow-x-auto border-t px-2 py-1.5 font-mono text-xs leading-snug whitespace-pre-wrap">
           {result.text}
           {result.truncated && <span className="text-muted-foreground">{"\n… output truncated"}</span>}
         </pre>
@@ -135,7 +135,7 @@ function Turn({
   if (entry.role === "summary" || entry.role === "note") {
     return (
       <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2">
-        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <Info className="size-3" />
           {entry.role === "summary" ? "Context compacted" : "System"}
           {time && ` · ${time}`}
@@ -157,10 +157,10 @@ function Turn({
           ) : (
             <AgentIcon agent={agent ?? "claude"} className="size-4" />
           )}
-          <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {isUser ? "You" : (agent ?? "agent")}
           </span>
-          {time && <span className="text-[11px] text-muted-foreground">{time}</span>}
+          {time && <span className="text-xs text-muted-foreground">{time}</span>}
         </div>
       )}
       <div className="space-y-1.5">
@@ -213,7 +213,7 @@ export function TranscriptView({
             {newDay && (
               <div className="flex items-center gap-2 pt-1">
                 <div className="h-px flex-1 bg-border" />
-                <span className="text-[11px] font-medium text-muted-foreground">{day}</span>
+                <span className="text-xs font-medium text-muted-foreground">{day}</span>
                 <div className="h-px flex-1 bg-border" />
               </div>
             )}

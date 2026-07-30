@@ -24,7 +24,7 @@ export function CardStatusChip({
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+        "shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
         CARD_STATUS_CHIP[status],
         className,
       )}

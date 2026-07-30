@@ -134,7 +134,7 @@ function PanePill({
       <span>{name}</span>
       <span
         className={cn(
-          "font-mono text-[10px]",
+          "font-mono text-xs",
           active ? "text-primary-foreground/70" : "text-muted-foreground/60",
         )}
       >

@@ -103,7 +103,7 @@ export function PreviewSelectBlock({ preview, onAction, disabled }: PreviewSelec
                 key={i}
                 aria-current={step.current ? "step" : undefined}
                 className={cn(
-                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight",
+                  "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs leading-tight",
                   step.current
                     ? "border-primary/60 bg-primary/15 font-medium text-foreground"
                     : "border-border/60 text-muted-foreground",
@@ -115,7 +115,7 @@ export function PreviewSelectBlock({ preview, onAction, disabled }: PreviewSelec
                 <span className="truncate">{step.label}</span>
               </li>
             ))}
-            <li className="flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-[11px] leading-tight text-muted-foreground">
+            <li className="flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5 text-xs leading-tight text-muted-foreground">
               <span>Submit</span>
             </li>
           </ol>
@@ -177,11 +177,11 @@ export function PreviewSelectBlock({ preview, onAction, disabled }: PreviewSelec
       {preview.preview.length > 0 && (
         <div className="rounded-lg border border-border/60 bg-muted/20 px-2 py-1.5">
           {pointedLabel && (
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Preview · {pointedLabel}
             </div>
           )}
-          <pre className="m-0 min-w-0 w-full max-w-full overflow-x-auto font-mono text-[10px] leading-[1.3] text-foreground/80">
+          <pre className="m-0 min-w-0 w-full max-w-full overflow-x-auto font-mono text-xs leading-[1.3] text-foreground/80">
             {preview.preview.join("\n")}
           </pre>
         </div>
