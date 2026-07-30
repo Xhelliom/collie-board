@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.55.0] - 2026-07-30
+
+### Added
+- Arming a two-tap confirm (Kill, /clear, Ctrl-D, …) now buzzes 10 ms where the Vibration API exists (Android); a no-op elsewhere.
+
+### Changed
+- Global typography (UI_AUDIT R5): `text-wrap: pretty` on paragraphs, `balance` on headings.
+- The three horizontal strips (Spaces, Tabs, Panes) now scroll-snap, so a chip lands aligned instead of half-cut at the edge.
+
 ## [0.54.0] - 2026-07-30
 
 ### Added

@@ -27,6 +27,9 @@ export function usePendingConfirm(timeoutMs = 3000) {
       }
       clearTimer();
       setPending(id);
+      // Haptic tick on arming, so "this tap did something, tap again" lands without looking. Android
+      // only in practice — iOS Safari has no Vibration API, hence the optional call (also covers jsdom).
+      navigator.vibrate?.(10);
       timer.current = setTimeout(() => setPending(null), timeoutMs);
       return false;
     },

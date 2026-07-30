@@ -30,7 +30,7 @@ export function SpaceStrip({
   onBack,
 }: SpaceStripProps) {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex snap-x snap-mandatory scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
       {onBack ? (
         <button
           type="button"

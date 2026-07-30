@@ -52,6 +52,26 @@ describe("usePendingConfirm", () => {
     expect(result.current.pending).toBe("b");
   });
 
+  // jsdom has no navigator.vibrate — the arm path must survive that (iOS Safari is the real case).
+  it("buzzes on arming where the Vibration API exists, and not where it doesn't", () => {
+    const { result } = renderHook(() => usePendingConfirm());
+    expect(() => act(() => void result.current.confirm("kill"))).not.toThrow();
+
+    const vibrate = vi.fn();
+    // Spreading `navigator` would yield {} — its properties live on the prototype — so stub the one
+    // member the hook touches rather than pretending to clone the real thing.
+    vi.stubGlobal("navigator", { vibrate });
+    act(() => {
+      result.current.confirm("other"); // arms (different id) → buzz
+    });
+    expect(vibrate).toHaveBeenCalledWith(10);
+    act(() => {
+      result.current.confirm("other"); // confirming tap → no buzz
+    });
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
   it("reset() disarms immediately", () => {
     const { result } = renderHook(() => usePendingConfirm());
     act(() => {

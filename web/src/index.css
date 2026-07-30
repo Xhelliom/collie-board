@@ -147,6 +147,20 @@
     @apply bg-background text-foreground;
     overscroll-behavior-y: none;
   }
+  /* Typographic finish, globally (R5): no orphan word at the end of a paragraph, and headings break
+     into even lines instead of a long line plus a stub. Both degrade to normal wrapping where
+     unsupported. `pre` is excluded on purpose — the terminal mirror and code blocks must not rewrap. */
+  p {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+  }
 }
 
 /* We don't use view transitions (removed). But React Router can still fire document.startViewTransition
