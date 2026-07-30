@@ -825,8 +825,11 @@ function IntegrationSection({
         )}
 
         {/* A warning, not a blocker: it only matters if the merge touches the same files, and git
-            is the one that knows. Said here so a refusal afterwards is not a surprise. */}
-        {!merged && state.baseDirty && (
+            is the one that knows. Said here so a refusal afterwards is not a surprise. Gated on
+            baseCheckedOut — `baseDirty` reads the checkout AS IT STANDS, not a checkout of
+            `state.base` specifically, so when the two disagree this would name the wrong branch
+            (mergeBlocker already explains that case). */}
+        {!merged && state.baseCheckedOut && state.baseDirty && (
           <p className="text-xs text-muted-foreground">
             {state.base} has uncommitted changes. The merge goes through unless it touches the same
             files — git checks before changing anything.
