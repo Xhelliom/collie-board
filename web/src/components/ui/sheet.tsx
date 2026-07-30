@@ -83,9 +83,16 @@ function SheetShell({
             className,
           )}
         >
+          {/* No background and no blur on the header. It carried both when it was `sticky` inside the
+              scrolling panel and content passed underneath it; now it is a flex sibling above its own
+              scroller, so nothing ever does. Keeping them cost two visible defects: an opaque square
+              box painting over the panel's rounded top corners (the panel can't clip it — `overflow:
+              hidden` here would also clip Vaul's ::after, which covers the overscroll bounce), and a
+              backdrop-filter sampling the page behind the drawer, which drew a bright line along the
+              top edge wherever light content sat behind it. */}
           <div
             className={cn(
-              "shrink-0 border-b border-border/60 bg-background/95 px-4 backdrop-blur-md",
+              "shrink-0 border-b border-border/60 px-4",
               atBottom ? "pb-3" : "py-3 [padding-top:calc(env(safe-area-inset-top)_+_0.75rem)]",
             )}
           >
