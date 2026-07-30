@@ -777,6 +777,7 @@ export function AgentChat({
             readOnly={readOnly}
             dialogPresent={dialogPresent}
             text={text}
+            mirrorText={display}
             terminalDraft={terminalDraft}
             rawTerminalDraft={rawTerminalDraft}
             prefs={prefs}

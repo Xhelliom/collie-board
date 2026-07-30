@@ -1,7 +1,9 @@
 import { createContext, useContext, useMemo } from "react";
+import { Check, Copy } from "lucide-react";
 
 import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
 import { splitHighlight } from "@/lib/transcript-search";
+import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
 
 // Renders the Markdown AST as React elements. Every string from the log reaches the DOM as a TEXT
 // NODE — there is no `dangerouslySetInnerHTML` here and there must never be one. That is the repo's
@@ -84,6 +86,35 @@ const Spans = ({ spans }: { spans: MdSpan[] }) => (
   </>
 );
 
+// A code block plus its own copy button — the AST already holds the block's text verbatim, so
+// copying is just handing it to the clipboard. `pr-8` on the <pre> keeps a long first line from
+// running under the button; the button sits on the outer wrapper (not the scrolling <pre>), so it
+// stays put regardless of horizontal scroll.
+function CodeBlock({ text }: { text: string }) {
+  const { canCopy, copied, copy } = useCopy();
+  return (
+    <div className="relative">
+      <pre className="overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 pr-8 font-mono text-[11px] leading-snug">
+        <Hit text={text} />
+      </pre>
+      <button
+        type="button"
+        disabled={!canCopy}
+        onClick={() => copy(text)}
+        aria-label={copied ? "Copied" : "Copy code block"}
+        title={canCopy ? "Copy" : COPY_UNAVAILABLE_TITLE}
+        className="absolute right-1 top-1 flex size-6 items-center justify-center rounded text-muted-foreground/70 transition-colors active:bg-muted disabled:pointer-events-none disabled:opacity-50"
+      >
+        {copied ? (
+          <Check className="size-3.5 text-status-working" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 const HEADING_CLASS: Record<number, string> = {
   1: "text-base font-semibold",
   2: "text-[0.95rem] font-semibold",
@@ -102,11 +133,7 @@ function Block({ block }: { block: MdBlock }) {
       );
     }
     case "code":
-      return (
-        <pre className="overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 font-mono text-[11px] leading-snug">
-          <Hit text={block.text} />
-        </pre>
-      );
+      return <CodeBlock text={block.text} />;
     case "list": {
       const Tag = block.ordered ? "ol" : "ul";
       return (

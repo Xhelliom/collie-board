@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useRouteLoaderData } from "react-router";
 
 import { cn } from "@/lib/utils";
+import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import type { UpdateInfo } from "@/lib/types";
 
@@ -49,20 +49,10 @@ export function UpdateBanner({ className }: { className?: string }) {
   // `update`) is in scope for all three footers via one read.
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const notice = updateNotice(data?.update);
-  const [copied, setCopied] = useState(false);
+  const { canCopy, copied, copy } = useCopy();
 
   if (!notice) return null;
-
-  async function copy() {
-    if (!notice?.command) return;
-    try {
-      await navigator.clipboard?.writeText(notice.command);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard blocked (insecure context / denied) — the command stays readable regardless.
-    }
-  }
+  const command = notice.command; // local const so TS narrows it inside the onClick closure below
 
   return (
     <div
@@ -85,16 +75,18 @@ export function UpdateBanner({ className }: { className?: string }) {
       ) : (
         <span className="font-medium text-status-working">{notice.line}</span>
       )}
-      {notice.command ? (
+      {command ? (
         <>
           {" · "}
           <button
             type="button"
-            onClick={copy}
-            aria-label={`Copy command: ${notice.command}`}
-            className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground/80"
+            disabled={!canCopy}
+            onClick={() => copy(command)}
+            aria-label={`Copy command: ${command}`}
+            title={canCopy ? undefined : COPY_UNAVAILABLE_TITLE}
+            className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground/80 disabled:pointer-events-none disabled:opacity-50"
           >
-            <code>{notice.command}</code>
+            <code>{command}</code>
             {copied ? (
               <Check className="size-3 text-status-working" />
             ) : (
