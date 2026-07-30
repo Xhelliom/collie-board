@@ -16,7 +16,7 @@
 
 import type { Config } from "./config.ts";
 import { isLiveStatus, isPendingWrapup, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
-import { ensureBoardExcluded } from "./git.ts";
+import { branchExists, ensureBoardExcluded, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -605,7 +605,7 @@ export async function startCard(
   herdr: HerdrClient,
   cfg: Config,
   cardId: string,
-  opts: { promptText?: string; sleep?: (ms: number) => Promise<void> } = {},
+  opts: { promptText?: string; sleep?: (ms: number) => Promise<void>; git?: GitRunner } = {},
 ): Promise<{ ok: true; value: StartResult } | { ok: false; error: StartError }> {
   const card = db.getCard(cardId);
   if (!card) return { ok: false, error: { kind: "herdr", message: "card not found" } };
@@ -663,8 +663,14 @@ export async function startCard(
   // THE REAL HANDOFF BETWEEN TWO CARDS IS THE BRANCH. A task that follows another needs the code
   // the first one wrote, not a summary of it — so a dependent card forks from its predecessor's
   // branch rather than from the repo's base ref. Falls back to its own base when the predecessor
-  // never actually ran (it has no branch), which is also what makes this safe to apply blindly.
-  const base = predecessor?.branch ?? card.baseRef;
+  // never actually ran (it has no branch), OR when it ran and its branch was since cleaned up
+  // after merge — `card.branch` outlives the ref (see `branchExists`), and handing a deleted ref
+  // to `worktree.create` as `base` fails immediately, before this even reaches herdr's retry path.
+  const predecessorBranch =
+    predecessor?.branch && (await branchExists(card.repoPath, predecessor.branch, opts.git))
+      ? predecessor.branch
+      : null;
+  const base = predecessorBranch ?? card.baseRef;
 
   // Before the checkout exists, so the notes this bridge is about to write into it are invisible to
   // git from the first `status`. In `.git/info/exclude`, never the project's `.gitignore` — see

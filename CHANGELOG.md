@@ -20,6 +20,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 - `"JetBrains Mono"` no longer leads `--font-mono`. It was never loaded — no `@font-face`, no preload, no woff2 in `public/` — so the mirror already rendered in the platform's mono while the CSS claimed otherwise (5e76d50).
 - The connection banner enters and exits on different curves, and `EXIT_MS` moved 200 → 250 to stay locked to the CSS duration it delays the unmount for (5e76d50).
 
+## [0.60.1] - 2026-07-30
+
+### Fixed
+- A card's dependency line now also shows on the card's own detail page, not just the board tile — the tile-only fix in 0.60.0 missed the screen you actually land on after tapping a dependent card (104c9d9).
+- `startCard` no longer forks a dependent card from a predecessor branch that was deleted by post-merge cleanup — that handed `worktree.create` an invalid ref and failed instantly with an unhelpful 502; now falls back to the card's own base ref, same as when the predecessor never ran (4bf57b6).
+
 ## [0.60.0] - 2026-07-30
 
 ### Added

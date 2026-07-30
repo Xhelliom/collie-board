@@ -1981,13 +1981,46 @@ describe("startCard — containers and dependencies", () => {
         return client.createWorktree(opts);
       },
     };
-    const res = await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {} });
+    const git: GitRunner = async () => ({ ok: true, stdout: "sha\n", stderr: "" });
+    const res = await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {}, git });
 
     expect(res.ok).toBe(true);
     expect(bases).toEqual(["board/first"]);
     // Persisted as resolved, because baseRef is also the left side of this card's diff — left at
     // "main" the card would show the predecessor's work as if this agent had written it.
     expect(store.getCard(next.id)!.baseRef).toBe("board/first");
+  });
+
+  it("falls back to its own base when the predecessor's branch was cleaned up after merge", async () => {
+    // card.branch outlives the ref: deleteBranch runs after a card's work is merged, but nothing
+    // clears the row, since the row is also the record that the work landed (IntegrationHistory).
+    const store = db();
+    const first = store.createCard({ title: "first", repoPath: "/repo", baseRef: "main" });
+    store.patchCard(first.id, { branch: "board/first" });
+    store.setStatus(first.id, "done", "test");
+    const next = store.createCard({
+      title: "next",
+      repoPath: "/repo",
+      baseRef: "main",
+      dependsOn: first.id,
+    });
+
+    const bases: (string | null | undefined)[] = [];
+    const { client } = fakeHerdr();
+    const spy = {
+      ...client,
+      async createWorktree(opts: { branch: string; base?: string | null }) {
+        bases.push(opts.base);
+        return client.createWorktree(opts);
+      },
+    };
+    const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "fatal: bad revision" });
+    const res = await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {}, git });
+
+    expect(res.ok).toBe(true);
+    // "main", not "board/first" — the deleted branch never reaches worktree.create as `base`.
+    expect(bases).toEqual(["main"]);
+    expect(store.getCard(next.id)!.baseRef).toBe("main");
   });
 
   it("falls back to its own base when the predecessor never actually ran", async () => {

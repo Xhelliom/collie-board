@@ -184,6 +184,18 @@ export async function resolveBase(
 }
 
 /**
+ * Does this branch still exist? A predecessor card's `branch` column outlives the branch itself —
+ * cleanup after a merge (`deleteBranch`, below) removes the ref but never clears the card's own
+ * row, since the row is also the record that the work landed. `startCard` forks a dependent card
+ * from its predecessor's branch, so it needs to know before handing a deleted ref to
+ * `worktree.create` as `base` — which fails immediately with `worktree_create_failed` otherwise.
+ */
+export async function branchExists(cwd: string, branch: string, git: GitRunner = runGit): Promise<boolean> {
+  const r = await git(["rev-parse", "--verify", `${branch}^{commit}`], cwd);
+  return r.ok;
+}
+
+/**
  * The board's own scratch directory — where the outgoing agent writes its handoff note. It is
  * plumbing, not the card's work, and it would otherwise sit at the top of every diff of a handed-off
  * card. Pure + exported for the test.
