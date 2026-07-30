@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.53.1] - 2026-07-30
+
+### Fixed
+- The wrapup ask now tells the agent to commit its work FIRST, before writing the closing note — the note's existence is what gates the copilot review and unblocks merge/cleanup, so committing after it left both refusing on uncommitted work every time. (eeb303d)
+
 ## [0.53.0] - 2026-07-30
 
 ### Added
