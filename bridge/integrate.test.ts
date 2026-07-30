@@ -17,7 +17,8 @@ import {
   type GitRunner,
   type Integration,
 } from "./git.ts";
-import { resolvePrompt } from "./integrate.ts";
+import type { CardSession } from "./db.ts";
+import { resolvePrompt, wrapupGate } from "./integrate.ts";
 
 // These three writes are the only ones in the bridge that change a git repository, and the operator
 // firing them is on a phone and cannot repair anything. So the tests here are about REFUSING: what
@@ -300,5 +301,51 @@ describe("resolvePrompt", () => {
     expect(prompt).toContain("git merge main");
     expect(prompt).toContain("Do NOT push");
     expect(prompt).toContain("do NOT check out main");
+  });
+
+  it("tells the agent to re-check divergence even if it resolved this branch before", () => {
+    const prompt = resolvePrompt("main", "board/x");
+    expect(prompt).toContain("git log --oneline HEAD..main");
+    expect(prompt).toContain("Don't skip the merge because this looks like a repeat");
+  });
+
+  it("tells the agent the merge back into the base is the operator's tap, not its own", () => {
+    const prompt = resolvePrompt("main", "board/x");
+    expect(prompt).toContain("Do NOT merge this branch back into main yourself");
+  });
+});
+
+describe("wrapupGate — cleanup must not race the closing report off the disk it lives on", () => {
+  function session(over: Partial<CardSession> = {}): CardSession {
+    return {
+      id: "s1",
+      cardId: "c1",
+      paneId: "w1:p1",
+      agentSessionId: null,
+      agentKind: null,
+      ctxTokens: null,
+      ctxPct: null,
+      handoffMd: null,
+      outcome: "done",
+      handoffRequestedAt: null,
+      startedAt: 0,
+      endedAt: 1,
+      ...over,
+    };
+  }
+
+  it("refuses while the closing report is still being written", () => {
+    expect(wrapupGate(session({ handoffRequestedAt: 1 }))).toEqual({
+      kind: "refused",
+      message: expect.stringContaining("still writing its closing report"),
+    });
+  });
+
+  it("lets cleanup through once the note has been collected", () => {
+    expect(wrapupGate(session({ handoffRequestedAt: null, handoffMd: "done" }))).toBeNull();
+  });
+
+  it("lets cleanup through when there was never a wrapup to wait for", () => {
+    expect(wrapupGate(null)).toBeNull();
   });
 });

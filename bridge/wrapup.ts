@@ -15,6 +15,13 @@
 // real "the agent has finished writing" signal (an idle status only says it stopped talking). The
 // one thing it does NOT do is touch the pane. The terminal is where you go after marking a card
 // done — to read the diff, commit, push — and it stays exactly where it was.
+//
+// Once the wrapup itself is no longer pending — collected, or given up on — there is nothing left in
+// the checkout worth waiting for, so `WrapupCoordinator` tries to clean it up on its own. This is the
+// tap-only rule's one exception, and only barely: it does not merge, push, or decide anything a
+// refusal wouldn't already have decided for the manual button — `cleanupCard` refuses exactly the
+// same way either way, so the worst an automatic attempt can do is nothing. `card.keepWorktree` is
+// the escape hatch for a branch the operator wants to poke at after the fact.
 
 import { join } from "node:path";
 
@@ -22,6 +29,7 @@ import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
+import { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the agent writes its closing note, relative to the card's checkout. */
@@ -39,18 +47,6 @@ const WRAPUP_DEADLINE_MS = 30 * 60 * 1000;
  * would read a note that isn't written yet and file an empty wrapup.
  */
 const WRAPUP_SETTLE_MS = 10_000;
-
-/**
- * A wrapup pending on this session?
- *
- * A CLOSED session still asking for a note means exactly one thing, and nothing else can produce it:
- * `requestHandoff` refuses a card with no OPEN session, and the handoff coordinator clears the marker
- * in the same breath as it closes one. Checked here rather than stored as a second column, so no
- * migration and no third state to keep consistent.
- */
-export function isPendingWrapup(session: CardSession): boolean {
-  return session.endedAt !== null && session.handoffRequestedAt !== null;
-}
 
 /**
  * What the agent is asked for. Deliberately not a handoff note: nobody is picking this up, so "the
@@ -139,7 +135,10 @@ export class WrapupCoordinator {
 
   constructor(
     private readonly db: BoardDb,
+    private readonly herdr: HerdrClient,
     private readonly now: () => number = Date.now,
+    /** Injectable so a test can watch it get called without a real repo and a real herdr. */
+    private readonly cleanup: typeof cleanupCard = cleanupCard,
   ) {}
 
   /** Called on every successful poll. Never throws — a wrapup must not break the loop. */
@@ -155,6 +154,7 @@ export class WrapupCoordinator {
       if (this.now() - session.handoffRequestedAt! > WRAPUP_DEADLINE_MS) {
         this.db.patchSession(session.id, { handoffRequestedAt: null });
         this.db.recordEvent(session.cardId, "wrapup.expired", { sessionId: session.id });
+        void this.autoCleanup(session.cardId);
         continue;
       }
       if (this.now() - session.handoffRequestedAt! < WRAPUP_SETTLE_MS) continue;
@@ -176,6 +176,7 @@ export class WrapupCoordinator {
     if (!card) return;
     try {
       // No note yet: leave the marker and try again next tick, until the deadline gives up for us.
+      // Pending, so nothing here has settled — no cleanup attempt yet either.
       const note = await this.readNote(card);
       if (note === null) return;
       this.db.patchSession(session.id, { handoffMd: note, handoffRequestedAt: null });
@@ -187,6 +188,22 @@ export class WrapupCoordinator {
       this.db.patchSession(session.id, { handoffRequestedAt: null });
       this.db.recordEvent(card.id, "wrapup.failed", { error: (err as Error).message });
     }
+    // Reached only once the marker is actually cleared above — collected or failed, both mean the
+    // wait is over.
+    await this.autoCleanup(card.id);
+  }
+
+  /**
+   * Tidy up on its own once a wrapup is no longer pending. Reuses `cleanupCard` itself, so it is
+   * exactly as safe as the manual "Clean up worktree" tap: a branch that turns out not to be fully
+   * merged, or a checkout with uncommitted work, refuses just the same and leaves the worktree for
+   * the operator to deal with by hand. `keepWorktree` is the one thing that skips the attempt
+   * outright — set once, ahead of the tap it otherwise replaces.
+   */
+  private async autoCleanup(cardId: string): Promise<void> {
+    const card = this.db.getCard(cardId);
+    if (!card || card.keepWorktree) return;
+    await this.cleanup(this.db, this.herdr, card, {});
   }
 
   /** The note the agent wrote, or null when it wrote none. */

@@ -21,11 +21,10 @@ import { join } from "node:path";
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
-import type { BoardDb, Card } from "./db.ts";
+import { isPendingWrapup, type BoardDb, type Card } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { isPendingWrapup } from "./wrapup.ts";
 
 /** Where the copilot writes its answers, relative to its own working directory. */
 const OUT_DIR = ".board/out";

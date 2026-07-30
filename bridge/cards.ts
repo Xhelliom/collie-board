@@ -15,7 +15,7 @@
 // status, cwd and agent all still come from the snapshot on every read.
 
 import type { Config } from "./config.ts";
-import { isLiveStatus, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
+import { isLiveStatus, isPendingWrapup, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
 import { ensureBoardExcluded } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -116,6 +116,20 @@ export interface CardView extends Card {
    * a restart cancels the work, and this forgets it in the same instant.
    */
   copilotBusy: boolean;
+  /**
+   * The card was filed done and its agent is still writing the closing report `WrapupCoordinator`
+   * (wrapup.ts) is waiting to collect, into a checkout `cleanup` would delete out from under it.
+   *
+   * Exists so the UI can hold off "Clean up worktree" BEFORE the tap, not just refuse it after —
+   * `session` is already null by this point (the session closed the instant the card was filed), so
+   * without this the screen has nothing to show that a note is still in flight.
+   */
+  wrapupPending: boolean;
+}
+
+/** The card's most recent session, closed or not — for facts that outlive the session itself. */
+export function lastSessionOf(db: BoardDb, cardId: string): CardSession | null {
+  return db.listSessions(cardId).at(-1) ?? null;
 }
 
 function runtimeOf(pane: AgentView): CardRuntime {
@@ -288,12 +302,15 @@ export function cardViews(
   return db.listCards(opts).map((card) => {
     const session = db.openSessionFor(card.id);
     const pane = session?.paneId ? panes.get(session.paneId) : undefined;
+    const sessions = db.listSessions(card.id);
+    const last = sessions.at(-1);
     return {
       ...card,
       session,
       runtime: pane ? runtimeOf(pane) : null,
-      sessionCount: db.listSessions(card.id).length,
+      sessionCount: sessions.length,
       copilotBusy: opts.copilotBusy?.has(card.id) ?? false,
+      wrapupPending: last ? isPendingWrapup(last) : false,
     };
   });
 }
@@ -309,12 +326,15 @@ export function cardView(
   if (!card) return null;
   const session = db.openSessionFor(card.id);
   const pane = session?.paneId ? panesById(snap).get(session.paneId) : undefined;
+  const sessions = db.listSessions(card.id);
+  const last = sessions.at(-1);
   return {
     ...card,
     session,
     copilotBusy: copilotBusy?.has(card.id) ?? false,
     runtime: pane ? runtimeOf(pane) : null,
-    sessionCount: db.listSessions(card.id).length,
+    sessionCount: sessions.length,
+    wrapupPending: last ? isPendingWrapup(last) : false,
   };
 }
 

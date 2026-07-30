@@ -113,6 +113,18 @@ describe("BoardDb", () => {
     expect(back.repoPath).toBe("/repo");
   });
 
+  it("keepWorktree defaults to off, and patchCard flips it either way", () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    expect(card.keepWorktree).toBe(false);
+
+    store.patchCard(card.id, { keepWorktree: true });
+    expect(store.getCard(card.id)!.keepWorktree).toBe(true);
+
+    store.patchCard(card.id, { keepWorktree: false });
+    expect(store.getCard(card.id)!.keepWorktree).toBe(false);
+  });
+
   it("keeps archived cards out of the board list but not out of the database", () => {
     const store = db();
     const a = store.createCard({ title: "live" });
@@ -192,6 +204,7 @@ describe("reconcileOne", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -353,6 +366,28 @@ describe("cardViews", () => {
     expect(idleView.runtime).toBeNull();
     expect(idleView.session).toBeNull();
   });
+
+  // `session` is already null on a filed card (see ADR 0002) — `wrapupPending` is what lets the
+  // screen know a closing report is still in flight when there is otherwise nothing to show for it.
+  it("flags a card whose closing report is still in flight, from its last session even though it is closed", () => {
+    const store = db();
+    const waiting = store.createCard({ title: "waiting", status: "done" });
+    const waitingSession = store.openSession({ cardId: waiting.id, paneId: "w1:p1" });
+    store.closeSession(waitingSession.id, "done");
+    store.patchSession(waitingSession.id, { handoffRequestedAt: 1 });
+
+    const collected = store.createCard({ title: "collected", status: "done" });
+    const collectedSession = store.openSession({ cardId: collected.id, paneId: "w2:p1" });
+    store.closeSession(collectedSession.id, "done");
+    store.patchSession(collectedSession.id, { handoffMd: "here is what I did" });
+
+    const never = store.createCard({ title: "never started" });
+
+    const views = cardViews(store, snapshot([]));
+    expect(views.find((v) => v.id === waiting.id)!.wrapupPending).toBe(true);
+    expect(views.find((v) => v.id === collected.id)!.wrapupPending).toBe(false);
+    expect(views.find((v) => v.id === never.id)!.wrapupPending).toBe(false);
+  });
 });
 
 describe("withCardFields", () => {
@@ -419,6 +454,17 @@ describe("parseCardBody", () => {
       value: { title: "x" },
     });
   });
+
+  it("accepts keepWorktree as a plain boolean and rejects anything else", () => {
+    expect(parseCardBody({ keepWorktree: true }, { requireTitle: false })).toEqual({
+      ok: true,
+      value: { keepWorktree: true },
+    });
+    expect(parseCardBody({ keepWorktree: "yes" }, { requireTitle: false })).toEqual({
+      ok: false,
+      error: "bad keepWorktree",
+    });
+  });
 });
 
 describe("branchFromTitle", () => {
@@ -477,6 +523,7 @@ describe("initialPrompt", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -959,6 +1006,7 @@ describe("handoff prompts", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
