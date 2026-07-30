@@ -765,7 +765,27 @@ déjà toutes les grammaires Claude, donc dans ce mode il n'y a rien à casser. 
 « prose lisible, sans boutons natifs » testable en une session réelle, et la décision se prend sur
 des faits.
 
-Le vrai correctif complet, lui, est en D1.
+**Verdict (mesuré le 2026-07-30, herdr 0.7.x, hôte à 236 colonnes).** Fait, et la réponse est non.
+
+Deux faits sont tombés en le branchant pour de vrai :
+
+1. **Ce n'était pas « un mot à changer ».** Le socket refuse `recent-unwrapped` : le nom sur le fil
+   est `recent_unwrapped`, en snake_case, alors que le CLI annonce le tiret dans `--source`. Le type
+   de `herdr-client.ts:114` et `HERDR_API.md` portaient tous les deux le tiret. Le remplacement
+   direct décrit ci-dessus aurait rendu `invalid_request` à chaque lecture de pane.
+2. **Sur un pane Claude, dé-wrapper ne change rien.** Quatre panes Claude mesurés à travers le
+   bridge : 129 → 129, 97 → 97, 129 → 129, 91 → 91 lignes, et **zéro** ligne au-delà de 236
+   colonnes dans les deux sources. La raison est structurelle : la TUI de Claude coupe elle-même sa
+   prose à la largeur du terminal avant que le PTY ne la voie, donc il ne reste aucune coupure de
+   terminal à défaire. Le double wrap du §3.1 existe bien, mais sa première coupe appartient à
+   Claude — `recent_unwrapped` ne peut pas y toucher.
+
+Le gain n'est réel que sur un pane **shell** : 599 → 501 lignes, 96 lignes logiques au-delà de 236
+colonnes (une sortie de dev-server crachant du JSON d'une ligne). C'est appréciable pour lire un log
+au téléphone, et sans rapport avec le problème que B1 prétendait résoudre.
+
+La source alternative est donc livrée derrière la bascule (elle ne coûte rien et sert aux panes
+shell), mais **B1 ne réduit pas le double wrap du transcript Claude**. Le seul correctif reste D1.
 
 ### B2. Copier
 

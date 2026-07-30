@@ -216,6 +216,38 @@ describe("requested-lines bookkeeping (Load older)", () => {
   });
 });
 
+// Raw terminal is the ONLY mode that reads Herdr's un-wrapped scrollback: it's the mode where every
+// Claude grammar is off, so nothing is left that depends on the terminal's fixed-width lines. If the
+// flag ever leaked into normal mode, the box-drawing detectors would go blind — hence both directions.
+describe("paneLoader — the raw-terminal read source", () => {
+  const capturePaneQuery = () => {
+    const seen: (string | null)[] = [];
+    server.use(
+      http.get(/\/api\/pane\/[^/]+$/, ({ request }) => {
+        seen.push(new URL(request.url).searchParams.get("unwrapped"));
+        return HttpResponse.json({ paneId: "w1:p1", text: "hi", truncated: false, revision: 1 });
+      }),
+    );
+    return seen;
+  };
+
+  beforeEach(() => localStorage.clear());
+
+  it("asks for the un-wrapped source only while the raw-terminal pref is on", async () => {
+    const seen = capturePaneQuery();
+    const { paneLoader } = await import("./loaders");
+
+    await paneLoader({ params: { paneId: "w1:p1" } }); // pref absent → normal mode
+    localStorage.setItem(
+      "collie:display-prefs:v3",
+      JSON.stringify({ wrap: false, fontSize: 12, rawTerminal: true }),
+    );
+    await paneLoader({ params: { paneId: "w1:p1" } });
+
+    expect(seen).toEqual([null, "1"]);
+  });
+});
+
 // The session in the request URL's `?s=` must reach the API as `session=` and be exposed on the
 // loader data so components don't re-derive it — and each session's keep-previous-data cache is
 // independent, so a failed refresh in one never surfaces another session's herd/pane.

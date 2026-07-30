@@ -13,6 +13,7 @@
 // no flag, no race — and because a navigation aborts any in-flight revalidation, the nav is instant
 // even while a poll's doomed fetch is still hanging.
 
+import { rawTerminalPref } from "@/hooks/use-display-prefs";
 import { fetchHistory, fetchPane, fetchSnapshot, isApiErrorStatus } from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
@@ -320,7 +321,16 @@ export async function paneLoader({
     // On a 304 fetchPane returns the cached body, so `read.text` is populated either way; the
     // `?? lastPaneText` is just belt-and-suspenders. Both paths are a success (not the error
     // branch) so the connection bar doesn't flicker on an unchanged poll.
-    const read: PaneReadResponse = await fetchPane(paneId, lines, session, request?.signal);
+    // Raw terminal reads the UN-wrapped source: no grammar runs in that mode, so nothing depends on
+    // the terminal's column cuts, and the mirror wraps once — at the phone's width. Read per run, so
+    // flipping the toggle takes effect on the next poll (AgentChat forces one immediately).
+    const read: PaneReadResponse = await fetchPane(
+      paneId,
+      lines,
+      session,
+      request?.signal,
+      rawTerminalPref(),
+    );
     const text = read.text || lastPaneText.get(key) || "";
     rememberPaneText(key, text);
     rememberAuthError(session, false);

@@ -430,9 +430,20 @@ async function readPane(
     Number.isFinite(linesParam) && linesParam > 0
       ? Math.min(linesParam, MAX_READ_LINES)
       : cfg.readLines;
+  // Un-wrapped scrollback: Herdr hands back the logical lines, without the terminal's own column
+  // cuts, so the mirror's CSS `pre-wrap` becomes the only wrap — at the phone's real width instead
+  // of the host terminal's. Opt-in and reserved to the raw-terminal escape hatch, where every Claude
+  // grammar is already bypassed: the box-drawing detectors need fixed-width lines, and this takes
+  // them away. A boolean flag, not a free-form `source=`, so a client can't ask for an arbitrary one.
+  const unwrapped = url.searchParams.get("unwrapped") === "1";
   try {
     // "ansi" so the client can render a faithful, colored terminal mirror.
-    const read = await herdr.readPane(paneId, "recent", lines, "ansi");
+    const read = await herdr.readPane(
+      paneId,
+      unwrapped ? "recent_unwrapped" : "recent",
+      lines,
+      "ansi",
+    );
     const data = paneReadResponse(paneId, read);
     // ETag is derived from the serialised body — if content hasn't changed the client gets a 304
     // and skips the whole transfer (the big win on a cellular link).
