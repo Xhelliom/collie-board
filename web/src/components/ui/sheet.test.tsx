@@ -2,20 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { BottomSheet, SideSheet } from "./sheet";
 
-// jsdom has no TouchEvent, so build one: a bubbling, cancelable Event carrying the single `touches`
-// entry the sheet reads. fireEvent(el, event) dispatches it wrapped in act().
-function touch(el: Element, type: "touchstart" | "touchmove" | "touchend", clientY: number) {
-  const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, "touches", { value: [{ clientY }] });
-  fireEvent(el, event);
-}
+// The sheet is Vaul's drawer now, so what is worth testing here changed shape: the drag physics is
+// the library's and is tested there, while what remains OURS is the shell around it — the labelling,
+// the single accessible Close, where focus goes, which dismiss paths fire `onClose`, and which
+// regions are marked no-drag. Those are what these tests hold.
+const dialog = () => screen.getByRole("dialog");
+const overlay = () => document.querySelector("[data-vaul-overlay]") as HTMLElement;
 
-const panelOf = (container: HTMLElement) =>
-  container.querySelector('div[tabindex="-1"]') as HTMLElement;
-
-// Focus + labelling: the sheets are role=dialog/aria-modal, so they should be named by their title,
-// move focus inside on open, restore it on close, and expose exactly ONE accessible "Close" (the
-// header ✕) — the full-screen backdrop stays tappable but is hidden from assistive tech.
 describe("sheet — focus & labelling", () => {
   it("labels the dialog with its title (aria-labelledby)", () => {
     render(
@@ -26,24 +19,16 @@ describe("sheet — focus & labelling", () => {
     expect(screen.getByRole("dialog", { name: "Keys" })).toBeInTheDocument();
   });
 
-  it("exposes a single accessible Close (✕); the backdrop is aria-hidden but still dismisses on a real tap (down+up on it)", () => {
-    const onClose = vi.fn();
-    const { container } = render(
-      <SideSheet open onClose={onClose} title="Navigate">
+  it("exposes a single accessible Close (✕) — the overlay is not a second one", () => {
+    render(
+      <SideSheet open onClose={vi.fn()} title="Navigate">
         body
       </SideSheet>,
     );
-    // Only the header ✕ is in the a11y tree now — no giant duplicate "Close" from the backdrop.
     expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(1);
-    // ...but the backdrop still closes on a genuine press-and-release on it.
-    const backdrop = container.querySelector('button[aria-hidden="true"]');
-    expect(backdrop).not.toBeNull();
-    fireEvent.pointerDown(backdrop!);
-    fireEvent.click(backdrop!);
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("moves focus into the panel on open and restores it to the opener on close", () => {
+  it("moves focus into the panel on open and restores it to the opener on close", async () => {
     const opener = document.createElement("button");
     opener.textContent = "open";
     document.body.appendChild(opener);
@@ -55,8 +40,10 @@ describe("sheet — focus & labelling", () => {
         body
       </BottomSheet>,
     );
-    // Focus is now inside the dialog panel (not left on the opener behind the modal).
-    expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
+    // Vaul leaves focus on the opener (behind the modal) unless told otherwise, and Radix's own
+    // default would take the first tabbable — the ✕, where an Enter closes what you just opened.
+    // Neither: the panel itself takes it.
+    await waitFor(() => expect(document.activeElement).toBe(dialog()));
     expect(document.activeElement).not.toBe(opener);
 
     rerender(
@@ -64,49 +51,47 @@ describe("sheet — focus & labelling", () => {
         body
       </BottomSheet>,
     );
-    expect(document.activeElement).toBe(opener);
+    await waitFor(() => expect(document.activeElement).toBe(opener));
     opener.remove();
   });
 });
 
-// The on-device bug: a long-press that opens the sheet leaves the finger down at mount time: the
-// browser's release `click` lands wherever the finger now is, which is the backdrop — and closing on
-// ANY backdrop click meant the sheet closed in the same instant it opened. The fix arms the dismiss
-// only when the pointer went DOWN on the backdrop too (press AND release on it), so a click whose
-// pointerdown started elsewhere (the pill, in the real gesture) is ignored.
-describe("BottomSheet — backdrop dismiss requires press AND release on the backdrop", () => {
-  it("stays open when pointerdown happened elsewhere (not the backdrop) and only the click lands on it", () => {
+// The on-device bug from the long-press sheets: a long-press that opens the sheet leaves the finger
+// down at mount time, so the browser's release `click` lands wherever the finger now is — the
+// overlay. Closing on any overlay click meant the sheet closed in the same instant it opened. The
+// hand-rolled version guarded this with a `backdropArmed` ref; Radix's outside-POINTERDOWN rule does
+// it by construction, and this test is what says so out loud.
+describe("BottomSheet — dismiss paths", () => {
+  it("stays open on a click whose pointerdown never landed outside (the long-press release)", async () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <BottomSheet open onClose={onClose} title="Actions">
         body
       </BottomSheet>,
     );
-    // Simulate the pointerdown landing on something other than the backdrop (e.g. the pane pill that
-    // triggered the long-press), then the release click landing on the backdrop.
-    fireEvent.pointerDown(document.body);
-    const backdrop = container.querySelector('button[aria-hidden="true"]')!;
-    fireEvent.click(backdrop);
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    fireEvent.click(overlay());
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(dialog()).toBeInTheDocument();
   });
 
-  // The three paths below now close through the exit animation, so `onClose` lands one frame-set
-  // later (CLOSE_MS) rather than synchronously — hence the waitFor.
-  it("closes when both pointerdown and click land on the backdrop (a genuine backdrop tap)", async () => {
+  it("closes on a genuine tap: pointerdown on the overlay, then its release", async () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <BottomSheet open onClose={onClose} title="Actions">
         body
       </BottomSheet>,
     );
-    const backdrop = container.querySelector('button[aria-hidden="true"]')!;
-    fireEvent.pointerDown(backdrop);
-    fireEvent.click(backdrop);
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    // A touch dismiss is deliberately two-part in Radix: the pointerdown outside arms it, the click
+    // fires it. That pairing IS the long-press fix above — a release with no matching press does
+    // nothing.
+    fireEvent.pointerDown(overlay(), { pointerType: "touch" });
+    fireEvent.click(overlay());
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("the ✕ button still closes regardless of the backdrop arm state", async () => {
+  it("closes on the ✕", async () => {
     const onClose = vi.fn();
     render(
       <BottomSheet open onClose={onClose} title="Actions">
@@ -117,100 +102,54 @@ describe("BottomSheet — backdrop dismiss requires press AND release on the bac
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("Escape still closes regardless of the backdrop arm state", async () => {
+  it("closes on Escape", async () => {
     const onClose = vi.fn();
     render(
       <BottomSheet open onClose={onClose} title="Actions">
         body
       </BottomSheet>,
     );
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-  });
-
-  it("re-arms per open: a stale arm from a previous open doesn't leak into the next one", () => {
-    const onClose = vi.fn();
-    const { container, rerender } = render(
-      <BottomSheet open onClose={onClose} title="Actions">
-        body
-      </BottomSheet>,
-    );
-    const backdrop = () => container.querySelector('button[aria-hidden="true"]')!;
-    fireEvent.pointerDown(backdrop());
-    // Close via Escape instead of the (now-armed) backdrop click, leaving the arm flag set to true.
-    fireEvent.keyDown(window, { key: "Escape" });
-    rerender(
-      <BottomSheet open={false} onClose={onClose} title="Actions">
-        body
-      </BottomSheet>,
-    );
-    rerender(
-      <BottomSheet open onClose={onClose} title="Actions">
-        body
-      </BottomSheet>,
-    );
-    onClose.mockClear();
-    // A click with no pointerdown in this new open should NOT close, even though a stale arm from the
-    // previous open was left set to true.
-    fireEvent.click(backdrop());
-    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
-// The reported feel: "a drag down inside a list closes the drawer". Two separate causes, both here.
-describe("BottomSheet — pull-to-dismiss", () => {
-  it("a pull that starts on a control or inside a scroller scrolls, it does not dismiss", () => {
-    const onClose = vi.fn();
-    const { container } = render(
-      <BottomSheet open onClose={onClose} title="Actions">
+// The reported bug: "a drag down inside a list closes the drawer". Vaul arms its pull-to-dismiss
+// from anywhere on the panel that is not marked, so the fix is a marking, not a gesture handler —
+// which is exactly what is asserted here. The gesture ITSELF (velocity, threshold, elasticity) is
+// Vaul's and is not re-tested in jsdom: it needs pointer capture and real layout, and a test that
+// faked those would only assert our fake.
+describe("sheet — what the pull-to-dismiss may not touch", () => {
+  it("marks the whole body no-drag, so a touch on a field or a list can never arm the dismiss", () => {
+    render(
+      <BottomSheet open onClose={vi.fn()} title="Actions">
         <input aria-label="q" />
-        <div data-testid="list" style={{ overflowY: "auto" }}>
+        <div data-testid="list">
           <p>row</p>
         </div>
       </BottomSheet>,
     );
-    const panel = panelOf(container);
-
-    // From a field: the gesture belongs to the field (caret drag / native scroll), never to dismiss.
-    const field = screen.getByLabelText("q");
-    touch(field, "touchstart", 100);
-    touch(field, "touchmove", 320);
-    touch(field, "touchend", 320);
-    expect(onClose).not.toHaveBeenCalled();
-    expect(panel.style.transform).toBe("");
-
-    // From a scrollable region inside the sheet: same — that region owns the vertical gesture.
-    const list = screen.getByTestId("list");
-    Object.defineProperty(list, "scrollHeight", { value: 500 });
-    Object.defineProperty(list, "clientHeight", { value: 100 });
-    const row = screen.getByText("row");
-    touch(row, "touchstart", 100);
-    touch(row, "touchmove", 320);
-    touch(row, "touchend", 320);
-    expect(onClose).not.toHaveBeenCalled();
-    expect(panel.style.transform).toBe("");
+    // Vaul walks up from the touch target looking for [data-vaul-no-drag]; every one of these finds it.
+    expect(screen.getByLabelText("q").closest("[data-vaul-no-drag]")).not.toBeNull();
+    expect(screen.getByText("row").closest("[data-vaul-no-drag]")).not.toBeNull();
   });
 
-  it("closes on a real pull, and leaves no residual transform behind for the next open", async () => {
-    const onClose = vi.fn();
-    const sheet = (open: boolean) => (
-      <BottomSheet open={open} onClose={onClose} title="Actions">
+  it("leaves the header draggable — it is the grab zone the handle advertises", () => {
+    render(
+      <BottomSheet open onClose={vi.fn()} title="Actions">
         body
-      </BottomSheet>
+      </BottomSheet>,
     );
-    const { container, rerender } = render(sheet(true));
+    const header = screen.getByText("Actions").closest("div")!;
+    expect(header.closest("[data-vaul-no-drag]")).toBeNull();
+  });
 
-    // A pull from the panel itself (at scrollTop 0), well past the 90px close threshold.
-    const panel = panelOf(container);
-    touch(panel, "touchstart", 100);
-    touch(panel, "touchmove", 260);
-    expect(panel.style.transform).toBe("translateY(160px)");
-    touch(panel, "touchend", 260);
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-
-    // Reopen: the panel must come back at rest. A leftover translateY here is the flicker.
-    rerender(sheet(false));
-    rerender(sheet(true));
-    expect(panelOf(container).style.transform).toBe("");
+  it("marks a SideSheet footer no-drag too — its buttons are not a grab zone", () => {
+    render(
+      <SideSheet open onClose={vi.fn()} title="Navigate" footer={<button>Act</button>}>
+        body
+      </SideSheet>,
+    );
+    expect(screen.getByRole("button", { name: "Act" }).closest("[data-vaul-no-drag]")).not.toBeNull();
   });
 });
