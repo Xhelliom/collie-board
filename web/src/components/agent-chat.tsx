@@ -9,7 +9,7 @@ import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { isConnecting } from "@/lib/connection";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
-import { BottomSheet } from "@/components/ui/sheet";
+import { BottomSheet, GrabHandle } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/app-header";
 import { AnsiOutput } from "@/components/ansi-output";
 import { parseAnsi } from "@/lib/ansi";
@@ -745,7 +745,7 @@ export function AgentChat({
               onClick={() => setDrawer("switcher")}
               className="flex w-full touch-none items-center justify-center py-3.5 transition-colors active:bg-muted/50"
             >
-              <span className="h-1.5 w-12 rounded-full bg-muted-foreground/50" />
+              <GrabHandle />
             </button>
           )}
 

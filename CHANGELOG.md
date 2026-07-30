@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.56.1] - 2026-07-30
+
+### Fixed
+- A sheet no longer draws a hairline across its top: it read as a bright seam in dark and a grey one in light, cutting the rounded corners instead of edging them (c4aa87c).
+- The sheet's grab handle and the swipe-up handle that opens it are one `GrabHandle`, at the larger of the two sizes — the same affordance either side of one transition was drawn two different ways (c4aa87c).
+
 ## [0.56.0] - 2026-07-30
 
 ### Changed
