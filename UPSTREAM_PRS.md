@@ -240,7 +240,7 @@ routes through — Android gets the tick, iOS Safari and jsdom no-op on the opti
 
 | | |
 |---|---|
-| Commit | `92b0161` *feat(board): the un-wrapped read source, behind the raw-terminal toggle* |
+| Commit | `06c1b56` *feat(board): the un-wrapped read source, behind the raw-terminal toggle* |
 | Files | `bridge/server.ts`, `bridge/herdr-client.ts`, `web/src/lib/{api,loaders}.ts`, `web/src/hooks/use-display-prefs.ts`, `web/src/components/agent-chat.tsx`, `HERDR_API.md` |
 | Extraction | **Clean cherry-pick.** Every file is upstream's; no card is in sight. |
 
