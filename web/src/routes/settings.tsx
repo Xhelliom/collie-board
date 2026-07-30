@@ -64,6 +64,10 @@ export function SettingsRoute() {
         rightLead={<SectionLabel className="pr-1">Settings</SectionLabel>}
       />
 
+      {/* The screen's one h1 — the header already says "Settings", but as a SectionLabel span. Kept
+          outside <main>, whose space-y-4 would otherwise hand its first real child a stray margin. */}
+      <h1 className="sr-only">Settings</h1>
+
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4">
         <ThemeControl />
 

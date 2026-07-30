@@ -55,6 +55,10 @@ export function HomeRoute() {
 
       {/* Content region below the header: a viewport-clipped internal scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* The screen's one h1. Visually redundant with the wordmark in the header (which sits inside
+            a button, where a heading wouldn't be exposed as one), so it's sr-only — but without it the
+            triage and Spaces h2s below are an orphan tree to anyone navigating by heading. */}
+        <h1 className="sr-only">Herd</h1>
         <ReadOnlyBanner device={data.device} />
 
         {/* The fork's entry point: the durable board sits one tap from the ephemeral triage. Kept as

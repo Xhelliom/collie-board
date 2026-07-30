@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider, useParams } from "react-router";
@@ -93,7 +93,9 @@ function SpaceOverviewSentinel() {
 describe("AgentChat — header title block", () => {
   it("leads with the space, puts the directory on the subline, and drops the redundant agent name", () => {
     renderChat(); // claude @ /home/you/webapp → ~/webapp
-    expect(screen.getByText("webapp")).toBeInTheDocument(); // space leads
+    // Scoped to the header: the same name is also the screen's sr-only h1 (which the header's own
+    // title text can't be, since it lives inside a button — a heading there isn't exposed as one).
+    expect(within(screen.getByRole("banner")).getByText("webapp")).toBeInTheDocument(); // space leads
     expect(screen.getByText("~/webapp")).toBeInTheDocument(); // directory on the subline
     // The agent is conveyed by its icon (aria-label only), so its name isn't repeated as text.
     expect(screen.queryByText(/claude/i)).toBeNull();

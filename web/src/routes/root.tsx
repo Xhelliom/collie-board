@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData, useParams, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useNavigate, useParams, useRouteError } from "react-router";
 
 import { usePolling } from "@/hooks/use-polling";
 import { usePollBusy } from "@/hooks/use-poll-busy";
@@ -8,7 +8,7 @@ import { useConnectionLost } from "@/hooks/use-connection-lost";
 import { UpdateAvailableBanner } from "@/components/update-available-banner";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
-import { homePath } from "@/lib/nav";
+import { homePath, panePath } from "@/lib/nav";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type { HomeData } from "@/lib/loaders";
 
@@ -89,29 +89,42 @@ export function BootSplash() {
   );
 }
 
-// Last-resort recovery screen for a render-phase error or a loader throw — a full reload re-runs the
-// loaders from scratch, which clears most transient failures.
-export function RootError() {
+// Recovery screen for a render-phase error or a loader throw. Mounted as the errorElement of the root
+// AND of each leaf that can fail on its own (pane, card, board, history) — a broken pane must not take
+// the board and the dashboard down with it, which is the whole point of putting it on the children.
+//
+// The way out is a client-side navigation to the parent screen, NOT a reload: the router remounts the
+// parent's element and re-runs its loader, which clears the error boundary and keeps everything
+// already in memory. `to` names that parent (default: the dashboard).
+export function RootError({ to }: { to?: string }) {
   const error = useRouteError();
+  const navigate = useNavigate();
   const message = error instanceof Error ? error.message : "Unknown error";
+  // h-[100dvh] is for the root barrier (it replaces the whole app); flex-1 min-h-0 is for the leaf
+  // ones, which render inside RootLayout's viewport column and must not push it past the screen.
   return (
-    <div className="flex h-[100dvh] flex-col items-center justify-center gap-3 p-6 text-center">
-      <p className="font-medium text-destructive">Something went wrong</p>
+    <div className="flex h-[100dvh] min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      <h1 className="font-medium text-destructive">Something went wrong</h1>
       <p className="max-w-xs text-sm text-muted-foreground">{message}</p>
       <button
         type="button"
-        onClick={() => {
-          // Reload home, but stay in the session you were in (read from the live URL, since the
-          // router context may be the throwing one). Primary → plain "/".
-          const session = normalizeSession(
-            new URLSearchParams(window.location.search).get(SESSION_PARAM),
-          );
-          window.location.assign(homePath(session));
-        }}
+        onClick={() => navigate(to ?? homePath(sessionFromUrl()))}
         className="text-sm underline underline-offset-4"
       >
-        Reload
+        Go back
       </button>
     </div>
   );
+}
+
+// The history route's barrier: its parent is the pane it belongs to, which needs the live :paneId.
+export function PaneError() {
+  const { paneId = "" } = useParams();
+  return <RootError to={panePath(paneId, sessionFromUrl())} />;
+}
+
+// The session we're in, read from the live URL rather than the router context — the context we're
+// rendering in is the throwing one. Primary → undefined → a plain, unsuffixed path.
+function sessionFromUrl(): string | undefined {
+  return normalizeSession(new URLSearchParams(window.location.search).get(SESSION_PARAM));
 }
