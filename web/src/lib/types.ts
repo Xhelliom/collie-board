@@ -37,14 +37,15 @@ export interface AgentView {
    * bridges/Herdr, which reads as "unknown" (the button then falls back to hidden).
    */
   readableLines?: number;
-  /**
-   * Fields from the board's card layer, present only when this pane backs an open card session
-   * (bridge `withCardFields` in cards.ts). NOT in lockstep: `branch` is set as soon as the session
-   * opens, while `ctxPct`/`ctxTokens` lag until the tracker's first successful transcript read (and
-   * may never appear at all) — a card-backed pane commonly has `branch` with no `ctxPct` yet
-   * (UI_AUDIT.md G1/G2).
-   */
+  /** The card's branch, present only when this pane backs an open card session (bridge `withCardFields`). */
   branch?: string;
+  /**
+   * Context occupancy, for ANY agent pane — card-backed or launched by hand (bridge
+   * `ContextTracker.enrich`, UI_AUDIT.md G3). Absent until the tracker's first successful transcript
+   * read (its own 30 s cadence), and possibly forever: an agent whose transcript format we can't read
+   * gets no gauge rather than a made-up one. So `branch` and `ctxPct` are NOT in lockstep — a
+   * card-backed pane commonly has `branch` with no `ctxPct` yet.
+   */
   ctxPct?: number;
   ctxTokens?: number;
 }

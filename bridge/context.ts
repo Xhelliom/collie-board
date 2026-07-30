@@ -22,6 +22,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { latestUsage, type TranscriptSource } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
+import type { AgentView } from "./types.ts";
 
 /**
  * How often one session's transcript is re-read. The snapshot poll ticks every 1.5 s; re-reading a
@@ -44,15 +45,30 @@ export function contextPercent(tokens: number, windowTokens: number): number | n
 }
 
 /**
- * Tracks context occupancy for every card with a running agent, and reports it both to the board
- * (so the card can show a gauge) and to herdr (so the TUI can).
+ * Tracks context occupancy for every AGENT PANE in the herd — card-backed or launched by hand — and
+ * reports it to the pane snapshot (so any screen can show a gauge), to the board (for the panes that
+ * do back a card), and to herdr (so the TUI shows the same number).
  *
  * Driven by the same snapshot poll as everything else — there is no timer in here — but throttled
  * per pane, so the expensive part (a transcript read) happens on ITS own cadence.
+ *
+ * THE COST OF READING EVERY PANE, measured 2026-07-30 on this machine's ~/.claude/projects (378 logs,
+ * 0.3–18 MB), per pane per REFRESH_MS: `resolve` 1–5 ms, `load` 0.3–60 ms, `latestUsage` 1–44 ms —
+ * median 10–23 ms, worst 110 ms on the 18 MB outlier. A twelve-agent herd therefore spends ~230–320 ms
+ * every 30 s, i.e. ~1 % of one core. That is cheap enough to read the whole herd, so the narrower
+ * "open pane + card panes" variant isn't built: it would need the bridge to track which pane the phone
+ * has open, which is more state and more code than the reads it would save.
  */
 export class ContextTracker {
   /** paneId → last time we read its transcript. */
   private readonly lastRead = new Map<string, number>();
+
+  /**
+   * paneId → last known occupancy. IN MEMORY ONLY: for a pane with no card this is runtime state, and
+   * the fork's rule is that runtime state never reaches the database (`card` durable, `session`
+   * ephemeral). Served with the snapshot by {@link enrich}; dropped when the pane goes away.
+   */
+  private readonly occupancy = new Map<string, { pct: number | null; tokens: number }>();
 
   constructor(
     private readonly db: BoardDb,
@@ -71,47 +87,85 @@ export class ContextTracker {
    */
   async update(snap: EngineSnapshot): Promise<void> {
     if (snap.bridge === "disconnected") return;
-    const live = new Set([...snap.agents, ...snap.shellPanes].map((p) => p.paneId));
+    // Agent-bearing panes only. A bare shell has no agent and therefore no transcript, so scanning
+    // one by cwd would only ever find some OTHER agent's log — a wrong number, which is worse than
+    // none. That also means a card whose agent has exited stops refreshing, as it should.
+    const live = new Set(snap.agents.map((p) => p.paneId));
 
-    // Forget panes that are gone, so the throttle map can't grow for the process's lifetime.
+    // Forget panes that are gone, so neither map can grow for the process's lifetime.
     for (const paneId of [...this.lastRead.keys()]) {
-      if (!live.has(paneId)) this.lastRead.delete(paneId);
+      if (!live.has(paneId)) {
+        this.lastRead.delete(paneId);
+        this.occupancy.delete(paneId);
+      }
     }
 
-    // The pane's cwd is the second way in when herdr reports no agent_session (the default without
-    // `herdr integration install claude`) — see TranscriptSource.resolveByCwd.
-    const cwdOf = new Map([...snap.agents, ...snap.shellPanes].map((p) => [p.paneId, p.cwd]));
+    // The card layer is now a LOOKUP, not the iteration source: it says which panes also deserve a
+    // durable write, and carries the session id herdr may not report for the pane itself.
+    const sessionByPane = new Map(
+      this.db
+        .listOpenSessions()
+        .filter((s) => s.paneId !== null)
+        .map((s) => [s.paneId!, s] as const),
+    );
 
-    const due = this.db.listOpenSessions().filter((s) => {
-      if (!s.paneId || !live.has(s.paneId)) return false;
+    const due = snap.agents.filter((pane) => {
       // Level 3 by construction: an agent whose transcript format we can't read gets no gauge, and
       // no wasted filesystem scan either.
-      if (s.agentKind && !adapterFor(this.adapters, s.agentKind).context) return false;
-      if (!s.agentSessionId && !cwdOf.get(s.paneId)) return false;
-      const last = this.lastRead.get(s.paneId);
+      if (!adapterFor(this.adapters, pane.agent).context) return false;
+      // No session id and no cwd leaves nothing to resolve a log from.
+      if (!pane.agentSessionId && !sessionByPane.get(pane.paneId)?.agentSessionId && !pane.cwd) {
+        return false;
+      }
+      const last = this.lastRead.get(pane.paneId);
       return last === undefined || this.now() - last >= REFRESH_MS;
     });
 
     await Promise.all(
-      due.map(async (session) => {
-        const paneId = session.paneId!;
+      due.map(async (pane) => {
+        const paneId = pane.paneId;
         this.lastRead.set(paneId, this.now());
+        const session = sessionByPane.get(paneId);
         try {
-          const path = session.agentSessionId
-            ? await this.source.resolve(session.agentSessionId)
-            : await this.resolveWithoutIntegration(paneId, cwdOf.get(paneId)!);
+          // The pane's own id first — it's the live one; the card's is the fallback for a session
+          // whose id herdr reported once and no longer does.
+          const sessionId = pane.agentSessionId ?? session?.agentSessionId ?? null;
+          const path = sessionId
+            ? await this.source.resolve(sessionId)
+            : await this.resolveWithoutIntegration(paneId, pane.cwd);
           if (path === null) return; // level 3: no log for this agent, and that is fine
           const { text } = await this.source.load(path);
           const usage = latestUsage(text);
           if (!usage) return;
           const pct = contextPercent(usage.tokens, this.windowTokens);
-          this.db.patchSession(session.id, { ctxTokens: usage.tokens, ctxPct: pct });
+          this.occupancy.set(paneId, { pct, tokens: usage.tokens });
+          // Durable ONLY for a pane backing a card — that number is part of the card's record (the
+          // card screen and the handoff hint read it). A pane with no card writes nothing.
+          if (session) this.db.patchSession(session.id, { ctxTokens: usage.tokens, ctxPct: pct });
           if (pct !== null) await this.report(paneId, pct);
         } catch {
           // Level 3. Keep the last known figure rather than blanking a gauge on one bad read.
         }
       }),
     );
+  }
+
+  /**
+   * Overlay the occupancy we hold in memory onto snapshot panes, so every pane screen and every home
+   * tile can show the gauge — not just the ones backing a card (UI_AUDIT.md G3). A pane we have no
+   * figure for is returned untouched, so "absent stays absent" and the UI simply renders no gauge.
+   */
+  enrich(panes: AgentView[]): AgentView[] {
+    if (this.occupancy.size === 0) return panes;
+    return panes.map((p) => {
+      const seen = this.occupancy.get(p.paneId);
+      if (seen === undefined) return p;
+      return {
+        ...p,
+        ...(seen.pct !== null ? { ctxPct: seen.pct } : {}),
+        ctxTokens: seen.tokens,
+      };
+    });
   }
 
   /**

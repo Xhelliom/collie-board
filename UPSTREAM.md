@@ -29,12 +29,12 @@ What was touched in upstream files, and why — this list is the thing to keep s
 
 | File | Change |
 |---|---|
-| `bridge/server.ts` | one import + one dispatch block for `/api/cards`, plus `board`/`copilot` in the options; `withCardFields()` overlaid onto the primary session's snapshot panes |
+| `bridge/server.ts` | one import + one dispatch block for `/api/cards`, plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes |
 | `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks |
 | `bridge/config.ts` | the `board*` config block |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()` and `resolveByCwd()` |
-| `bridge/types.ts` | `AgentView.branch/ctxPct/ctxTokens`, set only for a pane backing an open card session (G1/G2) |
+| `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
 | `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag |
 | `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
 | `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too |

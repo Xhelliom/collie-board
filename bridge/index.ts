@@ -143,6 +143,10 @@ if (!updateRepo) {
   clearInterval(updateTimer);
 }
 
+// The context gauge, primary session only (the board is). Built by the factory below, which the
+// registry runs at construction — so it is set well before startServer() reads it.
+let contextTracker: ContextTracker | null = null;
+
 // ── Per-session runtime factory ──────────────────────────────────────────────
 // One HerdrClient + StateEngine + EventPoker + NotificationCoordinator per herdr session. The
 // registry calls this for the primary at construction and for each session discovered later. Push,
@@ -182,13 +186,16 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate((snap) => reconcile(board, snap));
     // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
     // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.
-    const context = new ContextTracker(
+    // Hoisted out so the server can overlay the figures onto the snapshot it serves — they live in
+    // the tracker's memory, not in the database (see ContextTracker.enrich).
+    contextTracker = new ContextTracker(
       board,
       herdr,
       new ClaudeTranscriptSource(cfg.transcriptRoot),
       cfg.boardCtxWindow,
       adapters,
     );
+    const context = contextTracker;
     engine.onUpdate((snap) => void context.update(snap));
     // Handoffs finish here too: the request only prompts the agent, and this notices when it has
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
@@ -270,6 +277,7 @@ const server = startServer({
   audit,
   board,
   copilot: copilotBoard,
+  context: contextTracker,
 });
 
 const shutdown = async () => {
