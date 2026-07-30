@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-30
-- **Shipped in:** 0.50.0
+- **Shipped in:** 0.56.0
 - **Reverses:** the `no Radix, no portals, no extra deps` note that stood at the top of
   `web/src/components/ui/sheet.tsx` since 0.1.0
 
@@ -32,17 +32,23 @@ twenty-odd lines (§E6b–d) are easy to write and hard to write well.
 
 ### What was measured, not assumed
 
-The audit made the bundle a precondition rather than a talking point. Production builds, before and
-after, on the real tree:
+The audit made the bundle a precondition rather than a talking point. Two production builds of the
+**same tree**, 0.49.3, with and without the dependency — that pairing is what isolates Vaul's cost
+from everything else shipping at the same time:
 
 | | JS raw | **JS gzip** | CSS gzip |
 | --- | --- | --- | --- |
-| hand-rolled (0.49.3) | 565.24 kB | **167.22 kB** | 10.02 kB |
-| Vaul (this change) | 629.90 kB | **187.55 kB** | 9.92 kB |
+| hand-rolled | 565.24 kB | **167.22 kB** | 10.02 kB |
+| Vaul | 629.90 kB | **187.55 kB** | 9.92 kB |
 | delta | +64.66 kB | **+20.33 kB (+12.2 %)** | −0.10 kB |
 
 **+20.2 kB gzip over the wire, once, on a PWA that precaches.** That is the real price, and it is
 the strongest argument that was available against this decision.
+
+Don't read the absolute figures as current: 0.56.0 ships at 189.66 kB gzip because the composer
+redesign, the copy buttons and the light/dark theme all landed alongside. The **delta** is the number
+this decision was made on, and re-measuring it means building the same commit twice, not diffing two
+releases.
 
 Two claims in the audit did not survive contact and are corrected here:
 
