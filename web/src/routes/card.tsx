@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   Copy,
+  CornerDownRight,
   GitBranch,
   GitMerge,
   GitPullRequest,
@@ -18,6 +20,7 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -207,6 +210,26 @@ export function CardRoute() {
                   </span>
                 )}
               </div>
+              {/* Same question the tile answers at a glance: "can I start this" without opening the
+                  editor's "After" picker. Shown whether or not it's still blocking — met gets a quiet
+                  green check rather than vanishing, so a satisfied dependency stays visible. */}
+              {detail?.predecessor && (
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.predecessor!.id))}
+                  className={cn(
+                    "flex min-w-0 items-center gap-1 self-start text-xs",
+                    dependencyMet(detail.predecessor) ? "text-status-done" : "text-status-blocked",
+                  )}
+                >
+                  {dependencyMet(detail.predecessor) ? (
+                    <Check className="size-3 shrink-0" />
+                  ) : (
+                    <CornerDownRight className="size-3 shrink-0" />
+                  )}
+                  <span className="truncate">after “{detail.predecessor.title}”</span>
+                </button>
+              )}
             </header>
 
             <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
