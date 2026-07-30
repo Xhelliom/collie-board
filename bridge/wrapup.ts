@@ -13,8 +13,10 @@
 // It reuses the handoff's whole asynchronous machine — the marker lives in a column so a pending
 // request survives a restart, the deadline stops it firing days later, and the note ON DISK is the
 // real "the agent has finished writing" signal (an idle status only says it stopped talking). The
-// one thing it does NOT do is touch the pane. The terminal is where you go after marking a card
-// done — to read the diff, commit, push — and it stays exactly where it was.
+// one thing it does NOT do is drive the pane beyond that one ask: the prompt tells the agent to
+// commit before it writes the note (never push), so by the time the note exists — the same signal
+// the copilot review waits on — the work is no longer sitting uncommitted for merge or cleanup to
+// refuse. Reading the diff or pushing is still something you do from the terminal yourself.
 //
 // Once the wrapup itself is no longer pending — collected, or given up on — there is nothing left in
 // the checkout worth waiting for, so `WrapupCoordinator` tries to clean it up on its own. This is the
@@ -53,11 +55,20 @@ const WRAPUP_SETTLE_MS = 10_000;
  * precise next step" is the wrong question. What the review needs is a claim against the acceptance
  * criteria — including the ones the agent knows it did not meet, which is the part a diff can never
  * show and the part that becomes the next cards. Pure + exported so the wording is reviewable.
+ *
+ * Commit comes FIRST, ahead of the note. Nothing here polls for a commit — the note file's own
+ * existence is already the signal `collect()` waits on, so ordering the ask this way is what
+ * guarantees the copilot never reviews, and merge/cleanup never runs, against work still sitting
+ * uncommitted. An agent that ignores the order and writes the note first defeats this the same way
+ * as skipping the commit outright — there is no enforcement beyond the instruction itself.
  */
 export function wrapupPrompt(card: Card): string {
   const parts = [
-    "The owner has marked this task finished. Before it is filed away, write a short report of what",
-    `you actually did, to ${WRAPUP_REL_PATH} (create the directory if needed).`,
+    "The owner has marked this task finished. Before it is filed away, two things, in this order:",
+    "",
+    "1. Commit everything you changed here. Do NOT push, and do not touch any other checkout.",
+    `2. Write a short report of what you actually did, to ${WRAPUP_REL_PATH} (create the directory if`,
+    "   needed) — the report file is read only once it exists, so commit first.",
     "",
     "The task was:",
     "",

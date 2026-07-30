@@ -5,7 +5,7 @@ import { BoardDb, isPendingWrapup } from "./db.ts";
 import type { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
-import { WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
+import { WRAPUP_REL_PATH, WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
 
 // The wrapup is the last thing an agent is asked before its card is filed. It runs on a card that has
 // ALREADY stopped moving, so nothing here may resurrect it — and it must give up rather than sit on a
@@ -75,6 +75,12 @@ describe("wrapupPrompt", () => {
     const prompt = wrapupPrompt({ title: "fix the drawer", spec: null, acceptance: [] } as never);
     expect(prompt).toContain("fix the drawer");
     expect(prompt).not.toContain("met, partly met, or not met");
+  });
+
+  it("asks for the commit BEFORE the note — the note's existence is what gates the review", () => {
+    const prompt = wrapupPrompt({ title: "fix the drawer", spec: null, acceptance: [] } as never);
+    expect(prompt).toContain("Commit everything you changed here. Do NOT push");
+    expect(prompt.indexOf("Commit everything")).toBeLessThan(prompt.indexOf(WRAPUP_REL_PATH));
   });
 });
 
