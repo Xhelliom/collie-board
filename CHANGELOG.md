@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.49.3] - 2026-07-29
+
+### Fixed
+- A drag that starts on a control or inside a scrollable region of a sheet scrolls, it no longer closes it (5151295).
+- No more flicker when reopening a sheet: the drag offset is cleared on close, and `onClose` no longer re-attaches the listeners on every parent render (5151295).
+- Closing a sheet is animated on all four dismiss paths instead of vanishing in one frame; a drag-close keeps the gesture's momentum (5151295).
+- The page behind a sheet is frozen while it is open, and the drag writes its transform straight to the node — one less React render per frame (5151295).
+
 ## [0.49.2] - 2026-07-29
 
 ### Fixed
