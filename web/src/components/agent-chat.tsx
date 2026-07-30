@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate, useRevalidator } from "react-router";
-import { ArrowUpToLine, Loader2, ScrollText, TerminalSquare } from "lucide-react";
+import { ArrowUpToLine, Loader2, ScrollText, Search, TerminalSquare } from "lucide-react";
 import { useSwipeUp } from "@/hooks/use-swipe";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
@@ -514,10 +514,15 @@ export function AgentChat({
             />
           ) : undefined
         }
-        // Right cluster, in reading order: History, then the agent status pill. The pill is the
+        // Right cluster, in reading order: Find, History, then the agent status pill. The pill is the
         // rightmost item on every pane screen (it's the thing you glance at), so History sits to its
-        // LEFT rather than trailing it. Both ride in `rightLead` because AppHeader renders
+        // LEFT rather than trailing it. All three ride in `rightLead` because AppHeader renders
         // `rightLead` before `rightTrail` — the order here IS the on-screen order.
+        //
+        // Find-in-output used to live in the composer's own View row (UI_AUDIT C1) — the header is
+        // its natural home, next to the other pane-chrome controls, and freeing that row let the
+        // composer collapse to a single action row. Shown whenever there's buffered output to search
+        // (independent of `agent`, since the mirror can still show output after a pane goes gone).
         //
         // History opens the agent's own transcript, the only real conversation history a Claude pane
         // has: its terminal runs on the alternate screen, so the mirror below can never show more
@@ -527,25 +532,38 @@ export function AgentChat({
         // The status pill is dimmed while the connection isn't live, so a frozen "working"/"idle"
         // from the last snapshot doesn't masquerade as current. A bare shell shows a muted "shell" tag.
         rightLead={
-          agent ? (
-            <>
-              {agent.agentSessionId && (
-                <button
-                  type="button"
-                  onClick={() => navigate(historyPath(paneId, session))}
-                  aria-label="Conversation history"
-                  className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
-                >
-                  <ScrollText className="size-4" />
-                </button>
-              )}
-              {isShell ? (
-                <ShellBadge stale={connecting} />
-              ) : (
-                <StatusBadge status={agent.status} stale={connecting} />
-              )}
-            </>
-          ) : undefined
+          <>
+            {display && (
+              <button
+                type="button"
+                onClick={openFind}
+                aria-label="Find in output"
+                title="Find in output"
+                className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+              >
+                <Search className="size-4" />
+              </button>
+            )}
+            {agent && (
+              <>
+                {agent.agentSessionId && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(historyPath(paneId, session))}
+                    aria-label="Conversation history"
+                    className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+                  >
+                    <ScrollText className="size-4" />
+                  </button>
+                )}
+                {isShell ? (
+                  <ShellBadge stale={connecting} />
+                ) : (
+                  <StatusBadge status={agent.status} stale={connecting} />
+                )}
+              </>
+            )}
+          </>
         }
       >
         {/* Title block: the space › tab leads, with the agent's brand logo to its left (the agent
@@ -766,9 +784,6 @@ export function AgentChat({
             stepFontSize={stepFontSize}
             setRawTerminal={setRawTerminal}
             onSent={onSent}
-            // Find-in-output lives in the composer's View row now (the header was the wrong home for it).
-            // Enabled only when there's buffered output to search; opening it freezes the tail (openFind).
-            onOpenFind={display ? openFind : undefined}
           />
         </div>
       </div>
