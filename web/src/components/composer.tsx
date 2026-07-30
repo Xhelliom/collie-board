@@ -1,10 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
-import { AArrowDown, AArrowUp, Check, ImagePlus, Keyboard, Loader2, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
+import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
+import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -42,6 +43,9 @@ interface ComposerProps {
   dialogPresent: boolean;
   /** Latest pane text — clears the pending-send preview once the mirror echoes the send back. */
   text: string;
+  /** The buffer currently shown in the mirror (AgentChat's frozen `display`, not the live `text`) —
+   * what the View row's Copy button copies. */
+  mirrorText: string;
   /** A user draft stranded on the terminal's "❯" input line (extractInputDraft), STABILISED across
    * polls (useStableTerminalDraft) — non-null only once the same text has held for ~1.5s. Gates the
    * APPEARANCE of the read-only draft preview, so a one-poll blip or an in-flight send never flashes it. */
@@ -112,7 +116,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent },
+  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent },
   ref,
 ) {
   const revalidator = useRevalidator();
@@ -142,6 +146,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Composer sheets are mutually exclusive — at most one open (Keys / Quick / View / Agent).
   const [drawer, setDrawer] = useState<ComposerDrawer>(null);
   const closeDrawer = () => setDrawer(null);
+  // View row's Copy button — copies the mirror's displayed buffer (mirrorText), not the composer input.
+  const { canCopy: canCopyMirror, copied: mirrorCopied, copy: copyMirror } = useCopy();
   // Two-tap guard for destructive commands (rm -rf, force-push, …): the first tap arms a "Really
   // send?" state on the Send button (auto-disarms after 3 s), the second actually sends. Same shared
   // confirm the command palette uses for /clear.
@@ -540,6 +546,23 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 title="Larger text"
               >
                 <AArrowUp className="size-4" />
+              </Button>
+              {/* Copies the mirror's displayed buffer. Disabled (not hidden) outside a secure context —
+                  navigator.clipboard doesn't exist on plain HTTP, same gate as Push (lib/push.ts). */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-11"
+                disabled={!canCopyMirror || !mirrorText}
+                onClick={() => copyMirror(mirrorText)}
+                aria-label={mirrorCopied ? "Copied" : "Copy terminal buffer"}
+                title={canCopyMirror ? "Copy terminal buffer" : COPY_UNAVAILABLE_TITLE}
+              >
+                {mirrorCopied ? (
+                  <Check className="size-4 text-status-working" />
+                ) : (
+                  <Copy className="size-4" />
+                )}
               </Button>
             </div>
           </ComposerDock>

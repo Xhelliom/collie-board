@@ -42,6 +42,7 @@ function renderComposer(overrides: Partial<ComponentProps<typeof Composer>> = {}
     readOnly: false,
     dialogPresent: false,
     text: "pane output",
+    mirrorText: "pane output",
     terminalDraft: null,
     rawTerminalDraft: null,
     prefs: { wrap: true, fontSize: 11, rawTerminal: false },
@@ -71,6 +72,7 @@ function renderComposerWithStatus(overrides: Partial<ComponentProps<typeof Compo
     readOnly: false,
     dialogPresent: false,
     text: "pane output",
+    mirrorText: "pane output",
     terminalDraft: null,
     rawTerminalDraft: null,
     prefs: { wrap: true, fontSize: 11, rawTerminal: false },
@@ -228,6 +230,7 @@ describe("Composer — send", () => {
       readOnly: false,
       dialogPresent: false,
       text: "pane output",
+      mirrorText: "pane output",
       terminalDraft: null,
       rawTerminalDraft: null,
       prefs: { wrap: true, fontSize: 11, rawTerminal: false },
@@ -311,6 +314,7 @@ function renderDraftHarness(overrides: Partial<ComponentProps<typeof Composer>> 
       readOnly: false,
       dialogPresent: false,
       text: "pane output",
+      mirrorText: "pane output",
       prefs: { wrap: true, fontSize: 11, rawTerminal: false },
       setWrap: vi.fn(),
       stepFontSize: vi.fn(),
@@ -579,6 +583,7 @@ describe("Composer — in-flight echo suppression (match-last-sent)", () => {
       readOnly: false,
       dialogPresent: false,
       text: "pane output",
+      mirrorText: "pane output",
       terminalDraft: draft,
       rawTerminalDraft: draft,
       prefs: { wrap: true, fontSize: 11, rawTerminal: false },
@@ -893,5 +898,56 @@ describe("Composer — quick dock (in-flow, matches the keys dock)", () => {
     expect(props.onSent).toHaveBeenCalled();
     // fire() closes the dock after sending.
     expect(screen.queryByRole("button", { name: "continue" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Composer — View row copy button (UI_AUDIT §6.4)", () => {
+  const secureDescriptor = Object.getOwnPropertyDescriptor(window, "isSecureContext");
+  const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+  afterEach(() => {
+    if (secureDescriptor) Object.defineProperty(window, "isSecureContext", secureDescriptor);
+    if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+  });
+
+  it("copies the mirror's displayed buffer (not the live text) and confirms with a check", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    renderComposer({ text: "live loader text", mirrorText: "frozen mirror buffer" });
+    await user.click(screen.getByRole("button", { name: "View" }));
+
+    const copyBtn = screen.getByRole("button", { name: "Copy terminal buffer" });
+    expect(copyBtn).toBeEnabled();
+    await user.click(copyBtn);
+
+    expect(writeText).toHaveBeenCalledWith("frozen mirror buffer");
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("is disabled (not hidden) outside a secure context", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: false });
+
+    renderComposer();
+    await user.click(screen.getByRole("button", { name: "View" }));
+
+    expect(screen.getByRole("button", { name: "Copy terminal buffer" })).toBeDisabled();
+  });
+
+  it("is disabled when the mirror has nothing to copy (empty buffer)", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn() },
+    });
+
+    renderComposer({ mirrorText: "" });
+    await user.click(screen.getByRole("button", { name: "View" }));
+
+    expect(screen.getByRole("button", { name: "Copy terminal buffer" })).toBeDisabled();
   });
 });

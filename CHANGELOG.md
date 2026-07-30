@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.53.0] - 2026-07-30
+
+### Added
+- Copy buttons (UI_AUDIT §6.4): a copy icon on every transcript code block, and a "Copy terminal buffer" control in the mirror's View row. Both disable (not hide) outside a secure context, since `navigator.clipboard` needs one.
+
+### Changed
+- The update banner's copy-command button now shares the same `useCopy` hook and also disables outside a secure context, instead of its own separate copy-with-confirm logic.
+
 ## [0.52.0] - 2026-07-30
 
 ### Changed
