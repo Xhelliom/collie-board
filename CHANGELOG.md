@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.60.0] - 2026-07-30
+
+### Added
+- A card's tile shows its declared dependency even once satisfied — green check when the predecessor is done, amber lock while it still blocks — instead of only showing anything while blocking (1705c55).
+
+### Fixed
+- `worktree.create`/`worktree.open` get a 20s RPC budget instead of the generic 5s one, which could time out under load and surface as a false 502 even though nothing was actually wrong (c5c9622).
+
 ## [0.59.1] - 2026-07-30
 
 ### Fixed
