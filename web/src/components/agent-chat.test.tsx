@@ -471,6 +471,18 @@ describe("AgentChat — history affordance", () => {
   });
 });
 
+describe("AgentChat — pane-switcher handle", () => {
+  it("is hidden when this is the only pane", () => {
+    renderChat({ agents: [fixtureAgents[0]!], shellPanes: [] });
+    expect(screen.queryByRole("button", { name: /switch pane/i })).not.toBeInTheDocument();
+  });
+
+  it("is offered once a second pane exists", () => {
+    renderChat({ agents: [fixtureAgents[0]!, fixtureAgents[1]!], shellPanes: [] });
+    expect(screen.getByRole("button", { name: /switch pane/i })).toBeInTheDocument();
+  });
+});
+
 // The top-of-mirror affordance. This block previously rendered on NO pane at all: it was gated on
 // `truncated`, which Herdr never sets true even when a read demonstrably cut scrollback off. The
 // working signal is `readableLines` (scrollback depth + viewport), and which button appears is

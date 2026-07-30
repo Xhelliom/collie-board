@@ -254,7 +254,7 @@ export const AnsiOutput = memo(function AnsiOutput({
                       data-find-match={isCurrent ? "current" : "other"}
                       className={cn(
                         "rounded-[2px]",
-                        isCurrent ? "bg-yellow-400 text-black" : "bg-yellow-400/30",
+                        isCurrent ? "bg-find-hit-current text-black" : "bg-find-hit",
                       )}
                     >
                       {p.text}
