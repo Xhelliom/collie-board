@@ -96,7 +96,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
           {replaced.acceptance !== undefined && (
             <Previous label="Acceptance" text={replaced.acceptance.join("\n")} />
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {payload.truncated
               ? "Shortened for this list — restoring puts the whole text back."
               : "Restoring is itself an edit, so it lands here too and can be undone."}
@@ -115,7 +115,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
 function Previous({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       <p className="whitespace-pre-wrap break-words rounded-md bg-muted/50 px-2 py-1.5 text-xs">
         {text}
       </p>

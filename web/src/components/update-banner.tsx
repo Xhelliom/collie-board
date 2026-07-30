@@ -57,7 +57,7 @@ export function UpdateBanner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "text-center text-[11px] leading-relaxed text-muted-foreground/70",
+        "text-center text-xs leading-relaxed text-muted-foreground/70",
         className,
       )}
     >
@@ -84,7 +84,7 @@ export function UpdateBanner({ className }: { className?: string }) {
             onClick={() => copy(command)}
             aria-label={`Copy command: ${command}`}
             title={canCopy ? undefined : COPY_UNAVAILABLE_TITLE}
-            className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground/80 disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground/80 disabled:pointer-events-none disabled:opacity-50"
           >
             <code>{command}</code>
             {copied ? (

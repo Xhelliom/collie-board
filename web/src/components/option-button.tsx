@@ -42,7 +42,7 @@ export function KeyBadge({ children, tone = "default" }: { children: ReactNode; 
     <span
       aria-hidden
       className={cn(
-        "mt-px flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-semibold leading-none tabular-nums",
+        "mt-px flex size-5 shrink-0 items-center justify-center rounded-md border text-xs font-semibold leading-none tabular-nums",
         tone === "default"
           ? "border-border bg-background text-muted-foreground"
           : "border-primary/40 bg-primary/15 text-primary",
@@ -85,7 +85,7 @@ export function OptionGroupCaption({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-1.5 pl-0.5">
       {accentTick}
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {children}
       </span>
     </div>

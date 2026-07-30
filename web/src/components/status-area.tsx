@@ -40,7 +40,7 @@ export function StatusArea({ className }: { className?: string }) {
       role="status"
       aria-live="polite"
       className={cn(
-        "flex items-center justify-center gap-1.5 rounded-md border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur duration-200 animate-in fade-in",
+        "flex items-center justify-center gap-1.5 rounded-md border bg-background/95 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur duration-(--duration-long) ease-enter animate-in fade-in",
         dismissable ? "border-status-blocked/50" : "border-border/60",
         TONE[status.tone],
         className,

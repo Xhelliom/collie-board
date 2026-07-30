@@ -52,7 +52,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
       <div className="flex items-center gap-2">
         <SectionLabel>Diff</SectionLabel>
         {stat && (
-          <span className="text-[11px] text-muted-foreground/70">
+          <span className="text-xs text-muted-foreground/70">
             {stat.files.length} file{stat.files.length === 1 ? "" : "s"}
             {total > 0 && (
               <>
@@ -87,11 +87,11 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
               <FileDiff className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{f.path}</span>
               {f.kind === "untracked" ? (
-                <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
                   new
                 </span>
               ) : f.kind === "binary" ? (
-                <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
                   bin
                 </span>
               ) : (
@@ -114,7 +114,7 @@ function StatBar({ added, removed, max }: { added: number; removed: number; max:
   const plus = Math.round((added / max) * width);
   const minus = Math.round((removed / max) * width);
   return (
-    <span className="shrink-0 font-mono text-[10px] tabular-nums">
+    <span className="shrink-0 font-mono text-xs tabular-nums">
       <span className="text-muted-foreground">{added + removed}</span>{" "}
       <span className="text-status-done">{"+".repeat(Math.min(plus, width))}</span>
       <span className="text-status-blocked">{"−".repeat(Math.min(minus, width))}</span>
@@ -163,7 +163,7 @@ function FileDiffSheet({
            exists to show it. Pure CSS so it follows a rotation without a re-render — unlike the
            pane mirror, which has a user-facing toggle and so has to decide in JS. */
         <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background">
-          <pre className="p-2 font-mono text-[11px] leading-snug sm:min-w-max">
+          <pre className="p-2 font-mono text-xs leading-snug sm:min-w-max">
             {diff.split("\n").map((line, i) => (
               <div
                 key={i}

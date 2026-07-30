@@ -60,10 +60,11 @@ export function CardGroup({
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           <Layers className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{container.title}</span>
+          {/* A container's title is a card title — same rung as the tiles it groups (R2). */}
+          <span className="truncate text-base font-medium">{container.title}</span>
         </button>
 
-        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {subTasks.length}
         </span>
         {!expanded && <GroupSummary cards={subTasks} />}

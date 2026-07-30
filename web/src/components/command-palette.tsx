@@ -75,7 +75,7 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
       </div>
 
       {!q && (
-        <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
           Common · type to search all {all.length}
         </p>
       )}
@@ -107,7 +107,7 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
                     {c.command}
                   </span>
                   {c.takesArg && (
-                    <span className="font-mono text-[11px] text-muted-foreground">{c.argHint}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{c.argHint}</span>
                   )}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{c.description}</p>

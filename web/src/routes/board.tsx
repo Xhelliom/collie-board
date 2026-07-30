@@ -79,7 +79,7 @@ export function BoardRoute() {
                 <section key={status} className="px-3 pt-4">
                   <div className="flex items-baseline gap-2 pb-2">
                     <SectionLabel>{CARD_STATUS_LABEL[status]}</SectionLabel>
-                    <span className="text-[11px] text-muted-foreground/70">{column.length}</span>
+                    <span className="text-xs text-muted-foreground/70">{column.length}</span>
                   </div>
                   <div className="flex flex-col gap-2">
                     {column.map((entry) =>

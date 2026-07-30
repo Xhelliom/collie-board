@@ -72,7 +72,7 @@ export function WizardBlock({ wizard, onAction, disabled }: WizardBlockProps) {
               key={i}
               aria-current={step.current ? "step" : undefined}
               className={cn(
-                "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight",
+                "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs leading-tight",
                 step.current
                   ? "border-primary/60 bg-primary/15 font-medium text-foreground"
                   : "border-border/60 text-muted-foreground",
@@ -85,7 +85,7 @@ export function WizardBlock({ wizard, onAction, disabled }: WizardBlockProps) {
           <li
             aria-current={review ? "step" : undefined}
             className={cn(
-              "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight",
+              "flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs leading-tight",
               review
                 ? "border-primary/60 bg-primary/15 font-medium text-foreground"
                 : "border-border/60 text-muted-foreground",

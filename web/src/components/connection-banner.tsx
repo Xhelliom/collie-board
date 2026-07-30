@@ -30,9 +30,11 @@ type Tone = "amber" | "red" | "green";
 
 // How long the "Connected" confirmation lingers after a visible bar recovers, then it exits.
 export const GREEN_MS = 1_800;
-// The collapse/fade before the row unmounts — matches the CSS transition duration below so the DOM
-// node lives exactly as long as the exit animation (standard delayed-unmount).
-export const EXIT_MS = 200;
+// The collapse/fade before the row unmounts — must match the CSS transition duration below so the
+// DOM node lives exactly as long as the exit animation (standard delayed-unmount). That duration is
+// now the theme's --duration-long (R4); if you retune the token, retune this with it — a shorter
+// value here cuts the exit off mid-collapse.
+export const EXIT_MS = 250;
 
 // The ONE connection surface: a single, thin, animated bar mounted once in RootLayout (in-flow above
 // the route, a sibling of UpdateAvailableBanner) that is the app's entire connection UI — the header
@@ -183,8 +185,10 @@ function ConnectionStateBanner({ bridge, error }: Omit<ConnectionBannerProps, "a
     // opacity; the inner wrapper clips the content while it's collapsed. Snaps under reduced motion.
     <div
       className={cn(
-        "grid shrink-0 overflow-hidden transition-all duration-200 ease-out motion-reduce:transition-none",
-        open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        "grid shrink-0 overflow-hidden transition-all duration-(--duration-long) motion-reduce:transition-none",
+        // The bar decelerates in and accelerates out (R4): arriving, it is news and wants to be
+        // read; leaving, it has already been read and just needs to be gone.
+        open ? "grid-rows-[1fr] opacity-100 ease-enter" : "grid-rows-[0fr] opacity-0 ease-exit",
       )}
     >
       <div className="min-h-0 overflow-hidden">

@@ -281,13 +281,13 @@ function RepoRow({
       <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{repo.name}</span>
-        <span className="block truncate font-mono text-[11px] text-muted-foreground">{repo.path}</span>
+        <span className="block truncate font-mono text-xs text-muted-foreground">{repo.path}</span>
       </span>
       {repo.hidden ? (
         <EyeOff className="size-3.5 shrink-0 text-muted-foreground" />
       ) : (
         repo.source === "herd" && (
-          <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
             open
           </span>
         )

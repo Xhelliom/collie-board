@@ -56,7 +56,7 @@ function Span({ span }: { span: MdSpan }) {
       );
     case "code":
       return (
-        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em] break-all">
+        <code className="code-inline rounded bg-muted px-1 py-0.5 font-mono break-all">
           <Hit text={span.text} />
         </code>
       );
@@ -94,7 +94,7 @@ function CodeBlock({ text }: { text: string }) {
   const { canCopy, copied, copy } = useCopy();
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 pr-8 font-mono text-[11px] leading-snug">
+      <pre className="overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 pr-8 font-mono text-xs leading-snug">
         <Hit text={text} />
       </pre>
       <button
@@ -115,17 +115,21 @@ function CodeBlock({ text }: { text: string }) {
   );
 }
 
+// Each level sits a rung above the body it introduces, which now reads at text-base (R2). The old
+// ladder ran 16/15/14px — h1 level with the surrounding prose and h3 below it, so a heading marked
+// a paragraph rather than opening a section.
 const HEADING_CLASS: Record<number, string> = {
-  1: "text-base font-semibold",
-  2: "text-[0.95rem] font-semibold",
-  3: "text-sm font-semibold",
+  1: "text-xl font-semibold",
+  2: "text-lg font-semibold",
+  3: "text-base font-semibold",
 };
 
 function Block({ block }: { block: MdBlock }) {
   switch (block.kind) {
     case "heading": {
-      // Levels 4-6 are rare in agent prose and don't earn another size step on a phone.
-      const cls = HEADING_CLASS[block.level] ?? "text-sm font-semibold";
+      // Levels 4-6 are rare in agent prose and don't earn another size step on a phone — they ride
+      // the body rung and let the weight carry the distinction.
+      const cls = HEADING_CLASS[block.level] ?? "text-base font-semibold";
       return (
         <div className={`${cls} mt-1 leading-snug`}>
           <Spans spans={block.spans} />
@@ -182,7 +186,9 @@ export function MarkdownText({
   const blocks = useMemo(() => parseMarkdown(text), [text]);
   return (
     <QueryContext.Provider value={query}>
-      <div className={`space-y-2 text-sm break-words ${className ?? ""}`}>
+      {/* text-base, not text-sm: this is the body of a message — the thing you actually read on
+          this screen — not a caption around it (R2). */}
+      <div className={`space-y-2 text-base break-words ${className ?? ""}`}>
         {blocks.map((block, i) => (
           <Block key={i} block={block} />
         ))}
