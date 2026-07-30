@@ -21,8 +21,8 @@
 // cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
 // work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
-import { promptAndConfirm } from "./cards.ts";
-import type { BoardDb, Card } from "./db.ts";
+import { lastSessionOf, promptAndConfirm } from "./cards.ts";
+import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   createPr,
   deleteBranch,
@@ -50,7 +50,15 @@ export type IntegrateError =
  * IT MERGES THE BASE INTO ITS OWN BRANCH, never the other way round. That is the whole safety
  * argument: the conflict is resolved in a throwaway checkout by the agent that wrote the code, and
  * the main repository never enters a conflicted state at all. Once the branch contains the base,
- * merging it back is trivial by construction.
+ * merging it back is trivial by construction — but that merge back is the OPERATOR'S tap, in the
+ * shared main checkout, never this agent's: two agents merging into main from two worktrees at once
+ * is exactly the race this design avoids. This prompt says so explicitly, because leaving it implied
+ * reads as "your job is done" and invites exactly that push.
+ *
+ * Step 1 asks the agent to check what is new even if it has done this before for the same branch:
+ * `${base}` keeps moving on its own — other cards land on it independently — so a prior resolution
+ * only ever covered the divergence that existed at the time, and a second conflict on the same
+ * branch is not a re-ask of the same question.
  *
  * Pure + exported so the wording is reviewable — this prompt drives a real terminal.
  */
@@ -59,14 +67,18 @@ export function resolvePrompt(base: string, branch: string): string {
     `Merging this branch (${branch}) into ${base} hit a conflict, so ${base} has moved on since you`,
     "branched. Bring it in here and settle it, in THIS checkout:",
     "",
-    `1. git merge ${base}`,
-    "2. Resolve every conflict. Keep both intentions where they are compatible; where they are not,",
+    `1. git log --oneline HEAD..${base} — see what is actually new. Even if you resolved a conflict`,
+    `   against ${base} before, check again: it moves independently, and more may have landed on it`,
+    "   since your last look. Don't skip the merge because this looks like a repeat.",
+    `2. git merge ${base}`,
+    "3. Resolve every conflict. Keep both intentions where they are compatible; where they are not,",
     "   the change on this branch is the newer decision — but read the other side before dropping it.",
-    "3. Make sure the project still builds and its tests still pass.",
-    "4. Commit the merge.",
+    "4. Make sure the project still builds and its tests still pass.",
+    "5. Commit the merge.",
     "",
     `Do NOT push, do NOT check out ${base}, and do not touch any other checkout of this repository.`,
-    "Stop when the merge commit exists here.",
+    `Do NOT merge this branch back into ${base} yourself — that is the operator's own tap, once your`,
+    "commit exists here. Stop when the merge commit exists here; nothing else is yours to do.",
   ].join("\n");
 }
 
@@ -228,6 +240,23 @@ export async function resolveConflict(
  * delete uses `git branch -d`, so git itself refuses one that isn't merged even if our own gate ever
  * stopped doing so.
  */
+/**
+ * Refuse cleanup while the card's closing report is still in flight.
+ *
+ * Filing a card Done fires the report into THIS SAME checkout (wrapup.ts) and returns immediately —
+ * the note can still be minutes from landing. Removing the worktree now closes the pane mid-write and
+ * deletes the directory the coordinator would have read it from, so the note is gone for good rather
+ * than merely late. Pure given the last session, so the one real risk here — the edge case, not the
+ * happy path — is testable without a fake git or herdr.
+ */
+export function wrapupGate(lastSession: CardSession | null): IntegrateError | null {
+  if (!lastSession || !isPendingWrapup(lastSession)) return null;
+  return {
+    kind: "refused",
+    message: "the agent is still writing its closing report — wait for it to finish, or the note is lost when the worktree goes",
+  };
+}
+
 export async function cleanupCard(
   db: BoardDb,
   herdr: HerdrClient,
@@ -246,6 +275,10 @@ export async function cleanupCard(
   if (!opts.discard) {
     const checked = await gate(card, "cleanup");
     if (!checked.ok) return checked;
+    // `discard` is exempt on purpose: it is the one gesture that already means "I know, throw it away
+    // anyway", and gating it too would defeat that escape hatch.
+    const refusal = wrapupGate(lastSessionOf(db, card.id));
+    if (refusal) return { ok: false, error: refusal };
   } else if (!state) {
     return { ok: false, error: { kind: "refused", message: "this card has no branch to discard" } };
   }

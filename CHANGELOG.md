@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.50.0] - 2026-07-30
+
+### Added
+- Worktrees now clean up on their own once a card's closing report settles (collected or given up on) — the same refusals as the manual tap, just without waiting for a second one. A per-card "Keep this worktree" switch opts out, off by default.
+
+### Changed
+- The resolve prompt tells the agent to re-check divergence even if it merged the base in before, and that merging back into the base is the operator's own tap, never its.
+- The card screen refreshes the merge state on its own once a resolve's agent turn ends, instead of leaving the operator to remember to come back and recheck.
+
+### Fixed
+- Cleaning up a worktree right after filing a card done could delete the checkout — and the closing report being written into it — before the wrapup coordinator had collected it. Cleanup now refuses while a report is still in flight, and the card screen says so before the tap.
+
 ## [0.49.3] - 2026-07-29
 
 ### Fixed

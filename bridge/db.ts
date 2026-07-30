@@ -106,6 +106,14 @@ export interface Card {
   position: number;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Opt out of automatic cleanup. Off by default — once a card's wrapup settles (collected or given
+   * up on), `WrapupCoordinator` cleans up the worktree on its own, the same way the "Clean up
+   * worktree" tap would, and just as safely refused if the branch turns out not to be fully merged.
+   * This is the one flag that skips the attempt outright, for the branch the operator wants to poke
+   * at afterwards.
+   */
+  keepWorktree: boolean;
 }
 
 export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost";
@@ -129,6 +137,18 @@ export interface CardSession {
   handoffRequestedAt: number | null;
   startedAt: number;
   endedAt: number | null;
+}
+
+/**
+ * A wrapup pending on this session?
+ *
+ * A CLOSED session still asking for a note means exactly one thing, and nothing else can produce it:
+ * `requestHandoff` refuses a card with no OPEN session, and the handoff coordinator clears the marker
+ * in the same breath as it closes one. Checked here rather than stored as a second column, so no
+ * migration and no third state to keep consistent.
+ */
+export function isPendingWrapup(session: CardSession): boolean {
+  return session.endedAt !== null && session.handoffRequestedAt !== null;
 }
 
 export interface Review {
@@ -169,6 +189,7 @@ interface CardRow {
   position: number;
   created_at: number;
   updated_at: number;
+  keep_worktree: number;
 }
 
 interface SessionRow {
@@ -241,6 +262,7 @@ function toCard(r: CardRow): Card {
     position: r.position,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    keepWorktree: r.keep_worktree === 1,
   };
 }
 
@@ -295,7 +317,8 @@ CREATE TABLE IF NOT EXISTS card (
   depends_on   TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
-  updated_at   INTEGER NOT NULL
+  updated_at   INTEGER NOT NULL,
+  keep_worktree INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -388,6 +411,7 @@ export interface CardPatch {
   duplicateOf?: string | null;
   dependsOn?: string | null;
   position?: number;
+  keepWorktree?: boolean;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -406,6 +430,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   duplicateOf: "duplicate_of",
   dependsOn: "depends_on",
   position: "position",
+  keepWorktree: "keep_worktree",
 };
 
 export class BoardDb {
@@ -458,6 +483,8 @@ export class BoardDb {
       // 0.44: the copilot's "you may already have this card" suggestion.
       { table: "card", column: "duplicate_of", ddl: "TEXT" },
       { table: "card", column: "depends_on", ddl: "TEXT" },
+      // 0.50: opt a card out of automatic post-wrapup cleanup.
+      { table: "card", column: "keep_worktree", ddl: "INTEGER NOT NULL DEFAULT 0" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -560,7 +587,13 @@ export class BoardDb {
       if (!(key in patch)) continue;
       const value = patch[key];
       sets.push(`${column} = ?`);
-      values.push(key === "acceptance" ? JSON.stringify(value ?? []) : (value as string | number | null));
+      values.push(
+        key === "acceptance"
+          ? JSON.stringify(value ?? [])
+          : key === "keepWorktree"
+            ? (value ? 1 : 0)
+            : (value as string | number | null),
+      );
     }
     if (sets.length === 0) return this.getCard(id);
 

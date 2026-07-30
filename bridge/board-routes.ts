@@ -118,6 +118,11 @@ export function parseCardBody(
     out.position = o.position;
   }
 
+  if ("keepWorktree" in o) {
+    if (typeof o.keepWorktree !== "boolean") return { ok: false, error: "bad keepWorktree" };
+    out.keepWorktree = o.keepWorktree;
+  }
+
   return { ok: true, value: out };
 }
 

@@ -91,6 +91,10 @@ export interface CardView {
    * bridge restart — which is correct: the restart cancelled the work.
    */
   copilotBusy: boolean;
+  /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
+  wrapupPending: boolean;
+  /** Off by default. When on, the worktree is never cleaned up automatically once wrapup settles. */
+  keepWorktree: boolean;
 }
 
 /** Just enough of a linked card to name it on screen — the bridge resolves these on the detail. */
@@ -244,6 +248,7 @@ export interface CardInput {
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   position?: number;
+  keepWorktree?: boolean;
 }
 
 export function createCard(input: CardInput): Promise<{ ok: true; card: CardView }> {
