@@ -26,6 +26,8 @@ function card(id: string, over: Partial<CardView> = {}): CardView {
     runtime: null,
     sessionCount: 0,
     copilotBusy: false,
+    wrapupPending: false,
+    keepWorktree: false,
     ...over,
   };
 }

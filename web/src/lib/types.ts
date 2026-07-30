@@ -37,6 +37,16 @@ export interface AgentView {
    * bridges/Herdr, which reads as "unknown" (the button then falls back to hidden).
    */
   readableLines?: number;
+  /**
+   * Fields from the board's card layer, present only when this pane backs an open card session
+   * (bridge `withCardFields` in cards.ts). NOT in lockstep: `branch` is set as soon as the session
+   * opens, while `ctxPct`/`ctxTokens` lag until the tracker's first successful transcript read (and
+   * may never appear at all) — a card-backed pane commonly has `branch` with no `ctxPct` yet
+   * (UI_AUDIT.md G1/G2).
+   */
+  branch?: string;
+  ctxPct?: number;
+  ctxTokens?: number;
 }
 
 /**
@@ -44,8 +54,11 @@ export interface AgentView {
  * then Claude's own `/rename` session name, then the agent name (or "shell"). Both label and session
  * name are rendered only as React text nodes by callers — never markup — so they stay within the
  * pane-output XSS boundary.
+ *
+ * Takes just the fields it needs (not the full `AgentView`) so a board `CardRuntime` — which mirrors
+ * these same names but isn't a full pane — can name itself the same way (see `card-tile.tsx`).
  */
-export function paneDisplayName(pane: AgentView): string {
+export function paneDisplayName(pane: Pick<AgentView, "paneLabel" | "sessionName" | "kind" | "agent">): string {
   if (pane.paneLabel) return pane.paneLabel;
   if (pane.sessionName) return pane.sessionName;
   return pane.kind === "shell" ? "shell" : pane.agent;

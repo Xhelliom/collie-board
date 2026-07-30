@@ -15,6 +15,7 @@ import {
   reconcileOne,
   releaseSession,
   startCard,
+  withCardFields,
   wouldCycle,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
@@ -112,6 +113,18 @@ describe("BoardDb", () => {
     expect(back.repoPath).toBe("/repo");
   });
 
+  it("keepWorktree defaults to off, and patchCard flips it either way", () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    expect(card.keepWorktree).toBe(false);
+
+    store.patchCard(card.id, { keepWorktree: true });
+    expect(store.getCard(card.id)!.keepWorktree).toBe(true);
+
+    store.patchCard(card.id, { keepWorktree: false });
+    expect(store.getCard(card.id)!.keepWorktree).toBe(false);
+  });
+
   it("keeps archived cards out of the board list but not out of the database", () => {
     const store = db();
     const a = store.createCard({ title: "live" });
@@ -191,6 +204,7 @@ describe("reconcileOne", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -352,6 +366,54 @@ describe("cardViews", () => {
     expect(idleView.runtime).toBeNull();
     expect(idleView.session).toBeNull();
   });
+
+  // `session` is already null on a filed card (see ADR 0002) — `wrapupPending` is what lets the
+  // screen know a closing report is still in flight when there is otherwise nothing to show for it.
+  it("flags a card whose closing report is still in flight, from its last session even though it is closed", () => {
+    const store = db();
+    const waiting = store.createCard({ title: "waiting", status: "done" });
+    const waitingSession = store.openSession({ cardId: waiting.id, paneId: "w1:p1" });
+    store.closeSession(waitingSession.id, "done");
+    store.patchSession(waitingSession.id, { handoffRequestedAt: 1 });
+
+    const collected = store.createCard({ title: "collected", status: "done" });
+    const collectedSession = store.openSession({ cardId: collected.id, paneId: "w2:p1" });
+    store.closeSession(collectedSession.id, "done");
+    store.patchSession(collectedSession.id, { handoffMd: "here is what I did" });
+
+    const never = store.createCard({ title: "never started" });
+
+    const views = cardViews(store, snapshot([]));
+    expect(views.find((v) => v.id === waiting.id)!.wrapupPending).toBe(true);
+    expect(views.find((v) => v.id === collected.id)!.wrapupPending).toBe(false);
+    expect(views.find((v) => v.id === never.id)!.wrapupPending).toBe(false);
+  });
+});
+
+describe("withCardFields", () => {
+  it("overlays branch and context onto the pane backing an open session", () => {
+    const store = db();
+    const card = store.createCard({ title: "x", branch: "board/x" });
+    const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    store.patchSession(session.id, { ctxTokens: 42_000, ctxPct: 55 });
+
+    const enriched = withCardFields([pane("w1:p1", "working")], store.listOpenSessions(), store)[0]!;
+    expect(enriched.branch).toBe("board/x");
+    expect(enriched.ctxPct).toBe(55);
+    expect(enriched.ctxTokens).toBe(42_000);
+  });
+
+  it("leaves a pane with no open session untouched, even while OTHER sessions are open", () => {
+    const store = db();
+    // A second, unrelated card WITH an open session — proves the join is keyed by paneId, not just
+    // "any session exists" (the early return on an empty session list is a different code path).
+    const other = store.createCard({ title: "other", branch: "board/other" });
+    store.openSession({ cardId: other.id, paneId: "w1:p2" });
+
+    const original = pane("w1:p1", "working");
+    const [unchanged] = withCardFields([original], store.listOpenSessions(), store);
+    expect(unchanged).toEqual(original);
+  });
 });
 
 describe("parseCardBody", () => {
@@ -390,6 +452,17 @@ describe("parseCardBody", () => {
     expect(parseCardBody({ title: "x", paneId: "w1:p1" }, { requireTitle: true })).toEqual({
       ok: true,
       value: { title: "x" },
+    });
+  });
+
+  it("accepts keepWorktree as a plain boolean and rejects anything else", () => {
+    expect(parseCardBody({ keepWorktree: true }, { requireTitle: false })).toEqual({
+      ok: true,
+      value: { keepWorktree: true },
+    });
+    expect(parseCardBody({ keepWorktree: "yes" }, { requireTitle: false })).toEqual({
+      ok: false,
+      error: "bad keepWorktree",
     });
   });
 });
@@ -450,6 +523,7 @@ describe("initialPrompt", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -932,6 +1006,7 @@ describe("handoff prompts", () => {
     position: 0,
     createdAt: 0,
     updatedAt: 0,
+    keepWorktree: false,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {

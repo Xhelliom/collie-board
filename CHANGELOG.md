@@ -7,13 +7,39 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.49.3] - 2026-07-30
+## [0.51.1] - 2026-07-30
 
 ### Fixed
 - Settings gear was under the 20px tap-target minimum — now `size-9` (36px), matching the History button. (1b28087)
 - Settings screen now mounts the shared `AppHeader` instead of a bespoke one, so the connection dog/banner show up on the diagnostics page. (1b28087)
 - Find highlight used two different yellows (pane mirror vs. transcript reader) for the same "match" meaning — unified behind `--find-hit` / `--find-hit-current` tokens. (1b28087)
 - The pane-switch handle no longer renders when there's only one pane — nothing to switch to. (1b28087)
+
+## [0.51.0] - 2026-07-30
+
+### Added
+- Context% now shows on the pane screen (by the statusline) and on the home agent tile — the two places you actually decide to hand off, which were the only two that didn't have it.
+- Agent tiles (home) and board tiles now show the same fields: branch, short cwd, ctx% on both. A board tile backed by a live pane also shows its pane name next to the card title.
+
+## [0.50.0] - 2026-07-30
+
+### Added
+- Worktrees now clean up on their own once a card's closing report settles (collected or given up on) — the same refusals as the manual tap, just without waiting for a second one. A per-card "Keep this worktree" switch opts out, off by default.
+
+### Changed
+- The resolve prompt tells the agent to re-check divergence even if it merged the base in before, and that merging back into the base is the operator's own tap, never its.
+- The card screen refreshes the merge state on its own once a resolve's agent turn ends, instead of leaving the operator to remember to come back and recheck.
+
+### Fixed
+- Cleaning up a worktree right after filing a card done could delete the checkout — and the closing report being written into it — before the wrapup coordinator had collected it. Cleanup now refuses while a report is still in flight, and the card screen says so before the tap.
+
+## [0.49.3] - 2026-07-29
+
+### Fixed
+- A drag that starts on a control or inside a scrollable region of a sheet scrolls, it no longer closes it (5151295).
+- No more flicker when reopening a sheet: the drag offset is cleared on close, and `onClose` no longer re-attaches the listeners on every parent render (5151295).
+- Closing a sheet is animated on all four dismiss paths instead of vanishing in one frame; a drag-close keeps the gesture's momentum (5151295).
+- The page behind a sheet is frozen while it is open, and the drag writes its transform straight to the node — one less React render per frame (5151295).
 
 ## [0.49.2] - 2026-07-29
 

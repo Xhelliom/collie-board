@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import { CardEditor } from "@/components/card-editor";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
+import { Switch } from "@/components/ui/switch";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
@@ -61,6 +62,7 @@ import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
+import type { AgentStatus } from "@/lib/types";
 
 // A card's own page: the durable half (spec, acceptance, history) beside the live half (which pane
 // is on it right now, and what that agent is doing). This is the screen that answers "where is this
@@ -209,7 +211,7 @@ export function CardRoute() {
 
             <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
 
-            <ContextGauge session={card.session} />
+            <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
 
             {card.runtime ? (
               <>
@@ -593,6 +595,26 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
  * card still fits on a phone screen.
  */
 /**
+ * One tick of the "resolve" watch: given whether we're still waiting on the agent, whether we've
+ * already seen it take a turn, and its current status, decide what to remember and whether this is
+ * the edge — working/blocked, THEN not — that means the turn is over and it's time to re-read the
+ * integration state.
+ *
+ * Pure so the edge detection is reviewable and testable without rendering the component: getting it
+ * wrong either fires on the wrong tick (reads a half-finished commit) or never fires at all (the
+ * operator is back to remembering to check by hand, the exact friction this exists to remove).
+ */
+export function resolveWatchStep(
+  awaitingResolve: boolean,
+  sawAgentTurn: boolean,
+  status: AgentStatus | undefined,
+): { sawAgentTurn: boolean; refresh: boolean } {
+  if (!awaitingResolve) return { sawAgentTurn: false, refresh: false };
+  if (status === "working" || status === "blocked") return { sawAgentTurn: true, refresh: false };
+  return { sawAgentTurn: false, refresh: sawAgentTurn };
+}
+
+/**
  * What happens to the branch once the work is done: merge it, open a PR, hand a conflict back to the
  * agent, or clean the whole thing up.
  *
@@ -615,6 +637,7 @@ function IntegrationSection({
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  const [awaitingResolve, setAwaitingResolve] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [unexplained, setUnexplained] = useState<{ action: string; error: string } | null>(null);
   const { confirm, pending } = usePendingConfirm();
@@ -673,6 +696,22 @@ function IntegrationSection({
     void load();
   }, [load]);
 
+  // Once "resolve" is sent, the actual merge commit lands seconds or minutes later, in the agent's
+  // own time — nothing here waits for it. Rather than leave the operator to remember to come back and
+  // recheck, this watches the SAME live `agentStatus` the polling loop already refreshes: the turn
+  // that follows a resolve request ends when the agent stops working, so that edge is the honest
+  // signal to re-read the integration state. No new poll, no timer — riding the one the page already
+  // has.
+  const sawAgentTurn = useRef(false);
+  useEffect(() => {
+    const step = resolveWatchStep(awaitingResolve, sawAgentTurn.current, card.runtime?.agentStatus);
+    sawAgentTurn.current = step.sawAgentTurn;
+    if (step.refresh) {
+      setAwaitingResolve(false);
+      void load();
+    }
+  }, [card.runtime?.agentStatus, awaitingResolve, load]);
+
   async function run(
     action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
     label: string,
@@ -682,8 +721,13 @@ function IntegrationSection({
     try {
       const res = await integrateCard(card.id, action, andDone);
       setConflict(false);
+      if (action === "resolve") setAwaitingResolve(true);
       setStatus(
-        action === "pr" && res.url ? `PR opened — ${res.url}` : `${label} done.`,
+        action === "pr" && res.url
+          ? `PR opened — ${res.url}`
+          : action === "resolve"
+            ? "Sent to the agent — this section refreshes on its own once it's done."
+            : `${label} done.`,
         "success",
       );
       onDone();
@@ -699,6 +743,19 @@ function IntegrationSection({
     } finally {
       setBusy(null);
       void load();
+    }
+  }
+
+  // Off by default: once the card's wrapup settles, `WrapupCoordinator` cleans up the worktree on its
+  // own — same refusals as the manual tap, just without waiting for it. Set here rather than only
+  // shown next to the button below: the operator needs to flip it BEFORE that happens, which can be
+  // any time after the card is filed, not only while looking at a branch that is already merged.
+  async function toggleKeepWorktree(keep: boolean) {
+    try {
+      await patchCard(card.id, { keepWorktree: keep });
+      onDone();
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
     }
   }
 
@@ -733,6 +790,22 @@ function IntegrationSection({
               : `${state.ahead} commit${state.ahead === 1 ? "" : "s"} not in ${state.base}`}
           </span>
           {state.behind > 0 && <span>· {state.behind} behind</span>}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-xs font-medium">Keep this worktree</div>
+            <p className="text-xs text-muted-foreground">
+              Off by default — once this card is done, the worktree and branch are removed
+              automatically as soon as the closing report is collected.
+            </p>
+          </div>
+          <Switch
+            checked={card.keepWorktree}
+            disabled={busy !== null}
+            onCheckedChange={(checked) => void toggleKeepWorktree(checked)}
+            aria-label="Keep this worktree"
+          />
         </div>
 
         {/* Loudest thing here when true: the card's diff shows this work, but no merge will take it. */}
@@ -803,6 +876,15 @@ function IntegrationSection({
           </Button>
         )}
 
+        {/* Shown from the moment "resolve" is sent until the agent's turn ends — see the effect above.
+            No button here: the point is exactly that there is nothing left to tap yet. */}
+        {awaitingResolve && (
+          <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            The agent is resolving the conflict — this refreshes on its own once it's done. Come back
+            and tap merge again.
+          </p>
+        )}
+
         {conflict && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
             <p className="text-xs text-muted-foreground">
@@ -854,19 +936,31 @@ function IntegrationSection({
         )}
 
         {merged ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 w-fit gap-2 text-destructive"
-            disabled={busy !== null}
-            onClick={() => {
-              if (!confirm("cleanup")) return;
-              void run("cleanup", "Worktree removed");
-            }}
-          >
-            <Trash2 className="size-4" />
-            {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
-          </Button>
+          <div className="flex flex-col gap-2">
+            {/* The backend refuses this too (`wrapupGate`), but saying so BEFORE the tap beats a
+                surprise error: `session` is already null on a filed card, so without this the screen
+                has nothing else to show that a note is still being written into the checkout this
+                button is about to delete. */}
+            {card.wrapupPending && (
+              <p className="text-xs text-muted-foreground">
+                The agent is still writing its closing report — cleaning up now would lose it. Wait
+                for it to finish.
+              </p>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-fit gap-2 text-destructive"
+              disabled={busy !== null || card.wrapupPending}
+              onClick={() => {
+                if (!confirm("cleanup")) return;
+                void run("cleanup", "Worktree removed");
+              }}
+            >
+              <Trash2 className="size-4" />
+              {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+            </Button>
+          </div>
         ) : (
           /* The one gesture here that destroys work. It says exactly what it is about to lose —
              a count you can check against the diff above — and takes a second tap to mean it. */

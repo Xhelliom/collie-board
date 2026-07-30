@@ -197,7 +197,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // The closing note a card asks for when it is filed as done, collected the same way — it lands
     // before the review below reads it. Costs one file read per pending wrapup, of which there is
     // normally none.
-    const wrapups = new WrapupCoordinator(board);
+    const wrapups = new WrapupCoordinator(board, herdr);
     engine.onUpdate((snap) => wrapups.update(snap));
     // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
     // lazily so a disabled copilot costs no git subprocesses at all.

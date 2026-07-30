@@ -1,9 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { BoardDb } from "./db.ts";
+import type { Card } from "./db.ts";
+import { BoardDb, isPendingWrapup } from "./db.ts";
+import type { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
-import { WrapupCoordinator, isPendingWrapup, wrapupPrompt } from "./wrapup.ts";
+import { WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
 
 // The wrapup is the last thing an agent is asked before its card is filed. It runs on a card that has
 // ALREADY stopped moving, so nothing here may resurrect it — and it must give up rather than sit on a
@@ -39,6 +41,20 @@ function pending(store: BoardDb, ago: number, now: number) {
   store.closeSession(session.id, "done");
   store.patchSession(session.id, { handoffRequestedAt: now - ago });
   return { card, sessionId: session.id };
+}
+
+// Never actually called — every test below injects a fake `cleanup` in place of the real
+// `cleanupCard`, so nothing here ever reaches a real socket.
+const FAKE_HERDR = {} as never;
+
+/** A stand-in for `cleanupCard` that records which cards it was asked to clean up, and nothing else. */
+function fakeCleanup(): { calls: Card[]; fn: typeof cleanupCard } {
+  const calls: Card[] = [];
+  const fn: typeof cleanupCard = async (_db, _herdr, card) => {
+    calls.push(card);
+    return { ok: true, value: { branch: card.branch ?? "", discarded: 0 } };
+  };
+  return { calls, fn };
 }
 
 describe("wrapupPrompt", () => {
@@ -82,7 +98,7 @@ describe("WrapupCoordinator", () => {
     const store = db();
     const { card, sessionId } = pending(store, 31 * 60 * 1000, now);
 
-    new WrapupCoordinator(store, () => now).update(snapshot([pane("w1:p1", "idle")]));
+    new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(store.getSession(sessionId)!.handoffRequestedAt).toBeNull();
     expect(store.listEvents(card.id).some((e) => e.type === "wrapup.expired")).toBe(true);
@@ -93,7 +109,7 @@ describe("WrapupCoordinator", () => {
     const store = db();
     const { sessionId } = pending(store, 1_000, now);
 
-    new WrapupCoordinator(store, () => now).update(snapshot([pane("w1:p1", "idle")]));
+    new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - 1_000);
   });
@@ -103,7 +119,7 @@ describe("WrapupCoordinator", () => {
     const store = db();
     const { sessionId } = pending(store, 60_000, now);
 
-    new WrapupCoordinator(store, () => now).update(snapshot([pane("w1:p1", "blocked")]));
+    new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "blocked")]));
 
     expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - 60_000);
   });
@@ -113,7 +129,7 @@ describe("WrapupCoordinator", () => {
     const store = db();
     const { sessionId } = pending(store, 31 * 60 * 1000, now);
 
-    new WrapupCoordinator(store, () => now).update(snapshot([], "disconnected"));
+    new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([], "disconnected"));
 
     expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - 31 * 60 * 1000);
   });
@@ -123,9 +139,46 @@ describe("WrapupCoordinator", () => {
     const store = db();
     const { card } = pending(store, 31 * 60 * 1000, now);
 
-    new WrapupCoordinator(store, () => now).update(snapshot([pane("w1:p1", "idle")]));
+    new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(store.getCard(card.id)!.status).toBe("done");
     expect(store.openSessionFor(card.id)).toBeNull();
+  });
+
+  // The wrapup itself only ever CLEARS the marker in two places — a collected note, or a deadline
+  // that gives up on one — and both mean the checkout is no longer needed. The deadline is the one
+  // reachable without a real repo and a real herdr, so it is what these exercise.
+  it("cleans up on its own once it gives up waiting for a note — nothing is left to lose", () => {
+    const now = 10_000_000;
+    const store = db();
+    const { card } = pending(store, 31 * 60 * 1000, now);
+    const cleanup = fakeCleanup();
+
+    new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
+
+    expect(cleanup.calls.map((c) => c.id)).toEqual([card.id]);
+  });
+
+  it("does NOT clean up a card the operator asked to keep", () => {
+    const now = 10_000_000;
+    const store = db();
+    const { card } = pending(store, 31 * 60 * 1000, now);
+    store.patchCard(card.id, { keepWorktree: true });
+    const cleanup = fakeCleanup();
+
+    new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
+
+    expect(cleanup.calls).toEqual([]);
+  });
+
+  it("does not clean up a wrapup that is still pending — nothing has settled yet", () => {
+    const now = 10_000_000;
+    const store = db();
+    pending(store, 1_000, now);
+    const cleanup = fakeCleanup();
+
+    new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
+
+    expect(cleanup.calls).toEqual([]);
   });
 });
