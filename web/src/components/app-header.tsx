@@ -89,7 +89,7 @@ export function SettingsGear({ session }: { session?: string }) {
       type="button"
       onClick={() => navigate(settingsPath(session))}
       aria-label="Settings"
-      className="text-muted-foreground transition-colors hover:text-foreground"
+      className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground active:bg-muted/60"
     >
       <Settings className="size-5" />
     </button>

@@ -41,7 +41,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
     <>
       {pieces.map((piece, i) =>
         piece.hit ? (
-          <mark key={i} className="rounded-sm bg-amber-300/70 text-inherit dark:bg-amber-500/40">
+          <mark key={i} className="rounded-sm bg-find-hit text-inherit">
             {piece.text}
           </mark>
         ) : (

@@ -734,10 +734,10 @@ export function AgentChat({
 
           {/* Swipe-up / tap handle for the quick pane switcher — the sheet that switches AND closes
               panes (each row has a ✕). A tall, full-width hit area so the swipe is easy to land (and a
-              tap always works). Shown whenever a pane is open — even the last one, so it stays
-              closable now that the nav drawer is gone. `touch-none` so the gesture is ours, not a
-              browser scroll. */}
-          {agents.length + shellPanes.length > 0 && (
+              tap always works). Hidden with a single pane — there's nothing to switch to, and closing
+              it is already reachable elsewhere, so the handle would be an affordance to nowhere.
+              `touch-none` so the gesture is ours, not a browser scroll. */}
+          {agents.length + shellPanes.length > 1 && (
             <button
               type="button"
               aria-label="Switch pane"

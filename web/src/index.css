@@ -31,6 +31,11 @@
   --status-done: oklch(0.7 0.16 152);
   --status-idle: oklch(0.62 0.02 250);
   --status-unknown: oklch(0.55 0.02 250);
+
+  /* Find-in-text highlight — one amber family shared by the live pane mirror (ansi-output) and the
+     transcript/markdown reader, which used to disagree (yellow-400 vs amber-300). */
+  --find-hit: oklch(0.879 0.169 91.605 / 70%);
+  --find-hit-current: oklch(0.769 0.188 70.08);
 }
 
 .dark {
@@ -59,6 +64,9 @@
   --status-done: oklch(0.74 0.16 152);
   --status-idle: oklch(0.65 0.02 250);
   --status-unknown: oklch(0.6 0.02 250);
+
+  --find-hit: oklch(0.769 0.188 70.08 / 40%);
+  --find-hit-current: oklch(0.852 0.199 91.936);
 }
 
 @theme inline {
@@ -92,6 +100,9 @@
   --color-status-done: var(--status-done);
   --color-status-idle: var(--status-idle);
   --color-status-unknown: var(--status-unknown);
+
+  --color-find-hit: var(--find-hit);
+  --color-find-hit-current: var(--find-hit-current);
 
   --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Roboto Mono", ui-monospace,
     SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;

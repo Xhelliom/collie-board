@@ -12,6 +12,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 ### Changed
 - Composer redesign (UI_AUDIT C1): the reply input is now full-width on its own line; the View + Controls rows collapse into one 44px-target action row (Keys/Quick/Agent/Attach/View). Find-in-output moved to the pane header.
 
+## [0.51.1] - 2026-07-30
+
+### Fixed
+- Settings gear was under the 20px tap-target minimum — now `size-9` (36px), matching the History button. (1b28087)
+- Settings screen now mounts the shared `AppHeader` instead of a bespoke one, so the connection dog/banner show up on the diagnostics page. (1b28087)
+- Find highlight used two different yellows (pane mirror vs. transcript reader) for the same "match" meaning — unified behind `--find-hit` / `--find-hit-current` tokens. (1b28087)
+- The pane-switch handle no longer renders when there's only one pane — nothing to switch to. (1b28087)
+
 ## [0.51.0] - 2026-07-30
 
 ### Added
