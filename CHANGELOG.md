@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.58.1] - 2026-07-30
+
+### Fixed
+- A post-`done` review's `todos` land as full cards (spec + acceptance), not bare titles — the same regression the `split` path already guards against (65337c1).
+
 ## [0.58.0] - 2026-07-30
 
 ### Added
