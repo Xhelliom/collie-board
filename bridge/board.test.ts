@@ -15,6 +15,7 @@ import {
   reconcileOne,
   releaseSession,
   startCard,
+  withCardFields,
   wouldCycle,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
@@ -386,6 +387,32 @@ describe("cardViews", () => {
     expect(views.find((v) => v.id === waiting.id)!.wrapupPending).toBe(true);
     expect(views.find((v) => v.id === collected.id)!.wrapupPending).toBe(false);
     expect(views.find((v) => v.id === never.id)!.wrapupPending).toBe(false);
+  });
+});
+
+describe("withCardFields", () => {
+  it("overlays branch and context onto the pane backing an open session", () => {
+    const store = db();
+    const card = store.createCard({ title: "x", branch: "board/x" });
+    const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    store.patchSession(session.id, { ctxTokens: 42_000, ctxPct: 55 });
+
+    const enriched = withCardFields([pane("w1:p1", "working")], store.listOpenSessions(), store)[0]!;
+    expect(enriched.branch).toBe("board/x");
+    expect(enriched.ctxPct).toBe(55);
+    expect(enriched.ctxTokens).toBe(42_000);
+  });
+
+  it("leaves a pane with no open session untouched, even while OTHER sessions are open", () => {
+    const store = db();
+    // A second, unrelated card WITH an open session — proves the join is keyed by paneId, not just
+    // "any session exists" (the early return on an empty session list is a different code path).
+    const other = store.createCard({ title: "other", branch: "board/other" });
+    store.openSession({ cardId: other.id, paneId: "w1:p2" });
+
+    const original = pane("w1:p1", "working");
+    const [unchanged] = withCardFields([original], store.listOpenSessions(), store);
+    expect(unchanged).toEqual(original);
   });
 });
 

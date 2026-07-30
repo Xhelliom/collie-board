@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
+import { withCardFields } from "./cards.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
@@ -142,6 +143,10 @@ export function startServer(opts: {
         if (!rt) return unknownSession();
         const { agents, shellPanes, workspaces, tabs, bridge } = rt.engine.current();
         const device = deviceAuth(req, cfg);
+        // The board is bound to the PRIMARY session (see the /api/cards block below) — only its
+        // panes can match an open card session, so a non-primary snapshot is left untouched. One
+        // query, reused for both pane lists, rather than one per list.
+        const openSessions = rt.isPrimary ? board.listOpenSessions() : [];
         // Tag every snapshot poll with the on-disk build id so an open client notices a live rebuild
         // between polls — the no-service-worker self-update path (web/src/lib/self-update.ts).
         return withBuildHeader(
@@ -149,8 +154,8 @@ export function startServer(opts: {
             bridge,
             // Only report device state when the feature is on, so an off deployment sends nothing new.
             ...(device.enforced ? { device } : {}),
-            agents,
-            shellPanes,
+            agents: withCardFields(agents, openSessions, board),
+            shellPanes: withCardFields(shellPanes, openSessions, board),
             workspaces,
             tabs,
             sessions: registry.list(),
