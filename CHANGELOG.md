@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.49.3] - 2026-07-30
+
+### Fixed
+- Settings gear was under the 20px tap-target minimum — now `size-9` (36px), matching the History button. (1b28087)
+- Settings screen now mounts the shared `AppHeader` instead of a bespoke one, so the connection dog/banner show up on the diagnostics page. (1b28087)
+- Find highlight used two different yellows (pane mirror vs. transcript reader) for the same "match" meaning — unified behind `--find-hit` / `--find-hit-current` tokens. (1b28087)
+- The pane-switch handle no longer renders when there's only one pane — nothing to switch to. (1b28087)
+
 ## [0.49.2] - 2026-07-29
 
 ### Fixed
