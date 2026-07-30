@@ -71,4 +71,30 @@ describe("CardTile", () => {
     render(<CardTile card={card({ runtime: runtime() })} onClick={() => {}} />);
     expect(screen.queryByText("· claude")).toBeNull();
   });
+
+  it("shows an unmet dependency's title and swaps the status chip for a lock", () => {
+    render(
+      <CardTile
+        card={card()}
+        onClick={() => {}}
+        dependency={{ title: "ship the diff view", met: false }}
+      />,
+    );
+    expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
+    // The status chip would otherwise render the column name in full caps.
+    expect(screen.queryByText("backlog")).toBeNull();
+  });
+
+  it("still shows a met dependency — an answered gate, not left for the editor to reveal", () => {
+    render(
+      <CardTile
+        card={card()}
+        onClick={() => {}}
+        dependency={{ title: "ship the diff view", met: true }}
+      />,
+    );
+    expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
+    // Not blocking, so the normal column chip still shows.
+    expect(screen.getByText("backlog")).toBeInTheDocument();
+  });
 });

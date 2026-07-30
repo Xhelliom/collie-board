@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { CardTile } from "@/components/card-tile";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { BOARD_COLUMNS, type CardView } from "@/lib/board";
-import { groupOpenByDefault, waitingOn } from "@/lib/board-groups";
+import { dependencyInfo, groupOpenByDefault } from "@/lib/board-groups";
 
 // A container card and the sub-tasks it was split into, as one entry on the board.
 //
@@ -76,7 +76,7 @@ export function CardGroup({
               key={child.id}
               card={child}
               onClick={() => onOpen(child.id)}
-              waitingOn={waitingOn(child, byId)}
+              dependency={dependencyInfo(child, byId)}
             />
           ))}
         </div>

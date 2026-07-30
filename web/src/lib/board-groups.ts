@@ -132,15 +132,22 @@ export function dependencyMet(predecessor: { status: CardStatus } | null | undef
   return predecessor.status === "done" || predecessor.status === "archived";
 }
 
+export interface DependencyInfo {
+  title: string;
+  met: boolean;
+}
+
 /**
- * The predecessor's title when it still holds this card back, else undefined — i.e. exactly what a
- * tile needs to render its "after …" line, and nothing when there is nothing to say.
+ * The predecessor a card declares, with whether it still holds the card back — i.e. exactly what a
+ * tile needs to render its "after …" line, whether or not that dependency is still blocking. `undefined`
+ * only when there is no predecessor to show at all (none declared, or it's gone from the board).
  *
  * Lives here rather than in either component because BOTH need it: a dependency can be set on any
  * card, so a top-level tile wants it as much as one nested in a group.
  */
-export function waitingOn(card: CardView, byId: Map<string, CardView>): string | undefined {
+export function dependencyInfo(card: CardView, byId: Map<string, CardView>): DependencyInfo | undefined {
   if (!card.dependsOn) return undefined;
   const predecessor = byId.get(card.dependsOn);
-  return dependencyMet(predecessor) ? undefined : predecessor?.title;
+  if (!predecessor) return undefined;
+  return { title: predecessor.title, met: dependencyMet(predecessor) };
 }

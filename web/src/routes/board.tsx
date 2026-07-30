@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
 import { NewCardSheet } from "@/components/new-card-sheet";
-import { boardEntries, entryKey, entryStatus, waitingOn } from "@/lib/board-groups";
+import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import {
@@ -96,7 +96,7 @@ export function BoardRoute() {
                           key={entryKey(entry)}
                           card={entry.card}
                           onClick={() => navigate(cardPath(entry.card.id))}
-                          waitingOn={waitingOn(entry.card, byId)}
+                          dependency={dependencyInfo(entry.card, byId)}
                         />
                       ),
                     )}

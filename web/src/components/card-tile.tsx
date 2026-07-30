@@ -1,4 +1,4 @@
-import { ChevronRight, CornerDownRight, GitBranch, Layers, Lock } from "lucide-react";
+import { Check, ChevronRight, CornerDownRight, GitBranch, Layers, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { shortCwd } from "@/lib/format";
 import { paneDisplayName } from "@/lib/types";
+import type { DependencyInfo } from "@/lib/board-groups";
 import type { CardView } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
@@ -18,16 +19,18 @@ import type { CardView } from "@/lib/board";
 export function CardTile({
   card,
   onClick,
-  waitingOn,
+  dependency,
 }: {
   card: CardView;
   onClick: () => void;
   /**
-   * The unfinished predecessor holding this card back, if any. Shown on the TILE rather than left
-   * for the Start button to reject: a 409 toast is a round trip for something the row already knew.
+   * The card's declared predecessor, if any — shown on the TILE rather than left for the Start
+   * button to reject (a 409 toast is a round trip for something the row already knew), and shown
+   * even once satisfied so "why does this depend on that" doesn't require opening the editor.
    */
-  waitingOn?: string;
+  dependency?: DependencyInfo;
 }) {
+  const waiting = dependency && !dependency.met;
   const urgent = card.status === "blocked";
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
@@ -47,7 +50,7 @@ export function CardTile({
           urgent && "border-status-blocked/40 bg-status-blocked/5",
           // Held back, not broken — muted rather than alarming. `blocked` is the colour of "an
           // agent needs you"; waiting on a predecessor needs nothing from you at all.
-          waitingOn && "border-dashed opacity-70",
+          waiting && "border-dashed opacity-70",
         )}
       >
         {card.runtime ? (
@@ -63,10 +66,21 @@ export function CardTile({
             <span className="truncate font-medium">{card.title}</span>
             {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
           </div>
-          {waitingOn && (
-            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-              <CornerDownRight className="size-3 shrink-0" />
-              <span className="truncate">after “{waitingOn}”</span>
+          {dependency && (
+            <div
+              className={cn(
+                "flex items-center gap-1 truncate text-xs",
+                // Green once satisfied — a quiet confirmation, not an alert — amber/blocked-tinted
+                // while it still holds the card back, so the colour alone answers "can I start this".
+                dependency.met ? "text-status-done" : "text-status-blocked",
+              )}
+            >
+              {dependency.met ? (
+                <Check className="size-3 shrink-0" />
+              ) : (
+                <CornerDownRight className="size-3 shrink-0" />
+              )}
+              <span className="truncate">after “{dependency.title}”</span>
             </div>
           )}
           {/* Branch gets its OWN row: unbounded length, and packing it alongside cwd/sessionCount/
@@ -94,8 +108,8 @@ export function CardTile({
           </div>
         </div>
 
-        {waitingOn ? (
-          <Lock className="size-4 shrink-0 text-muted-foreground" />
+        {waiting ? (
+          <Lock className="size-4 shrink-0 text-status-blocked" />
         ) : card.runtime ? (
           <StatusBadge status={card.runtime.agentStatus} />
         ) : (
