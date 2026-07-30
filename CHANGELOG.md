@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.57.1] - 2026-07-30
+
+### Fixed
+- Every screen carries exactly one `<h1>` — home, board, pane, history and space had none, and their `<h2>`/`<h3>`s hung off nothing, so heading navigation landed in an orphan tree (WCAG 1.3.1) (9265b4e).
+- The error status line's ✕ is a real `<button>` with an `aria-label` — dismissing an error was the one action in the app a keyboard couldn't reach, and it's the only notice that doesn't fade on its own (9265b4e).
+- A pane that fails to render no longer takes the board and the dashboard with it: pane, card, board and history each have their own `errorElement` (9265b4e).
+
+### Changed
+- The error barrier's button navigates to the parent screen (card → board, history → its pane, otherwise home) instead of reloading the whole app (9265b4e).
+
 ## [0.57.0] - 2026-07-30
 
 ### Added
