@@ -7,6 +7,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.61.0] - 2026-07-30
+
+### Added
+- The theme names two motion curves (`ease-enter` decelerating, `ease-exit` accelerating) and two durations (150ms/250ms); the short one is the default every bare `transition-*` already rides, so a call site only names a duration to ask for the long one (5e76d50).
+- `--font-sans` is declared explicitly — it only restates the system stack, but an inherited default is not a decision (5e76d50).
+- [ADR 0004](./.adr/0004-the-terminal-mirror-uses-the-platform-mono.md) records why the terminal mirror uses the platform's mono, and what would justify self-hosting a face after all (5e76d50).
+
+### Changed
+- One type scale, three roles: `text-base` content, `text-sm` supporting, `text-xs` metadata. All 47 arbitrary font sizes are gone — they pinned 10-11px, below Tailwind's smallest rung rather than between two of them, so they folded onto it instead of minting a new one (5e76d50).
+- Content reads a rung larger: the body of a message, the agent name in the sidebar, a container's title, and markdown headings, which sat level with or below the prose they introduced. Metadata stayed small — that gap is the hierarchy that was missing (5e76d50).
+- `"JetBrains Mono"` no longer leads `--font-mono`. It was never loaded — no `@font-face`, no preload, no woff2 in `public/` — so the mirror already rendered in the platform's mono while the CSS claimed otherwise (5e76d50).
+- The connection banner enters and exits on different curves, and `EXIT_MS` moved 200 → 250 to stay locked to the CSS duration it delays the unmount for (5e76d50).
+
 ## [0.60.0] - 2026-07-30
 
 ### Added
