@@ -20,6 +20,14 @@ import { Button } from "@/components/ui/button";
 // this is Vaul's own escape hatch for it. The header is the drag zone — the panel is a flex column,
 // so it never scrolls out of reach.
 
+// The grab handle, in one place. It shows up twice for the same gesture — on the closed pane screen
+// as the thing you swipe up (agent-chat.tsx), and again at the top of the sheet that opens — so the
+// two must be the same object or the transition reads as a substitution. Ours rather than Vaul's
+// `Drawer.Handle`, which ships a hard-coded light-grey background that fights the theme tokens.
+export function GrabHandle({ className }: { className?: string }) {
+  return <span className={cn("h-1.5 w-12 rounded-full bg-muted-foreground/50", className)} />;
+}
+
 interface SheetShellProps {
   open: boolean;
   onClose: () => void;
@@ -97,10 +105,8 @@ function SheetShell({
             )}
           >
             {atBottom && (
-              // Grab handle — the affordance for the pull-to-dismiss the header carries. Ours, not
-              // Vaul's `Drawer.Handle`, which ships a hard-coded light-grey background.
               <div className="flex justify-center pt-2 pb-1">
-                <span className="h-1 w-9 rounded-full bg-muted-foreground/40" />
+                <GrabHandle />
               </div>
             )}
             <div className="flex items-center justify-between">
@@ -153,8 +159,10 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
       onClose={onClose}
       direction="bottom"
       title={title}
+      // No top border: the panel already reads as a separate surface against the dimmed backdrop, and
+      // a hairline there drew as a bright seam under the rounded corners rather than an edge.
       className={cn(
-        "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl border-t pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
+        "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
         className,
       )}
     >
