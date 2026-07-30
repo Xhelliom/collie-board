@@ -70,7 +70,9 @@ const NO_MATCHES: FindMatch[] = [];
 
 function preClass(wrap: boolean, className?: string): string {
   return cn(
-    "m-0 font-mono leading-[1.25] tracking-normal text-foreground [font-variant-ligatures:none]",
+    // Pinned dark surface (see --terminal-background in index.css) — not text-foreground/
+    // bg-background, which would follow the app into light mode and fight the ANSI palette below.
+    "m-0 bg-terminal-background font-mono leading-[1.25] tracking-normal text-terminal-foreground [font-variant-ligatures:none]",
     wrap
       ? "whitespace-pre-wrap break-words"
       : // Horizontal pan for wide TUI tables. `overflow-x-auto` forces `overflow-y` to compute to
@@ -161,11 +163,12 @@ export const AnsiOutput = memo(function AnsiOutput({
     currentRef.current?.scrollIntoView({ block: "center", behavior: "auto" });
   }, [currentMatch, matches]);
 
-  // Muted = box-drawing / rule glyphs. Use muted-foreground (readable on dark) and drop ANSI dim
-  // opacity so table borders stay visible — var(--border) + dim made them nearly invisible on mobile.
+  // Muted = box-drawing / rule glyphs. Use terminal-muted (dimmed against the mirror's own pinned
+  // dark surface, not the app's theme-following --muted-foreground) and drop ANSI dim opacity so
+  // table borders stay visible — var(--border) + dim made them nearly invisible on mobile.
   const styleFor = (s: AnsiSegment): CSSProperties =>
     s.muted
-      ? { ...s.style, color: "var(--muted-foreground)", fontWeight: 400, opacity: 1 }
+      ? { ...s.style, color: "var(--terminal-muted)", fontWeight: 400, opacity: 1 }
       : s.style;
 
   const prompt = promptBlock ? (

@@ -5,25 +5,36 @@
 
 :root {
   --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+
+  /* Base neutral scale — chroma-tinted cold (hue 250, chroma 0.006): matches --status-idle/
+     --status-unknown below and sits close to Tailwind's own zinc scale (~0.006 chroma at the same
+     hue family), which is what the chrome bars below were already borrowing via bg-zinc-800. Was
+     flat oklch(L 0 0) — shadcn's unmodified "neutral" default (R1: 18 tokens, this one hue picked
+     for a cold/technical read over a warm one). Lightness values are unchanged, only chroma/hue. */
+  --background: oklch(1 0.006 250);
+  --foreground: oklch(0.145 0.006 250);
+  --card: oklch(1 0.006 250);
+  --card-foreground: oklch(0.145 0.006 250);
+  --popover: oklch(1 0.006 250);
+  --popover-foreground: oklch(0.145 0.006 250);
+  --primary: oklch(0.205 0.006 250);
+  --primary-foreground: oklch(0.985 0.006 250);
+  --secondary: oklch(0.97 0.006 250);
+  --secondary-foreground: oklch(0.205 0.006 250);
+  --muted: oklch(0.97 0.006 250);
+  --muted-foreground: oklch(0.556 0.006 250);
+  --accent: oklch(0.97 0.006 250);
+  --accent-foreground: oklch(0.205 0.006 250);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --destructive-foreground: oklch(0.985 0.006 250);
+  --border: oklch(0.922 0.006 250);
+  --input: oklch(0.922 0.006 250);
+  --ring: oklch(0.708 0.006 250);
+
+  /* Permanent app chrome (the header and composer bars) — the two surfaces that stay on screen
+     across every route, so they read as a toolbar one shade off --background rather than the page
+     itself. Was a hard-coded bg-zinc-800 in both files; --chrome (dark) keeps that same lightness. */
+  --chrome: oklch(0.94 0.006 250);
 
   /* Agent lifecycle status palette — shared across themes. */
   --status-blocked: oklch(0.66 0.21 24);
@@ -36,28 +47,38 @@
      transcript/markdown reader, which used to disagree (yellow-400 vs amber-300). */
   --find-hit: oklch(0.879 0.169 91.605 / 70%);
   --find-hit-current: oklch(0.769 0.188 70.08);
+
+  /* Terminal mirror surface (ansi-output.tsx) — pinned dark regardless of the app theme (D2). The
+     mirror's 16-color SGR palette (lib/ansi.ts) is VS Code's dark integrated-terminal palette; it
+     assumes a dark backdrop to read correctly, so the mirror keeps its own fixed surface instead of
+     following --background into light mode. Defined once here, not overridden in .dark. */
+  --terminal-background: oklch(0.145 0.006 250);
+  --terminal-foreground: oklch(0.985 0.006 250);
+  --terminal-muted: oklch(0.708 0.006 250);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.145 0.006 250);
+  --foreground: oklch(0.985 0.006 250);
+  --card: oklch(0.205 0.006 250);
+  --card-foreground: oklch(0.985 0.006 250);
+  --popover: oklch(0.205 0.006 250);
+  --popover-foreground: oklch(0.985 0.006 250);
+  --primary: oklch(0.922 0.006 250);
+  --primary-foreground: oklch(0.205 0.006 250);
+  --secondary: oklch(0.269 0.006 250);
+  --secondary-foreground: oklch(0.985 0.006 250);
+  --muted: oklch(0.269 0.006 250);
+  --muted-foreground: oklch(0.708 0.006 250);
+  --accent: oklch(0.269 0.006 250);
+  --accent-foreground: oklch(0.985 0.006 250);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --destructive-foreground: oklch(0.985 0.006 250);
+  --border: oklch(1 0.006 250 / 12%);
+  --input: oklch(1 0.006 250 / 15%);
+  --ring: oklch(0.556 0.006 250);
+
+  --chrome: oklch(0.274 0.006 250);
 
   --status-blocked: oklch(0.7 0.2 24);
   --status-working: oklch(0.82 0.15 82);
@@ -103,6 +124,11 @@
 
   --color-find-hit: var(--find-hit);
   --color-find-hit-current: var(--find-hit-current);
+
+  --color-chrome: var(--chrome);
+  --color-terminal-background: var(--terminal-background);
+  --color-terminal-foreground: var(--terminal-foreground);
+  --color-terminal-muted: var(--terminal-muted);
 
   --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", "Roboto Mono", ui-monospace,
     SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;

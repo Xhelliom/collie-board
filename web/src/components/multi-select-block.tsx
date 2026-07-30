@@ -158,7 +158,7 @@ function ReviewPhase({
       {incomplete ? (
         // role="alert" so a screen reader announces the incomplete-answers warning when the review
         // screen mounts — otherwise a user could confirm a partial set without ever hearing it.
-        <div role="alert" className="flex items-center gap-1.5 text-xs text-yellow-500">
+        <div role="alert" className="flex items-center gap-1.5 text-xs text-status-working">
           <AlertTriangle className="size-3.5 shrink-0" />
           You have not answered all questions
         </div>

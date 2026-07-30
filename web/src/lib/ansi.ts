@@ -22,7 +22,8 @@ export interface AnsiSegment {
   muted: boolean;
 }
 
-// 16-color palette (VS Code integrated-terminal dark) — readable on our dark background.
+// 16-color palette (VS Code integrated-terminal dark) — readable on the mirror's pinned dark
+// background (--terminal-background in index.css), independent of the app's light/dark theme.
 const BASE16 = [
   "#000000", "#cd3131", "#0dbc79", "#e5e510", "#2472c8", "#bc3fbc", "#11a8cd", "#e5e5e5",
   "#666666", "#f14c4c", "#23d18b", "#f5f543", "#3b8eea", "#d670d6", "#29b8db", "#ffffff",
@@ -141,8 +142,8 @@ export function parseAnsi(input: string): AnsiSegment[] {
 
   const flush = () => {
     if (!buf) return;
-    const fg = state.inverse ? (state.bg ?? "var(--background)") : state.fg;
-    const bg = state.inverse ? (state.fg ?? "var(--foreground)") : state.bg;
+    const fg = state.inverse ? (state.bg ?? "var(--terminal-background)") : state.fg;
+    const bg = state.inverse ? (state.fg ?? "var(--terminal-foreground)") : state.bg;
     segs.push({
       text: buf,
       fg,

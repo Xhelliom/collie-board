@@ -63,7 +63,7 @@ export function AppHeader({
   const trouble = useConnectionTrouble(connecting);
   const lost = useConnectionLost(connecting);
   return (
-    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border/60 bg-zinc-800 pl-4 pr-2 py-2 [padding-top:calc(env(safe-area-inset-top)_+_0.5rem)]">
+    <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border/60 bg-chrome pl-4 pr-2 py-2 [padding-top:calc(env(safe-area-inset-top)_+_0.5rem)]">
       {override ?? (
         <>
           <CollieHome onHome={onHome} trouble={trouble} lost={lost} wordmark={wordmark} />

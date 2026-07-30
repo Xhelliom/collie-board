@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta
@@ -12,6 +12,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Collie Board" />
     <title>Collie Board</title>
+    <!-- Anti-FOUC theme script (D2): must run before the boot-splash <style> below is applied, so the
+         `.dark` class is already set — or absent — by first paint. Duplicates lib/theme.ts's resolve
+         logic in plain JS (that module hasn't loaded yet) — keep the two in sync if the rule changes.
+         Defaults to "system" when nothing is stored, same as loadThemeMode(). -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("collie:theme");
+          var mode = stored === "light" || stored === "dark" ? stored : "system";
+          var dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", dark ? "#0a0a0a" : "#ffffff");
+        } catch (e) {}
+      })();
+    </script>
     <!-- The web manifest <link> is injected by vite-plugin-pwa at build time. -->
     <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -32,9 +48,15 @@
         align-items: center;
         justify-content: center;
         gap: 0.75rem;
+        /* Light-mode default. index.css isn't loaded yet (it ships in the JS bundle), so these are
+           plain hex approximations of --background/--muted-foreground, not the real tokens. */
+        background: #ffffff;
+        color: #71717a;
+        font: 500 0.875rem/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      html.dark .boot-splash {
         background: #0a0a0a;
         color: #a1a1a1;
-        font: 500 0.875rem/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
       }
       .boot-splash__dog {
         --dog-size: 4rem;
