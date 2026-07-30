@@ -68,7 +68,7 @@ export class ContextTracker {
    * the fork's rule is that runtime state never reaches the database (`card` durable, `session`
    * ephemeral). Served with the snapshot by {@link enrich}; dropped when the pane goes away.
    */
-  private readonly occupancy = new Map<string, { pct: number | null; tokens: number }>();
+  private readonly occupancy = new Map<string, { pct: number; tokens: number }>();
 
   constructor(
     private readonly db: BoardDb,
@@ -109,27 +109,28 @@ export class ContextTracker {
         .map((s) => [s.paneId!, s] as const),
     );
 
-    const due = snap.agents.filter((pane) => {
+    // One pass, so the "which session id do we read from" rule is written ONCE and the throttle
+    // compares every pane against the same instant.
+    const now = this.now();
+    const due = snap.agents.flatMap((pane) => {
       // Level 3 by construction: an agent whose transcript format we can't read gets no gauge, and
       // no wasted filesystem scan either.
-      if (!adapterFor(this.adapters, pane.agent).context) return false;
-      // No session id and no cwd leaves nothing to resolve a log from.
-      if (!pane.agentSessionId && !sessionByPane.get(pane.paneId)?.agentSessionId && !pane.cwd) {
-        return false;
-      }
+      if (!adapterFor(this.adapters, pane.agent).context) return [];
       const last = this.lastRead.get(pane.paneId);
-      return last === undefined || this.now() - last >= REFRESH_MS;
+      if (last !== undefined && now - last < REFRESH_MS) return [];
+      const session = sessionByPane.get(pane.paneId);
+      // The pane's own id first — it's the live one; the card's is the fallback for a session whose
+      // id herdr reported once and no longer does. Neither, and no cwd, leaves nothing to resolve from.
+      const sessionId = pane.agentSessionId ?? session?.agentSessionId ?? null;
+      if (sessionId === null && !pane.cwd) return [];
+      return [{ pane, session, sessionId }];
     });
 
     await Promise.all(
-      due.map(async (pane) => {
+      due.map(async ({ pane, session, sessionId }) => {
         const paneId = pane.paneId;
-        this.lastRead.set(paneId, this.now());
-        const session = sessionByPane.get(paneId);
+        this.lastRead.set(paneId, now);
         try {
-          // The pane's own id first — it's the live one; the card's is the fallback for a session
-          // whose id herdr reported once and no longer does.
-          const sessionId = pane.agentSessionId ?? session?.agentSessionId ?? null;
           const path = sessionId
             ? await this.source.resolve(sessionId)
             : await this.resolveWithoutIntegration(paneId, pane.cwd);
@@ -138,11 +139,12 @@ export class ContextTracker {
           const usage = latestUsage(text);
           if (!usage) return;
           const pct = contextPercent(usage.tokens, this.windowTokens);
-          this.occupancy.set(paneId, { pct, tokens: usage.tokens });
           // Durable ONLY for a pane backing a card — that number is part of the card's record (the
           // card screen and the handoff hint read it). A pane with no card writes nothing.
           if (session) this.db.patchSession(session.id, { ctxTokens: usage.tokens, ctxPct: pct });
-          if (pct !== null) await this.report(paneId, pct);
+          if (pct === null) return; // a token count we can't turn into a percentage is no gauge
+          this.occupancy.set(paneId, { pct, tokens: usage.tokens });
+          await this.report(paneId, pct);
         } catch {
           // Level 3. Keep the last known figure rather than blanking a gauge on one bad read.
         }
@@ -159,12 +161,7 @@ export class ContextTracker {
     if (this.occupancy.size === 0) return panes;
     return panes.map((p) => {
       const seen = this.occupancy.get(p.paneId);
-      if (seen === undefined) return p;
-      return {
-        ...p,
-        ...(seen.pct !== null ? { ctxPct: seen.pct } : {}),
-        ctxTokens: seen.tokens,
-      };
+      return seen === undefined ? p : { ...p, ctxPct: seen.pct, ctxTokens: seen.tokens };
     });
   }
 

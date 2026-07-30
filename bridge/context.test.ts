@@ -135,6 +135,20 @@ describe("ContextTracker", () => {
     expect(reads).toHaveLength(2);
   });
 
+  it("records the token count on the card but shows no gauge when it yields no percentage", async () => {
+    const { db, t, reported } = tracker({ "id:s-1": log(0) });
+    const card = db.createCard({ title: "x" });
+    db.openSession({ cardId: card.id, paneId: "w1:p1" });
+
+    await t.update(snapshot([pane("w1:p1", { agentSessionId: "s-1" })]));
+
+    // The card keeps the raw figure it was given; the gauge stays absent rather than reading "0 %",
+    // and nothing is pushed to herdr's sidebar either.
+    expect(db.listOpenSessions()[0]!.ctxPct).toBeNull();
+    expect(t.enrich([pane("w1:p1")])[0]!.ctxPct).toBeUndefined();
+    expect(reported).toEqual([]);
+  });
+
   it("never reads an agent whose transcript format we can't parse", async () => {
     const { t, reads } = tracker({ "cwd:/repo": log(100_000) });
     // `codex` is context:false in the shipped table — level 3, and no wasted scan either.

@@ -155,8 +155,10 @@ export function startServer(opts: {
         // query, reused for both pane lists, rather than one per list.
         const openSessions = rt.isPrimary ? board.listOpenSessions() : [];
         // Context occupancy is pane-scoped, not card-scoped (UI_AUDIT.md G3), so it comes from the
-        // tracker's memory rather than the card join — and only for the primary, the one session it
-        // watches. Agent panes only: a bare shell has no transcript to read.
+        // tracker's memory rather than the card join. Agent panes only: a bare shell has no
+        // transcript to read. The `isPrimary` gate is CORRECTNESS, not thrift — pane ids are only
+        // unique within one herdr server, so a "w1:p1" from another session would otherwise be
+        // handed the primary's percentage.
         const agentViews = withCardFields(agents, openSessions, board);
         // Tag every snapshot poll with the on-disk build id so an open client notices a live rebuild
         // between polls — the no-service-worker self-update path (web/src/lib/self-update.ts).

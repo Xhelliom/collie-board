@@ -186,16 +186,16 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate((snap) => reconcile(board, snap));
     // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
     // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.
-    // Hoisted out so the server can overlay the figures onto the snapshot it serves — they live in
-    // the tracker's memory, not in the database (see ContextTracker.enrich).
-    contextTracker = new ContextTracker(
+    const context = new ContextTracker(
       board,
       herdr,
       new ClaudeTranscriptSource(cfg.transcriptRoot),
       cfg.boardCtxWindow,
       adapters,
     );
-    const context = contextTracker;
+    // Published so the server can overlay the figures onto the snapshot it serves — they live in the
+    // tracker's memory, not in the database (see ContextTracker.enrich).
+    contextTracker = context;
     engine.onUpdate((snap) => void context.update(snap));
     // Handoffs finish here too: the request only prompts the agent, and this notices when it has
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
