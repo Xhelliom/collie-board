@@ -22,7 +22,7 @@ import {
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
-import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus } from "./db.ts";
+import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
 import { isCardStatus } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
@@ -162,6 +162,15 @@ function trimEvent(event: BoardEvent): BoardEvent {
 /** Just enough of a linked card to name it on screen. Never the whole card — this is a label. */
 function linkSummary(card: Card): { id: string; title: string; status: CardStatus } {
   return { id: card.id, title: card.title, status: card.status };
+}
+
+/** A review's suggested follow-ups, resolved to the card each became — or null once it's been
+ *  deleted, so the detail page can show what was suggested without linking to nothing. */
+function resolveReviewTodos(db: BoardDb, todos: ReviewTodo[]): { title: string; card: ReturnType<typeof linkSummary> | null }[] {
+  return todos.map((t) => {
+    const card = t.cardId ? db.getCard(t.cardId) : null;
+    return { title: t.title, card: card ? linkSummary(card) : null };
+  });
 }
 
 /**
@@ -320,7 +329,7 @@ async function route(
         duplicate: duplicate ? linkSummary(duplicate) : null,
         children: db.listChildren(id).map(linkSummary),
         sessions: db.listSessions(id),
-        reviews: db.listReviews(id),
+        reviews: db.listReviews(id).map((r) => ({ ...r, todos: resolveReviewTodos(db, r.todos) })),
         events: db.listEvents(id).map(trimEvent),
       });
     }

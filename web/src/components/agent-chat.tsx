@@ -775,9 +775,10 @@ export function AgentChat({
             </div>
           )}
 
-          {/* The same gauge CardTile/the card screen show, for the pane this session actually backs
-              (see ContextGauge) — only known when this pane is running a board card. Omitted entirely
-              otherwise, so a pane with no card looks exactly as it did before (UI_AUDIT.md G1). */}
+          {/* The same gauge CardTile/the card screen show, now for ANY agent pane — the bridge reads
+              the transcript of every live agent, not just the card-backed ones (UI_AUDIT.md G1/G3).
+              Omitted entirely when there's no figure, so an unreadable agent shows no gauge rather
+              than a made-up one. */}
           {agent?.ctxPct != null && (
             <div className="border-t border-border/40 px-3 py-1.5">
               <ContextGauge pct={agent.ctxPct} tokens={agent.ctxTokens} />

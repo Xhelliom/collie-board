@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from "node:path";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { withCardFields } from "./cards.ts";
+import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
@@ -105,8 +106,14 @@ export function startServer(opts: {
   board: BoardDb;
   /** The copilot, for the reformulation a card creation can request. Inert when disabled. */
   copilot: CopilotCoordinator;
+  /**
+   * The context gauge (primary session only). Its figures live in memory rather than in the board —
+   * they cover panes with no card — so the snapshot route reads them from here.
+   */
+  context: ContextTracker | null;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot } = opts;
+  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot, context } =
+    opts;
   // One transcript store for the process: it caches parsed session logs across requests, and the
   // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
   // can front panes whose agents write into the same ~/.claude/projects root).
@@ -147,6 +154,12 @@ export function startServer(opts: {
         // panes can match an open card session, so a non-primary snapshot is left untouched. One
         // query, reused for both pane lists, rather than one per list.
         const openSessions = rt.isPrimary ? board.listOpenSessions() : [];
+        // Context occupancy is pane-scoped, not card-scoped (UI_AUDIT.md G3), so it comes from the
+        // tracker's memory rather than the card join. Agent panes only: a bare shell has no
+        // transcript to read. The `isPrimary` gate is CORRECTNESS, not thrift — pane ids are only
+        // unique within one herdr server, so a "w1:p1" from another session would otherwise be
+        // handed the primary's percentage.
+        const agentViews = withCardFields(agents, openSessions, board);
         // Tag every snapshot poll with the on-disk build id so an open client notices a live rebuild
         // between polls — the no-service-worker self-update path (web/src/lib/self-update.ts).
         return withBuildHeader(
@@ -154,7 +167,7 @@ export function startServer(opts: {
             bridge,
             // Only report device state when the feature is on, so an off deployment sends nothing new.
             ...(device.enforced ? { device } : {}),
-            agents: withCardFields(agents, openSessions, board),
+            agents: rt.isPrimary && context ? context.enrich(agentViews) : agentViews,
             shellPanes: withCardFields(shellPanes, openSessions, board),
             workspaces,
             tabs,

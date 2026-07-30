@@ -146,11 +146,14 @@ function runtimeOf(pane: AgentView): CardRuntime {
 }
 
 /**
- * Overlay board-card fields (branch, context occupancy) onto the panes that back an open session —
- * the same numbers `CardView`/`CardTile` already carry, made available to the pane screen and the
- * home list, which read `AgentView` rather than `CardView` (UI_AUDIT.md G1/G2). A pane with no open
- * session is returned untouched; nothing here reads a transcript or shells out — it's a join against
- * data `ContextTracker`/reconciliation already computed this tick.
+ * Overlay the board-card fields onto the panes that back an open session — the same `branch`
+ * `CardView`/`CardTile` carry, made available to the pane screen and the home list, which read
+ * `AgentView` rather than `CardView` (UI_AUDIT.md G1/G2). A pane with no open session is returned
+ * untouched; nothing here reads a transcript or shells out — it's a join against data reconciliation
+ * already computed this tick.
+ *
+ * Context occupancy is NOT here: `ContextTracker.enrich()` puts it on every agent pane, card-backed
+ * or not (G3), so reading it off the card session as well would be a second, staler source.
  *
  * Takes the open-session list rather than re-querying it, so a caller enriching both `agents` and
  * `shellPanes` off one snapshot (server.ts) pays for `listOpenSessions()` once, not twice.
@@ -163,12 +166,7 @@ export function withCardFields(panes: AgentView[], sessions: CardSession[], db: 
     const session = byPane.get(p.paneId);
     if (!session) return p;
     const card = db.getCard(session.cardId);
-    return {
-      ...p,
-      branch: card?.branch ?? undefined,
-      ctxPct: session.ctxPct ?? undefined,
-      ctxTokens: session.ctxTokens ?? undefined,
-    };
+    return { ...p, branch: card?.branch ?? undefined };
   });
 }
 

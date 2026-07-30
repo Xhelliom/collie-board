@@ -7,7 +7,7 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.57.1] - 2026-07-30
+## [0.59.1] - 2026-07-30
 
 ### Fixed
 - Every screen carries exactly one `<h1>` — home, board, pane, history and space had none, and their `<h2>`/`<h3>`s hung off nothing, so heading navigation landed in an orphan tree (WCAG 1.3.1) (9265b4e).
@@ -16,6 +16,30 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 
 ### Changed
 - The error barrier's button navigates to the parent screen (card → board, history → its pane, otherwise home) instead of reloading the whole app (9265b4e).
+
+## [0.59.0] - 2026-07-30
+
+### Added
+- A review's follow-up cards link back to the card that spawned them — the Review section now lists each as a tappable row (title, status), not just a count, so a card that isn't worth keeping is one tap from wherever you'd archive or delete it (2d7cc5b).
+
+### Changed
+- `review.todos` carries `{title, cardId}` instead of a bare title; old rows still decode fine (2d7cc5b).
+
+## [0.58.1] - 2026-07-30
+
+### Fixed
+- A post-`done` review's `todos` land as full cards (spec + acceptance), not bare titles — the same regression the `split` path already guards against (65337c1).
+
+## [0.58.0] - 2026-07-30
+
+### Added
+- Context gauge on every agent pane, including one launched by hand — the tracker walks the snapshot's agent panes instead of the board's open sessions (106b723).
+
+### Changed
+- The percentage for a pane with no card lives in the tracker's memory and ships with the snapshot; nothing runtime is written to the database (106b723).
+- `withCardFields` carries `branch` only — context now has a single source, the tracker (106b723).
+- Cost measured before widening: median 10–23 ms per pane per 30 s, worst 110 ms on an 18 MB log, ~1 % of one core for twelve agents — cheap enough to skip the narrower "open pane + card panes" variant (106b723).
+- One expression of "which transcript does this pane read", one clock read per tick, and no nullable percentage in the tracker's memory (2a2bfa3).
 
 ## [0.57.0] - 2026-07-30
 

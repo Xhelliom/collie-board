@@ -151,13 +151,20 @@ export function isPendingWrapup(session: CardSession): boolean {
   return session.endedAt !== null && session.handoffRequestedAt !== null;
 }
 
+/** A review-suggested follow-up, and the card it became — `cardId` is null only for data written
+ *  before this linked (bare titles, no card to point at). */
+export interface ReviewTodo {
+  title: string;
+  cardId: string | null;
+}
+
 export interface Review {
   id: string;
   cardId: string;
   sessionId: string | null;
   verdict: string | null;
   notes: string | null;
-  todos: string[];
+  todos: ReviewTodo[];
   createdAt: number;
 }
 
@@ -240,6 +247,29 @@ function jsonArray(raw: string | null): string[] {
   }
 }
 
+/** Decode `review.todos`. Accepts a bare title (data written before cards were linked) alongside
+ *  the `{title, cardId}` shape, same tolerance `toSplit` gives a degraded model answer. */
+function jsonReviewTodos(raw: string | null): ReviewTodo[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const out: ReviewTodo[] = [];
+  for (const v of parsed) {
+    if (typeof v === "string" && v.trim()) {
+      out.push({ title: v.trim(), cardId: null });
+    } else if (v && typeof v === "object" && typeof (v as { title?: unknown }).title === "string") {
+      const cardId = (v as { cardId?: unknown }).cardId;
+      out.push({ title: (v as { title: string }).title, cardId: typeof cardId === "string" ? cardId : null });
+    }
+  }
+  return out;
+}
+
 function toCard(r: CardRow): Card {
   return {
     id: r.id,
@@ -290,7 +320,7 @@ function toReview(r: ReviewRow): Review {
     sessionId: r.session_id,
     verdict: r.verdict,
     notes: r.notes,
-    todos: jsonArray(r.todos),
+    todos: jsonReviewTodos(r.todos),
     createdAt: r.created_at,
   };
 }
@@ -796,7 +826,7 @@ export class BoardDb {
     sessionId?: string | null;
     verdict?: string | null;
     notes?: string | null;
-    todos?: string[];
+    todos?: ReviewTodo[];
   }): Review {
     const id = crypto.randomUUID();
     this.db

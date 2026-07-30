@@ -391,7 +391,7 @@ describe("cardViews", () => {
 });
 
 describe("withCardFields", () => {
-  it("overlays branch and context onto the pane backing an open session", () => {
+  it("overlays the branch onto the pane backing an open session", () => {
     const store = db();
     const card = store.createCard({ title: "x", branch: "board/x" });
     const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
@@ -399,8 +399,11 @@ describe("withCardFields", () => {
 
     const enriched = withCardFields([pane("w1:p1", "working")], store.listOpenSessions(), store)[0]!;
     expect(enriched.branch).toBe("board/x");
-    expect(enriched.ctxPct).toBe(55);
-    expect(enriched.ctxTokens).toBe(42_000);
+    // Context comes from ContextTracker.enrich() now, for EVERY agent pane rather than only the
+    // card-backed ones (UI_AUDIT.md G3) — so the card session's stored figure must not leak in here
+    // as a second, staler source.
+    expect(enriched.ctxPct).toBeUndefined();
+    expect(enriched.ctxTokens).toBeUndefined();
   });
 
   it("leaves a pane with no open session untouched, even while OTHER sessions are open", () => {
@@ -1202,7 +1205,17 @@ describe("copilot output contract", () => {
   it("keeps only well-formed fields of a review", () => {
     expect(toReviewResult({ verdict: "drift", notes: "  ", todos: ["fix the parser"] })).toEqual({
       verdict: "drift",
-      todos: ["fix the parser"],
+      todos: [{ title: "fix the parser" }],
+    });
+  });
+
+  it("keeps a review todo's spec and acceptance, not just its title", () => {
+    expect(
+      toReviewResult({
+        todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
+      }),
+    ).toEqual({
+      todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
     });
   });
 
@@ -2070,6 +2083,35 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     await settle();
 
     expect(state.asked).toBe(0);
+  });
+
+  it("turns a review todo into a full backlog card, not a bare title, and links the review to it", async () => {
+    const store = db();
+    const reviewed = filed(store, { wrapupPending: false });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return {
+          verdict: "partial",
+          notes: "ok",
+          todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
+        };
+      },
+    } as unknown as Copilot;
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const created = store.listCards().find((c) => c.title === "fix the parser");
+    expect(created?.spec).toBe("handles trailing commas");
+    expect(created?.acceptance).toEqual(["a"]);
+    expect(created?.status).toBe("backlog");
+
+    // The review points at the card it produced — what lets the reviewed card's page link to it,
+    // rather than only saying "1 follow-up added".
+    const [review] = store.listReviews(reviewed.id);
+    expect(review?.todos).toEqual([{ title: "fix the parser", cardId: created!.id }]);
   });
 });
 
