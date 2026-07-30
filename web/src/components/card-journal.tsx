@@ -185,6 +185,19 @@ export function describeEvent(event: BoardEvent): string {
       return "Copilot couldn't rewrite this card";
     case "copilot.review_failed":
       return "Copilot couldn't review this card";
+    case "copilot.explained":
+      // The two paragraphs ARE the entry — a line saying "the copilot explained something" would
+      // send you looking for the explanation somewhere it isn't.
+      return [
+        `About the ${String(p.action ?? "failed action")}:`,
+        p.meaning ? String(p.meaning) : null,
+        p.next ? `What you can do: ${String(p.next)}` : null,
+        p.likelyBug ? "It reads like a bug in the board rather than something you did." : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    case "copilot.explain_failed":
+      return "Copilot couldn't explain that error";
     case "copilot.split_kept":
       return `Split kept — ${String(p.started ?? "a sub-task")} has already started`;
     default:

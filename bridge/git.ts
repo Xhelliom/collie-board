@@ -21,7 +21,7 @@
 // the world: a merge, a push, and a branch delete. Each one refuses before it acts rather than
 // unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
-import { resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
 const GIT_TIMEOUT_MS = 15_000;
@@ -336,6 +336,44 @@ export function hasRealChanges(stdout: string): boolean {
     });
 }
 
+/** What the board asks git to ignore, and the line that says why it is there. */
+const EXCLUDE_PATTERN = ".board/";
+const EXCLUDE_NOTE =
+  "# Collie Board — handoff and wrapup notes it writes into card worktrees. Local only.";
+
+/**
+ * Teach this repository to ignore `.board/`, via `.git/info/exclude`.
+ *
+ * NOT the project's `.gitignore`, and not a commit. The notes belong to the board, not to the code:
+ * committing them would carry them into the base branch on the first merge and make two cards that
+ * both handed off conflict over a file that has nothing to do with either. And `.gitignore` is a
+ * versioned file shared with everyone who clones — the board writes into repositories that have
+ * never heard of it. `info/exclude` is git's own answer to exactly this: local, unversioned, one
+ * line, and shared by every worktree of the repo (hence `--git-common-dir`, not `--git-dir`).
+ *
+ * Idempotent, and quiet on failure: a repo we cannot write to still works, it just keeps showing
+ * `?? .board/`. Returns whether it actually added the line.
+ */
+export async function ensureBoardExcluded(repoPath: string, git: GitRunner = runGit): Promise<boolean> {
+  // One try around everything, including the subprocess: this is fire-and-forget from `startCard`,
+  // and NOTHING here is worth failing a start over — a repo we cannot write to simply keeps showing
+  // `?? .board/`, which is where we were before.
+  try {
+    const dir = await git(["rev-parse", "--git-common-dir"], repoPath);
+    if (!dir.ok || !dir.stdout.trim()) return false;
+    // `--git-common-dir` answers relative to the repo when it can (".git"), absolute otherwise.
+    const path = join(resolve(repoPath, dir.stdout.trim()), "info", "exclude");
+    const file = Bun.file(path);
+    const current = (await file.exists()) ? await file.text() : "";
+    if (current.split("\n").some((l) => l.trim() === EXCLUDE_PATTERN)) return false;
+    const prefix = current === "" || current.endsWith("\n") ? "" : "\n";
+    await Bun.write(path, `${current}${prefix}${EXCLUDE_NOTE}\n${EXCLUDE_PATTERN}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The main checkout's current branch, or null when detached / not a repo. */
 export async function currentBranch(repoPath: string, git: GitRunner = runGit): Promise<string | null> {
   const r = await git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
@@ -501,9 +539,28 @@ export async function deleteBranch(
   repoPath: string,
   branch: string,
   git: GitRunner = runGit,
+  /** `true` only on discard, where throwing the commits away IS the request. */
+  force = false,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await git(["branch", "-d", "--", branch], repoPath);
+  const r = await git(["branch", force ? "-D" : "-d", "--", branch], repoPath);
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "branch delete failed" };
+}
+
+/**
+ * Remove a worktree checkout through git rather than through herdr.
+ *
+ * The fallback for a checkout herdr has no workspace for — a bridge restart, a workspace closed by
+ * hand, a worktree that outlived the session that made it. Without it those are unreachable from the
+ * phone forever: `git branch -d` refuses while a worktree holds the branch, and nothing else in the
+ * app removes one. `--force` because a discard has already accepted losing what is in there.
+ */
+export async function removeWorktreeAt(
+  repoPath: string,
+  checkout: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await git(["worktree", "remove", "--force", "--", checkout], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "worktree remove failed" };
 }
 
 /** The real `gh` runner. Same rules as {@link runGit}: argv only, hard timeout, no tty. */

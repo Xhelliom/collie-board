@@ -563,12 +563,20 @@ export class HerdrClient {
    * Remove a worktree checkout and the workspace holding it. Takes the WORKSPACE id, not a path —
    * herdr owns where worktrees live, so it is also the one that takes them away.
    *
-   * `force` is deliberately not exposed: the caller has already refused to get here while the
-   * checkout holds uncommitted work or unmerged commits, and a `--force` would exist only to defeat
-   * exactly those two checks.
+   * `force` is REQUIRED in practice, and it does not mean what its name suggests here. Herdr refuses
+   * a checkout holding modified or untracked files — and `.board/`, which this very bridge writes
+   * into every card's worktree (handoff and wrapup notes), is untracked by construction. So without
+   * it every cleanup fails on the board's own droppings. What it overrides is HERDR's check, not
+   * ours: `refusalFor` has already run, it knows `.board/` is ours to ignore, and it knows whether
+   * the commits are integrated — which herdr cannot. Live-verified 0.7.5, 2026-07-29.
    */
-  async removeWorktree(opts: { workspaceId: string }): Promise<void> {
-    await this.request("worktree.remove", { workspace: opts.workspaceId });
+  async removeWorktree(opts: { workspaceId: string; force?: boolean }): Promise<void> {
+    // `workspace_id`, NOT `workspace` — the CLI flag is `--workspace`, the socket field is not, and
+    // copying the flag name gets you `invalid_request` (live-probed on 0.7.5, 2026-07-29).
+    await this.request("worktree.remove", {
+      workspace_id: opts.workspaceId,
+      ...(opts.force ? { force: true } : {}),
+    });
   }
 
   /**

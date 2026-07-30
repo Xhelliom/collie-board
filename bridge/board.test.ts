@@ -30,6 +30,8 @@ import { contextPercent } from "./context.ts";
 import {
   Copilot,
   CopilotCoordinator,
+  explainPrompt,
+  toExplanation,
   parseJsonish,
   reformulatePrompt,
   reviewPrompt,
@@ -496,6 +498,12 @@ function fakeHerdr(fail: Set<string> = new Set(), readyAfter?: number) {
     async sendPaneKeys() {
       calls.push("sendPaneKeys");
     },
+    // `pane.get` on the start path: "is an agent already sitting in this worktree?". Absent from the
+    // reply unless the fixture says otherwise, which is the ordinary "empty shell" case.
+    async getPane() {
+      calls.push("getPane");
+      return fail.has("agentPresent") ? { agent: "claude" } : {};
+    },
     async getAgent() {
       calls.push("getAgent");
       // Ready only once the caller has polled at least once — mirrors herdr, where agent.start
@@ -540,7 +548,7 @@ describe("startCard", () => {
 
     expect(res.ok).toBe(true);
     // The trailing getAgent is promptAndConfirm checking the prompt actually got submitted.
-    expect(calls).toEqual(["createWorktree", "startAgent", "getAgent", "promptAgent", "getAgent"]);
+    expect(calls).toEqual(["createWorktree", "getPane", "startAgent", "getAgent", "promptAgent", "getAgent"]);
     const after = store.getCard(card.id)!;
     expect(after.status).toBe("starting");
     expect(after.branch).toBe("board/ship-it");
@@ -558,6 +566,7 @@ describe("startCard", () => {
     expect(calls).toEqual([
       "createWorktree",
       "openWorktree",
+      "getPane",
       "startAgent",
       "getAgent",
       "promptAgent",
@@ -735,6 +744,7 @@ describe("waitForAgentReady (through startCard)", () => {
     // 3 readiness polls, then the prompt, then promptAndConfirm's own check.
     expect(calls).toEqual([
       "createWorktree",
+      "getPane",
       "startAgent",
       "getAgent",
       "getAgent",
@@ -2489,5 +2499,81 @@ describe("trimEvent — the journal rides a polled response", () => {
       routeCtx(store),
     );
     expect(store.getCard(card.id)!.spec).toBe(long);
+  });
+});
+
+describe("explainPrompt — the copilot as a translator, never an actor", () => {
+  const prompt = explainPrompt({
+    action: "merge",
+    error: "worktree_remove_failed: fatal: contains modified or untracked files, use --force",
+    cardTitle: "Fix the drawer",
+    outPath: "/out.json",
+  });
+
+  it("forbids acting BEFORE it shows the error", () => {
+    // The copilot is a Claude session like any other, so it can reach whatever skills the machine
+    // has — including one that drives this very API. Every action it takes must go through bridge
+    // code, which is gated and journalled; this prompt is what keeps it a translator.
+    expect(prompt).toContain("DO NOT ACT");
+    expect(prompt).toContain("do not call any API or skill");
+    expect(prompt.indexOf("DO NOT ACT")).toBeLessThan(prompt.indexOf("worktree_remove_failed"));
+  });
+
+  it("carries the error verbatim and the card it happened on", () => {
+    expect(prompt).toContain("worktree_remove_failed");
+    expect(prompt).toContain("Fix the drawer");
+  });
+
+  it("asks it to say when the fault looks like the board's own", () => {
+    expect(prompt).toContain("likely_bug");
+  });
+});
+
+describe("toExplanation", () => {
+  it("takes either paragraph, and the bug flag when it is a real boolean", () => {
+    expect(toExplanation({ meaning: "m", next: "n", likely_bug: true })).toEqual({
+      meaning: "m",
+      next: "n",
+      likelyBug: true,
+    });
+    expect(toExplanation({ next: "just this" })).toEqual({ next: "just this" });
+  });
+
+  it("is null when there is no prose — a journal entry of only a flag is worse than none", () => {
+    expect(toExplanation({ likely_bug: false })).toBeNull();
+    expect(toExplanation({})).toBeNull();
+    expect(toExplanation("nope")).toBeNull();
+  });
+});
+
+
+describe("startCard — an agent is already in the worktree", () => {
+  it("ADOPTS it instead of launching a second one over its name", async () => {
+    // How this was found: filing a card ends its session but not its pane (ADR 0002), so a card
+    // marked done still has its agent holding the herdr-global name. Restarting it — to settle the
+    // merge conflict that was blocking it — answered `agent_name_taken`, with no way forward.
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it" });
+    const { client, calls } = fakeHerdr(new Set(["agentPresent"]));
+
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+
+    expect(res.ok).toBe(true);
+    expect(calls).not.toContain("startAgent");
+    // And NOT prompted: this agent already lived the task, so re-sending the spec would make it
+    // start the whole thing again.
+    expect(calls).not.toContain("promptAgent");
+    expect(store.getCard(card.id)!.status).toBe("working");
+    expect(store.openSessionFor(card.id)!.paneId).toBe("wZ:p1");
+  });
+
+  it("still launches when the pane is a bare shell", async () => {
+    const store = db();
+    const card = store.createCard({ title: "ship it", repoPath: "/repo" });
+    const { client, calls } = fakeHerdr();
+
+    await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+
+    expect(calls).toContain("startAgent");
   });
 });

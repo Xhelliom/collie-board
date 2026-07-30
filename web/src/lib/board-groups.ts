@@ -1,4 +1,4 @@
-import type { CardStatus, CardView } from "./board";
+import type { BoardEvent, CardStatus, CardView } from "./board";
 
 // Turning the flat card list into what the board renders.
 //
@@ -78,6 +78,43 @@ const OPEN_BY_DEFAULT: readonly CardStatus[] = [
 
 export function groupOpenByDefault(status: CardStatus): boolean {
   return OPEN_BY_DEFAULT.includes(status);
+}
+
+/** What the journal remembers about a card's branch, once the branch itself is gone. */
+export interface IntegrationHistory {
+  /** When it was merged, and into what — from the board's own merge, not from git. */
+  merged: { base: string; ts: number } | null;
+  pr: { url: string | null; ts: number } | null;
+  /** Cleaned up. Worth showing on its own: cleanup is REFUSED unless nothing was left to integrate,
+   *  so it is second-hand evidence that the work landed even when the merge happened outside. */
+  cleanedUp: number | null;
+  discarded: { commits: number; ts: number } | null;
+}
+
+/**
+ * Read a card's integration history out of its journal.
+ *
+ * The journal is append-only and durable, so this survives the branch, the worktree and the pane —
+ * which is the whole point. A card whose work is merged and cleaned up has nothing left for `git` to
+ * answer questions about, and "done" alone doesn't say whether the code ever landed.
+ *
+ * Nothing is polled and nothing is stored twice: the events were written when the actions happened.
+ * A PR's *state* is deliberately absent — GitHub owns that, and a copy of it here would be a second
+ * truth free to go stale. The link is what gets kept.
+ *
+ * Pure + exported for the test.
+ */
+export function integrationHistory(events: readonly BoardEvent[]): IntegrationHistory {
+  const out: IntegrationHistory = { merged: null, pr: null, cleanedUp: null, discarded: null };
+  // Oldest first in the journal, so a later event simply overwrites — the last merge is the one.
+  for (const e of events) {
+    const p = (e.payload ?? {}) as { base?: string; url?: string | null; commits?: number };
+    if (e.type === "card.merged") out.merged = { base: p.base ?? "the base", ts: e.ts };
+    else if (e.type === "card.pr_opened") out.pr = { url: p.url ?? null, ts: e.ts };
+    else if (e.type === "card.cleaned_up") out.cleanedUp = e.ts;
+    else if (e.type === "card.discarded") out.discarded = { commits: p.commits ?? 0, ts: e.ts };
+  }
+  return out;
 }
 
 /**

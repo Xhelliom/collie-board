@@ -38,7 +38,7 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert|integration))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert|integration|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -515,6 +515,41 @@ async function route(
     return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
   }
 
+  // ── explain: hand a RAW tool error to the copilot, for a person to read ──
+  //
+  // Only ever reached for text we relayed from git or herdr. The board's own refusals are already
+  // written for a human, and running an agent over them would add noise and spend quota for nothing
+  // — the client is what enforces that, since it knows which kind it got.
+  if (action === "explain" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    if (!ctx.cfg.boardCopilot) {
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    }
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const { action: tried, error } = (body ?? {}) as { action?: unknown; error?: unknown };
+    if (typeof tried !== "string" || typeof error !== "string" || !error.trim()) {
+      return text("action and error required", 400);
+    }
+    // Background, like every other copilot call: it is an agent turn behind a one-at-a-time queue,
+    // and the answer lands in the journal the card screen already polls.
+    void ctx.copilot.explain(id, { action: tried.slice(0, 40), error: error.slice(0, 4000) });
+    ctx.audit.record({
+      action: "card.explain",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, tried },
+    });
+    return json({ ok: true, card: view(id) });
+  }
+
   // ── integration: where the branch stands, and the three taps that end it ──
   //
   // One route, three actions, because they share a gate and differ only in which one they ask for.
@@ -539,8 +574,14 @@ async function route(
       return text("bad body", 400);
     }
     const what = (body as { action?: unknown }).action;
-    if (what !== "merge" && what !== "pr" && what !== "cleanup" && what !== "resolve") {
-      return text("action must be merge, pr, resolve or cleanup", 400);
+    if (
+      what !== "merge" &&
+      what !== "pr" &&
+      what !== "cleanup" &&
+      what !== "resolve" &&
+      what !== "discard"
+    ) {
+      return text("action must be merge, pr, resolve, cleanup or discard", 400);
     }
     const andDone = (body as { andDone?: unknown }).andDone === true;
 
@@ -551,7 +592,7 @@ async function route(
           ? await prForCard(db, card)
           : what === "resolve"
             ? await resolveConflict(db, ctx.herdr, card)
-            : await cleanupCard(db, ctx.herdr, card);
+            : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its

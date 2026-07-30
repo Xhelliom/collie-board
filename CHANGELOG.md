@@ -7,13 +7,79 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.45.1] - 2026-07-29
+## [0.49.3] - 2026-07-29
 
 ### Fixed
 - A drag that starts on a control or inside a scrollable region of a sheet scrolls, it no longer closes it (5151295).
 - No more flicker when reopening a sheet: the drag offset is cleared on close, and `onClose` no longer re-attaches the listeners on every parent render (5151295).
 - Closing a sheet is animated on all four dismiss paths instead of vanishing in one frame; a drag-close keeps the gesture's momentum (5151295).
 - The page behind a sheet is frozen while it is open, and the drag writes its transform straight to the node — one less React render per frame (5151295).
+
+## [0.49.2] - 2026-07-29
+
+### Fixed
+- Deleting a card takes two taps — the app's only irreversible gesture was its only unprotected one. Same `usePendingConfirm` as every other destructive action, armed on the card's own id, disarming after 3 s. (eda1aed)
+
+## [0.49.1] - 2026-07-29
+
+### Fixed
+- **Restarting a filed card answered `agent_name_taken`.** Filing a card ends its session but not its pane ([ADR 0002](./.adr/0002-a-manual-status-ends-the-session-not-the-pane.md)) — so its agent is still sitting in the worktree, holding a name herdr requires to be globally unique. Start now **adopts** that agent instead of launching a second one over it. Found on a card that could not be restarted to settle the merge conflict blocking it.
+
+### Notes
+- An adopted agent is deliberately **not** prompted: it already lived the task, and re-sending the spec would make it start over. The card gets its session back and the operator decides what to say next.
+
+## [0.49.0] - 2026-07-29
+
+### Added
+- **"What does this mean?" on a raw tool error.** Hands the verbatim git/herdr text to the copilot, which answers in two paragraphs — what it says, and what you can do — into the card's journal. It also says when the fault reads like a bug in the board rather than something you did.
+
+### Notes
+- Shown **only** for text relayed from git or herdr. The board's own refusals are already sentences aimed at a person; running an agent over them would add noise and spend quota for nothing.
+- The prompt forbids acting before it shows the error, and says so in those words. The copilot is a Claude session like any other, so it can reach whatever skills the machine has — including one that drives this very API. Every action the copilot takes must keep going through bridge code, which is deterministic, gated and journalled: *the board makes a thing possible, the operator decides it happens.*
+- Off when the copilot is off, like everything else it does — this spends the user's own quota.
+
+## [0.48.0] - 2026-07-29
+
+### Added
+- **A card remembers whether its work landed.** "Merged into main · 2 h ago", the PR's link, "Worktree cleaned up — the branch was fully integrated", "Discarded — 4 commits thrown away". Read from the journal, which outlives the branch, the worktree and the pane; `done` on its own never said whether the code actually shipped.
+- A conflict on a card with no running agent now offers to **start one again** instead of a button that answers 409. A filed card's session ended when it was filed — and that agent is exactly who settles the conflict.
+
+### Notes
+- The PR's *state* is deliberately not tracked. GitHub owns it; a copy here would be a second truth free to go stale the moment the bridge isn't looking, and it would cost a network call per card on a loop the fork's rules say not to add. The link is kept, and it is one tap.
+- Nothing new is stored: the events were already written when the actions happened. This only reads them.
+- A cleanup with no merge event is shown as evidence the work landed — cleanup is refused unless nothing is left to integrate, so it happening at all proves the branch was in. That is the case for anything merged by hand in a terminal.
+
+## [0.47.0] - 2026-07-29
+
+### Added
+- **The board teaches your repo to ignore `.board/`, once, in `.git/info/exclude`.** Added when a card's worktree is created, idempotent, best-effort — an unwritable `.git` just means things stay as they were. It also carries a line saying where it came from, because someone will find it in a repo of theirs one day.
+
+### Changed
+- `worktree.remove` is now forced **only on discard**, where throwing uncommitted work away is the request itself. A cleanup has already been refused unless the checkout is clean, so it has nothing to force — and if herdr refuses it anyway, something really is in there and the refusal is right.
+
+### Notes
+- Why `info/exclude` and not the two obvious alternatives: committing the notes would carry them into the base branch on the first merge and make two cards that both handed off conflict over a file that has nothing to do with either; and `.gitignore` is versioned and shared with everyone who clones, while the board writes into repositories that have never heard of it. `info/exclude` is git's own answer — local, unversioned, one line, and shared by every worktree of the repo.
+
+## [0.46.2] - 2026-07-29
+
+### Fixed
+- **Clean up still failed, on the board's own droppings.** herdr refuses to remove a checkout holding untracked files, and `.board/` — the handoff and wrapup notes this bridge writes into every card's worktree — is untracked by construction, so every cleanup hit it. `force: true` is now sent, which overrides *herdr's* check, not the board's: `refusalFor` ran first and knows both that `.board/` is ours and whether the commits are integrated, which herdr cannot.
+
+## [0.46.1] - 2026-07-29
+
+### Fixed
+- **Clean up / Discard answered `herdr worktree.remove: invalid_request`.** The socket field is `workspace_id`; the CLI flag is `--workspace`, and the flag name is what got copied. Live-probed against 0.7.5 and written down in [`HERDR_API.md`](./HERDR_API.md) — the CLI and the socket disagreeing is exactly the kind of trap that file exists for.
+
+## [0.46.0] - 2026-07-29
+
+### Added
+- **Discard.** For a card you are giving up on: closes the pane, removes the worktree, deletes the branch with `-D`, and files the card as `archived`. The one gesture in the board that destroys work knowingly, so it names what it is about to lose — "Throw away 3 commits and uncommitted work?" — and takes a second tap to mean it.
+- Cleanup and discard now also handle a card whose workspace **herdr no longer knows** (a restart, a workspace closed by hand): the checkout is removed through git instead. Those were unreachable from the phone forever — `git branch -d` refuses while a worktree holds the branch, and nothing else in the app removes one.
+
+### Notes
+- `discard` is a separate action, not a `force` flag on cleanup, precisely so it cannot be reached for to make a refusal go away. It is the only thing here that skips the gate — overriding that gate is what it *is*.
+- A discarded session is recorded as `abandoned`, and the card as `archived`, never `done`: a card whose branch was thrown away was not finished.
+- Closing a *workspace* has no equivalent in the app (upstream closes panes and tabs only), which is why a finished card's space used to linger with no way to shift it. The card's own Clean up / Discard is that door.
 
 ## [0.45.0] - 2026-07-29
 

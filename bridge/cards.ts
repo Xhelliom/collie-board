@@ -16,6 +16,7 @@
 
 import type { Config } from "./config.ts";
 import { isLiveStatus, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
+import { ensureBoardExcluded } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -442,6 +443,22 @@ export function runningCards(db: BoardDb): number {
 }
 
 /**
+ * Is an agent already running in this pane?
+ *
+ * One `pane.get`, on an action path — never the poll loop. Any failure answers "no", which degrades
+ * to the old behaviour (try to launch, and let herdr refuse); guessing "yes" on a broken read would
+ * hand the card a session with nothing behind it.
+ */
+async function agentInPane(herdr: HerdrClient, paneId: string): Promise<string | null> {
+  try {
+    const pane = await herdr.getPane(paneId);
+    return pane.agent?.trim() ? pane.agent : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Start (or relaunch) a card: worktree → agent → prompt.
  *
  * Idempotent-ish by design. `worktree.create` fails when the checkout directory already exists
@@ -599,6 +616,12 @@ export async function startCard(
   // never actually ran (it has no branch), which is also what makes this safe to apply blindly.
   const base = predecessor?.branch ?? card.baseRef;
 
+  // Before the checkout exists, so the notes this bridge is about to write into it are invisible to
+  // git from the first `status`. In `.git/info/exclude`, never the project's `.gitignore` — see
+  // `ensureBoardExcluded`. Idempotent and best-effort: an unwritable .git is not a reason to refuse
+  // to start a card.
+  void ensureBoardExcluded(card.repoPath).catch(() => {});
+
   let worktree: CreatedWorktree;
   try {
     worktree = await herdr.createWorktree({
@@ -634,6 +657,22 @@ export async function startCard(
 
   const session = db.openSession({ cardId, paneId: worktree.paneId, agentKind: kind });
   db.setStatus(cardId, "starting", "card started");
+
+  // ADOPT AN AGENT THAT IS ALREADY THERE, rather than trying to launch a second one.
+  //
+  // Filing a card ends its SESSION, never its pane (ADR 0002) — so a card that was marked done and
+  // is now being restarted still has its agent sitting in the worktree, holding the name. Launching
+  // over it answers `agent_name_taken`, which is how this was found: a card that could not be
+  // restarted to settle the merge conflict that was blocking it.
+  //
+  // Adopted WITHOUT a prompt: this agent already lived the task, and re-sending the spec would make
+  // it start over. The card gets its session back and the operator says what happens next.
+  const existing = await agentInPane(herdr, worktree.paneId);
+  if (existing) {
+    db.recordEvent(cardId, "card.agent_adopted", { paneId: worktree.paneId, agent: existing });
+    db.setStatus(cardId, "working", "adopted the agent already in this worktree");
+    return { ok: true, value: { card: db.getCard(cardId)!, session, worktree } };
+  }
 
   try {
     const wait = opts.sleep ?? sleep;
