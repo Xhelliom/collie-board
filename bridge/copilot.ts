@@ -113,7 +113,8 @@ export interface Explanation {
 export interface ReviewResult {
   verdict?: string;
   notes?: string;
-  todos?: string[];
+  /** Full cards, not bare titles — see the warning on {@link SplitTask}. */
+  todos?: SplitTask[];
 }
 
 /**
@@ -241,7 +242,7 @@ export function toReviewResult(parsed: unknown): ReviewResult | null {
   const notes = str(o, "notes");
   if (verdict) out.verdict = verdict;
   if (notes) out.notes = notes;
-  const todos = strList(o, "todos");
+  const todos = toSplit(o.todos);
   if (todos) out.todos = todos;
   return Object.keys(out).length ? out : null;
 }
@@ -390,11 +391,16 @@ export function reviewPrompt(input: {
   if (input.handoffMd) parts.push("", "The agent's own handoff note:", input.handoffMd);
   parts.push(
     "",
+    "Each todo becomes a new backlog card. Give it the same care as a card someone would write by",
+    "hand: a spec grounded in what you just reviewed, not a bare title. Empty list if there are none.",
+    "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "verdict": "complete | partial | drift",',
     '  "notes": "one short paragraph: what looks done, what looks missing or off-spec",',
-    '  "todos": ["each follow-up as its own card title; empty list if there are none"]',
+    '  "todos": [',
+    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"] }',
+    "  ]",
     "}",
   );
   return parts.join("\n");
@@ -874,12 +880,15 @@ export class CopilotCoordinator {
       sessionId,
       verdict: result.verdict ?? null,
       notes: result.notes ?? null,
-      todos: result.todos ?? [],
+      todos: (result.todos ?? []).map((t) => t.title),
     });
-    // The loop closes here: what the agent left in plan becomes the next cards.
-    for (const title of result.todos ?? []) {
+    // The loop closes here: what the agent left in plan becomes the next cards. A full card, not a
+    // bare title — see the warning on SplitTask.
+    for (const todo of result.todos ?? []) {
       this.db.createCard({
-        title,
+        title: todo.title,
+        spec: todo.spec ?? null,
+        acceptance: todo.acceptance ?? [],
         status: "backlog",
         repoPath: card.repoPath,
         baseRef: card.baseRef,

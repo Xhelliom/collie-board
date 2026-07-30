@@ -1205,7 +1205,17 @@ describe("copilot output contract", () => {
   it("keeps only well-formed fields of a review", () => {
     expect(toReviewResult({ verdict: "drift", notes: "  ", todos: ["fix the parser"] })).toEqual({
       verdict: "drift",
-      todos: ["fix the parser"],
+      todos: [{ title: "fix the parser" }],
+    });
+  });
+
+  it("keeps a review todo's spec and acceptance, not just its title", () => {
+    expect(
+      toReviewResult({
+        todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
+      }),
+    ).toEqual({
+      todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
     });
   });
 
@@ -2073,6 +2083,30 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     await settle();
 
     expect(state.asked).toBe(0);
+  });
+
+  it("turns a review todo into a full backlog card, not a bare title", async () => {
+    const store = db();
+    filed(store, { wrapupPending: false });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return {
+          verdict: "partial",
+          notes: "ok",
+          todos: [{ title: "fix the parser", spec: "handles trailing commas", acceptance: ["a"] }],
+        };
+      },
+    } as unknown as Copilot;
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const created = store.listCards().find((c) => c.title === "fix the parser");
+    expect(created?.spec).toBe("handles trailing commas");
+    expect(created?.acceptance).toEqual(["a"]);
+    expect(created?.status).toBe("backlog");
   });
 });
 
