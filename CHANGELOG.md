@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.59.0] - 2026-07-30
+
+### Added
+- A review's follow-up cards link back to the card that spawned them — the Review section now lists each as a tappable row (title, status), not just a count, so a card that isn't worth keeping is one tap from wherever you'd archive or delete it (2d7cc5b).
+
+### Changed
+- `review.todos` carries `{title, cardId}` instead of a bare title; old rows still decode fine (2d7cc5b).
+
 ## [0.58.1] - 2026-07-30
 
 ### Fixed
