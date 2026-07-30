@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.58.0] - 2026-07-30
+
+### Added
+- Context gauge on every agent pane, including one launched by hand — the tracker walks the snapshot's agent panes instead of the board's open sessions (106b723).
+
+### Changed
+- The percentage for a pane with no card lives in the tracker's memory and ships with the snapshot; nothing runtime is written to the database (106b723).
+- `withCardFields` carries `branch` only — context now has a single source, the tracker (106b723).
+- Cost measured before widening: median 10–23 ms per pane per 30 s, worst 110 ms on an 18 MB log, ~1 % of one core for twelve agents — cheap enough to skip the narrower "open pane + card panes" variant (106b723).
+- One expression of "which transcript does this pane read", one clock read per tick, and no nullable percentage in the tracker's memory (2a2bfa3).
+
 ## [0.57.0] - 2026-07-30
 
 ### Added

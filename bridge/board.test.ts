@@ -391,7 +391,7 @@ describe("cardViews", () => {
 });
 
 describe("withCardFields", () => {
-  it("overlays branch and context onto the pane backing an open session", () => {
+  it("overlays the branch onto the pane backing an open session", () => {
     const store = db();
     const card = store.createCard({ title: "x", branch: "board/x" });
     const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
@@ -399,8 +399,11 @@ describe("withCardFields", () => {
 
     const enriched = withCardFields([pane("w1:p1", "working")], store.listOpenSessions(), store)[0]!;
     expect(enriched.branch).toBe("board/x");
-    expect(enriched.ctxPct).toBe(55);
-    expect(enriched.ctxTokens).toBe(42_000);
+    // Context comes from ContextTracker.enrich() now, for EVERY agent pane rather than only the
+    // card-backed ones (UI_AUDIT.md G3) — so the card session's stored figure must not leak in here
+    // as a second, staler source.
+    expect(enriched.ctxPct).toBeUndefined();
+    expect(enriched.ctxTokens).toBeUndefined();
   });
 
   it("leaves a pane with no open session untouched, even while OTHER sessions are open", () => {

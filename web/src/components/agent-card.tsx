@@ -42,9 +42,10 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
           {/* Branch gets its OWN row: unlike cwd/ctx% it's unbounded length, and packing it into the
               row below starved ctx% of room (confirmed in a real browser at phone width — the branch
               icon and the ctx% number both got clipped with no ellipsis, not just visually tight).
-              Only ever appears for a pane backing an open board card — see bridge `withCardFields`.
-              Same fields CardTile shows, so a card ↔ agent pair reads the same on both screens
-              (UI_AUDIT.md G2). */}
+              The BRANCH only ever appears for a pane backing an open board card (bridge
+              `withCardFields`); ctx% below appears for any agent pane the bridge could read
+              (`ContextTracker.enrich`, G3). Same fields CardTile shows, so a card ↔ agent pair reads
+              the same on both screens (UI_AUDIT.md G2). */}
           {agent.branch && (
             <div className="flex items-center gap-1 truncate font-mono text-xs text-muted-foreground">
               <GitBranch className="size-3 shrink-0" />

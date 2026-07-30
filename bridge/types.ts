@@ -50,14 +50,16 @@ export interface AgentView {
    */
   readableLines?: number;
   /**
-   * Fields from the board's card layer, present only when this pane backs an open card session (the
-   * fork's addition — see cards.ts `withCardFields`). NOT in lockstep: `branch` is set as soon as the
-   * session opens (it's the card's own field), while `ctxPct`/`ctxTokens` lag until `ContextTracker`'s
-   * first successful transcript read (REFRESH_MS, and possibly never — level 3). A card-backed pane
-   * commonly has `branch` with no `ctxPct` yet; a pane with no card has neither
-   * (UI_AUDIT.md G1/G2 — making this available to every pane is G3).
+   * The card's branch — the fork's addition, present only when this pane backs an open card session
+   * (see cards.ts `withCardFields`).
    */
   branch?: string;
+  /**
+   * Context occupancy for ANY agent pane, card-backed or launched by hand (see context.ts
+   * `ContextTracker.enrich` — UI_AUDIT.md G3). Held in the tracker's memory, never in the database:
+   * for a pane with no card it is runtime state. Lags `branch` by design — it appears only after the
+   * tracker's first successful transcript read (REFRESH_MS), and possibly never (level 3).
+   */
   ctxPct?: number;
   ctxTokens?: number;
 }
