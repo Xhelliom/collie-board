@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.66.1] - 2026-08-03
+
+### Fixed
+- The statusline strip keeps every line the TUI paints under the input box, not just the first. With a `statusLine` hook configured, the hook's own line hid Claude's — branch, model and context figure were all lost behind it, and `⏵⏵ auto mode on` with them (531f7d7).
+
 ## [0.66.0] - 2026-08-03
 
 ### Added
