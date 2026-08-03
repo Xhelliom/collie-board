@@ -23,6 +23,7 @@ import {
   createCard,
   patchCard,
   positionFor,
+  tagsOf,
   type CardInput,
   type CardStatus,
   type CardView,
@@ -409,7 +410,12 @@ export function BoardRoute() {
         <StatusArea />
       </div>
 
-      <NewCardSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
+      <NewCardSheet
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreate={create}
+        tags={tagsOf(data.cards)}
+      />
     </div>
   );
 }

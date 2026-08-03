@@ -5,13 +5,16 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchRepos, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
+import { fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
+import { TagField } from "@/components/tag-field";
 import { useLongPress } from "@/hooks/use-long-press";
 
 interface NewCardSheetProps {
   open: boolean;
   onClose: () => void;
   onCreate: (input: CardInput) => void;
+  /** The tags already in use, most recent first — the board derives it with `tagsOf`. */
+  tags: string[];
 }
 
 // Create a card. The big field is deliberately a plain multi-line textarea: on Android that box IS
@@ -21,8 +24,9 @@ interface NewCardSheetProps {
 // The title is derived from the first line when you don't type one — dictating "add a diff view,
 // scoped to the card's branch, must render --stat first" should produce a usable card with no extra
 // taps. A real reformulation (title + spec + acceptance + branch name) is the copilot's job.
-export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
+export function NewCardSheet({ open, onClose, onCreate, tags }: NewCardSheetProps) {
   const [text, setText] = useState("");
+  const [tag, setTag] = useState("");
   const [repos, setRepos] = useState<RepoChoice[]>([]);
   const [selected, setSelected] = useState<RepoChoice | null>(null);
   // Manual entry stays available — a repo the bridge can't know about (just cloned, on a mount it
@@ -42,6 +46,7 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
   useEffect(() => {
     if (!open) return;
     setText("");
+    setTag("");
     setRewrite(true);
     setManual(false);
     setManualPath("");
@@ -122,6 +127,9 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
       status: "backlog",
       repoPath: repoPath || null,
       baseRef: baseRef.trim() || null,
+      // Optional, and null is the normal answer — most cards have no tag. Normalised here so the
+      // card lands as the tag the field was showing you; the bridge folds it again regardless.
+      tag: normalizeTag(tag),
     });
     onClose();
   }
@@ -233,6 +241,8 @@ export function NewCardSheet({ open, onClose, onCreate }: NewCardSheetProps) {
             className="h-11 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
+
+        <TagField value={tag} onChange={setTag} tags={tags} />
 
         {title && (
           <p className="truncate text-xs text-muted-foreground">

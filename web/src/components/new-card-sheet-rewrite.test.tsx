@@ -11,7 +11,7 @@ import { NewCardSheet } from "./new-card-sheet";
 
 async function fill(text: string) {
   const onCreate = vi.fn();
-  render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} />);
+  render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
   await userEvent.type(screen.getByRole("textbox", { name: /what needs doing/i }), text);
   return onCreate;
 }
@@ -47,12 +47,12 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
 
   it("starts on again for the next card — it describes one card, not a preference", async () => {
     const onCreate = vi.fn();
-    const { rerender } = render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} />);
+    const { rerender } = render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
     await userEvent.click(screen.getByRole("button", { name: /the copilot will rewrite this/i }));
     expect(screen.getByRole("button", { name: /keep my wording/i })).toBeInTheDocument();
 
-    rerender(<NewCardSheet open={false} onClose={() => {}} onCreate={onCreate} />);
-    rerender(<NewCardSheet open onClose={() => {}} onCreate={onCreate} />);
+    rerender(<NewCardSheet open={false} onClose={() => {}} onCreate={onCreate} tags={[]} />);
+    rerender(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
 
     expect(screen.getByRole("button", { name: /the copilot will rewrite this/i })).toBeInTheDocument();
   });
