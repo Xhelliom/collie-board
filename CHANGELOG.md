@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.68.1] - 2026-08-03
+
+### Fixed
+
+- Board: a card depending on an already-merged-and-cleaned-up predecessor kept showing an empty diff forever, with no merge/PR offered — its `baseRef` now gets repointed to a live ref when the predecessor's branch is deleted (84373f5)
+
 ## [0.68.0] - 2026-08-03
 
 ### Added
