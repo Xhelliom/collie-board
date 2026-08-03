@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.63.1] - 2026-08-03
+
+### Fixed
+- A drop re-reads the card's status at drop time — a poll landing mid-drag could otherwise let a manual status be written onto a card the herd had just picked up (7db2bb0).
+- The drop highlight no longer strobes as the pointer crosses the cards inside a column (`dragleave` fires on every child hop) (7db2bb0).
+- Drop targets get a minimum height while a card is in hand; a one-card column was ~60px of surface in a lane 800px tall (7db2bb0).
+- The hovered column doubles its outline to the ring colour instead of tinting with `accent`, which sits 3% off the background (7db2bb0).
+
+### Changed
+- A dropped card lands at the top of its new column (`position: min - 1`), the rule new cards already follow (7db2bb0).
+
 ## [0.63.0] - 2026-08-03
 
 ### Added
