@@ -418,7 +418,7 @@ bytes before Collie sees them. The agent's own transcript was never cut, and Col
 
 | | |
 |---|---|
-| Commits | `c9a2a32` *feat(transcript): an `after` cursor…* · `PENDING` *feat(pane): a reading mode…* |
+| Commits | `c9a2a32` *feat(transcript): an `after` cursor…* · `73f43f5` *feat(pane): a reading mode…* |
 | Files | `bridge/transcript.ts` (`pageEntries`), `bridge/server.ts` (`historyParams`), `web/src/lib/{api,markdown}.ts`, `web/src/components/{reading-view,markdown-text,agent-chat}.tsx`, `web/src/hooks/use-display-prefs.ts` (+ their tests) |
 | Extraction | **Clean cherry-pick.** Every file is upstream's or a new one; no card is in sight, and the two commits are already split along the seam (the cursor, then the view that uses it). |
 

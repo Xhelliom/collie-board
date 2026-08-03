@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.65.0] - 2026-08-03
+
+### Added
+- A reading mode on the pane screen: `[terminal] [reading]` in the header, persisted per device. Reading renders the agent's own transcript — the Markdown it actually wrote, never cut to a terminal's columns — with the composer, statusline and gauge unchanged below it (73f43f5).
+- Reading mode banners a waiting TUI dialog and hands you back to the terminal, so an agent can't sit blocked behind a question you never see (73f43f5).
+- Markdown tables render: a scrollable `<table>` up to three columns, one labelled card per row beyond that (73f43f5).
+- `pageEntries` takes an `after` cursor, so a live view follows a transcript instead of re-pulling the archive on every tick (c9a2a32).
+- Ledger brick 15: the reading mode and its cursor, none of which needs a card (73f43f5).
+
+### Fixed
+- Agent prose no longer breaks mid-sentence on a phone. herdr cuts the pane at ~81 columns and the mirror wrapped that again at ~50; reading mode reads the source that was never wrapped instead (73f43f5).
+
 ## [0.64.0] - 2026-08-03
 
 ### Added
