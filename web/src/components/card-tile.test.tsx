@@ -21,6 +21,7 @@ function card(over: Partial<CardView> = {}): CardView {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    tag: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,

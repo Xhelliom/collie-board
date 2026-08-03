@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
 import { StatusBadge } from "@/components/status-badge";
 import { CardStatusChip } from "@/components/card-status-chip";
+import { TagChip } from "@/components/tag-chip";
 import { shortCwd } from "@/lib/format";
 import { paneDisplayName } from "@/lib/types";
 import type { DependencyInfo } from "@/lib/board-groups";
@@ -133,6 +134,9 @@ export function CardTile({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5 truncate">
+            {/* Before the title, and shrink-0: a tag is what the eye scans a column FOR, so it must
+                not be the thing that truncates. Most cards have none and this row is unchanged. */}
+            {card.tag && <TagChip tag={card.tag} />}
             <span className="truncate font-medium">{card.title}</span>
             {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
           </div>

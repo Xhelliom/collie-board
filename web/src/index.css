@@ -251,6 +251,24 @@
   font-size: 0.9em;
 }
 
+/* ── Tag chips ───────────────────────────────────────────────────────────────────────────────────
+   components/tag-chip.tsx. The chip supplies only `--tag-hue`, computed from the tag's name
+   (`tagHue()`); everything that makes it legible is decided once, here. Lightness and chroma are
+   FIXED per theme so a tag that drew yellow carries the same weight and the same contrast as one
+   that drew blue — in oklch, equal L is equal perceived lightness, which is the whole reason the
+   hue can be handed to a hash without a designer ever looking at it. A named class rather than
+   arbitrary utilities: six colour computations inline would be unreadable at the call site, and the
+   dark variant has to override one custom property, not six classes. */
+.tag-chip {
+  --tag-color: oklch(0.55 0.13 var(--tag-hue));
+  border-color: color-mix(in oklch, var(--tag-color) 30%, transparent);
+  background-color: color-mix(in oklch, var(--tag-color) 12%, transparent);
+  color: var(--tag-color);
+}
+.dark .tag-chip {
+  --tag-color: oklch(0.79 0.12 var(--tag-hue));
+}
+
 /* We don't use view transitions (removed). But React Router can still fire document.startViewTransition
    on a revalidation for a device carrying a stale persisted transition map from an older build (see
    router.tsx). Keep the whole document unnamed so any such stray transition captures nothing and swaps

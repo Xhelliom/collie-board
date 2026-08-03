@@ -93,6 +93,9 @@ export function parseCardBody(
     "parentId",
     "dependsOn",
     "duplicateOf",
+    // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
+    // the copilot's writes get it too — see there.
+    "tag",
   ] as const) {
     if (!(key in o)) continue;
     const value = o[key];

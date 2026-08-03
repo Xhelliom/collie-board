@@ -7,6 +7,9 @@ import {
   canDropCard,
   MANUAL_STATUSES,
   positionFor,
+  tagHue,
+  tagsOf,
+  type CardView,
 } from "./board";
 
 // The wide-screen board renders lanes, not columns. A status that fell out of every lane would keep
@@ -111,5 +114,48 @@ describe("positionFor", () => {
     // New cards take `min - 1`, so a lived-in column counts down through zero.
     expect(positionFor([-3, -2, -1], 0)).toBe(-4);
     expect(positionFor([-3, -1], 1)).toBe(-2);
+  });
+});
+
+// A tag's colour is not stored anywhere, so these two properties are the only thing standing
+// between "same tag, same colour" and a tag that changes colour between two screens.
+describe("tagHue", () => {
+  it("gives one name one hue, every time", () => {
+    // Pinned, not merely self-consistent: this number is what "the same colour on every device"
+    // means, so a change to the hash is a change every board sees and has to be a deliberate one.
+    expect(tagHue("infra")).toBe(45);
+    expect(tagHue("infra")).toBe(tagHue("infra"));
+  });
+
+  it("stays on the band grid, whatever the name", () => {
+    for (const tag of ["", "a", "infra", "ui polish", "🐛", "x".repeat(24)]) {
+      const hue = tagHue(tag);
+      expect(hue).toBeGreaterThanOrEqual(0);
+      expect(hue).toBeLessThan(360);
+      // Centred in a 30° band — never on 0°, where it would read as the blocked red.
+      expect((hue - 15) % 30).toBe(0);
+    }
+  });
+
+  it("spreads short lowercase words across the wheel — the only names tags actually take", () => {
+    const tags = ["bug", "infra", "ui", "docs", "perf", "refactor", "board", "fix", "test", "ux"];
+    // Collisions are accepted (see TAG_HUES); clumping is not. Half the wheel unused would mean
+    // every tag on a real board arriving in one of three colours.
+    expect(new Set(tags.map(tagHue)).size).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("tagsOf", () => {
+  const card = (tag: string | null, updatedAt: number) => ({ tag, updatedAt }) as CardView;
+
+  it("dedupes, drops untagged cards, and puts the most recently touched first", () => {
+    expect(tagsOf([card("bug", 1), card(null, 9), card("infra", 5), card("bug", 7)])).toEqual([
+      "bug",
+      "infra",
+    ]);
+  });
+
+  it("is empty on a board with no tags at all", () => {
+    expect(tagsOf([card(null, 1), card(null, 2)])).toEqual([]);
   });
 });
