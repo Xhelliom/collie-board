@@ -8,6 +8,7 @@ import {
   MANUAL_STATUSES,
   positionFor,
   tagHue,
+  normalizeTag,
   tagsOf,
   type CardView,
 } from "./board";
@@ -157,5 +158,29 @@ describe("tagsOf", () => {
 
   it("is empty on a board with no tags at all", () => {
     expect(tagsOf([card(null, 1), card(null, 2)])).toEqual([]);
+  });
+});
+
+describe("normalizeTag", () => {
+  it("folds the spellings that would otherwise become separate tags", () => {
+    // The whole point: all four are the tag `bug`, so none of them can mint a second one.
+    for (const typed of ["bug", "Bug", " BUG ", "bug\t"]) expect(normalizeTag(typed)).toBe("bug");
+    expect(normalizeTag("Front  End")).toBe("front end");
+  });
+
+  it("reads an empty box as no tag, so the field stays optional", () => {
+    expect(normalizeTag("")).toBeNull();
+    expect(normalizeTag("   ")).toBeNull();
+  });
+
+  it("clips a sentence to the chip's width without leaving it ending in a space", () => {
+    expect(normalizeTag("a".repeat(40))).toBe("a".repeat(24));
+    expect(normalizeTag(`${"a".repeat(23)} bcd`)).toBe("a".repeat(23));
+  });
+
+  // Client-side folding only matters because it must agree with the bridge's. If these two ever
+  // disagree, the field lights up `bug` and the card lands on something else.
+  it("agrees with bridge/db.ts normalizeTag", () => {
+    expect(normalizeTag(" Bug  Fix ")).toBe("bug fix");
   });
 });

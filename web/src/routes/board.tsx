@@ -464,7 +464,16 @@ export function BoardRoute() {
         <StatusArea />
       </div>
 
-      <NewCardSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={create} />
+      {/* The same list the filter strip offers, deliberately: what you can narrow the board to and
+          what you can tag a new card with are one inventory, and deriving it twice is how they
+          drift. It includes the active tag even after its last card stopped carrying it — which is
+          exactly when you would be creating a card to put it back. */}
+      <NewCardSheet
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreate={create}
+        tags={tags}
+      />
     </div>
   );
 }

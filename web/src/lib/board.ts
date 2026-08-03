@@ -292,6 +292,24 @@ export function tagHue(tag: string): number {
   return (h % TAG_HUES) * band + band / 2;
 }
 
+/** Mirrors the bridge's own cap. A longer tag is a sentence, and the chip has no room for one. */
+export const TAG_MAX_CHARS = 24;
+
+/**
+ * Fold a typed tag to its canonical form, or null when there isn't one. The SAME rule as the
+ * bridge's `normalizeTag` — lowercase, collapsed whitespace, clipped — and deliberately duplicated
+ * rather than shared: the bridge is the authority (it re-normalises every write, including the
+ * copilot's), this copy exists so the field can tell you, before you tap Add, that what you typed
+ * IS the `bug` already on the board. Without it `Bug ` looks like a new tag right up until it
+ * silently isn't.
+ *
+ * Applied on SUBMIT and for matching, never per keystroke: collapsing whitespace as you type makes
+ * the space bar swallow itself, so `front end` becomes unspellable.
+ */
+export function normalizeTag(value: string): string | null {
+  return value.trim().toLowerCase().replace(/\s+/g, " ").slice(0, TAG_MAX_CHARS).trim() || null;
+}
+
 /**
  * The tags in use, most recently touched first — derived from the cards the screen already has, so
  * it costs no request and cannot disagree with what is on screen. The bridge derives the same list

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchCards, type CardInput, type CardView } from "@/lib/board";
+import { fetchCards, normalizeTag, tagsOf, type CardInput, type CardView } from "@/lib/board";
+import { TagField } from "@/components/tag-field";
 
 // Rework a card by hand.
 //
@@ -33,6 +34,7 @@ export function CardEditor({
   const [spec, setSpec] = useState(card.spec ?? "");
   const [acceptance, setAcceptance] = useState<string[]>(card.acceptance);
   const [baseRef, setBaseRef] = useState(card.baseRef ?? "");
+  const [tag, setTag] = useState(card.tag ?? "");
   const [parentId, setParentId] = useState<string | null>(card.parentId);
   const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
   const [others, setOthers] = useState<CardView[]>([]);
@@ -47,6 +49,7 @@ export function CardEditor({
     setSpec(card.spec ?? "");
     setAcceptance(card.acceptance);
     setBaseRef(card.baseRef ?? "");
+    setTag(card.tag ?? "");
     setParentId(card.parentId);
     setDependsOn(card.dependsOn);
     // Fetched on OPEN, not polled: linking is a deliberate act, and the list only has to be right
@@ -76,6 +79,8 @@ export function CardEditor({
         spec: spec.trim() || null,
         acceptance: acceptance.map((a) => a.trim()).filter(Boolean),
         baseRef: baseRef.trim() || null,
+        // null clears it — emptying the box is how a card loses its tag.
+        tag: normalizeTag(tag),
         parentId,
         dependsOn,
       });
@@ -156,6 +161,11 @@ export function CardEditor({
             at it.
           </p>
         )}
+
+        {/* The card itself leads the inventory: it is the most recently touched, and a tag only IT
+            carries has to stay offered — otherwise editing anything else on the card would present
+            its own tag as unknown. `others` rides the fetch the link pickers already do. */}
+        <TagField value={tag} onChange={setTag} tags={tagsOf([card, ...others])} />
 
         <LinkPicker
           label="Part of"

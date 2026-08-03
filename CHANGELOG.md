@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.69.0] - 2026-08-03
+
+### Added
+- A card's tag can be typed at creation and changed when editing — the field is optional, and an empty box means no tag (5e017fe).
+- The tags already in use are offered in that same field: tappable coloured chips, and a `<datalist>` that filters them as you type (5e017fe).
+- Typing an existing tag in another case or spacing selects it instead of minting a second spelling — `normalizeTag` now folds client-side too, so the match is visible before the card is created (5e017fe).
+
 ## [0.68.1] - 2026-08-03
 
 ### Fixed
