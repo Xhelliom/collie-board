@@ -102,6 +102,22 @@ export interface Card {
    * two-mode "parallel or sequential" flag can only express the first two.
    */
   dependsOn: string | null;
+  /**
+   * ONE tag, or none. Free text, normalised by {@link normalizeTag} — the name IS the identity, so
+   * "Bug", "bug " and "bug" are the same tag with the same colour everywhere.
+   *
+   * Deliberately singular, and deliberately a plain column rather than a join table. A tag here
+   * answers "what kind of work is this" — a card is one kind of thing, and the phone screen it
+   * renders on has room for one chip beside the title, not five. Multi-tag is the strictly larger
+   * model: it can be reached later from this one (a `card_tag` table, this column its seed) without
+   * ever having to un-invent it, whereas starting there buys a picker, a wrap rule and a "which of
+   * the five colours is the card's colour" question that nothing currently asks.
+   *
+   * The colour is NOT stored: it is derived from the name (`tagHue()`, web side). Storing it would
+   * be a second source of truth for a fact the name already determines, and the first hand edit that
+   * missed it would give one tag two colours.
+   */
+  tag: string | null;
   /** Manual ordering within a column. */
   position: number;
   createdAt: number;
@@ -193,6 +209,7 @@ interface CardRow {
   parent_id: string | null;
   duplicate_of: string | null;
   depends_on: string | null;
+  tag: string | null;
   position: number;
   created_at: number;
   updated_at: number;
@@ -289,6 +306,9 @@ function toCard(r: CardRow): Card {
     parentId: r.parent_id ?? null,
     duplicateOf: r.duplicate_of ?? null,
     dependsOn: r.depends_on ?? null,
+    // No tag is the normal state, not a gap: every card written before tags existed reads as null,
+    // and nothing downstream may treat that as missing data.
+    tag: r.tag ?? null,
     position: r.position,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -345,6 +365,8 @@ CREATE TABLE IF NOT EXISTS card (
   parent_id    TEXT,
   duplicate_of TEXT,
   depends_on   TEXT,
+  -- One tag or none. Nullable by design — see Card.tag.
+  tag          TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
@@ -403,6 +425,22 @@ CREATE TABLE IF NOT EXISTS repo_pref (
 );
 `;
 
+/** A tag longer than this is a sentence, not a label, and would not fit the chip it renders as. */
+const TAG_MAX_CHARS = 24;
+
+/**
+ * Fold a tag to its canonical form, or null when there isn't one.
+ *
+ * Applied at the DATABASE, not at the HTTP edge: the copilot writes tags straight through
+ * `patchCard`, so a check in `parseCardBody` alone would leave the one writer that invents tags able
+ * to invent `Bug` next to `bug`. The name is the tag's identity everywhere — the inventory dedupes on
+ * it and the colour is derived from it — so two spellings of one tag is two tags in two colours.
+ */
+export function normalizeTag(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return value.trim().toLowerCase().replace(/\s+/g, " ").slice(0, TAG_MAX_CHARS).trim() || null;
+}
+
 /** Fields a caller may set when creating a card. Everything else is derived or defaulted. */
 export interface NewCard {
   title: string;
@@ -417,6 +455,7 @@ export interface NewCard {
   parentId?: string | null;
   duplicateOf?: string | null;
   dependsOn?: string | null;
+  tag?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
    * which is one less tap on a phone. A split passes it, because "top of the column" applied to
@@ -440,6 +479,7 @@ export interface CardPatch {
   parentId?: string | null;
   duplicateOf?: string | null;
   dependsOn?: string | null;
+  tag?: string | null;
   position?: number;
   keepWorktree?: boolean;
 }
@@ -459,6 +499,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   parentId: "parent_id",
   duplicateOf: "duplicate_of",
   dependsOn: "depends_on",
+  tag: "tag",
   position: "position",
   keepWorktree: "keep_worktree",
 };
@@ -515,6 +556,9 @@ export class BoardDb {
       { table: "card", column: "depends_on", ddl: "TEXT" },
       // 0.50: opt a card out of automatic post-wrapup cleanup.
       { table: "card", column: "keep_worktree", ddl: "INTEGER NOT NULL DEFAULT 0" },
+      // 0.67: one tag per card. Nullable with no backfill — the cards already on the board have no
+      // tag, and "no tag" is a normal card, not a row waiting to be migrated.
+      { table: "card", column: "tag", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -537,9 +581,9 @@ export class BoardDb {
     this.db
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
-                           branch, workspace_id, agent_kind, parent_id, depends_on, position,
+                           branch, workspace_id, agent_kind, parent_id, depends_on, tag, position,
                            created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -554,6 +598,7 @@ export class BoardDb {
         input.agentKind ?? null,
         input.parentId ?? null,
         input.dependsOn ?? null,
+        normalizeTag(input.tag),
         input.position ?? (minPos ?? 0) - 1,
         ts,
         ts,
@@ -573,6 +618,23 @@ export class BoardDb {
       ? "SELECT * FROM card ORDER BY position, created_at"
       : "SELECT * FROM card WHERE status != 'archived' ORDER BY position, created_at";
     return this.db.query<CardRow, []>(sql).all().map(toCard);
+  }
+
+  /**
+   * Every tag in use, most recently touched first. THE tag inventory — there is no tag table and
+   * there is not going to be one: the tags that exist are the tags on the cards, so a card deleted
+   * or retagged takes its vocabulary with it and a separate list would have to be kept in step for
+   * no gain. Archived cards count: a tag is a vocabulary, and filing a card away doesn't unlearn the
+   * word.
+   */
+  listTags(): string[] {
+    return this.db
+      .query<{ tag: string }, []>(
+        `SELECT tag FROM card WHERE tag IS NOT NULL
+         GROUP BY tag ORDER BY MAX(updated_at) DESC, tag`,
+      )
+      .all()
+      .map((r) => r.tag);
   }
 
   /**
@@ -622,7 +684,9 @@ export class BoardDb {
           ? JSON.stringify(value ?? [])
           : key === "keepWorktree"
             ? (value ? 1 : 0)
-            : (value as string | number | null),
+            : key === "tag"
+              ? normalizeTag(value)
+              : (value as string | number | null),
       );
     }
     if (sets.length === 0) return this.getCard(id);

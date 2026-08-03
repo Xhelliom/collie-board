@@ -90,6 +90,8 @@ export interface CardView {
   duplicateOf: string | null;
   /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
   dependsOn: string | null;
+  /** One tag, or none — most cards have none, and that is a normal card. Colour: {@link tagHue}. */
+  tag: string | null;
   position: number;
   createdAt: number;
   updatedAt: number;
@@ -254,6 +256,56 @@ export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   archived: "border-border bg-muted text-muted-foreground",
 };
 
+// ── tags ─────────────────────────────────────────────────────────────────────
+
+/**
+ * How many distinct hues a tag can land on. Twelve 30° bands, not 360 free degrees: two tags a few
+ * degrees apart are two colours nobody can tell apart, which is worse than two tags sharing one —
+ * a shared colour reads as "same family", a near-miss reads as "these differ, squint harder".
+ *
+ * ponytail: twelve bands means two tags DO sometimes collide (birthday problem — it is visible from
+ * about five tags). Accepted: the alternative is assigning colours in inventory order, which makes a
+ * tag's colour depend on what else exists and breaks the one property this whole design is for.
+ */
+const TAG_HUES = 12;
+
+/**
+ * The hue for a tag name, in degrees. THE definition of a tag's colour — nothing stores one, so a
+ * tag is the same colour on the tile, in the picker and anywhere else it ever renders, on any
+ * device, and still the same after the database is deleted and rebuilt.
+ *
+ * FNV-1a rather than the usual `h * 31 + c`: over short lowercase words (which is what tags are)
+ * that one clumps badly — measured, it put `bug`, `infra` and `ui` on the same band and left a third
+ * of the wheel unused.
+ *
+ * Only the hue varies. Lightness and chroma are fixed per theme in `.tag-chip` (index.css), so a tag
+ * has the same weight and the same contrast whatever hue it drew.
+ */
+export function tagHue(tag: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < tag.length; i++) {
+    h ^= tag.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const band = 360 / TAG_HUES;
+  // Centred in its band, which also keeps every hue clear of 0° — pure red is the blocked colour.
+  return (h % TAG_HUES) * band + band / 2;
+}
+
+/**
+ * The tags in use, most recently touched first — derived from the cards the screen already has, so
+ * it costs no request and cannot disagree with what is on screen. The bridge derives the same list
+ * the same way (`BoardDb.listTags`) for the consumers that have no card list to hand.
+ */
+export function tagsOf(cards: readonly CardView[]): string[] {
+  const seen = new Map<string, number>();
+  for (const card of cards) {
+    if (!card.tag) continue;
+    seen.set(card.tag, Math.max(seen.get(card.tag) ?? 0, card.updatedAt));
+  }
+  return [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag]) => tag);
+}
+
 // ── paths ────────────────────────────────────────────────────────────────────
 
 export function boardPath(): string {
@@ -334,6 +386,8 @@ export interface CardInput {
   dependsOn?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
+  /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */
+  tag?: string | null;
   position?: number;
   keepWorktree?: boolean;
 }

@@ -171,6 +171,33 @@ describe("BoardDb", () => {
     expect(store.getSession(s.id)!.outcome).toBe("handoff");
   });
 
+  it("round-trips one tag per card, normalised, and no tag at all", () => {
+    const store = db();
+    const tagged = store.createCard({ title: "a", tag: "  Infra Work  " });
+    expect(tagged.tag).toBe("infra work");
+    expect(store.getCard(tagged.id)!.tag).toBe("infra work");
+
+    // The absence of a tag is a normal card, not a hole: nothing backfills it, nothing rejects it.
+    const bare = store.createCard({ title: "b" });
+    expect(bare.tag).toBeNull();
+
+    // A patch is the second writer, and it normalises the same way — otherwise `BUG` and `bug`
+    // become two tags with two colours.
+    expect(store.patchCard(bare.id, { tag: "BUG" })!.tag).toBe("bug");
+    expect(store.patchCard(bare.id, { tag: "   " })!.tag).toBeNull();
+    expect(store.patchCard(bare.id, { tag: null })!.tag).toBeNull();
+  });
+
+  it("listTags is the inventory: every tag in use, deduped, no card without one", () => {
+    const store = db();
+    store.createCard({ title: "a", tag: "bug" });
+    store.createCard({ title: "b", tag: "Bug" });
+    store.createCard({ title: "c" });
+    store.createCard({ title: "d", tag: "infra", status: "archived" });
+    // Archived counts — filing a card away doesn't unlearn the word.
+    expect(store.listTags().sort()).toEqual(["bug", "infra"]);
+  });
+
   it("deleteCard takes its sessions, reviews and journal with it", () => {
     const store = db();
     const card = store.createCard({ title: "x" });
@@ -201,6 +228,7 @@ describe("reconcileOne", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    tag: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -451,6 +479,17 @@ describe("parseCardBody", () => {
     expect(parsed).toEqual({ ok: true, value: { title: "ship", spec: null, repoPath: "/repo" } });
   });
 
+  // The one that fails silently if it regresses: an unlisted key is DROPPED, so the card would be
+  // written without complaint and simply arrive with no tag.
+  it("carries the tag through, and takes a null as a clear", () => {
+    expect(parseCardBody({ tag: " Infra " }, { requireTitle: false })).toEqual({
+      ok: true,
+      value: { tag: "Infra" },
+    });
+    expect(parseCardBody({ tag: null }, { requireTitle: false })).toEqual({ ok: true, value: { tag: null } });
+    expect(parseCardBody({ tag: 3 }, { requireTitle: false })).toEqual({ ok: false, error: "bad tag" });
+  });
+
   it("ignores unknown keys instead of writing them", () => {
     expect(parseCardBody({ title: "x", paneId: "w1:p1" }, { requireTitle: true })).toEqual({
       ok: true,
@@ -523,6 +562,7 @@ describe("initialPrompt", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    tag: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -1006,6 +1046,7 @@ describe("handoff prompts", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    tag: null,
     position: 0,
     createdAt: 0,
     updatedAt: 0,

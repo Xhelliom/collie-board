@@ -47,8 +47,9 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
 | `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture |
+| `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
 
-Rebasing means resolving those eighteen, not the whole tree. Keep it that way: if a change wants to
+Rebasing means resolving those nineteen, not the whole tree. Keep it that way: if a change wants to
 spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix,
 `use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` / `api.ts` /
 `loaders.ts`) are pure upstream material — they are in the ledger, and once merged they leave this

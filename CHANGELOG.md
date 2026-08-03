@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.67.0] - 2026-08-03
+
+### Added
+- A card can carry one tag, shown as a coloured chip before its title. The colour is computed from the tag's name and stored nowhere, so one tag is one colour everywhere and on every device — [ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md) (706b99d).
+- The tag inventory is derived, never registered: `BoardDb.listTags()` bridge-side, `tagsOf(cards)` client-side (706b99d).
+- Tags are normalised in the database — lowercased, whitespace-collapsed, 24 chars — so the copilot's writes get the same identity rules as the API's (706b99d).
+
 ## [0.66.1] - 2026-08-03
 
 ### Fixed
