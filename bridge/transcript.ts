@@ -654,9 +654,18 @@ interface CacheEntry {
 }
 
 /**
- * Reads + caches parsed transcripts. History is fetched ON DEMAND (it is not on the 1.5 s poll path),
- * so the cost that matters is the repeat visit, not the first — a parse is reused until the log's
- * size or mtime moves.
+ * Reads + caches parsed transcripts. The cost that matters is the repeat visit, not the first — a
+ * parse is reused until the log's size or mtime moves.
+ *
+ * This route is no longer strictly on-demand: the reading view follows a live pane with `after` at
+ * the pane poll's cadence. That is affordable because the answer is a handful of turns and the parse
+ * is cached — but the READ is not: `load()` pulls the whole file every call, so an idle agent with a
+ * large log still costs one re-read per tick.
+ *
+ * ponytail: whole-file re-read per call. Measured elsewhere in this repo at 10–23 ms for a typical
+ * log and 110 ms for an 18 MB one — fine for one open pane on loopback, not fine as a pattern. If a
+ * follower ever needs more than that: stat before load and reuse the cache when size/mtime are
+ * unchanged, then read only the appended bytes (the parse is already line-at-a-time).
  */
 export class TranscriptStore {
   private readonly cache = new Map<string, CacheEntry>();
