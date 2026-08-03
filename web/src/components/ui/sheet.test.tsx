@@ -153,3 +153,49 @@ describe("sheet — what the pull-to-dismiss may not touch", () => {
     expect(screen.getByRole("button", { name: "Act" }).closest("[data-vaul-no-drag]")).not.toBeNull();
   });
 });
+
+// One component, two idioms: up from the bottom edge on a phone, in from the right on a desktop.
+// The direction is a PROP (Vaul picks its drag axis and its transform from it), so unlike everything
+// else in the desktop pass it cannot be a CSS breakpoint — hence a matchMedia read, hence this test.
+describe("sheet — which edge it comes from", () => {
+  function widthIs(desktop: boolean) {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: desktop,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+    return () => {
+      window.matchMedia = original;
+    };
+  }
+
+  it("comes up from the bottom on a phone", () => {
+    const restore = widthIs(false);
+    render(
+      <BottomSheet open onClose={vi.fn()} title="Keys">
+        body
+      </BottomSheet>,
+    );
+    expect(dialog()).toHaveAttribute("data-vaul-drawer-direction", "bottom");
+    restore();
+  });
+
+  it("comes in from the right on a wide screen, as the same drawer", () => {
+    const restore = widthIs(true);
+    render(
+      <BottomSheet open onClose={vi.fn()} title="Keys">
+        body
+      </BottomSheet>,
+    );
+    // Same component, same title, same single Close — one direction apart.
+    expect(dialog()).toHaveAttribute("data-vaul-drawer-direction", "right");
+    expect(screen.getAllByRole("button", { name: "Close" })).toHaveLength(1);
+    restore();
+  });
+});

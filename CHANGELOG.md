@@ -7,6 +7,61 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.64.0] - 2026-08-03
+
+### Added
+- Drag reorders inside a column, not just between columns — a fractional `position` (SQLite stores a REAL in an INTEGER-affinity column), so it stays one PATCH on one card (a3f3092).
+- A ghost of the dragged card sits in the exact slot it will land in, pushing the column open as you move (a3f3092).
+- The flying card is a styled clone via `setDragImage` — opaque, shadowed, tilted 2° (a3f3092).
+- Each lane scrolls on its own above `lg`, with its heading sticky (a3f3092).
+
+### Changed
+- The lanes read left to right as the flow: `To do → Doing → To review → Done`. The phone keeps urgency-first order (a3f3092).
+- Sub-tasks scatter into their own columns on a wide board; the container stays as a summary tile with its status chips. **Fixes a board that reported "Done 0" with fifteen finished sub-tasks** (a3f3092).
+- The board and the dashboard drop their max-width; agent lists become `auto-fill minmax(24rem,1fr)` grids. The card page keeps its ceiling — it is a document (a3f3092).
+- The drag state survives the drop until fresh data lands, so a move no longer visibly undoes itself first (a3f3092).
+- `status` is only sent when it changes, so a reorder no longer journals a move that never happened (a3f3092).
+- Ledger brick 14 follows the width rule: surfaces widen, documents don't (059eb5b).
+
+### Fixed
+- The drop outline is drawn inside the box — the new per-lane scroller clipped it — with symmetric padding (a3f3092).
+- The drop slot no longer flickers between "here" and "at the end" while dragging within one column (a3f3092).
+
+## [0.63.1] - 2026-08-03
+
+### Fixed
+- A drop re-reads the card's status at drop time — a poll landing mid-drag could otherwise let a manual status be written onto a card the herd had just picked up (7db2bb0).
+- The drop highlight no longer strobes as the pointer crosses the cards inside a column (`dragleave` fires on every child hop) (7db2bb0).
+- Drop targets get a minimum height while a card is in hand; a one-card column was ~60px of surface in a lane 800px tall (7db2bb0).
+- The hovered column doubles its outline to the ring colour instead of tinting with `accent`, which sits 3% off the background (7db2bb0).
+
+### Changed
+- A dropped card lands at the top of its new column (`position: min - 1`), the rule new cards already follow (7db2bb0).
+
+## [0.63.0] - 2026-08-03
+
+### Added
+- Drag a card between the board's manual columns (backlog ↔ ready ↔ done) on a desktop — the platform's own drag, no library, no touch gesture (f959a5c).
+- `canDropCard` refuses both a herd-owned source (its agent would be sent home) and a herd-owned target (the next poll would undo it) (f959a5c).
+- An empty manual column shows itself while a card is in hand, so the last card out of Ready doesn't take the drop target with it (f959a5c).
+
+### Changed
+- `MANUAL_STATUSES` moves from `routes/card.tsx` to `lib/board.ts` — "Move to" and drag-and-drop now name the same list (f959a5c).
+
+## [0.62.0] - 2026-08-03
+
+### Added
+- Desktop mode: above `lg` the board lays out as four lanes (Needs you · In progress · Ready · Done), each keeping its columns as labelled sub-sections (f42cc9c).
+- `CardTile` adapts to its own container, not the viewport — chevron dropped under 24rem, badge onto its own line under 20rem (f42cc9c).
+- Sheets come in from the right on a wide screen and up from the bottom on a phone — one component, one `direction` apart (f42cc9c).
+- `useMediaQuery` / `useIsDesktop`: reactive `matchMedia` at Tailwind's `lg`, for the one thing CSS can't switch (f42cc9c).
+- Home, space and card pass 640px; agent and space lists become two- or three-across grids (f42cc9c).
+- The card page splits into a durable half (spec, acceptance, journal) and a live half (pane, context, prompt, handoff) (f42cc9c).
+- Ledger brick 14 — the desktop mode's app half, which belongs upstream (c8cf8d1).
+
+### Changed
+- `CommandPalette` no longer overrides the sheet's max height; the override clipped the right-hand variant (f42cc9c).
+
 ## [0.61.0] - 2026-07-30
 
 ### Added

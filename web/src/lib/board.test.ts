@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  BOARD_COLUMNS,
+  BOARD_LANES,
+  CARD_STATUS_LABEL,
+  canDropCard,
+  MANUAL_STATUSES,
+  positionFor,
+} from "./board";
+
+// The wide-screen board renders lanes, not columns. A status that fell out of every lane would keep
+// working on a phone and silently vanish from the desktop board — the kind of gap nobody notices
+// until a blocked card goes missing on the machine they actually work on.
+describe("BOARD_LANES", () => {
+  it("covers every board column exactly once", () => {
+    const laid = BOARD_LANES.flatMap((l) => l.statuses);
+    expect([...laid].sort()).toEqual([...BOARD_COLUMNS].sort());
+  });
+
+  it("never lanes `archived` — it isn't a column either", () => {
+    expect(BOARD_LANES.flatMap((l) => l.statuses)).not.toContain("archived");
+  });
+
+  it("puts every manual column in a lane, so a drop target is always visible somewhere", () => {
+    const laid = new Set(BOARD_LANES.flatMap((l) => l.statuses));
+    for (const s of MANUAL_STATUSES) {
+      if (s === "archived") continue; // no column, by design
+      expect(laid.has(s)).toBe(true);
+    }
+  });
+
+  it("only ever repeats a column's name on its FIRST column, so the heading can dedupe", () => {
+    // board.tsx hides a sub-section heading when it repeats its lane's name. A lane whose name
+    // matched its SECOND column would open with unlabelled tiles belonging to the first one.
+    // A lane whose name matches none of them (e.g. "To do" over ready + backlog) keeps every
+    // sub-heading, which is the honest outcome and what that lane's count depends on.
+    for (const lane of BOARD_LANES) {
+      const repeated = lane.statuses.filter((s) => CARD_STATUS_LABEL[s] === lane.label);
+      if (repeated.length === 0) continue;
+      expect(repeated).toEqual([lane.statuses[0]]);
+    }
+  });
+});
+
+// What a drag is ALLOWED to do. This is the whole safety boundary of the feature: everything else
+// about it is a dataTransfer and a class name, but get this wrong and a drop either sends a working
+// agent home or writes a status the next poll silently undoes.
+describe("canDropCard", () => {
+  it("allows the moves the card page's Move to already offers", () => {
+    expect(canDropCard("backlog", "ready")).toBe(true);
+    expect(canDropCard("ready", "backlog")).toBe(true);
+    expect(canDropCard("ready", "done")).toBe(true);
+    expect(canDropCard("done", "backlog")).toBe(true);
+  });
+
+  it("refuses every column the herd owns, as a source and as a target", () => {
+    for (const live of ["blocked", "review", "working", "starting", "orphaned"] as const) {
+      expect(canDropCard(live, "done")).toBe(false);
+      expect(canDropCard("backlog", live)).toBe(false);
+    }
+  });
+
+  it("allows a drop on the card's own column — that is a reorder", () => {
+    expect(canDropCard("ready", "ready")).toBe(true);
+  });
+
+  it("never targets `archived` — it is manual but has no column to drop on", () => {
+    expect(canDropCard("backlog", "archived")).toBe(false);
+    // …though it remains a legal SOURCE if an archived card is ever shown.
+    expect(canDropCard("archived", "backlog")).toBe(true);
+  });
+});
+
+// Reordering is one PATCH on one card, and this is the arithmetic that makes that true. It is worth
+// pinning because the failure is silent: a wrong value here doesn't throw, it just puts the card
+// somewhere else and looks like the drop missed.
+describe("positionFor", () => {
+  const column = [10, 20, 30];
+
+  it("slots halfway between the two cards it lands between", () => {
+    expect(positionFor(column, 1)).toBe(15);
+    expect(positionFor(column, 2)).toBe(25);
+  });
+
+  it("goes one below the top card when dropped first — the rule new cards already follow", () => {
+    expect(positionFor(column, 0)).toBe(9);
+  });
+
+  it("goes one above the last card when dropped last", () => {
+    expect(positionFor(column, 3)).toBe(31);
+  });
+
+  it("handles an empty column", () => {
+    expect(positionFor([], 0)).toBe(0);
+  });
+
+  it("keeps halving a gap without ever landing on a neighbour", () => {
+    // What repeated drops into the same slot actually do. Each result must stay strictly between
+    // its neighbours — an inclusive result would tie, and a tie is a card that doesn't move.
+    let pair = [0, 1];
+    for (let i = 0; i < 20; i++) {
+      const mid = positionFor(pair, 1);
+      expect(mid).toBeGreaterThan(pair[0]);
+      expect(mid).toBeLessThan(pair[1]);
+      pair = [pair[0], mid];
+    }
+  });
+
+  it("survives negative positions, which is what the top of a column is made of", () => {
+    // New cards take `min - 1`, so a lived-in column counts down through zero.
+    expect(positionFor([-3, -2, -1], 0)).toBe(-4);
+    expect(positionFor([-3, -1], 1)).toBe(-2);
+  });
+});

@@ -8,6 +8,13 @@ import { homePath, panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import type { AgentView } from "@/lib/types";
 
+// OUT OF SCOPE of the desktop pass, deliberately: every other screen widened past `max-w-screen-sm`
+// at `lg` and this one did not. An honest desktop pane screen is two panes — the pane list on the
+// left, the mirror on the right — which is a rework of AgentChat, not a `lg:` on a container, and it
+// is its own card. What the mirror DID already have is the part that mattered: `wrapDefaultFor`
+// (use-display-prefs.ts) turns wrapping off above 640px on its own, so a wide window already keeps a
+// TUI's columns aligned.
+//
 // Pane detail route. Pane output comes from this route's loader; the pane's metadata comes from the
 // shared snapshot (root loader). The pane may be an agent OR a bare shell. A just-created shell
 // isn't in the snapshot yet, so we fall back to the `freshPane` passed via navigation state — the

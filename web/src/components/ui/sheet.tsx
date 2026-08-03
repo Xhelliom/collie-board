@@ -4,6 +4,7 @@ import { Drawer } from "vaul";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useIsDesktop } from "@/hooks/use-media-query";
 
 // The gesture belongs to Vaul, not to us — see .adr/0003-vaul-owns-the-sheet-gesture.md for the
 // arbitration and the measured bundle cost. What the hand-rolled version never had, in the order it
@@ -31,7 +32,7 @@ export function GrabHandle({ className }: { className?: string }) {
 interface SheetShellProps {
   open: boolean;
   onClose: () => void;
-  direction: "bottom" | "left";
+  direction: "bottom" | "left" | "right";
   title?: string;
   /** Optional action(s) rendered in the header, to the left of the close (✕) button. */
   headerAction?: React.ReactNode;
@@ -51,6 +52,10 @@ function SheetShell({
   className,
 }: SheetShellProps) {
   const atBottom = direction === "bottom";
+  // The content gets its own padding everywhere except the LEFT drawer, which is upstream's
+  // full-bleed nav rail. Not a property of "is this a side sheet" — a right-side sheet is a bottom
+  // sheet that ran out of screen to come up from, and it holds the same padded content.
+  const padded = direction !== "left";
   // Radix restores focus to its Trigger on close — and these sheets have none: the caller owns
   // `open`, so there is no Trigger to hand focus back to, and it would land on <body>. Remember who
   // had it. Captured during render because Radix moves focus in from its own mount effect, which
@@ -125,7 +130,7 @@ function SheetShell({
             data-vaul-no-drag
             className={cn(
               "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-              atBottom && "px-4 py-3",
+              padded && "px-4 py-3",
             )}
           >
             {children}
@@ -152,17 +157,28 @@ interface BottomSheetProps {
   className?: string;
 }
 
+// A bottom sheet on a phone, the SAME sheet entering from the right on a wide screen. Not a second
+// component and not a second gesture — one `direction` and one set of positioning classes apart, as
+// Vaul intends. A panel that slides up from the bottom edge of a 27" display is a phone idiom
+// wearing the wrong screen; and on the four-column board a right-hand panel leaves the columns
+// visible, which a centred modal would cover.
+//
+// The breakpoint is a matchMedia read, not a CSS class, because `direction` is a prop Vaul uses to
+// pick the drag axis and the enter/exit transform — CSS can't switch that.
 export function BottomSheet({ open, onClose, title, children, className }: BottomSheetProps) {
+  const desktop = useIsDesktop();
   return (
     <SheetShell
       open={open}
       onClose={onClose}
-      direction="bottom"
+      direction={desktop ? "right" : "bottom"}
       title={title}
       // No top border: the panel already reads as a separate surface against the dimmed backdrop, and
       // a hairline there drew as a bright seam under the rounded corners rather than an edge.
       className={cn(
-        "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
+        desktop
+          ? "inset-y-0 right-0 w-[26rem] max-w-[92vw] rounded-l-2xl border-l"
+          : "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
         className,
       )}
     >

@@ -115,3 +115,45 @@ describe("dependencyMet", () => {
     expect(dependencyMet(undefined)).toBe(true);
   });
 });
+
+// The wide board scatters sub-tasks into their own columns (see the note at the top of
+// board-groups.ts). The failure this pins is the one that motivated it: fifteen finished sub-tasks
+// folded under a working parent left the "Done" column reading zero.
+describe("boardEntries — scattered", () => {
+  const cards = [
+    card("parent", { status: "working" }),
+    card("kid-done", { parentId: "parent", status: "done" }),
+    card("kid-todo", { parentId: "parent", status: "backlog" }),
+    card("loose"),
+  ];
+
+  it("returns each sub-task at top level, in its OWN status", () => {
+    const entries = boardEntries(cards, true);
+    const done = entries.filter((e) => entryStatus(e) === "done");
+    expect(done).toHaveLength(1);
+    expect(done[0].kind).toBe("card");
+    // …and folded, that same card is nowhere near the done column.
+    expect(boardEntries(cards).filter((e) => entryStatus(e) === "done")).toHaveLength(0);
+  });
+
+  it("keeps the container as a group entry, so it stays reachable and keeps its chips", () => {
+    const group = boardEntries(cards, true).find((e) => e.kind === "group");
+    expect(group).toBeDefined();
+    expect(group!.kind === "group" && group!.children.map((c) => c.id)).toEqual([
+      "kid-done",
+      "kid-todo",
+    ]);
+  });
+
+  it("renders every sub-task exactly once — the group entry no longer expands them", () => {
+    const ids = boardEntries(cards, true).flatMap((e) =>
+      e.kind === "card" ? [e.card.id] : [e.container.id],
+    );
+    expect(ids).toEqual(["parent", "kid-done", "kid-todo", "loose"]);
+  });
+
+  it("changes nothing when there is no container in sight", () => {
+    const plain = [card("a"), card("b")];
+    expect(boardEntries(plain, true)).toEqual(boardEntries(plain));
+  });
+});

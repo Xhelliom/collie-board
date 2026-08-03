@@ -16,10 +16,45 @@ import type { CardView } from "@/lib/board";
 // The badge on the right is the LIVE agent status when a pane is backing this card, and the card's
 // own column otherwise — that distinction matters: an orphaned card has a status but no agent, and
 // showing a fake "idle" badge for it would be a lie.
+//
+// The tile is a CONTAINER (`@container`), not a viewport reader. The same tile renders full-width on
+// a phone, ~320px wide in a lane of the wide-screen board, and narrower still nested inside a
+// CardGroup there — three different widths at ONE viewport size, which no `lg:` could tell apart.
+// So what it drops when it gets tight is asked of its own box: `@max-sm` is a container narrower
+// than 24rem, which the phone's full-width tile never is.
+/**
+ * The card that flies with the cursor.
+ *
+ * HTML5 drag always carries an image — the browser snapshots the source element, washed out and
+ * flat, anchored wherever the tile happened to be grabbed. `setDragImage` replaces it, and a CLONE
+ * is what makes that worth doing: same markup, same classes, so it looks like the tile rather than
+ * like a picture of it, but opaque, lifted on a real shadow and tilted a couple of degrees. Tilt is
+ * the whole trick — a rectangle at exactly 0° reads as part of the layout; two degrees off reads as
+ * held.
+ *
+ * The clone has to be IN the document to be painted, so it sits off-screen for the one frame the
+ * browser needs to take its picture, then goes. The snapshot is frozen at that instant, which is
+ * also the limit of this approach: nothing about the flying card can animate afterwards. A card
+ * that scales as you lift it, or eases into its slot on release, is a library (or a pointer-event
+ * drag of our own) — this is the 15-line version of the same idea.
+ */
+function flyingCard(el: HTMLElement, e: React.DragEvent): void {
+  const rect = el.getBoundingClientRect();
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.style.cssText = `position:fixed;top:-9999px;left:0;width:${rect.width}px;pointer-events:none;border-radius:0.75rem;transform:rotate(-2deg);box-shadow:0 16px 32px -8px rgb(0 0 0 / 0.35)`;
+  document.body.appendChild(clone);
+  // Grab offset, so the card stays under the exact point it was picked up by rather than jumping
+  // to a corner.
+  e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+  requestAnimationFrame(() => clone.remove());
+}
+
 export function CardTile({
   card,
   onClick,
   dependency,
+  parent,
+  drag,
 }: {
   card: CardView;
   onClick: () => void;
@@ -29,6 +64,25 @@ export function CardTile({
    * even once satisfied so "why does this depend on that" doesn't require opening the editor.
    */
   dependency?: DependencyInfo;
+  /**
+   * The container this card was split out of, when the board is showing sub-tasks in their own
+   * columns rather than folded under their parent. Without it a scattered sub-task is a title with
+   * no provenance — and a dictation that produced eight of them reads as eight unrelated cards.
+   *
+   * Text, not a link: this tile is already a `<button>`, and a button inside a button is invalid
+   * HTML whose inner click also fires the outer one. Opening the card gets you a real link to the
+   * parent, at the top of its page.
+   */
+  parent?: string;
+  /**
+   * Makes the tile a drag source. Absent = not draggable, which is the default and what a phone
+   * always gets: HTML5 drag needs a long-press on touch, and a long-press on a card tile is a
+   * gesture this app spends elsewhere.
+   *
+   * No "am I the one being dragged" flag: the board hides the held tile and renders a ghost of it in
+   * the slot it would land in, so the tile itself never needs to look any different.
+   */
+  drag?: { onStart: () => void; onEnd: () => void };
 }) {
   const waiting = dependency && !dependency.met;
   const urgent = card.status === "blocked";
@@ -42,11 +96,27 @@ export function CardTile({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left transition-transform active:scale-[0.99]"
+      draggable={drag ? true : undefined}
+      onDragStart={
+        drag &&
+        ((e) => {
+          // Firefox starts no drag at all without payload on the transfer; the id is also what makes
+          // the drag legible to anything outside this component.
+          e.dataTransfer.setData("text/plain", card.id);
+          e.dataTransfer.effectAllowed = "move";
+          flyingCard(e.currentTarget, e);
+          drag.onStart();
+        })
+      }
+      onDragEnd={drag && (() => drag.onEnd())}
+      className={cn(
+        "@container w-full text-left transition-transform active:scale-[0.99]",
+        drag && "cursor-grab active:cursor-grabbing",
+      )}
     >
       <Card
         className={cn(
-          "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm",
+          "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm @max-sm:gap-2.5 @max-sm:px-3 @max-xs:flex-wrap",
           urgent && "border-status-blocked/40 bg-status-blocked/5",
           // Held back, not broken — muted rather than alarming. `blocked` is the colour of "an
           // agent needs you"; waiting on a predecessor needs nothing from you at all.
@@ -66,6 +136,12 @@ export function CardTile({
             <span className="truncate font-medium">{card.title}</span>
             {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
           </div>
+          {parent && (
+            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Layers className="size-3 shrink-0" />
+              <span className="truncate">{parent}</span>
+            </div>
+          )}
           {dependency && (
             <div
               className={cn(
@@ -108,14 +184,25 @@ export function CardTile({
           </div>
         </div>
 
-        {waiting ? (
-          <Lock className="size-4 shrink-0 text-status-blocked" />
-        ) : card.runtime ? (
-          <StatusBadge status={card.runtime.agentStatus} />
-        ) : (
-          <CardStatusChip status={card.status} />
-        )}
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        {/* Under 20rem of container — a board lane on a 1280px laptop, or a lane's nested CardGroup —
+            the badge drops onto its own line under the title instead of eating a third of it. Same
+            badge, same information, indented to the title's column so it still reads as belonging to
+            it. This is the case that makes the container query worth having: at ONE viewport width
+            the phone's full-width tile keeps the badge inline and the lane's tile does not. */}
+        <span className="shrink-0 @max-xs:order-last @max-xs:w-full @max-xs:pl-[3rem]">
+          {waiting ? (
+            <Lock className="size-4 shrink-0 text-status-blocked" />
+          ) : card.runtime ? (
+            <StatusBadge status={card.runtime.agentStatus} />
+          ) : (
+            <CardStatusChip status={card.status} />
+          )}
+        </span>
+        {/* The one thing that goes when the box is narrow: 16px of icon plus its gap is 11% of a
+            320px lane, and it is the only element here carrying no information — in a lane of
+            clickable tiles, "this opens" is not news. The badge beside it IS information, so it
+            stays. */}
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground @max-sm:hidden" />
       </Card>
     </button>
   );

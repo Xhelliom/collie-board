@@ -164,6 +164,83 @@ export const BOARD_COLUMNS: CardStatus[] = [
   "done",
 ];
 
+/**
+ * The eight columns folded into the four stages of a card's real life, for the wide-screen board.
+ *
+ * Transposing the eight as-is would need 8 × 280px ≈ 2240px and bring back the horizontal pan the
+ * phone layout exists to avoid — with a mouse instead of a thumb, which is not an improvement.
+ * Four lanes fit any laptop at ~320px each, and nothing is lost: each lane keeps its columns as
+ * labelled sub-sections inside it, so `starting` is still distinguishable from `working`.
+ *
+ * Every BOARD_COLUMNS status must appear exactly once — pinned by board.test.ts, because a status
+ * that falls out of every lane would silently vanish from the wide-screen board only.
+ */
+export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
+  // LEFT TO RIGHT IS THE FLOW, not the urgency. That is the opposite of BOARD_COLUMNS, and both are
+  // right for where they are used: a phone shows one column, so what needs you has to be at the top
+  // or you scroll past it; a wide board shows all four at once, so nothing is buried and the axis is
+  // free to carry the thing a board is actually for — where the work is in its life. The phone keeps
+  // BOARD_COLUMNS order (board.tsx re-sorts with `order-*`), so neither reading loses.
+  { label: "To do", statuses: ["ready", "backlog"] },
+  // `blocked` leads: inside a column, urgency still wins. It reads as "in progress, and it is
+  // waiting on you", which is what it is — the agent is running, it just can't continue alone.
+  { label: "Doing", statuses: ["blocked", "working", "starting", "orphaned"] },
+  { label: "To review", statuses: ["review"] },
+  { label: "Done", statuses: ["done"] },
+];
+
+/**
+ * Columns a human moves a card into by hand. The rest are driven by the herd — the bridge
+ * reconciles them against the pane every poll — so a manual write to one of them is undone a second
+ * later. Shared by the card page's "Move to" and by the board's drag-and-drop.
+ */
+export const MANUAL_STATUSES: CardStatus[] = ["backlog", "ready", "done", "archived"];
+
+/**
+ * Whether a card sitting in `from` may be dropped on `to`.
+ *
+ * BOTH ends have to be manual, and that is the whole safety argument, so it is worth stating:
+ *
+ * - A manual SOURCE means the card has no open session (`releaseSession` closes one the moment a
+ *   card leaves the live columns). So a drop can never send a working agent away — which is the one
+ *   real hazard of filing a card, and the reason the card page hides "Done" while a branch still
+ *   holds commits. No agent, no hazard, no need for that guard here.
+ * - A manual TARGET means the poll won't undo it. Dropping onto "In progress" would write a status
+ *   the next reconcile overwrites, i.e. a card that snaps back — worse than a refused drop.
+ *
+ * Everything else stays where it already is: the card page, one tap, with its own guards.
+ * `archived` is manual but has no column on the board, so it can never be a target.
+ *
+ * `from === to` IS allowed — that is a reorder, and it is the same two conditions: a column you own,
+ * holding a card no agent is in.
+ */
+export function canDropCard(from: CardStatus, to: CardStatus): boolean {
+  return to !== "archived" && MANUAL_STATUSES.includes(from) && MANUAL_STATUSES.includes(to);
+}
+
+/**
+ * The `position` a card needs to land at slot `index` of a column, given its neighbours' positions
+ * IN ORDER and WITHOUT the dragged card itself.
+ *
+ * Halfway between the two it lands between — a fractional rank. The column is `position INTEGER` in
+ * SQLite, which sounds like it forbids this and does not: SQLite's INTEGER affinity stores a REAL
+ * that can't be represented exactly as an integer AS a real, and `ORDER BY position` sorts it
+ * correctly (verified against bun:sqlite, not assumed). So one PATCH on one card is the whole
+ * operation — no renumbering the neighbours, no batch endpoint, no migration.
+ *
+ * The known ceiling is float precision: halving the same gap ~50 times exhausts a double's mantissa
+ * and two cards collide, at which point `ORDER BY position, created_at` still gives a stable order,
+ * just not the asked-for one. Reaching it by hand is not plausible; if it ever matters, the fix is a
+ * renumber pass over one column, not a schema change.
+ */
+export function positionFor(neighbours: number[], index: number): number {
+  const before = index > 0 ? neighbours[index - 1] : undefined;
+  const after = index < neighbours.length ? neighbours[index] : undefined;
+  if (before === undefined) return after === undefined ? 0 : after - 1;
+  if (after === undefined) return before + 1;
+  return (before + after) / 2;
+}
+
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
