@@ -167,16 +167,19 @@ export function AgentChat({
 
   // The agent's own statusline (model · ctx% · cwd · branch · tokens) is stripped off the mirror by
   // stripChrome so it doesn't duplicate the composer — but it carries real context (the branch, most
-  // notably), so we re-surface that one line as app chrome just above the composer, where it sat in
-  // the TUI. Routed through the SAME adapter (adapterFor) whose buildBlocks strips the chrome, so the
-  // two can't drift; null when there's no adapter for the agent, a menu is up, or no box at the tail,
-  // in which case the strip is hidden. A second parse of `display`, but memoised on it, so it only
-  // recomputes when the buffer content changes — off the render hot path.
-  const statusLine = useMemo(
+  // notably), so we re-surface it as app chrome just above the composer, where it sat in the TUI.
+  // EVERY line under the box, not just the first: a `statusLine` hook paints its OWN line above
+  // Claude's — a user running one saw `[PONYTAIL]` here and nothing else — and the line below carries
+  // the permission / auto mode. Which of them matters isn't ours to guess (see extractStatusLines).
+  // Routed through the SAME adapter (adapterFor) whose buildBlocks strips the chrome, so the two can't
+  // drift; empty when there's no adapter for the agent, a menu is up, or no box at the tail, in which
+  // case the strip is hidden. A second parse of `display`, but memoised on it, so it only recomputes
+  // when the buffer content changes — off the render hot path.
+  const statusLines = useMemo(
     () =>
       grammarsOn
-        ? adapterFor(agent?.agent)?.extractStatusLine(splitLines(parseAnsi(display))) ?? null
-        : null,
+        ? adapterFor(agent?.agent)?.extractStatusLines(splitLines(parseAnsi(display))) ?? []
+        : [],
     [display, agent?.agent, grammarsOn],
   );
 
@@ -853,9 +856,13 @@ export function AgentChat({
           {/* The agent's statusline, re-surfaced as app chrome (its branch/model/ctx would otherwise
               vanish with the stripped input box). Sits directly above the composer, as it did in the
               TUI. Verbatim text — a React text node, so no XSS surface. */}
-          {statusLine && (
-            <div className="truncate border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
-              {statusLine}
+          {statusLines.length > 0 && (
+            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
+              {statusLines.map((line, i) => (
+                <div key={i} className="truncate">
+                  {line}
+                </div>
+              ))}
             </div>
           )}
 

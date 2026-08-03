@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseAnsi } from "../../ansi";
 import { splitLines, type StyledLine } from "../../blocks";
-import { extractInputDraft, extractStatusLine, stripChrome } from "./chrome";
+import { extractInputDraft, extractStatusLines, stripChrome } from "./chrome";
 import { lineText } from "./markers";
 
 // Anchored on this file's directory (see prompt-select.test.ts for why not `new URL(import.meta.url)`).
@@ -18,6 +18,13 @@ function boxBuffer(promptLine: string, status?: string): StyledLine[] {
   const rows = [rule, promptLine, rule];
   if (status !== undefined) rows.push(status);
   return splitLines(parseAnsi(rows.join("\n")));
+}
+
+// The same box with a MULTI-LINE statusline under it — the shape a `statusLine` hook produces when it
+// paints its own line above Claude's.
+function boxBufferWithStatus(promptLine: string, statusLines: string[]): StyledLine[] {
+  const rule = "─".repeat(40);
+  return splitLines(parseAnsi([rule, promptLine, rule, ...statusLines].join("\n")));
 }
 
 // A WRAPPED-draft box: the "❯ …" prompt plus continuation lines (indented, no "❯") between the two
@@ -132,47 +139,57 @@ describe("stripChrome — conservative: leaves non-chrome untouched", () => {
   });
 });
 
-// extractStatusLine re-surfaces the one statusline stripChrome removes (the branch/model/ctx the
-// user configured) so the app can render it above the composer — positional (first non-blank line
-// below the input box's bottom border), never content-parsed.
-describe("extractStatusLine — recovers the stripped statusline", () => {
-  it("working: returns the statusline including the branch (the field the field-report flagged)", () => {
-    const status = extractStatusLine(fixtureLines("claude--working.txt"));
-    expect(status).not.toBeNull();
-    expect(status).toContain("feature/block-renderer"); // the branch survives
-    expect(status).toContain("151.5k tokens");
-    expect(status).not.toContain("bypass permissions"); // the hint line below it is NOT returned
+// extractStatusLines hands back the whole run stripChrome peels off under the input box, so the app
+// can re-surface it above the composer. Positional (the non-blank run below the bottom border), never
+// content-parsed. It returned only the FIRST line until a field case broke that assumption: a user
+// running a `statusLine` hook had it paint `[PONYTAIL]` above Claude's own line, and the app strip
+// showed that and nothing else — no branch, no model, no auto-mode indicator.
+describe("extractStatusLines — recovers the stripped chrome under the box", () => {
+  it("working: keeps the statusline AND the hint under it", () => {
+    const status = extractStatusLines(fixtureLines("claude--working.txt"));
+    expect(status.length).toBeGreaterThan(0);
+    expect(status[0]).toContain("feature/block-renderer"); // the branch survives
+    expect(status[0]).toContain("151.5k tokens");
+    // The "hint" is real state (permission mode, ⏵⏵ auto mode), not decoration — it stays.
+    expect(status.join(" ")).toContain("bypass permissions");
   });
 
-  it("fresh-idle: returns the statusline, not the hint line under it", () => {
-    const status = extractStatusLine(fixtureLines("claude--fresh-idle.txt"));
-    expect(status).not.toBeNull();
-    expect(status).toContain("fixture-sandbox");
-    expect(status).not.toContain("← for agents");
+  it("fresh-idle: the statusline leads, the hint follows", () => {
+    const status = extractStatusLines(fixtureLines("claude--fresh-idle.txt"));
+    expect(status[0]).toContain("fixture-sandbox");
+    expect(status.join(" ")).toContain("← for agents");
   });
 
   it("done: returns the statusline of a completed turn", () => {
-    const status = extractStatusLine(fixtureLines("claude--done.txt"));
-    expect(status).not.toBeNull();
-    expect(status).toContain("tokens");
+    const status = extractStatusLines(fixtureLines("claude--done.txt"));
+    expect(status.join(" ")).toContain("tokens");
   });
 
-  it("footer variant: returns the statusline, not the hint or the background-agents footer below it", () => {
-    const status = extractStatusLine(fixtureLines("claude--draft-footer-empty.txt"));
-    expect(status).not.toBeNull();
-    expect(status).toContain("ctx:33%"); // the statusline itself
-    expect(status).not.toContain("bypass permissions"); // hint under it is NOT returned
-    expect(status).not.toContain("worker:scout"); // footer is NOT returned
+  // A statusline HOOK paints its own line above Claude's. Both are wanted; picking one loses the
+  // other, and which one matters isn't this parser's call.
+  it("keeps every line of a multi-line statusline, in order", () => {
+    const status = extractStatusLines(
+      boxBufferWithStatus("❯ ", ["[PONYTAIL]", "⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents"]),
+    );
+    expect(status).toEqual(["[PONYTAIL]", "⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents"]);
   });
 
-  it("returns null when a menu is up (no input box at the tail)", () => {
-    expect(extractStatusLine(fixtureLines("claude--select-menu.txt"))).toBeNull();
-    expect(extractStatusLine(fixtureLines("claude--trust-prompt.txt"))).toBeNull();
-    expect(extractStatusLine(fixtureLines("claude--permission-bash.txt"))).toBeNull();
+  // The blank line under the hint is the TUI's own separator before the background-agents footer.
+  // That footer is a different thing (and Collie shows the herd itself), so the run stops there.
+  it("footer variant: stops at the blank before the background-agents footer", () => {
+    const status = extractStatusLines(fixtureLines("claude--draft-footer-empty.txt"));
+    expect(status.join(" ")).toContain("ctx:33%");
+    expect(status.join(" ")).not.toContain("worker:scout");
   });
 
-  it("returns null for a plain buffer with no input box", () => {
-    expect(extractStatusLine(splitLines(parseAnsi("just some output\nmore output")))).toBeNull();
+  it("returns nothing when a menu is up (no input box at the tail)", () => {
+    expect(extractStatusLines(fixtureLines("claude--select-menu.txt"))).toEqual([]);
+    expect(extractStatusLines(fixtureLines("claude--trust-prompt.txt"))).toEqual([]);
+    expect(extractStatusLines(fixtureLines("claude--permission-bash.txt"))).toEqual([]);
+  });
+
+  it("returns nothing for a plain buffer with no input box", () => {
+    expect(extractStatusLines(splitLines(parseAnsi("just some output\nmore output")))).toEqual([]);
   });
 });
 

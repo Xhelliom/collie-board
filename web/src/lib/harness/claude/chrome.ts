@@ -61,30 +61,41 @@ export function stripChrome(lines: StyledLine[]): StyledLine[] {
 }
 
 /**
- * The statusline the agent draws just under its input box — model, ctx%, cwd, branch, tokens,
- * whatever the user configured in their Claude Code statusline. We strip the box off the mirror
- * (stripChrome), so this re-surfaces that one line as app chrome above the composer instead of
- * losing it.
+ * The chrome lines directly under the input box — everything stripChrome peeled off the tail, handed
+ * back so the app can render it above the composer.
  *
- * POSITIONAL only: the first non-blank line strictly below the box's bottom border. Hint lines after
- * it ("← for agents", "⏵⏵ bypass permissions") are ignored — only the first counts. Returns the
- * trimmed text, or `null` when there's no input box at the tail (a menu is up, or a non-Claude / torn
- * buffer). Never interprets the content — the caller renders it verbatim.
+ * PLURAL ON PURPOSE. This used to return the FIRST line only, on the assumption that Claude's own
+ * statusline (model · ctx · cwd · branch) sits flush against the border with a hint line below it
+ * worth dropping. Both halves of that are wrong in the field: a statusline hook (Claude Code's
+ * `statusLine` setting) can paint its OWN line above Claude's — a user running one saw `[PONYTAIL]`
+ * in the app strip and lost the branch, the model and the auto-mode indicator behind it — and the
+ * "hint" line is where `⏵⏵ auto mode on` lives, which is real state, not decoration.
+ *
+ * So: the whole run, in order, in the caller's hands. Guessing which of these lines matters needs
+ * knowledge this parser does not have and should not invent — a little too much beats missing the one
+ * line you were looking for, and the caller can render it compactly.
+ *
+ * Bounded by MAX_STATUS_LINES, the same run locateInputBox already accepts above the border, and
+ * stopped by the first BLANK line — that blank is the TUI's own separator before the background-agents
+ * footer (`● main` / `◯ …` rows), which is a different thing and would swamp a phone. Empty array
+ * when there is no box at the tail, so `[]` and "nothing to show" are the same case.
  */
-export function extractStatusLine(lines: StyledLine[]): string | null {
+export function extractStatusLines(lines: StyledLine[]): string[] {
   const texts = lines.map(lineText);
   let end = lines.length;
   while (end > 0 && isBlank(texts[end - 1]!)) end--;
-  if (end === 0) return null;
+  if (end === 0) return [];
 
   const box = locateInputBox(texts, end);
-  if (box === null) return null;
+  if (box === null) return [];
 
-  for (let j = box.bottomBorder + 1; j < end; j++) {
+  const out: string[] = [];
+  for (let j = box.bottomBorder + 1; j < end && out.length < MAX_STATUS_LINES; j++) {
     const t = texts[j]!.trim();
-    if (t.length > 0) return t;
+    if (t.length === 0) break; // the separator before the background-agents footer
+    out.push(t);
   }
-  return null;
+  return out;
 }
 
 /**

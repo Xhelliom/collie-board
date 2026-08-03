@@ -17,9 +17,9 @@ export interface HarnessAdapter {
   /** The adapter's OWN full block pipeline over the pane's styled lines — for Claude that is the
    *  raw-or-dialog result (dialog lift + chrome strip, else a single raw block). */
   buildBlocks(lines: StyledLine[]): Block[];
-  /** Re-surface the statusline this agent's chrome-stripping peeled off the mirror tail (null = no
-   *  box at the tail, so nothing to surface). */
-  extractStatusLine(lines: StyledLine[]): string | null;
+  /** Re-surface the chrome lines this agent's stripping peeled off the mirror tail — the statusline
+   *  and whatever the TUI paints under it (empty = no box at the tail, so nothing to surface). */
+  extractStatusLines(lines: StyledLine[]): string[];
   /** Re-surface a user draft stranded on the input box's prompt line (null = no box / empty / a
    *  known placeholder). */
   extractInputDraft(lines: StyledLine[]): string | null;
