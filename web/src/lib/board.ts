@@ -164,6 +164,24 @@ export const BOARD_COLUMNS: CardStatus[] = [
   "done",
 ];
 
+/**
+ * The eight columns folded into the four stages of a card's real life, for the wide-screen board.
+ *
+ * Transposing the eight as-is would need 8 × 280px ≈ 2240px and bring back the horizontal pan the
+ * phone layout exists to avoid — with a mouse instead of a thumb, which is not an improvement.
+ * Four lanes fit any laptop at ~320px each, and nothing is lost: each lane keeps its columns as
+ * labelled sub-sections inside it, so `starting` is still distinguishable from `working`.
+ *
+ * Every BOARD_COLUMNS status must appear exactly once — pinned by board.test.ts, because a status
+ * that falls out of every lane would silently vanish from the wide-screen board only.
+ */
+export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
+  { label: "Needs you", statuses: ["blocked", "review", "orphaned"] },
+  { label: "In progress", statuses: ["working", "starting"] },
+  { label: "Ready", statuses: ["ready", "backlog"] },
+  { label: "Done", statuses: ["done"] },
+];
+
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",

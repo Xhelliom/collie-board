@@ -16,6 +16,12 @@ import type { CardView } from "@/lib/board";
 // The badge on the right is the LIVE agent status when a pane is backing this card, and the card's
 // own column otherwise — that distinction matters: an orphaned card has a status but no agent, and
 // showing a fake "idle" badge for it would be a lie.
+//
+// The tile is a CONTAINER (`@container`), not a viewport reader. The same tile renders full-width on
+// a phone, ~320px wide in a lane of the wide-screen board, and narrower still nested inside a
+// CardGroup there — three different widths at ONE viewport size, which no `lg:` could tell apart.
+// So what it drops when it gets tight is asked of its own box: `@max-sm` is a container narrower
+// than 24rem, which the phone's full-width tile never is.
 export function CardTile({
   card,
   onClick,
@@ -42,11 +48,11 @@ export function CardTile({
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left transition-transform active:scale-[0.99]"
+      className="@container w-full text-left transition-transform active:scale-[0.99]"
     >
       <Card
         className={cn(
-          "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm",
+          "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm @max-sm:gap-2.5 @max-sm:px-3 @max-xs:flex-wrap",
           urgent && "border-status-blocked/40 bg-status-blocked/5",
           // Held back, not broken — muted rather than alarming. `blocked` is the colour of "an
           // agent needs you"; waiting on a predecessor needs nothing from you at all.
@@ -108,14 +114,25 @@ export function CardTile({
           </div>
         </div>
 
-        {waiting ? (
-          <Lock className="size-4 shrink-0 text-status-blocked" />
-        ) : card.runtime ? (
-          <StatusBadge status={card.runtime.agentStatus} />
-        ) : (
-          <CardStatusChip status={card.status} />
-        )}
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        {/* Under 20rem of container — a board lane on a 1280px laptop, or a lane's nested CardGroup —
+            the badge drops onto its own line under the title instead of eating a third of it. Same
+            badge, same information, indented to the title's column so it still reads as belonging to
+            it. This is the case that makes the container query worth having: at ONE viewport width
+            the phone's full-width tile keeps the badge inline and the lane's tile does not. */}
+        <span className="shrink-0 @max-xs:order-last @max-xs:w-full @max-xs:pl-[3rem]">
+          {waiting ? (
+            <Lock className="size-4 shrink-0 text-status-blocked" />
+          ) : card.runtime ? (
+            <StatusBadge status={card.runtime.agentStatus} />
+          ) : (
+            <CardStatusChip status={card.status} />
+          )}
+        </span>
+        {/* The one thing that goes when the box is narrow: 16px of icon plus its gap is 11% of a
+            320px lane, and it is the only element here carrying no information — in a lane of
+            clickable tiles, "this opens" is not news. The badge beside it IS information, so it
+            stays. */}
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground @max-sm:hidden" />
       </Card>
     </button>
   );

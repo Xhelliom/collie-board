@@ -55,7 +55,10 @@ export function AgentList({
           >
             {g.label} <span className="opacity-60">({members.length})</span>
           </h2>
-          <div className="flex flex-col gap-2">
+          {/* A grid that is one column below `lg` — i.e. the phone's stack, unchanged — and two or
+              three across when there is width for it. AgentCard is self-contained, so this is a
+              container change and nothing else. */}
+          <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
             {members.map((a) => (
               <AgentCard key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
             ))}

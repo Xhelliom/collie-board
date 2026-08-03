@@ -156,7 +156,7 @@ export function CardRoute() {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col">
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-6xl flex-1 flex-col">
       <AppHeader
         bridge={root?.bridge}
         error={root?.error ?? data.error}
@@ -232,250 +232,264 @@ export function CardRoute() {
               )}
             </header>
 
-            <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
+            {/* The card's two halves, side by side once there is room: what the card IS on the left
+                (spec, acceptance, what happened to it), what is happening to it RIGHT NOW on the
+                right (its pane, its context budget, the box that talks to it). One stack on a phone,
+                in the order it always had — the live half first, because that is what you opened the
+                card to check. `order` is what puts the durable half on the left afterwards. */}
+            <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-x-6">
+              {/* `empty:hidden` + an `auto` track, not a fixed one: a filed card has no pane, no
+                  context gauge and no Start button, so this half renders NOTHING — and a reserved
+                  22rem of blank column next to the spec is worse than no column at all. */}
+              <div className="flex min-w-0 flex-col gap-4 empty:hidden lg:order-2 lg:w-[22rem]">
+                <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
 
-            <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
+                <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
 
-            {card.runtime ? (
-              <>
-                <PromptBox
-                  onSend={async (text) => {
-                    await promptCard(card.id, text);
-                    setStatus("Sent", "success");
-                    revalidator.revalidate();
-                  }}
-                />
-                <HandoffButton
-                  card={card}
-                  onHandoff={async () => {
-                    try {
-                      await handoffCard(card.id);
-                      setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
-                    } catch (e) {
-                      setStatus((e as Error).message, "error", null);
-                    }
-                    revalidator.revalidate();
-                  }}
-                />
-              </>
-            ) : (
-              <StartButton
-                card={card}
-                pending={starting}
-                onStart={start}
-                predecessor={detail?.predecessor}
-                childCount={detail?.children.length}
-              />
-            )}
-
-            {detail && detail.children.length > 0 && (
-              <Section label="Sub-tasks">
-                <div className="flex flex-col gap-1">
-                  {detail.children.map((child) => (
-                    <button
-                      key={child.id}
-                      type="button"
-                      onClick={() => navigate(cardPath(child.id))}
-                      className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
-                    >
-                      <CardStatusChip status={child.status} className="px-1.5" />
-                      <span className="min-w-0 flex-1 truncate text-sm">{child.title}</span>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {/* Right under the title, because it is a question about THIS card's right to exist,
-                and it has to be answerable before anyone reads the spec below it. */}
-            {detail?.duplicate && (
-              <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
-                <p className="text-xs text-muted-foreground">
-                  The copilot thinks this repeats a card you already have:
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate(cardPath(detail.duplicate!.id))}
-                  className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
-                >
-                  <Copy className="size-3.5 shrink-0" />
-                  <span className="truncate">{detail.duplicate.title}</span>
-                </button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 w-fit"
-                  onClick={() => void save({ duplicateOf: null })}
-                >
-                  Not a duplicate
-                </Button>
-              </div>
-            )}
-
-            {/* Above the spec on purpose: this is usually the answer to "why is this card still a
-                bare title", and that question is asked while looking at the empty space below. */}
-            {card.copilotBusy && (
-              <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                <Sparkles className="size-3.5 shrink-0" />
-                <span>The copilot has this card — it rewrites itself in a minute.</span>
-              </div>
-            )}
-
-            {card.spec && (
-              <Section label="Spec">
-                <MarkdownText text={card.spec} />
-              </Section>
-            )}
-
-            {card.acceptance.length > 0 && (
-              <Section label="Acceptance">
-                <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
-                  {card.acceptance.map((a, i) => (
-                    <li key={i}>{a}</li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-
-            <CardDiff cardId={card.id} statusKey={card.status} />
-
-            <Section label="Rework">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
-                  <Pencil className="size-4" />
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-2"
-                  onClick={() => {
-                    // Reformulate re-reads the original dictation, so it discards a hand edit. Ask
-                    // once when that is what would happen — a second tap, not a browser dialog,
-                    // which on a PWA is both ugly and easy to dismiss by reflex.
-                    if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
-                      setConfirmRework(true);
-                      return;
-                    }
-                    setConfirmRework(false);
-                    void reformulate();
-                  }}
-                >
-                  <Sparkles className="size-4" />
-                  {confirmRework ? "Replace my edits?" : "Reformulate"}
-                </Button>
-                {confirmRework && (
-                  <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
-                    Cancel
-                  </Button>
+                {card.runtime ? (
+                  <>
+                    <PromptBox
+                      onSend={async (text) => {
+                        await promptCard(card.id, text);
+                        setStatus("Sent", "success");
+                        revalidator.revalidate();
+                      }}
+                    />
+                    <HandoffButton
+                      card={card}
+                      onHandoff={async () => {
+                        try {
+                          await handoffCard(card.id);
+                          setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+                        } catch (e) {
+                          setStatus((e as Error).message, "error", null);
+                        }
+                        revalidator.revalidate();
+                      }}
+                    />
+                  </>
+                ) : (
+                  <StartButton
+                    card={card}
+                    pending={starting}
+                    onStart={start}
+                    predecessor={detail?.predecessor}
+                    childCount={detail?.children.length}
+                  />
                 )}
               </div>
-              {confirmRework && (
-                <p className="pt-2 text-xs text-muted-foreground">
-                  It works from what you originally dictated, not from your edit. The current text
-                  goes to the journal, so you can put it back.
-                </p>
-              )}
-            </Section>
 
-            <Section label="Move to">
-              <div className="flex flex-wrap gap-2">
-                {MANUAL_STATUSES.filter((s) => s !== card.status)
-                  .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
-                  .map((s) => (
-                    <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
-                      {CARD_STATUS_LABEL[s]}
+              <div className="flex min-w-0 flex-col gap-4 lg:order-1">
+                {detail && detail.children.length > 0 && (
+                  <Section label="Sub-tasks">
+                    <div className="flex flex-col gap-1">
+                      {detail.children.map((child) => (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => navigate(cardPath(child.id))}
+                          className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
+                        >
+                          <CardStatusChip status={child.status} className="px-1.5" />
+                          <span className="min-w-0 flex-1 truncate text-sm">{child.title}</span>
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        </button>
+                      ))}
+                    </div>
+                  </Section>
+                )}
+
+                {/* Right under the title, because it is a question about THIS card's right to exist,
+                    and it has to be answerable before anyone reads the spec below it. */}
+                {detail?.duplicate && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      The copilot thinks this repeats a card you already have:
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate(cardPath(detail.duplicate!.id))}
+                      className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
+                    >
+                      <Copy className="size-3.5 shrink-0" />
+                      <span className="truncate">{detail.duplicate.title}</span>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-fit"
+                      onClick={() => void save({ duplicateOf: null })}
+                    >
+                      Not a duplicate
                     </Button>
-                  ))}
-              </div>
-              {integration && integration.ahead > 0 && (
-                <p className="pt-2 text-xs text-muted-foreground">
-                  Done sits below, with the merge — filing this card would send its agent away, and
-                  that agent is who settles a merge conflict.
-                </p>
-              )}
-            </Section>
+                  </div>
+                )}
 
-            {card.branch && (
-              <IntegrationSection
-                card={card}
-                events={detail?.events ?? []}
-                onState={setIntegration}
-                onDone={() => revalidator.revalidate()}
-              />
-            )}
+                {/* Above the spec on purpose: this is usually the answer to "why is this card still a
+                    bare title", and that question is asked while looking at the empty space below. */}
+                {card.copilotBusy && (
+                  <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                    <Sparkles className="size-3.5 shrink-0" />
+                    <span>The copilot has this card — it rewrites itself in a minute.</span>
+                  </div>
+                )}
 
-            {detail && detail.reviews.length > 0 && (
-              <Section label="Review">
-                <div className="flex flex-col gap-2">
-                  {detail.reviews.map((r) => (
-                    <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium capitalize">{r.verdict ?? "reviewed"}</span>
-                        <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
-                      </div>
-                      {r.notes && <MarkdownText text={r.notes} />}
-                      {r.todos.length > 0 && (
-                        <div className="flex flex-col gap-1">
-                          {r.todos.map((todo, i) =>
-                            todo.card ? (
-                              <button
-                                key={todo.card.id}
-                                type="button"
-                                onClick={() => navigate(cardPath(todo.card!.id))}
-                                className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
-                              >
-                                <CardStatusChip status={todo.card.status} className="px-1.5" />
-                                <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
-                                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                              </button>
-                            ) : (
-                              // Deleted since — the title is what's left to show.
-                              <div
-                                key={i}
-                                className="truncate rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground line-through"
-                              >
-                                {todo.title}
-                              </div>
-                            ),
+                {card.spec && (
+                  <Section label="Spec">
+                    <MarkdownText text={card.spec} />
+                  </Section>
+                )}
+
+                {card.acceptance.length > 0 && (
+                  <Section label="Acceptance">
+                    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+                      {card.acceptance.map((a, i) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </Section>
+                )}
+
+                <CardDiff cardId={card.id} statusKey={card.status} />
+
+                <Section label="Rework">
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
+                      <Pencil className="size-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-2"
+                      onClick={() => {
+                        // Reformulate re-reads the original dictation, so it discards a hand edit. Ask
+                        // once when that is what would happen — a second tap, not a browser dialog,
+                        // which on a PWA is both ugly and easy to dismiss by reflex.
+                        if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
+                          setConfirmRework(true);
+                          return;
+                        }
+                        setConfirmRework(false);
+                        void reformulate();
+                      }}
+                    >
+                      <Sparkles className="size-4" />
+                      {confirmRework ? "Replace my edits?" : "Reformulate"}
+                    </Button>
+                    {confirmRework && (
+                      <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                  {confirmRework && (
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      It works from what you originally dictated, not from your edit. The current text
+                      goes to the journal, so you can put it back.
+                    </p>
+                  )}
+                </Section>
+
+                <Section label="Move to">
+                  <div className="flex flex-wrap gap-2">
+                    {MANUAL_STATUSES.filter((s) => s !== card.status)
+                      .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
+                      .map((s) => (
+                        <Button key={s} variant="outline" size="sm" className="h-9" onClick={() => move(s)}>
+                          {CARD_STATUS_LABEL[s]}
+                        </Button>
+                      ))}
+                  </div>
+                  {integration && integration.ahead > 0 && (
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      Done sits below, with the merge — filing this card would send its agent away, and
+                      that agent is who settles a merge conflict.
+                    </p>
+                  )}
+                </Section>
+
+                {card.branch && (
+                  <IntegrationSection
+                    card={card}
+                    events={detail?.events ?? []}
+                    onState={setIntegration}
+                    onDone={() => revalidator.revalidate()}
+                  />
+                )}
+
+                {detail && detail.reviews.length > 0 && (
+                  <Section label="Review">
+                    <div className="flex flex-col gap-2">
+                      {detail.reviews.map((r) => (
+                        <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium capitalize">{r.verdict ?? "reviewed"}</span>
+                            <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+                          </div>
+                          {r.notes && <MarkdownText text={r.notes} />}
+                          {r.todos.length > 0 && (
+                            <div className="flex flex-col gap-1">
+                              {r.todos.map((todo, i) =>
+                                todo.card ? (
+                                  <button
+                                    key={todo.card.id}
+                                    type="button"
+                                    onClick={() => navigate(cardPath(todo.card!.id))}
+                                    className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
+                                  >
+                                    <CardStatusChip status={todo.card.status} className="px-1.5" />
+                                    <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                                  </button>
+                                ) : (
+                                  // Deleted since — the title is what's left to show.
+                                  <div
+                                    key={i}
+                                    className="truncate rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground line-through"
+                                  >
+                                    {todo.title}
+                                  </div>
+                                ),
+                              )}
+                            </div>
                           )}
-                        </div>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              </Section>
-            )}
+                        </Card>
+                      ))}
+                    </div>
+                  </Section>
+                )}
 
-            {detail && detail.sessions.length > 0 && (
-              <Section label={`Sessions (${detail.sessions.length})`}>
-                <div className="flex flex-col gap-2">
-                  {detail.sessions.map((s, i) => (
-                    <SessionRow key={s.id} session={s} index={i} />
-                  ))}
-                </div>
-              </Section>
-            )}
+                {detail && detail.sessions.length > 0 && (
+                  <Section label={`Sessions (${detail.sessions.length})`}>
+                    <div className="flex flex-col gap-2">
+                      {detail.sessions.map((s, i) => (
+                        <SessionRow key={s.id} session={s} index={i} />
+                      ))}
+                    </div>
+                  </Section>
+                )}
 
-            {detail && detail.events.length > 0 && (
-              <Section label="Journal">
-                <CardJournal
-                  events={detail.events}
-                  onRestore={async (eventId) => {
-                    try {
-                      await revertCard(card.id, eventId);
-                      setStatus("Restored", "success");
-                    } catch (e) {
-                      setStatus((e as Error).message, "error", null);
-                    }
-                    revalidator.revalidate();
-                  }}
-                />
-              </Section>
-            )}
+                {detail && detail.events.length > 0 && (
+                  <Section label="Journal">
+                    <CardJournal
+                      events={detail.events}
+                      onRestore={async (eventId) => {
+                        try {
+                          await revertCard(card.id, eventId);
+                          setStatus("Restored", "success");
+                        } catch (e) {
+                          setStatus((e as Error).message, "error", null);
+                        }
+                        revalidator.revalidate();
+                      }}
+                    />
+                  </Section>
+                )}
 
-            <DangerZone cardId={card.id} onDelete={remove} />
+                <DangerZone cardId={card.id} onDelete={remove} />
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -485,7 +499,7 @@ export function CardRoute() {
       )}
 
       {/* The app's one status surface — start/prompt failures land here rather than in a dialog. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-6xl px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
     </div>

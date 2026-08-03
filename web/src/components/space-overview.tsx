@@ -37,7 +37,7 @@ export function SpaceOverview({ workspaces, agents, onOpen, onNewSpace }: SpaceO
       {workspaces.length === 0 ? (
         <p className="px-1 py-6 text-center text-sm text-muted-foreground">No spaces yet.</p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
           {workspaces.map((w) => {
             const status = worstSpaceStatus(w.workspaceId, agents);
             const blocked = blockedCount(w.workspaceId, agents) > 0;

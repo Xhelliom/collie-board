@@ -17,6 +17,10 @@ interface CommandPaletteProps {
   onSubmit: (text: string) => void;
 }
 
+// OUT OF SCOPE of the desktop pass, deliberately: on a wide screen this rides BottomSheet's
+// right-hand variant like every other sheet, which is serviceable but not the desktop idiom for a
+// command list — that is a centred ⌘K palette, and it is its own card if we ever want it. Nothing
+// here presumes one.
 export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: CommandPaletteProps) {
   const all = commandsFor(agent);
   const [query, setQuery] = useState("");
@@ -51,7 +55,9 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Agent commands" className="max-h-[85dvh]">
+    // No max-height override here: the sheet's own 82dvh is within a hair of the 85 this asked for,
+    // and the override clipped the right-hand variant, whose height comes from inset-y-0.
+    <BottomSheet open={open} onClose={onClose} title="Agent commands">
       {agent && (
         <div className="mb-3 flex items-center gap-2">
           <AgentIcon agent={agent} className="size-6" />
