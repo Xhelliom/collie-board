@@ -65,7 +65,7 @@ export function SpaceRoute() {
   }, [gone, data.bridge, data.error, data.session, navigate]);
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-6xl flex-1 flex-col">
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       {/* The space header: same shell as the dashboard, minus the session switcher (you switch
           sessions from home). Wordmark + shared pill + Settings gear. */}
       <AppHeader
@@ -128,7 +128,7 @@ export function SpaceRoute() {
       </div>
 
       {/* Status overlay, anchored to the bottom of the viewport. Stays outside the scroller. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-6xl px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
 

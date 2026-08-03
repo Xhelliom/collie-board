@@ -154,6 +154,10 @@ export function CardRoute() {
   }
 
   return (
+    // This one KEEPS its ceiling while the board and the dashboard lost theirs, and that is the
+    // whole point of not having a single "desktop width": the board is a spatial surface and wants
+    // every pixel, this page is a document — spec, acceptance, journal — and a 2000px line of prose
+    // is unreadable no matter how big the display is.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-6xl flex-1 flex-col">
       <AppHeader
         bridge={root?.bridge}

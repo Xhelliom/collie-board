@@ -21,18 +21,26 @@ export function CardGroup({
   subTasks,
   byId,
   onOpen,
+  summaryOnly = false,
 }: {
   container: CardView;
   subTasks: CardView[];
   /** Every card on the board, for resolving a sub-task's predecessor by id. */
   byId: Map<string, CardView>;
   onOpen: (cardId: string) => void;
+  /**
+   * Never expandable — the title, the count and the status chips, nothing else. What the wide board
+   * uses: the sub-tasks are already on screen, each in its own column, so opening the group here
+   * would show every one of them a second time. The chips stay because they are the one thing the
+   * scattered tiles can't say — how this dictation is doing, taken as a whole.
+   */
+  summaryOnly?: boolean;
 }) {
   // The default follows the column's job (see board-groups.ts); a tap overrides it for this
   // session only. Nothing is persisted: a preference that outlives the reason for it is worse than
   // no preference, and the column a group sits in changes on its own.
   const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = open ?? groupOpenByDefault(container.status);
+  const expanded = !summaryOnly && (open ?? groupOpenByDefault(container.status));
 
   return (
     <div
@@ -42,15 +50,19 @@ export function CardGroup({
       )}
     >
       <div className="flex items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => setOpen(!expanded)}
-          aria-expanded={expanded}
-          aria-label={expanded ? "Collapse sub-tasks" : "Expand sub-tasks"}
-          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:scale-95"
-        >
-          {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-        </button>
+        {summaryOnly ? (
+          <Layers className="size-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(!expanded)}
+            aria-expanded={expanded}
+            aria-label={expanded ? "Collapse sub-tasks" : "Expand sub-tasks"}
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:scale-95"
+          >
+            {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </button>
+        )}
 
         {/* The container is still a card — it holds the original dictation and the "reformulate the
             whole thing" action, so it must be openable even though it can't be started. */}
@@ -59,7 +71,7 @@ export function CardGroup({
           onClick={() => onOpen(container.id)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <Layers className="size-3.5 shrink-0 text-muted-foreground" />
+          {!summaryOnly && <Layers className="size-3.5 shrink-0 text-muted-foreground" />}
           {/* A container's title is a card title — same rung as the tiles it groups (R2). */}
           <span className="truncate text-base font-medium">{container.title}</span>
         </button>

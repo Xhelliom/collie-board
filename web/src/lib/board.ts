@@ -176,9 +176,16 @@ export const BOARD_COLUMNS: CardStatus[] = [
  * that falls out of every lane would silently vanish from the wide-screen board only.
  */
 export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
-  { label: "Needs you", statuses: ["blocked", "review", "orphaned"] },
-  { label: "In progress", statuses: ["working", "starting"] },
-  { label: "Ready", statuses: ["ready", "backlog"] },
+  // LEFT TO RIGHT IS THE FLOW, not the urgency. That is the opposite of BOARD_COLUMNS, and both are
+  // right for where they are used: a phone shows one column, so what needs you has to be at the top
+  // or you scroll past it; a wide board shows all four at once, so nothing is buried and the axis is
+  // free to carry the thing a board is actually for — where the work is in its life. The phone keeps
+  // BOARD_COLUMNS order (board.tsx re-sorts with `order-*`), so neither reading loses.
+  { label: "To do", statuses: ["ready", "backlog"] },
+  // `blocked` leads: inside a column, urgency still wins. It reads as "in progress, and it is
+  // waiting on you", which is what it is — the agent is running, it just can't continue alone.
+  { label: "Doing", statuses: ["blocked", "working", "starting", "orphaned"] },
+  { label: "To review", statuses: ["review"] },
   { label: "Done", statuses: ["done"] },
 ];
 
@@ -203,14 +210,35 @@ export const MANUAL_STATUSES: CardStatus[] = ["backlog", "ready", "done", "archi
  *
  * Everything else stays where it already is: the card page, one tap, with its own guards.
  * `archived` is manual but has no column on the board, so it can never be a target.
+ *
+ * `from === to` IS allowed — that is a reorder, and it is the same two conditions: a column you own,
+ * holding a card no agent is in.
  */
 export function canDropCard(from: CardStatus, to: CardStatus): boolean {
-  return (
-    from !== to &&
-    to !== "archived" &&
-    MANUAL_STATUSES.includes(from) &&
-    MANUAL_STATUSES.includes(to)
-  );
+  return to !== "archived" && MANUAL_STATUSES.includes(from) && MANUAL_STATUSES.includes(to);
+}
+
+/**
+ * The `position` a card needs to land at slot `index` of a column, given its neighbours' positions
+ * IN ORDER and WITHOUT the dragged card itself.
+ *
+ * Halfway between the two it lands between — a fractional rank. The column is `position INTEGER` in
+ * SQLite, which sounds like it forbids this and does not: SQLite's INTEGER affinity stores a REAL
+ * that can't be represented exactly as an integer AS a real, and `ORDER BY position` sorts it
+ * correctly (verified against bun:sqlite, not assumed). So one PATCH on one card is the whole
+ * operation — no renumbering the neighbours, no batch endpoint, no migration.
+ *
+ * The known ceiling is float precision: halving the same gap ~50 times exhausts a double's mantissa
+ * and two cards collide, at which point `ORDER BY position, created_at` still gives a stable order,
+ * just not the asked-for one. Reaching it by hand is not plausible; if it ever matters, the fix is a
+ * renumber pass over one column, not a schema change.
+ */
+export function positionFor(neighbours: number[], index: number): number {
+  const before = index > 0 ? neighbours[index - 1] : undefined;
+  const after = index < neighbours.length ? neighbours[index] : undefined;
+  if (before === undefined) return after === undefined ? 0 : after - 1;
+  if (after === undefined) return before + 1;
+  return (before + after) / 2;
 }
 
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */

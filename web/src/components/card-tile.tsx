@@ -22,10 +22,38 @@ import type { CardView } from "@/lib/board";
 // CardGroup there — three different widths at ONE viewport size, which no `lg:` could tell apart.
 // So what it drops when it gets tight is asked of its own box: `@max-sm` is a container narrower
 // than 24rem, which the phone's full-width tile never is.
+/**
+ * The card that flies with the cursor.
+ *
+ * HTML5 drag always carries an image — the browser snapshots the source element, washed out and
+ * flat, anchored wherever the tile happened to be grabbed. `setDragImage` replaces it, and a CLONE
+ * is what makes that worth doing: same markup, same classes, so it looks like the tile rather than
+ * like a picture of it, but opaque, lifted on a real shadow and tilted a couple of degrees. Tilt is
+ * the whole trick — a rectangle at exactly 0° reads as part of the layout; two degrees off reads as
+ * held.
+ *
+ * The clone has to be IN the document to be painted, so it sits off-screen for the one frame the
+ * browser needs to take its picture, then goes. The snapshot is frozen at that instant, which is
+ * also the limit of this approach: nothing about the flying card can animate afterwards. A card
+ * that scales as you lift it, or eases into its slot on release, is a library (or a pointer-event
+ * drag of our own) — this is the 15-line version of the same idea.
+ */
+function flyingCard(el: HTMLElement, e: React.DragEvent): void {
+  const rect = el.getBoundingClientRect();
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.style.cssText = `position:fixed;top:-9999px;left:0;width:${rect.width}px;pointer-events:none;border-radius:0.75rem;transform:rotate(-2deg);box-shadow:0 16px 32px -8px rgb(0 0 0 / 0.35)`;
+  document.body.appendChild(clone);
+  // Grab offset, so the card stays under the exact point it was picked up by rather than jumping
+  // to a corner.
+  e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+  requestAnimationFrame(() => clone.remove());
+}
+
 export function CardTile({
   card,
   onClick,
   dependency,
+  parent,
   drag,
 }: {
   card: CardView;
@@ -37,11 +65,24 @@ export function CardTile({
    */
   dependency?: DependencyInfo;
   /**
+   * The container this card was split out of, when the board is showing sub-tasks in their own
+   * columns rather than folded under their parent. Without it a scattered sub-task is a title with
+   * no provenance — and a dictation that produced eight of them reads as eight unrelated cards.
+   *
+   * Text, not a link: this tile is already a `<button>`, and a button inside a button is invalid
+   * HTML whose inner click also fires the outer one. Opening the card gets you a real link to the
+   * parent, at the top of its page.
+   */
+  parent?: string;
+  /**
    * Makes the tile a drag source. Absent = not draggable, which is the default and what a phone
    * always gets: HTML5 drag needs a long-press on touch, and a long-press on a card tile is a
    * gesture this app spends elsewhere.
+   *
+   * No "am I the one being dragged" flag: the board hides the held tile and renders a ghost of it in
+   * the slot it would land in, so the tile itself never needs to look any different.
    */
-  drag?: { onStart: () => void; onEnd: () => void; active: boolean };
+  drag?: { onStart: () => void; onEnd: () => void };
 }) {
   const waiting = dependency && !dependency.met;
   const urgent = card.status === "blocked";
@@ -63,6 +104,7 @@ export function CardTile({
           // the drag legible to anything outside this component.
           e.dataTransfer.setData("text/plain", card.id);
           e.dataTransfer.effectAllowed = "move";
+          flyingCard(e.currentTarget, e);
           drag.onStart();
         })
       }
@@ -70,9 +112,6 @@ export function CardTile({
       className={cn(
         "@container w-full text-left transition-transform active:scale-[0.99]",
         drag && "cursor-grab active:cursor-grabbing",
-        // The tile stays in place while dragging — the browser drags a snapshot of it — so this is
-        // what says "this one is the one in your hand".
-        drag?.active && "opacity-40",
       )}
     >
       <Card
@@ -97,6 +136,12 @@ export function CardTile({
             <span className="truncate font-medium">{card.title}</span>
             {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
           </div>
+          {parent && (
+            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Layers className="size-3 shrink-0" />
+              <span className="truncate">{parent}</span>
+            </div>
+          )}
           {dependency && (
             <div
               className={cn(

@@ -42,7 +42,7 @@ export function SpaceView({ workspace, tabs, agents, shellPanes, selectedTab, on
           {g.panes.length === 0 ? (
             <p className="px-1 text-xs text-muted-foreground">(empty tab)</p>
           ) : (
-            <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 lg:grid-cols-[repeat(auto-fill,minmax(24rem,1fr))]">
               {g.panes.map((p) => (
                 <AgentCard key={p.paneId} agent={p} onClick={() => onOpen(p.paneId)} />
               ))}

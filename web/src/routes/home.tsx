@@ -41,7 +41,7 @@ export function HomeRoute() {
   const drillInto = (id: string) => navigate(spacePath(id, data.session));
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-6xl flex-1 flex-col">
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       {/* The dashboard header: wordmark + the session switcher (dashboard-only), then the shared pill
           and the Settings gear. The switcher self-hides on a single-session install. */}
       <AppHeader
@@ -101,7 +101,7 @@ export function HomeRoute() {
 
       {/* Status overlay, anchored to the bottom of the viewport (no input here) — same slim line,
           floating so it never shifts the list. Stays outside the scroller so it never scrolls away. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-6xl px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
 

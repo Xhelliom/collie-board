@@ -4,12 +4,19 @@ import type { BoardEvent, CardStatus, CardView } from "./board";
 //
 // A dictated note that named three tasks becomes a CONTAINER card plus its children (see
 // ARCHITECTURE.md → "Splitting one dump into several cards"). The board groups by STATUS, and a
-// container's children can sit in different columns from it — so something has to give. What gives
-// is the children's individual placement: the group is atomic and lands in the container's derived
-// column, which is exactly what that derivation is for ("does anything under here need me").
+// container's children can sit in different columns from it — so something has to give.
 //
-// The alternative — children scattered into their own columns with a breadcrumb — loses the fact
-// that they are one piece of work, and makes the container's derived status pointless.
+// WHICH thing gives depends on how many columns are on screen, and it is the same argument as the
+// board layout itself:
+//
+// - ONE column (a phone): the children's individual placement gives. The group is atomic and lands
+//   in the container's derived column, which is exactly what that derivation is for ("does anything
+//   under here need me"). Seventeen children of one dictation, strung out in a single vertical list
+//   between unrelated cards, is the mess grouping exists to prevent.
+// - FOUR columns (a wide screen): the grouping gives. A column IS a status, so folding children into
+//   their parent's column removes them from the only sort the board performs — and it lies: fifteen
+//   finished sub-tasks left "Done" reading zero. The container stays, collapsed to its title and its
+//   per-status chips, as the way back to the dictation it came from.
 //
 // Nothing here is stored: the shape is read off the flat list on every render.
 
@@ -24,8 +31,13 @@ export type BoardEntry =
  * missing from the list (archived, or filtered out), in which case it stands alone rather than
  * vanishing. A card that has no children and no visible parent is an ordinary tile, which is the
  * overwhelming majority: grouping is an exception in the layout, not a new default.
+ *
+ * `scatter` is the wide-screen reading (see the note at the top of this file): children ALSO come
+ * back as top-level entries, so each one lands in its own status column. The group entry stays —
+ * the caller renders it collapsed, as a summary — so a container never becomes unreachable and its
+ * derived status still has somewhere to show.
  */
-export function boardEntries(cards: CardView[]): BoardEntry[] {
+export function boardEntries(cards: CardView[], scatter = false): BoardEntry[] {
   const present = new Set(cards.map((c) => c.id));
   const childrenOf = new Map<string, CardView[]>();
   for (const card of cards) {
@@ -42,8 +54,9 @@ export function boardEntries(cards: CardView[]): BoardEntry[] {
       entries.push({ kind: "group", container: card, children });
       continue;
     }
-    // Folded into its container above — skip it here so it isn't rendered twice.
-    if (card.parentId && childrenOf.has(card.parentId)) continue;
+    // Folded into its container above — skip it here so it isn't rendered twice. Unless we're
+    // scattering, where the fold is exactly what we don't want.
+    if (!scatter && card.parentId && childrenOf.has(card.parentId)) continue;
     entries.push({ kind: "card", card });
   }
   return entries;

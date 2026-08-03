@@ -55,10 +55,12 @@ export function AgentList({
           >
             {g.label} <span className="opacity-60">({members.length})</span>
           </h2>
-          {/* A grid that is one column below `lg` — i.e. the phone's stack, unchanged — and two or
-              three across when there is width for it. AgentCard is self-contained, so this is a
-              container change and nothing else. */}
-          <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+          {/* One column below `lg` — the phone's stack, unchanged — then as many 24rem tracks as
+              fit. `auto-fill` rather than fixed breakpoints because the answer isn't "how big is the
+              viewport" but "how many readable cards fit in it", and that is a question CSS can
+              answer better than a ladder of `lg:`/`xl:`/`2xl:` guesses. `auto-fill` rather than
+              `auto-fit` so a lone card stays 24rem instead of stretching across a 27" display. */}
+          <div className="grid gap-2 lg:grid-cols-[repeat(auto-fill,minmax(24rem,1fr))]">
             {members.map((a) => (
               <AgentCard key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
             ))}
