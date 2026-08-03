@@ -21,7 +21,7 @@ import { join } from "node:path";
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
-import { isPendingWrapup, type BoardDb, type Card, type ReviewTodo } from "./db.ts";
+import { isPendingWrapup, normalizeTag, type BoardDb, type Card, type ReviewTodo } from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -54,6 +54,14 @@ const RESET_EVERY = 8;
 const DUPLICATE_CANDIDATES = 60;
 
 /**
+ * How many existing tags the copilot is shown when it has to tag a card.
+ *
+ * Same ceiling logic as above, and the inventory is most-recently-touched first, so what falls off
+ * is the vocabulary nobody has used in months. A tag the model can't see is a tag it will re-invent.
+ */
+const TAG_INVENTORY = 40;
+
+/**
  * Parse the copilot's answer file.
  *
  * Tolerant on purpose. The instruction says "JSON and nothing else", and agents mostly comply — but
@@ -82,6 +90,8 @@ export interface SplitTask {
   title: string;
   spec?: string;
   acceptance?: string[];
+  /** The one tag this card carries, as PROPOSED — snapped onto the inventory by {@link pickTag}. */
+  tag?: string;
   /**
    * Index of an EARLIER task in the same list that must finish first, or absent for "independent".
    *
@@ -97,6 +107,8 @@ export interface Reformulation {
   spec?: string;
   acceptance?: string[];
   branchName?: string;
+  /** The one tag this card carries, as PROPOSED — snapped onto the inventory by {@link pickTag}. */
+  tag?: string;
   /** An existing card id this one repeats, as JUDGED — validated against the board before it lands. */
   duplicateOf?: string;
   split?: SplitTask[];
@@ -178,6 +190,8 @@ export function toSplit(v: unknown): SplitTask[] | undefined {
     const task: SplitTask = { title };
     const spec = str(o, "spec");
     if (spec) task.spec = spec;
+    const tag = str(o, "tag");
+    if (tag) task.tag = tag;
     const acceptance = strList(o, "acceptance");
     if (acceptance) task.acceptance = acceptance;
     const dep = o.depends_on ?? o.dependsOn;
@@ -201,9 +215,11 @@ export function toReformulation(parsed: unknown): Reformulation | null {
   const title = str(o, "title");
   const spec = str(o, "spec");
   const branch = str(o, "branch_name") ?? str(o, "branchName");
+  const tag = str(o, "tag");
   if (title) out.title = title;
   if (spec) out.spec = spec;
   if (branch) out.branchName = branch;
+  if (tag) out.tag = tag;
   const acceptance = strList(o, "acceptance");
   if (acceptance) out.acceptance = acceptance;
   // Taken as a plain string here and checked against the board by the caller: the model is being
@@ -233,6 +249,38 @@ export function toExplanation(parsed: unknown): Explanation | null {
   return out.meaning || out.next ? out : null;
 }
 
+/**
+ * Snap a copilot-proposed tag onto the tags the board already uses, or keep it as a new one.
+ *
+ * NOT PURE, deliberately: a tag it accepts as new is PUSHED onto `inventory`, which is what makes a
+ * run of cards from one answer agree with each other and not just with the board. Callers pass their
+ * own array (`db.listTags()` returns a fresh one) and let it grow for the length of one answer.
+ *
+ * THE ENFORCEMENT OF "REUSE FIRST". The prompt asks for it, and a prompt is a request — this is what
+ * makes it true. A model handed `frontend` will answer `front-end` often enough that the filter
+ * strip fills with near-duplicates, and a filter you have to tap twice for one thing is worse than
+ * no filter. Matching ignores everything that is not a letter or a digit, which is exactly the class
+ * of variation a model invents (`front-end`, `front end`, `Frontend`); `normalizeTag` already folds
+ * case and spacing at the database, but it cannot know what `frontend` looked like yesterday. The
+ * EXISTING spelling wins, always — the board's vocabulary is not up for renegotiation per card.
+ *
+ * ponytail: exact match after folding, no stemming — `test` and `tests` stay two tags. Plural rules
+ * that guess are how `bus` becomes `bu`; if near-misses pile up, dedupe them in the tag field where
+ * a human can see the merge, not here where it happens silently.
+ */
+export function pickTag(proposed: string | undefined, inventory: string[]): string | null {
+  const tag = normalizeTag(proposed);
+  if (!tag) return null;
+  const fold = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const key = fold(tag);
+  const existing = inventory.find((t) => fold(t) === key);
+  // A tag invented HERE joins the inventory, so the next card in the same answer snaps onto it. One
+  // split naming `front-end` then `frontend` is the likeliest near-duplicate there is: the cards
+  // come from one theme, in one breath, and neither spelling was on the board a second ago.
+  if (!existing) inventory.push(tag);
+  return existing ?? tag;
+}
+
 /** Coerce a parsed answer into a {@link ReviewResult}. Pure. */
 export function toReviewResult(parsed: unknown): ReviewResult | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -248,6 +296,31 @@ export function toReviewResult(parsed: unknown): ReviewResult | null {
 }
 
 /**
+ * The tagging rule, shown to every prompt that writes a card. Pure.
+ *
+ * The inventory has to be IN FRONT OF THE MODEL as it writes, not checked after: a tag invented
+ * first and reconciled later is a tag the model has already justified to itself, and `pickTag` can
+ * only catch the spellings that are one hyphen apart. Shown even when empty, because "there are no
+ * tags yet" is itself the answer to "which one should I reuse".
+ */
+function tagRule(tags: string[]): string[] {
+  const shown = tags.slice(0, TAG_INVENTORY);
+  return [
+    "",
+    "TAG. Every card carries exactly one short lowercase label naming the AREA of work it belongs to",
+    "(`bug`, `infra`, `ui`, `docs`, …) — never its urgency, its status, or a restatement of its title.",
+    ...(shown.length
+      ? [
+          `Tags already used on this board: ${shown.join(", ")}.`,
+          "Pick one of those, copied VERBATIM, whenever it fits the work — the board is filtered by",
+          "tag, and a second spelling of a tag that exists splits that filter in two. Invent a new one",
+          "ONLY when none of them describes this work; then one or two lowercase words, no punctuation.",
+        ]
+      : ["This board has no tags yet, so name the area in one or two lowercase words."]),
+  ];
+}
+
+/**
  * The prompt that turns a brain dump into a card. Explicitly tells the agent NOT to do the work —
  * a coding agent handed a task description will start editing files unless told otherwise, and this
  * one has no repo to edit. Pure + exported so the wording is reviewable.
@@ -257,6 +330,8 @@ export function reformulatePrompt(
   outPath: string,
   /** Cards already on the board for the same repo — the duplicate check's whole input. */
   existing: { id: string; title: string; status: string }[] = [],
+  /** The tag inventory — see {@link tagRule}. */
+  tags: string[] = [],
 ): string {
   return [
     "You are triaging a task for a kanban board. Do NOT do the work, do not write any code, do not",
@@ -281,9 +356,11 @@ export function reformulatePrompt(
         ]
       : []),
     "",
+    ...tagRule(tags),
+    "",
     "First decide: is this ONE task, or several?",
     "",
-    "ONE TASK — fill title/spec/acceptance/branch_name and leave `split` as an empty list.",
+    "ONE TASK — fill title/spec/acceptance/branch_name/tag and leave `split` as an empty list.",
     "",
     "SEVERAL TASKS — every task goes in `split`, and NONE stays at the top level. The top-level card",
     "becomes a container holding them; its title should name the theme they share, not any one of",
@@ -303,9 +380,10 @@ export function reformulatePrompt(
     '  "spec": "markdown: what to do and any constraint stated in the note. Do not invent requirements.",',
     '  "acceptance": ["checkable statement", "..."],',
     '  "branch_name": "kebab-case, no prefix",',
+    '  "tag": "an existing tag copied verbatim, or a new one when none fits",',
     '  "duplicate_of": "id of an existing card this repeats, or null",',
     '  "split": [',
-    '    { "title": "…", "spec": "…", "acceptance": ["…"], "depends_on": null }',
+    '    { "title": "…", "spec": "…", "acceptance": ["…"], "tag": "…", "depends_on": null }',
     "  ]",
     "}",
   ].join("\n");
@@ -376,6 +454,8 @@ export function reviewPrompt(input: {
   statSummary: string;
   handoffMd: string | null;
   outPath: string;
+  /** The tag inventory — see {@link tagRule}. */
+  tags?: string[];
 }): string {
   const parts = [
     "You are reviewing finished work on a kanban card. Do NOT edit anything and do not read the",
@@ -393,13 +473,14 @@ export function reviewPrompt(input: {
     "",
     "Each todo becomes a new backlog card. Give it the same care as a card someone would write by",
     "hand: a spec grounded in what you just reviewed, not a bare title. Empty list if there are none.",
+    ...tagRule(input.tags ?? []),
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "verdict": "complete | partial | drift",',
     '  "notes": "one short paragraph: what looks done, what looks missing or off-spec",',
     '  "todos": [',
-    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"] }',
+    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…" }',
     "  ]",
     "}",
   );
@@ -715,7 +796,8 @@ export class CopilotCoordinator {
   /** The body of a reformulation, split out only so the busy marker above brackets all of it. */
   private async rewrite(cardId: string, input: string): Promise<void> {
     const siblings = this.duplicateCandidates(cardId);
-    const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out, siblings));
+    const tags = this.db.listTags();
+    const parsed = await this.copilot.ask((out) => reformulatePrompt(input, out, siblings, tags));
     const result = toReformulation(parsed);
     if (!result) {
       this.db.recordEvent(cardId, "copilot.reformulate_failed", {});
@@ -734,6 +816,10 @@ export class CopilotCoordinator {
     const mayResplit = existing.length === 0 || started.length === 0;
     const split = mayResplit ? result.split : undefined;
     const isContainer = (split?.length ?? 0) > 0;
+    // A tag already on the card was put there by a person, and a reformulation is a second opinion on
+    // the WORDING, not on the filing — same rule as `branch` below. So the copilot's tag only ever
+    // fills a hole, and whatever ends up on the container is what its children inherit.
+    const cardTag = fresh.tag ?? pickTag(result.tag, tags);
     if (existing.length > 0 && !mayResplit) {
       this.db.recordEvent(cardId, "copilot.split_kept", {
         children: existing.length,
@@ -755,6 +841,7 @@ export class CopilotCoordinator {
         ...(result.branchName && !fresh.branch && !isContainer
           ? { branch: `${this.cfg.boardBranchPrefix}${slugBranch(result.branchName)}` }
           : {}),
+        ...(cardTag && !fresh.tag ? { tag: cardTag } : {}),
         // Only ever set on a single card: which of four freshly split sub-tasks a duplicate would
         // refer to is a question the answer doesn't contain, and guessing it would be worse than
         // saying nothing.
@@ -795,6 +882,9 @@ export class CopilotCoordinator {
         parentId: fresh.id,
         // Backward-only by construction (see toSplit), so the predecessor's id always exists here.
         dependsOn: task.dependsOn === undefined ? null : (ids[task.dependsOn] ?? null),
+        // Falls back to the container's: sub-tasks of one theme share its area of work, and a
+        // half-tagged split is the one outcome that makes the filter lie about what it holds.
+        tag: pickTag(task.tag, tags) ?? cardTag,
         position: fresh.position + i + 1,
       });
       ids.push(child.id);
@@ -860,6 +950,7 @@ export class CopilotCoordinator {
     if (!card) return;
     const session = this.db.getSession(sessionId);
     const statSummary = await statFor(cardId);
+    const tags = this.db.listTags();
     const parsed = await this.copilot.ask((out) =>
       reviewPrompt({
         title: card.title,
@@ -868,6 +959,7 @@ export class CopilotCoordinator {
         statSummary,
         handoffMd: session?.handoffMd ?? null,
         outPath: out,
+        tags,
       }),
     );
     const result = toReviewResult(parsed);
@@ -886,6 +978,9 @@ export class CopilotCoordinator {
         status: "backlog",
         repoPath: card.repoPath,
         baseRef: card.baseRef,
+        // A follow-up to reviewed work lives in the same area as the work — the reviewed card's tag
+        // is the better default than none, and the copilot only overrides it when it says otherwise.
+        tag: pickTag(todo.tag, tags) ?? card.tag,
       });
       return { title: todo.title, cardId: created.id };
     });

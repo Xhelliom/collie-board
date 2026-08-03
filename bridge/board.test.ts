@@ -34,6 +34,7 @@ import {
   explainPrompt,
   toExplanation,
   parseJsonish,
+  pickTag,
   reformulatePrompt,
   reviewPrompt,
   slugBranch,
@@ -1290,6 +1291,66 @@ describe("copilot prompts", () => {
     expect(p).toContain("- tests pass");
     expect(p).toContain(".board/out/cd34.json");
   });
+
+  it("shows the tag inventory AS the card is written, and asks for reuse first", () => {
+    // The order is the point: a model that invents a tag and is corrected afterwards has already
+    // committed to it, and pickTag only catches the spellings that are one hyphen apart.
+    for (const p of [
+      reformulatePrompt("note", "out.json", [], ["infra", "ui"]),
+      reviewPrompt({
+        title: "t",
+        spec: null,
+        acceptance: [],
+        statSummary: "",
+        handoffMd: null,
+        outPath: "out.json",
+        tags: ["infra", "ui"],
+      }),
+    ]) {
+      expect(p).toContain("infra, ui");
+      expect(p).toMatch(/copied VERBATIM/);
+      expect(p).toMatch(/ONLY when none of them describes this work/);
+    }
+  });
+
+  it("says so when the board has no tags yet — silence would read as 'do not tag'", () => {
+    const p = reformulatePrompt("note", "out.json");
+    expect(p).toContain("no tags yet");
+    expect(p).not.toContain("copied VERBATIM");
+  });
+});
+
+describe("pickTag", () => {
+  it("reuses the board's spelling for a tag that already exists", () => {
+    // The three variations a model actually produces for one existing tag.
+    expect(pickTag("Front-End", ["frontend", "infra"])).toBe("frontend");
+    expect(pickTag("front end", ["frontend"])).toBe("frontend");
+    expect(pickTag(" BUG ", ["bug"])).toBe("bug");
+  });
+
+  it("keeps a genuinely new tag, normalised", () => {
+    expect(pickTag("Release  Notes", ["bug"])).toBe("release notes");
+    expect(pickTag("infra", [])).toBe("infra");
+  });
+
+  it("does not stem — `test` and `tests` stay two tags", () => {
+    expect(pickTag("tests", ["test"])).toBe("tests");
+  });
+
+  it("folds accents apart, not together", () => {
+    expect(pickTag("réf", ["ref"])).toBe("réf");
+  });
+
+  it("adds a new tag to the inventory, so the next card in the same answer matches it", () => {
+    const inventory = ["bug"];
+    expect(pickTag("front-end", inventory)).toBe("front-end");
+    expect(pickTag("frontend", inventory)).toBe("front-end");
+  });
+
+  it("is null when there is nothing to tag with", () => {
+    expect(pickTag(undefined, ["bug"])).toBeNull();
+    expect(pickTag("   ", ["bug"])).toBeNull();
+  });
 });
 
 describe("agent adapters", () => {
@@ -1829,6 +1890,11 @@ describe("toSplit", () => {
     ).toEqual([{ title: "Fix the drawer", spec: "use Vaul", acceptance: ["a drag scrolls"] }]);
   });
 
+  it("carries the tag through — a split card arrives filed, like one written by hand", () => {
+    expect(toSplit([{ title: "a", tag: "infra" }])![0]!.tag).toBe("infra");
+    expect(toSplit([{ title: "a" }])![0]!.tag).toBeUndefined();
+  });
+
   it("still accepts a bare list of titles — the shape a model falls back to under pressure", () => {
     expect(toSplit(["desktop mode", "  ", "drawer"])).toEqual([
       { title: "desktop mode" },
@@ -2265,6 +2331,95 @@ describe("the duplicate check", () => {
     await new CopilotCoordinator(store, copilot, cfg).reformulate(fresh.id);
 
     expect(prompts[0]).toContain("shipped ages ago");
+  });
+});
+
+// A card the copilot writes arrives FILED. Without it every generated card invented its own tag and
+// the filter strip — the whole reason tags exist — became a list of one-card tags.
+describe("the copilot tags what it creates", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  const settle = () => new Promise((r) => setTimeout(r, 10));
+  function fakeCopilot(answer: unknown) {
+    const prompts: string[] = [];
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask(build: (out: string) => string) {
+        prompts.push(build("/out.json"));
+        return answer;
+      },
+    } as unknown as Copilot;
+    return { prompts, copilot };
+  }
+
+  it("tags the reformulated card, reusing the board's spelling", async () => {
+    const store = db();
+    store.createCard({ title: "old work", tag: "frontend" });
+    const card = store.createCard({ title: "x", rawInput: "a dump" });
+    const { prompts, copilot } = fakeCopilot({ title: "X", tag: "Front-End" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
+
+    expect(prompts[0]).toContain("frontend");
+    expect(store.getCard(card.id)!.tag).toBe("frontend");
+  });
+
+  it("never overwrites a tag put there by hand — a reformulation rewords, it does not refile", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "a dump", tag: "infra" });
+    const { copilot } = fakeCopilot({ title: "X", tag: "ui" });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
+
+    expect(store.getCard(card.id)!.tag).toBe("infra");
+  });
+
+  it("tags every child of a split, falling back to the container's tag", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "two things" });
+    const { copilot } = fakeCopilot({
+      title: "Container",
+      tag: "ui",
+      split: [{ title: "one", tag: "docs" }, { title: "two" }],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
+
+    expect(store.listChildren(card.id).map((c) => c.tag)).toEqual(["docs", "ui"]);
+  });
+
+  it("makes one split agree with itself — two spellings of a tag neither the board had", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "two things" });
+    const { copilot } = fakeCopilot({
+      title: "Container",
+      split: [{ title: "one", tag: "front-end" }, { title: "two", tag: "frontend" }],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
+
+    expect(store.listChildren(card.id).map((c) => c.tag)).toEqual(["front-end", "front-end"]);
+  });
+
+  it("tags a review follow-up, defaulting to the tag of the work it followed", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r", tag: "infra" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    const { prompts, copilot } = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [{ title: "tagged" }, { title: "its own", tag: "Infra " }],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(prompts[0]).toContain("infra");
+    const tagOf = (title: string) => store.listCards().find((c) => c.title === title)!.tag;
+    expect(tagOf("tagged")).toBe("infra");
+    expect(tagOf("its own")).toBe("infra");
   });
 });
 
