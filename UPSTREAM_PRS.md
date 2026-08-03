@@ -79,9 +79,9 @@ default.
 
 | | |
 |---|---|
-| Commits | `6bce9cc` (`resolveByCwd`) · `7007e29` (`resolveForProcess`, `bridge/proc.ts`, `paneProcess`) |
-| Files | `bridge/transcript.ts`, `bridge/proc.ts`, `bridge/herdr-client.ts` |
-| Extraction | **Needs splitting**, but the pieces are self-contained. The consumer change is `paneHistory()` in `server.ts`, which currently requires `pane.agentSessionId`. |
+| Commits | `6bce9cc` (`resolveByCwd`) · `7007e29` (`resolveForProcess`, `bridge/proc.ts`, `paneProcess`) · `PENDING-BRIDGE` (the consumer change + the resume fix) · `PENDING-WEB` (the client gate) |
+| Files | `bridge/transcript.ts`, `bridge/proc.ts`, `bridge/herdr-client.ts`, `bridge/server.ts` (`paneHistory`), `bridge/context.ts` (now shares the resolution), `web/src/components/agent-chat.tsx` (the gate) |
+| Extraction | **Needs splitting**, but the pieces are self-contained. `resolveWithoutSession()` is the whole rule in one exported function, and both consumers call it. |
 
 Herdr reports `agent_session` **only** once `herdr integration install claude` has planted its hook.
 A plain install has none — verified live: not one agent pane in a four-agent herd carried it. So
@@ -102,6 +102,23 @@ each other on one process: 1.3 s apart. Windows has neither and falls back.
 
 A wrong `USER_HZ` can only push the computed start into the future, which the guard rejects → the
 fallback answers. It cannot produce a wrong-but-plausible file.
+
+**The consumer change is now made** (it was the missing half): `paneHistory()` falls back to the same
+resolution when herdr reports no session, so History — and the reading mode of brick 15 — work on a
+plain install. Two guards, because resolution is BY DIRECTORY and a wrong transcript is worse than
+none: never a shell pane, and never an agent whose adapter doesn't claim a readable transcript format
+(upstream has no adapter table; there the check is "is this a Claude pane").
+
+**And a correction to the rule itself, which upstream should take with it.** "The log born closest
+after the process started" is wrong for a **resumed** conversation, which in a long-running herd is
+most of them. Live case (2026-08-03): a pane's claude started 09:54:48, Claude Code created a log 17 s
+later, then resumed a conversation from four days earlier and wrote everything into THAT file. The
+startup log died at 31 entries while the real one reached 20 MB — and the "exact" rule served the dead
+one: a stale conversation as the pane's history, and **another session's occupancy on the context
+gauge** (brick 2 inherits the fix). The rule is now *the log this process has been WRITING to*, with
+birth time kept only as the tie-break for a pane that hasn't written yet. What that gives up: two
+agents live in one directory, both writing, is a coin flip again — rare when each agent gets its own
+worktree, and far less damaging than confidently serving a dead conversation.
 
 ---
 
@@ -440,10 +457,22 @@ watching an agent that is actually blocked behind a question. Reading mode banne
 is already derived every render for the composer's send guard) and the banner is the button back to
 terminal. This is the part to keep if anything else is cut.
 
-**No new poll loop.** The tick is the pane's own `revision`, which the existing 1.5 s read already
-advances; a tick that finds nothing costs an empty array. The fetch deliberately re-asks from the
+**No new poll loop.** The tick is the pane poll's own heartbeat (the router revalidator settling back
+to `idle`); a tick that finds nothing costs an empty array. The fetch deliberately re-asks from the
 *second*-newest turn, because a tool result lands by mutating the turn that made the call — so the
 newest turn we hold can still change after we've seen it.
+
+**Do not use `revision` as the heartbeat** — the trap this shipped with, and upstream would hit it the
+same way. `pane.read`'s `revision` is a STUB on herdr 0.7.x: 0 for every pane, always, including
+actively-changing ones (`HERDR_API.md` says so, and it is still true on 0.7.5). A revision-driven view
+fetches once at mount and then silently stops, which reads as an agent going quiet.
+
+**A draft on the terminal's input line is shown at the tail of the thread**, dashed and named "Draft
+in terminal · not sent" — it is in no log, so without it the thread reads as though you never wrote
+the message you typed while the agent was busy. It comes from `extractInputDraft`, the value the
+composer already surfaces, so the two never disagree. A *queued* message is a different state and
+deliberately NOT shown as a draft: Claude Code clears the line and paints "Press up to edit queued
+messages", so its text is nowhere in the mirror.
 
 **Markdown tables**, in the same brick because it's the same complaint. `lib/markdown.ts` gained a
 `table` block (headers plus rows normalised to the header's column count, escaped pipes respected);

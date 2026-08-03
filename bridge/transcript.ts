@@ -424,17 +424,24 @@ export interface TranscriptSource {
   /** Absolute path of the log for `sessionId`, or null when it isn't on disk. */
   resolve(sessionId: string): Promise<string | null>;
   /**
-   * Absolute path of the log belonging to the agent process `pid`, or null.
+   * Absolute path of the log the agent process started at `startedAtMs` is CONVERSING IN, or null.
    *
-   * The exact answer without herdr's integration. `startedAtMs` is the process's own start time, and
-   * a session log is created when the session starts — measured on this machine, the gap is a few
-   * seconds (copilot process 18:45:30, its log created 18:45:37). So among the candidates in the
-   * directory, the one whose BIRTH time sits closest after the process started is that process's.
+   * "Written during this process's life" is the rule, i.e. the newest log whose mtime lands after the
+   * process started. Birth time is only the tie-break, for a process that hasn't written yet.
    *
-   * This is what {@link resolveByCwd} cannot do: with two agents live in one directory, "newest
-   * mtime" is a coin flip, and a coin flip here means showing another session's context percentage.
+   * IT USED TO BE THE OTHER WAY ROUND — the log BORN closest after the process started — and that is
+   * wrong for a **resumed** conversation, which is most of them in a long-running herd. Live case
+   * (2026-08-03): a pane's claude started 09:54:48 and Claude Code created a log 17 s later, then
+   * resumed a conversation from four days earlier and wrote everything into THAT file. The startup
+   * log went dead at 31 entries while the real one grew to 20 MB — and the "exact" rule served the
+   * dead one: a months-old conversation presented as the pane's history, and another session's
+   * occupancy on the context gauge.
    *
-   * Falls back to {@link resolveByCwd} wherever birth times aren't available (they need statx, so
+   * What this gives up: two agents live in ONE directory, both writing, is back to a coin flip
+   * (whoever wrote last). That case is rare here by construction — a card gets its own worktree — and
+   * an actively-wrong file for a resumed session is the more common failure by far.
+   *
+   * Falls back to {@link resolveByCwd} when neither signal is available (birth times need statx, so
    * some filesystems and platforms report 0) — a worse answer, never a wrong crash.
    */
   resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null>;
@@ -565,24 +572,34 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     } catch {
       return null;
     }
-    // A log created BEFORE the process started belongs to an earlier session; a small negative slack
-    // absorbs clock granularity. Among the rest, closest-after wins.
+    // A small negative slack absorbs clock granularity on both comparisons.
     const SLACK_MS = 5_000;
-    let best: { path: string; delta: number } | null = null;
+    // The log this process has been WRITING to — including one it resumed, whose file can predate the
+    // process by days. Newest write wins.
+    let live: { path: string; mtimeMs: number } | null = null;
+    // The log BORN closest after the process started. Only used when nothing has been written yet —
+    // a pane just launched and not yet prompted, where the startup log is the right answer.
+    let born: { path: string; delta: number } | null = null;
     for (const name of names) {
       if (!name.endsWith(".jsonl")) continue;
       const candidate = join(dir, name);
       try {
         const st = await stat(candidate);
-        const birth = st.birthtimeMs;
-        if (!birth) continue; // statx unavailable here — the cwd fallback will answer instead
-        const delta = birth - startedAtMs;
-        if (delta < -SLACK_MS) continue;
-        if (!best || delta < best.delta) best = { path: candidate, delta };
+        if (st.mtimeMs >= startedAtMs - SLACK_MS && (!live || st.mtimeMs > live.mtimeMs)) {
+          live = { path: candidate, mtimeMs: st.mtimeMs };
+        }
+        const birth = st.birthtimeMs; // 0 where statx is unavailable — then `live` has to carry it
+        if (birth) {
+          const delta = birth - startedAtMs;
+          if (delta >= -SLACK_MS && (!born || delta < born.delta)) {
+            born = { path: candidate, delta };
+          }
+        }
       } catch {
         continue;
       }
     }
+    const best = live ?? born;
     if (best === null) return this.resolveByCwd(cwd);
     return this.contained(best.path);
   }
@@ -637,6 +654,44 @@ export class ClaudeTranscriptSource implements TranscriptSource {
   }
 }
 
+/**
+ * Find a pane's transcript when herdr reports NO `agent_session` — which is the default state, not an
+ * edge case: that field only exists once `herdr integration install <agent>` has planted its hook.
+ *
+ * Ask herdr for the pane's foreground pid, read that process's start time, and take the log born
+ * closest after it ({@link TranscriptSource.resolveForProcess}). Exact even with two agents live in
+ * one directory, where "newest file in the folder" is a coin flip — and a coin flip here means
+ * showing someone else's conversation. Everything degrades in order: no pid, no `/proc`, no birth
+ * times → the by-directory guess → null.
+ *
+ * The lookups are INJECTED rather than imported so this stays testable without a socket or a `/proc`,
+ * and so the one implementation can serve both consumers (the context gauge and the history route).
+ * Callers must have established that this agent writes a readable transcript at all — resolution is
+ * by directory, so a pane running something else in a directory Claude once ran in would otherwise
+ * resolve to Claude's log.
+ */
+export async function resolveWithoutSession(opts: {
+  source: TranscriptSource;
+  /** herdr's `pane.process_info` → the pane's foreground pid and cwd. */
+  paneProcess: (paneId: string) => Promise<{ pid: number; cwd: string } | null>;
+  /** The process's start time in epoch ms; null where the platform can't say. */
+  startedAt: (pid: number) => Promise<number | null>;
+  paneId: string;
+  /** The pane's cwd, as the fallback when the process route can't answer. */
+  cwd: string;
+}): Promise<string | null> {
+  try {
+    const proc = await opts.paneProcess(opts.paneId);
+    const startedAt = proc ? await opts.startedAt(proc.pid) : null;
+    if (proc && startedAt !== null) {
+      return await opts.source.resolveForProcess(proc.cwd || opts.cwd, startedAt);
+    }
+  } catch {
+    // herdr couldn't tell us, or this platform has no /proc — fall through to the directory guess.
+  }
+  return opts.cwd ? opts.source.resolveByCwd(opts.cwd) : null;
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -670,7 +725,8 @@ interface CacheEntry {
 export class TranscriptStore {
   private readonly cache = new Map<string, CacheEntry>();
 
-  constructor(private readonly source: TranscriptSource) {}
+  /** Public so a caller holding a path from {@link resolveWithoutSession} can page it via {@link pageAt}. */
+  constructor(readonly source: TranscriptSource) {}
 
   /** Null when this session has no log on disk (never started, or a non-Claude agent). */
   async page(
@@ -679,7 +735,18 @@ export class TranscriptStore {
   ): Promise<Omit<TranscriptPage, "paneId"> | null> {
     const path = await this.source.resolve(sessionId);
     if (path === null) return null;
+    return this.pageAt(path, opts);
+  }
 
+  /**
+   * Page a log by absolute path — for a pane whose session id herdr never reported, where the path
+   * came from {@link resolveWithoutSession} rather than from a uuid. Same cache (keyed by path), so
+   * the two entry points share a parse.
+   */
+  async pageAt(
+    path: string,
+    opts: { limit: number; before?: string; after?: string },
+  ): Promise<Omit<TranscriptPage, "paneId"> | null> {
     const { text, complete, size, mtimeMs } = await this.source.load(path);
     const cached = this.cache.get(path);
     let entries: TranscriptEntry[];
