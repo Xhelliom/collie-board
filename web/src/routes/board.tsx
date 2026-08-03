@@ -1,5 +1,11 @@
 import { Fragment, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
+import {
+  useLoaderData,
+  useNavigate,
+  useRevalidator,
+  useRouteLoaderData,
+  useSearchParams,
+} from "react-router";
 import { Plus } from "lucide-react";
 
 import { AppHeader, SettingsGear } from "@/components/app-header";
@@ -7,6 +13,7 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
+import { TagFilter } from "@/components/tag-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
@@ -23,6 +30,7 @@ import {
   createCard,
   patchCard,
   positionFor,
+  tagsOf,
   type CardInput,
   type CardStatus,
   type CardView,
@@ -75,6 +83,15 @@ export function BoardRoute() {
   const revalidator = useRevalidator();
   const stalled = useLoadingStalled();
   const desktop = useIsDesktop();
+  // The tag filter lives in the URL, not in a useState — three things come free that a component
+  // state doesn't have: it survives opening a card and coming back (the board unmounts in between,
+  // which is exactly when losing the filter would be most annoying), the browser's Back button
+  // undoes it, and a filtered board can be sent to yourself as a link. `replace` so a run of five
+  // tags doesn't bury the way out of the board under five history entries.
+  const [params, setParams] = useSearchParams();
+  const active = params.get("tag");
+  const pick = (tag: string | null) =>
+    setParams(tag === null ? {} : { tag }, { replace: true, preventScrollReset: true });
   const [newOpen, setNewOpen] = useState(false);
   // The card in hand, and the SLOT under the pointer — which column, and at which index inside it.
   // View state, both of it, and both die with the drop; nothing about a drag is worth persisting.
@@ -84,16 +101,29 @@ export function BoardRoute() {
   // `dragend` fires in the same tick as the drop and would read a stale render's value.
   const landing = useRef(false);
 
+  // The tags on offer are DERIVED from the cards already on screen — no request, and it can't
+  // disagree with what is rendered. The active one is kept in the list even after its last card
+  // stops carrying it (retagged, deleted, archived while you were looking): otherwise the board
+  // empties and simultaneously loses the only thing on screen saying why.
+  const inUse = tagsOf(data.cards);
+  const tags = active && !inUse.includes(active) ? [active, ...inUse] : inUse;
+  // The filter is applied HERE, before anything else reads the list, so every count, every column
+  // and the empty state all describe the same board. A child whose container is filtered out stands
+  // alone rather than vanishing — `boardEntries` already handles a missing parent that way.
+  const cards = active ? data.cards.filter((c) => c.tag === active) : data.cards;
+
   // Cards first become ENTRIES, then get bucketed by column. On a phone a container and its
   // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
   // into their own columns and the container stays behind as a summary tile — a column is a status,
   // so folding fifteen finished sub-tasks under a working parent left "Done" reading zero.
-  const entries = boardEntries(data.cards, desktop);
+  const entries = boardEntries(cards, desktop);
   const byStatus = new Map(
     BOARD_COLUMNS.map((s) => [s, entries.filter((e) => entryStatus(e) === s)]),
   );
+  // Every card, filtered or not: this answers "what is card X" for dependencies, parent names and
+  // the drop's re-read — all of which are about cards the filter may well be hiding.
   const byId = new Map(data.cards.map((c) => [c.id, c]));
-  const empty = data.cards.length === 0;
+  const empty = cards.length === 0;
   async function create(input: CardInput) {
     await createCard(input);
     revalidator.revalidate();
@@ -144,7 +174,14 @@ export function BoardRoute() {
     clear();
   }
 
-  /** A column's positions in board order, WITHOUT the dragged card — the slots it can land between. */
+  /**
+   * A column's positions in board order, WITHOUT the dragged card — the slots it can land between.
+   *
+   * ponytail: under a tag filter these are the VISIBLE neighbours only, so a card dropped between
+   * two of them lands somewhere among the hidden cards that sit in the same gap — right in the
+   * filtered view, arbitrary within that gap once the filter comes off. Ordering against cards you
+   * can't see has no correct answer anyway; if it ever matters, drop the filter and reorder.
+   */
   function neighbours(status: CardStatus, dragged: string): number[] {
     return (byStatus.get(status) ?? [])
       .filter((e) => entryKey(e) !== dragged)
@@ -183,6 +220,9 @@ export function BoardRoute() {
         rightTrail={<SettingsGear session={root?.session} />}
       />
 
+      {/* Outside the scroller on purpose — see TagFilter. */}
+      <TagFilter tags={tags} active={active} onPick={pick} />
+
       {/* One scroller on a phone (the whole board), FOUR on a wide screen (one per lane) — the
           outer one is switched off at `lg` and each lane takes over. Without this, seventeen cards
           in "In progress" make you scroll a very long page past three empty columns, which is the
@@ -194,8 +234,23 @@ export function BoardRoute() {
           <h1 className="sr-only">Board</h1>
           {empty ? (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground lg:col-span-4">
-              <p>No cards yet.</p>
-              <p className="mt-1">A card is a task that outlives the pane working on it.</p>
+              {/* "Nothing here" and "nothing here MATCHES" are different facts, and telling a
+                  filtered board from an empty one is the whole hazard of adding a filter. */}
+              {active ? (
+                <>
+                  <p>
+                    No cards tagged “<span className="font-medium">{active}</span>”.
+                  </p>
+                  <Button variant="outline" className="mt-3" onClick={() => pick(null)}>
+                    Show all cards
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p>No cards yet.</p>
+                  <p className="mt-1">A card is a task that outlives the pane working on it.</p>
+                </>
+              )}
             </div>
           ) : (
             BOARD_LANES.map((lane) => {
