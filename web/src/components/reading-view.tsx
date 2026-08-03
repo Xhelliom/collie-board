@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert, User } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
@@ -18,10 +18,19 @@ import type { TranscriptEntry } from "@/lib/types";
 // grammars, the statusline. This is the mode you READ in. Both are modes of one screen — the composer,
 // the statusline and the context gauge below it belong to neither.
 //
-// NO NEW POLL LOOP (CLAUDE.md → The board). This has no timer of its own: `tick` is the pane's
-// `revision`, which the existing 1.5 s pane poll already advances whenever the terminal changed. New
-// turns are pulled with `after` (bridge/transcript.ts), so a tick that found nothing costs an empty
-// array rather than a re-download of the archive.
+// NO NEW POLL LOOP (CLAUDE.md → The board). This has no timer of its own — it rides the pane poll's
+// own heartbeat (`poll`, the router revalidator's state), and pulls only what is new via `after`
+// (bridge/transcript.ts), so a tick that found nothing costs an empty array rather than a re-download
+// of the archive.
+//
+// The heartbeat used to be the pane's `revision`, which is WRONG on the herdr this targets: 0.7.x
+// returns `revision: 0` for every pane, always (HERDR_API.md — it's a stub). A revision-driven view
+// fetches once at mount and then silently stops, which reads as "the agent went quiet".
+//
+// Reading mode is one COMPLETED TURN behind the mirror by construction: Claude Code appends a turn to
+// its log when the turn ends, while the TUI streams it as it arrives. That's not lag to fix — it's the
+// price of reading text that was never cut to a terminal's width — but it is worth saying on screen
+// while the agent is working, so a half-written answer doesn't look like a stalled one.
 
 /**
  * Turns held/asked for. Reading mode is the RECENT conversation — the last few exchanges you'd have
@@ -69,7 +78,9 @@ export function ReadingView({
   paneId,
   session,
   agent,
-  tick,
+  poll,
+  working = false,
+  pendingInput = null,
   dialogPresent,
   onShowTerminal,
 }: {
@@ -77,8 +88,18 @@ export function ReadingView({
   session?: string;
   /** The pane's agent name, for the per-turn brand icon. */
   agent?: string;
-  /** Any value that moves when the pane changed — the pane's `revision`. Drives the incremental pull. */
-  tick: number;
+  /**
+   * The router revalidator's state — the pane poll's heartbeat. Each cycle settles back to "idle",
+   * and that settle is the tick: one incremental pull per poll, no timer of our own.
+   */
+  poll: string;
+  /** The agent is mid-turn, so the turn being typed in the mirror isn't in the log yet. */
+  working?: boolean;
+  /**
+   * Text sitting on the terminal's "❯" input line — typed but not yet taken by the agent (typically
+   * written while it was busy). It is NOT in the transcript, and won't be until the agent consumes it.
+   */
+  pendingInput?: string | null;
   /** A dialog is up in the TUI: it exists ONLY there, so reading mode has to say so. */
   dialogPresent: boolean;
   onShowTerminal: () => void;
@@ -121,9 +142,12 @@ export function ReadingView({
     }
   }, [paneId, session]);
 
+  // One pull per completed poll: the effect re-runs on every state change, and "idle" is the settle.
+  // A pull skipped because one was still in flight is retried by the next beat, so the view converges
+  // on its own instead of staying one turn behind forever.
   useEffect(() => {
-    void pull();
-  }, [pull, tick]);
+    if (poll === "idle") void pull();
+  }, [poll, pull]);
 
   // Open on the newest turn, the same place the mirror opens.
   useEffect(() => {
@@ -154,7 +178,35 @@ export function ReadingView({
               {note ?? "Loading…"}
             </div>
           ) : (
-            <TranscriptView entries={entries} agent={agent} />
+            <>
+              <TranscriptView entries={entries} agent={agent} />
+              {/* Text sitting on the terminal's "❯" line — a DRAFT, which is not the same thing as a
+                  queued message and must not read as one. A draft was typed and not submitted (the
+                  common case: you wrote it while the agent was busy compacting); a QUEUED message was
+                  submitted, and Claude Code then replaces the line with "Press up to edit queued
+                  messages" — its text is nowhere in the mirror, so this block can never show it (see
+                  INPUT_PLACEHOLDERS in harness/claude/chrome.ts, which is why the draft goes null).
+                  Same vocabulary as the composer's own chip, so one thing has one name in this app.
+                  Rendered dashed and muted: it is the one thing on screen that is NOT in the
+                  conversation. Verbatim text node, never Markdown — this is raw input. */}
+              {pendingInput && (
+                <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+                  <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    <User className="size-3" />
+                    Draft in terminal · not sent
+                  </div>
+                  <div className="whitespace-pre-wrap break-words text-base text-muted-foreground">
+                    {pendingInput}
+                  </div>
+                </div>
+              )}
+              {working && (
+                <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Still writing — this turn appears when the agent finishes it.
+                </div>
+              )}
+            </>
           )}
         </ChatMessageList>
       </div>

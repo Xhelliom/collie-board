@@ -54,7 +54,7 @@ describe("ReadingView", () => {
   const props = {
     paneId: "w1:p1",
     agent: "claude",
-    tick: 1,
+    poll: "idle",
     dialogPresent: false,
     onShowTerminal: vi.fn(),
   };
@@ -102,9 +102,11 @@ describe("ReadingView", () => {
         });
       }),
     );
-    const { rerender } = render(<ReadingView {...props} tick={1} />);
+    const { rerender } = render(<ReadingView {...props} poll="idle" />);
     await screen.findByText("One commit: abc1234.");
-    rerender(<ReadingView {...props} tick={2} />);
+    // One poll cycle: the revalidator leaves idle and settles back — the settle is the tick.
+    rerender(<ReadingView {...props} poll="loading" />);
+    rerender(<ReadingView {...props} poll="idle" />);
 
     await waitFor(() => expect(urls).toHaveLength(2));
     expect(urls[0]).not.toContain("after=");
@@ -132,6 +134,23 @@ describe("ReadingView", () => {
     const banner = await screen.findByRole("button", { name: /a question is waiting/i });
     await user.click(banner);
     expect(onShowTerminal).toHaveBeenCalled();
+  });
+
+  // Text typed while the agent was busy sits on the terminal's input line and is in NO log — so
+  // without this the thread reads as though you never wrote it. It is a DRAFT, not a queued message:
+  // the label borrows the composer's own words so the two states can't be confused.
+  it("shows a draft left on the terminal's input line, named as a draft", async () => {
+    render(<ReadingView {...props} pendingInput="tu peux merge la PR 432" />);
+    expect(await screen.findByText("tu peux merge la PR 432")).toBeInTheDocument();
+    expect(screen.getByText(/draft in terminal/i)).toBeInTheDocument();
+    // Never as a QUEUED message: that one was submitted, and its text isn't in the mirror at all.
+    expect(screen.queryByText(/queued/i)).not.toBeInTheDocument();
+  });
+
+  it("shows nothing pending when the input line is empty", async () => {
+    render(<ReadingView {...props} />);
+    await screen.findByText("One commit: abc1234.");
+    expect(screen.queryByText(/draft in terminal/i)).not.toBeInTheDocument();
   });
 
   it("shows no banner while nothing is waiting", async () => {

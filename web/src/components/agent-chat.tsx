@@ -250,7 +250,17 @@ export function AgentChat({
   // `moreScrollback`: Herdr says this pane can still yield lines beyond the window we've asked for,
   // AND we're under the cap Herdr's own read clamp imposes. `readableLines` is undefined on an older
   // bridge/Herdr; treat that as "no idea" and stay hidden rather than offer a tap that fetches nothing.
-  const historyAvailable = Boolean(agent?.agentSessionId);
+  // Any AGENT pane, not just one carrying `agentSessionId`. That field only exists once the optional
+  // `herdr integration install <agent>` hook is planted, which most installs don't have — gating on it
+  // hid History (and reading mode) from nearly everyone, while the bridge could resolve the transcript
+  // from the pane's process all along (it already does, for the context gauge).
+  //
+  // ponytail: "is an agent pane" is a slightly loose gate — for a harness that keeps no readable
+  // transcript the bridge answers `no-log` and the view says so, which costs one wasted tap. The
+  // bridge is where the truth lives (it checks the agent's adapter before resolving by directory, so a
+  // wrong conversation can never be served). Expose that capability on AgentView if a non-Claude agent
+  // ever makes the empty tap annoying.
+  const historyAvailable = Boolean(agent) && agent?.kind !== "shell";
 
   // READING MODE — the second mode of this screen (see components/reading-view.tsx). Gated on a
   // transcript existing at all, so the toggle never leads somewhere empty: a shell pane, or an agent
@@ -617,7 +627,7 @@ export function AgentChat({
             )}
             {agent && (
               <>
-                {agent.agentSessionId && (
+                {historyAvailable && (
                   <button
                     type="button"
                     onClick={() => navigate(historyPath(paneId, session))}
@@ -731,9 +741,13 @@ export function AgentChat({
             paneId={paneId}
             session={session}
             agent={agent?.agent}
-            // The pane's revision IS the tick: the existing poll advances it whenever the terminal
-            // changed, which is exactly when the transcript can have grown. No timer of our own.
-            tick={revision}
+            // The poll's own heartbeat, NOT the pane's `revision` — herdr 0.7.x returns 0 for every
+            // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
+            poll={revalidator.state}
+            working={agent?.status === "working"}
+            // A message typed while the agent was busy lives on the terminal's input line and nowhere
+            // else — the same stabilised value the composer surfaces as "Draft in terminal".
+            pendingInput={terminalDraft}
             dialogPresent={dialogPresent}
             onShowTerminal={() => setReading(false)}
           />

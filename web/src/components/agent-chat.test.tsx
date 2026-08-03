@@ -454,8 +454,17 @@ describe("AgentChat — history affordance", () => {
     expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
   });
 
-  it("is hidden when the pane has no agent session (a shell, or a harness without one)", () => {
+  // Deliberately NOT gated on `agentSessionId` any more: herdr only reports it once the optional
+  // integration hook is planted, and the bridge resolves the transcript from the pane's process
+  // otherwise — the same route the context gauge has always used.
+  it("is offered for an agent pane with no session id (the default install)", () => {
     renderChat(); // fixture agents carry no agentSessionId
+    expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
+  });
+
+  it("is hidden on a bare shell, which has no agent and therefore no transcript", () => {
+    const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
+    renderChat({ agent: shell, agents: [shell] });
     expect(screen.queryByRole("button", { name: /conversation history/i })).not.toBeInTheDocument();
   });
 
@@ -477,12 +486,13 @@ describe("AgentChat — history affordance", () => {
 // buttons, key grammars, statusline); reading renders the agent's own transcript, which was never cut
 // to a terminal's columns. The state is a display pref, so it's per device and survives a reload.
 describe("AgentChat — terminal / reading toggle", () => {
-  const SESSION_ID = "d7e62e23-8576-4c63-98ba-ec1b02902c6b";
-  const withTranscript = () => ({ ...fixtureAgents[0]!, agentSessionId: SESSION_ID });
+  // An agent pane, integration or not — the bridge finds the transcript either way.
+  const withTranscript = () => fixtureAgents[0]!;
   beforeEach(() => localStorage.clear());
 
-  it("is hidden when the pane has no transcript to read", () => {
-    renderChat(); // fixture agents carry no agentSessionId
+  it("is hidden on a bare shell, which has no transcript to read", () => {
+    const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
+    renderChat({ agent: shell, agents: [shell] });
     expect(screen.queryByRole("group", { name: /view mode/i })).not.toBeInTheDocument();
   });
 
