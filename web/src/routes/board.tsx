@@ -103,13 +103,30 @@ export function BoardRoute() {
     const card = held;
     setHeld(null);
     setOver(null);
-    if (!card || !canDropCard(card.from, status)) return;
+    if (!card) return;
+    // Re-read the card AS IT IS NOW, not as it was when the drag started. A poll lands every 1.5s
+    // and a drag lasts longer than that, so the herd can pick the card up mid-gesture — and then
+    // the whole safety argument (a manual column means no live agent) would be about a column the
+    // card has already left. Rare, and exactly the case the guard exists for.
+    const now = byId.get(card.id);
+    if (!now || !canDropCard(now.status, status)) return;
     try {
-      await patchCard(card.id, { status });
+      // Land it at the TOP of the target column rather than wherever its old `position` sorts it.
+      // A drop is a placement: a card that moves to Ready and appears somewhere in the middle of
+      // eleven others reads as nothing having happened. Same rule new cards already follow.
+      await patchCard(card.id, { status, position: topOf(status) });
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     }
     revalidator.revalidate();
+  }
+
+  /** One below the topmost card of a column — where a new card would go (bridge: `min - 1`). */
+  function topOf(status: CardStatus): number {
+    const positions = (byStatus.get(status) ?? []).map((e) =>
+      e.kind === "group" ? e.container.position : e.card.position,
+    );
+    return (positions.length ? Math.min(...positions) : 0) - 1;
   }
 
   /** Drop targets while a card is in hand: the manual columns, minus the one it came from. */
@@ -168,13 +185,29 @@ export function BoardRoute() {
                               }
                             : undefined
                         }
-                        onDragLeave={target ? () => setOver((o) => (o === status ? null : o)) : undefined}
+                        onDragLeave={
+                          target
+                            ? (e) => {
+                                // `dragleave` fires on every hop between children too, and clearing
+                                // the highlight there makes it strobe as the pointer crosses the
+                                // cards inside the column. Only a leave that actually exits counts.
+                                if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                                setOver((o) => (o === status ? null : o));
+                              }
+                            : undefined
+                        }
                         onDrop={target ? () => void drop(status) : undefined}
                         className={cn(
                           "px-3 pt-4 lg:order-none lg:px-0 lg:pt-3",
                           MOBILE_ORDER[BOARD_COLUMNS.indexOf(status)],
-                          target && "rounded-xl outline-1 outline-dashed outline-border lg:px-2",
-                          over === status && "bg-accent outline-ring",
+                          // A drop target has to be big enough to aim at: a column holding one card
+                          // is 60px of surface in a lane 800px tall, and everything around it
+                          // silently rejects the drop.
+                          target &&
+                            "rounded-xl outline-1 outline-dashed outline-border transition-colors lg:min-h-32 lg:px-2",
+                          // Thickness, not tint: `accent` sits 3% off `background`, which is not a
+                          // signal — the ring colour on a doubled outline is.
+                          over === status && "bg-accent outline-2 outline-ring",
                         )}
                       >
                         {/* Hidden in the lane whose name it repeats ("Needs you" under Needs you),
