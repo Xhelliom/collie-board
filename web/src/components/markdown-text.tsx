@@ -115,6 +115,69 @@ function CodeBlock({ text }: { text: string }) {
   );
 }
 
+/**
+ * Widest table that still reads as a table on a phone.
+ *
+ * Three ~110px columns fit a 360px screen with the text still wrapping inside its cell. Past that the
+ * grid is a horizontal pan, and a pan is exactly what this whole screen exists to remove — so a wide
+ * table becomes one CARD PER ROW instead, each cell labelled by its header. The decision is made from
+ * the column count rather than a measurement: the AST already knows it, and a resize-observed table
+ * that reshapes under the reader is worse than one that picked a form and kept it.
+ */
+const MAX_TABLE_COLS = 3;
+
+function TableBlock({ block }: { block: Extract<MdBlock, { kind: "table" }> }) {
+  // Rows are already normalised to the header count (lib/markdown.ts), so a cell is never a hole.
+  if (block.headers.length > MAX_TABLE_COLS) {
+    return (
+      <div className="space-y-1.5">
+        {block.rows.map((row, r) => (
+          <div key={r} className="space-y-0.5 rounded-md border bg-muted/30 px-2.5 py-2 text-sm">
+            {row.map((cell, c) => (
+              <div key={c} className="flex gap-2">
+                <span className="w-1/3 shrink-0 font-medium text-muted-foreground">
+                  <Spans spans={block.headers[c] ?? []} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <Spans spans={cell} />
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // Its own scroller, the pattern code blocks already use — a stubborn table scrolls itself rather
+  // than pushing the page sideways.
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {block.headers.map((cell, c) => (
+              <th key={c} className="border-b px-2 py-1 text-left align-top font-semibold">
+                <Spans spans={cell} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, c) => (
+                <td key={c} className="border-b border-border/40 px-2 py-1 align-top">
+                  <Spans spans={cell} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // Each level sits a rung above the body it introduces, which now reads at text-base (R2). The old
 // ladder ran 16/15/14px — h1 level with the surrounding prose and h3 below it, so a heading marked
 // a paragraph rather than opening a section.
@@ -138,6 +201,8 @@ function Block({ block }: { block: MdBlock }) {
     }
     case "code":
       return <CodeBlock text={block.text} />;
+    case "table":
+      return <TableBlock block={block} />;
     case "list": {
       const Tag = block.ordered ? "ol" : "ul";
       return (

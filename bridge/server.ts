@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
+import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { withCardFields } from "./cards.ts";
@@ -16,7 +17,8 @@ import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
-import { ClaudeTranscriptSource, TranscriptStore } from "./transcript.ts";
+import { processStartedAt } from "./proc.ts";
+import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
 import type {
   ActionResponse,
   BridgeConfig,
@@ -111,8 +113,13 @@ export function startServer(opts: {
    * they cover panes with no card — so the snapshot route reads them from here.
    */
   context: ContextTracker | null;
+  /**
+   * Per-agent divergence. The history route needs it: without herdr's `agent_session` a transcript is
+   * resolved by DIRECTORY, which is only sound for an agent whose format we can actually read.
+   */
+  adapters: Record<string, AgentAdapter>;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot, context } =
+  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot, context, adapters } =
     opts;
   // One transcript store for the process: it caches parsed session logs across requests, and the
   // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
@@ -273,7 +280,7 @@ export function startServer(opts: {
 
         if (!action && req.method === "GET") return readPane(herdr, cfg, paneId, url, req);
         if (action === "history" && req.method === "GET")
-          return paneHistory(cfg, transcripts, rt.engine, paneId, url, req);
+          return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
         if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session);
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
@@ -497,15 +504,24 @@ export function paneReadResponse(paneId: string, read: PaneRead): PaneReadRespon
 
 /**
  * Parse the history page params. Pure + exported so the clamping is unit-tested without Bun.serve.
- * `before` is an opaque cursor (a turn's uuid) that only ever reaches an in-memory `findIndex`, so it
- * needs no validation beyond length — it never touches the filesystem.
+ * `before` (page backwards) and `after` (follow the live tail) are opaque cursors — a turn's uuid,
+ * which only ever reaches an in-memory `findIndex` — so they need no validation beyond length; neither
+ * ever touches the filesystem.
  */
-export function historyParams(url: URL): { limit: number; before?: string } {
+export function historyParams(url: URL): { limit: number; before?: string; after?: string } {
   const raw = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
   const limit =
     Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_HISTORY_LIMIT) : DEFAULT_HISTORY_LIMIT;
   const before = url.searchParams.get("before");
-  return { limit, ...(before && before.length <= 100 ? { before } : {}) };
+  const after = url.searchParams.get("after");
+  // A cursor each way is contradictory; `after` wins, because a follower asking for what's new must
+  // not be paged backwards by a `before` left over from the same client's archive view.
+  const cursor = after && after.length <= 100
+    ? { after }
+    : before && before.length <= 100
+      ? { before }
+      : {};
+  return { limit, ...cursor };
 }
 
 /**
@@ -514,11 +530,24 @@ export function historyParams(url: URL): { limit: number; before?: string } {
  * The session id is resolved HERE, from the live snapshot, keyed by pane id — the client never sends
  * one. That is the whole safety story for a route that reads files: the only client-controlled inputs
  * are a pane id (a Map lookup) and an opaque cursor (an array lookup).
+ *
+ * TWO RESOLUTIONS, because the first one usually isn't there. `agent_session` only exists once the
+ * optional `herdr integration install <agent>` hook is in place — a plain install reports none, so
+ * gating on it alone answered `no-session` for most users and made this whole feature inert. Without
+ * it we resolve the same way the context gauge already does: the pane's foreground process, then its
+ * directory (see `resolveWithoutSession`).
+ *
+ * Both fallbacks resolve BY DIRECTORY, which is only sound for an agent whose transcript format we
+ * can actually read — otherwise a codex pane sitting in a directory Claude once ran in would be
+ * served Claude's conversation. Hence the two guards below: never a shell, and never an agent whose
+ * adapter doesn't claim `context`. A wrong transcript is worse than no transcript.
  */
 async function paneHistory(
   cfg: Config,
   transcripts: TranscriptStore | null,
   engine: StateEngine,
+  herdr: { paneProcess(paneId: string): Promise<{ pid: number; cwd: string } | null> },
+  adapters: Record<string, AgentAdapter>,
   paneId: string,
   url: URL,
   req: Request,
@@ -531,12 +560,26 @@ async function paneHistory(
 
   const { agents, shellPanes } = engine.current();
   const pane = [...agents, ...shellPanes].find((a) => a.paneId === paneId);
-  // No pane, or an agent that reported no id-kind session (a shell, or a harness that doesn't keep
-  // one): there is nothing to read, and that's an ordinary answer rather than an error.
-  if (!pane?.agentSessionId) return unavailable("no-session");
+  // No pane, a bare shell, or an agent whose transcript format this bridge can't read: there is
+  // nothing to serve, and that's an ordinary answer rather than an error.
+  if (!pane || pane.kind === "shell") return unavailable("no-session");
+  if (!pane.agentSessionId && !adapterFor(adapters, pane.agent).context) return unavailable("no-session");
 
   try {
-    const page = await transcripts.page(pane.agentSessionId, historyParams(url));
+    const params = historyParams(url);
+    let page: Omit<PaneHistoryResponse & { available: true }, "paneId" | "available"> | null;
+    if (pane.agentSessionId) {
+      page = await transcripts.page(pane.agentSessionId, params);
+    } else {
+      const path = await resolveWithoutSession({
+        source: transcripts.source,
+        paneProcess: (id) => herdr.paneProcess(id),
+        startedAt: processStartedAt,
+        paneId,
+        cwd: pane.cwd,
+      });
+      page = path === null ? null : await transcripts.pageAt(path, params);
+    }
     if (page === null) return unavailable("no-log");
     return json({ paneId, available: true, ...page } satisfies PaneHistoryResponse, accept);
   } catch (err) {

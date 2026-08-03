@@ -278,6 +278,7 @@ const server = startServer({
   board,
   copilot: copilotBoard,
   context: contextTracker,
+  adapters,
 });
 
 const shutdown = async () => {

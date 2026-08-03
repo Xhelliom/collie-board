@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider, useParams } from "react-router";
@@ -454,8 +454,17 @@ describe("AgentChat — history affordance", () => {
     expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
   });
 
-  it("is hidden when the pane has no agent session (a shell, or a harness without one)", () => {
+  // Deliberately NOT gated on `agentSessionId` any more: herdr only reports it once the optional
+  // integration hook is planted, and the bridge resolves the transcript from the pane's process
+  // otherwise — the same route the context gauge has always used.
+  it("is offered for an agent pane with no session id (the default install)", () => {
     renderChat(); // fixture agents carry no agentSessionId
+    expect(screen.getByRole("button", { name: /conversation history/i })).toBeInTheDocument();
+  });
+
+  it("is hidden on a bare shell, which has no agent and therefore no transcript", () => {
+    const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
+    renderChat({ agent: shell, agents: [shell] });
     expect(screen.queryByRole("button", { name: /conversation history/i })).not.toBeInTheDocument();
   });
 
@@ -470,6 +479,65 @@ describe("AgentChat — history affordance", () => {
     const pill = screen.getByText("needs you"); // fixtureAgents[0] is blocked → "needs you"
     // Node.compareDocumentPosition: FOLLOWING (4) means the pill comes after History in the DOM.
     expect(history.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+// Terminal ⇄ Reading: two modes of ONE screen. The mirror is the mode you pilot in (native dialog
+// buttons, key grammars, statusline); reading renders the agent's own transcript, which was never cut
+// to a terminal's columns. The state is a display pref, so it's per device and survives a reload.
+describe("AgentChat — terminal / reading toggle", () => {
+  // An agent pane, integration or not — the bridge finds the transcript either way.
+  const withTranscript = () => fixtureAgents[0]!;
+  beforeEach(() => localStorage.clear());
+
+  it("is hidden on a bare shell, which has no transcript to read", () => {
+    const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
+    renderChat({ agent: shell, agents: [shell] });
+    expect(screen.queryByRole("group", { name: /view mode/i })).not.toBeInTheDocument();
+  });
+
+  it("opens on Terminal and swaps the mirror for the transcript on Reading", async () => {
+    const user = userEvent.setup();
+    const agent = withTranscript();
+    renderChat({ agent, agents: [agent], text: "recent pane output" });
+
+    expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /reading view/i }));
+
+    // The transcript (MSW's default history fixture) replaces the mirror; the composer stays.
+    expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
+    expect(screen.queryByText(/recent pane output/)).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/type a reply/i)).toBeInTheDocument();
+  });
+
+  it("persists the mode per device, so a remount comes back reading", async () => {
+    const user = userEvent.setup();
+    const agent = withTranscript();
+    renderChat({ agent, agents: [agent] });
+    await user.click(screen.getByRole("button", { name: /reading view/i }));
+    await screen.findByText("One commit: abc1234.");
+
+    cleanup();
+    renderChat({ agent, agents: [agent] });
+    expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("returns to an untouched terminal mode — find, mirror and all", async () => {
+    const user = userEvent.setup();
+    const agent = withTranscript();
+    renderChat({ agent, agents: [agent], text: "recent pane output" });
+
+    await user.click(screen.getByRole("button", { name: /reading view/i }));
+    // Find searches the mirror's buffer, so it belongs to terminal mode only.
+    expect(screen.queryByRole("button", { name: /find in output/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /terminal view/i }));
+    expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /find in output/i })).toBeInTheDocument();
   });
 });
 

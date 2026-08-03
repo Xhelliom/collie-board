@@ -15,6 +15,14 @@ export interface DisplayPrefs {
    * The universal fallback, made user-controllable.
    */
   rawTerminal: boolean;
+  /**
+   * Reading mode (default: false). The pane screen has two modes of the same screen, not two screens:
+   * TERMINAL is the mirror — faithful to the TUI, native dialog buttons, the mode you PILOT in — and
+   * READING renders the agent's own transcript as prose, which is the mode you READ in. Per device,
+   * because it's about the screen in your hand: the same conversation is worth mirroring on a laptop
+   * and worth reflowing on a phone.
+   */
+  reading: boolean;
 }
 
 const STORAGE_KEY = "collie:display-prefs:v3";
@@ -44,7 +52,7 @@ export function wrapDefaultFor(viewportWidth: number): boolean {
 
 function defaults(): DisplayPrefs {
   const width = typeof window === "undefined" ? 0 : window.innerWidth;
-  return { wrap: wrapDefaultFor(width), fontSize: 12, rawTerminal: false };
+  return { wrap: wrapDefaultFor(width), fontSize: 12, rawTerminal: false, reading: false };
 }
 
 function clampFont(n: number): number {
@@ -63,6 +71,7 @@ function loadPrefs(): DisplayPrefs {
       wrap: typeof p.wrap === "boolean" ? p.wrap : DEFAULTS.wrap,
       fontSize: typeof p.fontSize === "number" ? clampFont(p.fontSize) : DEFAULTS.fontSize,
       rawTerminal: typeof p.rawTerminal === "boolean" ? p.rawTerminal : DEFAULTS.rawTerminal,
+      reading: typeof p.reading === "boolean" ? p.reading : DEFAULTS.reading,
     };
   } catch {
     return defaults();
@@ -100,6 +109,8 @@ export interface UseDisplayPrefsReturn {
   stepFontSize: (delta: number) => void;
   /** Toggle or explicitly set the raw-terminal escape hatch. */
   setRawTerminal: (raw: boolean) => void;
+  /** Switch the pane screen between the terminal mirror and the reading view. */
+  setReading: (reading: boolean) => void;
 }
 
 export function useDisplayPrefs(): UseDisplayPrefsReturn {
@@ -137,5 +148,13 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
     });
   }, []);
 
-  return { prefs, setWrap, setFontSize, stepFontSize, setRawTerminal };
+  const setReading = useCallback((reading: boolean) => {
+    setPrefs((p) => {
+      const next: DisplayPrefs = { ...p, reading };
+      savePrefs(next);
+      return next;
+    });
+  }, []);
+
+  return { prefs, setWrap, setFontSize, stepFontSize, setRawTerminal, setReading };
 }

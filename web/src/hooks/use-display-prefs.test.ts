@@ -9,7 +9,7 @@ describe("useDisplayPrefs", () => {
 
   it("returns defaults when localStorage is empty", () => {
     const { result } = renderHook(() => useDisplayPrefs());
-    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false });
+    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false, reading: false });
   });
 
   it("persists wrap=true and reloads it on mount", () => {
@@ -26,10 +26,20 @@ describe("useDisplayPrefs", () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).wrap).toBe(false);
   });
 
+  // The stored blob deliberately predates `reading` — a device that upgrades mid-session must load,
+  // not fall back to every default because one key is new.
   it("loads persisted prefs from localStorage on mount", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ wrap: false, fontSize: 14, rawTerminal: true }));
     const { result } = renderHook(() => useDisplayPrefs());
-    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 14, rawTerminal: true });
+    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 14, rawTerminal: true, reading: false });
+  });
+
+  it("persists reading mode and reloads it on mount (the mode is per device)", () => {
+    const { result } = renderHook(() => useDisplayPrefs());
+    act(() => result.current.setReading(true));
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).reading).toBe(true);
+    const { result: reloaded } = renderHook(() => useDisplayPrefs());
+    expect(reloaded.current.prefs.reading).toBe(true);
   });
 
   it("persists rawTerminal and reloads it on mount (the escape hatch survives a reload)", () => {
@@ -75,12 +85,12 @@ describe("useDisplayPrefs", () => {
   it("falls back to defaults on malformed JSON", () => {
     localStorage.setItem(STORAGE_KEY, "not-json{{{");
     const { result } = renderHook(() => useDisplayPrefs());
-    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false });
+    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false, reading: false });
   });
 
   it("falls back to defaults when stored value is not an object", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(42));
     const { result } = renderHook(() => useDisplayPrefs());
-    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false });
+    expect(result.current.prefs).toEqual({ wrap: false, fontSize: 12, rawTerminal: false, reading: false });
   });
 });

@@ -38,3 +38,34 @@ describe("MarkdownText — code block copy button", () => {
     expect(screen.getByRole("button", { name: "Copy code block" })).toBeDisabled();
   });
 });
+
+// A table's SHAPE is the phone-specific decision: narrow enough and it stays a grid, wider and a row
+// becomes a card, because four columns on a 360px screen is a horizontal pan.
+describe("MarkdownText — tables", () => {
+  it("renders a narrow table as a real table", () => {
+    render(<MarkdownText text={"| file | change |\n|---|---|\n| a.ts | fixed |"} />);
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "file" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "a.ts" })).toBeInTheDocument();
+  });
+
+  it("renders a wide table as one labelled card per row, not a grid", () => {
+    render(
+      <MarkdownText
+        text={"| a | b | c | d |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |"}
+      />,
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    // Every cell survives, each next to the header that names it.
+    for (const t of ["a", "b", "c", "d", "1", "2", "3", "4"]) {
+      expect(screen.getByText(t)).toBeInTheDocument();
+    }
+  });
+
+  // Same boundary as the rest of this renderer: structure comes from the AST, content is text nodes.
+  it("a cell holding markup renders as text, never as elements", () => {
+    render(<MarkdownText text={"| x |\n|---|\n| <img src=x onerror=alert(1)> |"} />);
+    expect(screen.getByRole("cell").querySelector("img")).toBeNull();
+    expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
+  });
+});

@@ -375,6 +375,16 @@ describe("historyParams — transcript paging params", () => {
   test("an empty cursor is omitted, not passed as an empty match", () => {
     expect(params("?before=")).toEqual({ limit: 200 });
   });
+
+  test("the forward cursor is carried the same way", () => {
+    expect(params("?after=abc-123")).toEqual({ limit: 200, after: "abc-123" });
+    expect(params(`?after=${"x".repeat(500)}`)).toEqual({ limit: 200 });
+  });
+
+  // A follower must never be paged backwards by a stale `before` it happens to still carry.
+  test("after wins over before when both are sent", () => {
+    expect(params("?before=old&after=new")).toEqual({ limit: 200, after: "new" });
+  });
 });
 
 describe("deviceAuth — per-device authorisation", () => {

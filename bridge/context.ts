@@ -20,7 +20,7 @@ import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { BoardDb } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { latestUsage, type TranscriptSource } from "./transcript.ts";
+import { latestUsage, resolveWithoutSession, type TranscriptSource } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
 import type { AgentView } from "./types.ts";
 
@@ -175,16 +175,16 @@ export class ContextTracker {
    * Everything degrades: no pid, no /proc, no birth times → the by-directory guess.
    */
   private async resolveWithoutIntegration(paneId: string, cwd: string): Promise<string | null> {
-    try {
-      const proc = await this.herdr.paneProcess(paneId);
-      const startedAt = proc ? await processStartedAt(proc.pid) : null;
-      if (proc && startedAt !== null) {
-        return await this.source.resolveForProcess(proc.cwd || cwd, startedAt);
-      }
-    } catch {
-      // herdr couldn't tell us, or this platform has no /proc — fall through.
-    }
-    return this.source.resolveByCwd(cwd);
+    // The mechanism lives in transcript.ts, next to the two resolutions it picks between — the history
+    // route needs the identical rule, and two copies of "which log is this pane's" is exactly the kind
+    // of duplicate that drifts into showing two different conversations for one pane.
+    return resolveWithoutSession({
+      source: this.source,
+      paneProcess: (id) => this.herdr.paneProcess(id),
+      startedAt: processStartedAt,
+      paneId,
+      cwd,
+    });
   }
 
   /** Push `$ctx` onto the pane so herdr's own Agents sidebar shows the same number the phone does. */

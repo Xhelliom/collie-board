@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate, useRevalidator } from "react-router";
-import { ArrowUpToLine, Loader2, ScrollText, Search, TerminalSquare } from "lucide-react";
+import { ArrowUpToLine, BookOpenText, Loader2, ScrollText, Search, TerminalSquare } from "lucide-react";
 import { useSwipeUp } from "@/hooks/use-swipe";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
@@ -23,6 +23,7 @@ import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
 import { PaneStrip } from "@/components/pane-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
+import { ReadingView } from "@/components/reading-view";
 import { StatusArea } from "@/components/status-area";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
 import { submitPromptOption } from "@/lib/prompt-action";
@@ -110,7 +111,7 @@ export function AgentChat({
   const connecting = isConnecting({ bridge, error, stalled });
   const { newTab } = useSpaceActions();
   // Single display-prefs instance: the View controls (in <Composer>) write it, the mirror reads it.
-  const { prefs, setWrap, stepFontSize, setRawTerminal } = useDisplayPrefs();
+  const { prefs, setWrap, stepFontSize, setRawTerminal, setReading } = useDisplayPrefs();
   // Raw-terminal escape hatch: when on, every Claude grammar is bypassed and the plain mirror shows,
   // so a mis-detected/mis-rendered dialog can always be driven by hand with the keys pad.
   const grammarsOn = !prefs.rawTerminal;
@@ -166,16 +167,19 @@ export function AgentChat({
 
   // The agent's own statusline (model · ctx% · cwd · branch · tokens) is stripped off the mirror by
   // stripChrome so it doesn't duplicate the composer — but it carries real context (the branch, most
-  // notably), so we re-surface that one line as app chrome just above the composer, where it sat in
-  // the TUI. Routed through the SAME adapter (adapterFor) whose buildBlocks strips the chrome, so the
-  // two can't drift; null when there's no adapter for the agent, a menu is up, or no box at the tail,
-  // in which case the strip is hidden. A second parse of `display`, but memoised on it, so it only
-  // recomputes when the buffer content changes — off the render hot path.
-  const statusLine = useMemo(
+  // notably), so we re-surface it as app chrome just above the composer, where it sat in the TUI.
+  // EVERY line under the box, not just the first: a `statusLine` hook paints its OWN line above
+  // Claude's — a user running one saw `[PONYTAIL]` here and nothing else — and the line below carries
+  // the permission / auto mode. Which of them matters isn't ours to guess (see extractStatusLines).
+  // Routed through the SAME adapter (adapterFor) whose buildBlocks strips the chrome, so the two can't
+  // drift; empty when there's no adapter for the agent, a menu is up, or no box at the tail, in which
+  // case the strip is hidden. A second parse of `display`, but memoised on it, so it only recomputes
+  // when the buffer content changes — off the render hot path.
+  const statusLines = useMemo(
     () =>
       grammarsOn
-        ? adapterFor(agent?.agent)?.extractStatusLine(splitLines(parseAnsi(display))) ?? null
-        : null,
+        ? adapterFor(agent?.agent)?.extractStatusLines(splitLines(parseAnsi(display))) ?? []
+        : [],
     [display, agent?.agent, grammarsOn],
   );
 
@@ -249,7 +253,31 @@ export function AgentChat({
   // `moreScrollback`: Herdr says this pane can still yield lines beyond the window we've asked for,
   // AND we're under the cap Herdr's own read clamp imposes. `readableLines` is undefined on an older
   // bridge/Herdr; treat that as "no idea" and stay hidden rather than offer a tap that fetches nothing.
-  const historyAvailable = Boolean(agent?.agentSessionId);
+  // Any AGENT pane, not just one carrying `agentSessionId`. That field only exists once the optional
+  // `herdr integration install <agent>` hook is planted, which most installs don't have — gating on it
+  // hid History (and reading mode) from nearly everyone, while the bridge could resolve the transcript
+  // from the pane's process all along (it already does, for the context gauge).
+  //
+  // ponytail: "is an agent pane" is a slightly loose gate — for a harness that keeps no readable
+  // transcript the bridge answers `no-log` and the view says so, which costs one wasted tap. The
+  // bridge is where the truth lives (it checks the agent's adapter before resolving by directory, so a
+  // wrong conversation can never be served). Expose that capability on AgentView if a non-Claude agent
+  // ever makes the empty tap annoying.
+  const historyAvailable = Boolean(agent) && agent?.kind !== "shell";
+
+  // READING MODE — the second mode of this screen (see components/reading-view.tsx). Gated on a
+  // transcript existing at all, so the toggle never leads somewhere empty: a shell pane, or an agent
+  // whose harness keeps no session log, simply has no reading mode to offer.
+  const reading = prefs.reading && historyAvailable;
+  // Reading mode still depends on the mirror — the dialog probe, the statusline and the terminal-draft
+  // preview are all derived from `display`, which stops tracking the live text while the mirror is
+  // frozen. Nothing can un-freeze it once the mirror is unmounted (freezing is a scroll gesture), so a
+  // stale freeze would silently blind the dialog banner. Re-follow on entry, and the three probes stay
+  // live for as long as reading mode is up.
+  useEffect(() => {
+    if (reading) setFollowing(true);
+  }, [reading]);
+
   const moreScrollback =
     agent?.readableLines !== undefined &&
     requestedLines < agent.readableLines &&
@@ -551,7 +579,45 @@ export function AgentChat({
         // from the last snapshot doesn't masquerade as current. A bare shell shows a muted "shell" tag.
         rightLead={
           <>
-            {display && (
+            {/* Terminal ⇄ Reading. The two modes of this screen, side by side rather than buried in a
+                sheet, because which one you're in changes what the screen IS — and the answer has to
+                be visible at a glance. Icons only: three glyphs of label would push the pane title off
+                a 360px row. Shown only when a transcript exists to read (see `reading`). */}
+            {historyAvailable && (
+              <div
+                role="group"
+                aria-label="View mode"
+                className="-mr-1 flex items-center overflow-hidden rounded-lg border"
+              >
+                <button
+                  type="button"
+                  onClick={() => setReading(false)}
+                  aria-pressed={!reading}
+                  aria-label="Terminal view"
+                  title="Terminal"
+                  className={`flex h-7 w-8 items-center justify-center transition-colors ${
+                    reading ? "text-muted-foreground active:bg-muted/60" : "bg-muted text-foreground"
+                  }`}
+                >
+                  <TerminalSquare className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReading(true)}
+                  aria-pressed={reading}
+                  aria-label="Reading view"
+                  title="Reading"
+                  className={`flex h-7 w-8 items-center justify-center border-l transition-colors ${
+                    reading ? "bg-muted text-foreground" : "text-muted-foreground active:bg-muted/60"
+                  }`}
+                >
+                  <BookOpenText className="size-3.5" />
+                </button>
+              </div>
+            )}
+            {/* Find searches the MIRROR's buffer, so it belongs to terminal mode — reading mode has
+                its own source, and History is where a search across the whole thread lives. */}
+            {display && !reading && (
               <button
                 type="button"
                 onClick={openFind}
@@ -564,7 +630,7 @@ export function AgentChat({
             )}
             {agent && (
               <>
-                {agent.agentSessionId && (
+                {historyAvailable && (
                   <button
                     type="button"
                     onClick={() => navigate(historyPath(paneId, session))}
@@ -671,6 +737,25 @@ export function AgentChat({
           />
         )}
 
+        {/* The screen's body: the terminal mirror, or the reading view over the same conversation.
+            Everything below (statusline, gauge, composer) belongs to both and doesn't move. */}
+        {reading ? (
+          <ReadingView
+            paneId={paneId}
+            session={session}
+            agent={agent?.agent}
+            // The poll's own heartbeat, NOT the pane's `revision` — herdr 0.7.x returns 0 for every
+            // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
+            poll={revalidator.state}
+            working={agent?.status === "working"}
+            // A message typed while the agent was busy lives on the terminal's input line and nowhere
+            // else — the same stabilised value the composer surfaces as "Draft in terminal".
+            pendingInput={terminalDraft}
+            dialogPresent={dialogPresent}
+            onShowTerminal={() => setReading(false)}
+          />
+        ) : (
+        <>
         {/* Terminal mirror — tapping it focuses the composer so you can start typing right away
             (unless you're selecting text to copy, which the tap must not collapse). */}
         {/* min-w-0 only — do NOT set overflow-x-hidden here: that forces overflow-y to `auto` (CSS
@@ -743,6 +828,8 @@ export function AgentChat({
             )}
           </ChatMessageList>
         </div>
+        </>
+        )}
 
         {/* Bottom region: the pane-switch handle + composer. The status line USED to float here as an
             overlay just above the composer, but it covered the terminal tail (the prompt/cursor and
@@ -769,9 +856,13 @@ export function AgentChat({
           {/* The agent's statusline, re-surfaced as app chrome (its branch/model/ctx would otherwise
               vanish with the stripped input box). Sits directly above the composer, as it did in the
               TUI. Verbatim text — a React text node, so no XSS surface. */}
-          {statusLine && (
-            <div className="truncate border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
-              {statusLine}
+          {statusLines.length > 0 && (
+            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
+              {statusLines.map((line, i) => (
+                <div key={i} className="truncate">
+                  {line}
+                </div>
+              ))}
             </div>
           )}
 
