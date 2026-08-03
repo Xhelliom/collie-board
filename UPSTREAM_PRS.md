@@ -362,9 +362,9 @@ wrong line. The comments in that block use `’`.
 
 | | |
 |---|---|
-| Commit | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* |
-| Files | `web/src/hooks/use-media-query.ts`, `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board.ts` and `card-tile.tsx`, which are the fork's own |
-| Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the four card/board files and what's left applies unchanged. |
+| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) |
+| Files | `web/src/hooks/use-media-query.ts`, `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
+| Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the card/board files and what's left applies unchanged. |
 
 Upstream is `max-w-screen-sm` on every route, which is right on the device it was built for and
 leaves a desktop browser showing a 640px column in the middle of nothing. Four bricks here are
@@ -385,9 +385,17 @@ bottom one does), and `CommandPalette` dropped a `max-h-[85dvh]` override that c
 height comes from `inset-y-0`.
 
 **Lists that use the width.** `AgentList`, `SpaceView` and `SpaceOverview` swap `flex flex-col` for
-`grid` — identical below `lg`, two or three across above it. `AgentCard` is self-contained, so it is
-a container change and nothing else. Home and the space route widen to `lg:max-w-6xl`; Settings
-deliberately does not, because a form does not want 1400px.
+`grid` — identical below `lg`, then `auto-fill minmax(24rem, 1fr)` above it. Not a breakpoint
+ladder, because the question is not how wide the viewport is but how many readable cards fit in it,
+and CSS answers that better than three guessed values; `auto-fill` rather than `auto-fit` so a lone
+card stays 24rem instead of stretching across a 27" display. `AgentCard` is self-contained, so this
+is a container change and nothing else. Home and the space route drop their max-width entirely.
+
+**Not one "desktop width".** Worth stealing as a rule, not just as a diff: the screens that are
+SURFACES (a dashboard, a board) lose their ceiling, the screens that are DOCUMENTS keep one — a
+2000px line of prose is unreadable however big the display is — and a settings form stays narrow.
+Upstream has the same split (dashboard/space vs. the pane mirror's text), so the same rule applies
+even though its screens are not ours.
 
 **A note where the pane screen is.** Upstream's centre of gravity is the mirror, and an honest
 desktop version of it is a two-pane layout (list left, mirror right) — a rework of `AgentChat`, not a
