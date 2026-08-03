@@ -1,4 +1,12 @@
-import { Check, ChevronRight, CornerDownRight, GitBranch, Layers, Lock } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  CornerDownRight,
+  FolderGit2,
+  GitBranch,
+  Layers,
+  Lock,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -55,6 +63,7 @@ export function CardTile({
   onClick,
   dependency,
   parent,
+  repo,
   drag,
 }: {
   card: CardView;
@@ -75,6 +84,12 @@ export function CardTile({
    * parent, at the top of its page.
    */
   parent?: string;
+  /**
+   * The repo this card belongs to, named — only when the board is showing every repo at once and
+   * more than one is in play. Under a repo scope the strip above says it once for the whole board,
+   * and repeating it on every tile would be a column of the same word.
+   */
+  repo?: string;
   /**
    * Makes the tile a drag source. Absent = not draggable, which is the default and what a phone
    * always gets: HTML5 drag needs a long-press on touch, and a long-press on a card tile is a
@@ -173,6 +188,15 @@ export function CardTile({
             </div>
           )}
           <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+            {/* First, and shrink-0: in the global view this is the answer to "whose card is this",
+                which is the one thing the strip above is not saying. Its icon doubles as the
+                separator from the cwd that may follow it. */}
+            {repo && (
+              <span className="flex shrink-0 items-center gap-1">
+                <FolderGit2 className="size-3 shrink-0" />
+                {repo}
+              </span>
+            )}
             {/* Only known once a pane backs the card — same restriction as ctx%, same reason. */}
             {card.runtime && <span className="truncate font-mono">{shortCwd(card.runtime.cwd)}</span>}
             {/* ctx% right after cwd, and shrink-0: it's the whole point of G1, so if the row is tight,

@@ -15,6 +15,12 @@ interface NewCardSheetProps {
   onCreate: (input: CardInput) => void;
   /** The tags already in use, most recent first — the board derives it with `tagsOf`. */
   tags: string[];
+  /**
+   * The repo the board is currently scoped to, if any. Wins over "the most recently carded repo"
+   * for the pre-selection — a scoped board has already said where you are working. Ignored when the
+   * path isn't in the picker (hidden, or gone), which falls back to the usual first entry.
+   */
+  repoPath?: string | null;
 }
 
 // Create a card. The big field is deliberately a plain multi-line textarea: on Android that box IS
@@ -24,7 +30,7 @@ interface NewCardSheetProps {
 // The title is derived from the first line when you don't type one — dictating "add a diff view,
 // scoped to the card's branch, must render --stat first" should produce a usable card with no extra
 // taps. A real reformulation (title + spec + acceptance + branch name) is the copilot's job.
-export function NewCardSheet({ open, onClose, onCreate, tags }: NewCardSheetProps) {
+export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }: NewCardSheetProps) {
   const [text, setText] = useState("");
   const [tag, setTag] = useState("");
   const [repos, setRepos] = useState<RepoChoice[]>([]);
@@ -64,9 +70,9 @@ export function NewCardSheet({ open, onClose, onCreate, tags }: NewCardSheetProp
           setManual(true);
           return;
         }
-        // The first entry is the most recently carded repo — the likely answer, pre-selected so the
-        // common case is "dictate, tap Add".
-        const first = list[0]!;
+        // The board's scope if it has one, else the first entry — the most recently carded repo.
+        // Either way the likely answer is pre-selected, so the common case is "dictate, tap Add".
+        const first = (scope && list.find((r) => r.path === scope)) || list[0]!;
         setSelected(first);
         setBaseRef(first.defaultBranch ?? "");
       })
@@ -77,7 +83,9 @@ export function NewCardSheet({ open, onClose, onCreate, tags }: NewCardSheetProp
     return () => {
       cancelled = true;
     };
-  }, [open]);
+    // `scope` can only change while the sheet is CLOSED (the strip is behind it), where this
+    // early-returns — listing it just keeps the closure honest.
+  }, [open, scope]);
 
   function pick(repo: RepoChoice) {
     setSelected(repo);

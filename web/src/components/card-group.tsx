@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CardTile } from "@/components/card-tile";
 import { CardStatusChip } from "@/components/card-status-chip";
-import { BOARD_COLUMNS, type CardView } from "@/lib/board";
+import { BOARD_COLUMNS, repoName, type CardView } from "@/lib/board";
 import { dependencyInfo, groupOpenByDefault } from "@/lib/board-groups";
 
 // A container card and the sub-tasks it was split into, as one entry on the board.
@@ -22,6 +22,7 @@ export function CardGroup({
   byId,
   onOpen,
   summaryOnly = false,
+  showRepo = false,
 }: {
   container: CardView;
   subTasks: CardView[];
@@ -35,6 +36,8 @@ export function CardGroup({
    * scattered tiles can't say — how this dictation is doing, taken as a whole.
    */
   summaryOnly?: boolean;
+  /** Global view, several repos in play — the sub-tasks name theirs, like any other tile. */
+  showRepo?: boolean;
 }) {
   // The default follows the column's job (see board-groups.ts); a tap overrides it for this
   // session only. Nothing is persisted: a preference that outlives the reason for it is worse than
@@ -90,6 +93,7 @@ export function CardGroup({
               card={child}
               onClick={() => onOpen(child.id)}
               dependency={dependencyInfo(child, byId)}
+              repo={showRepo && child.repoPath ? repoName(child.repoPath) : undefined}
             />
           ))}
         </div>
