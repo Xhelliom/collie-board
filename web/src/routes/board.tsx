@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   useLoaderData,
   useNavigate,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
 import { TagFilter } from "@/components/tag-filter";
+import { RepoFilter } from "@/components/repo-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
@@ -28,8 +29,12 @@ import {
   canDropCard,
   cardPath,
   createCard,
+  loadRepoScope,
   patchCard,
   positionFor,
+  repoName,
+  reposOf,
+  saveRepoScope,
   tagsOf,
   type CardInput,
   type CardStatus,
@@ -83,15 +88,48 @@ export function BoardRoute() {
   const revalidator = useRevalidator();
   const stalled = useLoadingStalled();
   const desktop = useIsDesktop();
-  // The tag filter lives in the URL, not in a useState — three things come free that a component
-  // state doesn't have: it survives opening a card and coming back (the board unmounts in between,
-  // which is exactly when losing the filter would be most annoying), the browser's Back button
-  // undoes it, and a filtered board can be sent to yourself as a link. `replace` so a run of five
-  // tags doesn't bury the way out of the board under five history entries.
+  // Both filters live in the URL, not in a useState — three things come free that a component state
+  // doesn't have: they survive opening a card and coming back (the board unmounts in between, which
+  // is exactly when losing the filter would be most annoying), the browser's Back button undoes
+  // them, and a filtered board can be sent to yourself as a link. `replace` so a run of five tags
+  // doesn't bury the way out of the board under five history entries.
   const [params, setParams] = useSearchParams();
   const active = params.get("tag");
-  const pick = (tag: string | null) =>
-    setParams(tag === null ? {} : { tag }, { replace: true, preventScrollReset: true });
+  const activeRepo = params.get("repo");
+  // One key at a time, the rest of the query kept: the two filters compose, so setting a tag must
+  // not silently drop the repo scope it is narrowing.
+  const setParam = (key: "tag" | "repo", value: string | null) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === null) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true, preventScrollReset: true },
+    );
+  const pick = (tag: string | null) => setParam("tag", tag);
+  // The repo scope is also REMEMBERED (ADR 0006) — a tag is a momentary lens, a repo is where you
+  // are working today, and the card page returns to a bare `/board` with no query on it.
+  const pickRepo = (repo: string | null) => {
+    saveRepoScope(repo);
+    setParam("repo", repo);
+  };
+  /** Both filters off, in ONE navigation — two `setParam` calls in a row would race on the query. */
+  const clearFilters = () => {
+    saveRepoScope(null);
+    setParams({}, { replace: true, preventScrollReset: true });
+  };
+
+  // …which is what this restores: a board opened with nothing in its URL comes up on the scope you
+  // last chose. Once, on mount, and by writing the URL rather than shadowing it — otherwise the
+  // address bar and the board would disagree about what is on screen.
+  useEffect(() => {
+    if (params.has("repo")) return;
+    const last = loadRepoScope();
+    if (last) setParam("repo", last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: this seeds, it doesn't sync.
+  }, []);
   const [newOpen, setNewOpen] = useState(false);
   // The card in hand, and the SLOT under the pointer — which column, and at which index inside it.
   // View state, both of it, and both die with the drop; nothing about a drag is worth persisting.
@@ -101,16 +139,32 @@ export function BoardRoute() {
   // `dragend` fires in the same tick as the drop and would read a stale render's value.
   const landing = useRef(false);
 
+  // The repos on offer come from EVERY card, scoped or not — that strip is how you leave the repo
+  // you are in, so it can't be narrowed by the scope it is meant to switch. Same "keep the active
+  // one" rule as the tags below, and for the same reason.
+  const reposInUse = reposOf(data.cards);
+  const repos =
+    activeRepo && !reposInUse.some((r) => r.path === activeRepo)
+      ? [{ path: activeRepo, name: repoName(activeRepo) }, ...reposInUse]
+      : reposInUse;
+  // Repo first, so what follows describes the board you are actually looking at.
+  const scoped = activeRepo ? data.cards.filter((c) => c.repoPath === activeRepo) : data.cards;
+
   // The tags on offer are DERIVED from the cards already on screen — no request, and it can't
-  // disagree with what is rendered. The active one is kept in the list even after its last card
-  // stops carrying it (retagged, deleted, archived while you were looking): otherwise the board
-  // empties and simultaneously loses the only thing on screen saying why.
-  const inUse = tagsOf(data.cards);
+  // disagree with what is rendered. From the SCOPED list, so the two strips never offer a
+  // combination that is empty: inside a repo you are shown that repo's tags, and nothing else. The
+  // active one is kept in the list even after its last card stops carrying it (retagged, deleted,
+  // archived while you were looking, or now in another repo): otherwise the board empties and
+  // simultaneously loses the only thing on screen saying why.
+  const inUse = tagsOf(scoped);
   const tags = active && !inUse.includes(active) ? [active, ...inUse] : inUse;
   // The filter is applied HERE, before anything else reads the list, so every count, every column
   // and the empty state all describe the same board. A child whose container is filtered out stands
   // alone rather than vanishing — `boardEntries` already handles a missing parent that way.
-  const cards = active ? data.cards.filter((c) => c.tag === active) : data.cards;
+  const cards = active ? scoped.filter((c) => c.tag === active) : scoped;
+  // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
+  // more than one — inside a scope the strip above already answers it for every tile at once.
+  const showRepo = !activeRepo && repos.length > 1;
 
   // Cards first become ENTRIES, then get bucketed by column. On a phone a container and its
   // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
@@ -192,6 +246,9 @@ export function BoardRoute() {
   const dropTarget = (status: CardStatus) => held !== null && canDropCard(held.from, status);
   /** The card being dragged, for the ghost that previews where it lands. */
   const heldCard = held ? byId.get(held.id) : undefined;
+  /** The repo name a tile shows, or nothing — see `showRepo`. */
+  const repoLabel = (card: CardView) =>
+    showRepo && card.repoPath ? repoName(card.repoPath) : undefined;
 
   // THE LANDING SPOT: the card itself, faded, in the exact slot it will occupy, pushing whatever is
   // below it down as it moves. Showing the real tile rather than a dashed rectangle answers "what am
@@ -200,7 +257,12 @@ export function BoardRoute() {
   // pointer event, so it can never eat the drop it is advertising.
   const ghost = (card: CardView) => (
     <div inert className="opacity-50">
-      <CardTile card={card} onClick={() => {}} dependency={dependencyInfo(card, byId)} />
+      <CardTile
+        card={card}
+        onClick={() => {}}
+        dependency={dependencyInfo(card, byId)}
+        repo={repoLabel(card)}
+      />
     </div>
   );
 
@@ -220,7 +282,10 @@ export function BoardRoute() {
         rightTrail={<SettingsGear session={root?.session} />}
       />
 
-      {/* Outside the scroller on purpose — see TagFilter. */}
+      {/* Outside the scroller on purpose — see TagFilter. Repo above tag: coarse scope, then fine.
+          Each row hides itself when it has nothing to offer, so the common board — one repo, no
+          tags — is still a board with no filter chrome at all. */}
+      <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
       <TagFilter tags={tags} active={active} onPick={pick} />
 
       {/* One scroller on a phone (the whole board), FOUR on a wide screen (one per lane) — the
@@ -235,13 +300,28 @@ export function BoardRoute() {
           {empty ? (
             <div className="px-4 py-12 text-center text-sm text-muted-foreground lg:col-span-4">
               {/* "Nothing here" and "nothing here MATCHES" are different facts, and telling a
-                  filtered board from an empty one is the whole hazard of adding a filter. */}
-              {active ? (
+                  filtered board from an empty one is the whole hazard of adding a filter. Both
+                  filters get named — with a remembered repo scope, "no cards" can now greet you on
+                  a board that opened filtered without you touching anything this session. */}
+              {active || activeRepo ? (
                 <>
                   <p>
-                    No cards tagged “<span className="font-medium">{active}</span>”.
+                    No cards
+                    {activeRepo && (
+                      <>
+                        {" "}
+                        in <span className="font-medium">{repoName(activeRepo)}</span>
+                      </>
+                    )}
+                    {active && (
+                      <>
+                        {" "}
+                        tagged “<span className="font-medium">{active}</span>”
+                      </>
+                    )}
+                    .
                   </p>
-                  <Button variant="outline" className="mt-3" onClick={() => pick(null)}>
+                  <Button variant="outline" className="mt-3" onClick={clearFilters}>
                     Show all cards
                   </Button>
                 </>
@@ -396,12 +476,14 @@ export function BoardRoute() {
                                     byId={byId}
                                     onOpen={(cardId) => navigate(cardPath(cardId))}
                                     summaryOnly={desktop}
+                                    showRepo={showRepo}
                                   />
                                 ) : (
                                   <CardTile
                                     card={entry.card}
                                     onClick={() => navigate(cardPath(entry.card.id))}
                                     dependency={dependencyInfo(entry.card, byId)}
+                                    repo={repoLabel(entry.card)}
                                     // Only while scattered — under a container on a phone, the tile
                                     // is already sitting inside the thing this would name.
                                     parent={
@@ -473,6 +555,9 @@ export function BoardRoute() {
         onClose={() => setNewOpen(false)}
         onCreate={create}
         tags={tags}
+        // Same argument one axis over: a board scoped to a repo is a statement about where you are
+        // working, so the card you add from it starts there rather than in the last repo carded.
+        repoPath={activeRepo}
       />
     </div>
   );

@@ -6,7 +6,11 @@ import {
   CARD_STATUS_LABEL,
   canDropCard,
   MANUAL_STATUSES,
+  loadRepoScope,
   positionFor,
+  repoName,
+  reposOf,
+  saveRepoScope,
   tagHue,
   normalizeTag,
   tagsOf,
@@ -158,6 +162,52 @@ describe("tagsOf", () => {
 
   it("is empty on a board with no tags at all", () => {
     expect(tagsOf([card(null, 1), card(null, 2)])).toEqual([]);
+  });
+});
+
+describe("reposOf", () => {
+  const card = (repoPath: string | null, updatedAt: number) =>
+    ({ repoPath, updatedAt }) as CardView;
+
+  it("dedupes, drops repo-less cards, and puts the most recently touched repo first", () => {
+    expect(
+      reposOf([card("/a/collie", 1), card(null, 9), card("/b/herdr", 5), card("/a/collie", 7)]),
+    ).toEqual([
+      { path: "/a/collie", name: "collie" },
+      { path: "/b/herdr", name: "herdr" },
+    ]);
+  });
+
+  it("is empty on a board where no card has a repo — the strip then draws nothing", () => {
+    expect(reposOf([card(null, 1), card(null, 2)])).toEqual([]);
+  });
+});
+
+// What the board comes up on. "All repos" has to be a REMEMBERED answer and not merely the absence
+// of one — stored as "" — otherwise picking All would leave the last repo in storage and the very
+// next visit would silently scope itself again.
+describe("the remembered repo scope", () => {
+  it("gives back nothing before anything was ever chosen", () => {
+    localStorage.clear();
+    expect(loadRepoScope()).toBeNull();
+  });
+
+  it("round-trips a repo, and remembers All as All rather than as unset", () => {
+    saveRepoScope("/a/collie");
+    expect(loadRepoScope()).toBe("/a/collie");
+    saveRepoScope(null);
+    expect(loadRepoScope()).toBeNull();
+  });
+});
+
+describe("repoName", () => {
+  it("is the last segment, trailing slashes and all", () => {
+    expect(repoName("/home/me/git/collie-board")).toBe("collie-board");
+    expect(repoName("/home/me/git/collie-board/")).toBe("collie-board");
+  });
+
+  it("falls back to the path itself rather than to an empty chip", () => {
+    expect(repoName("/")).toBe("/");
   });
 });
 

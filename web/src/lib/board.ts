@@ -324,6 +324,62 @@ export function tagsOf(cards: readonly CardView[]): string[] {
   return [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag]) => tag);
 }
 
+// ── repo scope ───────────────────────────────────────────────────────────────
+
+/** A repo the board can be scoped to: the stored path, and what a chip shows for it. */
+export interface RepoScope {
+  path: string;
+  name: string;
+}
+
+/** The last segment of a repo path — what the picker already shows (`RepoChoice.name`). */
+export function repoName(path: string): string {
+  return path.replace(/\/+$/, "").split("/").pop() || path;
+}
+
+/**
+ * The repos in play, most recently touched first — derived from the cards on screen exactly like
+ * {@link tagsOf}, for the same reason: no request, and it cannot disagree with what is rendered.
+ *
+ * ponytail: two repos with the same last segment (`~/work/collie` and `~/perso/collie`) get two
+ * chips reading the same word. They still scope to different paths, so nothing is wrong beyond the
+ * label; disambiguate by parent directory if that ever actually happens to someone.
+ */
+export function reposOf(cards: readonly CardView[]): RepoScope[] {
+  const seen = new Map<string, number>();
+  for (const card of cards) {
+    if (!card.repoPath) continue;
+    seen.set(card.repoPath, Math.max(seen.get(card.repoPath) ?? 0, card.updatedAt));
+  }
+  return [...seen]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([path]) => ({ path, name: repoName(path) }));
+}
+
+/**
+ * The repo scope is REMEMBERED, unlike the tag filter — see
+ * [ADR 0006](../../../.adr/0006-the-board-scopes-by-repo-and-remembers-it.md). "All repos" is a
+ * remembered choice too, stored as the empty string, so picking it means the board opens global
+ * from then on rather than seeding itself again from the repo before it.
+ */
+const REPO_SCOPE_KEY = "collie:board-repo";
+
+export function loadRepoScope(): string | null {
+  try {
+    return localStorage.getItem(REPO_SCOPE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveRepoScope(path: string | null): void {
+  try {
+    localStorage.setItem(REPO_SCOPE_KEY, path ?? "");
+  } catch {
+    // Private-mode Safari and friends. A scope that doesn't survive a reload is a small loss.
+  }
+}
+
 // ── paths ────────────────────────────────────────────────────────────────────
 
 export function boardPath(): string {
