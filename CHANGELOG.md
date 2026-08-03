@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.70.0] - 2026-08-03
+
+### Added
+- Board: scope to one repo from a strip of chips above the columns — the sessions side's space strip, one axis over — with "All" as the global view. [ADR 0006](./.adr/0006-the-board-scopes-by-repo-and-remembers-it.md) (f604920).
+- The scope is remembered between visits, "All" included, so the board opens where you were working (f604920).
+- Repo and tag strips compose: scoping to a repo narrows the tag strip to that repo's tags (f604920).
+- In the global view a tile names its repo; under a scope it doesn't — the strip already said it (f604920).
+- A card created from a scoped board starts in that repo (f604920).
+
 ## [0.69.0] - 2026-08-03
 
 ### Added
