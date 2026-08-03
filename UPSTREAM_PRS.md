@@ -358,6 +358,49 @@ wrong line. The comments in that block use `’`.
 
 ---
 
+## 14. 🟡 A desktop mode: sheets from the right, lists that use the width, a reactive `useMediaQuery`
+
+| | |
+|---|---|
+| Commit | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* |
+| Files | `web/src/hooks/use-media-query.ts`, `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board.ts` and `card-tile.tsx`, which are the fork's own |
+| Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the four card/board files and what's left applies unchanged. |
+
+Upstream is `max-w-screen-sm` on every route, which is right on the device it was built for and
+leaves a desktop browser showing a 640px column in the middle of nothing. Four bricks here are
+Collie's, not the board's:
+
+**`useMediaQuery`.** Ten lines: `matchMedia` through `useSyncExternalStore`, at Tailwind's own `lg`
+in Tailwind's own unit so the CSS and the JS can't disagree about "wide". Upstream already had a
+width test — `wrapDefaultFor(window.innerWidth)` in `use-display-prefs` — but it reads once at mount
+and never hears a resize, which is right for a default the user then overrides and wrong for layout.
+
+**The sheet gets a side.** `BottomSheet` becomes bottom-on-phone / right-on-desktop: the same
+`SheetShell`, one `direction` apart, which is what Vaul's API is for. Every existing caller (keys pad,
+switcher, sessions, diff, palette) inherits it with no change of its own. This is the one piece that
+can't be CSS — `direction` is a prop Vaul picks its drag axis and its transform from — and the reason
+the hook above exists at all. Two things fell out of doing it: the padding rule moved from "is this
+the bottom sheet" to "is this the left nav rail" (a right-hand sheet holds the same padded content a
+bottom one does), and `CommandPalette` dropped a `max-h-[85dvh]` override that clipped a panel whose
+height comes from `inset-y-0`.
+
+**Lists that use the width.** `AgentList`, `SpaceView` and `SpaceOverview` swap `flex flex-col` for
+`grid` — identical below `lg`, two or three across above it. `AgentCard` is self-contained, so it is
+a container change and nothing else. Home and the space route widen to `lg:max-w-6xl`; Settings
+deliberately does not, because a form does not want 1400px.
+
+**A note where the pane screen is.** Upstream's centre of gravity is the mirror, and an honest
+desktop version of it is a two-pane layout (list left, mirror right) — a rework of `AgentChat`, not a
+`lg:` on a container. `routes/detail.tsx` says so in place rather than leaving the next reader to
+wonder why every screen but that one widened. Worth knowing: the part that mattered was already
+right — `wrapDefaultFor` turns wrapping off above 640px, so a wide window keeps a TUI's columns
+aligned on its own.
+
+Not in this brick, and fork-only: the four-lane board, `BOARD_LANES`, the card page's two halves, and
+`CardTile`'s container queries. Those are all about cards.
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately
