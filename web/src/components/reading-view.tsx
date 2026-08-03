@@ -1,0 +1,163 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { TriangleAlert } from "lucide-react";
+
+import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
+import { TranscriptView } from "@/components/transcript-view";
+import { fetchHistory } from "@/lib/api";
+import type { TranscriptEntry } from "@/lib/types";
+
+// The pane screen's READING mode — the same conversation the mirror shows, but as prose.
+//
+// WHY THIS EXISTS, and why it isn't a wrap fix. Herdr hands us the pane already cut to the terminal's
+// columns (~81), and the mirror then wraps that again at the phone's ~50 — so every paragraph breaks
+// twice, the second time mid-sentence. No wrap setting repairs it, because the first cut is baked into
+// the bytes. The agent's own transcript was NEVER cut: it is the Markdown Claude actually wrote. So
+// reading mode doesn't un-wrap anything — it reads from the source that was never wrapped.
+//
+// The mirror stays exactly as it was, and stays the mode you PILOT in: native dialog buttons, the key
+// grammars, the statusline. This is the mode you READ in. Both are modes of one screen — the composer,
+// the statusline and the context gauge below it belong to neither.
+//
+// NO NEW POLL LOOP (CLAUDE.md → The board). This has no timer of its own: `tick` is the pane's
+// `revision`, which the existing 1.5 s pane poll already advances whenever the terminal changed. New
+// turns are pulled with `after` (bridge/transcript.ts), so a tick that found nothing costs an empty
+// array rather than a re-download of the archive.
+
+/**
+ * Turns held/asked for. Reading mode is the RECENT conversation — the last few exchanges you'd have
+ * scrolled the mirror for. The whole archive is one tap away in History, which is the view built for it.
+ */
+export const READING_TURNS = 40;
+
+/** Ceiling on turns kept in memory, so a session left open on this mode can't grow without bound. */
+const MAX_HELD = 300;
+
+/** Why the view is empty, in the user's terms. Each is an ordinary state, not an error. */
+const UNAVAILABLE_COPY: Record<string, string> = {
+  disabled: "Transcript reading is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
+  "no-session": "This pane has no agent session, so there's nothing to read.",
+  "no-log": "No transcript file was found for this pane's session yet.",
+  error: "Couldn't read the transcript. Switch to Terminal, or try again in a moment.",
+  empty: "Nothing in the transcript yet.",
+};
+
+/**
+ * Fold a freshly-fetched tail into what we already hold.
+ *
+ * Overlap is deliberate rather than accidental: the fetch re-asks from the SECOND-newest turn, because
+ * a tool result lands by MUTATING the turn that made the call (bridge/transcript.ts folds a call and
+ * its output into one entry), so the newest turn we hold can still change after we've seen it. Cutting
+ * at the first returned uuid therefore REPLACES the stale copy instead of duplicating it.
+ *
+ * A window with no overlap at all (the log rotated under us, so the server degraded to its newest
+ * page) appends. That can leave a gap, which History shows in full — it can never show a duplicate.
+ *
+ * Pure + exported for the test.
+ */
+export function mergeTail(
+  prev: TranscriptEntry[],
+  fresh: TranscriptEntry[],
+  max = MAX_HELD,
+): TranscriptEntry[] {
+  if (fresh.length === 0) return prev;
+  const cut = prev.findIndex((e) => e.uuid === fresh[0]!.uuid);
+  const head = cut === -1 ? prev : prev.slice(0, cut);
+  return [...head, ...fresh].slice(-max);
+}
+
+export function ReadingView({
+  paneId,
+  session,
+  agent,
+  tick,
+  dialogPresent,
+  onShowTerminal,
+}: {
+  paneId: string;
+  session?: string;
+  /** The pane's agent name, for the per-turn brand icon. */
+  agent?: string;
+  /** Any value that moves when the pane changed — the pane's `revision`. Drives the incremental pull. */
+  tick: number;
+  /** A dialog is up in the TUI: it exists ONLY there, so reading mode has to say so. */
+  dialogPresent: boolean;
+  onShowTerminal: () => void;
+}) {
+  const [entries, setEntries] = useState<TranscriptEntry[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  // What we hold, readable from the fetch without making it depend on the render's closure — otherwise
+  // every arriving turn would rebuild `pull` and re-fire the effect.
+  const held = useRef<TranscriptEntry[]>([]);
+  const busy = useRef(false);
+  const listRef = useRef<ChatMessageListHandle>(null);
+
+  const pull = useCallback(async () => {
+    if (busy.current) return; // a tick landing on a slow fetch waits for the next one
+    busy.current = true;
+    try {
+      // Cursor = the SECOND-newest turn, so the newest comes back too and its tool results catch up
+      // (see mergeTail). With nothing (or one turn) held, ask for the newest page instead.
+      const cursor = held.current.at(-2)?.uuid;
+      const res = await fetchHistory(
+        paneId,
+        cursor ? { limit: READING_TURNS, after: cursor } : { limit: READING_TURNS },
+        session,
+      );
+      if (!res.available) {
+        held.current = [];
+        setEntries([]);
+        setNote(UNAVAILABLE_COPY[res.reason] ?? UNAVAILABLE_COPY.error!);
+        return;
+      }
+      const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
+      held.current = next;
+      setEntries(next);
+      setNote(next.length === 0 ? UNAVAILABLE_COPY.empty! : null);
+    } catch {
+      // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
+      if (held.current.length === 0) setNote(UNAVAILABLE_COPY.error!);
+    } finally {
+      busy.current = false;
+    }
+  }, [paneId, session]);
+
+  useEffect(() => {
+    void pull();
+  }, [pull, tick]);
+
+  // Open on the newest turn, the same place the mirror opens.
+  useEffect(() => {
+    listRef.current?.scrollToBottom();
+  }, []);
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* A dialog lives ONLY in the TUI — reading mode can't render it and the composer refuses to
+          type past it. Without this banner an agent could sit blocked behind a question the reader
+          never sees, which is the one way this mode could be worse than no mode at all. */}
+      {dialogPresent && (
+        <button
+          type="button"
+          onClick={onShowTerminal}
+          className="mx-3 mt-1.5 flex shrink-0 items-center gap-2 rounded-md border border-status-blocked/40 bg-status-blocked/15 px-3 py-2 text-left text-sm transition-colors active:bg-status-blocked/25"
+        >
+          <TriangleAlert className="size-4 shrink-0 text-status-blocked" />
+          <span className="min-w-0 flex-1">A question is waiting — it can only be answered here.</span>
+          <span className="shrink-0 font-medium underline">Terminal</span>
+        </button>
+      )}
+
+      <div className="min-h-0 min-w-0 flex-1">
+        <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
+          {entries.length === 0 ? (
+            <div className="px-2 py-16 text-center text-sm text-muted-foreground">
+              {note ?? "Loading…"}
+            </div>
+          ) : (
+            <TranscriptView entries={entries} agent={agent} />
+          )}
+        </ChatMessageList>
+      </div>
+    </div>
+  );
+}

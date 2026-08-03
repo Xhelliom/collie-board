@@ -1,4 +1,4 @@
-import { parseInline, parseMarkdown, safeHref } from "./markdown";
+import { parseInline, parseMarkdown, safeHref, type MdBlock, type MdSpan } from "./markdown";
 
 // The Markdown grammar for transcript prose. It exists because agent output IS Markdown and reading
 // `## Heading` / `**bold**` raw on a phone is worse than reading it formatted — but it must never
@@ -217,5 +217,67 @@ describe("parseMarkdown", () => {
   it("empty input yields no blocks", () => {
     expect(parseMarkdown("")).toEqual([]);
     expect(parseMarkdown("\n\n  \n")).toEqual([]);
+  });
+});
+
+// Tables were the worst thing on this screen as literal text: a phone re-wraps every `| a | b |` line
+// mid-cell, so the grid dissolves. The parser's job is to recover the STRUCTURE — the renderer decides
+// the shape (a real table when it fits, a card per row when it doesn't).
+describe("parseMarkdown — tables", () => {
+  const table = (src: string) => parseMarkdown(src)[0] as Extract<MdBlock, { kind: "table" }>;
+  const texts = (spans: MdSpan[]) => spans.map((s) => ("text" in s ? s.text : "")).join("");
+
+  it("parses a header row, its delimiter, and the body", () => {
+    const t = table("| file | change |\n|---|---|\n| a.ts | fixed |\n| b.ts | dropped |");
+    expect(t.kind).toBe("table");
+    expect(t.headers.map(texts)).toEqual(["file", "change"]);
+    expect(t.rows.map((r) => r.map(texts))).toEqual([
+      ["a.ts", "fixed"],
+      ["b.ts", "dropped"],
+    ]);
+  });
+
+  it("accepts alignment markers and outer pipes being absent", () => {
+    const t = table("a | b\n:--- | ---:\n1 | 2");
+    expect(t.headers.map(texts)).toEqual(["a", "b"]);
+    expect(t.rows.map((r) => r.map(texts))).toEqual([["1", "2"]]);
+  });
+
+  it("cells are inline-parsed, so a cell can hold code or a link", () => {
+    const t = table("| what | where |\n|---|---|\n| `parseInline` | [docs](https://x.dev) |");
+    expect(t.rows[0]![0]).toEqual([{ kind: "code", text: "parseInline" }]);
+    expect(t.rows[0]![1]![0]).toMatchObject({ kind: "link", href: "https://x.dev" });
+  });
+
+  // Ragged rows are routine in agent output; the renderer must never have to index a hole.
+  it("normalises every row to the header's column count", () => {
+    const t = table("| a | b | c |\n|---|---|---|\n| 1 |\n| 1 | 2 | 3 | 4 |");
+    expect(t.rows.map((r) => r.length)).toEqual([3, 3]);
+    expect(t.rows[0]!.map(texts)).toEqual(["1", "", ""]);
+    expect(t.rows[1]!.map(texts)).toEqual(["1", "2", "3"]);
+  });
+
+  it("keeps an escaped pipe inside its cell instead of splitting on it", () => {
+    const t = table("| cmd | note |\n|---|---|\n| a \\| b | piped |");
+    expect(t.rows[0]!.map(texts)).toEqual(["a | b", "piped"]);
+  });
+
+  // The delimiter row is the whole discriminator — pipes alone are just prose (a shell pipeline).
+  it("a pipe-bearing line with no delimiter row stays a paragraph", () => {
+    expect(parseMarkdown("run `ls | wc -l` first").map((b) => b.kind)).toEqual(["paragraph"]);
+  });
+
+  it("a table directly after a paragraph line is not swallowed into it", () => {
+    expect(parseMarkdown("Summary:\n| a | b |\n|---|---|\n| 1 | 2 |").map((b) => b.kind)).toEqual([
+      "paragraph",
+      "table",
+    ]);
+  });
+
+  it("the table ends where its rows do", () => {
+    expect(parseMarkdown("| a |\n|---|\n| 1 |\n\nAfter the table.").map((b) => b.kind)).toEqual([
+      "table",
+      "paragraph",
+    ]);
   });
 });

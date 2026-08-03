@@ -8,8 +8,13 @@
 // no dependency to a phone bundle that currently has seven.
 //
 // SCOPE. The subset agents actually emit: headings, fenced code, lists, blockquotes, rules,
-// paragraphs; inline bold/italic/code/links. Not GFM tables (they'd need real column layout on a
-// 400px screen — they render as literal text lines for now), not images, not HTML passthrough.
+// paragraphs, GFM tables; inline bold/italic/code/links. Not images, not HTML passthrough.
+//
+// TABLES. Agents emit them constantly (a comparison, a file/status matrix), and as literal text they
+// were the single worst thing on this screen: a phone re-wraps every `| a | b |` line mid-cell, so the
+// grid dissolves into pipe soup. The AST carries the table as structure — headers plus normalised rows
+// — and leaves the SHAPE to the renderer, which is the only side that knows how wide the screen is.
+// Cell contents stay `MdSpan[]`, i.e. React elements at render time, so the XSS boundary is untouched.
 //
 // TWO DELIBERATE OMISSIONS, both because this content is code-heavy:
 //  - `_underscore_` emphasis is NOT supported. It would mangle `snake_case_identifiers`, which
@@ -39,6 +44,13 @@ export type MdBlock =
   | { kind: "code"; lang: string; text: string }
   | { kind: "list"; ordered: boolean; items: MdSpan[][] }
   | { kind: "quote"; spans: MdSpan[] }
+  /**
+   * A GFM table. Every row is padded/truncated to `headers.length` HERE, so the renderer can index
+   * columns without guarding — a ragged row is a fact about agent output, not something a component
+   * should have to think about. Alignment markers (`:---:`) are parsed and dropped: on a 400px screen
+   * the column layout is the renderer's call, not the author's.
+   */
+  | { kind: "table"; headers: MdSpan[][]; rows: MdSpan[][][] }
   | { kind: "rule" };
 
 // Only these schemes may become a real link. Everything else (javascript:, data:, vbscript:, or a
@@ -114,6 +126,56 @@ const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const UL_ITEM = /^\s*[-*+]\s+(.*)$/;
 const OL_ITEM = /^\s*\d+[.)]\s+(.*)$/;
 const QUOTE = /^\s*>\s?(.*)$/;
+/** One delimiter cell: `---`, `:---`, `---:`, `:---:`. */
+const DELIM_CELL = /^:?-+:?$/;
+
+/**
+ * Split a table row into trimmed cell sources.
+ *
+ * Hand-rolled rather than `split("|")` for one reason: `\|` is how a cell carries a literal pipe, and
+ * splitting first would cut the row in the middle of one. The outer pipes (`| a | b |`) are optional
+ * in GFM, so a leading/trailing EMPTY cell is dropped — a genuinely empty first column is written
+ * `| | b |`, which still yields two cells because only one boundary empty is shed.
+ *
+ * Known limit: a pipe inside inline code (``| `a|b` |``) still splits. Escaping it is what agents do,
+ * and the alternative is tokenising inline markup twice.
+ */
+function splitCells(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === "\\" && line[i + 1] === "|") {
+      cur += "|";
+      i++;
+    } else if (ch === "|") {
+      cells.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur);
+  if (cells.length > 1 && cells[0]!.trim() === "") cells.shift();
+  if (cells.length > 1 && cells[cells.length - 1]!.trim() === "") cells.pop();
+  return cells.map((c) => c.trim());
+}
+
+/** A table's second line: all-dashes cells, which is what tells a table from a paragraph full of pipes. */
+function isDelimiterRow(line: string): boolean {
+  if (!line.includes("|")) return false;
+  const cells = splitCells(line);
+  return cells.length > 0 && cells.every((c) => DELIM_CELL.test(c));
+}
+
+/** True when `lines[i]` opens a table — i.e. the NEXT line is its delimiter row. */
+function isTableStart(lines: string[], i: number): boolean {
+  const line = lines[i];
+  const next = lines[i + 1];
+  return (
+    line !== undefined && line.includes("|") && next !== undefined && isDelimiterRow(next)
+  );
+}
 
 /**
  * Parse Markdown into blocks. Pure — no React, no DOM — so the whole grammar is unit-testable and
@@ -162,6 +224,25 @@ export function parseMarkdown(source: string): MdBlock[] {
       continue;
     }
 
+    // A table before the list check: a row like `| - | x |` would otherwise never get there, and
+    // before the paragraph fallback, which would swallow the whole grid as prose.
+    if (isTableStart(lines, i)) {
+      const headers = splitCells(line);
+      if (headers.length > 0) {
+        i += 2; // header + delimiter
+        const rows: MdSpan[][][] = [];
+        while (i < lines.length && lines[i]!.includes("|")) {
+          const cells = splitCells(lines[i]!);
+          // Normalise here so the renderer never indexes a hole: GFM drops surplus cells and pads
+          // short rows, and agent tables are ragged often enough to matter.
+          rows.push(headers.map((_, c) => parseInline(cells[c] ?? "")));
+          i++;
+        }
+        blocks.push({ kind: "table", headers: headers.map((h) => parseInline(h)), rows });
+        continue;
+      }
+    }
+
     if (QUOTE.test(line)) {
       const body: string[] = [];
       while (i < lines.length) {
@@ -202,7 +283,8 @@ export function parseMarkdown(source: string): MdBlock[] {
         FENCE.test(l) ||
         RULE.test(l) ||
         QUOTE.test(l) ||
-        isItem(l)
+        isItem(l) ||
+        isTableStart(lines, i)
       )
         break;
       para.push(l.trim());
