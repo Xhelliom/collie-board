@@ -7,6 +7,26 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.64.0] - 2026-08-03
+
+### Added
+- Drag reorders inside a column, not just between columns — a fractional `position` (SQLite stores a REAL in an INTEGER-affinity column), so it stays one PATCH on one card (a3f3092).
+- A ghost of the dragged card sits in the exact slot it will land in, pushing the column open as you move (a3f3092).
+- The flying card is a styled clone via `setDragImage` — opaque, shadowed, tilted 2° (a3f3092).
+- Each lane scrolls on its own above `lg`, with its heading sticky (a3f3092).
+
+### Changed
+- The lanes read left to right as the flow: `To do → Doing → To review → Done`. The phone keeps urgency-first order (a3f3092).
+- Sub-tasks scatter into their own columns on a wide board; the container stays as a summary tile with its status chips. **Fixes a board that reported "Done 0" with fifteen finished sub-tasks** (a3f3092).
+- The board and the dashboard drop their max-width; agent lists become `auto-fill minmax(24rem,1fr)` grids. The card page keeps its ceiling — it is a document (a3f3092).
+- The drag state survives the drop until fresh data lands, so a move no longer visibly undoes itself first (a3f3092).
+- `status` is only sent when it changes, so a reorder no longer journals a move that never happened (a3f3092).
+- Ledger brick 14 follows the width rule: surfaces widen, documents don't (059eb5b).
+
+### Fixed
+- The drop outline is drawn inside the box — the new per-lane scroller clipped it — with symmetric padding (a3f3092).
+- The drop slot no longer flickers between "here" and "at the end" while dragging within one column (a3f3092).
+
 ## [0.63.1] - 2026-08-03
 
 ### Fixed
