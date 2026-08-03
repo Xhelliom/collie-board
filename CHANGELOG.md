@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.68.0] - 2026-08-03
+
+### Added
+
+- Board: filter to one tag from a strip above the columns, cleared by "All" or by the tag itself (0892cd1)
+- Board: a filtered board with no match says which tag, instead of reading as an empty board (0892cd1)
+
 ## [0.67.0] - 2026-08-03
 
 ### Added
