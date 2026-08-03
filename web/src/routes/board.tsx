@@ -11,18 +11,24 @@ import { NewCardSheet } from "@/components/new-card-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import {
   BOARD_COLUMNS,
   BOARD_LANES,
   CARD_STATUS_LABEL,
+  MANUAL_STATUSES,
+  canDropCard,
   cardPath,
   createCard,
+  patchCard,
   type CardInput,
+  type CardStatus,
 } from "@/lib/board";
 import type { BoardData } from "@/lib/board-loaders";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { homePath } from "@/lib/nav";
+import { setStatus } from "@/lib/status";
 
 // The board: every card, grouped by column, urgency first.
 //
@@ -36,10 +42,17 @@ import { homePath } from "@/lib/nav";
 // exactly as it was. `order-*` is what keeps that list in BOARD_COLUMNS order, since folding
 // `orphaned` into the "Needs you" lane moves it earlier in the source.
 //
-// Still no drag-and-drop, on a mouse either: cards move between sections on their own (the bridge
-// reconciles them against the herd every poll), only four statuses are ever set by hand, and the
-// card page already has "Move to". Dragging is a comfort to arbitrate on its own, with its own
-// dependency.
+// DRAGGING is the desktop's, and only between the columns a human owns anyway (`canDropCard`).
+// Cards move between the live columns on their own — the bridge reconciles them against the herd
+// every poll — so dragging one there would write a status the next poll undoes. It rides the
+// PLATFORM's drag: `draggable` + dragover/drop, no library, because the whole feature is "read an
+// id off a drop and PATCH one field".
+//
+// NOT reordering inside a column, which is a different feature wearing the same gesture. The board
+// does order by `card.position` and the field is patchable, so it is possible — but `position` is an
+// INTEGER and new cards take `min - 1`, so dropping BETWEEN two adjacent rows has nowhere to sit
+// without renumbering their neighbours, and the API patches one card per request. That is a
+// batch-move endpoint (or a fractional rank), not a drop handler.
 // Phone order, restored by hand: written as literals because Tailwind only ever sees the source
 // text, and indexed by BOARD_COLUMNS so the two can't drift.
 const MOBILE_ORDER = [
@@ -60,7 +73,12 @@ export function BoardRoute() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const stalled = useLoadingStalled();
+  const desktop = useIsDesktop();
   const [newOpen, setNewOpen] = useState(false);
+  // The card in hand, and the column under the pointer. Both are view state and both die with the
+  // drop — nothing about a drag is worth persisting.
+  const [held, setHeld] = useState<{ id: string; from: CardStatus } | null>(null);
+  const [over, setOver] = useState<CardStatus | null>(null);
 
   // Cards first become ENTRIES — a split container and its sub-tasks are one entry, placed in the
   // container's derived column — and only then get bucketed by column.
@@ -74,6 +92,28 @@ export function BoardRoute() {
     await createCard(input);
     revalidator.revalidate();
   }
+
+  // The drop. Same one-field PATCH the card page's "Move to" sends — including the journal entry
+  // the bridge writes for it, so a card that moved says who moved it.
+  //
+  // No optimistic move: the poll is 1.5s and revalidate lands well inside that, and a card that
+  // jumps to the new column and then jumps back on a failed request is worse than one that takes a
+  // beat to arrive.
+  async function drop(status: CardStatus) {
+    const card = held;
+    setHeld(null);
+    setOver(null);
+    if (!card || !canDropCard(card.from, status)) return;
+    try {
+      await patchCard(card.id, { status });
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
+  }
+
+  /** Drop targets while a card is in hand: the manual columns, minus the one it came from. */
+  const dropTarget = (status: CardStatus) => held !== null && canDropCard(held.from, status);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-[90rem]">
@@ -109,13 +149,32 @@ export function BoardRoute() {
                   </div>
                   {lane.statuses.map((status) => {
                     const column = byStatus.get(status) ?? [];
-                    if (column.length === 0) return null;
+                    const target = dropTarget(status);
+                    // An empty column is hidden — except while it is somewhere a card in hand could
+                    // GO. Without this, moving the last card out of Ready makes Ready disappear, and
+                    // with it any way to drag one back.
+                    if (column.length === 0 && !target) return null;
                     return (
                       <section
                         key={status}
+                        onDragOver={
+                          target
+                            ? (e) => {
+                                // preventDefault IS the "yes, you may drop here" — without it the
+                                // browser refuses the drop and animates the card back.
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                                setOver(status);
+                              }
+                            : undefined
+                        }
+                        onDragLeave={target ? () => setOver((o) => (o === status ? null : o)) : undefined}
+                        onDrop={target ? () => void drop(status) : undefined}
                         className={cn(
                           "px-3 pt-4 lg:order-none lg:px-0 lg:pt-3",
                           MOBILE_ORDER[BOARD_COLUMNS.indexOf(status)],
+                          target && "rounded-xl outline-1 outline-dashed outline-border lg:px-2",
+                          over === status && "bg-accent outline-ring",
                         )}
                       >
                         {/* Hidden in the lane whose name it repeats ("Needs you" under Needs you),
@@ -131,8 +190,15 @@ export function BoardRoute() {
                           <span className="text-xs text-muted-foreground/70">{column.length}</span>
                         </div>
                         <div className="flex flex-col gap-2">
+                          {column.length === 0 && (
+                            <p className="py-3 text-center text-xs text-muted-foreground">
+                              Drop here to move to {CARD_STATUS_LABEL[status].toLowerCase()}
+                            </p>
+                          )}
                           {column.map((entry) =>
                             entry.kind === "group" ? (
+                              // A container is not dragged: its column is DERIVED from its
+                              // sub-tasks, so moving it by hand would be a status nothing keeps.
                               <CardGroup
                                 key={entryKey(entry)}
                                 container={entry.container}
@@ -146,6 +212,22 @@ export function BoardRoute() {
                                 card={entry.card}
                                 onClick={() => navigate(cardPath(entry.card.id))}
                                 dependency={dependencyInfo(entry.card, byId)}
+                                // Desktop only, and only from a column a human owns. `runtime` is
+                                // belt-and-braces on top of that: a card with a live pane is never
+                                // in a manual column, and if one ever were, dragging it away is the
+                                // one move that could send its agent home.
+                                drag={
+                                  desktop && !entry.card.runtime && MANUAL_STATUSES.includes(status)
+                                    ? {
+                                        onStart: () => setHeld({ id: entry.card.id, from: status }),
+                                        onEnd: () => {
+                                          setHeld(null);
+                                          setOver(null);
+                                        },
+                                        active: held?.id === entry.card.id,
+                                      }
+                                    : undefined
+                                }
                               />
                             ),
                           )}

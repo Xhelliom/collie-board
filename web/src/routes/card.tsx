@@ -46,6 +46,7 @@ import {
   fetchIntegration,
   handoffCard,
   integrateCard,
+  MANUAL_STATUSES,
   patchCard,
   promptCard,
   reformulateCard,
@@ -71,9 +72,6 @@ import type { AgentStatus } from "@/lib/types";
 // is on it right now, and what that agent is doing). This is the screen that answers "where is this
 // task, and what happened in the sessions before this one" — the question Collie's pane mirror
 // structurally cannot.
-
-/** Columns a human moves a card into by hand. The rest are driven by the herd, so they aren't offered. */
-const MANUAL_STATUSES: CardStatus[] = ["backlog", "ready", "done", "archived"];
 
 export function CardRoute() {
   const data = useLoaderData() as CardData;

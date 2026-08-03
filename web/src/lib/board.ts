@@ -182,6 +182,37 @@ export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
   { label: "Done", statuses: ["done"] },
 ];
 
+/**
+ * Columns a human moves a card into by hand. The rest are driven by the herd — the bridge
+ * reconciles them against the pane every poll — so a manual write to one of them is undone a second
+ * later. Shared by the card page's "Move to" and by the board's drag-and-drop.
+ */
+export const MANUAL_STATUSES: CardStatus[] = ["backlog", "ready", "done", "archived"];
+
+/**
+ * Whether a card sitting in `from` may be dropped on `to`.
+ *
+ * BOTH ends have to be manual, and that is the whole safety argument, so it is worth stating:
+ *
+ * - A manual SOURCE means the card has no open session (`releaseSession` closes one the moment a
+ *   card leaves the live columns). So a drop can never send a working agent away — which is the one
+ *   real hazard of filing a card, and the reason the card page hides "Done" while a branch still
+ *   holds commits. No agent, no hazard, no need for that guard here.
+ * - A manual TARGET means the poll won't undo it. Dropping onto "In progress" would write a status
+ *   the next reconcile overwrites, i.e. a card that snaps back — worse than a refused drop.
+ *
+ * Everything else stays where it already is: the card page, one tap, with its own guards.
+ * `archived` is manual but has no column on the board, so it can never be a target.
+ */
+export function canDropCard(from: CardStatus, to: CardStatus): boolean {
+  return (
+    from !== to &&
+    to !== "archived" &&
+    MANUAL_STATUSES.includes(from) &&
+    MANUAL_STATUSES.includes(to)
+  );
+}
+
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",

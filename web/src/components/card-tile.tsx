@@ -26,6 +26,7 @@ export function CardTile({
   card,
   onClick,
   dependency,
+  drag,
 }: {
   card: CardView;
   onClick: () => void;
@@ -35,6 +36,12 @@ export function CardTile({
    * even once satisfied so "why does this depend on that" doesn't require opening the editor.
    */
   dependency?: DependencyInfo;
+  /**
+   * Makes the tile a drag source. Absent = not draggable, which is the default and what a phone
+   * always gets: HTML5 drag needs a long-press on touch, and a long-press on a card tile is a
+   * gesture this app spends elsewhere.
+   */
+  drag?: { onStart: () => void; onEnd: () => void; active: boolean };
 }) {
   const waiting = dependency && !dependency.met;
   const urgent = card.status === "blocked";
@@ -48,7 +55,25 @@ export function CardTile({
     <button
       type="button"
       onClick={onClick}
-      className="@container w-full text-left transition-transform active:scale-[0.99]"
+      draggable={drag ? true : undefined}
+      onDragStart={
+        drag &&
+        ((e) => {
+          // Firefox starts no drag at all without payload on the transfer; the id is also what makes
+          // the drag legible to anything outside this component.
+          e.dataTransfer.setData("text/plain", card.id);
+          e.dataTransfer.effectAllowed = "move";
+          drag.onStart();
+        })
+      }
+      onDragEnd={drag && (() => drag.onEnd())}
+      className={cn(
+        "@container w-full text-left transition-transform active:scale-[0.99]",
+        drag && "cursor-grab active:cursor-grabbing",
+        // The tile stays in place while dragging — the browser drags a snapshot of it — so this is
+        // what says "this one is the one in your hand".
+        drag?.active && "opacity-40",
+      )}
     >
       <Card
         className={cn(
