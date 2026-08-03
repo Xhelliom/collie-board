@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.66.0] - 2026-08-03
+
+### Added
+- Pane history works without `herdr integration install claude` — the transcript is resolved from the pane's own process, the route the context gauge already used. History and reading mode were inert by default before this (9fd958e).
+- Reading mode shows a draft left on the terminal's `❯` line, dashed and named "Draft in terminal · not sent" — it lives in no log, so the thread read as though you never typed it (5182d61).
+- Reading mode says "still writing" while the agent works: a turn reaches the log only when it ends (5182d61).
+
+### Fixed
+- **A resumed conversation served the wrong transcript.** "The log born closest after the process started" picked a startup log that died at 31 entries while the resumed conversation grew to 20 MB elsewhere — stale history, and another session's occupancy on the context gauge. The rule is now the log the process is actually writing to (9fd958e).
+- **Reading mode stopped updating after the first fetch.** It ticked on `revision`, which herdr 0.7.x always reports as 0; it now rides the pane poll's own heartbeat (5182d61).
+
 ## [0.65.0] - 2026-08-03
 
 ### Added
