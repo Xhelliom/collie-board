@@ -7,6 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.71.0] - 2026-08-03
+
+### Added
+- The copilot tags every card it writes: a reformulated dump, each child of a split, each review follow-up (c9571be).
+- The tag inventory rides inside the prompt, so the choice is made with the board's vocabulary in view (c9571be).
+- A proposed tag one hyphen from an existing one is snapped onto the existing spelling — `front-end` becomes `frontend` (c9571be).
+- A new tag only when none fits; a split child and a review follow-up fall back to the tag of the card they came from (c9571be).
+
+### Changed
+- A tag already on a card survives a reformulation — the copilot's tag only ever fills a hole, and stays editable by hand (c9571be).
+
 ## [0.70.0] - 2026-08-03
 
 ### Added
