@@ -257,6 +257,25 @@ export function wrapupGate(lastSession: CardSession | null): IntegrateError | nu
   };
 }
 
+/**
+ * Repoint every card forked from `deletedBranch` to `resolvedBase`, the ref cleanup just proved it
+ * to be fully contained in (the cleanup gate refuses unless `ahead === 0`).
+ *
+ * A dependent card's `baseRef` is persisted as the predecessor's branch name, frozen at fork time
+ * (`cards.ts`). Deleting that branch here would otherwise leave it dangling forever: `resolveBase`
+ * (git.ts) can't resolve a ref that no longer exists and silently falls back to `HEAD`, which empties
+ * every diff and integration check the dependent ever shows again — with no error, just a card that
+ * looks finished and offers no merge or PR. Repointing to `resolvedBase` changes nothing about what
+ * the dependent's diff contains, since every commit reachable from `deletedBranch` is already in it.
+ */
+export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string): void {
+  for (const dependent of db.listCards({ includeArchived: true })) {
+    if (dependent.baseRef === deletedBranch) {
+      db.patchCard(dependent.id, { baseRef: resolvedBase }, "predecessor branch deleted");
+    }
+  }
+}
+
 export async function cleanupCard(
   db: BoardDb,
   herdr: HerdrClient,
@@ -326,6 +345,7 @@ export async function cleanupCard(
     db.recordEvent(card.id, "card.cleanup_failed", { stage: "branch", error: deleted.error });
     return { ok: false, error: { kind: "git", message: `worktree removed, but the branch is still there: ${deleted.error}` } };
   }
+  rebindDependents(db, branch, state!.base);
 
   if (opts.discard) {
     db.setStatus(card.id, "archived", "work discarded");

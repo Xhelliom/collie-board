@@ -17,8 +17,8 @@ import {
   type GitRunner,
   type Integration,
 } from "./git.ts";
-import type { CardSession } from "./db.ts";
-import { resolvePrompt, wrapupGate } from "./integrate.ts";
+import { BoardDb, type CardSession } from "./db.ts";
+import { rebindDependents, resolvePrompt, wrapupGate } from "./integrate.ts";
 
 // These three writes are the only ones in the bridge that change a git repository, and the operator
 // firing them is on a phone and cannot repair anything. So the tests here are about REFUSING: what
@@ -347,5 +347,42 @@ describe("wrapupGate — cleanup must not race the closing report off the disk i
 
   it("lets cleanup through when there was never a wrapup to wait for", () => {
     expect(wrapupGate(null)).toBeNull();
+  });
+});
+
+describe("rebindDependents — a dependent card must not lose its diff when its predecessor's branch dies", () => {
+  it("repoints a dependent's baseRef from the deleted branch to where cleanup proved it landed", () => {
+    const store = new BoardDb(":memory:");
+    const first = store.createCard({ title: "first", repoPath: "/repo", baseRef: "main" });
+    store.patchCard(first.id, { branch: "board/first" });
+    const next = store.createCard({
+      title: "next",
+      repoPath: "/repo",
+      baseRef: "board/first",
+      dependsOn: first.id,
+    });
+
+    rebindDependents(store, "board/first", "main");
+
+    expect(store.getCard(next.id)!.baseRef).toBe("main");
+  });
+
+  it("leaves cards forked from a different branch alone", () => {
+    const store = new BoardDb(":memory:");
+    const unrelated = store.createCard({ title: "unrelated", repoPath: "/repo", baseRef: "board/other" });
+
+    rebindDependents(store, "board/first", "main");
+
+    expect(store.getCard(unrelated.id)!.baseRef).toBe("board/other");
+  });
+
+  it("reaches an archived dependent too — its diff can still be reopened later", () => {
+    const store = new BoardDb(":memory:");
+    const next = store.createCard({ title: "next", repoPath: "/repo", baseRef: "board/first" });
+    store.setStatus(next.id, "archived", "test");
+
+    rebindDependents(store, "board/first", "main");
+
+    expect(store.getCard(next.id)!.baseRef).toBe("main");
   });
 });

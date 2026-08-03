@@ -77,11 +77,15 @@ export function TagField({
               aria-pressed={tag === current}
               className="rounded-full active:scale-[0.97]"
             >
+              {/* Same "this one is picked" language as the board's filter strip — ring in the tag's
+                  own colour, the others faded only while one IS picked. Two conventions for the
+                  same state, two screens apart, is how a small app stops looking like one. */}
               <TagChip
                 tag={tag}
                 className={cn(
                   "px-2 py-1 text-xs",
-                  tag === current ? "ring-2 ring-primary/60" : "opacity-70",
+                  tag === current && "ring-1 ring-current",
+                  current !== null && tag !== current && "opacity-40",
                 )}
               />
             </button>
