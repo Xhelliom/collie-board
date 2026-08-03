@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.63.0] - 2026-08-03
+
+### Added
+- Drag a card between the board's manual columns (backlog ↔ ready ↔ done) on a desktop — the platform's own drag, no library, no touch gesture (f959a5c).
+- `canDropCard` refuses both a herd-owned source (its agent would be sent home) and a herd-owned target (the next poll would undo it) (f959a5c).
+- An empty manual column shows itself while a card is in hand, so the last card out of Ready doesn't take the drop target with it (f959a5c).
+
+### Changed
+- `MANUAL_STATUSES` moves from `routes/card.tsx` to `lib/board.ts` — "Move to" and drag-and-drop now name the same list (f959a5c).
+
 ## [0.62.0] - 2026-08-03
 
 ### Added
