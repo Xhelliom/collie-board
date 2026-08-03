@@ -7,6 +7,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.62.0] - 2026-08-03
+
+### Added
+- Desktop mode: above `lg` the board lays out as four lanes (Needs you · In progress · Ready · Done), each keeping its columns as labelled sub-sections (f42cc9c).
+- `CardTile` adapts to its own container, not the viewport — chevron dropped under 24rem, badge onto its own line under 20rem (f42cc9c).
+- Sheets come in from the right on a wide screen and up from the bottom on a phone — one component, one `direction` apart (f42cc9c).
+- `useMediaQuery` / `useIsDesktop`: reactive `matchMedia` at Tailwind's `lg`, for the one thing CSS can't switch (f42cc9c).
+- Home, space and card pass 640px; agent and space lists become two- or three-across grids (f42cc9c).
+- The card page splits into a durable half (spec, acceptance, journal) and a live half (pane, context, prompt, handoff) (f42cc9c).
+- Ledger brick 14 — the desktop mode's app half, which belongs upstream (c8cf8d1).
+
+### Changed
+- `CommandPalette` no longer overrides the sheet's max height; the override clipped the right-hand variant (f42cc9c).
+
 ## [0.61.0] - 2026-07-30
 
 ### Added
