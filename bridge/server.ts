@@ -497,15 +497,24 @@ export function paneReadResponse(paneId: string, read: PaneRead): PaneReadRespon
 
 /**
  * Parse the history page params. Pure + exported so the clamping is unit-tested without Bun.serve.
- * `before` is an opaque cursor (a turn's uuid) that only ever reaches an in-memory `findIndex`, so it
- * needs no validation beyond length — it never touches the filesystem.
+ * `before` (page backwards) and `after` (follow the live tail) are opaque cursors — a turn's uuid,
+ * which only ever reaches an in-memory `findIndex` — so they need no validation beyond length; neither
+ * ever touches the filesystem.
  */
-export function historyParams(url: URL): { limit: number; before?: string } {
+export function historyParams(url: URL): { limit: number; before?: string; after?: string } {
   const raw = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
   const limit =
     Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_HISTORY_LIMIT) : DEFAULT_HISTORY_LIMIT;
   const before = url.searchParams.get("before");
-  return { limit, ...(before && before.length <= 100 ? { before } : {}) };
+  const after = url.searchParams.get("after");
+  // A cursor each way is contradictory; `after` wins, because a follower asking for what's new must
+  // not be paged backwards by a `before` left over from the same client's archive view.
+  const cursor = after && after.length <= 100
+    ? { after }
+    : before && before.length <= 100
+      ? { before }
+      : {};
+  return { limit, ...cursor };
 }
 
 /**

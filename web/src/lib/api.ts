@@ -223,13 +223,15 @@ export async function fetchPane(
  */
 export function fetchHistory(
   paneId: string,
-  opts: { limit?: number; before?: string } = {},
+  opts: { limit?: number; before?: string; after?: string } = {},
   session?: string,
   signal?: AbortSignal,
 ): Promise<PaneHistoryResponse> {
   const q = new URLSearchParams();
   if (opts.limit) q.set("limit", String(opts.limit));
   if (opts.before) q.set("before", opts.before);
+  // Follow the live tail: only the turns written since one we already hold (reading view).
+  if (opts.after) q.set("after", opts.after);
   const qs = q.toString();
   const path = `/api/pane/${encodeURIComponent(paneId)}/history${qs ? `?${qs}` : ""}`;
   return req<PaneHistoryResponse>(withSession(path, session), { signal });

@@ -351,14 +351,33 @@ export function parseTranscript(
 }
 
 /**
- * Page a parsed transcript, newest-anchored: with no cursor you get the LAST `limit` turns (the phone
- * opens at the recent end, like the mirror it replaces); `before` walks backwards from a turn you
- * already hold. Returned entries stay oldest-first so the view renders top-down either way.
+ * Page a parsed transcript. Returned entries stay oldest-first so the view renders top-down whichever
+ * direction you asked in.
+ *
+ * BACKWARDS (default, or `before`): with no cursor you get the LAST `limit` turns (the phone opens at
+ * the recent end, like the mirror it replaces); `before` walks backwards from a turn you already hold.
+ *
+ * FORWARDS (`after`): the turns written SINCE one you already hold — for a view that follows a live
+ * conversation rather than paging back through it. Without it, following means re-pulling the whole
+ * archive on every tick just to discover the two turns that are new. Symmetric with `before` in every
+ * way that matters: the same cap, the same opaque uuid cursor, the same degradation on a cursor this
+ * log no longer knows.
  */
 export function pageEntries(
   entries: TranscriptEntry[],
-  opts: { limit: number; before?: string },
+  opts: { limit: number; before?: string; after?: string },
 ): { window: TranscriptEntry[]; hasMore: boolean } {
+  if (opts.after !== undefined) {
+    const i = entries.findIndex((e) => e.uuid === opts.after);
+    // Unknown cursor — the log rotated under a follower, or the client is stale. Degrade to the newest
+    // page, exactly as `before` does; a follower merges by uuid, so a disjoint window can't duplicate
+    // what it already holds.
+    if (i === -1) return pageEntries(entries, { limit: opts.limit });
+    const window = entries.slice(i + 1, i + 1 + opts.limit);
+    // `hasMore` keeps its single meaning — older turns exist BEFORE the window — which is true by
+    // construction whenever this returned anything: the cursor itself is one of them.
+    return { window, hasMore: window.length > 0 };
+  }
   // An unknown cursor (log rewritten under us, or a stale client) degrades to "newest", never to an
   // empty page — the user asked for older history and must still see something.
   const end =
@@ -647,7 +666,7 @@ export class TranscriptStore {
   /** Null when this session has no log on disk (never started, or a non-Claude agent). */
   async page(
     sessionId: string,
-    opts: { limit: number; before?: string },
+    opts: { limit: number; before?: string; after?: string },
   ): Promise<Omit<TranscriptPage, "paneId"> | null> {
     const path = await this.source.resolve(sessionId);
     if (path === null) return null;
