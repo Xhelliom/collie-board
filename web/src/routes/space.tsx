@@ -12,13 +12,14 @@ import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { homePath, panePath, spacePath } from "@/lib/nav";
+import { panePath, spacePath, spacesPath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { isReadOnly } from "@/lib/types";
 
 // Space detail route: one space's tabs + panes, with the space/tab strips for in-space navigation.
 // Shares the root snapshot (no own loader), reading :spaceId from the URL — a deep-linkable,
-// back-button-friendly drill-in. The SpaceStrip's "All" chip returns to the dashboard.
+// back-button-friendly drill-in. The SpaceStrip's "All" chip returns to the Spaces list (redesign
+// §9 — the dashboard no longer carries a spaces widget to come back to).
 export function SpaceRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { spaceId = "" } = useParams();
@@ -44,7 +45,7 @@ export function SpaceRoute() {
 
   const selectedWs = data.workspaces.find((w) => w.workspaceId === spaceId);
 
-  const toDashboard = () => navigate(homePath(data.session));
+  const toSpaces = () => navigate(spacesPath(data.session));
   const switchSpace = (id: string) => navigate(spacePath(id, data.session));
   const switchTab = (id: string | null) => setTab(id);
   const open = (id: string) => navigate(panePath(id, data.session));
@@ -62,7 +63,7 @@ export function SpaceRoute() {
   useEffect(() => {
     if (gone && data.bridge === "connected" && !data.error) {
       setStatus(everExisted.current ? "Space closed" : "Space not found", "info");
-      navigate(homePath(data.session), { replace: true });
+      navigate(spacesPath(data.session), { replace: true });
     }
   }, [gone, data.bridge, data.error, data.session, navigate]);
 
@@ -70,7 +71,7 @@ export function SpaceRoute() {
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       {/* A drilled-into screen (reached from a space card/chip, not a nav tab), so it gets the back
           chevron rather than the nav treatment. */}
-      <AppHeader title={selectedWs?.label ?? "Space"} onBack={toDashboard} />
+      <AppHeader title={selectedWs?.label ?? "Space"} onBack={toSpaces} />
 
       {/* Content region below the header: the viewport-clipped scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -82,9 +83,9 @@ export function SpaceRoute() {
               workspaces={data.workspaces}
               agents={data.agents}
               selected={spaceId}
-              onSelect={(id) => (id === null ? toDashboard() : switchSpace(id))}
+              onSelect={(id) => (id === null ? toSpaces() : switchSpace(id))}
               onNewSpace={() => setNewSpaceOpen(true)}
-              onBack={toDashboard}
+              onBack={toSpaces}
             />
             <TabStrip
               workspaceId={selectedWs.workspaceId}

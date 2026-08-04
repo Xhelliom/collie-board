@@ -262,11 +262,11 @@ export function CardRoute() {
   }
 
   return (
-    // This one KEEPS its ceiling while the board and the dashboard lost theirs, and that is the
-    // whole point of not having a single "desktop width": the board is a spatial surface and wants
-    // every pixel, this page is a document — spec, acceptance, journal — and a 2000px line of prose
-    // is unreadable no matter how big the display is.
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-6xl flex-1 flex-col">
+    // No page-level ceiling, matching the board/dashboard now — the mockups show the grid and the
+    // sub-task table using the full width. The one thing that still wants a reading-width cap is
+    // PROSE specifically (Spec/Acceptance), which caps itself at `max-w-[70ch]` below rather than
+    // constraining the whole page around it.
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       {/* An entered screen (reached from the board), so it gets the back chevron rather than the nav
           treatment. The breadcrumb (children) carries "Board › title"; Éditer + the "⋯" menu (which
           holds Danger zone — see the sheet below) are the toolbar's own controls. */}
@@ -275,6 +275,24 @@ export function CardRoute() {
         rightTrail={
           card && (
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-2"
+                onClick={() => {
+                  // Same two-tap confirm as the Rework section below — same `confirmRework` state,
+                  // so the two never disagree about whether a hand edit is about to be discarded.
+                  if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
+                    setConfirmRework(true);
+                    return;
+                  }
+                  setConfirmRework(false);
+                  void reformulate();
+                }}
+              >
+                <Sparkles className="size-4" />
+                {confirmRework ? "Replace my edits?" : "Reformuler"}
+              </Button>
               <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" />
                 Éditer
@@ -348,7 +366,7 @@ export function CardRoute() {
                   )}
                 </div>
               )}
-              <h1 className="max-w-[30ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">
+              <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">
                 {card.title}
               </h1>
               {/* Same question the tile answers at a glance: "can I start this" without opening the
@@ -387,6 +405,12 @@ export function CardRoute() {
 
                 <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
 
+                <ContainerSidebar
+                  childCards={childCards}
+                  rawInput={card.rawInput}
+                  onOpenPane={(paneId) => navigate(panePath(paneId, root?.session))}
+                />
+
                 {card.runtime ? (
                   <>
                     <PromptBox
@@ -418,6 +442,42 @@ export function CardRoute() {
                     childCount={detail?.children.length}
                   />
                 )}
+
+                {/* Action rail, not document — "what can I DO with this card" belongs beside its live
+                    state, not buried mid-document between Spec and Journal (redesign follow-up: the
+                    board-card mockup puts Intégration and Classer here). */}
+                {card.branch && (
+                  <IntegrationSection
+                    card={card}
+                    events={detail?.events ?? []}
+                    onState={setIntegration}
+                    onDone={() => revalidator.revalidate()}
+                  />
+                )}
+
+                <Section label="Classer">
+                  <div className="flex flex-wrap gap-2">
+                    {MANUAL_STATUSES.filter((s) => s !== card.status)
+                      .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
+                      .map((s) => (
+                        <Button
+                          key={s}
+                          variant="outline"
+                          size="sm"
+                          className="h-9 rounded-full"
+                          onClick={() => move(s)}
+                        >
+                          {CARD_STATUS_LABEL[s]}
+                        </Button>
+                      ))}
+                  </div>
+                  {integration && integration.ahead > 0 && (
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      Done sits below, with the merge — filing this card would send its agent away, and
+                      that agent is who settles a merge conflict.
+                    </p>
+                  )}
+                </Section>
               </div>
 
               <div className="flex min-w-0 flex-col gap-[22px] order-1">
@@ -497,18 +557,6 @@ export function CardRoute() {
                 <CardDiff cardId={card.id} statusKey={card.status} />
 
                 <Section label="Rework">
-                  {/* The container's own dictée d'origine — collapsed, because Spec/Acceptance above
-                      it already show what the copilot DERIVED from it; this is the source, kept
-                      reachable for the one question that matters here: what will Reformuler read
-                      from. Only a container has this framing (a leaf card's spec IS its dictation). */}
-                  {detail.children.length > 0 && card.rawInput && (
-                    <details className="mb-1 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                      <summary className="cursor-pointer font-medium text-foreground">
-                        Dictée d'origine
-                      </summary>
-                      <p className="mt-2 whitespace-pre-wrap">{card.rawInput}</p>
-                    </details>
-                  )}
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -543,39 +591,6 @@ export function CardRoute() {
                     </p>
                   )}
                 </Section>
-
-                <Section label="Classer">
-                  <div className="flex flex-wrap gap-2">
-                    {MANUAL_STATUSES.filter((s) => s !== card.status)
-                      .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
-                      .map((s) => (
-                        <Button
-                          key={s}
-                          variant="outline"
-                          size="sm"
-                          className="h-9 rounded-full"
-                          onClick={() => move(s)}
-                        >
-                          {CARD_STATUS_LABEL[s]}
-                        </Button>
-                      ))}
-                  </div>
-                  {integration && integration.ahead > 0 && (
-                    <p className="pt-2 text-xs text-muted-foreground">
-                      Done sits below, with the merge — filing this card would send its agent away, and
-                      that agent is who settles a merge conflict.
-                    </p>
-                  )}
-                </Section>
-
-                {card.branch && (
-                  <IntegrationSection
-                    card={card}
-                    events={detail?.events ?? []}
-                    onState={setIntegration}
-                    onDone={() => revalidator.revalidate()}
-                  />
-                )}
 
                 {detail && detail.reviews.length > 0 && (
                   <Section label="Review">
@@ -669,7 +684,7 @@ export function CardRoute() {
       )}
 
       {/* The app's one status surface — start/prompt failures land here rather than in a dialog. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-6xl px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
     </div>
@@ -1384,6 +1399,21 @@ const CARD_DOT: Record<CardStatus, string> = {
   archived: "bg-muted-foreground/50",
 };
 
+/** Same tones as {@link CARD_DOT}, as text colour — the desktop sub-task row's own status column
+ *  (redesign §4: "a 96px status column"), always shown, unlike the mobile chip below which only
+ *  renders for a loud (blocked/orphaned) child. */
+const CARD_STATUS_TEXT: Record<CardStatus, string> = {
+  blocked: "text-status-blocked",
+  orphaned: "text-status-unknown",
+  working: "text-status-working",
+  starting: "text-status-working",
+  review: "text-status-done",
+  ready: "text-status-idle",
+  backlog: "text-muted-foreground",
+  done: "text-status-idle",
+  archived: "text-muted-foreground",
+};
+
 /** Segments in flow order; `ready`/`backlog` render dim so the bar reads as PROGRESS, not a census. */
 const PROGRESS_STATUSES: readonly CardStatus[] = [
   "done",
@@ -1443,6 +1473,97 @@ export function SubtaskProgress({ cards }: { cards: CardView[] }) {
   );
 }
 
+/**
+ * The container's right-column story on desktop (redesign §4, "colonne latérale : avancement +
+ * conteneur") — the space `StartButton`'s refusal note would otherwise leave empty, since a
+ * container has no pane of its own. Per-status breakdown, one callout per blocked child (there is
+ * no live pane to show instead of one), and the dictation Reformuler reads from — moved here from
+ * its old spot collapsed under Rework, so there is exactly one "dictée d'origine" on the page, not
+ * two disagreeing about how prominent it is. Renders nothing for a leaf card (no children).
+ */
+function ContainerSidebar({
+  childCards,
+  rawInput,
+  onOpenPane,
+}: {
+  childCards: CardView[];
+  rawInput: string | null | undefined;
+  onOpenPane: (paneId: string) => void;
+}) {
+  if (childCards.length === 0) return null;
+  const total = childCards.length;
+  const done = childCards.filter((c) => c.status === "done").length;
+  const blockedChildren = childCards.filter((c) => c.status === "blocked");
+  const counts = new Map<CardStatus, number>();
+  for (const c of childCards) counts.set(c.status, (counts.get(c.status) ?? 0) + 1);
+
+  return (
+    <>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          Avancement
+        </div>
+        <div className="mt-3 flex items-baseline gap-1.5">
+          <span className="text-[28px] font-semibold tabular-nums tracking-[-0.02em]">{done}</span>
+          <span className="text-[15px] text-muted-foreground">/ {total} terminées</span>
+        </div>
+        <div className="mt-3 flex h-1.5 gap-0.5">
+          {PROGRESS_STATUSES.filter((s) => counts.has(s)).map((s) => (
+            <div
+              key={s}
+              className={cn("h-full rounded-full", PROGRESS_TONE[s])}
+              style={{ width: `${((counts.get(s) ?? 0) / total) * 100}%` }}
+            />
+          ))}
+        </div>
+        <div className="mt-3.5 flex flex-col gap-1.5">
+          {PROGRESS_STATUSES.filter((s) => counts.has(s)).map((s) => (
+            <div key={s} className="flex items-center gap-2 text-xs">
+              <span className={cn("size-2 shrink-0 rounded-full", CARD_DOT[s])} />
+              <span className="flex-1 text-foreground">{CARD_STATUS_LABEL[s]}</span>
+              <span className="font-semibold tabular-nums text-muted-foreground">{counts.get(s)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {blockedChildren.map((child) => (
+        <div key={child.id} className="rounded-2xl border border-status-blocked/45 bg-status-blocked/8 p-4">
+          <span className="inline-flex items-center rounded-full bg-status-blocked px-2.5 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground">
+            {CARD_STATUS_LABEL.blocked}
+          </span>
+          <button
+            type="button"
+            onClick={() => child.runtime && onOpenPane(child.runtime.paneId)}
+            className="mt-2.5 block text-left text-[15px] font-semibold leading-[1.35] hover:underline"
+          >
+            {child.title}
+          </button>
+          <p className="mt-2 text-xs leading-[1.5] text-muted-foreground">
+            {blockedChildren.length === 1
+              ? "La seule sous-tâche qui attend quelque chose de toi. Ouvre son pane pour répondre."
+              : "Une des sous-tâches qui attend quelque chose de toi. Ouvre son pane pour répondre."}
+          </p>
+        </div>
+      ))}
+
+      {rawInput && (
+        <div className="rounded-2xl border border-dashed border-border p-4">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            Dictée d'origine
+          </div>
+          <p className="mt-2.5 whitespace-pre-wrap text-[13px] leading-[1.55] text-foreground/85">
+            « {rawInput} »
+          </p>
+          <p className="mt-2.5 text-[11px] leading-[1.5] text-muted-foreground">
+            Reformuler repart de ce texte, pas des sous-tâches actuelles.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 interface SubtaskListProps {
   container: CardView;
   childCards: CardView[];
@@ -1496,7 +1617,11 @@ function SubtaskList({
 
   return (
     <>
-      <SubtaskProgress cards={childCards} />
+      {/* `lg:hidden`: at that breakpoint `ContainerSidebar` already carries this same figure (bigger,
+          plus the per-status breakdown) in the 340px column — showing it twice here too is noise. */}
+      <div className="lg:hidden">
+        <SubtaskProgress cards={childCards} />
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         {childCards.map((child, i) => {
@@ -1529,26 +1654,40 @@ function SubtaskList({
                 aria-hidden
                 className={cn("mt-[7px] size-2 shrink-0 rounded-full lg:mt-0", CARD_DOT[child.status])}
               />
+              {/* Desktop's own fixed status column — every row says its status here, not just a loud
+                  one (mobile keeps the loud-only chip further down, since it has no spare column). */}
+              <span
+                className={cn(
+                  "hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] lg:block lg:w-24",
+                  CARD_STATUS_TEXT[child.status],
+                )}
+              >
+                {CARD_STATUS_LABEL[child.status]}
+              </span>
               <button
                 type="button"
                 onClick={() => onOpen(child.id)}
                 className="min-w-0 flex-1 text-left lg:flex lg:items-center lg:gap-3"
               >
-                <span
-                  className={cn(
-                    "block min-w-0 flex-1 truncate text-sm font-medium leading-[1.35]",
-                    child.status === "done" && "text-muted-foreground",
-                  )}
-                >
-                  {child.title}
+                <span className="flex min-w-0 flex-1 items-baseline gap-1.5 lg:items-center">
+                  <span
+                    className={cn(
+                      "min-w-0 truncate text-sm font-medium leading-[1.35]",
+                      child.status === "done" && "text-muted-foreground",
+                    )}
+                  >
+                    {child.title}
+                  </span>
+                  {/* A sibling of the title, not nested inside its `truncate` span — nested, the tag
+                      got clipped away by the ellipsis on anything but a short title. */}
                   {child.tag && (
-                    <TagChip tag={child.tag} className="ml-1.5 px-[7px] py-px text-[10px]" />
+                    <TagChip tag={child.tag} className="shrink-0 px-[7px] py-px text-[10px]" />
                   )}
                 </span>
                 {loud && (
                   <span
                     className={cn(
-                      "mt-1 inline-block shrink-0 rounded-full px-2 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground lg:mt-0",
+                      "mt-1 inline-block shrink-0 rounded-full px-2 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground lg:mt-0 lg:hidden",
                       CARD_DOT[child.status],
                     )}
                   >
@@ -1558,7 +1697,7 @@ function SubtaskList({
                 {dep && (
                   <div
                     className={cn(
-                      "mt-1 flex min-w-0 shrink-0 items-center gap-1 text-[11px] lg:mt-0",
+                      "mt-1 flex min-w-0 shrink-0 items-center gap-1 text-[11px] lg:mt-0 lg:max-w-[200px]",
                       dep.met ? "text-status-done" : "text-status-blocked",
                     )}
                   >
@@ -1592,61 +1731,64 @@ function SubtaskList({
             </div>
           );
         })}
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {adding ? (
-          <form
-            className="flex w-full items-center gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submitNew();
-            }}
-          >
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Titre de la sous-tâche"
-              className="h-10 min-w-0 flex-1 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            />
-            <Button type="submit" size="sm" className="h-10" disabled={!title.trim()}>
-              Ajouter
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-10"
-              onClick={() => {
-                setAdding(false);
-                setTitle("");
+        {/* Footer of the SAME bordered list, not a container of its own below it — "Nouvelle
+            sous-tâche" / "Lier" are one more option among the sub-task rows, not a separate action
+            area (redesign §4b). */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/60 p-2.5">
+          {adding ? (
+            <form
+              className="flex w-full items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitNew();
               }}
             >
-              Annuler
-            </Button>
-          </form>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
-              className="flex min-h-10 items-center gap-1.5 rounded-[10px] bg-brand/16 px-3.5 text-sm font-semibold text-brand"
-            >
-              <Plus className="size-4" />
-              Nouvelle sous-tâche
-            </button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-10 gap-1.5"
-              onClick={() => setLinking(true)}
-            >
-              <Link2 className="size-4" />
-              Lier une carte existante
-            </Button>
-          </>
-        )}
+              <input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Titre de la sous-tâche"
+                className="h-10 min-w-0 flex-1 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+              <Button type="submit" size="sm" className="h-10" disabled={!title.trim()}>
+                Ajouter
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-10"
+                onClick={() => {
+                  setAdding(false);
+                  setTitle("");
+                }}
+              >
+                Annuler
+              </Button>
+            </form>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="flex min-h-10 items-center gap-1.5 rounded-[10px] bg-brand/16 px-3.5 text-sm font-semibold text-brand"
+              >
+                <Plus className="size-4" />
+                Nouvelle sous-tâche
+              </button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 gap-1.5"
+                onClick={() => setLinking(true)}
+              >
+                <Link2 className="size-4" />
+                Lier une carte existante
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <BottomSheet open={linking} onClose={() => setLinking(false)} title="Lier une carte existante">

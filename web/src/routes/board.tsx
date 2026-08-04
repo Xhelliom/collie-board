@@ -269,6 +269,19 @@ export function BoardRoute() {
         subtitle={`${cards.length} card${cards.length === 1 ? "" : "s"}`}
         rightLead={
           <>
+            {/* The active repo scope, as its own removable chip — otherwise a scoped board (the
+                common case, ADR 0006) shows no on-screen sign it's filtered at all until it's
+                empty. Repo before tag: it's the coarser, remembered filter. */}
+            {activeRepo && (
+              <button
+                type="button"
+                onClick={() => pickRepo(null)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {repoName(activeRepo)}
+                <X className="size-3" />
+              </button>
+            )}
             {/* The active tag, as its own removable chip — a tag is a momentary lens (unlike the
                 repo scope, which is remembered and lives in the sidebar/repo list instead). */}
             {active && (

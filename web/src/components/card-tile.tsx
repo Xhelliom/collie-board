@@ -1,4 +1,4 @@
-import { Check, CornerDownRight, Layers } from "lucide-react";
+import { Check, CornerDownRight, GitBranch, Layers, ListChecks } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -108,6 +108,10 @@ export function CardTile({
 }) {
   const loud = LOUD_STATUS[card.status];
   const named = !loud ? NAMED_STATUS[card.status] : undefined;
+  // Whether row 1 has a real status/repo signal to show. Without one, a lone tag chip floating
+  // `ml-auto` in an otherwise-empty row reads as a blank gap — so with nothing else on it, the tag
+  // rides the title row instead (row 2) rather than getting a row of its own.
+  const statusRow = Boolean(loud || named || repo);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
@@ -115,7 +119,9 @@ export function CardTile({
       ? paneDisplayName(card.runtime)
       : null;
   const ctxPct = card.session?.ctxPct;
-  const hasMeta = Boolean(card.runtime || card.branch || ctxPct != null || card.sessionCount > 1);
+  const hasMeta = Boolean(
+    card.runtime || card.branch || ctxPct != null || card.sessionCount > 1 || card.acceptance.length > 0,
+  );
   return (
     <button
       type="button"
@@ -145,9 +151,9 @@ export function CardTile({
         )}
       >
         {/* 1. Status row — loud (a solid chip + the card's own tint), named (a dot + a coloured
-            label), or silent (the repo name takes its place; nothing at all under a repo scope with
-            no tag). The tag rides `ml-auto` on whichever of the three shows. */}
-        {(loud || named || repo || card.tag) && (
+            label), or silent (the repo name takes its place). The tag rides `ml-auto` here when the
+            row exists; with nothing else to show, it moves to the title row instead (below). */}
+        {statusRow && (
           <div className="flex items-center gap-2">
             {loud ? (
               <span
@@ -168,9 +174,9 @@ export function CardTile({
                 <span className={cn("size-1.5 rounded-full", named.dot)} />
                 {CARD_STATUS_LABEL[card.status]}
               </span>
-            ) : repo ? (
+            ) : (
               <span className="truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
-            ) : null}
+            )}
             {card.tag && (
               <TagChip tag={card.tag} className="ml-auto shrink-0 px-[7px] py-px text-[10px] font-semibold" />
             )}
@@ -179,15 +185,20 @@ export function CardTile({
 
         {/* 2. Title. Two lines allowed — no truncation, no clamp. A done card's title recedes with
             it: the work is over, so the title stops competing for attention. */}
-        <div
-          className={cn(
-            "text-base font-semibold leading-[1.3] tracking-[-0.01em] text-wrap-pretty lg:text-[15px]",
-            card.status === "done" ? "text-muted-foreground" : "text-foreground",
-          )}
-        >
-          {card.title}
-          {paneName && (
-            <span className="ml-1 text-xs font-normal text-muted-foreground">· {paneName}</span>
+        <div className="flex items-start gap-2">
+          <div
+            className={cn(
+              "min-w-0 flex-1 text-base font-semibold leading-[1.3] tracking-[-0.01em] text-wrap-pretty lg:text-[15px]",
+              card.status === "done" ? "text-muted-foreground" : "text-foreground",
+            )}
+          >
+            {card.title}
+            {paneName && (
+              <span className="ml-1 text-xs font-normal text-muted-foreground">· {paneName}</span>
+            )}
+          </div>
+          {!statusRow && card.tag && (
+            <TagChip tag={card.tag} className="mt-0.5 shrink-0 px-[7px] py-px text-[10px] font-semibold" />
           )}
         </div>
 
@@ -221,7 +232,20 @@ export function CardTile({
         {hasMeta && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             {card.runtime && <AgentIcon agent={card.runtime.agent} className="size-4 shrink-0" />}
-            {card.branch && <span className="min-w-0 truncate font-mono">{card.branch}</span>}
+            {card.branch && (
+              <span className="flex min-w-0 items-center gap-1 truncate font-mono">
+                <GitBranch className="size-3 shrink-0" />
+                {card.branch}
+              </span>
+            )}
+            {/* A quick "how much is riding on this" stat — the count only, not the criteria
+                themselves; opening the card is what "the details" is for. */}
+            {card.acceptance.length > 0 && (
+              <span className="flex shrink-0 items-center gap-1">
+                <ListChecks className="size-3 shrink-0" />
+                {card.acceptance.length}
+              </span>
+            )}
             <span className="ml-auto flex shrink-0 items-center gap-1.5">
               {ctxPct != null && (
                 <>

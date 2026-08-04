@@ -1,6 +1,7 @@
 import { useNavigate, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
+import { NavMark } from "@/components/app-nav";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { AgentList } from "@/components/agent-list";
@@ -28,6 +29,11 @@ export function HomeRoute() {
       <AppHeader
         title="Herd"
         subtitle={`${data.agents.length} pane${data.agents.length === 1 ? "" : "s"} · ${data.workspaces.length} space${data.workspaces.length === 1 ? "" : "s"}`}
+        icon={
+          <span className="lg:hidden">
+            <NavMark gallop={false} lost={false} size={32} />
+          </span>
+        }
         rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
       />
 

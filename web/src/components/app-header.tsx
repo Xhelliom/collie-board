@@ -13,6 +13,11 @@ interface AppHeaderProps {
    *  Settings) omit it — the nav (AppNav) is the way there now. A screen you enter (card, pane, a
    *  drilled-into space, history) sets it. */
   onBack?: () => void;
+  /** A leading mark before title/subtitle — the dashboard only, mobile only (`lg:hidden` on the
+   *  caller's own element): below `lg` the nav's Collie mark lives in the tab bar, shoulder to
+   *  shoulder with three other icons, so the one screen that used to anchor the brand mark gets a
+   *  quiet static echo of it back. Desktop already has the real thing at the top of the sidebar. */
+  icon?: ReactNode;
   /** Bespoke left content, overriding title/subtitle entirely. */
   children?: ReactNode;
   /** Right-cluster lead items. */
@@ -33,6 +38,7 @@ export function AppHeader({
   title,
   subtitle,
   onBack,
+  icon,
   children,
   rightLead,
   rightTrail,
@@ -52,7 +58,8 @@ export function AppHeader({
               <ArrowLeft className="size-5" />
             </button>
           )}
-          <div className="flex min-w-0 flex-1 items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            {icon}
             {children ?? (
               <div className="min-w-0">
                 {title && (

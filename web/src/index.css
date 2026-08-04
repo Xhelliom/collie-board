@@ -4,6 +4,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Tells the browser which palette to use for stuff it renders itself, not through our CSS —
+     scrollbars, form controls. Without it a dark page still gets light-native chrome (a white
+     scrollbar track on a dark board). */
+  color-scheme: light;
+
   --radius: 0.65rem;
 
   /* Base neutral scale — chroma-tinted cold (hue 250, chroma 0.006): matches --status-idle/
@@ -77,6 +82,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: oklch(0.145 0.006 250);
   --foreground: oklch(0.985 0.006 250);
   --card: oklch(0.205 0.006 250);

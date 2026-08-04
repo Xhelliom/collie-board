@@ -19,6 +19,7 @@ import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
 import { closePane } from "@/lib/api";
+import { cardPath, handoffCard } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { BottomSheet, GrabHandle } from "@/components/ui/sheet";
@@ -924,7 +925,12 @@ export function AgentChat({
             dep={display}
             onAtBottomChange={setFollowing}
             hasNew={hasNew}
-            className="px-2 py-3"
+            // `bg-terminal-background` on the SCROLLPORT, not just the `<pre>` inside (which stays
+            // `shrink-0` content-height on purpose — see ansi-output.tsx's preClass). On a short
+            // transcript in a tall desktop pane the `<pre>`'s own dark box used to end well above the
+            // composer, showing the plain page background in the gap — this keeps the terminal look
+            // for the full scrollable height regardless of how much output there actually is.
+            className="bg-terminal-background px-2 py-3"
           >
             {display ? (
               <>
@@ -1013,9 +1019,10 @@ export function AgentChat({
 
           {/* The agent's statusline, re-surfaced as app chrome (its branch/model/ctx would otherwise
               vanish with the stripped input box). Sits directly above the composer, as it did in the
-              TUI. Verbatim text — a React text node, so no XSS surface. */}
+              TUI. Verbatim text — a React text node, so no XSS surface. `lg:hidden`: at that
+              breakpoint `ContextRailColumn` already carries this same text, under its own heading. */}
           {statusLines.length > 0 && (
-            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
+            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80 lg:hidden">
               {statusLines.map((line, i) => (
                 <div key={i} className="truncate">
                   {line}
@@ -1027,11 +1034,9 @@ export function AgentChat({
           {/* The same gauge CardTile/the card screen show, now for ANY agent pane — the bridge reads
               the transcript of every live agent, not just the card-backed ones (UI_AUDIT.md G1/G3).
               Omitted entirely when there's no figure, so an unreadable agent shows no gauge rather
-              than a made-up one. `lg:` only — on mobile it's redundant with the context row's own
-              tappable %/tokens chip; the desktop toolbar has no ctx figure of its own, so this stays
-              the only source there. */}
+              than a made-up one. Mobile only — `ContextRailColumn` is desktop's own source now. */}
           {agent?.ctxPct != null && (
-            <div className="hidden border-t border-border/40 px-3 py-1.5 lg:block">
+            <div className="border-t border-border/40 px-3 py-1.5 lg:hidden">
               <ContextGauge pct={agent.ctxPct} tokens={agent.ctxTokens} />
             </div>
           )}
@@ -1059,10 +1064,22 @@ export function AgentChat({
       </div>
       </div>
 
-      {/* Desktop-only, 308px: the ctx gauge as a large figure, the card this pane backs (branch
-          only — no card id reaches the client yet, see the component's own note), and the agent's
-          statusline verbatim. */}
-      <ContextRailColumn agent={agent} statusLines={statusLines} />
+      {/* Desktop-only, 308px: the ctx gauge as a large figure, the card this pane backs, and the
+          agent's statusline verbatim. */}
+      <ContextRailColumn
+        agent={agent}
+        statusLines={statusLines}
+        onOpenCard={(cardId) => navigate(cardPath(cardId))}
+        onHandoff={async (cardId) => {
+          try {
+            await handoffCard(cardId);
+            setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+          } catch (e) {
+            setStatus((e as Error).message, "error", null);
+          }
+          revalidator.revalidate();
+        }}
+      />
 
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
           Switch-only: pane closing lives in the pane pill's long-press sheet, not here. */}

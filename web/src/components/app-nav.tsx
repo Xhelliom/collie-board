@@ -9,7 +9,7 @@ import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { DogGallop } from "@/components/dog-gallop";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { BuildStamp } from "@/components/build-stamp";
-import { homePath, spacesPath, settingsPath } from "@/lib/nav";
+import { homePath, spacePath, spacesPath, settingsPath } from "@/lib/nav";
 import { boardPath, repoName, reposOf, saveRepoScope } from "@/lib/board";
 import type { BoardData } from "@/lib/board-loaders";
 import type { HomeData } from "@/lib/loaders";
@@ -43,6 +43,11 @@ const NAV_ITEMS: readonly NavItem[] = [
   { key: "spaces", label: "Spaces", icon: LayoutGrid, path: spacesPath },
   { key: "settings", label: "Settings", icon: Settings, path: settingsPath },
 ];
+// Desktop splits the four destinations: Herd/Board/Spaces are the sidebar's main nav rows, Settings
+// moves to the footer beside SessionSwitcher/BuildStamp (redesign's nav spec — "Bottom: SessionSwitcher
+// … then Settings, then BuildStamp"). Mobile's tab bar has room for all four as equals instead.
+const MAIN_NAV_ITEMS = NAV_ITEMS.filter((item) => item.key !== "settings");
+const SETTINGS_ITEM = NAV_ITEMS.find((item) => item.key === "settings")!;
 
 /** The four root paths the tab bar / sidebar active-state matches against (session query ignored). */
 function rootKeyFor(pathname: string): string | undefined {
@@ -64,7 +69,9 @@ function useNavDogState(data: HomeData) {
   return { gallop: trouble && !lost, lost };
 }
 
-function NavMark({ gallop, lost, size }: { gallop: boolean; lost: boolean; size: number }) {
+/** The ringed favicon mark, gallop/lost-aware. Also used statically (both false) by the dashboard's
+ *  own header on mobile — see AppHeader's `icon` prop. */
+export function NavMark({ gallop, lost, size }: { gallop: boolean; lost: boolean; size: number }) {
   const px = `${size}px`;
   return (
     <span
@@ -115,9 +122,12 @@ function Sidebar({ data }: { data: HomeData }) {
       </button>
 
       <div className={cn("flex flex-col gap-0.5", compact && "items-center")}>
-        {NAV_ITEMS.map((item) => {
+        {MAIN_NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
-          const count = item.key === "herd" && blocked > 0 ? blocked : undefined;
+          // Herd's is an ALERT (needs-you, red corner badge in compact rail too) — Spaces' is plain
+          // information (how many are open), so it never gets the compact rail's alert treatment.
+          const alertCount = item.key === "herd" && blocked > 0 ? blocked : undefined;
+          const infoCount = item.key === "spaces" ? data.workspaces.length : undefined;
           return (
             <button
               key={item.key}
@@ -136,15 +146,15 @@ function Sidebar({ data }: { data: HomeData }) {
             >
               <span className="relative">
                 <item.icon className="size-[18px] shrink-0" />
-                {compact && count !== undefined && (
+                {compact && alertCount !== undefined && (
                   <span className="absolute -right-1.5 -top-1.5 flex size-3.5 items-center justify-center rounded-full bg-status-blocked text-[9px] font-bold text-white">
-                    {count}
+                    {alertCount}
                   </span>
                 )}
               </span>
               {!compact && <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>}
-              {!compact && count !== undefined && (
-                <span className="text-xs tabular-nums">{count}</span>
+              {!compact && (alertCount ?? infoCount) !== undefined && (
+                <span className="text-xs tabular-nums">{alertCount ?? infoCount}</span>
               )}
             </button>
           );
@@ -154,12 +164,27 @@ function Sidebar({ data }: { data: HomeData }) {
       {!compact && (
         <>
           {/* Screen-scoped list, below the nav rows — the sidebar's one nod to "where am I" beyond
-              the four root destinations. Repos on /board today (replaces RepoFilter's old
-              always-visible strip); nothing on every other screen. */}
+              the four root destinations. Repos on /board (replaces RepoFilter's old always-visible
+              strip), spaces on / (replaces the dashboard's own space cards) — nothing elsewhere. */}
           <BoardRepoList />
+          <HomeSpacesList data={data} />
 
           <div className="mt-auto flex flex-col gap-2 pt-4">
             <SessionSwitcher sessions={data.sessions ?? []} current={data.session} />
+            <button
+              type="button"
+              onClick={() => navigate(SETTINGS_ITEM.path(data.session))}
+              aria-current={active === "settings" ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2.5 text-sm transition-colors",
+                active === "settings"
+                  ? "bg-brand/16 font-semibold text-brand"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
+            >
+              <SETTINGS_ITEM.icon className="size-[18px] shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-left">{SETTINGS_ITEM.label}</span>
+            </button>
             <BuildStamp className="text-[11px] font-mono text-muted-foreground/60" />
           </div>
         </>
@@ -237,6 +262,36 @@ function BoardRepoList() {
           )}
         >
           {repo.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The dashboard's spaces, spatial in the sidebar instead of the cards `SpaceOverview` used to render
+ * inline on "/" (redesign §Navigation: "Below the nav, a screen-scoped list… the spaces on /").
+ * `data` is HomeData, passed straight down — unlike {@link BoardRepoList} this needs no `useMatches`
+ * detour, the root loader already carries every workspace.
+ */
+function HomeSpacesList({ data }: { data: HomeData }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  if (location.pathname !== "/" || data.workspaces.length === 0) return null;
+
+  return (
+    <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
+      <span className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+        Spaces
+      </span>
+      {data.workspaces.map((ws) => (
+        <button
+          key={ws.workspaceId}
+          type="button"
+          onClick={() => navigate(spacePath(ws.workspaceId, data.session))}
+          className="truncate rounded-[10px] px-2.5 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        >
+          {ws.label}
         </button>
       ))}
     </div>
