@@ -7,6 +7,28 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.72.0] - 2026-08-04
+
+### Added
+- Persistent nav shell — 248px sidebar desktop, tab bar mobile — replacing the per-screen headers (691a74b).
+- Dashboard triage renders three weight classes: loud card (needs you), medium card (working), bare row (idle·done) (691a74b).
+- Session pane's desktop layout splits into three columns: pane list, mirror, context rail (691a74b).
+- Sub-task management on the card page: add, link an existing card, reorder by drag, set depends-on, detach (691a74b).
+- Spaces overview page (`/spaces`), per-space tab chips, `spacePath` gains a `tab` param (691a74b).
+- `NonNominalPanel` — one shared shape (dot + title + sentence) for read-only, orphaned-pane and empty/filtered states (691a74b).
+- Idle·done rows show `{name} · {workspace}` plus the repo (last segment of `cwd`) on every breakpoint — same-named agents were otherwise indistinguishable (691a74b).
+- The mobile context row's %/tokens chip is tappable, toggling which unit it shows (691a74b).
+
+### Changed
+- Board lanes are unified between mobile and desktop (`BOARD_LANES`), dropping the old CSS-order trick (691a74b).
+- `AppHeader` becomes a plain contextual toolbar (`title`/`subtitle`/`children`/`rightLead`/`rightTrail`/`override`); `SettingsGear` removed (691a74b).
+- `--brand` / `--label-size` / `--label-tracking` / `--status-chip-foreground` tokens added; primary actions use `variant="brand"` (691a74b).
+- `ChatInput` gets an explicit `bg-background` instead of `bg-transparent` — it was reading as grey-on-grey against the composer's chrome bar in light mode (691a74b).
+
+### Fixed
+- The mobile context row and the desktop pane list column no longer render a hard-coded dark background regardless of the active theme — both were missing the `dark:` prefix on `oklch(0.165 0.006 250)` (691a74b).
+- The mobile context row dropped its own background entirely instead — the ctx-bar/pane chip inside it (both `bg-muted`) had become invisible once the row itself turned `bg-muted` too (691a74b).
+
 ## [0.71.0] - 2026-08-03
 
 ### Added
