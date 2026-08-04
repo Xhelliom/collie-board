@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { RotateCcw, Sparkles, User } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
 import type { BoardEvent } from "@/lib/board";
 
@@ -15,6 +15,13 @@ import type { BoardEvent } from "@/lib/board";
 // The replaced text arrives TRUNCATED — the journal rides the polled card response, so carrying
 // every past spec whole would grow that response without bound. A preview is enough to decide,
 // because restoring is itself journalled and therefore undoable.
+//
+// Redesign: a flat list now — every entry (edit or not) is the SAME row shape (timestamp · icon ·
+// sentence), so an edit doesn't stand out as its own boxed thing. Restaurer is a small button on the
+// row itself rather than a tap-to-reveal, and IT is what expands the previous text in place; the
+// actual write stays a second, explicit tap inside that expansion — restoring a spec is state you
+// can't casually undo a second time, so it keeps the same "show what you're about to do" shape as
+// everywhere else in this app.
 
 /** What a `card.edited` payload looks like once the bridge has trimmed it for this view. */
 interface EditPayload {
@@ -32,23 +39,43 @@ export function CardJournal({
 }) {
   if (events.length === 0) return null;
   return (
-    <ul className="flex flex-col gap-1">
+    <ul className="flex flex-col">
       {events.slice(0, 30).map((e) =>
         e.type === "card.edited" ? (
           <EditEntry key={e.id} event={e} onRestore={() => onRestore(e.id)} />
         ) : (
-          <li key={e.id} className="flex gap-2 text-xs text-muted-foreground">
-            <span className="w-16 shrink-0 tabular-nums">{timeAgo(e.ts)}</span>
-            <span className="min-w-0 flex-1 truncate">{describeEvent(e)}</span>
-          </li>
+          <JournalRow key={e.id} ts={e.ts} icon={<EventIcon type={e.type} />}>
+            {describeEvent(e)}
+          </JournalRow>
         ),
       )}
     </ul>
   );
 }
 
+/** The shared row shape every entry renders as — timestamp, a 12px icon (or an empty spacer of the
+ *  same size, so the sentence column still lines up), then the sentence. */
+function JournalRow({ ts, icon, children }: { ts: number; icon: ReactNode; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs">
+      <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
+      <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-foreground">{children}</span>
+    </li>
+  );
+}
+
+/** Sparkles for the copilot, User for a human edit, nothing (an empty spacer) for every other kind
+ *  of event — a session open/close or a status move isn't "caused" by either in the same sense. */
+function EventIcon({ type }: { type: string }) {
+  if (type.startsWith("copilot.")) return <Sparkles className="size-3" />;
+  return null;
+}
+
 /**
- * One overwrite, with what it replaced behind a tap and a Restore beside it.
+ * One overwrite, with what it replaced behind Restaurer.
  *
  * The cause is spelled out rather than shown as a `reason` field: "the copilot rewrote this" and
  * "you rewrote this" call for different reactions, and that distinction is the whole reason the
@@ -72,25 +99,28 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
   }
 
   return (
-    <li className="rounded-lg border border-dashed bg-card/40 px-2.5 py-2">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 text-left text-xs"
-      >
-        <span className="w-16 shrink-0 tabular-nums text-muted-foreground">{timeAgo(event.ts)}</span>
-        {byCopilot ? (
-          <Sparkles className="size-3 shrink-0 text-muted-foreground" />
-        ) : (
-          <User className="size-3 shrink-0 text-muted-foreground" />
-        )}
-        <span className="min-w-0 flex-1 truncate">
+    <li className="flex flex-col gap-2 rounded-lg px-2 py-1.5">
+      <div className="flex items-center gap-2.5 text-xs">
+        <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">
+          {timeAgo(event.ts)}
+        </span>
+        <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+          {byCopilot ? <Sparkles className="size-3" /> : <User className="size-3" />}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-foreground">
           {byCopilot ? "The copilot rewrote" : "You edited"} {fieldList(replaced)}
         </span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="shrink-0 rounded-lg border border-border px-[9px] py-[3px] text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60"
+        >
+          Restaurer
+        </button>
+      </div>
 
       {open && (
-        <div className="flex flex-col gap-2 pt-2">
+        <div className="flex flex-col gap-2 pl-[74px]">
           {replaced.title !== undefined && <Previous label="Title" text={replaced.title} />}
           {replaced.spec !== undefined && <Previous label="Spec" text={replaced.spec ?? "(empty)"} />}
           {replaced.acceptance !== undefined && (
@@ -101,10 +131,18 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
               ? "Shortened for this list — restoring puts the whole text back."
               : "Restoring is itself an edit, so it lands here too and can be undone."}
           </p>
-          <Button variant="outline" onClick={() => void restore()} disabled={busy} className="h-9 gap-2">
-            <RotateCcw className="size-3.5" />
-            {busy ? "Restoring…" : "Restore this version"}
-          </Button>
+          <button
+            type="button"
+            onClick={() => void restore()}
+            disabled={busy}
+            className={cn(
+              "flex w-fit items-center gap-1.5 rounded-lg border border-border px-[9px] py-[3px] text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60",
+              busy && "opacity-60",
+            )}
+          >
+            <RotateCcw className="size-[11px]" />
+            {busy ? "Restoring…" : "Restaurer cette version"}
+          </button>
         </div>
       )}
     </li>

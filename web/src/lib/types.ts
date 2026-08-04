@@ -39,6 +39,9 @@ export interface AgentView {
   readableLines?: number;
   /** The card's branch, present only when this pane backs an open card session (bridge `withCardFields`). */
   branch?: string;
+  /** The card this pane backs, id and title — same gating and source as `branch`. */
+  cardId?: string;
+  cardTitle?: string;
   /**
    * Context occupancy, for ANY agent pane — card-backed or launched by hand (bridge
    * `ContextTracker.enrich`, UI_AUDIT.md G3). Absent until the tracker's first successful transcript

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
 import { fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
@@ -154,7 +155,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             onChange={(e) => setText(e.target.value)}
             rows={5}
             placeholder="Add a diff view scoped to the card&apos;s branch…"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
 
@@ -162,19 +163,10 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             whole point. Off is for the card you have already worded exactly — and it is the only
             control that matters, because creating a card is the ONLY moment the copilot rewrites
             anything without being asked. Every later run is a button, and now a confirmed one. */}
-        <button
-          type="button"
-          onClick={() => setRewrite(!rewrite)}
-          aria-pressed={rewrite}
-          className="flex items-center gap-2 self-start px-1 py-1 text-xs text-muted-foreground"
-        >
-          {rewrite ? (
-            <ToggleRight className="size-4 text-primary" />
-          ) : (
-            <ToggleLeft className="size-4" />
-          )}
-          {rewrite ? "The copilot will rewrite this" : "Keep my wording — no rewrite"}
-        </button>
+        <div className="flex items-center justify-between gap-3 px-1 py-1">
+          <span className="text-xs text-muted-foreground">Le copilote va réécrire ce texte</span>
+          <Switch checked={rewrite} onCheckedChange={setRewrite} aria-label="Rewrite with the copilot" />
+        </div>
 
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
@@ -254,11 +246,16 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
 
         {title && (
           <p className="truncate text-xs text-muted-foreground">
-            Title: <span className="text-foreground">{title}</span>
+            Titre déduit : <span className="text-foreground">{title}</span>
           </p>
         )}
-        <Button onClick={create} disabled={!title} className="mt-1 h-11">
-          Add to backlog
+        <Button
+          variant="brand"
+          onClick={create}
+          disabled={!title}
+          className="mt-1 h-12 rounded-xl text-sm font-semibold"
+        >
+          Ajouter au backlog
         </Button>
       </div>
     </BottomSheet>

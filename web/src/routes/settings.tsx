@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Bell, Loader2 } from "lucide-react";
-import { useNavigate, useRouteLoaderData } from "react-router";
+import { useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
-import { SectionLabel } from "@/components/ui/section-label";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { ConnectionInfo } from "@/components/connection-info";
@@ -16,15 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { fetchConfig } from "@/lib/api";
 import { usePushControl } from "@/hooks/use-push";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { homePath } from "@/lib/nav";
-import { useSession } from "@/lib/session";
 import type { PushAvailability } from "@/lib/push";
 
-// Settings page — appearance + the push-notification toggle. Reachable from the home header gear.
+// Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
 // Lives under the root route, so the snapshot polling/push-setup in RootLayout keeps running behind it.
 export function SettingsRoute() {
-  const navigate = useNavigate();
-  const session = useSession();
   const { state, busy, setEnabled } = usePushControl();
   const [error, setError] = useState<string | null>(null);
 
@@ -57,12 +52,7 @@ export function SettingsRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col">
-      <AppHeader
-        bridge={root?.bridge}
-        error={root?.error ?? false}
-        onHome={() => navigate(homePath(session))}
-        rightLead={<SectionLabel className="pr-1">Settings</SectionLabel>}
-      />
+      <AppHeader title="Settings" />
 
       {/* The screen's one h1 — the header already says "Settings", but as a SectionLabel span. Kept
           outside <main>, whose space-y-4 would otherwise hand its first real child a stray margin. */}

@@ -1,30 +1,23 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import {
-  useLoaderData,
-  useNavigate,
-  useRevalidator,
-  useRouteLoaderData,
-  useSearchParams,
-} from "react-router";
-import { Plus } from "lucide-react";
+import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { ListFilter, Plus, X } from "lucide-react";
 
-import { AppHeader, SettingsGear } from "@/components/app-header";
-import { SectionLabel } from "@/components/ui/section-label";
+import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/ui/sheet";
 import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
+import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
 import { RepoFilter } from "@/components/repo-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
-import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import {
   BOARD_COLUMNS,
   BOARD_LANES,
-  CARD_STATUS_LABEL,
   MANUAL_STATUSES,
   canDropCard,
   cardPath,
@@ -41,22 +34,17 @@ import {
   type CardView,
 } from "@/lib/board";
 import type { BoardData } from "@/lib/board-loaders";
-import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { homePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 
-// The board: every card, grouped by column, urgency first.
+// The board: every card, grouped by lane, flow order left to right (or top to bottom on a phone).
 //
-// On a PHONE, deliberately a single vertical scroll of labelled sections rather than side-by-side
-// Kanban columns: a phone has one column of usable width, and horizontal panning to find the card
-// that needs you is exactly the interaction this whole project exists to avoid.
-//
-// From `lg` up that argument stops applying — the screen HAS the columns — so the same sections lay
-// out as four lanes (BOARD_LANES), left to right in the order work moves through them. Same DOM
-// either way: each lane is `display: contents` below the breakpoint, which drops it out of the
-// layout entirely and leaves the phone's flat list of sections exactly as it was, and `order-*`
-// keeps that list in BOARD_COLUMNS order — urgency first, which is the right axis when only one
-// column fits on screen.
+// Redesign: mobile and desktop now share ONE structure — four lanes (BOARD_LANES), each a labelled
+// section holding its columns' cards with no per-column sub-heading (the card's own status row
+// carries that now, see card-tile.tsx). They used to diverge: mobile flattened to eight
+// BOARD_COLUMNS sections in urgency order via a CSS `order-*` trick, desktop grouped by lane. That
+// divergence is gone — a phone just stacks the four lane sections instead of laying them side by
+// side, same DOM, same lane order (which already leads with `blocked` inside "Doing" — urgency still
+// wins within a lane).
 //
 // DRAGGING is the desktop's, and only in the columns a human owns anyway (`canDropCard`). Cards move
 // between the live columns on their own — the bridge reconciles them against the herd every poll —
@@ -66,27 +54,22 @@ import { setStatus } from "@/lib/status";
 //
 // Both moves are the same drop: BETWEEN columns changes `status`, WITHIN one changes only
 // `position`, and a fractional rank (`positionFor`) means either is one PATCH on one card with no
-// neighbours to renumber.
-// Phone order, restored by hand: written as literals because Tailwind only ever sees the source
-// text, and indexed by BOARD_COLUMNS so the two can't drift.
-const MOBILE_ORDER = [
-  "order-1",
-  "order-2",
-  "order-3",
-  "order-4",
-  "order-5",
-  "order-6",
-  "order-7",
-  "order-8",
-];
+// neighbours to renumber. Each COLUMN (not lane) stays its own drop target internally — a lane like
+// "Doing" holds four columns, and a card still has to land in a specific one of them — the columns
+// just no longer draw a seam between themselves.
+
+/** Lane header dot colour — the tone a lane's own cards would use if any of them were "loud". */
+const LANE_TONE: Record<string, string> = {
+  "To do": "bg-brand",
+  Doing: "bg-status-working",
+  "To review": "bg-status-done",
+  Done: "bg-status-idle",
+};
 
 export function BoardRoute() {
   const data = useLoaderData() as BoardData;
-  // The root loader is still the connection source of truth — the board rides its poll.
-  const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const stalled = useLoadingStalled();
   const desktop = useIsDesktop();
   // Both filters live in the URL, not in a useState — three things come free that a component state
   // doesn't have: they survive opening a card and coming back (the board unmounts in between, which
@@ -131,6 +114,11 @@ export function BoardRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: this seeds, it doesn't sync.
   }, []);
   const [newOpen, setNewOpen] = useState(false);
+  // The filter sheet — RepoFilter + TagFilter moved off the always-visible strips and behind one
+  // toolbar chip (redesign §2), so a common board (one repo, few tags) shows no filter chrome by
+  // default. Desktop keeps a SECOND, always-visible way to scope by repo (the sidebar list,
+  // app-nav.tsx) — the sheet still works there too; the two just write the same `?repo=`.
+  const [filterOpen, setFilterOpen] = useState(false);
   // The card in hand, and the SLOT under the pointer — which column, and at which index inside it.
   // View state, both of it, and both die with the drop; nothing about a drag is worth persisting.
   const [held, setHeld] = useState<{ id: string; from: CardStatus } | null>(null);
@@ -165,6 +153,9 @@ export function BoardRoute() {
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
   const showRepo = !activeRepo && repos.length > 1;
+  // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
+  // self-hiding rule, so the chip never opens onto an empty sheet.
+  const hasFilters = repos.length > 1 || tags.length > 0;
 
   // Cards first become ENTRIES, then get bucketed by column. On a phone a container and its
   // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
@@ -274,62 +265,100 @@ export function BoardRoute() {
     // themselves re-lay out to whatever width the lane ends up with.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        bridge={root?.bridge}
-        error={root?.error ?? data.error}
-        stalled={stalled}
-        onHome={() => navigate(homePath(root?.session))}
-        rightLead={<SectionLabel className="pr-1">Board</SectionLabel>}
-        rightTrail={<SettingsGear session={root?.session} />}
+        title="Board"
+        subtitle={`${cards.length} card${cards.length === 1 ? "" : "s"}`}
+        rightLead={
+          <>
+            {/* The active repo scope, as its own removable chip — otherwise a scoped board (the
+                common case, ADR 0006) shows no on-screen sign it's filtered at all until it's
+                empty. Repo before tag: it's the coarser, remembered filter. */}
+            {activeRepo && (
+              <button
+                type="button"
+                onClick={() => pickRepo(null)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {repoName(activeRepo)}
+                <X className="size-3" />
+              </button>
+            )}
+            {/* The active tag, as its own removable chip — a tag is a momentary lens (unlike the
+                repo scope, which is remembered and lives in the sidebar/repo list instead). */}
+            {active && (
+              <button
+                type="button"
+                onClick={() => pick(null)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {active}
+                <X className="size-3" />
+              </button>
+            )}
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => setFilterOpen(true)}
+                aria-label="Filter the board"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
+              >
+                <ListFilter className="size-[13px]" />
+                Filter
+              </button>
+            )}
+          </>
+        }
+        rightTrail={
+          <Button
+            variant="brand"
+            className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
+            onClick={() => setNewOpen(true)}
+          >
+            <Plus className="size-4" />
+            <span className="hidden sm:inline">New card</span>
+          </Button>
+        }
       />
-
-      {/* Outside the scroller on purpose — see TagFilter. Repo above tag: coarse scope, then fine.
-          Each row hides itself when it has nothing to offer, so the common board — one repo, no
-          tags — is still a board with no filter chrome at all. */}
-      <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
-      <TagFilter tags={tags} active={active} onPick={pick} />
 
       {/* One scroller on a phone (the whole board), FOUR on a wide screen (one per lane) — the
           outer one is switched off at `lg` and each lane takes over. Without this, seventeen cards
           in "In progress" make you scroll a very long page past three empty columns, which is the
-          one thing a board laid out in columns is supposed to spare you. Note the lanes stretch
-          now (no `items-start`): a lane has to fill the row before `h-full` means anything. */}
+          one thing a board laid out in columns is supposed to spare you. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
-        <main className="flex flex-1 flex-col pb-24 lg:grid lg:min-h-0 lg:grid-cols-4 lg:gap-x-3 lg:px-3 lg:pb-0">
-          {/* The screen's one h1 — the header already says "Board", but as a SectionLabel span. */}
+        <main className="flex flex-1 flex-col gap-6 px-3 pb-24 pt-3 lg:grid lg:min-h-0 lg:grid-cols-4 lg:gap-4 lg:bg-muted lg:p-5 lg:pb-5 dark:lg:bg-[oklch(0.165_0.006_250)]">
+          {/* The screen's one h1 — the toolbar already says "Board". */}
           <h1 className="sr-only">Board</h1>
           {empty ? (
-            <div className="px-4 py-12 text-center text-sm text-muted-foreground lg:col-span-4">
+            <div className="px-3 py-6 lg:col-span-4">
               {/* "Nothing here" and "nothing here MATCHES" are different facts, and telling a
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
               {active || activeRepo ? (
                 <>
-                  <p>
-                    No cards
+                  <NonNominalPanel tone="muted" title="Aucune carte qui corresponde">
+                    Aucune carte
                     {activeRepo && (
                       <>
                         {" "}
-                        in <span className="font-medium">{repoName(activeRepo)}</span>
+                        dans <span className="font-medium text-foreground">{repoName(activeRepo)}</span>
                       </>
                     )}
                     {active && (
                       <>
                         {" "}
-                        tagged “<span className="font-medium">{active}</span>”
+                        taguée «&nbsp;<span className="font-medium text-foreground">{active}</span>&nbsp;»
                       </>
                     )}
                     .
-                  </p>
+                  </NonNominalPanel>
                   <Button variant="outline" className="mt-3" onClick={clearFilters}>
                     Show all cards
                   </Button>
                 </>
               ) : (
-                <>
-                  <p>No cards yet.</p>
-                  <p className="mt-1">A card is a task that outlives the pane working on it.</p>
-                </>
+                <NonNominalPanel tone="muted" title="Aucune carte">
+                  A card is a task that outlives the pane working on it.
+                </NonNominalPanel>
               )}
             </div>
           ) : (
@@ -338,111 +367,105 @@ export function BoardRoute() {
               return (
                 <div
                   key={lane.label}
-                  className="contents lg:block lg:h-full lg:min-w-0 lg:overflow-y-auto lg:pb-24"
+                  className="flex flex-col gap-2.5 lg:h-full lg:min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3"
                 >
                   {/* The lane's own heading exists only once there are lanes. An EMPTY lane still
                       renders it: four columns that keep their places are what makes a board
                       scannable, and a column that disappears when it empties moves the other three.
-                      Sticky, now that the lane scrolls under it — a column whose name scrolls away
-                      leaves you reading cards with no idea which pile they are in. */}
-                  <div className="hidden items-baseline gap-2 pb-2 pt-4 lg:flex lg:sticky lg:top-0 lg:z-10 lg:bg-background">
-                    <SectionLabel>{lane.label}</SectionLabel>
-                    <span className="text-xs text-muted-foreground/70">{total}</span>
+                      Shown on BOTH breakpoints now — the per-column sub-heading that used to carry
+                      this on a phone is gone (each card's own status row says it instead). Sticky on
+                      desktop, where the lane scrolls under it; a plain in-flow heading on mobile,
+                      where the whole page is the one scroller. */}
+                  <div className="flex items-center gap-2 lg:sticky lg:top-0 lg:z-10 lg:bg-background lg:pb-1">
+                    <span
+                      aria-hidden
+                      className={cn("size-2 shrink-0 rounded-full", LANE_TONE[lane.label])}
+                    />
+                    <span className="text-xs font-bold uppercase tracking-[0.08em]">
+                      {lane.label}
+                    </span>
+                    <span className="rounded-full bg-muted px-[7px] py-px text-[11px] font-semibold tabular-nums text-muted-foreground">
+                      {total}
+                    </span>
                   </div>
-                  {lane.statuses.map((status, i) => {
-                    const column = byStatus.get(status) ?? [];
-                    const target = dropTarget(status);
-                    // An empty column is hidden — except while it is somewhere a card in hand could
-                    // GO. Without this, moving the last card out of Ready makes Ready disappear, and
-                    // with it any way to drag one back.
-                    if (column.length === 0 && !target) return null;
-                    // The dragged card stays IN the list and is hidden with `display:none` rather
-                    // than filtered out of it. Removing it from the tree unmounts its DOM node, and
-                    // an unmounted node never receives `dragend` — so an Escape or a drop in the
-                    // margin would leave the board stuck in drag state forever. Hidden, the node
-                    // lives, the layout behaves as if it were gone, and its slot still counts (see
-                    // `heldSlot`, which is what keeps the index arithmetic honest).
-                    const ghostAt = over?.status === status ? over.index : -1;
-                    const heldSlot = held ? column.findIndex((e) => entryKey(e) === held.id) : -1;
-                    return (
-                      <section
-                        key={status}
-                        onDragOver={
-                          target
-                            ? (e) => {
-                                // preventDefault IS the "yes, you may drop here" — without it the
-                                // browser refuses the drop and animates the card back.
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = "move";
-                                // ENTERING the column, not moving inside it. The tiles own the slot
-                                // once the pointer is in here (each stops the event, see below), so
-                                // this only ever answers "you arrived somewhere that isn't a tile"
-                                // — the padding, the gap between two cards, or the ghost itself,
-                                // which is `inert` and lets every event fall through to here.
-                                //
-                                // It MUST NOT overwrite a slot this column already has: the ghost
-                                // sits under the pointer by definition, so recomputing on every
-                                // dragover made the slot flip between "where you are" and "at the
-                                // end" a few times a second — the flicker.
-                                setOver((o) => (o?.status === status ? o : { status, index: column.length }));
-                              }
-                            : undefined
-                        }
-                        onDragLeave={
-                          target
-                            ? (e) => {
-                                // `dragleave` fires on every hop between children too, and clearing
-                                // the highlight there makes it strobe as the pointer crosses the
-                                // cards inside the column. Only a leave that actually exits counts.
-                                if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-                                setOver((o) => (o?.status === status ? null : o));
-                              }
-                            : undefined
-                        }
-                        onDrop={
-                          target
-                            ? () => void drop(status, ghostAt < 0 ? column.length : ghostAt, heldSlot)
-                            : undefined
-                        }
-                        className={cn(
-                          "px-3 pt-4 lg:order-none lg:px-0 lg:pt-3",
-                          MOBILE_ORDER[BOARD_COLUMNS.indexOf(status)],
-                          // `-outline-offset-2` draws the outline INSIDE the box. An outline is
-                          // painted outside by default, and now that each lane is its own
-                          // `overflow-y-auto` scroller, outside means clipped on both edges.
-                          // The min-height is just enough to aim at when the column is empty; the
-                          // ghost below is what gives it real volume once you're over it.
-                          // `p-2` on all four sides, not `px`: the section's own padding is `pt-3`
-                          // with nothing at the bottom, which is invisible until a frame is drawn
-                          // around it — then the top breathes and the last card sits on the line.
-                          // Symmetric padding is what makes the outline read as a box holding the
-                          // cards rather than as a box that ends slightly wrong.
-                          target &&
-                            "rounded-xl outline-1 -outline-offset-2 outline-dashed outline-border transition-colors lg:min-h-16 lg:p-2",
-                          // Thickness, not tint: `accent` sits 3% off `background`, which is not a
-                          // signal — the ring colour on a doubled outline is.
-                          over?.status === status && "bg-accent outline-2 outline-ring",
-                        )}
-                      >
-                        {/* Hidden only when it is the lane's FIRST column and repeats its name
-                            ("Done" under Done) — dropping a heading further down would leave the
-                            cards above it unlabelled. Everywhere else it stays, which is what keeps
-                            `starting` legible as its own thing inside "Doing". */}
-                        <div
+                  <div className="flex flex-col gap-2.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                    {lane.statuses.map((status) => {
+                      const column = byStatus.get(status) ?? [];
+                      const target = dropTarget(status);
+                      // An empty column is hidden — except while it is somewhere a card in hand
+                      // could GO. Without this, moving the last card out of Ready makes Ready
+                      // disappear, and with it any way to drag one back.
+                      if (column.length === 0 && !target) return null;
+                      // The dragged card stays IN the list and is hidden with `display:none` rather
+                      // than filtered out of it. Removing it from the tree unmounts its DOM node,
+                      // and an unmounted node never receives `dragend` — so an Escape or a drop in
+                      // the margin would leave the board stuck in drag state forever. Hidden, the
+                      // node lives, the layout behaves as if it were gone, and its slot still counts
+                      // (see `heldSlot`, which is what keeps the index arithmetic honest).
+                      const ghostAt = over?.status === status ? over.index : -1;
+                      const heldSlot = held ? column.findIndex((e) => entryKey(e) === held.id) : -1;
+                      return (
+                        <section
+                          key={status}
+                          onDragOver={
+                            target
+                              ? (e) => {
+                                  // preventDefault IS the "yes, you may drop here" — without it the
+                                  // browser refuses the drop and animates the card back.
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = "move";
+                                  // ENTERING the column, not moving inside it. The tiles own the
+                                  // slot once the pointer is in here (each stops the event, see
+                                  // below), so this only ever answers "you arrived somewhere that
+                                  // isn't a tile" — the padding, the gap between two cards, or the
+                                  // ghost itself, which is `inert` and lets every event fall through
+                                  // to here.
+                                  //
+                                  // It MUST NOT overwrite a slot this column already has: the ghost
+                                  // sits under the pointer by definition, so recomputing on every
+                                  // dragover made the slot flip between "where you are" and "at the
+                                  // end" a few times a second — the flicker.
+                                  setOver((o) =>
+                                    o?.status === status ? o : { status, index: column.length },
+                                  );
+                                }
+                              : undefined
+                          }
+                          onDragLeave={
+                            target
+                              ? (e) => {
+                                  // `dragleave` fires on every hop between children too, and
+                                  // clearing the highlight there makes it strobe as the pointer
+                                  // crosses the cards inside the column. Only a leave that actually
+                                  // exits counts.
+                                  if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+                                  setOver((o) => (o?.status === status ? null : o));
+                                }
+                              : undefined
+                          }
+                          onDrop={
+                            target
+                              ? () => void drop(status, ghostAt < 0 ? column.length : ghostAt, heldSlot)
+                              : undefined
+                          }
                           className={cn(
-                            "flex items-baseline gap-2 pb-2",
-                            i === 0 && CARD_STATUS_LABEL[status] === lane.label && "lg:hidden",
+                            "flex flex-col gap-2",
+                            // `-outline-offset-2` draws the outline INSIDE the box — an outline is
+                            // painted outside by default, and a lane can be its own scroller now, so
+                            // outside would mean clipped on both edges. The min-height is just
+                            // enough to aim at when the column is empty; the ghost is what gives it
+                            // real volume once you're over it. No text label any more (there is no
+                            // sub-heading left to explain "here" by name) — the dashed outline is
+                            // its own affordance, and it only ever shows while a compatible drag is
+                            // in flight.
+                            target &&
+                              "rounded-xl p-2 outline-1 -outline-offset-2 outline-dashed outline-border transition-colors",
+                            // Thickness, not tint: `accent` sits 3% off `background`, which is not a
+                            // signal — the ring colour on a doubled outline is.
+                            over?.status === status && "bg-accent outline-2 outline-ring",
                           )}
                         >
-                          <SectionLabel>{CARD_STATUS_LABEL[status]}</SectionLabel>
-                          <span className="text-xs text-muted-foreground/70">{column.length}</span>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          {column.length === 0 && ghostAt < 0 && (
-                            <p className="py-3 text-center text-xs text-muted-foreground">
-                              Drop here to move to {CARD_STATUS_LABEL[status].toLowerCase()}
-                            </p>
-                          )}
+                          {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
                           {column.map((entry, slot) => (
                             <Fragment key={entryKey(entry)}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
@@ -524,10 +547,10 @@ export function BoardRoute() {
                             </Fragment>
                           ))}
                           {ghostAt >= column.length && heldCard && ghost(heldCard)}
-                        </div>
-                      </section>
-                    );
-                  })}
+                        </section>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })
@@ -535,16 +558,22 @@ export function BoardRoute() {
         </main>
       </div>
 
-      {/* New-card FAB, above the status line. One tap from anywhere on the board. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:max-w-none">
-        <div className="pointer-events-auto flex justify-end pb-2">
-          <Button onClick={() => setNewOpen(true)} className="h-12 gap-2 rounded-full px-5 shadow-lg">
-            <Plus className="size-4" />
-            New card
-          </Button>
-        </div>
+      {/* Status line, above the mobile tab bar. Raised clear of it (app-nav.tsx), which now owns
+          that edge below `lg`. New card moved into the toolbar as the primary action — no floating
+          FAB any more. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
         <StatusArea />
       </div>
+
+      {/* The filter sheet: repo scope above tag, coarse then fine, same two components the board
+          used to show as always-visible strips — just behind one tap now (redesign §2: "this removes
+          two always-visible strips"). */}
+      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
+        <div className="-mx-4 flex flex-col">
+          <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
+          <TagFilter tags={tags} active={active} onPick={pick} />
+        </div>
+      </BottomSheet>
 
       {/* The same list the filter strip offers, deliberately: what you can narrow the board to and
           what you can tag a new card with are one inventory, and deriving it twice is how they
@@ -562,4 +591,3 @@ export function BoardRoute() {
     </div>
   );
 }
-

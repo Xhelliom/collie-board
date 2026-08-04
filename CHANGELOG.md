@@ -7,6 +7,57 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.73.0] - 2026-08-04
+
+### Added
+- `AgentView` carries `cardId`/`cardTitle` — `withCardFields` already looked the card up for `branch`, now returns the rest of what it already had (bb3b554).
+- The pane's desktop context rail gets a "Carte portée" block off that new field: title, branch, "Ouvrir la carte" / "Handoff" (bb3b554).
+- The context rail also shows the token count and an explicit "Contexte" / "Statusline de l'agent" heading, matching the mockup (bb3b554).
+- Desktop sidebar: a "Spaces" list under the nav on `/` (mirrors the board's own repo list), and per-item counts (needs-you on Herd, space count on Spaces) (bb3b554).
+- Card page: "Reformuler" next to "Éditer" in the header, alongside the existing Rework section's copy (bb3b554).
+- Board card meta row: `GitBranch` icon in front of the branch, and an acceptance-criteria count (`ListChecks` + number) (bb3b554).
+
+### Changed
+- Card page desktop: dropped the `lg:max-w-6xl` ceiling (matches board/home now) — Spec/Acceptance keep their own `max-w-[70ch]` for readability (bb3b554).
+- Card title's cap widened from `30ch` to `46ch` — it was wrapping titles that had the room to fit on one line (bb3b554).
+- Card page desktop: Intégration and Classer move from the document column into the action rail next to the live pane/composer, instead of sitting mid-document between Spec and Journal (bb3b554).
+- Sub-task table (desktop): every row now shows its status in a fixed column, not just blocked/orphaned ones; the tag rides as the title's sibling instead of getting clipped by its `truncate`; the "depends on" text is capped at `200px` instead of crowding out the rest of the row (bb3b554).
+- Sub-task list footer ("Nouvelle sous-tâche" / "Lier une carte existante") moved inside the same bordered container as the rows, not a separate box below it (bb3b554).
+- Board card tile: the tag no longer sits alone in an otherwise-empty status row — it rides the title row when there's no status/repo to show alongside it (bb3b554).
+- Board toolbar shows a removable chip for the active repo scope — previously invisible until the board was empty (bb3b554).
+- `/space/:id`'s back chevron and empty-space fallback go to `/spaces`, not the dashboard — a leftover from before Spaces had its own page (bb3b554).
+
+### Fixed
+- The terminal mirror's dark background stopped at the transcript's own height on a short pane, showing the page background below it on a tall desktop screen — moved onto the scrollport instead of the `<pre>` (bb3b554).
+- The dark theme's native scrollbar (and other browser-drawn controls) rendered light — missing `color-scheme` on `:root`/`.dark` (bb3b554).
+- Container card's right column briefly duplicated Intégration/Classer in both columns while the move above landed (bb3b554).
+- The Herd dashboard's header lost its brand mark on mobile when the nav shell moved it to the tab bar (a plain `Dog` icon there, same weight as the other three tabs) — a small static echo of the mark is back on the dashboard's own header, mobile only (bb3b554).
+
+### Removed
+- Desktop sidebar: Settings is no longer duplicated as a fourth main nav row — it lives in the footer only, beside SessionSwitcher/BuildStamp, matching the redesign's own nav spec (bb3b554).
+
+## [0.72.0] - 2026-08-04
+
+### Added
+- Persistent nav shell — 248px sidebar desktop, tab bar mobile — replacing the per-screen headers (691a74b).
+- Dashboard triage renders three weight classes: loud card (needs you), medium card (working), bare row (idle·done) (691a74b).
+- Session pane's desktop layout splits into three columns: pane list, mirror, context rail (691a74b).
+- Sub-task management on the card page: add, link an existing card, reorder by drag, set depends-on, detach (691a74b).
+- Spaces overview page (`/spaces`), per-space tab chips, `spacePath` gains a `tab` param (691a74b).
+- `NonNominalPanel` — one shared shape (dot + title + sentence) for read-only, orphaned-pane and empty/filtered states (691a74b).
+- Idle·done rows show `{name} · {workspace}` plus the repo (last segment of `cwd`) on every breakpoint — same-named agents were otherwise indistinguishable (691a74b).
+- The mobile context row's %/tokens chip is tappable, toggling which unit it shows (691a74b).
+
+### Changed
+- Board lanes are unified between mobile and desktop (`BOARD_LANES`), dropping the old CSS-order trick (691a74b).
+- `AppHeader` becomes a plain contextual toolbar (`title`/`subtitle`/`children`/`rightLead`/`rightTrail`/`override`); `SettingsGear` removed (691a74b).
+- `--brand` / `--label-size` / `--label-tracking` / `--status-chip-foreground` tokens added; primary actions use `variant="brand"` (691a74b).
+- `ChatInput` gets an explicit `bg-background` instead of `bg-transparent` — it was reading as grey-on-grey against the composer's chrome bar in light mode (691a74b).
+
+### Fixed
+- The mobile context row and the desktop pane list column no longer render a hard-coded dark background regardless of the active theme — both were missing the `dark:` prefix on `oklch(0.165 0.006 250)` (691a74b).
+- The mobile context row dropped its own background entirely instead — the ctx-bar/pane chip inside it (both `bg-muted`) had become invisible once the row itself turned `bg-muted` too (691a74b).
+
 ## [0.71.0] - 2026-08-03
 
 ### Added

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ctxTone } from "@/components/ctx-bar";
 
 // How full the agent's context window is, read off its own transcript (bridge/context.ts).
 //
@@ -18,8 +19,7 @@ export function ContextGauge({
 }) {
   if (pct == null) return null;
 
-  const tone =
-    pct >= 85 ? "bg-status-blocked" : pct >= 70 ? "bg-status-working" : "bg-status-done";
+  const tone = ctxTone(pct);
 
   return (
     <div className="flex flex-col gap-1">

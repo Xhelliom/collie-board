@@ -45,7 +45,7 @@ export function KeyBadge({ children, tone = "default" }: { children: ReactNode; 
         "mt-px flex size-5 shrink-0 items-center justify-center rounded-md border text-xs font-semibold leading-none tabular-nums",
         tone === "default"
           ? "border-border bg-background text-muted-foreground"
-          : "border-primary/40 bg-primary/15 text-primary",
+          : "border-brand/35 bg-brand/16 text-brand",
       )}
     >
       {children}
@@ -67,7 +67,7 @@ export function PromptPanel({ ariaLabel, children }: { ariaLabel: string; childr
     <div
       role="group"
       aria-label={ariaLabel}
-      className="my-1.5 flex flex-col gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm"
+      className="my-1.5 flex flex-col gap-1.5 rounded-xl border border-brand/35 bg-card p-1.5 shadow-sm"
     >
       {children}
     </div>

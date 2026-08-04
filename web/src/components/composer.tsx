@@ -577,131 +577,148 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         {showPreview && effectiveRaw !== null && (
           <TerminalDraftPreview text={effectiveRaw} onTakeOver={takeOverDraft} />
         )}
-        {/* Reply input — full width, its own line (UI_AUDIT C1). No side buttons compete for space
-            here anymore (attach/Send moved to the action row below), so the textarea gets the whole
-            composer width instead of the ~270px it used to share with them. */}
-        <ChatInput
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              onSendClick();
-            }
-          }}
-          onPaste={onPasteImage}
-          placeholder={
-            gone
-              ? "Pane is gone"
-              : readOnly
-                ? "Read-only — device not authorised"
-                : isShell
-                  ? "Type a shell command…"
-                  : "Type a reply…"
-          }
-          disabled={locked}
-          rows={1}
-          className="mb-2"
-        />
-        {/* Action row — the composer's one permanent control row (UI_AUDIT C1), replacing the old
-            View + Controls rows (~80px of 28-32px targets). Every target here is 44px (Apple/Material
-            minimum). Keys/Quick/View are TOGGLES for the in-flow dock above (not overlays): tap to
-            open, tap again to close; secondary variant marks the one that's open. Agent only appears
-            when the pane's agent has slash-commands. Send is anchored to the far side (thumb corner). */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant={drawer === "keys" ? "secondary" : "ghost"}
-            size="icon"
-            className="size-11 text-muted-foreground"
-            disabled={locked}
-            aria-expanded={drawer === "keys"}
-            aria-label="Keys"
-            title="Keys"
-            onClick={() => setDrawer(drawer === "keys" ? null : "keys")}
-          >
-            <Keyboard className="size-4" />
-          </Button>
-          <Button
-            variant={drawer === "quick" ? "secondary" : "ghost"}
-            size="icon"
-            className="size-11 text-muted-foreground"
-            disabled={locked}
-            aria-expanded={drawer === "quick"}
-            aria-label="Quick"
-            title="Quick replies"
-            onClick={() => setDrawer(drawer === "quick" ? null : "quick")}
-          >
-            <Zap className="size-4" />
-          </Button>
-          {commands.length > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-11 text-muted-foreground"
+        {/* Reply input + action row: two lines on a phone (full-width input, then the 44px-target
+            row below it), ONE row from `lg` up — the input becomes `flex-1` beside the same five
+            buttons, Send at the end (redesign §5 "Composer collapses to one row on desktop"). The
+            `⌘⏎ pour envoyer` hint only makes sense once a physical keyboard is the norm, so it's
+            desktop-only too. */}
+        <div className="lg:flex lg:items-end lg:gap-2">
+          <div className="relative lg:min-w-0 lg:flex-1">
+            {/* Reply input — full width, its own line below `lg` (UI_AUDIT C1). No side buttons
+                compete for space here anymore (attach/Send moved to the action row), so the textarea
+                gets the whole composer width instead of the ~270px it used to share with them. */}
+            <ChatInput
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  onSendClick();
+                }
+              }}
+              onPaste={onPasteImage}
+              placeholder={
+                gone
+                  ? "Pane is gone"
+                  : readOnly
+                    ? "Read-only — device not authorised"
+                    : isShell
+                      ? "Type a shell command…"
+                      : "Type a reply…"
+              }
               disabled={locked}
-              aria-label="Agent"
-              title="Agent commands"
-              onClick={() => setDrawer("cmd")}
-            >
-              <Slash className="size-4" />
-            </Button>
-          )}
-          {/* Attach image — moved off the input line (UI_AUDIT C1) so it no longer eats input width.
-              preventDefault keeps the textarea focused so the picker opens without the soft keyboard
-              collapsing first. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-11 text-muted-foreground"
-            disabled={uploading || locked}
-            onPointerDown={(e) => e.preventDefault()}
-            onClick={() => fileRef.current?.click()}
-            aria-label="Attach image"
-          >
-            {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
-          </Button>
-          <Button
-            variant={drawer === "view" ? "secondary" : "ghost"}
-            size="icon"
-            className="size-11 text-muted-foreground"
-            aria-expanded={drawer === "view"}
-            aria-label="View"
-            title="View settings"
-            onClick={() => setDrawer(drawer === "view" ? null : "view")}
-          >
-            <SlidersHorizontal className="size-4" />
-          </Button>
-          {confirmingSend ? (
-            <Button
-              variant="destructive"
-              className="ml-auto h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
-              onClick={onSendClick}
-              disabled={locked || !input.trim() || sending}
-              aria-label="Really send?"
-            >
-              Really send?
-            </Button>
-          ) : (
-            <Button
-              size="icon"
-              className="ml-auto size-11 shrink-0 rounded-full"
-              onClick={onSendClick}
-              disabled={locked || !input.trim() || sending}
-              aria-label="Send"
-            >
-              {sending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : justSent ? (
-                <Check className="size-4" />
-              ) : (
-                <Send className="size-4" />
+              rows={1}
+              className="mb-2 lg:mb-0 lg:pr-24"
+            />
+            <span className="pointer-events-none absolute bottom-2.5 right-3 hidden text-[11px] opacity-70 lg:block">
+              ⌘⏎ pour envoyer
+            </span>
+          </div>
+          {/* Action row — the composer's one permanent control row (UI_AUDIT C1), replacing the old
+              View + Controls rows (~80px of 28-32px targets). Every target here is 44px (Apple/Material
+              minimum). Keys/Quick/View are TOGGLES for the in-flow dock above (not overlays): tap to
+              open, tap again to close; secondary variant marks the one that's open. Agent only appears
+              when the pane's agent has slash-commands. Send is anchored to the far side (thumb corner). */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={drawer === "keys" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-11 text-muted-foreground"
+                disabled={locked}
+                aria-expanded={drawer === "keys"}
+                aria-label="Keys"
+                title="Keys"
+                onClick={() => setDrawer(drawer === "keys" ? null : "keys")}
+              >
+                <Keyboard className="size-4" />
+              </Button>
+              <Button
+                variant={drawer === "quick" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-11 text-muted-foreground"
+                disabled={locked}
+                aria-expanded={drawer === "quick"}
+                aria-label="Quick"
+                title="Quick replies"
+                onClick={() => setDrawer(drawer === "quick" ? null : "quick")}
+              >
+                <Zap className="size-4" />
+              </Button>
+              {commands.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 text-muted-foreground"
+                  disabled={locked}
+                  aria-label="Agent"
+                  title="Agent commands"
+                  onClick={() => setDrawer("cmd")}
+                >
+                  <Slash className="size-4" />
+                </Button>
               )}
-            </Button>
-          )}
+              {/* Attach image — moved off the input line (UI_AUDIT C1) so it no longer eats input
+                  width. preventDefault keeps the textarea focused so the picker opens without the
+                  soft keyboard collapsing first. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-11 text-muted-foreground"
+                disabled={uploading || locked}
+                onPointerDown={(e) => e.preventDefault()}
+                onClick={() => fileRef.current?.click()}
+                aria-label="Attach image"
+              >
+                {uploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="size-4" />
+                )}
+              </Button>
+              <Button
+                variant={drawer === "view" ? "secondary" : "ghost"}
+                size="icon"
+                className="size-11 text-muted-foreground"
+                aria-expanded={drawer === "view"}
+                aria-label="View"
+                title="View settings"
+                onClick={() => setDrawer(drawer === "view" ? null : "view")}
+              >
+                <SlidersHorizontal className="size-4" />
+              </Button>
+              {confirmingSend ? (
+                <Button
+                  variant="destructive"
+                  className="ml-auto h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
+                  onClick={onSendClick}
+                  disabled={locked || !input.trim() || sending}
+                  aria-label="Really send?"
+                >
+                  Really send?
+                </Button>
+              ) : (
+                <Button
+                  variant="brand"
+                  size="icon"
+                  className="ml-auto size-11 shrink-0 rounded-full"
+                  onClick={onSendClick}
+                  disabled={locked || !input.trim() || sending}
+                  aria-label="Send"
+                >
+                  {sending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : justSent ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
 
       {/* Slash-command palette */}
       <CommandPalette

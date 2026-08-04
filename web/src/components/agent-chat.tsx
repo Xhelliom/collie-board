@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate, useRevalidator } from "react-router";
-import { ArrowUpToLine, BookOpenText, Loader2, ScrollText, Search, TerminalSquare } from "lucide-react";
+import {
+  ArrowUpToLine,
+  BookOpenText,
+  ChevronsUpDown,
+  EllipsisVertical,
+  Loader2,
+  ScrollText,
+  Search,
+  TerminalSquare,
+  XCircle,
+} from "lucide-react";
 import { useSwipeUp } from "@/hooks/use-swipe";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
+import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
+import { closePane } from "@/lib/api";
+import { cardPath, handoffCard } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { BottomSheet, GrabHandle } from "@/components/ui/sheet";
@@ -15,13 +28,16 @@ import { AnsiOutput } from "@/components/ansi-output";
 import { parseAnsi } from "@/lib/ansi";
 import { splitLines } from "@/lib/blocks";
 import { adapterFor } from "@/lib/harness";
+import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import { FindBar } from "@/components/find-bar";
 import { Composer, type ComposerHandle } from "@/components/composer";
 import { ContextGauge } from "@/components/context-gauge";
+import { CtxBar } from "@/components/ctx-bar";
 import { ThreadSidebar } from "@/components/agent-sidebar";
+import { PaneListColumn } from "@/components/pane-list-column";
+import { ContextRailColumn } from "@/components/context-rail-column";
 import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
-import { PaneStrip } from "@/components/pane-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { ReadingView } from "@/components/reading-view";
 import { StatusArea } from "@/components/status-area";
@@ -74,7 +90,7 @@ interface AgentChatProps {
 
 // At most one drawer/sheet is open at a time; null = none. (The composer's own Keys/Quick/Agent
 // sheets are separate and live inside <Composer>.)
-type Drawer = "switcher" | null;
+type Drawer = "switcher" | "tabs" | "more" | null;
 
 // The detail view mirrors a terminal pane, NOT a chat thread. The pane's output comes from the
 // route loader (`text`); polling revalidates it. Replies/keys are confirmed via the header status
@@ -133,8 +149,36 @@ export function AgentChat({
   // unrepresentable to violate.
   const [drawer, setDrawer] = useState<Drawer>(null);
   const closeDrawer = () => setDrawer(null);
+  // The mobile context row has room for one number — tap to swap which one (redesign's fuller
+  // "N tokens" figure otherwise only lives in the statusline above the composer).
+  const [ctxShowTokens, setCtxShowTokens] = useState(false);
   const listRef = useRef<ChatMessageListHandle>(null);
   const composerRef = useRef<ComposerHandle>(null);
+
+  // Close pane — reached from the "⋯" sheet now (redesign §5). Two-tap, same shape as
+  // PaneActionsSheet's own close (that sheet is still reached via the pane pill's long-press
+  // elsewhere; this is the SAME action from the header, duplicated rather than nested — a sheet
+  // opening a sheet is a back-button trap on a phone).
+  const { pending: closePending, confirm: confirmClose } = usePendingConfirm();
+  const [closingPane, setClosingPane] = useState(false);
+  async function requestClosePane() {
+    if (!agent) return;
+    if (!confirmClose(agent.paneId)) return;
+    setClosingPane(true);
+    try {
+      const res = await closePane(agent.paneId, session);
+      if (res.ok) {
+        closeDrawer();
+        onBack();
+      } else {
+        setStatus(res.error ?? "Close failed", "error");
+      }
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e), "error");
+    } finally {
+      setClosingPane(false);
+    }
+  }
 
   const gone = !agent;
 
@@ -537,16 +581,32 @@ export function AgentChat({
     : "(agent gone)";
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden">
-      {/* Header — the SAME AppHeader shell the dashboard and space mount, so the Collie mark is
-          identical on every screen (no hand-rolled bar to drift). The pane's own bits ride in via
-          slots: the `space › tab` breadcrumb as the center, the agent StatusBadge as the right-cluster
-          lead, and the find bar as the full-row takeover while searching. */}
-      <AppHeader
-        bridge={bridge}
-        error={error}
-        stalled={stalled}
-        onHome={onBack}
+    <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row">
+      {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the swipe-up switcher
+          groups them (redesign §5 "three panes"). Below `lg` this is the swipe-up sheet instead. */}
+      <PaneListColumn
+        agents={agents}
+        shellPanes={shellPanes}
+        tabs={tabs}
+        currentPaneId={paneId}
+        onSelect={switchTo}
+      />
+
+      {/* The middle column: identity chrome (mobile header OR desktop toolbar — never both), the
+          screen's h1, then the content region (statusline/mirror/composer) — unchanged below this
+          point regardless of breakpoint. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Header — the SAME AppHeader toolbar shell every screen mounts, plus the back chevron (this
+            is an entered screen). Mobile only from here (`lg:hidden`) — the desktop toolbar below
+            replaces it there, since the icon-rail sidebar (app-nav.tsx) is the way back on desktop,
+            not a chevron. The pane's own bits ride in via slots: the `space › tab` breadcrumb as the
+            center, the agent StatusBadge as the right-cluster lead, and the find bar as the full-row
+            takeover while searching. bridge/error/stalled still drive `connecting` below (the
+            StatusBadge dimming) — the toolbar itself no longer reads them; the connection mark moved
+            to the nav (app-nav.tsx). */}
+        <div className="lg:hidden">
+        <AppHeader
+        onBack={onBack}
         override={
           findOpen ? (
             <FindBar
@@ -560,15 +620,16 @@ export function AgentChat({
             />
           ) : undefined
         }
-        // Right cluster, in reading order: Find, History, then the agent status pill. The pill is the
-        // rightmost item on every pane screen (it's the thing you glance at), so History sits to its
-        // LEFT rather than trailing it. All three ride in `rightLead` because AppHeader renders
-        // `rightLead` before `rightTrail` — the order here IS the on-screen order.
+        // Right cluster, in reading order: the Terminal⇄Reading control and History (desktop-visible
+        // toolbar items, per the mirror column's own toolbar spec — see the desktop layout below),
+        // Find (both breakpoints), then "⋯" (both breakpoints — desktop already shows the two items
+        // above it individually, so there its only job is Close pane; mobile has no other way to
+        // reach any of the three, so they all live there too), then the agent status pill. The pill
+        // is the rightmost item on every pane screen (it's the thing you glance at).
         //
-        // Find-in-output used to live in the composer's own View row (UI_AUDIT C1) — the header is
-        // its natural home, next to the other pane-chrome controls, and freeing that row let the
-        // composer collapse to a single action row. Shown whenever there's buffered output to search
-        // (independent of `agent`, since the mirror can still show output after a pane goes gone).
+        // Find-in-output lives in the header, next to the other pane-chrome controls, so the composer
+        // stays a single action row. Shown whenever there's buffered output to search (independent of
+        // `agent`, since the mirror can still show output after a pane goes gone).
         //
         // History opens the agent's own transcript, the only real conversation history a Claude pane
         // has: its terminal runs on the alternate screen, so the mirror below can never show more
@@ -579,15 +640,120 @@ export function AgentChat({
         // from the last snapshot doesn't masquerade as current. A bare shell shows a muted "shell" tag.
         rightLead={
           <>
-            {/* Terminal ⇄ Reading. The two modes of this screen, side by side rather than buried in a
-                sheet, because which one you're in changes what the screen IS — and the answer has to
-                be visible at a glance. Icons only: three glyphs of label would push the pane title off
-                a 360px row. Shown only when a transcript exists to read (see `reading`). */}
+            {/* Terminal ⇄ Reading and History used to live here too; this whole header is mobile-only
+                now (`lg:hidden`, see its wrapper below — the desktop toolbar carries its own copies
+                of both, always visible there), and on mobile the doc's own spec keeps the header to
+                identity + Search + "⋯" — both moved into the "⋯" sheet below. */}
+            {/* Find searches the MIRROR's buffer, so it belongs to terminal mode — reading mode has
+                its own source, and History is where a search across the whole thread lives. */}
+            {display && !reading && (
+              <button
+                type="button"
+                onClick={openFind}
+                aria-label="Find in output"
+                title="Find in output"
+                className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+              >
+                <Search className="size-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setDrawer("more")}
+              aria-label="More"
+              className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+            >
+              <EllipsisVertical className="size-4" />
+            </button>
+            {/* No status pill here any more — this whole header is `lg:hidden` (see its wrapper
+                below), and the mobile context row it sits above already carries one. The desktop
+                toolbar (also below) carries its own, independently — the two can never both be
+                visible at once, so there is exactly one pill per breakpoint, not a shared one. */}
+          </>
+        }
+      >
+        {/* Title block: identity only now — the space › tab › pane breadcrumb moved to the context
+            row below (redesign §5). The agent's brand logo leads (the agent name would just repeat
+            it, so it's dropped), cwd on the subline. Tapping it leaves the pane for the space
+            overview (all its tabs + panes). */}
+        {agent ? (
+          <button
+            type="button"
+            onClick={() => openSpace(agent.workspaceId)}
+            aria-label={`Open ${agent.workspaceLabel} overview`}
+            className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/60"
+          >
+            {isShell ? (
+              <div className="flex size-[26px] shrink-0 items-center justify-center rounded-full border bg-muted">
+                <TerminalSquare className="size-3 text-muted-foreground" />
+              </div>
+            ) : (
+              <AgentIcon agent={agent.agent} className="size-[26px]" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-base font-semibold leading-tight">{paneTitle}</div>
+              <div className="truncate font-mono text-[11px] leading-tight text-muted-foreground">
+                {shortCwd(agent.cwd)}
+              </div>
+            </div>
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <span className="truncate font-semibold">(agent gone)</span>
+          </div>
+        )}
+        </AppHeader>
+        </div>
+
+        {/* Desktop toolbar (redesign §5 "three panes") — replaces AppHeader entirely from `lg` up:
+            identity + breadcrumb on the left (no back chevron; the icon-rail sidebar is the way back
+            on desktop), the SAME view/find/history/more controls on the right, just always visible
+            rather than folded into "⋯" (mobile has no room for both; desktop does). */}
+        <div className="hidden h-14 flex-none items-center gap-3 border-b border-border px-5 lg:flex">
+          {agent ? (
+            <>
+              {isShell ? (
+                <div className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-muted">
+                  <TerminalSquare className="size-3.5 text-muted-foreground" />
+                </div>
+              ) : (
+                <AgentIcon agent={agent.agent} className="size-7 shrink-0" />
+              )}
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="shrink-0 truncate text-sm font-semibold">{paneTitle}</span>
+                <span className="flex min-w-0 items-center gap-1 truncate font-mono text-[11px] text-muted-foreground">
+                  <span className="shrink-0 text-muted-foreground/50">·</span>
+                  <button
+                    type="button"
+                    onClick={() => openSpace(agent.workspaceId)}
+                    className="max-w-[12rem] truncate transition-colors hover:text-foreground"
+                  >
+                    {agent.workspaceLabel}
+                  </button>
+                  {tabLabel && (
+                    <>
+                      <span className="shrink-0 text-muted-foreground/50">›</span>
+                      <button
+                        type="button"
+                        onClick={() => setDrawer("tabs")}
+                        className="max-w-[12rem] truncate transition-colors hover:text-foreground"
+                      >
+                        {tabLabel}
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+            </>
+          ) : (
+            <span className="min-w-0 flex-1 truncate font-semibold">(agent gone)</span>
+          )}
+          <div className="flex shrink-0 items-center gap-2">
             {historyAvailable && (
               <div
                 role="group"
                 aria-label="View mode"
-                className="-mr-1 flex items-center overflow-hidden rounded-lg border"
+                className="flex items-center overflow-hidden rounded-lg border"
               >
                 <button
                   type="button"
@@ -596,7 +762,7 @@ export function AgentChat({
                   aria-label="Terminal view"
                   title="Terminal"
                   className={`flex h-7 w-8 items-center justify-center transition-colors ${
-                    reading ? "text-muted-foreground active:bg-muted/60" : "bg-muted text-foreground"
+                    reading ? "text-muted-foreground hover:bg-muted/60" : "bg-muted text-foreground"
                   }`}
                 >
                   <TerminalSquare className="size-3.5" />
@@ -608,81 +774,50 @@ export function AgentChat({
                   aria-label="Reading view"
                   title="Reading"
                   className={`flex h-7 w-8 items-center justify-center border-l transition-colors ${
-                    reading ? "bg-muted text-foreground" : "text-muted-foreground active:bg-muted/60"
+                    reading ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
                   }`}
                 >
                   <BookOpenText className="size-3.5" />
                 </button>
               </div>
             )}
-            {/* Find searches the MIRROR's buffer, so it belongs to terminal mode — reading mode has
-                its own source, and History is where a search across the whole thread lives. */}
             {display && !reading && (
               <button
                 type="button"
                 onClick={openFind}
                 aria-label="Find in output"
                 title="Find in output"
-                className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <Search className="size-4" />
               </button>
             )}
-            {agent && (
-              <>
-                {historyAvailable && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(historyPath(paneId, session))}
-                    aria-label="Conversation history"
-                    className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
-                  >
-                    <ScrollText className="size-4" />
-                  </button>
-                )}
-                {isShell ? (
-                  <ShellBadge stale={connecting} />
-                ) : (
-                  <StatusBadge status={agent.status} stale={connecting} />
-                )}
-              </>
+            {agent && historyAvailable && (
+              <button
+                type="button"
+                onClick={() => navigate(historyPath(paneId, session))}
+                aria-label="Conversation history"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+              >
+                <ScrollText className="size-4" />
+              </button>
             )}
-          </>
-        }
-      >
-        {/* Title block: the space › tab leads, with the agent's brand logo to its left (the agent
-            name would just repeat the icon, so it's dropped), and the working directory on the
-            subline. Tapping it leaves the pane for the space overview (all its tabs + panes). */}
-        {agent ? (
-          <button
-            type="button"
-            onClick={() => openSpace(agent.workspaceId)}
-            aria-label={`Open ${agent.workspaceLabel} overview`}
-            className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-colors active:bg-muted/60"
-          >
-            {isShell ? (
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full border bg-muted">
-                <TerminalSquare className="size-3 text-muted-foreground" />
-              </div>
-            ) : (
-              // Deliberately smaller than the size-8 Collie mark beside it — the agent logo is the
-              // pane's subject, not a second brand competing with Collie's for the header.
-              <AgentIcon agent={agent.agent} className="size-6" />
-            )}
-            <div className="min-w-0 flex-1">
-              {/* The pane's name (see paneTitle), with the cwd subline keeping context either way. */}
-              <div className="truncate font-semibold leading-tight">{paneTitle}</div>
-              <div className="truncate font-mono text-xs leading-tight text-muted-foreground">
-                {shortCwd(agent.cwd)}
-              </div>
-            </div>
-          </button>
-        ) : (
-          <div className="min-w-0 flex-1">
-            <span className="truncate font-semibold">(agent gone)</span>
+            <button
+              type="button"
+              onClick={() => setDrawer("more")}
+              aria-label="More"
+              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+            >
+              <EllipsisVertical className="size-4" />
+            </button>
+            {agent &&
+              (isShell ? (
+                <ShellBadge stale={connecting} />
+              ) : (
+                <StatusBadge status={agent.status} stale={connecting} />
+              ))}
           </div>
-        )}
-      </AppHeader>
+        </div>
 
       {/* The screen's one h1. sr-only because the visible pane title lives inside the header's
           "open the space" button, and a heading inside a button isn't exposed as one — so without
@@ -700,41 +835,65 @@ export function AgentChat({
         {/* Read-only notice when this device isn't allowlisted (the composer below is disabled too). */}
         <ReadOnlyBanner device={device} />
 
-        {/* In-pane tab bar: the current space's tabs above the mirror — switch tab without leaving the
-            pane, or create one with +. No "All" here (you're always in a specific tab). */}
+        {/* The context row (redesign §5): one row replacing the old TabStrip + PaneStrip pair above
+            the mirror. `space › tab › pane` — the first two segments are plain selectors (space opens
+            the space overview, tab opens the SAME TabStrip's tab list, now inside a sheet instead of
+            an always-visible strip), the last is a chip opening the swipe-up pane switcher that
+            already existed. Right: a live ctx bar + the status chip. ~96px handed back to the mirror
+            versus the two strips it replaces. */}
         {agent && (
-          <TabStrip
-            workspaceId={agent.workspaceId}
-            tabs={tabs}
-            agents={agents}
-            selected={agent.tabId}
-            onSelect={(id) => id && goToTab(id)}
-            onNewTab={newTab}
-            allowAll={false}
-            session={session}
-            readOnly={readOnly}
-            onRenamed={() => revalidator.revalidate()}
-            // Closing the tab this pane lives in kills the pane too — leave for Home the same way a
-            // pane-close does (onBack); closing any other tab just revalidates so it drops out.
-            onClosed={(tabId) => (agent?.tabId === tabId ? onBack() : revalidator.revalidate())}
-          />
-        )}
-
-        {/* Pane switcher: the panes that share this tab (space › tab › pane). Mobile shows them as a
-            tabbed row rather than tiling the panes; only appears when the tab holds more than one. */}
-        {agent && (
-          <PaneStrip
-            panes={[...agents, ...shellPanes]
-              .filter((p) => p.workspaceId === agent.workspaceId && p.tabId === agent.tabId)
-              .sort((a, b) => a.paneId.localeCompare(b.paneId))}
-            currentPaneId={paneId}
-            onSelect={switchTo}
-            session={session}
-            readOnly={readOnly}
-            onRenamed={() => revalidator.revalidate()}
-            // Mirror closePane's success branch: closing the open pane returns Home, else revalidate.
-            onClosed={(id) => (id === paneId ? onBack() : revalidator.revalidate())}
-          />
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/60 px-3 lg:hidden">
+            <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-[11px]">
+              <button
+                type="button"
+                onClick={() => openSpace(agent.workspaceId)}
+                className="max-w-[40%] truncate text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {agent.workspaceLabel}
+              </button>
+              {tabLabel && (
+                <>
+                  <span className="shrink-0 text-muted-foreground/50">›</span>
+                  <button
+                    type="button"
+                    onClick={() => setDrawer("tabs")}
+                    className="max-w-[40%] truncate text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {tabLabel}
+                  </button>
+                </>
+              )}
+              <span className="shrink-0 text-muted-foreground/50">›</span>
+              <button
+                type="button"
+                onClick={() => setDrawer("switcher")}
+                className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-[7px] py-0.5 font-semibold text-foreground transition-colors hover:bg-muted/70"
+              >
+                {paneId.split(":").pop()}
+                <ChevronsUpDown className="size-2.5" />
+              </button>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {agent.ctxPct != null && (
+                <button
+                  type="button"
+                  onClick={() => setCtxShowTokens((v) => !v)}
+                  aria-label="Toggle context units"
+                  className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+                >
+                  <CtxBar pct={agent.ctxPct} className="w-[34px]" />
+                  {ctxShowTokens && agent.ctxTokens != null
+                    ? `${Math.round(agent.ctxTokens / 1000)}k`
+                    : `${Math.round(agent.ctxPct)}%`}
+                </button>
+              )}
+              {isShell ? (
+                <ShellBadge stale={connecting} />
+              ) : (
+                <StatusBadge status={agent.status} stale={connecting} />
+              )}
+            </div>
+          </div>
         )}
 
         {/* The screen's body: the terminal mirror, or the reading view over the same conversation.
@@ -766,7 +925,12 @@ export function AgentChat({
             dep={display}
             onAtBottomChange={setFollowing}
             hasNew={hasNew}
-            className="px-2 py-3"
+            // `bg-terminal-background` on the SCROLLPORT, not just the `<pre>` inside (which stays
+            // `shrink-0` content-height on purpose — see ansi-output.tsx's preClass). On a short
+            // transcript in a tall desktop pane the `<pre>`'s own dark box used to end well above the
+            // composer, showing the plain page background in the gap — this keeps the terminal look
+            // for the full scrollable height regardless of how much output there actually is.
+            className="bg-terminal-background px-2 py-3"
           >
             {display ? (
               <>
@@ -855,9 +1019,10 @@ export function AgentChat({
 
           {/* The agent's statusline, re-surfaced as app chrome (its branch/model/ctx would otherwise
               vanish with the stripped input box). Sits directly above the composer, as it did in the
-              TUI. Verbatim text — a React text node, so no XSS surface. */}
+              TUI. Verbatim text — a React text node, so no XSS surface. `lg:hidden`: at that
+              breakpoint `ContextRailColumn` already carries this same text, under its own heading. */}
           {statusLines.length > 0 && (
-            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80">
+            <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80 lg:hidden">
               {statusLines.map((line, i) => (
                 <div key={i} className="truncate">
                   {line}
@@ -869,9 +1034,9 @@ export function AgentChat({
           {/* The same gauge CardTile/the card screen show, now for ANY agent pane — the bridge reads
               the transcript of every live agent, not just the card-backed ones (UI_AUDIT.md G1/G3).
               Omitted entirely when there's no figure, so an unreadable agent shows no gauge rather
-              than a made-up one. */}
+              than a made-up one. Mobile only — `ContextRailColumn` is desktop's own source now. */}
           {agent?.ctxPct != null && (
-            <div className="border-t border-border/40 px-3 py-1.5">
+            <div className="border-t border-border/40 px-3 py-1.5 lg:hidden">
               <ContextGauge pct={agent.ctxPct} tokens={agent.ctxTokens} />
             </div>
           )}
@@ -897,6 +1062,24 @@ export function AgentChat({
           />
         </div>
       </div>
+      </div>
+
+      {/* Desktop-only, 308px: the ctx gauge as a large figure, the card this pane backs, and the
+          agent's statusline verbatim. */}
+      <ContextRailColumn
+        agent={agent}
+        statusLines={statusLines}
+        onOpenCard={(cardId) => navigate(cardPath(cardId))}
+        onHandoff={async (cardId) => {
+          try {
+            await handoffCard(cardId);
+            setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+          } catch (e) {
+            setStatus((e as Error).message, "error", null);
+          }
+          revalidator.revalidate();
+        }}
+      />
 
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
           Switch-only: pane closing lives in the pane pill's long-press sheet, not here. */}
@@ -908,6 +1091,85 @@ export function AgentChat({
           onSelect={switchTo}
           className="px-0 py-1"
         />
+      </BottomSheet>
+
+      {/* The context row's tab segment — the SAME TabStrip, just moved off an always-visible strip
+          into a sheet (redesign §5). Its own create/rename/close logic is untouched. */}
+      {agent && (
+        <BottomSheet open={drawer === "tabs"} onClose={closeDrawer} title="Tabs">
+          <TabStrip
+            workspaceId={agent.workspaceId}
+            tabs={tabs}
+            agents={agents}
+            selected={agent.tabId}
+            onSelect={(id) => {
+              if (id) goToTab(id);
+              closeDrawer();
+            }}
+            onNewTab={(workspaceId) => {
+              newTab(workspaceId);
+              closeDrawer();
+            }}
+            allowAll={false}
+            session={session}
+            readOnly={readOnly}
+            onRenamed={() => revalidator.revalidate()}
+            // Closing the tab this pane lives in kills the pane too — leave for Home the same way a
+            // pane-close does (onBack); closing any other tab just revalidates so it drops out.
+            onClosed={(tabId) => {
+              closeDrawer();
+              if (agent?.tabId === tabId) onBack();
+              else revalidator.revalidate();
+            }}
+          />
+        </BottomSheet>
+      )}
+
+      {/* The header's "⋯" (redesign §5): Terminal/Reading + History (already visible individually
+          from `lg` up — redundant there, but harmless) and Close pane, which has no other home now
+          that PaneStrip's long-press sheet isn't reachable from the main chrome. Same two-tap shape
+          PaneActionsSheet uses for the same action, duplicated rather than nested — a sheet opening a
+          sheet is a back-button trap on a phone. */}
+      <BottomSheet open={drawer === "more"} onClose={closeDrawer} title={paneTitle}>
+        <div className="flex flex-col gap-1">
+          {historyAvailable && (
+            <ActionRow
+              icon={
+                reading ? (
+                  <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <BookOpenText className="size-4 shrink-0 text-muted-foreground" />
+                )
+              }
+              label={reading ? "Switch to Terminal" : "Switch to Reading"}
+              onClick={() => {
+                setReading(!reading);
+                closeDrawer();
+              }}
+            />
+          )}
+          {agent && historyAvailable && (
+            <ActionRow
+              icon={<ScrollText className="size-4 shrink-0 text-muted-foreground" />}
+              label="History"
+              onClick={() => {
+                closeDrawer();
+                navigate(historyPath(paneId, session));
+              }}
+            />
+          )}
+          {agent && (
+            <DestructiveActionRow
+              icon={<XCircle className="size-4 shrink-0" />}
+              label="Close pane"
+              confirmLabel="Tap again to close"
+              closingLabel="Closing…"
+              armed={closePending === agent.paneId}
+              closing={closingPane}
+              onClick={() => void requestClosePane()}
+            />
+          )}
+        </div>
       </BottomSheet>
     </div>
   );

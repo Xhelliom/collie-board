@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams, useRevalidator, useRouteLoaderData } from "react-router";
+import { useNavigate, useParams, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
 
-import { AppHeader, SettingsGear } from "@/components/app-header";
+import { AppHeader } from "@/components/app-header";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { SpaceStrip } from "@/components/space-strip";
 import { SpaceView } from "@/components/space-view";
@@ -10,39 +10,42 @@ import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { StatusArea } from "@/components/status-area";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
-import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { homePath, panePath, spacePath } from "@/lib/nav";
+import { panePath, spacePath, spacesPath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { isReadOnly } from "@/lib/types";
 
 // Space detail route: one space's tabs + panes, with the space/tab strips for in-space navigation.
 // Shares the root snapshot (no own loader), reading :spaceId from the URL — a deep-linkable,
-// back-button-friendly drill-in. The SpaceStrip's "All" chip returns to the dashboard.
+// back-button-friendly drill-in. The SpaceStrip's "All" chip returns to the Spaces list (redesign
+// §9 — the dashboard no longer carries a spaces widget to come back to).
 export function SpaceRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { spaceId = "" } = useParams();
-  const stalled = useLoadingStalled();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const { newTab, newSpace } = useSpaceActions();
   const [newSpaceOpen, setNewSpaceOpen] = useState(false);
+  const [params] = useSearchParams();
 
-  // Tab selection is ephemeral view state (no deep-link need). Reset it when the space changes:
-  // navigating /space/a → /space/b does NOT remount this route (same element, new param), so without
-  // this the prior space's tab id would leak across. Adjusting during render keeps it in sync with
-  // no effect / no extra paint.
-  const [tab, setTab] = useState<string | null>(null);
+  // Tab selection is ephemeral view state (no deep-link need) — EXCEPT for the one moment it's
+  // seeded from `?tab=`, which is how a tab chip on the Spaces overview (redesign §9) can land you
+  // directly on that tab instead of "All". Read once per space (not kept in sync afterward — a
+  // manual tab switch must not fight the URL), and reset it when the space changes: navigating
+  // /space/a → /space/b does NOT remount this route (same element, new param), so without this the
+  // prior space's tab id would leak across. Adjusting during render keeps it in sync with no effect /
+  // no extra paint.
+  const [tab, setTab] = useState<string | null>(() => params.get("tab"));
   const [tabSpace, setTabSpace] = useState(spaceId);
   if (tabSpace !== spaceId) {
     setTabSpace(spaceId);
-    setTab(null);
+    setTab(params.get("tab"));
   }
 
   const selectedWs = data.workspaces.find((w) => w.workspaceId === spaceId);
 
-  const toDashboard = () => navigate(homePath(data.session));
+  const toSpaces = () => navigate(spacesPath(data.session));
   const switchSpace = (id: string) => navigate(spacePath(id, data.session));
   const switchTab = (id: string | null) => setTab(id);
   const open = (id: string) => navigate(panePath(id, data.session));
@@ -60,22 +63,15 @@ export function SpaceRoute() {
   useEffect(() => {
     if (gone && data.bridge === "connected" && !data.error) {
       setStatus(everExisted.current ? "Space closed" : "Space not found", "info");
-      navigate(homePath(data.session), { replace: true });
+      navigate(spacesPath(data.session), { replace: true });
     }
   }, [gone, data.bridge, data.error, data.session, navigate]);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
-      {/* The space header: same shell as the dashboard, minus the session switcher (you switch
-          sessions from home). Wordmark + shared pill + Settings gear. */}
-      <AppHeader
-        bridge={data.bridge}
-        error={data.error}
-        stalled={stalled}
-        onHome={toDashboard}
-        wordmark
-        rightTrail={<SettingsGear session={data.session} />}
-      />
+      {/* A drilled-into screen (reached from a space card/chip, not a nav tab), so it gets the back
+          chevron rather than the nav treatment. */}
+      <AppHeader title={selectedWs?.label ?? "Space"} onBack={toSpaces} />
 
       {/* Content region below the header: the viewport-clipped scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -87,9 +83,9 @@ export function SpaceRoute() {
               workspaces={data.workspaces}
               agents={data.agents}
               selected={spaceId}
-              onSelect={(id) => (id === null ? toDashboard() : switchSpace(id))}
+              onSelect={(id) => (id === null ? toSpaces() : switchSpace(id))}
               onNewSpace={() => setNewSpaceOpen(true)}
-              onBack={toDashboard}
+              onBack={toSpaces}
             />
             <TabStrip
               workspaceId={selectedWs.workspaceId}

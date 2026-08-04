@@ -1,27 +1,38 @@
-import { ChevronRight, FolderPlus, Layers, LayoutGrid } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Card } from "@/components/ui/card";
 import { StatusDot } from "@/components/status-badge";
 import { blockedCount, worstSpaceStatus } from "@/lib/spaces";
 import { STATUS_LABEL } from "@/lib/types";
-import type { AgentView, WorkspaceView } from "@/lib/types";
+import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
 
 interface SpaceOverviewProps {
   workspaces: WorkspaceView[];
+  tabs: TabView[];
   agents: AgentView[];
   onOpen: (workspaceId: string) => void;
+  onSelectTab: (workspaceId: string, tabId: string) => void;
+  onNewTab: (workspaceId: string) => void;
   onNewSpace: () => void;
 }
 
-// The dashboard's top section: every space as a card with a status dot (its most-urgent agent), a
-// blocked tint, and compact tab/pane counts. Tapping a space drills into its tab/pane view.
-export function SpaceOverview({ workspaces, agents, onOpen, onNewSpace }: SpaceOverviewProps) {
+// The Spaces root tab (redesign §9): one card per space, its status dot in the worst-agent tone, its
+// tabs riding inside the card as their own chips — tap one to land straight on that tab, tap the
+// card's own header (or anywhere else on it) for the usual drill-in. This replaced the compact list
+// row the dashboard used to embed; a space is now its own screen, so it can afford the room.
+export function SpaceOverview({
+  workspaces,
+  tabs,
+  agents,
+  onOpen,
+  onSelectTab,
+  onNewTab,
+  onNewSpace,
+}: SpaceOverviewProps) {
   return (
-    <section className="flex flex-col gap-2 px-3 py-4">
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="flex flex-col gap-3 px-4 py-5 lg:px-5 lg:py-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
           Spaces <span className="opacity-60">({workspaces.length})</span>
         </h2>
         <button
@@ -35,57 +46,67 @@ export function SpaceOverview({ workspaces, agents, onOpen, onNewSpace }: SpaceO
       </div>
 
       {workspaces.length === 0 ? (
-        <p className="px-1 py-6 text-center text-sm text-muted-foreground">No spaces yet.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">No spaces yet.</p>
       ) : (
-        <div className="grid gap-2 lg:grid-cols-[repeat(auto-fill,minmax(24rem,1fr))]">
+        <div className="grid gap-3 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
           {workspaces.map((w) => {
             const status = worstSpaceStatus(w.workspaceId, agents);
             const blocked = blockedCount(w.workspaceId, agents) > 0;
+            const wsTabs = tabs.filter((t) => t.workspaceId === w.workspaceId);
             return (
-              <button
+              <div
                 key={w.workspaceId}
-                type="button"
-                onClick={() => onOpen(w.workspaceId)}
-                className="w-full text-left transition-transform active:scale-[0.99]"
+                className={cn(
+                  "flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5",
+                  blocked && "border-status-blocked/45 bg-status-blocked/8",
+                )}
               >
-                <Card
-                  className={cn(
-                    "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm",
-                    blocked && "border-status-blocked/40 bg-status-blocked/5",
-                  )}
+                <button
+                  type="button"
+                  onClick={() => onOpen(w.workspaceId)}
+                  className="flex items-center gap-2.5 text-left"
                 >
                   {status ? (
                     <>
                       <StatusDot status={status} />
-                      {/* The dot alone is color-only; give SR users the status word (as StatusBadge). */}
+                      {/* The dot alone is color-only; give SR users the status word. */}
                       <span className="sr-only">{STATUS_LABEL[status]}</span>
                     </>
                   ) : (
                     <span className="size-2.5 shrink-0 rounded-full border border-muted-foreground/40" />
                   )}
-                  <span className="min-w-0 flex-1 truncate font-medium">{w.label}</span>
-                  <Count icon={Layers} n={w.tabCount} unit="tab" />
-                  <Count icon={LayoutGrid} n={w.paneCount} unit="pane" />
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                </Card>
-              </button>
+                  <span className="min-w-0 flex-1 truncate text-[17px] font-semibold">{w.label}</span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                    {w.tabCount} tab{w.tabCount === 1 ? "" : "s"} · {w.paneCount} pane
+                    {w.paneCount === 1 ? "" : "s"}
+                  </span>
+                </button>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {wsTabs.map((t) => (
+                    <button
+                      key={t.tabId}
+                      type="button"
+                      onClick={() => onSelectTab(w.workspaceId, t.tabId)}
+                      className="rounded-full bg-muted px-2.5 py-[3px] text-xs font-medium text-foreground transition-colors hover:bg-muted/70 active:scale-95"
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => onNewTab(w.workspaceId)}
+                    aria-label={`New tab in ${w.label}`}
+                    className="flex size-[26px] items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted active:scale-95"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
       )}
     </section>
-  );
-}
-
-// A compact count pill — icon + number, with a spelled-out aria-label (e.g. "3 panes") for a11y.
-function Count({ icon: Icon, n, unit }: { icon: LucideIcon; n: number; unit: string }) {
-  return (
-    <span
-      aria-label={`${n} ${unit}${n === 1 ? "" : "s"}`}
-      className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground"
-    >
-      <Icon className="size-3.5" aria-hidden />
-      {n}
-    </span>
   );
 }

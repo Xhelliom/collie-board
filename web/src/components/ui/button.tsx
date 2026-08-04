@@ -9,6 +9,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        // The redesign's primary action: reserved for exactly one brand-accented button per screen
+        // (index.css § --brand). Corner radius stays the caller's to set (`rounded-[10px]` per the
+        // handoff spec) rather than baked in here — every OTHER variant keeps the shared `rounded-md`.
+        brand: "bg-brand text-brand-foreground shadow-xs hover:bg-brand/90",
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",

@@ -1,36 +1,41 @@
-import {
-  Check,
-  ChevronRight,
-  CornerDownRight,
-  FolderGit2,
-  GitBranch,
-  Layers,
-  Lock,
-} from "lucide-react";
+import { Check, CornerDownRight, GitBranch, Layers, ListChecks } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
-import { StatusBadge } from "@/components/status-badge";
-import { CardStatusChip } from "@/components/card-status-chip";
 import { TagChip } from "@/components/tag-chip";
-import { shortCwd } from "@/lib/format";
+import { CtxBar } from "@/components/ctx-bar";
 import { paneDisplayName } from "@/lib/types";
+import { CARD_STATUS_LABEL, type CardStatus, type CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
-import type { CardView } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
 // the board is a second lens on the same herd, not a different app.
 //
-// The badge on the right is the LIVE agent status when a pane is backing this card, and the card's
-// own column otherwise — that distinction matters: an orphaned card has a status but no agent, and
-// showing a fake "idle" badge for it would be a lie.
+// Three rows, in priority order — status, then title, then repo/meta (redesign §2 "the core of the
+// redesign"): a card in a live column tells you AT A GLANCE whether it needs you (loud: a solid
+// chip, the whole card tinted), is merely running (named: a dot + a coloured label), or is settled
+// (silent: no status chip at all — the column already says it, so the row instead names the repo).
+// Ready/Backlog/Done cards end up near-blank; a blocked card is unmistakable. That contrast, not
+// just the hue, is what makes the board scannable from across the room.
 //
 // The tile is a CONTAINER (`@container`), not a viewport reader. The same tile renders full-width on
 // a phone, ~320px wide in a lane of the wide-screen board, and narrower still nested inside a
 // CardGroup there — three different widths at ONE viewport size, which no `lg:` could tell apart.
-// So what it drops when it gets tight is asked of its own box: `@max-sm` is a container narrower
-// than 24rem, which the phone's full-width tile never is.
+
+/** Loud: a solid status chip, and the whole card tinted/bordered in the same tone. */
+const LOUD_STATUS: Partial<Record<CardStatus, { chip: string; card: string }>> = {
+  blocked: { chip: "bg-status-blocked", card: "border-status-blocked/45 bg-status-blocked/8" },
+  orphaned: { chip: "bg-status-unknown", card: "border-status-unknown/45 bg-status-unknown/8" },
+};
+
+/** Named: a dot + the label in the tone, no fill — the card's own border stays plain. */
+const NAMED_STATUS: Partial<Record<CardStatus, { dot: string; text: string }>> = {
+  working: { dot: "bg-status-working", text: "text-status-working" },
+  starting: { dot: "bg-status-working", text: "text-status-working" },
+  review: { dot: "bg-status-done", text: "text-status-done" },
+};
+
 /**
  * The card that flies with the cursor.
  *
@@ -86,8 +91,9 @@ export function CardTile({
   parent?: string;
   /**
    * The repo this card belongs to, named — only when the board is showing every repo at once and
-   * more than one is in play. Under a repo scope the strip above says it once for the whole board,
-   * and repeating it on every tile would be a column of the same word.
+   * more than one is in play, OR the status row has nothing else to say (a quiet column). Under a
+   * repo scope the strip above says it once for the whole board, and repeating it on every tile
+   * would be a column of the same word.
    */
   repo?: string;
   /**
@@ -100,14 +106,22 @@ export function CardTile({
    */
   drag?: { onStart: () => void; onEnd: () => void };
 }) {
-  const waiting = dependency && !dependency.met;
-  const urgent = card.status === "blocked";
+  const loud = LOUD_STATUS[card.status];
+  const named = !loud ? NAMED_STATUS[card.status] : undefined;
+  // Whether row 1 has a real status/repo signal to show. Without one, a lone tag chip floating
+  // `ml-auto` in an otherwise-empty row reads as a blank gap — so with nothing else on it, the tag
+  // rides the title row instead (row 2) rather than getting a row of its own.
+  const statusRow = Boolean(loud || named || repo);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
     card.runtime && (card.runtime.paneLabel || card.runtime.sessionName)
       ? paneDisplayName(card.runtime)
       : null;
+  const ctxPct = card.session?.ctxPct;
+  const hasMeta = Boolean(
+    card.runtime || card.branch || ctxPct != null || card.sessionCount > 1 || card.acceptance.length > 0,
+  );
   return (
     <button
       type="button"
@@ -132,105 +146,119 @@ export function CardTile({
     >
       <Card
         className={cn(
-          "flex-row items-center gap-3 rounded-xl px-3.5 py-3 shadow-sm @max-sm:gap-2.5 @max-sm:px-3 @max-xs:flex-wrap",
-          urgent && "border-status-blocked/40 bg-status-blocked/5",
-          // Held back, not broken — muted rather than alarming. `blocked` is the colour of "an
-          // agent needs you"; waiting on a predecessor needs nothing from you at all.
-          waiting && "border-dashed opacity-70",
+          "gap-2 rounded-2xl border p-3.5 shadow-sm transition-colors hover:bg-muted/40 lg:p-3",
+          loud ? loud.card : "border-border",
         )}
       >
-        {card.runtime ? (
-          <AgentIcon agent={card.runtime.agent} className="size-9 shrink-0" />
-        ) : (
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted">
-            <Layers className="size-4 text-muted-foreground" />
+        {/* 1. Status row — loud (a solid chip + the card's own tint), named (a dot + a coloured
+            label), or silent (the repo name takes its place). The tag rides `ml-auto` here when the
+            row exists; with nothing else to show, it moves to the title row instead (below). */}
+        {statusRow && (
+          <div className="flex items-center gap-2">
+            {loud ? (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground",
+                  loud.chip,
+                )}
+              >
+                {CARD_STATUS_LABEL[card.status]}
+              </span>
+            ) : named ? (
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)]",
+                  named.text,
+                )}
+              >
+                <span className={cn("size-1.5 rounded-full", named.dot)} />
+                {CARD_STATUS_LABEL[card.status]}
+              </span>
+            ) : (
+              <span className="truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
+            )}
+            {card.tag && (
+              <TagChip tag={card.tag} className="ml-auto shrink-0 px-[7px] py-px text-[10px] font-semibold" />
+            )}
           </div>
         )}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-1.5 truncate">
-            {/* Before the title, and shrink-0: a tag is what the eye scans a column FOR, so it must
-                not be the thing that truncates. Most cards have none and this row is unchanged. */}
-            {card.tag && <TagChip tag={card.tag} />}
-            <span className="truncate font-medium">{card.title}</span>
-            {paneName && <span className="truncate text-xs text-muted-foreground">· {paneName}</span>}
-          </div>
-          {parent && (
-            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-              <Layers className="size-3 shrink-0" />
-              <span className="truncate">{parent}</span>
-            </div>
-          )}
-          {dependency && (
-            <div
-              className={cn(
-                "flex items-center gap-1 truncate text-xs",
-                // Green once satisfied — a quiet confirmation, not an alert — amber/blocked-tinted
-                // while it still holds the card back, so the colour alone answers "can I start this".
-                dependency.met ? "text-status-done" : "text-status-blocked",
-              )}
-            >
-              {dependency.met ? (
-                <Check className="size-3 shrink-0" />
-              ) : (
-                <CornerDownRight className="size-3 shrink-0" />
-              )}
-              <span className="truncate">after “{dependency.title}”</span>
-            </div>
-          )}
-          {/* Branch gets its OWN row: unbounded length, and packing it alongside cwd/sessionCount/
-              ctx%/copilot below starved them of room (confirmed in a real browser at phone width —
-              several of them got clipped with no ellipsis, not just visually tight). */}
-          {card.branch && (
-            <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-              <GitBranch className="size-3 shrink-0" />
-              <span className="truncate font-mono">{card.branch}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-            {/* First, and shrink-0: in the global view this is the answer to "whose card is this",
-                which is the one thing the strip above is not saying. Its icon doubles as the
-                separator from the cwd that may follow it. */}
-            {repo && (
-              <span className="flex shrink-0 items-center gap-1">
-                <FolderGit2 className="size-3 shrink-0" />
-                {repo}
-              </span>
+        {/* 2. Title. Two lines allowed — no truncation, no clamp. A done card's title recedes with
+            it: the work is over, so the title stops competing for attention. */}
+        <div className="flex items-start gap-2">
+          <div
+            className={cn(
+              "min-w-0 flex-1 text-base font-semibold leading-[1.3] tracking-[-0.01em] text-wrap-pretty lg:text-[15px]",
+              card.status === "done" ? "text-muted-foreground" : "text-foreground",
             )}
-            {/* Only known once a pane backs the card — same restriction as ctx%, same reason. */}
-            {card.runtime && <span className="truncate font-mono">{shortCwd(card.runtime.cwd)}</span>}
-            {/* ctx% right after cwd, and shrink-0: it's the whole point of G1, so if the row is tight,
-                cwd truncates (it already did, above) and sessionCount/copilotBusy get pushed off —
-                not this. Confirmed in a real browser: with ctx% listed after sessionCount it was the
-                one silently clipped. */}
-            {card.session?.ctxPct != null && (
-              <span className="shrink-0">· ctx {Math.round(card.session.ctxPct)}%</span>
+          >
+            {card.title}
+            {paneName && (
+              <span className="ml-1 text-xs font-normal text-muted-foreground">· {paneName}</span>
             )}
-            {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
-            {/* A card the copilot is holding looks identical to one it has abandoned — say which. */}
-            {card.copilotBusy && <span className="animate-pulse">· copilot…</span>}
           </div>
+          {!statusRow && card.tag && (
+            <TagChip tag={card.tag} className="mt-0.5 shrink-0 px-[7px] py-px text-[10px] font-semibold" />
+          )}
         </div>
 
-        {/* Under 20rem of container — a board lane on a 1280px laptop, or a lane's nested CardGroup —
-            the badge drops onto its own line under the title instead of eating a third of it. Same
-            badge, same information, indented to the title's column so it still reads as belonging to
-            it. This is the case that makes the container query worth having: at ONE viewport width
-            the phone's full-width tile keeps the badge inline and the lane's tile does not. */}
-        <span className="shrink-0 @max-xs:order-last @max-xs:w-full @max-xs:pl-[3rem]">
-          {waiting ? (
-            <Lock className="size-4 shrink-0 text-status-blocked" />
-          ) : card.runtime ? (
-            <StatusBadge status={card.runtime.agentStatus} />
-          ) : (
-            <CardStatusChip status={card.status} />
-          )}
-        </span>
-        {/* The one thing that goes when the box is narrow: 16px of icon plus its gap is 11% of a
-            320px lane, and it is the only element here carrying no information — in a lane of
-            clickable tiles, "this opens" is not news. The badge beside it IS information, so it
-            stays. */}
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground @max-sm:hidden" />
+        {parent && (
+          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <Layers className="size-3 shrink-0" />
+            <span className="truncate">{parent}</span>
+          </div>
+        )}
+        {dependency && (
+          <div
+            className={cn(
+              "flex items-center gap-1 truncate text-xs",
+              // Green once satisfied — a quiet confirmation, not an alert — amber/blocked-tinted
+              // while it still holds the card back, so the colour alone answers "can I start this".
+              dependency.met ? "text-status-done" : "text-status-blocked",
+            )}
+          >
+            {dependency.met ? (
+              <Check className="size-3 shrink-0" />
+            ) : (
+              <CornerDownRight className="size-3 shrink-0" />
+            )}
+            <span className="truncate">after “{dependency.title}”</span>
+          </div>
+        )}
+
+        {/* 3. Meta row — rendered only when there is something to say. cwd and the chevron are
+            dropped on purpose: the branch already says where, and in a grid of clickable tiles
+            "this opens" is not information. */}
+        {hasMeta && (
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {card.runtime && <AgentIcon agent={card.runtime.agent} className="size-4 shrink-0" />}
+            {card.branch && (
+              <span className="flex min-w-0 items-center gap-1 truncate font-mono">
+                <GitBranch className="size-3 shrink-0" />
+                {card.branch}
+              </span>
+            )}
+            {/* A quick "how much is riding on this" stat — the count only, not the criteria
+                themselves; opening the card is what "the details" is for. */}
+            {card.acceptance.length > 0 && (
+              <span className="flex shrink-0 items-center gap-1">
+                <ListChecks className="size-3 shrink-0" />
+                {card.acceptance.length}
+              </span>
+            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              {ctxPct != null && (
+                <>
+                  <CtxBar pct={ctxPct} />
+                  <span className="tabular-nums">{Math.round(ctxPct)}%</span>
+                </>
+              )}
+              {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
+              {/* A card the copilot is holding looks identical to one it has abandoned — say which. */}
+              {card.copilotBusy && <span className="animate-pulse">· copilot…</span>}
+            </span>
+          </div>
+        )}
       </Card>
     </button>
   );

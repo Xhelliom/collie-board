@@ -202,7 +202,7 @@ export function CardEditor({
  * message that says so, and reproducing that graph walk here would put the same rule in two places
  * for a mistake that is one tap to undo. Only the card itself is excluded, by the caller.
  */
-function LinkPicker({
+export function LinkPicker({
   label,
   hint,
   value,

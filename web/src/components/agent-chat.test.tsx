@@ -94,11 +94,16 @@ describe("AgentChat — header title block", () => {
   it("leads with the space, puts the directory on the subline, and drops the redundant agent name", () => {
     renderChat(); // claude @ /home/you/webapp → ~/webapp
     // Scoped to the header: the same name is also the screen's sr-only h1 (which the header's own
-    // title text can't be, since it lives inside a button — a heading there isn't exposed as one).
-    expect(within(screen.getByRole("banner")).getByText("webapp")).toBeInTheDocument(); // space leads
+    // title text can't be, since it lives inside a button — a heading there isn't exposed as one),
+    // and (since the redesign) the desktop pane list's OWN row for this same pane, which falls back
+    // to the bare agent slug ("claude") as ITS display name when no label/session name is set —
+    // real, unrelated behaviour this test isn't about.
+    const banner = within(screen.getByRole("banner"));
+    expect(banner.getByText("webapp")).toBeInTheDocument(); // space leads
     expect(screen.getByText("~/webapp")).toBeInTheDocument(); // directory on the subline
-    // The agent is conveyed by its icon (aria-label only), so its name isn't repeated as text.
-    expect(screen.queryByText(/claude/i)).toBeNull();
+    // The agent is conveyed by its icon (aria-label only) in the HEADER specifically, so its name
+    // isn't repeated as text there.
+    expect(banner.queryByText(/claude/i)).toBeNull();
     expect(screen.getByRole("button", { name: /open webapp overview/i })).toBeInTheDocument();
   });
 
@@ -138,7 +143,7 @@ describe("AgentChat — read-only device", () => {
     renderChat({ device: { enforced: true, device: "spare-phone", authorized: false } });
 
     // The banner names the read-only state (and the device id), and the composer is locked.
-    expect(screen.getByText(/read-only/i)).toBeInTheDocument();
+    expect(screen.getByText("Lecture seule")).toBeInTheDocument();
     expect(screen.getByText(/spare-phone/)).toBeInTheDocument();
     const box = screen.getByPlaceholderText(/read-only — device not authorised/i);
     expect(box).toBeDisabled();
@@ -283,7 +288,7 @@ describe("AgentChat — prompt-select race guard wiring (frozen {text, revision}
 
     // Freeze the mirror (opening find pins the tail — the same `following=false` state a scroll-up
     // freeze produces).
-    await user.click(screen.getByRole("button", { name: "Find in output" }));
+    await user.click(screen.getAllByRole("button", { name: "Find in output" })[0]!);
 
     // The pane advances while frozen: new output below the menu + a bumped revision.
     act(() => advance({ text: `${MENU_TEXT}\n● proceeding…\n`, revision: 2 }));
@@ -322,7 +327,7 @@ describe("AgentChat — prompt-select race guard wiring (frozen {text, revision}
     // The real detector lifted the multi-question tail into a wizard with option buttons.
     await screen.findByRole("button", { name: /Parser/ });
 
-    await user.click(screen.getByRole("button", { name: "Find in output" })); // freeze the tail
+    await user.click(screen.getAllByRole("button", { name: "Find in output" })[0]!); // freeze the tail
     act(() => advance({ text: `${WIZARD_TEXT}\n● advancing…\n`, revision: 2 }));
 
     await user.click(screen.getByRole("button", { name: /Parser/ }));
@@ -349,8 +354,12 @@ describe("AgentChat — block-grammar scoping (Claude-only)", () => {
 
   it("re-surfaces the Claude input-box statusline as an app strip above the composer", () => {
     renderChat({ text: STATUS_TEXT }); // default claude agent
-    const strip = screen.getByText("[Opus 4.8] ~/webapp · main");
-    expect(strip.closest("pre")).toBeNull(); // the strip is app chrome, not <pre> mirror text
+    // Two copies since the redesign — the composer's own strip (below `lg`) and the desktop context
+    // rail's (context-rail-column.tsx), fed the same `statusLines` value; jsdom renders both
+    // regardless of which breakpoint's CSS would actually show it.
+    const strips = screen.getAllByText("[Opus 4.8] ~/webapp · main");
+    expect(strips).toHaveLength(2);
+    for (const strip of strips) expect(strip.closest("pre")).toBeNull(); // app chrome, not mirror text
     expect(screen.queryByText(/❯/)).toBeNull(); // the input box was stripped off the mirror
   });
 
@@ -409,6 +418,11 @@ describe("AgentChat — mirror tap must not pop the keyboard on option taps", ()
 // Connection copy now lives in the single top ConnectionBanner (mounted in RootLayout), not in the
 // header — so the pane header has no pill. What it still owns: the agent StatusBadge, which shows the
 // LAST snapshot's status and must stop reading as current during an outage (it dims on any not-live).
+//
+// Two responsive copies exist since the redesign (the toolbar's, `lg`-only, and the mobile context
+// row's, below `lg` — jsdom renders both regardless of the CSS that picks one per breakpoint), fed by
+// the SAME `stale` prop — so this asserts they can never disagree, which is a stronger claim than the
+// single-badge version had.
 describe("AgentChat — shared header: stale-status dimming", () => {
   beforeEach(() => __resetConnectionHealth());
 
@@ -436,10 +450,11 @@ describe("AgentChat — shared header: stale-status dimming", () => {
     const router = createMemoryRouter([{ path: "/", element: <Harness /> }]);
     render(<RouterProvider router={router} />);
 
-    const badge = screen.getByText("needs you");
-    expect(badge).toHaveClass("opacity-40"); // not live → frozen status dimmed
+    const badges = screen.getAllByText("needs you");
+    expect(badges).toHaveLength(2);
+    for (const badge of badges) expect(badge).toHaveClass("opacity-40"); // not live → frozen, dimmed
     act(() => setError(false)); // snapshot recovers → live
-    expect(badge).not.toHaveClass("opacity-40"); // undimmed instantly
+    for (const badge of badges) expect(badge).not.toHaveClass("opacity-40"); // undimmed instantly
   });
 });
 
@@ -469,14 +484,17 @@ describe("AgentChat — history affordance", () => {
   });
 
   // Deliberate placement, not an accident of slot order: the status pill stays the rightmost thing on
-  // the pane screen (it's what you glance at), so History sits to its LEFT.
+  // the pane screen (it's what you glance at), so History sits to its LEFT — in the toolbar's own
+  // (desktop, `lg`-only) cluster, which is the pair this test exercises; the mobile context row is a
+  // separate DOM section entirely and has no History button to be ordered against.
   //
   // (The top-of-mirror affordance is covered separately below.)
   it("sits to the LEFT of the status pill", () => {
     const agent = { ...fixtureAgents[0]!, agentSessionId: "d7e62e23-8576-4c63-98ba-ec1b02902c6b" };
     renderChat({ agent, agents: [agent] });
     const history = screen.getByRole("button", { name: /conversation history/i });
-    const pill = screen.getByText("needs you"); // fixtureAgents[0] is blocked → "needs you"
+    // fixtureAgents[0] is blocked → "needs you"; index 0 is the toolbar's own copy (DOM-first).
+    const pill = screen.getAllByText("needs you")[0]!;
     // Node.compareDocumentPosition: FOLLOWING (4) means the pill comes after History in the DOM.
     expect(history.compareDocumentPosition(pill) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -537,7 +555,9 @@ describe("AgentChat — terminal / reading toggle", () => {
 
     await user.click(screen.getByRole("button", { name: /terminal view/i }));
     expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /find in output/i })).toBeInTheDocument();
+    // Two copies since the redesign (the mobile header's and the desktop toolbar's — jsdom renders
+    // both regardless of which breakpoint's CSS would show it).
+    expect(screen.getAllByRole("button", { name: /find in output/i })).toHaveLength(2);
   });
 });
 

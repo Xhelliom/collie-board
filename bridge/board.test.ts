@@ -428,6 +428,8 @@ describe("withCardFields", () => {
 
     const enriched = withCardFields([pane("w1:p1", "working")], store.listOpenSessions(), store)[0]!;
     expect(enriched.branch).toBe("board/x");
+    expect(enriched.cardId).toBe(card.id);
+    expect(enriched.cardTitle).toBe("x");
     // Context comes from ContextTracker.enrich() now, for EVERY agent pane rather than only the
     // card-backed ones (UI_AUDIT.md G3) — so the card session's stored figure must not leak in here
     // as a second, staler source.

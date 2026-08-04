@@ -54,6 +54,9 @@ export interface AgentView {
    * (see cards.ts `withCardFields`).
    */
   branch?: string;
+  /** The card this pane backs, id and title — same gating as `branch`, from the same lookup. */
+  cardId?: string;
+  cardTitle?: string;
   /**
    * Context occupancy for ANY agent pane, card-backed or launched by hand (see context.ts
    * `ContextTracker.enrich` — UI_AUDIT.md G3). Held in the tracker's memory, never in the database:

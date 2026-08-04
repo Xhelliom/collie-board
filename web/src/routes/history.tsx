@@ -187,9 +187,7 @@ export function HistoryRoute() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AppHeader
-        bridge={root.bridge}
-        error={root.error}
-        onHome={() => navigate(panePath(paneId, session))}
+        onBack={() => navigate(panePath(paneId, session))}
         override={
           findOpen ? (
             <FindBar
