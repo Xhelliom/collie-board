@@ -1,29 +1,45 @@
 # Collie Board
 
-> **A fork of [`AltanS/collie`](https://github.com/AltanS/collie) (MIT), with a durable Kanban layer
-> on top.** Everything below is Collie's — the bridge, the security posture, the PWA — and still
-> works exactly as documented. What the fork adds is [**the board**](#the-board-what-this-fork-adds):
-> a task that outlives the pane working on it. See [`UPSTREAM.md`](./UPSTREAM.md) for the fork's
-> posture and what is meant to go back.
-
 <p align="center">
   <img src="assets/collie-hero.webp" alt="A collie herding a flock of sheep" width="640">
 </p>
 
-A phone web UI for your [Herdr](https://herdr.dev) agent herd, served over Tailscale. Open a URL, see
-which agent is waiting on you, and answer it with your phone's keyboard.
+**A phone Kanban for your [Herdr](https://herdr.dev) agent herd, served over Tailscale.** Dictate a
+task into a card. Tap it: the board opens its own git worktree, its own herdr workspace and its own
+agent, and hands it the spec. The card then moves itself as the agent works, blocks or finishes —
+and when the work is done, you merge it or open a PR from the same screen, on the phone.
 
-Each agent gets a colored terminal mirror, a slash-command palette, a special-keys pad, and a
-conversation history you can scroll and search. The reply box is an ordinary text field, so your
-phone's own voice dictation works in it; Collie ships none of its own.
+Underneath is the herd mirror it inherited: every pane with a colored terminal, a slash-command
+palette, a special-keys pad, a reading mode over the agent's own transcript, and a history you can
+scroll and search. An agent's terminal dialogs — permission prompts, question menus, plan approvals —
+are up-levelled into native phone buttons by a per-agent *harness adapter*
+([`HARNESS_CONTRIBUTING.md`](./HARNESS_CONTRIBUTING.md)). The reply box is an ordinary text field, so
+your phone's own voice dictation works in it; nothing here ships its own.
 
 A Herdr plugin (thin launcher) plus a Bun/TypeScript bridge running as a `systemd --user` service,
-serving a Vite + React + shadcn PWA.
+serving a Vite + React + shadcn PWA. `bun:sqlite` holds the cards; nothing about the running herd is
+ever persisted.
+
+> 🐑 **This repository is a fork.**
+>
+> Collie Board is a fork of **[`AltanS/collie`](https://github.com/AltanS/collie)** by
+> **[Altan Sarisin (@AltanS)](https://github.com/AltanS)**, MIT — the phone UI this is built on, the
+> hero above included. Go star the original.
+>
+> Collie is a *stateless mirror*: open a URL, see which agent is waiting on you, answer it with your
+> thumb, and nothing is remembered between two ticks. All of that is still here and still works as
+> documented. What the fork adds is **memory** — [the board](#the-board) — and it is a change of
+> kind, not a feature: a task that outlives the pane working on it.
+>
+> [**A fork of Collie**](#a-fork-of-collie) below has the full before/after and the credits.
+> [`UPSTREAM.md`](./UPSTREAM.md) has the posture toward upstream, and
+> [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) the list of bricks meant to go back.
 
 ## Contents
 
-- [The board (what this fork adds)](#the-board-what-this-fork-adds)
-- [Demo](#demo)
+- [The board](#the-board) · [Configuration](#board-configuration) · [Endpoints](#board-endpoints)
+- [A fork of Collie](#a-fork-of-collie)
+- [Screens](#screens)
 - [Security — read first](#%EF%B8%8F-security--read-before-you-run-it)
 - [Requirements](#requirements)
 - [Install](#install)
@@ -39,27 +55,7 @@ serving a Vite + React + shadcn PWA.
 - [Architecture](#architecture)
 - [Developing this plugin](#developing-this-plugin)
 
-## Demo
-
-https://github.com/user-attachments/assets/6334eab2-d503-4cfe-b770-80c4517e9482
-
-A run through the herd from a phone: the dashboard floats the agent that **needs you** to the top,
-you drill into a space's tabs and panes (long-press a pane pill or a tab chip to rename or close it —
-and a Claude pane shows the name you gave it with `/rename`), switch between herds, and pick up a push
-notification the moment an agent is waiting on input.
-
-<table>
-  <tr>
-    <td align="center" width="50%"><img src="assets/dashboard.png" alt="Collie dashboard — Needs you, Spaces, Idle · done" width="250"><br><sub><b>Dashboard</b> — agents needing you float to the top</sub></td>
-    <td align="center" width="50%"><img src="assets/space-detail.png" alt="A space's tabs and panes" width="250"><br><sub><b>Space</b> — its tabs and panes, deep-linkable</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="50%"><img src="assets/session-switcher.png" alt="Session switcher" width="250"><br><sub><b>Session switcher</b> — one bridge, every herd</sub></td>
-    <td align="center" width="50%"><img src="assets/settings.png" alt="Settings — notifications and diagnostics" width="250"><br><sub><b>Settings</b> — notifications, DND, diagnostics</sub></td>
-  </tr>
-</table>
-
-## The board (what this fork adds)
+## The board
 
 Collie answers **"which agent needs me right now"**. It is deliberately stateless: a mirror of the
 herd, wiped every tick. Collie Board answers the other question — **"where is this task, and what
@@ -67,14 +63,21 @@ happened in the three sessions before this one"** — and that needs memory Coll
 
 A **card** is durable. A **session** is not. That one rule is the whole design.
 
+Eight columns, stacked one under the other on a phone (urgency first, so *Needs you* is never below
+the fold) and folded into four lanes (**To do · Doing · To review · Done**) on a laptop. Most
+transitions are the board's, not yours.
+
 | | |
 |---|---|
 | **Card → branch → workspace** | Starting a card runs `worktree.create`: its own checkout, its own herdr workspace, its own agent. One tap, no keyboard. |
-| **Cards move themselves** | Reconciliation rides the snapshot poll Collie already runs. `working` → In progress, `blocked` → Needs you, `done` → To review. A pane that vanishes makes its card **orphaned** — relaunchable from its last handoff, never an error. |
+| **Cards move themselves** | Reconciliation rides the snapshot poll Collie already runs. `working` → In progress, `blocked` → Needs you, `review` → To review. A pane that vanishes makes its card **orphaned** — relaunchable from its last handoff, never an error. |
+| **Tag, and repo scope** | One tag per card, its colour computed from its name and stored nowhere ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). Two strips above the columns filter by tag and by repo; the repo scope is remembered between visits ([ADR 0006](./.adr/0006-the-board-scopes-by-repo-and-remembers-it.md)). |
 | **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is just its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed. |
+| **Merge · PR · resolve · cleanup · discard** | Five taps that end a branch, in `bridge/integrate.ts`. `merge --no-ff` into the base in the main checkout, or push + `gh pr create`; a conflict is handed back to the card's own agent to settle **on its own branch**. Four of the five refuse before they act — you cannot fix a half-merged repo from a phone. `discard` is the one destructive gesture and is a separate word, never a `force` flag. |
 | **Context gauge** | Read from the agent's own transcript, and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. Works without herdr's optional integration: the pane's PID and start time pick the right log even with two agents in one directory. |
-| **Handoff** | The outgoing agent writes `.board/handoff.md`; the pane is replaced in the same worktree; the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
-| **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other. Turns a dictated brain dump into a card, and reviews finished work — its follow-ups become new cards, which is what refills the board. |
+| **Handoff** | Context running out mid-task: the outgoing agent writes `.board/handoff.md`, the pane is replaced in the same worktree, the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
+| **Wrap-up** | Filing a card Done asks its agent for one last note (`.board/wrapup.md`) — what it did, what it dropped — because the diff shows which lines moved, not which acceptance criterion that satisfied. That note is what the copilot's review reads. |
+| **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other — no API key, no SDK, and openable in the TUI when an answer comes out wrong. It turns a dictated brain dump into a card (splitting it into several when the dump names several things, tagging each with the board's existing vocabulary), reviews finished work into follow-up cards, and explains a failed action. Its output contract is a JSON file, never scraped terminal text. |
 
 > ⚠️ **Keep your repositories out of `/tmp`.** The systemd unit sets `PrivateTmp=yes` (upstream
 > hardening), so the service sees its own empty `/tmp` — a repo under there simply doesn't exist for
@@ -96,6 +99,7 @@ A **card** is durable. A **session** is not. That one rule is the whole design.
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
 | `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace (and its agent). Cosmetic — it is found by directory, not by name. |
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
+| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks and links to. Set it to `Xhelliom/collie-board` (or your own fork); left empty the check is off, because pointing it at upstream would nag about versions this tree isn't. |
 
 Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — four fields, merged
 per field from `~/.config/collie-board/agents.toml`.
@@ -118,7 +122,7 @@ persisted: a stored list of repos would go stale the moment you moved one.
 
 ```
 GET    /api/cards                       list + live herd state merged in
-POST   /api/cards                       {title|rawInput, repoPath, baseRef, …}
+POST   /api/cards                       {title|rawInput, repoPath, baseRef, tag, …}
 GET    /api/cards/:id                   card + sessions + reviews + journal
 PATCH  /api/cards/:id                   edit / move a column / link (parentId, dependsOn)
 DELETE /api/cards/:id
@@ -126,9 +130,15 @@ POST   /api/cards/:id/start             worktree + workspace + agent + the spec
 POST   /api/cards/:id/prompt            a follow-up instruction
 POST   /api/cards/:id/handoff           ask for the note; the poll loop swaps the session
 POST   /api/cards/:id/reformulate       hand the card back to the copilot
+POST   /api/cards/:id/explain           {action, error} — ask the copilot what a failure meant
 POST   /api/cards/:id/revert            {eventId?} — put back text an edit overwrote
 GET    /api/cards/:id/diff              ?mode=stat|file&path=
+GET    /api/cards/:id/integration       where the branch stands (ahead/behind, pushed, refusals)
+POST   /api/cards/:id/integration       {action: merge|pr|resolve|cleanup|discard, andDone?}
 GET    /api/cards/:id/sessions          the handoff chain
+GET    /api/cards/:id/events            the journal
+GET    /api/repos                       the new-card picker's repo list (derived, see below)
+POST   /api/repos/hide                  hide / unhide one repo from that list
 ```
 
 Every overwrite of a card's **written** fields (title, spec, acceptance) is journalled with what it
@@ -145,28 +155,107 @@ bound to the **primary** herdr session: a pane id means nothing in another serve
   `TODO` in disguise — a different project.
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
 - **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
-  miserable. Buttons on the card.
+  miserable. Buttons on the card. Dragging exists on the wide-screen board, native HTML and no
+  library, and only between the columns a human owns anyway — a convenience, not the interface.
 - **No heuristic context gauge** (level 2 of the design). It could only produce a number that looks
   authoritative and isn't, on exactly the agents we know least about. No gauge is the honest answer;
   Handoff works regardless.
+- **No agent that starts itself.** A finished card makes its dependent start*able*, never started.
+  An agent that launches itself writes code and spends your quota with nobody watching — the same
+  reasoning that keeps the copilot off by default.
 - **No PTY streaming.** Same parking-lot reasoning as upstream — see `ARCHITECTURE.md` §8.
 
-## Motivation
+## A fork of Collie
 
-I wanted to check on my agents from my phone. The usual route is [Termux](https://termux.dev) — SSH
-in, attach to the terminal — but driving a TUI through its on-screen controls is miserable: the
-special keys are fiddly, `Ctrl`/`Esc`/arrows are buried behind chords, and every reply is a fight
-with the keyboard. I wanted something that feels like an app, not a terminal squeezed onto a
-touchscreen: tap the agent that needs you, type with your real keyboard, fire `Esc` or `Ctrl+C` with
-one thumb. Collie is that.
+This repository is a fork of **[`AltanS/collie`](https://github.com/AltanS/collie)** by
+**[Altan Sarisin (@AltanS)](https://github.com/AltanS)**, MIT-licensed, and it stays MIT: `LICENSE`
+keeps Altan's copyright with the fork's added below it. The hero image, the name, the phone UI's
+whole shape and every line of the security posture below are Collie's work. If you want the
+stateless original, take it upstream — it is smaller, and for "which agent needs me right now" it is
+the better answer.
+
+**What Collie was, and still is here.** A mobile-first PWA plus a Bun bridge that talks to
+[Herdr](https://herdr.dev)'s Unix socket over a `tailscale serve` front door. Open a URL from your
+phone, see which agent is blocked, type into its terminal. Deliberately without memory: every tick
+re-reads the snapshot, nothing is written down, there is nothing to resync.
+
+**What this fork turned it into.** A board. Cards outlive the panes that work on them, which means a
+database, a worktree per card, session chaining and an integration step — and that is a change of
+kind rather than an extension. Upstream would be entirely reasonable to refuse it, so it was never
+offered as one PR.
+
+| | Collie (upstream) | Collie Board (this repo) |
+|---|---|---|
+| **Question it answers** | which agent needs me *now* | where is this *task*, across the sessions it took |
+| **State** | none — snapshot only | `bun:sqlite`: cards, sessions, reviews, journal |
+| **Unit of work** | a pane | a card → its own branch, worktree and workspace |
+| **Starting work** | you open a pane and type | one tap: worktree + agent + spec |
+| **Ending work** | you close the pane | wrap-up note, then merge / PR / cleanup — refusals first |
+| **Writing the task** | — | dictate a dump; the copilot splits, tags and specs it (off by default) |
+| **Layout** | phone | phone, plus a four-lane wide-screen board |
+| **Plugin id** | `herdr.collie` | `herdr.collie-board` — both can be installed side by side |
+
+Everything else the fork touched is **generic** — it works with no card in sight, and belongs
+upstream rather than here: the context gauge and `$ctx` in herdr's own sidebar, finding a pane's
+transcript without herdr's optional Claude integration (which fixes pane History for most users),
+the reading mode over an agent's transcript, three `collie-ctl.sh` install bugs, two herdr launch
+races, a desktop mode, and a handful of accessibility holes. Each is tracked with its commit in
+[`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) so it can be offered as a small, self-contained PR;
+[`UPSTREAM.md`](./UPSTREAM.md) records the rule that keeps the diff against upstream to nineteen
+files.
 
 ## Who is this for
 
-You, if you run [Herdr](https://herdr.dev) agents on a machine and want to pick a session back up
-from your phone. It assumes a **[Tailscale](https://tailscale.com) tailnet**: your phone and the host
-are on the same tailnet, and `tailscale serve` is the only way in. It is **single-user** — one
-operator, one tailnet, no multi-tenant auth. If you need shared or public access, Collie isn't built
-for it. Read the security note below either way.
+You, if you run [Herdr](https://herdr.dev) agents on a machine and want to run a queue of work
+through them from your phone — dictate the task on the way somewhere, start it, answer it when it
+blocks, merge it when it's done. It assumes a **[Tailscale](https://tailscale.com) tailnet**: your
+phone and the host are on the same tailnet, and `tailscale serve` is the only way in. It is
+**single-user** — one operator, one tailnet, no multi-tenant auth. If you need shared or public
+access, this isn't built for it. Read the security note below either way.
+
+The starting point was Collie's: checking on agents from a phone. The usual route is
+[Termux](https://termux.dev) — SSH in, attach to the terminal — but driving a TUI through its
+on-screen controls is miserable, and every reply is a fight with the keyboard. Collie fixed that.
+The board is what came next: once replying from a phone is comfortable, the bottleneck moves to
+*remembering what you asked for three sessions ago*.
+
+## Screens
+
+There are no screenshots of the board yet. Its shape, sketched — a card tile carries its tag chip,
+title, repo, branch and context gauge; a column header carries its count; the two strips above the
+columns scope by repo and by tag:
+
+```
+[ All ] [ collie-board ] [ dotfiles ]          ← repo scope, remembered between visits
+[ All ] [ board ] [ ui ] [ infra ]             ← tag filter, narrowed by the scope above
+
+Needs you (1)
+  ● [board] Wire the tag strip           collie-board · board/tag-strip · 62%
+To review (2)
+  ● [ui]    Reading mode Markdown        collie-board · board/reading-md · merge · PR
+  ● [infra] Bump the systemd unit        dotfiles     · board/unit-bump  · merge · PR
+In progress (1) · Ready (4) · Backlog (11) · Done (37)
+```
+
+The herd side is Collie's, plus what the fork added to it (a context gauge above the composer, a
+reading mode over the agent's transcript, a wide-screen layout). These four screenshots are
+upstream's, and still accurate:
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="assets/dashboard.png" alt="Collie dashboard — Needs you, Spaces, Idle · done" width="250"><br><sub><b>Dashboard</b> — agents needing you float to the top</sub></td>
+    <td align="center" width="50%"><img src="assets/space-detail.png" alt="A space's tabs and panes" width="250"><br><sub><b>Space</b> — its tabs and panes, deep-linkable</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="assets/session-switcher.png" alt="Session switcher" width="250"><br><sub><b>Session switcher</b> — one bridge, every herd</sub></td>
+    <td align="center" width="50%"><img src="assets/settings.png" alt="Settings — notifications and diagnostics" width="250"><br><sub><b>Settings</b> — notifications, DND, diagnostics</sub></td>
+  </tr>
+</table>
+
+Upstream's demo video walks that side end to end — the dashboard floating the blocked agent to the
+top, drilling into a space's tabs and panes, switching herds, picking up a push notification:
+
+https://github.com/user-attachments/assets/6334eab2-d503-4cfe-b770-80c4517e9482
 
 ## ⚠️ Security — read before you run it
 
@@ -175,7 +264,7 @@ keystrokes into a live terminal pane, so anyone who can reach the URL can read e
 secrets, env, agent output) and run any command as your user. No sandbox, no command allow-list
 (that would defeat the purpose). Treat the URL like a root login.
 
-Four sharp edges:
+Five sharp edges:
 
 - **It acts as _you_**, with your full privileges — `~/.ssh`, `git push --force`, `rm -rf`, `sudo`.
 - **It's reachable by every uid on the host, not just yours.** Herdr's socket is a file, so its
@@ -195,6 +284,13 @@ Four sharp edges:
   discovers and serves every named Herdr session under your config root — a private or sandbox
   session (e.g. `collie-demo`) is readable and drivable through the same URL as your primary, and the
   set is rescanned periodically. Set `COLLIE_BOARD_MULTI_SESSION=0` to serve only the primary session.
+- **The board touches your repositories, not just your terminals** — this fork's own widening of the
+  surface. A card creates a git worktree and a branch; the integration taps run `git merge --no-ff`
+  into your main checkout, `git push`, and `gh pr create` with whatever credentials `gh` already
+  holds. `bridge/git.ts` is the only place the bridge shells out (argv elements, never a shell; the
+  one client-supplied path validated and always after `--`), and every board write goes through the
+  same `guard()` and the same audit log as typing into a pane. None of that changes the conclusion:
+  someone who reaches the URL can also move code into your default branch.
 
 It's built single-user and tailnet-only. The defenses:
 
@@ -230,16 +326,17 @@ On the **host** (the tailnet node your agents run on):
 | Tool | Why |
 | --- | --- |
 | [**Bun**](https://bun.sh) | Runs the bridge and builds the web UI — the only hard dependency. |
-| [**Herdr**](https://herdr.dev) ≥ 0.7.0 | The herd Collie mirrors; its CLI registers the plugin. |
+| [**Herdr**](https://herdr.dev) ≥ 0.7.0 | The herd this mirrors; its CLI registers the plugin, and `worktree.create` is what a card start rides on. |
 | [**Tailscale**](https://tailscale.com) | Front door for the default variant (`tailscale serve`); optional if you run [Variant C](#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale) behind your own reverse proxy. Without any front door, the bridge is `127.0.0.1`-only. |
-| **git** | Clone, and the `update` command. |
+| **git** | Clone, the `update` command, and every card: worktree, branch, diff, merge. |
 
 Soft dependencies: **Node.js** (the control script uses it to extract your MagicDNS name from
-`tailscale status --json`; without it the banner falls back to the loopback URL) and **`systemd
---user`** (supervises the service; falls back to a `nohup` process without it). You never install JS
-deps by hand — the build runs `bun install` for you; the backend imports only Bun + `node:*`.
-[`web-push`](https://www.npmjs.com/package/web-push) is optional and lazy (see [Web
-Push](#web-push-optional)).
+`tailscale status --json`; without it the banner falls back to the loopback URL), **`systemd
+--user`** (supervises the service; falls back to a `nohup` process without it), and
+[**`gh`**](https://cli.github.com) (only for a card's *open a PR* tap — `merge` and `cleanup` need
+plain git). You never install JS deps by hand — the build runs `bun install` for you; the backend
+imports only Bun + `node:*`. [`web-push`](https://www.npmjs.com/package/web-push) is optional and
+lazy (see [Web Push](#web-push-optional)).
 
 **Linux and macOS are the supported hosts.** The bridge itself also runs on **Windows**
 (experimental) against Herdr's Windows beta — see [Windows](#windows-experimental).
@@ -263,21 +360,22 @@ alone. It starts nothing and publishes nothing; `start` is the step that puts yo
 
 The long version, and every deployment variant, follows.
 
-
-
-On the host, not your phone. Two ways in.
+On the host, not your phone. Two ways in — both point at
+[`Xhelliom/collie-board`](https://github.com/Xhelliom/collie-board), this fork. Installing
+[upstream Collie](https://github.com/AltanS/collie) instead gets you the stateless mirror and no
+board; the plugin ids differ (`herdr.collie` vs `herdr.collie-board`), so the two can also coexist.
 
 **From GitHub (turnkey)** — Herdr clones and builds for you:
 
 ```bash
-herdr plugin install AltanS/collie
+herdr plugin install Xhelliom/collie-board
 herdr plugin action invoke start --plugin herdr.collie-board
 ```
 
 **From a local clone (for development)** — registered by path:
 
 ```bash
-git clone https://github.com/AltanS/collie.git && cd collie
+git clone https://github.com/Xhelliom/collie-board.git && cd collie-board
 herdr plugin link "$(pwd)"
 herdr plugin action invoke start --plugin herdr.collie-board
 ```
@@ -308,7 +406,7 @@ building web UI (first run)…                    # linked clone only; a GitHub 
 bridge started (systemd --user: collie-board)
 tailscale serve (https) → tailnet :443 -> 127.0.0.1:8788
 
-  ✓ Collie is running  ·  v0.15.0+174c4e4
+  ✓ Collie is running  ·  v0.71.0+e8b7728
     service   systemd --user (collie-board) · active
     local     http://127.0.0.1:8788
     tailnet   https://myhost.tail1234.ts.net
@@ -324,8 +422,8 @@ The `✓` is a real probe — the script connected to the bridge's port and got 
 
 1. **`web/dist`** — the built UI. The bridge serves it from disk at request time, so later UI
    rebuilds go live without a restart.
-2. **A `systemd --user` service named `collie`** — unit file written to
-   `~/.config/systemd/user/collie.service`, enabled and started, auto-restarting on failure.
+2. **A `systemd --user` service named `collie-board`** — unit file written to
+   `~/.config/systemd/user/collie-board.service`, enabled and started, auto-restarting on failure.
    Inspect it with `systemctl --user status collie-board`. (No usable systemd? A `nohup` process with a
    pidfile in the config dir instead.)
 3. **A tailnet-only `tailscale serve` mapping** — the script ran `tailscale serve --bg 8788`:
@@ -353,7 +451,7 @@ A sixty-second check, host side then phone side:
 ```console
 $ scripts/collie-board-ctl.sh status
 
-  ✓ Collie is running  ·  v0.15.0+174c4e4
+  ✓ Collie is running  ·  v0.71.0+e8b7728
     service   systemd --user (collie-board) · active
     local     http://127.0.0.1:8788
     tailnet   https://myhost.tail1234.ts.net
@@ -376,7 +474,7 @@ open-by-default on your tailnet. [Configure](#configure) closes both. (The loopb
 is also correct: the bridge itself only ever binds `127.0.0.1` — `tailscale serve` is what makes it
 reachable.)
 
-On the phone: your agents are listed, and the footer build stamp (`v0.9.0 · debcff9 · …`) matches
+On the phone: your agents are listed, and the footer build stamp (`v0.71.0 · e8b7728 · …`) matches
 `scripts/collie-board-ctl.sh version`. If the page loads but stays empty, that's the same-origin gate —
 see [Troubleshooting](#troubleshooting).
 
@@ -462,6 +560,7 @@ Collie registers these actions in `herdr-plugin.toml`; invoke any with
 
 | `<id>` | Title | What it does |
 | --- | --- | --- |
+| `setup` | Set up (preflight + config) | Preflight, link the plugin, derive the two security settings. Starts and publishes nothing |
 | `start` | Start web bridge | Build if needed, start the service, `tailscale serve`, print URL + banner |
 | `stop` | Stop web bridge | Pause the bridge; removes nothing |
 | `restart` | Restart web bridge | `stop` + `start` |
@@ -494,8 +593,8 @@ removes the plugin registration itself.
 
 ### Update to a new release
 
-Collie is link-mode — the checkout *is* the plugin, and there's no `herdr plugin update`. One command
-does the lot:
+Collie Board is link-mode — the checkout *is* the plugin, and there's no `herdr plugin update`. One
+command does the lot:
 
 ```bash
 scripts/collie-board-ctl.sh update    # or: herdr plugin action invoke update --plugin herdr.collie-board
@@ -505,6 +604,11 @@ It `git pull --ff-only`s, rebuilds the UI, restarts the bridge (re-execing itsel
 when the pull rewrites the script), and **re-links the plugin so Herdr picks up any new actions and
 the new version** (older releases skipped this, which is why a freshly added action could return
 `plugin_action_not_found` until a manual re-link). Confirm via the footer build stamp.
+
+**The in-app "a new release is out" banner is opt-in**: set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board`
+in your `.env` and the app checks that repo's releases and links to the newest one. Left empty the
+check is simply off — it defaults to nothing rather than to upstream, which ships different version
+numbers and would nag about releases this tree doesn't have.
 
 By hand: frontend (`web/`) → `collie-board-ctl.sh build` (live, no restart — served from disk); backend
 (`bridge/`) → `systemctl --user restart collie-board`. Run `scripts/install-hooks.sh` once to enable the
@@ -927,7 +1031,7 @@ Allow the exact public origin with `COLLIE_BOARD_ALLOWED_ORIGINS` (see [Configur
 the proxy forward `Host` unchanged (Variant B, rule 4).
 
 **Collie is gone after a reboot.** A `systemd --user` unit only runs while you have a session — on a
-headless host enable lingering once (`loginctl enable-linger $USER`) and the `collie` unit (already
+headless host enable lingering once (`loginctl enable-linger $USER`) and the `collie-board` unit (already
 `enable`d) starts at boot with your user manager. The `tailscale serve` mapping persists on its own
 (`--bg`), so lingering is usually the whole fix.
 
@@ -951,6 +1055,8 @@ A small Bun process sits between your phone and Herdr — the browser never touc
      │  127.0.0.1:PORT    (the bridge binds loopback only)
      ▼
   Collie bridge (Bun)    serves the UI + a small JSON API; polls Herdr
+     │                   ├─ bun:sqlite   the cards (durable)
+     │                   └─ git(1)       worktree + diff + merge, argv never a shell
      │  one-shot JSON-RPC over a Unix socket
      ▼
   Herdr server           owns the panes, agents and terminal state
@@ -961,10 +1067,14 @@ replaces the `tailscale serve` box; everything below the front door is identical
 
 - **One module touches the socket** (`bridge/herdr-client.ts`); everything else speaks the bridge's HTTP API.
 - **Polling is still the model** — the bridge polls Herdr (via `session.snapshot`, one RPC per tick) and the browser polls `/api/snapshot`; a long-lived Herdr event stream only pokes the bridge's poll to go faster, it never replaces it. No resync logic.
-- **Actions are plain HTTP** — a reply or key `POST`s to `/api/pane/:id/{reply,keys}` → Herdr `pane.send_keys`, which types into a real terminal (hence the security posture).
+- **The board adds no second loop.** Card reconciliation, the context gauge, handoff and wrap-up completion and the copilot's review trigger are all `engine.onUpdate` hooks on that same poll. There is no second source of truth and nothing to resync.
+- **The database holds intent, never runtime.** A card's status, cwd and agent are read from the snapshot on every request; SQLite keeps the cards, their session chain, the reviews and an append-only journal. A `disconnected` snapshot is ignored everywhere, so a socket blip can't orphan the whole board.
+- **Actions are plain HTTP** — a reply or key `POST`s to `/api/pane/:id/{reply,keys}` → Herdr `pane.send_keys`, which types into a real terminal (hence the security posture). Board writes go through the same `guard()`, because starting a card ends up being exactly that.
+- **`bridge/git.ts` is the only place the bridge shells out** — argv elements, never a shell; the one client-supplied path is validated and always follows `--`.
 - **The UI is a static PWA** — Vite builds `web/dist`, served from disk, so a rebuild is live with no restart.
 
-Full design rationale in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+Full design rationale in [`ARCHITECTURE.md`](./ARCHITECTURE.md) — the board is §9. Decisions that
+close off an option someone will reasonably propose again live in [`.adr/`](./.adr/).
 
 ## Developing this plugin
 
@@ -979,6 +1089,11 @@ Clone it and `herdr plugin link` it ([Install](#install) above), then edit in pl
   your first commit.
 - **Why a supervised service and not a plugin pane** — [`ARCHITECTURE.md`](./ARCHITECTURE.md) §3.
   That decision is why the manifest uses `[[actions]]` and `[[build]]` and nothing else.
+- **Keep the upstream surface narrow.** Because this is a fork, new behaviour goes in a new file with
+  an `engine.onUpdate` hook, never spread across `server.ts`/`index.ts`. The list of touched upstream
+  files in [`UPSTREAM.md`](./UPSTREAM.md) *is* the rebase cost, and it is meant to stay short. A
+  change that would help upstream gets its entry in [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) in the
+  same commit.
 
 Herdr's plugin system itself is upstream's to document:
 [authoring](https://herdr.dev/docs/plugins/) ·
@@ -987,7 +1102,11 @@ Herdr's plugin system itself is upstream's to document:
 
 ## More
 
-- Design & rationale — [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+- Design & rationale — [`ARCHITECTURE.md`](./ARCHITECTURE.md) (the board is §9)
+- Decision records — [`.adr/`](./.adr/)
 - Verified Herdr socket API — [`HERDR_API.md`](./HERDR_API.md)
+- Adding a harness adapter — [`HARNESS_CONTRIBUTING.md`](./HARNESS_CONTRIBUTING.md)
+- Fork posture, and what stays fork-only — [`UPSTREAM.md`](./UPSTREAM.md)
+- Bricks meant to go back upstream — [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md)
 - Ops, versioning & conventions — [`CLAUDE.md`](./CLAUDE.md)
 - Changes — [`CHANGELOG.md`](./CHANGELOG.md)
