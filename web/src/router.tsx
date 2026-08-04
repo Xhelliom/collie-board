@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router";
 import { BootSplash, PaneError, RootError, RootLayout } from "@/routes/root";
 import { HomeRoute } from "@/routes/home";
 import { SpaceRoute } from "@/routes/space";
+import { SpacesRoute } from "@/routes/spaces";
 import { DetailRoute } from "@/routes/detail";
 import { HistoryRoute } from "@/routes/history";
 import { SettingsRoute } from "@/routes/settings";
@@ -46,7 +47,13 @@ export const router = createBrowserRouter([
       { index: true, element: <HomeRoute /> },
       // The board and a card's page. Both are children of the root, so the root's poll tick
       // revalidates them for free — no board-specific polling.
-      { path: "board", loader: boardLoader, element: <BoardRoute />, errorElement: <RootError /> },
+      {
+        id: "board",
+        path: "board",
+        loader: boardLoader,
+        element: <BoardRoute />,
+        errorElement: <RootError />,
+      },
       {
         path: "card/:cardId",
         loader: cardLoader,
@@ -54,6 +61,7 @@ export const router = createBrowserRouter([
         errorElement: <RootError to={boardPath()} />,
       },
       { path: "space/:spaceId", element: <SpaceRoute /> },
+      { path: "spaces", element: <SpacesRoute /> },
       { path: "settings", element: <SettingsRoute /> },
       {
         path: "pane/:paneId",

@@ -55,6 +55,25 @@
   --terminal-background: oklch(0.145 0.006 250);
   --terminal-foreground: oklch(0.985 0.006 250);
   --terminal-muted: oklch(0.708 0.006 250);
+
+  /* Brand accent (interface redesign). The hue of the app's own neutral scale (250) pushed to chroma
+     and nudged to 258, so it cannot collide with a status hue (24 / 82 / 152) and still reads as the
+     same family. Reserved for exactly three things: the active navigation item, the primary action,
+     the focus ring. Never a status. */
+  --brand: oklch(0.52 0.17 258);
+  --brand-foreground: oklch(0.99 0.01 258);
+
+  /* Uppercase micro-label used by status chips and section headings. Below the text-xs rung on
+     purpose: it is scanned, never read, and the tracking is what makes it legible. */
+  --label-size: 0.656rem; /* 10.5px */
+  --label-tracking: 0.06em;
+
+  /* Foreground for a SOLID status chip (the "loud" card/row treatment — a blocked card, a needs-you
+     row). One value for every tone: chroma 0.03 reads as near-black regardless of hue, and every
+     status tone sits light/saturated enough (L 0.55–0.82 across both themes) that a near-black label
+     clears contrast on all of them without a per-tone lookup. Same value in both themes — the chip's
+     FILL is what already adapts (the token it's painted on), not this. */
+  --status-chip-foreground: oklch(0.18 0.03 24);
 }
 
 .dark {
@@ -88,6 +107,9 @@
 
   --find-hit: oklch(0.769 0.188 70.08 / 40%);
   --find-hit-current: oklch(0.852 0.199 91.936);
+
+  --brand: oklch(0.72 0.16 258);
+  --brand-foreground: oklch(0.18 0.03 258);
 }
 
 @theme inline {
@@ -129,6 +151,10 @@
   --color-terminal-background: var(--terminal-background);
   --color-terminal-foreground: var(--terminal-foreground);
   --color-terminal-muted: var(--terminal-muted);
+
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-status-chip-foreground: var(--status-chip-foreground);
 }
 
 /* Type, fonts and motion — a plain @theme, not @theme inline. These are literal values, not

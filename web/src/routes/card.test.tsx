@@ -2,7 +2,37 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { DangerZone, noteLabel, resolveWatchStep } from "./card.tsx";
+import { DangerZone, noteLabel, resolveWatchStep, SubtaskProgress } from "./card.tsx";
+import type { CardStatus, CardView } from "@/lib/board";
+
+function card(status: CardStatus): CardView {
+  return {
+    id: status + Math.random(),
+    title: "x",
+    spec: null,
+    rawInput: null,
+    acceptance: [],
+    status,
+    repoPath: null,
+    baseRef: null,
+    branch: null,
+    workspaceId: null,
+    agentKind: null,
+    parentId: "container",
+    duplicateOf: null,
+    dependsOn: null,
+    tag: null,
+    position: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    session: null,
+    runtime: null,
+    sessionCount: 0,
+    copilotBusy: false,
+    wrapupPending: false,
+    keepWorktree: false,
+  };
+}
 
 // A session carries one of two documents in the same field, and they are not the same thing: a
 // handoff note is written FOR the next agent, a closing report is what the outgoing agent says it
@@ -55,5 +85,31 @@ describe("DangerZone", () => {
 
     await user.click(screen.getByRole("button", { name: /no undo/i }));
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The container's progress bar (redesign §4a) — the count line and the "attend une réponse" flag
+// are the two things a container's own screen answers at a glance, so both get pinned here.
+describe("SubtaskProgress", () => {
+  it("renders nothing for a childless container", () => {
+    const { container } = render(<SubtaskProgress cards={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("counts done against the total, and stays silent when nothing is blocked", () => {
+    render(<SubtaskProgress cards={[card("done"), card("done"), card("ready")]} />);
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText(/\/ 3 terminées/)).toBeInTheDocument();
+    expect(screen.queryByText(/attend/)).toBeNull();
+  });
+
+  it("flags a blocked sub-task, singular", () => {
+    render(<SubtaskProgress cards={[card("blocked"), card("ready")]} />);
+    expect(screen.getByText("1 attend une réponse")).toBeInTheDocument();
+  });
+
+  it("pluralises when more than one sub-task is blocked", () => {
+    render(<SubtaskProgress cards={[card("blocked"), card("blocked"), card("ready")]} />);
+    expect(screen.getByText("2 attendent une réponse")).toBeInTheDocument();
   });
 });

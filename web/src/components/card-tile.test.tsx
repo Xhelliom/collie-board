@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import type { CardRuntime, CardView } from "@/lib/board";
 import { CardTile } from "./card-tile";
 
-// Focused on what G2 added: cwd on the meta row, and the pane name paired with the card title —
-// both only ever appear once a live pane backs the card.
+// The redesigned tile (interface homogénéité et couleurs): status row (loud/named/silent), title,
+// then a meta row. cwd is gone on purpose — the branch already says where.
 function card(over: Partial<CardView> = {}): CardView {
   return {
     id: "c1",
@@ -47,24 +47,56 @@ function runtime(over: Partial<CardRuntime> = {}): CardRuntime {
   };
 }
 
-describe("CardTile", () => {
+describe("CardTile — status row (loud / named / silent)", () => {
+  it("blocked is loud: a solid chip naming the column, and no repo text (the chip owns the row)", () => {
+    render(<CardTile card={card({ status: "blocked" })} onClick={() => {}} repo="collie-board" />);
+    expect(screen.getByText("Needs you")).toBeInTheDocument();
+    expect(screen.queryByText("collie-board")).toBeNull();
+  });
+
+  it("working is named: the column label shows, with no pill background of its own", () => {
+    render(<CardTile card={card({ status: "working" })} onClick={() => {}} />);
+    expect(screen.getByText("In progress")).toBeInTheDocument();
+  });
+
+  it("a silent status (backlog) shows no status label — the repo takes its place instead", () => {
+    render(<CardTile card={card({ status: "backlog" })} onClick={() => {}} repo="collie-board" />);
+    expect(screen.queryByText("Backlog")).toBeNull();
+    expect(screen.getByText("collie-board")).toBeInTheDocument();
+  });
+
+  it("a silent status with no repo to show renders no status row at all", () => {
+    const { container } = render(<CardTile card={card({ status: "done" })} onClick={() => {}} />);
+    expect(screen.queryByText("Done")).toBeNull();
+    // Title is still the only text content of substance — no empty row above it.
+    expect(container.textContent).toBe("ship the diff view");
+  });
+
+  it("a done card's title recedes to the muted tone", () => {
+    render(<CardTile card={card({ status: "done" })} onClick={() => {}} />);
+    expect(screen.getByText("ship the diff view").className).toMatch(/text-muted-foreground/);
+  });
+
+  it("the tag chip renders alongside whichever status treatment is showing", () => {
+    render(<CardTile card={card({ status: "blocked", tag: "urgent" })} onClick={() => {}} />);
+    expect(screen.getByText("urgent")).toBeInTheDocument();
+  });
+});
+
+describe("CardTile — meta row", () => {
   it("shows neither cwd nor a pane name for a card with no live pane", () => {
     render(<CardTile card={card()} onClick={() => {}} />);
     expect(screen.queryByText(/repo/)).toBeNull();
   });
 
-  it("shows the short cwd once a pane backs the card", () => {
-    render(<CardTile card={card({ runtime: runtime() })} onClick={() => {}} />);
-    expect(screen.getByText("~/repo")).toBeInTheDocument();
+  it("never shows cwd, even once a pane backs the card — the branch says where now", () => {
+    render(<CardTile card={card({ runtime: runtime(), branch: "fix/diff" })} onClick={() => {}} />);
+    expect(screen.queryByText(/\/repo/)).toBeNull();
+    expect(screen.getByText("fix/diff")).toBeInTheDocument();
   });
 
   it("pairs the card title with the pane's own name when it has a real label", () => {
-    render(
-      <CardTile
-        card={card({ runtime: runtime({ paneLabel: "deploy" }) })}
-        onClick={() => {}}
-      />,
-    );
+    render(<CardTile card={card({ runtime: runtime({ paneLabel: "deploy" }) })} onClick={() => {}} />);
     expect(screen.getByText("· deploy")).toBeInTheDocument();
   });
 
@@ -73,29 +105,52 @@ describe("CardTile", () => {
     expect(screen.queryByText("· claude")).toBeNull();
   });
 
-  it("shows an unmet dependency's title and swaps the status chip for a lock", () => {
+  it("shows ctx% and the session count when present", () => {
     render(
       <CardTile
-        card={card()}
+        card={card({
+          runtime: runtime(),
+          session: {
+            id: "s1",
+            cardId: "c1",
+            paneId: "w1:p1",
+            agentSessionId: null,
+            agentKind: null,
+            ctxTokens: null,
+            ctxPct: 42,
+            handoffMd: null,
+            outcome: null,
+            handoffRequestedAt: null,
+            startedAt: 0,
+            endedAt: null,
+          },
+          sessionCount: 2,
+        })}
         onClick={() => {}}
-        dependency={{ title: "ship the diff view", met: false }}
       />,
     );
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("· 2 sessions")).toBeInTheDocument();
+  });
+
+  it("renders no meta row at all when there is nothing to say", () => {
+    const { container } = render(<CardTile card={card()} onClick={() => {}} />);
+    expect(container.textContent).toBe("ship the diff view");
+  });
+});
+
+describe("CardTile — dependency line", () => {
+  it("shows an unmet dependency's title, independent of the status row", () => {
+    render(
+      <CardTile card={card()} onClick={() => {}} dependency={{ title: "ship the diff view", met: false }} />,
+    );
     expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
-    // The status chip would otherwise render the column name in full caps.
-    expect(screen.queryByText("backlog")).toBeNull();
   });
 
   it("still shows a met dependency — an answered gate, not left for the editor to reveal", () => {
     render(
-      <CardTile
-        card={card()}
-        onClick={() => {}}
-        dependency={{ title: "ship the diff view", met: true }}
-      />,
+      <CardTile card={card()} onClick={() => {}} dependency={{ title: "ship the diff view", met: true }} />,
     );
     expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
-    // Not blocking, so the normal column chip still shows.
-    expect(screen.getByText("backlog")).toBeInTheDocument();
   });
 });

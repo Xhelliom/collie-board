@@ -8,6 +8,9 @@ import { NewCardSheet } from "./new-card-sheet";
 // user cares about is a property of the REQUEST BODY — no rawInput means the bridge never starts a
 // reformulation (board-routes.ts gates on exactly that field) — and only rendering proves the
 // toggle is actually wired to it.
+//
+// The toggle is a real Switch since the redesign (ui/switch.tsx) — one fixed label ("Rewrite with
+// the copilot"), state exposed as `aria-checked`, not a dynamic accessible name any more.
 
 async function fill(text: string) {
   const onCreate = vi.fn();
@@ -16,10 +19,15 @@ async function fill(text: string) {
   return onCreate;
 }
 
+function rewriteSwitch() {
+  return screen.getByRole("switch", { name: /rewrite with the copilot/i });
+}
+
 describe("NewCardSheet — the no-rewrite toggle", () => {
   it("sends the dump as rawInput by default, which is what asks for a rewrite", async () => {
     const onCreate = await fill("dicte moi ca");
-    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
+    expect(rewriteSwitch()).toHaveAttribute("aria-checked", "true"); // on by default
+    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ rawInput: "dicte moi ca", spec: "dicte moi ca" }),
@@ -28,8 +36,9 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
 
   it("withholds rawInput once toggled off — the card arrives as a spec, not a dump", async () => {
     const onCreate = await fill("une formulation deja exacte");
-    await userEvent.click(screen.getByRole("button", { name: /the copilot will rewrite this/i }));
-    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
+    await userEvent.click(rewriteSwitch());
+    expect(rewriteSwitch()).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ rawInput: null, spec: "une formulation deja exacte" }),
@@ -38,8 +47,8 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
 
   it("still keeps the text as the spec, so the card is never left empty", async () => {
     const onCreate = await fill("le texte");
-    await userEvent.click(screen.getByRole("button", { name: /the copilot will rewrite this/i }));
-    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
+    await userEvent.click(rewriteSwitch());
+    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
 
     expect(onCreate.mock.calls[0]![0].spec).toBe("le texte");
     expect(onCreate.mock.calls[0]![0].title).toBe("le texte");
@@ -48,12 +57,12 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
   it("starts on again for the next card — it describes one card, not a preference", async () => {
     const onCreate = vi.fn();
     const { rerender } = render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
-    await userEvent.click(screen.getByRole("button", { name: /the copilot will rewrite this/i }));
-    expect(screen.getByRole("button", { name: /keep my wording/i })).toBeInTheDocument();
+    await userEvent.click(rewriteSwitch());
+    expect(rewriteSwitch()).toHaveAttribute("aria-checked", "false");
 
     rerender(<NewCardSheet open={false} onClose={() => {}} onCreate={onCreate} tags={[]} />);
     rerender(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
 
-    expect(screen.getByRole("button", { name: /the copilot will rewrite this/i })).toBeInTheDocument();
+    expect(rewriteSwitch()).toHaveAttribute("aria-checked", "true");
   });
 });

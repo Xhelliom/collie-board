@@ -1,111 +1,58 @@
-import { useState } from "react";
 import { useNavigate, useRouteLoaderData } from "react-router";
-import { ChevronRight, Layers } from "lucide-react";
 
-import { AppHeader, SettingsGear } from "@/components/app-header";
+import { AppHeader } from "@/components/app-header";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { AgentList } from "@/components/agent-list";
-import { SpaceOverview } from "@/components/space-overview";
-import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { StatusArea } from "@/components/status-area";
-import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
-import { useLoadingStalled } from "@/hooks/use-loading-stalled";
-import { useSpaceActions } from "@/hooks/use-spaces";
-import { AGENT_GROUPS } from "@/lib/agent-groups";
-import { boardPath } from "@/lib/board";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { panePath, spacePath } from "@/lib/nav";
+import { panePath } from "@/lib/nav";
 
-// "Needs you" is the urgent triage (accented group); hoist it above everything else. The rest of the
-// triage (working / idle · done) renders below the spaces overview.
-const ATTENTION_GROUPS = AGENT_GROUPS.filter((g) => g.accent);
-const REST_GROUPS = AGENT_GROUPS.filter((g) => !g.accent);
-
-// Dashboard home screen. Reads the herd from the root loader. "Needs you" sits at the very top (the
-// most important thing to act on), then the Spaces overview (each space with its tab/pane counts and
-// worst-agent status), then the rest of the agent triage: tapping an agent opens its pane, tapping a
-// space drills into its detail route (/space/:id).
+// Dashboard home screen (redesign §1 "Herd"). Purpose: answer "which agent needs me right now", and
+// nothing else — Spaces and the Board are nav destinations now (app-nav.tsx), not rows on this
+// screen. What's left is purely the triage: Needs you (loud) → Working (medium) → Idle · done
+// (quiet); tapping an agent opens its pane. See agent-list.tsx for the three card treatments and why
+// the ranking itself is the design.
 export function HomeRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
-  // A stalled load (a black-holed poll, or a pane-open tap whose navigation hangs) gallops the
-  // Collie mark within the threshold — instant feedback while you're still on the dashboard, even
-  // though the tap otherwise shows no visual change until its loader finally settles or times out.
-  const stalled = useLoadingStalled();
   const navigate = useNavigate();
-  const { newSpace } = useSpaceActions();
-  const [newSpaceOpen, setNewSpaceOpen] = useState(false);
 
   const open = (id: string) => navigate(panePath(id, data.session));
-  const drillInto = (id: string) => navigate(spacePath(id, data.session));
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
-      {/* The dashboard header: wordmark + the session switcher (dashboard-only), then the shared pill
-          and the Settings gear. The switcher self-hides on a single-session install. */}
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
+      {/* The dashboard toolbar: title + a live pane/space count, the session switcher trailing
+          (dashboard-only — it self-hides on a single-session install). Settings is a nav destination
+          now, not a header gear. */}
       <AppHeader
-        bridge={data.bridge}
-        error={data.error}
-        stalled={stalled}
-        wordmark
+        title="Herd"
+        subtitle={`${data.agents.length} pane${data.agents.length === 1 ? "" : "s"} · ${data.workspaces.length} space${data.workspaces.length === 1 ? "" : "s"}`}
         rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
-        rightTrail={<SettingsGear session={data.session} />}
       />
 
       {/* Content region below the header: a viewport-clipped internal scroller. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {/* The screen's one h1. Visually redundant with the wordmark in the header (which sits inside
-            a button, where a heading wouldn't be exposed as one), so it's sr-only — but without it the
-            triage and Spaces h2s below are an orphan tree to anyone navigating by heading. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24">
+        {/* The screen's one h1. Visually redundant with the toolbar title, so it's sr-only — but
+            without it the triage h2s below are an orphan tree to anyone navigating by heading. */}
         <h1 className="sr-only">Herd</h1>
         <ReadOnlyBanner device={data.device} />
 
-        {/* The fork's entry point: the durable board sits one tap from the ephemeral triage. Kept as
-            a row rather than a nav bar — the dashboard answers "who needs me now", the board answers
-            "where is this task", and they are two lenses, not two apps. */}
-        <button
-          type="button"
-          onClick={() => navigate(boardPath())}
-          className="mx-3 mt-3 flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 text-left transition-transform active:scale-[0.99]"
-        >
-          <Layers className="size-5 shrink-0 text-muted-foreground" />
-          <span className="flex-1 text-sm font-medium">Board</span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-        </button>
-
-        <main className="flex-1">
-          {/* Needs-you first — the most urgent triage, hoisted above the spaces overview. Renders
-              nothing when no agent is blocked (emptyState off, so the placeholder shows only once
-              below). */}
-          <AgentList
-            agents={data.agents}
-            onOpen={open}
-            groups={ATTENTION_GROUPS}
-            emptyState={false}
-          />
-          <SpaceOverview
-            workspaces={data.workspaces}
-            agents={data.agents}
-            onOpen={drillInto}
-            onNewSpace={() => setNewSpaceOpen(true)}
-          />
-          <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} groups={REST_GROUPS} />
+        <main className="flex-1 px-4 py-5 lg:px-5 lg:py-6">
+          <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} />
         </main>
 
-        {/* An available update / needed restart, then the build stamp (which bundle you're
-            running, with a stale-cache nudge). */}
-        <UpdateBanner className="px-3 pt-3" />
-        <BuildStamp className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
+        {/* An available update / needed restart. The build stamp moved to Settings + the sidebar
+            footer (app-nav.tsx) — it no longer needs a home of its own here too. */}
+        <UpdateBanner className="px-4 pt-3 lg:px-5" />
       </div>
 
       {/* Status overlay, anchored to the bottom of the viewport (no input here) — same slim line,
-          floating so it never shifts the list. Stays outside the scroller so it never scrolls away. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+          floating so it never shifts the list. Stays outside the scroller so it never scrolls away.
+          Raised clear of the mobile tab bar (app-nav.tsx), which now owns that edge below `lg`. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
         <StatusArea />
       </div>
-
-      <NewSpaceSheet open={newSpaceOpen} onClose={() => setNewSpaceOpen(false)} onCreate={newSpace} />
     </div>
   );
 }
