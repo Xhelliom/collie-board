@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { NavTray } from "@/components/nav-tray";
 import { CommandPalette } from "@/components/command-palette";
+import { CommandSuggestions } from "@/components/command-suggestions";
 import { QuickActionsContent } from "@/components/quick-actions";
 import { SectionLabel } from "@/components/ui/section-label";
 import * as api from "@/lib/api";
@@ -433,6 +434,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   // Insert "/cmd " into the composer (arg-taking commands) and focus it. Appends to any draft already
   // typed (with a separating space) rather than clobbering it; an empty draft just gets set.
+  // The type-ahead (command-suggestions.tsx) deliberately does NOT come through here: it REPLACES the
+  // partial "/tok" the user is typing, and appending would leave "/tok /token ". Don't merge the two.
   function insertCommand(value: string) {
     setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${value}` : value));
     focusInputEnd();
@@ -610,6 +613,18 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             strip above. */}
         {showPreview && effectiveRaw !== null && (
           <TerminalDraftPreview text={effectiveRaw} onTakeOver={takeOverDraft} />
+        )}
+        {/* Slash-command type-ahead — renders nothing unless the draft is a lone "/token"; that rule
+            and its catalog live in command-suggestions.tsx. Picking only completes the input. */}
+        {!locked && (
+          <CommandSuggestions
+            agent={agent}
+            value={input}
+            onPick={(text) => {
+              setInput(text);
+              focusInputEnd();
+            }}
+          />
         )}
         {/* Reply input + action row: two lines on a phone (full-width input, then the 44px-target
             row below it), ONE row from `lg` up — the input becomes `flex-1` beside the same five

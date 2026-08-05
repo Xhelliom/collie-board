@@ -1016,3 +1016,35 @@ describe("Composer — View row copy button (UI_AUDIT §6.4)", () => {
     expect(screen.getByRole("button", { name: "Copy terminal buffer" })).toBeDisabled();
   });
 });
+
+// The type-ahead is an ADDITION to the Agent-commands button, not a replacement: both read
+// agent-commands.ts, the button still opens the full palette, and neither one sends on its own.
+describe("Composer — slash-command type-ahead", () => {
+  it("suggests as you type a slash token, and picking it fills the input without sending", async () => {
+    const user = userEvent.setup();
+    const sent: string[] = [];
+    server.use(replyHandler((text) => sent.push(text)));
+    renderComposer();
+
+    const input = screen.getByPlaceholderText("Type a reply…");
+    await user.type(input, "/comp");
+
+    const option = screen.getByRole("button", { name: /\/compact/ });
+    expect(screen.queryByRole("button", { name: /\/clear/ })).not.toBeInTheDocument();
+
+    await user.click(option);
+
+    expect(input).toHaveValue("/compact "); // takes an argument → trailing space to type into
+    expect(screen.queryByRole("group", { name: "Command suggestions" })).not.toBeInTheDocument(); // the space closes it
+    expect(sent).toEqual([]); // picking never sends — that stays the Send button
+  });
+
+  it("keeps the Agent-commands button working alongside it", async () => {
+    const user = userEvent.setup();
+    renderComposer();
+
+    await user.click(screen.getByRole("button", { name: "Agent" }));
+
+    expect(await screen.findByPlaceholderText(/Search \d+ commands/)).toBeInTheDocument();
+  });
+});
