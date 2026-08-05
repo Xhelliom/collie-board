@@ -7,10 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.83.0] - 2026-08-05
+## [0.84.0] - 2026-08-05
 
 ### Added
 - A session open on a phone now reaches the card it works on — one row above the composer, the same destination desktop's context rail leads to (cee071f).
+
+## [0.83.0] - 2026-08-05
+
+### Added
+- A bell in the app header opens the history of what pinged — every alert the bridge fired, quiet hours included, each one a tap away from the pane that asked (e042754).
 
 ## [0.82.0] - 2026-08-05
 

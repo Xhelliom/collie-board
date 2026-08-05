@@ -14,6 +14,7 @@ import { HandoffCoordinator } from "./handoff.ts";
 import { WrapupCoordinator } from "./wrapup.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
 import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
+import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
 import { startServer } from "./server.ts";
@@ -58,6 +59,9 @@ await snooze.load();
 
 const notifyPrefs = new NotifyPrefsStore(cfg);
 await notifyPrefs.load();
+// What pinged, across every session — the bell's history. In memory, process-global like push and
+// snooze, so an entry survives the session that produced it going away.
+const notifyLog = new NotifyLog();
 
 // Append-only audit trail of write-level actions (see audit.ts). A write failure here is swallowed
 // inside record() so it can never break the user action it's auditing.
@@ -173,8 +177,14 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     cancel: (h) => clearTimeout(h),
   };
   const sink = makeNotifySink(push, snooze, herdTagFor(isPrimary, name), isPrimary ? undefined : name);
-  const notifications = new NotificationCoordinator(clock, sink, cfg.notifyDelayMs, (status) =>
-    notifyPrefs.isNotifiable(status),
+  const notifications = new NotificationCoordinator(
+    clock,
+    sink,
+    cfg.notifyDelayMs,
+    (status) => notifyPrefs.isNotifiable(status),
+    // Every alert also lands in the bell's history, tagged with the session it came from so the
+    // deep-link scopes correctly (primary omits the name, like the push payload).
+    (alert) => notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) }),
   );
   engine.onTransition((agent, from, to) => notifications.onTransition(agent, from, to));
   engine.onRemove((paneId) => notifications.onRemove(paneId));
@@ -273,6 +283,7 @@ const server = startServer({
   push,
   snooze,
   notifyPrefs,
+  notifyLog,
   updateMonitor,
   audit,
   board,
