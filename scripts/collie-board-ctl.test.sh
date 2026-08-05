@@ -462,6 +462,145 @@ EOF
   assert_contains "$(cat "${CASE_DIR}/start.out")" 'BANNER'
 }
 
+# ── update: the checkout can be in either of the two shapes Collie Board is installed in ─────────
+#
+# `herdr plugin install` does NOT clone: it runs `git init` + `git fetch --depth 1 origin HEAD` +
+# `git checkout --detach FETCH_HEAD`, so the plugin lives in a detached, shallow checkout with no
+# remote-tracking refs. `git pull --ff-only` cannot work there ("You are not currently on a branch").
+# These stage both shapes for real, against a local origin, and drive the actual git logic.
+git_q() { git -c user.name=collie-test -c user.email=test@example.invalid "$@"; }
+
+# A local origin plus the two checkout shapes. Echoes nothing; sets ORIGIN_DIR.
+stage_origin() {
+  ORIGIN_DIR="${CASE_DIR}/origin"
+  mkdir -p "$ORIGIN_DIR"
+  git_q -C "$ORIGIN_DIR" init -q -b main
+  echo "v1" > "${ORIGIN_DIR}/VERSION"
+  echo "lock-v1" > "${ORIGIN_DIR}/bun.lock"
+  git_q -C "$ORIGIN_DIR" add -A
+  git_q -C "$ORIGIN_DIR" commit -qm "first"
+}
+
+# One more upstream commit, so an update has something to move to.
+advance_origin() {
+  echo "v2" > "${ORIGIN_DIR}/VERSION"
+  git_q -C "$ORIGIN_DIR" add -A
+  git_q -C "$ORIGIN_DIR" commit -qm "second"
+}
+
+# Run update_checkout() against an arbitrary checkout, with the control script's own PLUGIN_ROOT
+# repointed at it (sourcing computes PLUGIN_ROOT from BASH_SOURCE, so it must be overridden after).
+run_update_checkout() {
+  local root="$1" harness="${CASE_DIR}/update-harness.sh"
+  cat > "$harness" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export HOME="$HOME_DIR"
+export HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR"
+export PATH="$BIN_DIR:$BASE_PATH"
+source "$CTL"
+PLUGIN_ROOT="$root"
+update_checkout
+EOF
+  bash "$harness" 2>&1
+}
+
+# The regression: a Herdr-managed checkout must advance — even with a tracked file dirtied by the
+# build (`bun install` can rewrite the committed lockfiles), which a plain checkout would refuse on,
+# re-breaking update permanently. It must stay detached and stay shallow.
+test_update_advances_a_herdr_managed_checkout() {
+  setup_case update-managed
+  stage_origin
+  local root="${CASE_DIR}/managed"
+  mkdir -p "$root"
+  # Verbatim what herdr's plugin_install does (src/cli/plugin.rs, git_checkout).
+  git_q -C "$root" init -q
+  git_q -C "$root" remote add origin "$ORIGIN_DIR"
+  git_q -C "$root" fetch -q --depth 1 origin HEAD
+  git_q -C "$root" checkout -q --detach FETCH_HEAD
+  advance_origin
+  echo "rewritten-by-bun-install" > "${root}/bun.lock"
+
+  local out; out="$(run_update_checkout "$root")" || fail "update_checkout failed: $out"
+  assert_contains "$out" "Herdr-managed checkout"
+  assert_eq "$(git -C "$root" rev-parse HEAD)" "$(git -C "$ORIGIN_DIR" rev-parse HEAD)"
+  assert_eq "$(cat "${root}/VERSION")" "v2"
+  assert_eq "$(cat "${root}/bun.lock")" "lock-v1"   # --force discarded the build's rewrite
+  assert_eq "$(git -C "$root" rev-parse --is-shallow-repository)" "true"
+  git -C "$root" symbolic-ref -q HEAD >/dev/null 2>&1 &&
+    fail "managed checkout should still be detached"
+  # Idempotent: a second update with nothing new upstream is a no-op, not an error.
+  run_update_checkout "$root" >/dev/null || fail "second update_checkout failed"
+}
+
+# The other shape — a dev clone linked with `herdr plugin link`. It is on a branch, so it must still
+# fast-forward, keep its branch, and keep its full history (no --depth truncation).
+test_update_fast_forwards_a_linked_clone() {
+  setup_case update-linked
+  stage_origin
+  advance_origin
+  local root="${CASE_DIR}/clone"
+  git_q clone -q "$ORIGIN_DIR" "$root"
+  git_q -C "$ORIGIN_DIR" commit -q --allow-empty -m "third"
+
+  local out; out="$(run_update_checkout "$root")" || fail "update_checkout failed: $out"
+  assert_contains "$out" "git pull --ff-only"
+  assert_eq "$(git -C "$root" rev-parse HEAD)" "$(git -C "$ORIGIN_DIR" rev-parse HEAD)"
+  assert_eq "$(git -C "$root" symbolic-ref --short HEAD)" "main"
+  assert_eq "$(git -C "$root" rev-list --count HEAD)" "3"
+  assert_eq "$(git -C "$root" rev-parse --is-shallow-repository)" "false"
+}
+
+# A checkout that isn't a git repo at all (a copied tree) must fail with the reinstall command, not a
+# raw git error about a missing origin.
+test_update_reports_a_non_git_checkout() {
+  setup_case update-non-git
+  local root="${CASE_DIR}/plain"; mkdir -p "$root"
+  set +e
+  local out; out="$(run_update_checkout "$root")"; local rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "update_checkout on a non-git tree reported success"
+  assert_contains "$out" "herdr plugin install Xhelliom/collie-board"
+}
+
+# `herdr plugin link` re-registers the plugin as source.kind=local, and Herdr then REFUSES
+# `herdr plugin install` — which is the only other way a managed install can be refreshed. So the
+# re-link must fire for a linked clone and never for a managed checkout.
+test_registry_refresh_skips_a_managed_checkout() {
+  setup_case update-relink
+  local calls="${CASE_DIR}/herdr.calls"
+  cat > "${BIN_DIR}/herdr" <<EOF
+#!/bin/sh
+echo "\$@" >> "$calls"
+exit 0
+EOF
+  chmod +x "${BIN_DIR}/herdr"
+  stage_origin
+  local managed="${CASE_DIR}/managed" clone="${CASE_DIR}/clone"
+  mkdir -p "$managed"
+  git_q -C "$managed" init -q
+  git_q -C "$managed" remote add origin "$ORIGIN_DIR"
+  git_q -C "$managed" fetch -q --depth 1 origin HEAD
+  git_q -C "$managed" checkout -q --detach FETCH_HEAD
+  git_q clone -q "$ORIGIN_DIR" "$clone"
+
+  local harness="${CASE_DIR}/relink-harness.sh"
+  cat > "$harness" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+export HOME="$HOME_DIR"
+export HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR"
+export PATH="$BIN_DIR:$BASE_PATH"
+source "$CTL"
+PLUGIN_ROOT="\$1"
+refresh_registry
+EOF
+  assert_contains "$(bash "$harness" "$managed")" "registry left alone"
+  [ ! -s "$calls" ] || fail "re-linked a Herdr-managed checkout (would block \`herdr plugin install\`)"
+  bash "$harness" "$clone" > /dev/null
+  assert_contains "$(cat "$calls")" "plugin link ${clone}"
+}
+
 test_tailscale_cutovers_and_collisions
 test_missing_tailscale_cli
 test_state_delete_failures
@@ -472,5 +611,10 @@ test_bun_resolves_outside_path
 test_setup_writes_the_security_config
 test_setup_falls_back_to_http_without_a_cert
 test_setup_never_rewrites_existing_config
+
+test_update_advances_a_herdr_managed_checkout
+test_update_fast_forwards_a_linked_clone
+test_update_reports_a_non_git_checkout
+test_registry_refresh_skips_a_managed_checkout
 
 echo "collie-board-ctl lifecycle tests: passed"

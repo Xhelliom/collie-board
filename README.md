@@ -539,15 +539,16 @@ below as `invoke <cmd>`). The ones you'll actually use:
 | **Status** — the *Collie is running* banner + URLs | `collie-board-ctl.sh status` | `invoke status` |
 | **URL** — print the tailnet URL | `collie-board-ctl.sh url` | `invoke url` |
 | **Version** — the running version (`0.x.y+sha`) | `collie-board-ctl.sh version` | `invoke version` |
-| **Update** — `git pull` + rebuild + restart | `collie-board-ctl.sh update` | `invoke update` |
+| **Update** — advance the checkout + rebuild + restart | `collie-board-ctl.sh update` | `invoke update` |
 | **Uninstall** — remove the service; keep `.env` + checkout | `collie-board-ctl.sh uninstall` | `invoke uninstall` |
 | **Logs** — tail the journal / log file | `collie-board-ctl.sh logs` | — (script only) |
 
 `start` and `status` end with the **Collie is running** banner — annotated line by line in
 [First run](#first-run--what-youll-see). Its version comes from the *served* bundle stamp, so it's
 the authoritative "what's running" — note `herdr plugin list --json` shows a different value cached
-at `plugin link` time; `update` re-links automatically so that self-heals (to force it:
-`herdr plugin link "$(pwd)"`). **Through a Herdr action you get Herdr's JSON envelope, not the
+at `plugin link` time; for a linked clone `update` re-links automatically so that self-heals (to
+force it: `herdr plugin link "$(pwd)"`), and on Herdr ≥0.8.0 the manifest is re-read from disk
+anyway. **Through a Herdr action you get Herdr's JSON envelope, not the
 banner** — the human-readable output is the action's *captured stdout*, read with
 `herdr plugin log list --plugin herdr.collie-board` (or run the control script directly to see it inline).
 `build` · `serve` · `unserve` are script-only too.
@@ -567,7 +568,7 @@ Collie registers these actions in `herdr-plugin.toml`; invoke any with
 | `status` | Bridge status | The *Collie is running* banner — readiness ✓/⚠, version, URLs |
 | `url` | Show bridge URL | Print the tailnet URL |
 | `version` | Show version | Print the running version (`0.x.y+sha`) |
-| `update` | Update plugin | `git pull --ff-only` + rebuild + restart |
+| `update` | Update plugin | Advance the checkout (pull, or fetch + re-detach) + rebuild + restart |
 | `uninstall` | Uninstall web bridge (remove service) | Tear down the service (keeps `.env` + checkout) |
 
 ## Manage & update
@@ -600,10 +601,21 @@ command does the lot:
 scripts/collie-board-ctl.sh update    # or: herdr plugin action invoke update --plugin herdr.collie-board
 ```
 
-It `git pull --ff-only`s, rebuilds the UI, restarts the bridge (re-execing itself, so it's safe even
-when the pull rewrites the script), and **re-links the plugin so Herdr picks up any new actions and
-the new version** (older releases skipped this, which is why a freshly added action could return
-`plugin_action_not_found` until a manual re-link). Confirm via the footer build stamp.
+It advances the checkout, rebuilds the UI and restarts the bridge (re-execing itself, so it's safe
+even when the update rewrites the script). Confirm via the footer build stamp.
+
+How it advances depends on how you installed, because `herdr plugin install` does **not** clone — it
+`git fetch --depth 1` + `checkout --detach`es, leaving a detached, shallow checkout:
+
+- **Linked clone** — `git pull --ff-only` on your branch, then **re-links the plugin** so Herdr picks
+  up any new actions and the new version.
+- **`herdr plugin install`** — fetches the default-branch tip and re-detaches onto it (`--force`, so a
+  lockfile the build rewrote can't wedge the next update). It deliberately does **not** re-link:
+  linking would re-register the plugin as a local path, and Herdr then refuses
+  `herdr plugin install` — the reinstall you'd need if this checkout ever breaks.
+
+Your `.env` and serve state live outside the checkout, so they survive either path. If you pinned a
+version with `--ref`, keep using `herdr plugin install --ref …` — `update` always goes to the latest.
 
 **The in-app "a new release is out" banner is opt-in**: set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board`
 in your `.env` and the app checks that repo's releases and links to the newest one. Left empty the
