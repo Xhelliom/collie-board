@@ -129,6 +129,7 @@ function card(over: Partial<CardView> & { id: string; repoPath: string }): CardV
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,

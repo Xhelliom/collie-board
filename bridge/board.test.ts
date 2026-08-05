@@ -231,6 +231,7 @@ describe("reconcileOne", () => {
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -568,6 +569,7 @@ describe("initialPrompt", () => {
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -1053,6 +1055,7 @@ describe("handoff prompts", () => {
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -2521,6 +2524,26 @@ describe("the copilot tags what it creates", () => {
     // And it still carries a real tag: provenance is a second axis, it doesn't cost the card its own.
     expect(created.tag).toBe("infra");
     expect(store.getCard(reviewed.id)?.origin).toBeNull();
+  });
+
+  it("points a review follow-up back at the card it came out of — without making that card a container", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
+    const { copilot } = fakeCopilot({ verdict: "partial", notes: "ok", todos: [{ title: "test it" }] });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const created = store.listCards().find((c) => c.title === "test it")!;
+    expect(created.originCardId).toBe(reviewed.id);
+    // The whole reason this isn't `parentId`: a container is not startable and its column is
+    // derived from its children's. The reviewed card must stay an ordinary card.
+    expect(created.parentId).toBeNull();
+    expect(store.listChildren(reviewed.id)).toEqual([]);
   });
 
   it("tags a review follow-up, defaulting to the tag of the work it followed", async () => {

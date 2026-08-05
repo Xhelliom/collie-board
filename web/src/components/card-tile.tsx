@@ -1,4 +1,12 @@
-import { Check, CornerDownRight, GitBranch, Layers, ListChecks, Sparkles } from "lucide-react";
+import {
+  Check,
+  CornerDownRight,
+  CornerLeftUp,
+  GitBranch,
+  Layers,
+  ListChecks,
+  Sparkles,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -68,6 +76,7 @@ export function CardTile({
   onClick,
   dependency,
   parent,
+  source,
   repo,
   drag,
 }: {
@@ -89,6 +98,15 @@ export function CardTile({
    * parent, at the top of its page.
    */
   parent?: string;
+  /**
+   * The card this one was filed against — the reviewed card a follow-up came out of. A follow-up's
+   * title is written as a note to the card it belongs to ("test the feature"), so on its own it is
+   * an orphan sentence; this is the half that makes it readable. Absent for the overwhelming
+   * majority of cards, and then no caption renders at all.
+   *
+   * Text, not a link, for the same reason `parent` is: this tile is a `<button>`.
+   */
+  source?: string;
   /**
    * The repo this card belongs to, named — only when the board is showing every repo at once and
    * more than one is in play, OR the status row has nothing else to say (a quiet column). Under a
@@ -229,6 +247,15 @@ export function CardTile({
           <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Layers className="size-3 shrink-0" />
             <span className="truncate">{parent}</span>
+          </div>
+        )}
+        {/* Where this one came from — the caption that turns "test the feature" back into a
+            sentence. Same shape as the parent caption above it, a different arrow: `Layers` means
+            "part of", this means "came out of". */}
+        {source && (
+          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <CornerLeftUp className="size-3 shrink-0" />
+            <span className="truncate">from “{source}”</span>
           </div>
         )}
         {dependency && (

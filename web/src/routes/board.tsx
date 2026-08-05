@@ -558,6 +558,16 @@ export function BoardRoute() {
                                         ? byId.get(entry.card.parentId)?.title
                                         : undefined
                                     }
+                                    // Unconditional, unlike `parent`: a follow-up is never folded
+                                    // under the card it came from (that link is not `parentId` —
+                                    // see Card.originCardId), so nothing else on any screen says
+                                    // it. A deleted source resolves to nothing and the caption
+                                    // simply doesn't render.
+                                    source={
+                                      entry.card.originCardId
+                                        ? byId.get(entry.card.originCardId)?.title
+                                        : undefined
+                                    }
                                     // Desktop only, and only from a column a human owns. `runtime`
                                     // is belt-and-braces on top of that: a card with a live pane is
                                     // never in a manual column, and if one ever were, dragging it

@@ -430,6 +430,7 @@ async function route(
       const predecessor = detail.dependsOn ? db.getCard(detail.dependsOn) : null;
       const parent = detail.parentId ? db.getCard(detail.parentId) : null;
       const duplicate = detail.duplicateOf ? db.getCard(detail.duplicateOf) : null;
+      const originCard = detail.originCardId ? db.getCard(detail.originCardId) : null;
       return json({
         card: detail,
         predecessor: predecessor ? linkSummary(predecessor) : null,
@@ -437,6 +438,10 @@ async function route(
         // Resolved here for the same reason the other two are: the card screen has only this card,
         // and "you may already have this" is useless without the other one's title.
         duplicate: duplicate ? linkSummary(duplicate) : null,
+        // The card this one came out of. A follow-up read on its own has lost the sentence that
+        // produced it — this is the way back to it, and a dangling id resolves to null rather than
+        // to a broken link.
+        originCard: originCard ? linkSummary(originCard) : null,
         children: db.listChildren(id).map(linkSummary),
         sessions: db.listSessions(id),
         reviews: db.listReviews(id).map((r) => ({ ...r, todos: resolveReviewTodos(db, r.todos) })),

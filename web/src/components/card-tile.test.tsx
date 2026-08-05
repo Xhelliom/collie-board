@@ -22,6 +22,7 @@ function card(over: Partial<CardView> = {}): CardView {
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -161,6 +162,19 @@ describe("CardTile — meta row", () => {
   it("renders no meta row at all when there is nothing to say", () => {
     const { container } = render(<CardTile card={card()} onClick={() => {}} />);
     expect(container.textContent).toBe("ship the diff view");
+  });
+});
+
+describe("CardTile — source line", () => {
+  it("names the card a follow-up came out of, under its own title", () => {
+    render(<CardTile card={card({ title: "test the feature" })} onClick={() => {}} source="add the diff view" />);
+    expect(screen.getByText("from “add the diff view”")).toBeInTheDocument();
+  });
+
+  it("renders nothing at all for a card that came from nowhere — no empty line, no orphan icon", () => {
+    const { container } = render(<CardTile card={card()} onClick={() => {}} />);
+    expect(container.textContent).toBe("ship the diff view");
+    expect(container.querySelector("svg")).toBeNull();
   });
 });
 

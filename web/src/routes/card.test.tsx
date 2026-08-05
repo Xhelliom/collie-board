@@ -22,6 +22,7 @@ function card(status: CardStatus): CardView {
     duplicateOf: null,
     dependsOn: null,
     origin: null,
+    originCardId: null,
     tag: null,
     position: 0,
     createdAt: 0,

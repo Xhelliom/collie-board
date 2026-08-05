@@ -123,6 +123,20 @@ export interface Card {
    */
   origin: CardOrigin | null;
   /**
+   * The card this one came OUT of, or null — the reviewed card whose follow-ups this is one of.
+   *
+   * Distinct from {@link parentId} on purpose, and it is not a nicer name for it: a card with
+   * children is a CONTAINER — not startable, and its column is derived from theirs. Filing a
+   * follow-up under `parentId` would therefore stop the reviewed card being startable and drag its
+   * status around behind its own follow-ups. This says only "here is where this came from".
+   *
+   * Written once at creation, never patched, and absent from the API's create allowlist — same rule
+   * as {@link origin}. May dangle if the source card is deleted (like `duplicateOf`, and unlike
+   * `parentId`/`dependsOn`, which `deleteCard` clears): it resolves to no source, which is exactly
+   * the right degradation for a caption.
+   */
+  originCardId: string | null;
+  /**
    * ONE tag, or none. Free text, normalised by {@link normalizeTag} — the name IS the identity, so
    * "Bug", "bug " and "bug" are the same tag with the same colour everywhere.
    *
@@ -230,6 +244,7 @@ interface CardRow {
   duplicate_of: string | null;
   depends_on: string | null;
   origin: string | null;
+  origin_card_id: string | null;
   tag: string | null;
   position: number;
   created_at: number;
@@ -331,6 +346,7 @@ function toCard(r: CardRow): Card {
     // degradation `status` gets, and the safe direction: claiming a card is automatic when it isn't
     // is the one error this field must never make.
     origin: r.origin === "copilot" ? "copilot" : null,
+    originCardId: r.origin_card_id ?? null,
     // No tag is the normal state, not a gap: every card written before tags existed reads as null,
     // and nothing downstream may treat that as missing data.
     tag: r.tag ?? null,
@@ -392,6 +408,8 @@ CREATE TABLE IF NOT EXISTS card (
   depends_on   TEXT,
   -- Who wrote the card, when it wasn't a person. NULL is the normal case — see Card.origin.
   origin       TEXT,
+  -- Which card it came out of — see Card.originCardId. Soft, like the three above.
+  origin_card_id TEXT,
   -- One tag or none. Nullable by design — see Card.tag.
   tag          TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
@@ -498,6 +516,8 @@ export interface NewCard {
    * {@link CardPatch} on purpose: a card does not change where it came from.
    */
   origin?: CardOrigin;
+  /** Omit for a card that came from nowhere but a person — see {@link Card.originCardId}. */
+  originCardId?: string | null;
   tag?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
@@ -669,6 +689,10 @@ export class BoardDb {
       // 0.81: where a card came from. No backfill, and none possible — every card written before
       // this reads as hand-written, which is very nearly true and is the harmless direction.
       { table: "card", column: "origin", ddl: "TEXT" },
+      // 0.82: which card it came out of. No backfill: the follow-ups already on the board keep
+      // their `origin` badge and simply say nothing about where they came from, which is what
+      // they said yesterday.
+      { table: "card", column: "origin_card_id", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -691,9 +715,9 @@ export class BoardDb {
     this.db
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
-                           branch, workspace_id, agent_kind, parent_id, depends_on, origin, tag,
-                           position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           branch, workspace_id, agent_kind, parent_id, depends_on, origin,
+                           origin_card_id, tag, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -709,6 +733,7 @@ export class BoardDb {
         input.parentId ?? null,
         input.dependsOn ?? null,
         input.origin ?? null,
+        input.originCardId ?? null,
         normalizeTag(input.tag),
         input.position ?? (minPos ?? 0) - 1,
         ts,

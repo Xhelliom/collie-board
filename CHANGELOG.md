@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.82.0] - 2026-08-05
+
+### Added
+- A review's follow-up now names the card it came out of, as a caption under its title on the tile and as a link at the top of the card — "test the feature" stops being an orphan sentence (eb62d64).
+
 ## [0.81.0] - 2026-08-05
 
 ### Added
