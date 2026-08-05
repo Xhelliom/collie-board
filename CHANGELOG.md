@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.79.1] - 2026-08-05
+
+### Fixed
+- `GET /api/backup` and `POST /api/backup/restore` fell through to the SPA static fallback (200, `text/html`) instead of reaching `handleBoardRoute` — the dispatch guard in `server.ts` only matched `/api/cards` and `/api/repos`, never updated when the backup routes landed. Settings → Backup failed with a generic "Couldn't back up." (09aa7eb).
+- Once routed correctly, `GET /api/backup` still failed the same way from any non-loopback Host (e.g. over Tailscale): `checkAccess`'s Origin-required rule assumed `level === "write"` always meant a mutating method, which browsers tag with `Origin` even same-origin — but a same-origin GET never carries one. The rule now only applies to non-GET methods, so the backup export (write-gated solely for its device-auth check) stops tripping it (a08c308).
+
 ## [0.79.0] - 2026-08-05
 
 ### Added
