@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.78.0] - 2026-08-05
+
+### Added
+- Settings → Backup → Restore…: read a backup file back, two-tap confirmed. `POST /api/backup/restore` validates the whole document, then safety-exports the current state to `<stateDir>/backups/` before writing a byte — a failed net aborts the import (ef2965a).
+
 ## [0.77.0] - 2026-08-05
 
 ### Added
