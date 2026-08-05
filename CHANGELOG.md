@@ -7,10 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.84.0] - 2026-08-05
+## [0.85.0] - 2026-08-05
 
 ### Changed
 - A ping that lands while you're in the app is now a tappable toast under the header — the pane's own name, its session, workspace and card — instead of a line in the shared status bar (57d538d).
+
+## [0.84.0] - 2026-08-05
+
+### Added
+- A session open on a phone now reaches the card it works on — one row above the composer, the same destination desktop's context rail leads to (cee071f).
 
 ## [0.83.0] - 2026-08-05
 
