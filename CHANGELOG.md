@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.81.0] - 2026-08-05
+
+### Added
+- Cards the copilot files on its own (a review's follow-ups) are recorded as such and carry an `auto` badge on the tile — a card you wrote and a card that wrote itself no longer look the same (eb7652e).
+- Board filter → Source: isolate those cards, or everything. Composes with the repo scope and the tag filter, and rides in the URL as `?origin=copilot` (eb7652e).
+
+### Changed
+- Follow-ups keep the tag of the work they followed: provenance is its own field, so it doesn't cost the card its one tag. A split is unmarked — you dictated it, and it already links to the dump it came from (eb7652e).
+
 ## [0.80.0] - 2026-08-05
 
 ### Added
