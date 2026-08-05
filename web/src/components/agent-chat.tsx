@@ -4,6 +4,8 @@ import { useNavigate, useRevalidator } from "react-router";
 import {
   ArrowUpToLine,
   BookOpenText,
+  ChevronRight,
+  Columns3,
   EllipsisVertical,
   Loader2,
   ScrollText,
@@ -586,6 +588,11 @@ export function AgentChat({
       `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`)
     : "(agent gone)";
 
+  // The card this pane backs — undefined for a hand-launched pane (`withCardFields` resolves none).
+  // A `const`, so the narrowing survives into the row's onClick below.
+  const cardId = agent?.cardId;
+  const cardLabel = agent?.cardTitle ?? "Carte portée";
+
   return (
     <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row">
       {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the swipe-up switcher
@@ -1023,6 +1030,26 @@ export function AgentChat({
               className="flex w-full touch-none items-center justify-center py-3.5 transition-colors active:bg-muted/50"
             >
               <GrabHandle />
+            </button>
+          )}
+
+          {/* The card this pane backs. Third of the blocks this bottom region mirrors from the
+              desktop rail (with the statusline and the gauge below) — and the one that was missing:
+              ContextRailColumn is `lg:flex`, so below that breakpoint the card a session works on
+              was unreachable from the session at all. Same destination as the rail's "Ouvrir la
+              carte", one row instead of a block; absent entirely when the pane backs no card, so a
+              hand-launched pane shows no empty affordance. Handoff stays desktop-only for now — the
+              rest of the rail's mobile gap is its own card. */}
+          {cardId && (
+            <button
+              type="button"
+              onClick={() => navigate(cardPath(cardId))}
+              aria-label={`Ouvrir la carte : ${cardLabel}`}
+              className="flex w-full items-center gap-2 border-t border-border/40 px-3 py-1.5 text-left transition-colors active:bg-muted/50 lg:hidden"
+            >
+              <Columns3 className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate text-xs font-medium">{cardLabel}</span>
+              <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
             </button>
           )}
 
