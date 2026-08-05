@@ -534,6 +534,26 @@ export class BoardDb {
   }
 
   /**
+   * Every row of every table, keyed by table name — the backup's payload (see backup.ts).
+   *
+   * Read from `sqlite_master` rather than from a hardcoded list on purpose: the next table added to
+   * SCHEMA is in the backup the day it exists, with nobody having to remember this method.
+   */
+  dump(): Record<string, unknown[]> {
+    const tables = this.db
+      .query<{ name: string }, []>(
+        `SELECT name FROM sqlite_master
+          WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+          ORDER BY name`,
+      )
+      .all();
+    const out: Record<string, unknown[]> = {};
+    // Table names come from sqlite_master, so the interpolation below is our own schema, not input.
+    for (const { name } of tables) out[name] = this.db.query(`SELECT * FROM "${name}"`).all();
+    return out;
+  }
+
+  /**
    * Additive migrations. `CREATE TABLE IF NOT EXISTS` gets a NEW database right and does nothing at
    * all for an existing one, so a column added after someone's board has cards in it needs this.
    *

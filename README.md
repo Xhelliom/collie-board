@@ -47,6 +47,7 @@ ever persisted.
 - [Configure](#configure)
 - [Commands](#commands) · [Herdr actions](#herdr-actions)
 - [Update](#update-to-a-new-release)
+- [Backup](#back-up-your-data)
 - [Uninstall](#stop-or-uninstall)
 - [Deployment variants](#deployment-variants)
 - [Windows (experimental)](#windows-experimental)
@@ -139,6 +140,7 @@ GET    /api/cards/:id/sessions          the handoff chain
 GET    /api/cards/:id/events            the journal
 GET    /api/repos                       the new-card picker's repo list (derived, see below)
 POST   /api/repos/hide                  hide / unhide one repo from that list
+GET    /api/backup                      everything durable, as one JSON document (see Back up)
 ```
 
 Every overwrite of a card's **written** fields (title, spec, acceptance) is journalled with what it
@@ -572,6 +574,40 @@ Collie registers these actions in `herdr-plugin.toml`; invoke any with
 | `uninstall` | Uninstall web bridge (remove service) | Tear down the service (keeps `.env` + checkout) |
 
 ## Manage & update
+
+### Back up your data
+
+**Settings → Backup → Download backup** saves everything Collie Board persists as one JSON file,
+`collie-board-backup-YYYY-MM-DD.json`. No terminal, no `scp` — it downloads to the device you're
+holding. On the wire it's `GET /api/backup`, gated like a write (it hands over every durable byte
+the plugin owns, push subscription keys included), so a read-only device can't take one.
+
+The format, version `1`:
+
+```jsonc
+{
+  "kind": "collie-board-backup",
+  "version": 1,
+  "exportedAt": "2026-08-05T09:41:12.000Z",
+  // Every row of every table in board.db, keyed by table name: cards, sessions, reviews, the
+  // journal, repo preferences. Rows rather than the file's bytes — the database is open with WAL,
+  // so a byte copy taken mid-write would be torn. Read from `sqlite_master`, so a table added
+  // later is in the backup without anyone updating the exporter.
+  "db": { "card": [ … ], "session": [ … ], "review": [ … ], "event": [ … ], "repo_pref": [ … ] },
+  // Everything else under the state dir, walked recursively — notify-prefs.json, snooze.json,
+  // push-subscriptions.json, update-state.json, audit.log, the copilot's scratch, uploads.
+  // `.json`/`.log`/`.txt`/`.md`/`.toml` stay readable as `utf8`; anything else (images) is base64.
+  "files": [ { "path": "snooze.json", "encoding": "utf8", "content": "{…}" } ],
+  // This browser's preferences — theme, display prefs, push opt-out, board repo scope. They live
+  // in localStorage, never on the bridge, so the app staples them on before saving the file.
+  "client": { "collie:theme": "dark", "collie:display-prefs:v3": "{…}" }
+}
+```
+
+JSON rather than a tarball on purpose: no dependency, nothing shelled out, and a backup you can read
+with `jq` when what you actually need is one card's spec back. **There is no import** — restoring is
+a manual job against a file that was designed to be legible. Treat the file as sensitive: it carries
+card specs, the audit log and push subscription keys, exactly like the 0700 state dir it came from.
 
 ### Stop or uninstall
 

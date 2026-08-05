@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 import type { AuditLog } from "./audit.ts";
+import { buildBackup } from "./backup.ts";
 import {
   cardView,
   cardViews,
@@ -35,6 +36,9 @@ import type { StateEngine } from "./state-engine.ts";
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
+
+/** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
+const BACKUP_ROUTE = "/api/backup";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
@@ -259,6 +263,23 @@ async function route(
       detail: { path: path.trim(), hidden },
     });
     return ctx.json({ ok: true });
+  }
+
+  // The backup export. A read, but it hands over every durable byte the plugin owns — push
+  // subscription keys and the audit log included — so it takes the WRITE gate: the stronger door is
+  // the right one for the single request that can walk off with the lot.
+  if (pathname === BACKUP_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const backup = await buildBackup(ctx.db, ctx.cfg.stateDir);
+    ctx.audit.record({
+      action: "backup.export",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { files: backup.files.length },
+    });
+    return ctx.json(backup);
   }
 
   const match = pathname.match(CARD_ROUTE);

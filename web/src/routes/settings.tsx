@@ -3,6 +3,7 @@ import { Bell, Loader2 } from "lucide-react";
 import { useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
+import { BackupControl } from "@/components/backup-control";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { ConnectionInfo } from "@/components/connection-info";
@@ -105,6 +106,8 @@ export function SettingsRoute() {
 
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
         <UpdateCheckControl />
+
+        <BackupControl device={root?.device} />
 
         <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
 
