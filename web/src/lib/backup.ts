@@ -5,6 +5,7 @@ import { ApiError, withTimeout } from "./api";
 // file is assembled HERE — fetch the server document, staple the `collie:` keys on, save it.
 
 const BACKUP_PATH = "/api/backup";
+const RESTORE_PATH = "/api/backup/restore";
 
 /** Every browser-side preference is namespaced `collie:` — that prefix IS the selector. */
 const CLIENT_PREFIX = "collie:";
@@ -74,4 +75,65 @@ export async function downloadBackup(): Promise<string> {
   const filename = backupFilename(backup.exportedAt);
   save(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), filename);
   return filename;
+}
+
+/** The restore route refuses in text (400) and fails in JSON (422/500) — read whichever came. */
+async function failureText(res: Response): Promise<string> {
+  const body = await res.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    if (typeof parsed.error === "string") return parsed.error;
+  } catch {
+    /* not JSON — it's the plain-text refusal */
+  }
+  return body || `${RESTORE_PATH} → ${res.status}`;
+}
+
+export interface RestoreResult {
+  ok: true;
+  tables: Record<string, number>;
+  files: number;
+  /** Host path of the pre-import export the bridge took first. */
+  safetyBackup: string;
+  restartRequired: boolean;
+  /** How many `collie:` prefs this browser took back from the file. */
+  clientPrefs: number;
+}
+
+/** Put a backup's `client` half back into localStorage. Returns how many keys were written. */
+export function applyClientPrefs(client: Record<string, string> | undefined): number {
+  if (!client || typeof localStorage === "undefined") return 0;
+  let n = 0;
+  for (const [key, value] of Object.entries(client)) {
+    // Only our own namespace, even from our own file — the document was on a filesystem in between.
+    if (!key.startsWith(CLIENT_PREFIX) || typeof value !== "string") continue;
+    localStorage.setItem(key, value);
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Restore from a backup file: the bridge takes the durable half (after exporting the current state
+ * as a safety net), this browser takes its own prefs back. The caller reloads to see them applied.
+ */
+export async function restoreBackup(file: File): Promise<RestoreResult> {
+  const text = await file.text();
+  let doc: Backup;
+  try {
+    doc = JSON.parse(text) as Backup;
+  } catch {
+    throw new Error("That file isn't valid JSON.");
+  }
+  const res = await fetch(RESTORE_PATH, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    // Re-serialise the parsed document, minus `client`: the browser's prefs are the browser's, and
+    // the bridge has no business storing them.
+    body: JSON.stringify({ ...doc, client: undefined }),
+    signal: withTimeout(null, BACKUP_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new ApiError(await failureText(res), res.status);
+  const result = (await res.json()) as Omit<RestoreResult, "clientPrefs">;
+  return { ...result, clientPrefs: applyClientPrefs(doc.client) };
 }

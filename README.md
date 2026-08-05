@@ -141,6 +141,7 @@ GET    /api/cards/:id/events            the journal
 GET    /api/repos                       the new-card picker's repo list (derived, see below)
 POST   /api/repos/hide                  hide / unhide one repo from that list
 GET    /api/backup                      everything durable, as one JSON document (see Back up)
+POST   /api/backup/restore               read one back — safety-exports the current state first
 ```
 
 Every overwrite of a card's **written** fields (title, spec, acceptance) is journalled with what it
@@ -582,6 +583,19 @@ Collie registers these actions in `herdr-plugin.toml`; invoke any with
 holding. On the wire it's `GET /api/backup`, gated like a write (it hands over every durable byte
 the plugin owns, push subscription keys included), so a read-only device can't take one.
 
+**Settings → Backup → Restore…** reads one back: pick the file, then tap again to confirm — it
+replaces the board and every stored preference. Before it writes a single byte the bridge exports
+the CURRENT state to `<state dir>/backups/pre-import-<timestamp>.json` and names that file in the
+result; if that safety export fails, the import is abandoned rather than run without a net. The
+restore is a merge, not a wipe: a table present in the file replaces that table, a table absent from
+it is left alone, files are overwritten by path and none are deleted. Cards are live immediately
+(the board reads SQLite per request), but snooze / notification prefs / push subscriptions were
+loaded into memory at boot, so finish with:
+
+```bash
+herdr plugin action invoke restart --plugin herdr.collie-board
+```
+
 The format, version `1`:
 
 ```jsonc
@@ -605,9 +619,11 @@ The format, version `1`:
 ```
 
 JSON rather than a tarball on purpose: no dependency, nothing shelled out, and a backup you can read
-with `jq` when what you actually need is one card's spec back. **There is no import** — restoring is
-a manual job against a file that was designed to be legible. Treat the file as sensitive: it carries
-card specs, the audit log and push subscription keys, exactly like the 0700 state dir it came from.
+with `jq` when what you actually need is one card's spec back. A backup from an older Collie Board
+restores fine (unknown tables and columns are skipped on both sides); one from a *newer* version is
+refused rather than half-applied. Treat the file as sensitive: it carries card specs, the audit log
+and push subscription keys, exactly like the 0700 state dir it came from — and `backups/` beneath
+that state dir holds the same, one file per import.
 
 ### Stop or uninstall
 

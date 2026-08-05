@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 import type { AuditLog } from "./audit.ts";
-import { buildBackup } from "./backup.ts";
+import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./backup.ts";
 import {
   cardView,
   cardViews,
@@ -39,6 +39,8 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
+/** `/api/backup/restore` — read one back, after exporting the current state as a safety net. */
+const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
@@ -280,6 +282,56 @@ async function route(
       detail: { files: backup.files.length },
     });
     return ctx.json(backup);
+  }
+
+  // The other direction. Ordered so that nothing is destroyed without a way back: validate the
+  // whole document, THEN export the current state to `backups/`, and only then write. A safety
+  // export that fails aborts the import — an import with no net is not one worth having.
+  if (pathname === BACKUP_RESTORE_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const parsed = parseBackup(body);
+    if (!parsed.ok) return ctx.text(parsed.error, 400);
+
+    let safetyBackup: string;
+    try {
+      safetyBackup = await writeSafetyBackup(ctx.db, ctx.cfg.stateDir);
+    } catch (err) {
+      return ctx.json(
+        { ok: false, error: `safety backup failed, nothing restored: ${(err as Error).message}` },
+        500,
+      );
+    }
+
+    let result;
+    try {
+      result = await restoreBackup(ctx.db, ctx.cfg.stateDir, parsed.value);
+    } catch (err) {
+      // The table half is transactional, so a throw there changed nothing; the file half may be
+      // half-written. Either way the operator has `safetyBackup` — name it in the error.
+      return ctx.json(
+        { ok: false, error: (err as Error).message, safetyBackup },
+        422,
+      );
+    }
+
+    ctx.audit.record({
+      action: "backup.restore",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { exportedAt: parsed.value.exportedAt, ...result, safetyBackup },
+    });
+    // The board reads sqlite per request, so cards are live immediately. Snooze, notify-prefs and
+    // the push subscriptions were loaded into memory at boot and would overwrite the restored files
+    // on their next save — hence the restart, which the client relays as a herdr action.
+    return ctx.json({ ok: true, ...result, safetyBackup, restartRequired: true });
   }
 
   const match = pathname.match(CARD_ROUTE);
