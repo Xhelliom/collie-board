@@ -2281,6 +2281,7 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
   it("turns a review todo into a full backlog card, not a bare title, and links the review to it", async () => {
     const store = db();
     const reviewed = filed(store, { wrapupPending: false });
+    store.setAutoFollowUps(true);
     const copilot = {
       enabled: true,
       observe() {},
@@ -2305,6 +2306,40 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     // rather than only saying "1 follow-up added".
     const [review] = store.listReviews(reviewed.id);
     expect(review?.todos).toEqual([{ title: "fix the parser", cardId: created!.id }]);
+  });
+
+  it("creates no follow-up card unless the operator opted in — the review still lands", async () => {
+    const store = db();
+    const reviewed = filed(store, { wrapupPending: false });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return { verdict: "partial", notes: "ok", todos: [{ title: "fix the parser" }] };
+      },
+    } as unknown as Copilot;
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(store.listCards().some((c) => c.title === "fix the parser")).toBe(false);
+    const [review] = store.listReviews(reviewed.id);
+    expect(review?.verdict).toBe("partial");
+    expect(review?.todos).toEqual([]);
+  });
+
+  it("defaults to off, and survives the restart every backend change needs", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "collie-prefs-")), "board.db");
+    const first = new BoardDb(file);
+    expect(first.autoFollowUps()).toBe(false);
+    first.setAutoFollowUps(true);
+    first.close();
+
+    const reopened = new BoardDb(file);
+    expect(reopened.autoFollowUps()).toBe(true);
+    reopened.setAutoFollowUps(false);
+    expect(reopened.autoFollowUps()).toBe(false);
+    reopened.close();
   });
 });
 
@@ -2460,6 +2495,7 @@ describe("the copilot tags what it creates", () => {
     const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
     store.closeSession(session.id, "done");
     store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
     const { prompts, copilot } = fakeCopilot({
       verdict: "partial",
       notes: "ok",

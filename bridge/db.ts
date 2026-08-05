@@ -423,7 +423,18 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   hidden     INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+
+-- Board-wide operator preferences that aren't about one card or one repo. Key/value because there is
+-- exactly one of these today (auto_follow_ups) and a column per switch would mean a migration per
+-- switch. An absent key reads as that preference's default, so a fresh board needs no seeding.
+CREATE TABLE IF NOT EXISTS board_pref (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `;
+
+/** `board_pref` key for {@link BoardDb.autoFollowUps}. */
+const AUTO_FOLLOW_UPS_KEY = "auto_follow_ups";
 
 /** A tag longer than this is a sentence, not a label, and would not fit the chip it renders as. */
 const TAG_MAX_CHARS = 24;
@@ -1012,6 +1023,31 @@ export class BoardDb {
          ON CONFLICT(path) DO UPDATE SET hidden = 1, updated_at = excluded.updated_at`,
       )
       .run(path, this.now());
+  }
+
+  // ── board preferences ───────────────────────────────────────────────────────
+
+  /**
+   * Whether a review's follow-up suggestions become cards on their own.
+   *
+   * Defaults OFF, deliberately: a board that refills itself is a thing you opt into, not a thing you
+   * discover. The review still runs and still says what it found undone — turning this on is what
+   * turns that into cards.
+   */
+  autoFollowUps(): boolean {
+    const row = this.db
+      .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
+      .get(AUTO_FOLLOW_UPS_KEY);
+    return row ? row.value === "1" : false;
+  }
+
+  setAutoFollowUps(on: boolean): void {
+    this.db
+      .query(
+        `INSERT INTO board_pref (key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(AUTO_FOLLOW_UPS_KEY, on ? "1" : "0");
   }
 
   // ── journal ─────────────────────────────────────────────────────────────────

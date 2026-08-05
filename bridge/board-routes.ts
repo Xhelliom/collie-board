@@ -37,6 +37,9 @@ import type { StateEngine } from "./state-engine.ts";
 const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
+/** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
+const BOARD_PREFS_ROUTE = "/api/board/prefs";
+
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
 /** `/api/backup/restore` — read one back, after exporting the current state as a safety net. */
@@ -265,6 +268,37 @@ async function route(
       detail: { path: path.trim(), hidden },
     });
     return ctx.json({ ok: true });
+  }
+
+  // The board's switches. One today: whether a review's follow-up suggestions become cards. Read to
+  // GET (a preference is not terminal-driving), write to change — same rule as hiding a repo.
+  if (pathname === BOARD_PREFS_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      return ctx.json({ autoFollowUps: ctx.db.autoFollowUps() });
+    }
+    if (req.method === "POST") {
+      const denied = ctx.guard("write");
+      if (denied) return denied;
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return ctx.text("bad body", 400);
+      }
+      const { autoFollowUps } = (body ?? {}) as { autoFollowUps?: unknown };
+      if (typeof autoFollowUps !== "boolean") return ctx.text("autoFollowUps must be a boolean", 400);
+      ctx.db.setAutoFollowUps(autoFollowUps);
+      ctx.audit.record({
+        action: "board.prefs",
+        session: ctx.session,
+        device: ctx.device,
+        detail: { autoFollowUps },
+      });
+      return ctx.json({ autoFollowUps: ctx.db.autoFollowUps() });
+    }
+    return ctx.text("method not allowed", 405);
   }
 
   // The backup export. A read, but it hands over every durable byte the plugin owns — push

@@ -616,6 +616,23 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
   });
 }
 
+/** The board's switches. Bridge-side, so the choice is the board's, not this device's. */
+export interface BoardPrefs {
+  /** Turn a review's follow-up suggestions into backlog cards. Default off — opt in. */
+  autoFollowUps: boolean;
+}
+
+export function fetchBoardPrefs(signal?: AbortSignal): Promise<BoardPrefs> {
+  return apiRequest<BoardPrefs>("/api/board/prefs", { signal });
+}
+
+export function setBoardPrefs(patch: BoardPrefs): Promise<BoardPrefs> {
+  return apiRequest<BoardPrefs>("/api/board/prefs", {
+    method: "POST",
+    body: JSON.stringify(patch),
+  });
+}
+
 /**
  * The bridge's own sentence, out of an `apiRequest` failure.
  *

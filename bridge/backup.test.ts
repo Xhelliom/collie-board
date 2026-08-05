@@ -67,7 +67,14 @@ describe("buildBackup", () => {
     expect(backup.kind).toBe("collie-board-backup");
     expect(backup.exportedAt).toBe("2023-11-14T22:13:20.000Z");
     // Every table, not just the ones with rows — a restore needs to know `repo_pref` was empty.
-    expect(Object.keys(backup.db).sort()).toEqual(["card", "event", "repo_pref", "review", "session"]);
+    expect(Object.keys(backup.db).sort()).toEqual([
+      "board_pref",
+      "card",
+      "event",
+      "repo_pref",
+      "review",
+      "session",
+    ]);
     expect(backup.db.card).toHaveLength(1);
     expect((backup.db.card![0] as { id: string; title: string }).title).toBe("Back it up");
     expect((backup.db.card![0] as { id: string }).id).toBe(card.id);
