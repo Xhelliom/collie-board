@@ -138,6 +138,56 @@ describe("AgentChat — header title block", () => {
   });
 });
 
+// The card a session backs. Desktop reaches it from ContextRailColumn (`lg:flex`), which left the
+// mobile session with no route to its own card — this row is mobile's copy, same destination.
+describe("AgentChat — the card this pane backs", () => {
+  function renderWithCard(agent: (typeof fixtureAgents)[number]) {
+    const router = createMemoryRouter(
+      [
+        { path: "/card/:cardId", element: <CardSentinel /> },
+        {
+          path: "/pane/:paneId",
+          element: (
+            <AgentChat
+              paneId={agent.paneId}
+              agent={agent}
+              agents={fixtureAgents}
+              shellPanes={[]}
+              tabs={[]}
+              text="out"
+              onBack={vi.fn()}
+              onSelect={vi.fn()}
+            />
+          ),
+        },
+      ],
+      { initialEntries: [`/pane/${agent.paneId}`] },
+    );
+    render(<RouterProvider router={router} />);
+  }
+
+  it("names the card and opens it — the same destination desktop's rail leads to", async () => {
+    const user = userEvent.setup();
+    renderWithCard({ ...fixtureAgents[0]!, cardId: "c-42", cardTitle: "Ship the thing" });
+
+    // Named with the card, which also tells it apart from the desktop rail's own plain
+    // "Ouvrir la carte" — jsdom renders both breakpoints, a real browser only ever one.
+    await user.click(screen.getByRole("button", { name: "Ouvrir la carte : Ship the thing" }));
+    expect(await screen.findByText("card:c-42")).toBeInTheDocument();
+  });
+
+  it("shows no row at all when the pane backs no card", () => {
+    renderWithCard(fixtureAgents[0]!); // hand-launched: no cardId
+    expect(screen.queryByRole("button", { name: /ouvrir la carte/i })).toBeNull();
+  });
+});
+
+// Echoes the card the pane row navigated to.
+function CardSentinel() {
+  const { cardId } = useParams();
+  return <div>card:{cardId ?? "none"}</div>;
+}
+
 describe("AgentChat — read-only device", () => {
   it("disables the composer and shows the banner when the device isn't authorised", () => {
     renderChat({ device: { enforced: true, device: "spare-phone", authorized: false } });
