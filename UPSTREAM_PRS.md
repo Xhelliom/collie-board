@@ -558,8 +558,8 @@ the pane that asked. The alert is the only record, and it deletes itself.
 
 | | |
 |---|---|
-| Commit | `PENDING` *feat(notify): a bell in the header, and the history of what pinged behind it* |
-| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
+| Commit | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* |
+| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
 | Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
 
 **Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
