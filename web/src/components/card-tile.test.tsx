@@ -77,6 +77,16 @@ describe("CardTile — status row (loud / named / silent)", () => {
     expect(screen.getByText("ship the diff view").className).toMatch(/text-muted-foreground/);
   });
 
+  it("a card the copilot is rewriting says so — even with nothing else on the tile", () => {
+    render(<CardTile card={card({ copilotBusy: true })} onClick={() => {}} />);
+    expect(screen.getByText("copilot")).toBeInTheDocument();
+  });
+
+  it("says nothing once the copilot is done with it", () => {
+    const { container } = render(<CardTile card={card({ copilotBusy: false })} onClick={() => {}} />);
+    expect(container.textContent).toBe("ship the diff view");
+  });
+
   it("the tag chip renders alongside whichever status treatment is showing", () => {
     render(<CardTile card={card({ status: "blocked", tag: "urgent" })} onClick={() => {}} />);
     expect(screen.getByText("urgent")).toBeInTheDocument();

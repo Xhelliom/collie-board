@@ -1,4 +1,4 @@
-import { Check, CornerDownRight, GitBranch, Layers, ListChecks } from "lucide-react";
+import { Check, CornerDownRight, GitBranch, Layers, ListChecks, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -111,7 +111,10 @@ export function CardTile({
   // Whether row 1 has a real status/repo signal to show. Without one, a lone tag chip floating
   // `ml-auto` in an otherwise-empty row reads as a blank gap — so with nothing else on it, the tag
   // rides the title row instead (row 2) rather than getting a row of its own.
-  const statusRow = Boolean(loud || named || repo);
+  // `copilotBusy` counts: a card the copilot is writing is typically a bare title with no pane, no
+  // branch and no criteria yet — i.e. exactly the card whose meta row does NOT render, which is
+  // where this used to live and therefore never showed.
+  const statusRow = Boolean(loud || named || repo || card.copilotBusy);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
@@ -174,8 +177,17 @@ export function CardTile({
                 <span className={cn("size-1.5 rounded-full", named.dot)} />
                 {CARD_STATUS_LABEL[card.status]}
               </span>
-            ) : (
+            ) : repo ? (
               <span className="truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
+            ) : null}
+            {/* Same fact the open card states in full ("the copilot has this card"), same field —
+                here it only has to answer "why is this one still a bare title" from across the
+                board. Pulsing, because it ends on its own. */}
+            {card.copilotBusy && (
+              <span className="flex shrink-0 animate-pulse items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
+                <Sparkles className="size-3" />
+                copilot
+              </span>
             )}
             {card.tag && (
               <TagChip tag={card.tag} className="ml-auto shrink-0 px-[7px] py-px text-[10px] font-semibold" />
@@ -254,8 +266,6 @@ export function CardTile({
                 </>
               )}
               {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
-              {/* A card the copilot is holding looks identical to one it has abandoned — say which. */}
-              {card.copilotBusy && <span className="animate-pulse">· copilot…</span>}
             </span>
           </div>
         )}
