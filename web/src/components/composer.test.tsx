@@ -9,7 +9,7 @@ import { clearStatus, useStatus } from "@/lib/status";
 import { isReloadHeld, __resetReloadGuard } from "@/lib/reload-guard";
 import { server } from "@/test/setup";
 import { recordReply } from "@/test/handlers";
-import { Composer } from "./composer";
+import { Composer, __resetDrafts } from "./composer";
 
 // A guarded send is TWO reply calls: type (submit:false), then — once the text is verified on the
 // input line — submit-only (empty text). Overriding the reply handler therefore has to keep the fake
@@ -31,7 +31,10 @@ function replyHandler(onTyped: (text: string) => void, onSubmit?: () => void) {
 beforeAll(() => {
   if (!Element.prototype.scrollTo) Element.prototype.scrollTo = () => {};
 });
-beforeEach(() => clearStatus());
+beforeEach(() => {
+  clearStatus();
+  __resetDrafts(); // most tests share the default paneId "w1:p1" — an unreset draft leaks across them
+});
 
 function renderComposer(overrides: Partial<ComponentProps<typeof Composer>> = {}) {
   const props: ComponentProps<typeof Composer> = {
@@ -397,6 +400,68 @@ describe("Composer — input is phone-owned (never auto-written by the terminal 
 
     setRawDraft(""); // host line clears
     expect(box).toHaveValue("my mobile message");
+  });
+});
+
+// AgentChat remounts Composer wholesale (key={paneId} in routes/detail.tsx) on every pane switch, so
+// `input`'s own useState can't survive one — these drive real unmount/remount cycles (not rerender)
+// against the module-scoped draft map, the same way an actual pane-switch-and-back does.
+describe("Composer — per-pane draft survives a pane switch", () => {
+  function mount(overrides: Partial<ComponentProps<typeof Composer>> = {}) {
+    const props: ComponentProps<typeof Composer> = {
+      paneId: "w1:draft-test",
+      agent: "claude",
+      isShell: false,
+      gone: false,
+      readOnly: false,
+      dialogPresent: false,
+      text: "pane output",
+      mirrorText: "pane output",
+      terminalDraft: null,
+      rawTerminalDraft: null,
+      prefs: { wrap: true, fontSize: 11, rawTerminal: false, reading: false },
+      setWrap: vi.fn(),
+      stepFontSize: vi.fn(),
+      setRawTerminal: vi.fn(),
+      onSent: vi.fn(),
+      ...overrides,
+    };
+    const router = createMemoryRouter([{ path: "/", element: <Composer {...props} /> }]);
+    return render(<RouterProvider router={router} />);
+  }
+
+  it("restores what was typed once this pane remounts", async () => {
+    const user = userEvent.setup();
+    const first = mount({ paneId: "w1:draft-a" });
+    await user.type(screen.getByPlaceholderText(/type a reply/i), "half-typed message");
+    first.unmount(); // navigating to another pane
+
+    mount({ paneId: "w1:draft-a" }); // navigating back
+    expect(screen.getByPlaceholderText(/type a reply/i)).toHaveValue("half-typed message");
+  });
+
+  it("does not leak one pane's draft into a different pane", async () => {
+    const user = userEvent.setup();
+    const first = mount({ paneId: "w1:draft-b" });
+    await user.type(screen.getByPlaceholderText(/type a reply/i), "only for pane b");
+    first.unmount();
+
+    mount({ paneId: "w1:draft-c" });
+    expect(screen.getByPlaceholderText(/type a reply/i)).toHaveValue("");
+  });
+
+  it("clears the saved draft once the message actually sends", async () => {
+    const user = userEvent.setup();
+    server.use(replyHandler(() => {}));
+    const first = mount({ paneId: "w1:draft-d" });
+    const box = screen.getByPlaceholderText(/type a reply/i);
+    await user.type(box, "please run the tests");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(box).toHaveValue(""));
+    first.unmount();
+
+    mount({ paneId: "w1:draft-d" });
+    expect(screen.getByPlaceholderText(/type a reply/i)).toHaveValue("");
   });
 });
 

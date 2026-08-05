@@ -21,6 +21,34 @@ import { isSelfEcho, normalizeDraft } from "@/hooks/use-terminal-draft";
 import { sendGuardedReply } from "@/lib/reply-action";
 import { TerminalDraftPreview } from "@/components/terminal-draft-preview";
 
+// Per-pane draft persistence: `input` below is local state, and AgentChat remounts Composer wholesale
+// (`key={paneId}` in routes/detail.tsx) on every pane switch — without this, navigating away and back
+// silently drops whatever was typed. A module-scoped Map survives that remount the same way
+// loaders.ts's lastPaneText does; bounded so switching through many panes over a long session can't
+// grow it forever. Only Composer reads this, so a plain Map is enough — no need for the
+// useSyncExternalStore pub/sub lib/idle.ts and lib/status.ts use for state shared across components.
+const DRAFT_MAX = 20;
+const drafts = new Map<string, string>();
+
+function saveDraft(paneId: string, value: string): void {
+  if (value === "") {
+    drafts.delete(paneId);
+    return;
+  }
+  drafts.delete(paneId); // re-insert at the end — Map iteration order is insertion order
+  drafts.set(paneId, value);
+  if (drafts.size > DRAFT_MAX) {
+    const oldest = drafts.keys().next().value;
+    if (oldest !== undefined) drafts.delete(oldest);
+  }
+}
+
+/** Test-only: module state outlives a single test's render tree, unlike everything else in this file
+ *  — every test that mounts a Composer must start from an empty map. Mirrors __resetReloadGuard. */
+export function __resetDrafts(): void {
+  drafts.clear();
+}
+
 export interface ComposerHandle {
   /** Focus the input and put the caret at the end — used by the mirror-tap-to-focus in AgentChat. */
   focusInput: () => void;
@@ -123,7 +151,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Every write affordance is off when the pane is gone OR this device is read-only.
   const locked = gone || readOnly;
 
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => drafts.get(paneId) ?? "");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   // Pending-send preview: set on a successful send, cleared when the mirror catches up (next text
@@ -214,6 +242,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // never holds. When held, the self-updater shows the "tap to update" banner instead and updates once
   // the hold clears (see lib/self-update.ts). Keyed by pane so panes don't clobber each other's hold.
   useHoldReload(`composer:${paneId}`, input.trim() !== "" || uploading);
+
+  // Write-through for the module-scoped draft map above — every keystroke, and the clear on send,
+  // land here so the NEXT mount of this paneId (a pane switch and back) seeds from it.
+  useEffect(() => {
+    saveDraft(paneId, input);
+  }, [paneId, input]);
 
   // Preview appearance latch. A STABLE, non-echo, not-already-handled draft flips the preview on —
   // this is the ONLY gate that waits for the 1.5s stability, so a blip or an in-flight send never
