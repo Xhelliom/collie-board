@@ -561,7 +561,13 @@ export class ClaudeTranscriptSource implements TranscriptSource {
         continue; // unreadable sibling — ignore it rather than fail the whole read
       }
     }
-    return best.path;
+    // `path` arrives already containment-checked (resolve()'s callers only pass a validated real
+    // path), but `best` can now name a SIBLING the scan just picked off disk — a project dir symlinked
+    // outside the root must not become a way to read arbitrary files just because it sits next to a
+    // legitimate log and shares its conversation root. Same rule as contained(), skipped here on the
+    // (safe) path so the common case pays no extra realpath call.
+    if (best.path === path) return path;
+    return (await this.contained(best.path)) ?? path;
   }
 
   async resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null> {
