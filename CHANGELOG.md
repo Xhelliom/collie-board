@@ -17,6 +17,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 ### Changed
 - `PromptBox` takes a `placeholder` and a `sendLabel`, so the agent follow-up and the copilot correction share one box (57ad962).
 
+## [0.73.1] - 2026-08-05
+
+### Fixed
+- Board tile: the "copilot is editing this" marker moved from the meta row to the status row, so it shows on the bare-title card the copilot is actually working on (f2b51dd).
+
 ## [0.73.0] - 2026-08-04
 
 ### Added
