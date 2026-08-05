@@ -61,6 +61,7 @@ import {
   patchCard,
   positionFor,
   promptCard,
+  refineCard,
   reformulateCard,
   repoName,
   revertCard,
@@ -96,6 +97,8 @@ export function CardRoute() {
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRework, setConfirmRework] = useState(false);
+  /** Is the copilot correction box open — see the Rework section. */
+  const [refining, setRefining] = useState(false);
   // Lifted out of <IntegrationSection> for one reason: "Done" must not be offered on its own while
   // the branch still holds commits. Filing first is the order everybody reaches for and it is the
   // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
@@ -138,6 +141,7 @@ export function CardRoute() {
   useEffect(() => {
     setConfirmRework(false);
     setMenuOpen(false);
+    setRefining(false);
   }, [card?.id]);
 
   async function move(status: CardStatus) {
@@ -252,6 +256,16 @@ export function CardRoute() {
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     }
+    revalidator.revalidate();
+  }
+
+  // The other half of "hand it back to the copilot": one correction, applied to the card as it
+  // stands. Rethrows nothing — PromptBox surfaces the failure and keeps the text you typed.
+  async function refine(instruction: string) {
+    if (!card) return;
+    await refineCard(card.id, instruction);
+    setStatus("Correction sent — the card rewrites itself in a minute.", "info");
+    setRefining(false);
     revalidator.revalidate();
   }
 
@@ -577,6 +591,17 @@ export function CardRoute() {
                       <Sparkles className="size-4" />
                       {confirmRework ? "Replace my edits?" : "Reformulate"}
                     </Button>
+                    {/* No confirmation on this one, unlike its neighbour: it starts from the card as
+                        it stands, so a hand edit is what it corrects rather than what it discards. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-2"
+                      onClick={() => setRefining((v) => !v)}
+                    >
+                      <Sparkles className="size-4" />
+                      {refining ? "Cancel correction" : "Correct with the copilot"}
+                    </Button>
                     {confirmRework && (
                       <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
                         Cancel
@@ -589,6 +614,19 @@ export function CardRoute() {
                         ? "It works from the original dictation, not from the current sub-tasks — reformulating can reshuffle or replace them."
                         : "It works from what you originally dictated, not from your edit. The current text goes to the journal, so you can put it back."}
                     </p>
+                  )}
+                  {refining && (
+                    <div className="flex flex-col gap-2 pt-2">
+                      <p className="text-xs text-muted-foreground">
+                        Say what the copilot got wrong. It rewrites this card from what it says now,
+                        keeping everything your correction doesn't touch.
+                      </p>
+                      <PromptBox
+                        placeholder="e.g. you said the format isn't specified — say it will be JSON"
+                        sendLabel="Send to the copilot"
+                        onSend={refine}
+                      />
+                    </div>
                   )}
                 </Section>
 
@@ -754,11 +792,22 @@ function StartButton({
 }
 
 /**
- * A follow-up instruction for the card's running agent. A plain textarea on purpose: that box IS
- * the phone's voice input, and Send is explicit so dictated text is reviewable before it goes —
- * the same reasoning as Collie's composer (ARCHITECTURE §4).
+ * A free-text instruction, sent on an explicit tap. A plain textarea on purpose: that box IS the
+ * phone's voice input, and Send is explicit so dictated text is reviewable before it goes — the
+ * same reasoning as Collie's composer (ARCHITECTURE §4).
+ *
+ * Two callers, one box: a follow-up for the card's running agent, and a correction for the copilot.
+ * Both are "dictate a sentence, tap once, wait" — the only thing that differs is the wording.
  */
-function PromptBox({ onSend }: { onSend: (text: string) => Promise<void> }) {
+export function PromptBox({
+  onSend,
+  placeholder = "Extra instruction for this agent…",
+  sendLabel = "Send",
+}: {
+  onSend: (text: string) => Promise<void>;
+  placeholder?: string;
+  sendLabel?: string;
+}) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -782,12 +831,12 @@ function PromptBox({ onSend }: { onSend: (text: string) => Promise<void> }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}
-        placeholder="Extra instruction for this agent…"
+        placeholder={placeholder}
         className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <Button onClick={send} disabled={!text.trim() || sending} className="h-11 gap-2 self-end px-5">
         <Send className="size-4" />
-        {sending ? "Sending…" : "Send"}
+        {sending ? "Sending…" : sendLabel}
       </Button>
     </div>
   );

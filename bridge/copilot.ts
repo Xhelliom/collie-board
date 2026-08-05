@@ -390,6 +390,61 @@ export function reformulatePrompt(
 }
 
 /**
+ * The prompt that applies ONE free-text correction to a card that already exists.
+ *
+ * Its input is the CARD AS IT STANDS, never the original dictation — that is the whole difference
+ * with {@link reformulatePrompt}, and the reason both exist. Reformulating re-reads the dump and
+ * throws the current text away, which is right when the first pass came out wrong and useless when
+ * nine tenths of it is fine and one sentence is not.
+ *
+ * No duplicate check, no split, no tag: a correction is not a re-triage. Every one of those would
+ * spend prompt space arguing against "change nothing else", which is the only rule this prompt has.
+ * Pure + exported so the wording is reviewable.
+ */
+export function refinePrompt(input: {
+  title: string;
+  spec: string | null;
+  acceptance: string[];
+  instruction: string;
+  outPath: string;
+}): string {
+  const parts = [
+    "You are correcting ONE card on a kanban board. Do NOT do the work, do not write any code, do not",
+    "read any repository. Rewrite the card below so it says what the correction asks for.",
+    "",
+    "The card as it stands:",
+    `Title: ${input.title}`,
+  ];
+  if (input.spec) parts.push("", "Spec:", input.spec);
+  if (input.acceptance.length) {
+    parts.push("", "Acceptance criteria:", ...input.acceptance.map((a) => `- ${a}`));
+  }
+  parts.push(
+    "",
+    "The correction, from the person this card belongs to:",
+    "---",
+    input.instruction.trim(),
+    "---",
+    "",
+    "Apply it and CHANGE NOTHING ELSE. Everything the correction does not touch comes back as it is,",
+    "word for word — this is a correction, not a second opinion on the whole card. When the correction",
+    "settles a question the card left open (\"the format is not specified\" → \"it will be JSON\"),",
+    "replace that question EVERYWHERE the card asks it, acceptance criteria included.",
+    "",
+    "Return the WHOLE card, corrected — what you write replaces it, so a field you leave out is a",
+    "field the card loses.",
+    "",
+    `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
+    "{",
+    '  "title": "one short imperative line",',
+    '  "spec": "markdown: the corrected spec",',
+    '  "acceptance": ["checkable statement", "..."]',
+    "}",
+  );
+  return parts.join("\n");
+}
+
+/**
  * Ask the copilot to translate a raw tool error into something the operator can act on.
  *
  * SCOPED TO THE MESSAGES WE DID NOT WRITE. The board's own refusals are already sentences aimed at a
@@ -717,6 +772,56 @@ export class CopilotCoordinator {
     this.busyCards.add(cardId);
     try {
       await this.rewrite(cardId, input);
+    } finally {
+      this.busyCards.delete(cardId);
+    }
+  }
+
+  /**
+   * Apply one free-text correction to a card, in the background.
+   *
+   * The counterpart to {@link reformulate}, and deliberately NOT the same call: this works from the
+   * card as it stands, so it fixes the sentence that came out wrong without discarding the nine that
+   * didn't. Reformulating re-reads the dictation, which for a card you have since edited (or split)
+   * is the destructive answer to "just say the format is JSON".
+   *
+   * Background and fire-and-forget like every other copilot call — the card rewrites itself on a
+   * later poll, and nothing breaks if the answer never comes.
+   */
+  async refine(cardId: string, instruction: string): Promise<void> {
+    const card = this.db.getCard(cardId);
+    if (!this.copilot.enabled || !card || !instruction.trim()) return;
+    this.busyCards.add(cardId);
+    try {
+      const parsed = await this.copilot.ask((out) =>
+        refinePrompt({
+          title: card.title,
+          spec: card.spec,
+          acceptance: card.acceptance,
+          instruction,
+          outPath: out,
+        }),
+      );
+      const result = toReformulation(parsed);
+      if (!result) {
+        this.db.recordEvent(cardId, "copilot.refine_failed", { instruction });
+        return;
+      }
+      if (!this.db.getCard(cardId)) return;
+      // The answer is the whole card, so patching the three written fields IS applying it. Nothing is
+      // lost: patchCard journals what each one replaced, which is what makes this revertable by the
+      // same tap a hand edit is. Branch, tag and filing are untouched — a correction rewords, it does
+      // not refile (same rule as a reformulation).
+      this.db.patchCard(
+        cardId,
+        {
+          ...(result.title ? { title: result.title } : {}),
+          ...(result.spec ? { spec: result.spec } : {}),
+          ...(result.acceptance ? { acceptance: result.acceptance } : {}),
+        },
+        "copilot",
+      );
+      this.db.recordEvent(cardId, "copilot.refined", { instruction });
     } finally {
       this.busyCards.delete(cardId);
     }

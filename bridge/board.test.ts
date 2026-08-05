@@ -35,6 +35,7 @@ import {
   toExplanation,
   parseJsonish,
   pickTag,
+  refinePrompt,
   reformulatePrompt,
   reviewPrompt,
   slugBranch,
@@ -1320,6 +1321,26 @@ describe("copilot prompts", () => {
     expect(p).toContain("no tags yet");
     expect(p).not.toContain("copied VERBATIM");
   });
+
+  it("corrects from the CARD, and forbids touching what the correction doesn't", () => {
+    // The whole difference with a reformulation: the input is the card as it stands, and the rule is
+    // "change nothing else". A refine that re-triaged (split, duplicate check) would be the
+    // destructive answer to a one-sentence correction.
+    const p = refinePrompt({
+      title: "Export the report",
+      spec: "The format is not specified.",
+      acceptance: ["the file downloads"],
+      instruction: "say the format will be json",
+      outPath: ".board/out/ef56.json",
+    });
+    expect(p).toContain("The format is not specified.");
+    expect(p).toContain("- the file downloads");
+    expect(p).toContain("say the format will be json");
+    expect(p).toMatch(/CHANGE NOTHING ELSE/);
+    expect(p).toContain(".board/out/ef56.json");
+    expect(p).not.toContain("duplicate_of");
+    expect(p).not.toContain("split");
+  });
 });
 
 describe("pickTag", () => {
@@ -1874,6 +1895,36 @@ describe("handleBoardRoute — the net under unexpected failures", () => {
   it("still returns null for a path that isn't ours, so the caller falls through", async () => {
     const res = await handleBoardRoute("/api/snapshot", new Request("http://x/api/snapshot"), ctx());
     expect(res).toBeNull();
+  });
+
+  it("forwards a correction to the copilot, and refuses an empty one", async () => {
+    const sent: [string, string][] = [];
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    const c = ctx({
+      db: store,
+      cfg: { boardRepoRoots: [], boardCopilot: true },
+      copilot: {
+        async refine(id: string, instruction: string) {
+          sent.push([id, instruction]);
+        },
+        busy: () => new Set(),
+      },
+    });
+    const post = (body: unknown) =>
+      handleBoardRoute(
+        `/api/cards/${card.id}/refine`,
+        new Request(`http://x/api/cards/${card.id}/refine`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        c,
+      );
+
+    expect((await post({ instruction: "  " }))!.status).toBe(400);
+    expect((await post({ instruction: "say json" }))!.status).toBe(200);
+    expect(sent).toEqual([[card.id, "say json"]]);
   });
 });
 
@@ -2464,6 +2515,88 @@ describe("CopilotCoordinator.busy — telling 'working on it' from 'switched off
 
     expect(views.find((v) => v.id === busy.id)!.copilotBusy).toBe(true);
     expect(views.find((v) => v.id === idle.id)!.copilotBusy).toBe(false);
+  });
+});
+
+// A reformulation re-reads the original dictation, which is the wrong tool when one sentence of an
+// otherwise fine card is wrong: it throws the other nine away. `refine` is the other half — the card
+// as it stands, plus one instruction.
+describe("CopilotCoordinator.refine", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  function answering(answer: unknown) {
+    const prompts: string[] = [];
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask(build: (out: string) => string) {
+        prompts.push(build("/out.json"));
+        return answer;
+      },
+    } as unknown as Copilot;
+    return { prompts, copilot };
+  }
+
+  it("works from the CURRENT card plus the instruction, not from the dictation", async () => {
+    const store = db();
+    const card = store.createCard({
+      title: "Export the report",
+      rawInput: "the original rambling dictation",
+      spec: "The format is not specified.",
+      acceptance: ["the file downloads"],
+    });
+    const { prompts, copilot } = answering({
+      title: "Export the report as JSON",
+      spec: "The report is exported as JSON.",
+      acceptance: ["the downloaded file is valid json"],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(card.id, "say the format will be json");
+
+    expect(prompts[0]).toContain("The format is not specified.");
+    expect(prompts[0]).toContain("say the format will be json");
+    expect(prompts[0]).not.toContain("the original rambling dictation");
+    const fresh = store.getCard(card.id)!;
+    expect(fresh.title).toBe("Export the report as JSON");
+    expect(fresh.spec).toContain("JSON");
+    expect(fresh.acceptance).toEqual(["the downloaded file is valid json"]);
+  });
+
+  it("journals the instruction, and what it overwrote — so it can be put back", async () => {
+    const store = db();
+    const card = store.createCard({ title: "old", spec: "the format is not specified" });
+    const { copilot } = answering({ title: "new", spec: "json" });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(card.id, "say json");
+
+    const events = store.listEvents(card.id);
+    expect(events.find((e) => e.type === "copilot.refined")!.payload).toEqual({
+      instruction: "say json",
+    });
+    const edit = events.find((e) => e.type === "card.edited")!.payload as Record<string, unknown>;
+    expect(edit.reason).toBe("copilot");
+    expect(edit.replaced).toEqual({ title: "old", spec: "the format is not specified" });
+  });
+
+  it("leaves the card alone when the copilot answers nothing usable", async () => {
+    const store = db();
+    const card = store.createCard({ title: "untouched", spec: "still here" });
+    const { copilot } = answering("not json at all");
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(card.id, "do a thing");
+
+    expect(store.getCard(card.id)!.title).toBe("untouched");
+    expect(store.listEvents(card.id).some((e) => e.type === "copilot.refine_failed")).toBe(true);
+  });
+
+  it("does nothing at all with an empty instruction — there is nothing to correct", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x" });
+    const { prompts, copilot } = answering({ title: "y" });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(card.id, "   ");
+
+    expect(prompts).toEqual([]);
+    expect(store.getCard(card.id)!.title).toBe("x");
   });
 });
 

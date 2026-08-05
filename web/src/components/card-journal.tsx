@@ -221,6 +221,12 @@ export function describeEvent(event: BoardEvent): string {
       return `Copilot rewrote the card${Number(p.split) > 0 ? ` and split it into ${String(p.split)}` : ""}`;
     case "copilot.reformulate_failed":
       return "Copilot couldn't rewrite this card";
+    case "copilot.refined":
+      // The instruction IS the entry: "the copilot corrected this card" without saying what you
+      // asked for sends you looking for the correction somewhere it isn't.
+      return `Corrected on your instruction: “${String(p.instruction ?? "")}”`;
+    case "copilot.refine_failed":
+      return `Copilot couldn't apply “${String(p.instruction ?? "that correction")}”`;
     case "copilot.review_failed":
       return "Copilot couldn't review this card";
     case "copilot.explained":
