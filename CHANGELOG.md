@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.74.0] - 2026-08-05
+
+### Added
+- `POST /api/cards/<id>/refine` — one free-text correction, applied by the copilot to the card as it stands (57ad962).
+- `refinePrompt`: the current card + the instruction, one rule ("change nothing else"), no duplicate check / split / tag (57ad962).
+- Card page → Rework: "Correct with the copilot" opens an instruction box; the journal quotes the correction back (57ad962).
+
+### Changed
+- `PromptBox` takes a `placeholder` and a `sendLabel`, so the agent follow-up and the copilot correction share one box (57ad962).
+
 ## [0.73.0] - 2026-08-04
 
 ### Added
