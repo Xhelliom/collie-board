@@ -1094,6 +1094,11 @@ export class CopilotCoordinator {
         // are somewhere else. Nothing else on the card would say so — a split doesn't get this,
         // because you dictated it and `parentId` already points at the dump it came out of.
         origin: "copilot",
+        // …and WHICH card it came out of. "Test the feature" is unreadable on its own six hours
+        // later; with the reviewed card's title under it, it is a sentence. NOT `parentId`, which
+        // would turn the reviewed card into a container: unstartable, and its column dragged around
+        // by its own follow-ups.
+        originCardId: card.id,
         // A follow-up to reviewed work lives in the same area as the work — the reviewed card's tag
         // is the better default than none, and the copilot only overrides it when it says otherwise.
         tag: pickTag(todo.tag, tags) ?? card.tag,

@@ -313,6 +313,18 @@ separate because they answer different questions:
   pointing **backward**, which makes a cycle unrepresentable rather than merely unlikely; a hand
   edit through the API gets an explicit cycle check instead.
 
+A third self-reference answers a third question, and is **not** a synonym for the first:
+
+- **`origin_card_id` — where a card came OUT of.** The reviewed card a copilot follow-up was filed
+  against. Reusing `parent_id` for it is the obvious-looking shortcut and it is wrong: it would make
+  every reviewed card a container — unstartable, its column dragged around by its own follow-ups.
+  This one carries no semantics at all beyond the caption it renders as (`from “…”`, on the tile and
+  at the top of the card), which is the whole point: a follow-up's title is written as a note to the
+  card it belongs to, so on its own it has lost the sentence that produced it. Set at creation,
+  never patched, absent from the API's create allowlist — same rule as `origin`. It may dangle (like
+  `duplicate_of`, unlike `parent_id`/`depends_on`, which `deleteCard` clears), and it resolves to no
+  caption, which is the right degradation for a caption.
+
 **The dependency is a gate, not a trigger.** A finished predecessor makes its successor
 start*able* — it never starts it. An agent that launches itself writes code and spends the user's
 quota with nobody watching, which is the one thing this board is arranged against, and it is the

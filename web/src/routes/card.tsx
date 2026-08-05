@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Copy,
   CornerDownRight,
+  CornerLeftUp,
   EllipsisVertical,
   GitBranch,
   GitMerge,
@@ -354,6 +355,19 @@ export function CardRoute() {
                 >
                   <Layers className="size-3 shrink-0" />
                   <span className="truncate">{detail.parent.title}</span>
+                </button>
+              )}
+              {/* Same question for a follow-up, whose spec is an extract of a REVIEW that lives on
+                  the card it was filed against. Its own row rather than merged with the one above:
+                  a card can be both, and "part of" and "came out of" are different answers. */}
+              {detail?.originCard && (
+                <button
+                  type="button"
+                  onClick={() => navigate(cardPath(detail.originCard!.id))}
+                  className="flex min-w-0 items-center gap-1 self-start text-xs text-muted-foreground"
+                >
+                  <CornerLeftUp className="size-3 shrink-0" />
+                  <span className="truncate">from “{detail.originCard.title}”</span>
                 </button>
               )}
               <div className="flex flex-wrap items-center gap-2">

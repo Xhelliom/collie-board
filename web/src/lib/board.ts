@@ -96,6 +96,12 @@ export interface CardView {
    * bridge sets it at creation and no PATCH can reach it.
    */
   origin: "copilot" | null;
+  /**
+   * The card this one came OUT of — the reviewed card a follow-up was filed against. Not
+   * {@link parentId}: that one makes the other card a container, this one only says where this came
+   * from. Immutable, and it may dangle (deleted source) — resolve it, don't assume it exists.
+   */
+  originCardId: string | null;
   /** One tag, or none — most cards have none, and that is a normal card. Colour: {@link tagHue}. */
   tag: string | null;
   position: number;
@@ -132,6 +138,8 @@ export interface CardDetail {
   predecessor: CardLink | null;
   /** The container this was split out of — the card holding the dictation it came from. */
   parent: CardLink | null;
+  /** The card this one was filed against, resolved — a follow-up's whole context, in one line. */
+  originCard: CardLink | null;
   /**
    * A card the copilot thinks this one repeats, resolved. A SUGGESTION: it links, it does not merge,
    * and dismissing it is one tap.
