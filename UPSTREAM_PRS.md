@@ -594,7 +594,7 @@ line said `claude · webapp`, which is the same sentence for every claude in the
 
 | | |
 |---|---|
-| Commit | `PENDING` *feat(notify): a ping that lands while you're in the app is a toast you can tap* |
+| Commit | `57d538d` *feat(notify): a ping that lands while you're in the app is a toast you can tap* |
 | Files | `web/src/components/agent-toasts.tsx` (new, + test), `web/src/hooks/use-transitions.ts` (returns toasts instead of calling `setStatus`), `web/src/routes/root.tsx` (one mount) |
 | Extraction | **Clean cherry-pick**, minus one expression: the detail line prefers the pane's `cardTitle` and falls back to its cwd. Upstream has no cards — drop the `??` and the line is upstream-shaped. |
 
