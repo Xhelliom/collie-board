@@ -43,8 +43,9 @@ import { setStatus } from "@/lib/status";
 // carries that now, see card-tile.tsx). They used to diverge: mobile flattened to eight
 // BOARD_COLUMNS sections in urgency order via a CSS `order-*` trick, desktop grouped by lane. That
 // divergence is gone — a phone just stacks the four lane sections instead of laying them side by
-// side, same DOM, same lane order (which already leads with `blocked` inside "Doing" — urgency still
-// wins within a lane).
+// side, same DOM (which already leads with `blocked` inside "Doing" — urgency still wins within a
+// lane). The one thing the phone still overrides is the ORDER those four stack in, and it is CSS
+// only: `order-*` on the lane, `lg:order-none` to hand it back (see LANE_PHONE_ORDER).
 //
 // DRAGGING is the desktop's, and only in the columns a human owns anyway (`canDropCard`). Cards move
 // between the live columns on their own — the bridge reconciles them against the herd every poll —
@@ -64,6 +65,22 @@ const LANE_TONE: Record<string, string> = {
   Doing: "bg-status-working",
   "To review": "bg-status-done",
   Done: "bg-status-idle",
+};
+
+/**
+ * PHONE ONLY: the stacking order of the four lanes, reset to DOM order at `lg` (`lg:order-none`).
+ *
+ * Side by side, left-to-right IS the flow and nothing is buried, so the desktop keeps BOARD_LANES
+ * order. Stacked, that same order puts the whole backlog above the fold and pushes the live work —
+ * "Doing" and "To review", the two lanes you open the board FOR — below a screenful of cards you
+ * were not going to act on. So on a phone the live lanes lead and "To do" sinks under them; "Done"
+ * stays where settled work belongs, at the bottom. Every lane still renders, only the order moves.
+ */
+const LANE_PHONE_ORDER: Record<string, string> = {
+  Doing: "order-1",
+  "To review": "order-2",
+  "To do": "order-3",
+  Done: "order-4",
 };
 
 export function BoardRoute() {
@@ -367,7 +384,10 @@ export function BoardRoute() {
               return (
                 <div
                   key={lane.label}
-                  className="flex flex-col gap-2.5 lg:h-full lg:min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3"
+                  className={cn(
+                    "flex flex-col gap-2.5 lg:order-none lg:h-full lg:min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3",
+                    LANE_PHONE_ORDER[lane.label],
+                  )}
                 >
                   {/* The lane's own heading exists only once there are lanes. An EMPTY lane still
                       renders it: four columns that keep their places are what makes a board

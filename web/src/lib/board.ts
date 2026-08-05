@@ -181,8 +181,9 @@ export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
   // LEFT TO RIGHT IS THE FLOW, not the urgency. That is the opposite of BOARD_COLUMNS, and both are
   // right for where they are used: a phone shows one column, so what needs you has to be at the top
   // or you scroll past it; a wide board shows all four at once, so nothing is buried and the axis is
-  // free to carry the thing a board is actually for — where the work is in its life. The phone keeps
-  // BOARD_COLUMNS order (board.tsx re-sorts with `order-*`), so neither reading loses.
+  // free to carry the thing a board is actually for — where the work is in its life. The phone
+  // stacks these same four and re-sorts them in CSS alone (board.tsx, LANE_PHONE_ORDER) so the live
+  // lanes lead there — so neither reading loses.
   { label: "To do", statuses: ["ready", "backlog"] },
   // `blocked` leads: inside a column, urgency still wins. It reads as "in progress, and it is
   // waiting on you", which is what it is — the agent is running, it just can't continue alone.
