@@ -48,3 +48,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0004](./0004-the-terminal-mirror-uses-the-platform-mono.md) | The terminal mirror uses the platform's mono | Accepted |
 | [0005](./0005-one-tag-per-card-its-colour-derived-from-its-name.md) | One tag per card, its colour derived from its name | Accepted |
 | [0006](./0006-the-board-scopes-by-repo-and-remembers-it.md) | The board scopes by repo with a chip strip, and remembers the scope | Accepted |
+| [0007](./0007-the-idle-lock-is-a-pause-not-a-gate.md) | The idle lock is a pause, not a gate | Accepted |

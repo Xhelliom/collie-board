@@ -220,9 +220,10 @@ default). These four are genuine RCE vectors and are **load-bearing — do not r
   the public origin no longer matches the forwarded `Host` — list that exact origin in
   `COLLIE_BOARD_ALLOWED_ORIGINS` (the only sanctioned way to widen the gate; never bind off-loopback to
   "fix" it).
-- **Idle timeout.** Tailscale identity proves the *device*, not *who's holding it*. The PWA stays
-  "signed in" with no session, so a stolen unlocked phone would be a root shell. The idle-lock
-  unmounts the router — pausing all polling — until tapped.
+- **Idle lock — a pause, not a gate.** It covers an unattended, visibly-open Collie after 30 minutes
+  and pauses polling, but it is client state that starts `false` on every reload, so it gates nothing:
+  a stolen unlocked phone is still an open shell, same as no lock at all
+  ([ADR 0007](./.adr/0007-the-idle-lock-is-a-pause-not-a-gate.md)).
 
 Also shipped, as defence in depth:
 

@@ -95,8 +95,10 @@ the unit name; the Herdr action runs from anywhere.
   (`web/src/lib/loaders.ts`) fetch the snapshot + pane; **polling is `useRevalidator()` on an
   adaptive interval** (`web/src/hooks/use-polling.ts`); mutations are direct `lib/api.ts` calls
   followed by `revalidator.revalidate()`. There is **no TanStack Query** — don't reintroduce it.
-- Routes: `/` (home) and `/pane/:paneId` (detail). The idle-lock in `App.tsx` unmounts the
-  `RouterProvider` to pause polling; the router instance is module-scoped so it keeps its location.
+- Routes: `/` (home) and `/pane/:paneId` (detail). The idle-lock in `App.tsx` COVERS the still-mounted
+  `RouterProvider` (a `lib/idle.ts` module store pauses polling, not an unmount) — a pause, not a
+  gate ([ADR 0007](./.adr/0007-the-idle-lock-is-a-pause-not-a-gate.md)); the router instance is
+  module-scoped so it keeps its location.
 - **The sheets are Vaul's.** `components/ui/sheet.tsx` is one `SheetShell` over `Drawer.Root`;
   `BottomSheet` and `SideSheet` are one `direction` apart. Don't hand-roll the drag again, and keep
   `data-vaul-no-drag` on everything below the header — that marking *is* the fix for "a drag in a
