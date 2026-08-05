@@ -90,6 +90,12 @@ export interface CardView {
   duplicateOf: string | null;
   /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
   dependsOn: string | null;
+  /**
+   * `"copilot"` for a card that appeared without anyone asking — the follow-ups a review files while
+   * you are elsewhere. `null` means a person wrote it, which is nearly every card. Immutable: the
+   * bridge sets it at creation and no PATCH can reach it.
+   */
+  origin: "copilot" | null;
   /** One tag, or none — most cards have none, and that is a normal card. Colour: {@link tagHue}. */
   tag: string | null;
   position: number;
@@ -323,6 +329,23 @@ export function tagsOf(cards: readonly CardView[]): string[] {
     seen.set(card.tag, Math.max(seen.get(card.tag) ?? 0, card.updatedAt));
   }
   return [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([tag]) => tag);
+}
+
+/**
+ * The board's fine filters, as one predicate: what kind of work (`tag`) and who wrote the card
+ * (`autoOnly`). They COMPOSE — asking for the copilot's cards inside a tag is a legitimate question,
+ * and two axes that can't be crossed would be two filters pretending to be one.
+ *
+ * The repo scope is applied before this rather than through it: it is the coarser, remembered axis
+ * (ADR 0006), and the tag/source strips are derived FROM the scoped list so they never offer a
+ * combination that comes back empty.
+ */
+export function matchesFilters(
+  card: CardView,
+  filters: { tag: string | null; autoOnly: boolean },
+): boolean {
+  if (filters.tag && card.tag !== filters.tag) return false;
+  return !filters.autoOnly || card.origin === "copilot";
 }
 
 // ── repo scope ───────────────────────────────────────────────────────────────

@@ -62,6 +62,12 @@ export function isLiveStatus(status: CardStatus): boolean {
   return LIVE_STATUSES.includes(status);
 }
 
+/**
+ * Where a card came from, when it came from something other than a person. One value today, and the
+ * whole point of a field rather than a boolean: `null` is not "unknown", it is "someone wrote this".
+ */
+export type CardOrigin = "copilot";
+
 export interface Card {
   id: string;
   title: string;
@@ -102,6 +108,20 @@ export interface Card {
    * two-mode "parallel or sequential" flag can only express the first two.
    */
   dependsOn: string | null;
+  /**
+   * Who WROTE this card, when the answer isn't "a person": `copilot` for a card that appeared
+   * without anyone asking for it, null for every card someone sat down and made.
+   *
+   * A field and not a tag, deliberately (ADR 0005 — a card has exactly one tag, and it answers what
+   * KIND of work this is). Provenance is a second axis: it never changes, it must not cost the card
+   * the one tag it can carry, and a reserved word inside a vocabulary that is otherwise free text
+   * would have to be defended from the one writer that invents tags.
+   *
+   * ONLY the unprompted path sets it — the review's follow-ups. A split does NOT: the copilot wrote
+   * those sentences, but from a dump you dictated, while you watched, and `parentId` already says so.
+   * Written once at creation and never patched: a card doesn't change where it came from.
+   */
+  origin: CardOrigin | null;
   /**
    * ONE tag, or none. Free text, normalised by {@link normalizeTag} — the name IS the identity, so
    * "Bug", "bug " and "bug" are the same tag with the same colour everywhere.
@@ -209,6 +229,7 @@ interface CardRow {
   parent_id: string | null;
   duplicate_of: string | null;
   depends_on: string | null;
+  origin: string | null;
   tag: string | null;
   position: number;
   created_at: number;
@@ -306,6 +327,10 @@ function toCard(r: CardRow): Card {
     parentId: r.parent_id ?? null,
     duplicateOf: r.duplicate_of ?? null,
     dependsOn: r.depends_on ?? null,
+    // Anything the current code doesn't recognise reads as "a person wrote it" — the same
+    // degradation `status` gets, and the safe direction: claiming a card is automatic when it isn't
+    // is the one error this field must never make.
+    origin: r.origin === "copilot" ? "copilot" : null,
     // No tag is the normal state, not a gap: every card written before tags existed reads as null,
     // and nothing downstream may treat that as missing data.
     tag: r.tag ?? null,
@@ -365,6 +390,8 @@ CREATE TABLE IF NOT EXISTS card (
   parent_id    TEXT,
   duplicate_of TEXT,
   depends_on   TEXT,
+  -- Who wrote the card, when it wasn't a person. NULL is the normal case — see Card.origin.
+  origin       TEXT,
   -- One tag or none. Nullable by design — see Card.tag.
   tag          TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
@@ -466,6 +493,11 @@ export interface NewCard {
   parentId?: string | null;
   duplicateOf?: string | null;
   dependsOn?: string | null;
+  /**
+   * Omit for a card a person made — see {@link Card.origin}. Set at creation and absent from
+   * {@link CardPatch} on purpose: a card does not change where it came from.
+   */
+  origin?: CardOrigin;
   tag?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
@@ -634,6 +666,9 @@ export class BoardDb {
       // 0.67: one tag per card. Nullable with no backfill — the cards already on the board have no
       // tag, and "no tag" is a normal card, not a row waiting to be migrated.
       { table: "card", column: "tag", ddl: "TEXT" },
+      // 0.81: where a card came from. No backfill, and none possible — every card written before
+      // this reads as hand-written, which is very nearly true and is the harmless direction.
+      { table: "card", column: "origin", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -656,9 +691,9 @@ export class BoardDb {
     this.db
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
-                           branch, workspace_id, agent_kind, parent_id, depends_on, tag, position,
-                           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+                           branch, workspace_id, agent_kind, parent_id, depends_on, origin, tag,
+                           position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -673,6 +708,7 @@ export class BoardDb {
         input.agentKind ?? null,
         input.parentId ?? null,
         input.dependsOn ?? null,
+        input.origin ?? null,
         normalizeTag(input.tag),
         input.position ?? (minPos ?? 0) - 1,
         ts,

@@ -10,6 +10,7 @@ import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
 import { RepoFilter } from "@/components/repo-filter";
+import { OriginFilter } from "@/components/origin-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
@@ -23,6 +24,7 @@ import {
   cardPath,
   createCard,
   loadRepoScope,
+  matchesFilters,
   patchCard,
   positionFor,
   repoName,
@@ -96,9 +98,14 @@ export function BoardRoute() {
   const [params, setParams] = useSearchParams();
   const active = params.get("tag");
   const activeRepo = params.get("repo");
-  // One key at a time, the rest of the query kept: the two filters compose, so setting a tag must
+  // Provenance, the third axis: `?origin=copilot` keeps only what the copilot filed on its own. A
+  // separate key rather than a value in `?tag=` because it IS separate — a card has one tag and it
+  // answers what kind of work this is (ADR 0005), so folding "who wrote it" into the same filter
+  // would make the two mutually exclusive for no reason.
+  const autoOnly = params.get("origin") === "copilot";
+  // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
-  const setParam = (key: "tag" | "repo", value: string | null) =>
+  const setParam = (key: "tag" | "repo" | "origin", value: string | null) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -109,6 +116,7 @@ export function BoardRoute() {
       { replace: true, preventScrollReset: true },
     );
   const pick = (tag: string | null) => setParam("tag", tag);
+  const pickAuto = (auto: boolean) => setParam("origin", auto ? "copilot" : null);
   // The repo scope is also REMEMBERED (ADR 0006) — a tag is a momentary lens, a repo is where you
   // are working today, and the card page returns to a bare `/board` with no query on it.
   const pickRepo = (repo: string | null) => {
@@ -166,13 +174,16 @@ export function BoardRoute() {
   // The filter is applied HERE, before anything else reads the list, so every count, every column
   // and the empty state all describe the same board. A child whose container is filtered out stands
   // alone rather than vanishing — `boardEntries` already handles a missing parent that way.
-  const cards = active ? scoped.filter((c) => c.tag === active) : scoped;
+  // Offered only when there is something to offer, from the SCOPED list — same rule as the tags
+  // above, so the strip never proposes a combination that comes back empty.
+  const hasAuto = scoped.some((c) => c.origin === "copilot");
+  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly }));
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
   const showRepo = !activeRepo && repos.length > 1;
   // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
   // self-hiding rule, so the chip never opens onto an empty sheet.
-  const hasFilters = repos.length > 1 || tags.length > 0;
+  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly;
 
   // Cards first become ENTRIES, then get bucketed by column. On a phone a container and its
   // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
@@ -311,6 +322,18 @@ export function BoardRoute() {
                 <X className="size-3" />
               </button>
             )}
+            {/* Same removable chip, third axis. Says "auto" rather than "copilot": the tiles use
+                that word for "the copilot has this card RIGHT NOW", which is a different fact. */}
+            {autoOnly && (
+              <button
+                type="button"
+                onClick={() => pickAuto(false)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                auto
+                <X className="size-3" />
+              </button>
+            )}
             {hasFilters && (
               <button
                 type="button"
@@ -350,10 +373,11 @@ export function BoardRoute() {
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
-              {active || activeRepo ? (
+              {active || activeRepo || autoOnly ? (
                 <>
                   <NonNominalPanel tone="muted" title="Aucune carte qui corresponde">
                     Aucune carte
+                    {autoOnly && <> créée automatiquement</>}
                     {activeRepo && (
                       <>
                         {" "}
@@ -592,6 +616,7 @@ export function BoardRoute() {
         <div className="-mx-4 flex flex-col">
           <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
           <TagFilter tags={tags} active={active} onPick={pick} />
+          <OriginFilter has={hasAuto} active={autoOnly} onPick={pickAuto} />
         </div>
       </BottomSheet>
 
