@@ -6,6 +6,7 @@ import { useAgentTransitions } from "@/hooks/use-transitions";
 import { usePushSetup } from "@/hooks/use-push";
 import { useConnectionLost } from "@/hooks/use-connection-lost";
 import { UpdateAvailableBanner } from "@/components/update-available-banner";
+import { AgentToasts } from "@/components/agent-toasts";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
 import { AppNav } from "@/components/app-nav";
@@ -28,7 +29,7 @@ export function RootLayout() {
   // routine fast polls/navigations stay invisible. Mounted here so the whole app shares one
   // detector inside the router context.
   usePollBusy();
-  useAgentTransitions(data.agents, paneId ?? null);
+  const { toasts, dismiss } = useAgentTransitions(data.agents, paneId ?? null, data.session);
   usePushSetup();
 
   // A viewport-height row on desktop (nav sidebar + content), a column on mobile (content, with the
@@ -49,6 +50,10 @@ export function RootLayout() {
             red "not connected" cause + Retry/Reload at ≥15s, and flashes green on recovery. Reads the
             same shared-clock signals as the nav dog, so the two always agree. */}
         <ConnectionBanner bridge={data.bridge} error={data.error} authError={data.authError} />
+        {/* Foreground notifications, floating under the header on every screen — a ping that arrives
+            while you're in the app is a toast you can tap, not a line in a bar you may not be looking
+            at. Mounted here so it outlives any single route. */}
+        <AgentToasts toasts={toasts} onDismiss={dismiss} />
         <Outlet />
       </div>
     </div>
