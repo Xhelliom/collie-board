@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notification-bell";
 
 interface AppHeaderProps {
   /** Screen title, left-aligned. Ignored when `children` is set (a bespoke breadcrumb — the pane's
@@ -73,7 +73,10 @@ export function AppHeader({
               </div>
             )}
           </div>
-          <div className={cn("flex items-center gap-3", !rightLead && !rightTrail && "hidden")}>
+          <div className="flex items-center gap-3">
+            {/* The bell leads the right cluster on every screen — one place to find what pinged, so
+                a notification you missed on the phone is still reachable from wherever you are. */}
+            <NotificationBell />
             {rightLead}
             {rightTrail}
           </div>

@@ -8,6 +8,7 @@ import type {
   ActionResponse,
   BridgeConfig,
   CreateResponse,
+  NotifyLogEntry,
   NotifyPrefs,
   PaneHistoryResponse,
   PaneReadResponse,
@@ -16,7 +17,7 @@ import type {
   UploadResponse,
 } from "./types";
 
-export type { NotifyPrefs, UpdateInfo };
+export type { NotifyLogEntry, NotifyPrefs, UpdateInfo };
 
 // Exported so a hand-rolled fetch (the board keeps its own conditional-GET cache) can raise an
 // error the loaders still recognise — isApiErrorStatus is an instanceof check, so nothing else can.
@@ -330,6 +331,15 @@ export function setSnooze(snoozedUntil: number | null): Promise<{ snoozedUntil: 
     method: "POST",
     body: JSON.stringify({ snoozedUntil }),
   });
+}
+
+/**
+ * What has pinged, newest first, across every session — the bell's history. Fetched on demand (when
+ * the sheet opens), never polled: it's a memory you consult, not live state.
+ */
+export async function getNotifyLog(): Promise<NotifyLogEntry[]> {
+  const { entries } = await req<{ entries: NotifyLogEntry[] }>("/api/notifications/log");
+  return entries;
 }
 
 /** Fetch the bridge-wide notification-type preferences (which agent statuses push). */

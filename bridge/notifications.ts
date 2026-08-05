@@ -87,6 +87,11 @@ interface Alert {
   status: NotifiableStatus;
 }
 
+/** An alert that has just fired, as handed to the history hook. */
+export interface FiredAlert extends Alert {
+  paneId: string;
+}
+
 export class NotificationCoordinator<H = unknown> {
   /** paneId → debouncing alert (timer + its kind) that hasn't entered the summary yet. */
   private readonly pending = new Map<string, { handle: H; status: NotifiableStatus }>();
@@ -100,6 +105,11 @@ export class NotificationCoordinator<H = unknown> {
     // Whether a transition into a status should notify, read live from the prefs store so a runtime
     // change is honoured. A disabled kind behaves exactly like a non-notifiable status (idle/working).
     private readonly isNotifiable: (status: AgentStatus) => boolean,
+    // Called once per alert that survives the debounce, BEFORE the sink's mute gate — the history
+    // (bridge/notify-log.ts) records what pinged, including during quiet hours, which is precisely
+    // the ping you go looking for afterwards. A retraction never reaches it: the summary changes,
+    // what happened doesn't.
+    private readonly onFire?: (alert: FiredAlert) => void,
   ) {}
 
   /** Wire to `StateEngine.onTransition`. */
@@ -122,6 +132,7 @@ export class NotificationCoordinator<H = unknown> {
     const handle = this.clock.schedule(() => {
       this.pending.delete(id);
       this.outstanding.set(id, alert);
+      this.onFire?.({ ...alert, paneId: id });
       this.emit(true);
     }, this.delayMs);
     this.pending.set(id, { handle, status: alert.status });
