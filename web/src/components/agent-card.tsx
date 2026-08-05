@@ -46,6 +46,12 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
                 icon still shows which agent it is (see paneDisplayName). */}
             <span className="truncate font-medium">{paneDisplayName(agent)}</span>
             <span className="truncate text-xs text-muted-foreground">· {agent.workspaceLabel}</span>
+            {/* The pane number — two agents in one space+tab are otherwise the same card twice
+                (same name, same cwd, same ctx), so "which one did I just tap?" has no answer. The
+                pane rail already labels its rows this way. */}
+            <span className="shrink-0 font-mono text-xs text-muted-foreground/70">
+              {agent.paneId.split(":").pop()}
+            </span>
           </div>
           {/* Branch gets its OWN row: unlike cwd/ctx% it's unbounded length, and packing it into the
               row below starved ctx% of room (confirmed in a real browser at phone width — the branch

@@ -4,7 +4,6 @@ import { useNavigate, useRevalidator } from "react-router";
 import {
   ArrowUpToLine,
   BookOpenText,
-  ChevronsUpDown,
   EllipsisVertical,
   Loader2,
   ScrollText,
@@ -30,6 +29,7 @@ import { splitLines } from "@/lib/blocks";
 import { adapterFor } from "@/lib/harness";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import { FindBar } from "@/components/find-bar";
+import { PaneMenu } from "@/components/pane-menu";
 import { Composer, type ComposerHandle } from "@/components/composer";
 import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
@@ -542,6 +542,12 @@ export function AgentChat({
     if (id !== paneId) onSelect(id);
   }
 
+  // The breadcrumb's pane menu switches WITHIN this space (agents and shells alike) — the whole-herd
+  // list belongs to the swipe-up switcher. Empty while the pane isn't in the snapshot yet.
+  const spacePanes = agent
+    ? [...agents, ...shellPanes].filter((p) => p.workspaceId === agent.workspaceId)
+    : [];
+
   // Jump to another tab in this space by opening one of its panes (the in-pane tab bar).
   function goToTab(tabId: string) {
     if (!agent || tabId === agent.tabId) return;
@@ -743,6 +749,14 @@ export function AgentChat({
                     </>
                   )}
                 </span>
+                {/* The pane segment. OUTSIDE the truncating span above — that one is
+                    overflow:hidden, which would clip the menu's dropdown. Without this segment two
+                    panes of the same space+tab (two Claude sessions in one repo) render an
+                    IDENTICAL header, so switching between them looks like it did nothing. */}
+                <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
+                  <span className="shrink-0 text-muted-foreground/50">›</span>
+                  <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
+                </span>
               </div>
             </>
           ) : (
@@ -864,14 +878,9 @@ export function AgentChat({
                 </>
               )}
               <span className="shrink-0 text-muted-foreground/50">›</span>
-              <button
-                type="button"
-                onClick={() => setDrawer("switcher")}
-                className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-[7px] py-0.5 font-semibold text-foreground transition-colors hover:bg-muted/70"
-              >
-                {paneId.split(":").pop()}
-                <ChevronsUpDown className="size-2.5" />
-              </button>
+              {/* Same segment as the desktop toolbar: this space's panes only. The whole herd stays
+                  one swipe away on the handle above the composer. */}
+              <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {agent.ctxPct != null && (
