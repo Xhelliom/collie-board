@@ -534,6 +534,70 @@ export class BoardDb {
   }
 
   /**
+   * Every row of every table, keyed by table name — the backup's payload (see backup.ts).
+   *
+   * Read from `sqlite_master` rather than from a hardcoded list on purpose: the next table added to
+   * SCHEMA is in the backup the day it exists, with nobody having to remember this method.
+   */
+  dump(): Record<string, unknown[]> {
+    const out: Record<string, unknown[]> = {};
+    // Table names come from sqlite_master, so the interpolation below is our own schema, not input.
+    for (const name of this.tableNames()) out[name] = this.db.query(`SELECT * FROM "${name}"`).all();
+    return out;
+  }
+
+  /**
+   * Write a backup's row dump back over the tables, and return how many rows landed in each.
+   *
+   * One transaction, so a restore that trips a constraint leaves the board exactly as it was. What
+   * it deliberately tolerates: a table this schema doesn't have (a newer Collie's), a table missing
+   * from the backup (an older one's — left untouched rather than emptied), and a column on either
+   * side the other doesn't know. A restore of an overlapping schema beats a refusal.
+   */
+  restore(tables: Record<string, unknown[]>): Record<string, number> {
+    const counts: Record<string, number> = {};
+    this.db.transaction(() => {
+      // Rows arrive table by table, so `session` can land before the `card` it references. Deferring
+      // the checks to COMMIT keeps the constraint (a dangling card_id still rolls the whole thing
+      // back) without imposing an insertion order the dump doesn't carry.
+      this.db.exec("PRAGMA defer_foreign_keys = ON");
+      for (const name of this.tableNames()) {
+        const rows = tables[name];
+        if (!Array.isArray(rows)) continue;
+        const columns = new Set(
+          this.db.query<{ name: string }, []>(`PRAGMA table_info("${name}")`).all().map((c) => c.name),
+        );
+        this.db.exec(`DELETE FROM "${name}"`);
+        for (const row of rows as Record<string, unknown>[]) {
+          const keys = Object.keys(row).filter((k) => columns.has(k));
+          if (keys.length === 0) continue;
+          const values = keys.map((k) => (typeof row[k] === "boolean" ? (row[k] ? 1 : 0) : row[k]));
+          this.db
+            .query(
+              `INSERT INTO "${name}" (${keys.map((k) => `"${k}"`).join(", ")})
+               VALUES (${keys.map(() => "?").join(", ")})`,
+            )
+            .run(...(values as (string | number | null)[]));
+        }
+        counts[name] = rows.length;
+      }
+    })();
+    return counts;
+  }
+
+  /** Our own tables, alphabetical — sqlite's internal ones excluded. */
+  private tableNames(): string[] {
+    return this.db
+      .query<{ name: string }, []>(
+        `SELECT name FROM sqlite_master
+          WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+          ORDER BY name`,
+      )
+      .all()
+      .map((t) => t.name);
+  }
+
+  /**
    * Additive migrations. `CREATE TABLE IF NOT EXISTS` gets a NEW database right and does nothing at
    * all for an existing one, so a column added after someone's board has cards in it needs this.
    *
