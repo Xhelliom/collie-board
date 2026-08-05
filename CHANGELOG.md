@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.75.0] - 2026-08-05
+
+### Added
+- `PaneMenu`: the breadcrumb's `pN` chip drops down this space's panes; the handle's whole-herd sheet is unchanged (6d75e8a).
+
+### Fixed
+- Desktop pane header carries the `› pN` segment the mobile breadcrumb already had — two panes of one space+tab rendered an identical header, so switching looked like a no-op (6d75e8a).
+- Space view's pane card shows its pane number — two agents in one tab were the same card twice (6d75e8a).
+
 ## [0.74.0] - 2026-08-05
 
 ### Added
