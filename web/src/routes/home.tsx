@@ -24,8 +24,8 @@ export function HomeRoute() {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       {/* The dashboard toolbar: title + a live pane/space count, the session switcher trailing
-          (dashboard-only — it self-hides on a single-session install). Settings is a nav destination
-          now, not a header gear. */}
+          (also on Spaces, the other session-scoped root screen — it self-hides on a single-session
+          install). Settings is a nav destination now, not a header gear. */}
       <AppHeader
         title="Herd"
         subtitle={`${data.agents.length} pane${data.agents.length === 1 ? "" : "s"} · ${data.workspaces.length} space${data.workspaces.length === 1 ? "" : "s"}`}
