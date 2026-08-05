@@ -194,6 +194,7 @@ export function startServer(opts: {
       if (
         pathname.startsWith("/api/cards") ||
         pathname.startsWith("/api/repos") ||
+        pathname.startsWith("/api/board") ||
         pathname.startsWith("/api/backup")
       ) {
         const rt = registry.get();

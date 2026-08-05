@@ -7,6 +7,7 @@ import { BackupControl } from "@/components/backup-control";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { ConnectionInfo } from "@/components/connection-info";
+import { FollowUpsControl } from "@/components/follow-ups-control";
 import { Card } from "@/components/ui/card";
 import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 import { SnoozeControl } from "@/components/snooze-control";
@@ -103,6 +104,8 @@ export function SettingsRoute() {
             <SnoozeControl snoozedUntil={root?.snoozedUntil ?? null} />
           </>
         )}
+
+        <FollowUpsControl />
 
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
         <UpdateCheckControl />

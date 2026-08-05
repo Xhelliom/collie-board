@@ -1075,7 +1075,14 @@ export class CopilotCoordinator {
     // The loop closes here: what the agent left in plan becomes the next cards. A full card, not a
     // bare title — see the warning on SplitTask. Created BEFORE the review record so the review can
     // link to what it produced — the card the user taps through to from "N follow-ups added".
-    const todos: ReviewTodo[] = (result.todos ?? []).map((todo) => {
+    //
+    // Only once the operator has opted into it (`autoFollowUps`, off by default): a review is worth
+    // having for its verdict and notes alone, and a board that refills itself is not what everyone
+    // wants.
+    // ponytail: the suggestions are dropped, not stored card-less — a `cardId: null` todo renders as
+    // "deleted since" (struck through). Keep them if that ever gets its own rendering.
+    const suggested = this.db.autoFollowUps() ? (result.todos ?? []) : [];
+    const todos: ReviewTodo[] = suggested.map((todo) => {
       const created = this.db.createCard({
         title: todo.title,
         spec: todo.spec ?? null,
