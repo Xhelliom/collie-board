@@ -38,7 +38,7 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|revert|integration|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -443,6 +443,40 @@ async function route(
     void ctx.copilot.reformulate(id, source);
     ctx.audit.record({
       action: "card.reformulate",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id },
+    });
+    return json({ ok: true, card: view(id) });
+  }
+
+  // ── refine: one free-text correction, applied to the card as it stands ────
+  //
+  // Separate from `reformulate` because the SOURCE differs, and that is the whole point: this one
+  // reads the current card, not the original dictation, so "you said the format is unspecified —
+  // make it JSON" fixes one sentence instead of redoing the card from the dump.
+  if (action === "refine" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    if (!ctx.cfg.boardCopilot) {
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    }
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const { instruction } = (body ?? {}) as { instruction?: unknown };
+    if (typeof instruction !== "string" || !instruction.trim()) {
+      return text("instruction required", 400);
+    }
+    // Capped like every other free text that rides into a prompt — a dictation that ran away would
+    // otherwise push the card itself out of the model's attention.
+    void ctx.copilot.refine(id, instruction.slice(0, 4000));
+    ctx.audit.record({
+      action: "card.refine",
       session: ctx.session,
       device: ctx.device,
       detail: { cardId: id },

@@ -47,6 +47,12 @@ describe("describe", () => {
     );
   });
 
+  it("quotes the correction back — 'the copilot corrected this' alone says nothing", () => {
+    expect(describeEvent(event("copilot.refined", { instruction: "say the format is json" }))).toBe(
+      "Corrected on your instruction: “say the format is json”",
+    );
+  });
+
   it("mentions the predecessor a worktree was forked from", () => {
     expect(describeEvent(event("card.worktree", { branch: "board/x", after: "Audit" }))).toBe(
       "Worktree on board/x, after “Audit”",

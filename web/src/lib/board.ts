@@ -712,3 +712,18 @@ export function reformulateCard(id: string): Promise<{ ok: true; card: CardView 
     { method: "POST" },
   );
 }
+
+/**
+ * Hand the card back to the copilot WITH a correction to apply — "you said the format isn't
+ * specified, say it will be JSON".
+ *
+ * Not `reformulateCard` with an extra argument, because the input is different: this one works from
+ * the card as it stands, so it fixes the one thing that came out wrong instead of redoing the card
+ * from the original dictation. Returns immediately, same as every copilot call.
+ */
+export function refineCard(id: string, instruction: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/refine`, {
+    method: "POST",
+    body: JSON.stringify({ instruction }),
+  });
+}

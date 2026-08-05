@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { DangerZone, noteLabel, resolveWatchStep, SubtaskProgress } from "./card.tsx";
+import { DangerZone, noteLabel, PromptBox, resolveWatchStep, SubtaskProgress } from "./card.tsx";
 import type { CardStatus, CardView } from "@/lib/board";
 
 function card(status: CardStatus): CardView {
@@ -85,6 +85,39 @@ describe("DangerZone", () => {
 
     await user.click(screen.getByRole("button", { name: /no undo/i }));
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+// One box, two callers: a follow-up for the running agent, and a correction for the copilot. Send
+// is an explicit tap because that textarea IS the phone's voice input — dictated text gets reread
+// before it goes anywhere.
+describe("PromptBox", () => {
+  it("sends the trimmed text under the caller's own label, then clears itself", async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PromptBox
+        onSend={onSend}
+        placeholder="what came out wrong…"
+        sendLabel="Send to the copilot"
+      />,
+    );
+    const box = screen.getByPlaceholderText("what came out wrong…");
+
+    await user.type(box, "  say the format will be json  ");
+    await user.click(screen.getByRole("button", { name: "Send to the copilot" }));
+
+    expect(onSend).toHaveBeenCalledWith("say the format will be json");
+    expect(box).toHaveValue("");
+  });
+
+  it("stays disabled on whitespace — an empty instruction is not a correction", async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn();
+    render(<PromptBox onSend={onSend} />);
+
+    await user.type(screen.getByRole("textbox"), "   ");
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
 });
 
