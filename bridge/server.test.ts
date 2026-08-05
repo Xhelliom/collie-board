@@ -214,6 +214,11 @@ describe("checkAccess — Origin required for writes", () => {
       ),
     ).toEqual({ ok: true });
   });
+
+  test("GET at write level with no Origin from a non-loopback Host still passes (the backup export)", () => {
+    const getReq = { ...req({ host: "collie.example.ts.net" }), method: "GET" } as unknown as Request;
+    expect(checkAccess(getReq, cfg(), "write")).toEqual({ ok: true });
+  });
 });
 
 describe("isHostAllowed", () => {

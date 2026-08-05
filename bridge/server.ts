@@ -985,9 +985,11 @@ async function uploadPane(
  *  - Same-origin only (Origin host must equal Host) — defeats cross-site requests/CSRF. Browsers
  *    omit Origin on same-origin GETs (so the snapshot poll passes); they send it on POSTs.
  *    localhost and explicitly-configured origins are also allowed.
- *  - Origin required for writes: a state-changing (`level === "write"`) request with no Origin is
- *    trusted only from loopback (curl on the host). Browsers always send Origin on fetch/SW POSTs,
- *    so a missing Origin on a remote write is a non-browser or Origin-stripped request — reject it.
+ *  - Origin required for writes: a state-changing, non-GET (`level === "write"`) request with no
+ *    Origin is trusted only from loopback (curl on the host). Browsers always send Origin on
+ *    fetch/SW POSTs, so a missing Origin on a remote write is a non-browser or Origin-stripped
+ *    request — reject it. GET stays exempt even at `level === "write"` (e.g. the backup export,
+ *    write-gated only for its device-auth check below): browsers omit Origin on a same-origin GET.
  *  - Optional Tailscale identity: if a trusted user is configured and `tailscale serve` injects a
  *    `Tailscale-User-Login`, it must match.
  */
@@ -1017,8 +1019,12 @@ export function checkAccess(
       LOOPBACK_HOST.test(originHost) ||
       cfg.allowedOrigins.includes(origin);
     if (!allowed) return { ok: false, reason: "cross-origin rejected" };
-  } else if (level === "write" && !LOOPBACK_HOST.test(host)) {
-    // A write with no Origin header from a non-loopback Host isn't a real browser request — refuse.
+  } else if (level === "write" && req.method !== "GET" && !LOOPBACK_HOST.test(host)) {
+    // A mutating request with no Origin header from a non-loopback Host isn't a real browser request
+    // — refuse. GET is exempt: browsers omit Origin on a same-origin GET even at the "write" level
+    // (the backup export takes that level purely for the device-auth gate below, not because it
+    // mutates), so requiring Origin here would reject the same legitimate request checkAccess("read")
+    // already accepts without it.
     return { ok: false, reason: "origin required" };
   }
 
