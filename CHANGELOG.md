@@ -7,6 +7,22 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.76.0] - 2026-08-05
+
+### Added
+- Idle-lock cover reworked: never locks a hidden page, auto-resumes on returning to the foreground, sits above a still-mounted router instead of unmounting it — a paused screen no longer eats an in-progress draft (c5e6776).
+- Glass catch-up cover: outlives the lock through the resume refetch, gallop badge (reused `NavMark`) instead of a static one while it's fetching (c5e6776).
+
+### Fixed
+- Composer draft is lost on every pane switch (navigate away and back) — persisted per-pane in a module-scoped map so `AgentChat`'s remount (`key={paneId}`) no longer wipes unsent text (6050f3e).
+- Symlink planted alongside a Claude transcript log could be followed out of the transcript root by `followContinuation`'s sibling scan and served via `GET /api/pane/:id/history` — containment now revalidated on the scan's pick (23a55d4).
+- Agent-alert and clear pushes sent at default web-push urgency, which Android's Doze/App-Standby bucketing could defer indefinitely — now sent at `urgency: "high"` (ecaa53b).
+- `collie-board-ctl.sh update` failed with "You are not currently on a branch" on a `herdr plugin install`-managed checkout (detached, shallow) — now advances via fetch + re-detach in that shape, falls back to `git pull --ff-only` for a linked clone (32ab75a).
+- A statusline taller than 3 rows made the input-box detector give up entirely, stalling sends with "Message didn't reach the input box" even though the text was in the box — ceiling raised to 8 (c4f57d8).
+
+### Changed
+- `ARCHITECTURE.md` / `CLAUDE.md` no longer describe the idle-lock as unmounting the router or as a security measure — see [ADR 0007](./.adr/0007-the-idle-lock-is-a-pause-not-a-gate.md) (c5e6776).
+
 ## [0.75.0] - 2026-08-05
 
 ### Added
