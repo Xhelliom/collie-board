@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.80.0] - 2026-08-05
+
+### Added
+- Settings → Follow-up cards: the switch for the backlog cards a review creates when a card is filed as done. Stored in `board.db`, so it survives a restart (798bb56).
+
+### Changed
+- **Those follow-up cards are now off by default** — filing a card as done no longer refills the backlog on its own. The review still runs and still records what it found undone; turn the switch on to get cards from it again (798bb56).
+
 ## [0.79.1] - 2026-08-05
 
 ### Fixed
