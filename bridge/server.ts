@@ -191,7 +191,11 @@ export function startServer(opts: {
       // Bound to the PRIMARY herdr session, deliberately: a card's pane id only means anything
       // inside the server that issued it, and the board is a single-machine, single-herd object.
       // Multi-session cards would need a session column on every row for no use case that exists.
-      if (pathname.startsWith("/api/cards") || pathname.startsWith("/api/repos")) {
+      if (
+        pathname.startsWith("/api/cards") ||
+        pathname.startsWith("/api/repos") ||
+        pathname.startsWith("/api/backup")
+      ) {
         const rt = registry.get();
         if (!rt) return unknownSession();
         const boardRes = await handleBoardRoute(pathname, req, {
