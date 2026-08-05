@@ -29,15 +29,16 @@ What was touched in upstream files, and why — this list is the thing to keep s
 
 | File | Change |
 |---|---|
-| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes |
-| `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks |
+| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route — brick 18 in the ledger |
+| `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks; the `NotifyLog` and its coordinator hook — brick 18 in the ledger |
+| `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger |
 | `bridge/config.ts` | the `board*` config block |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor |
 | `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
-| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after` |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger |
 | `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
-| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too |
+| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger |
 | `web/src/router.tsx` | two routes; a per-leaf `errorElement` |
 | `web/src/routes/home.tsx` | a Board row; the screen's `<h1>` |
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger |
@@ -49,7 +50,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture |
 | `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
 
-Rebasing means resolving those nineteen, not the whole tree. Keep it that way: if a change wants to
+Rebasing means resolving those twenty, not the whole tree. Keep it that way: if a change wants to
 spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix,
 `use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` / `api.ts` /
 `loaders.ts`) are pure upstream material — they are in the ledger, and once merged they leave this

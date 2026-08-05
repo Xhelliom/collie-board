@@ -11,6 +11,7 @@ import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
 import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
+import type { NotifyLog } from "./notify-log.ts";
 import type { NotifyPrefs, NotifyPrefsStore } from "./notify-prefs.ts";
 import type { Push, PushSubscription } from "./push.ts";
 import { herdTagFor, type SessionRegistry } from "./sessions.ts";
@@ -102,6 +103,8 @@ export function startServer(opts: {
   push: Push;
   snooze: Snooze;
   notifyPrefs: NotifyPrefsStore;
+  /** What has pinged, across every session — read by the app header's bell. */
+  notifyLog: NotifyLog;
   updateMonitor: UpdateMonitor;
   audit: AuditLog;
   /** The board's durable store (the fork's addition). */
@@ -119,7 +122,7 @@ export function startServer(opts: {
    */
   adapters: Record<string, AgentAdapter>;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, updateMonitor, audit, board, copilot, context, adapters } =
+  const { cfg, registry, push, snooze, notifyPrefs, notifyLog, updateMonitor, audit, board, copilot, context, adapters } =
     opts;
   // One transcript store for the process: it caches parsed session logs across requests, and the
   // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
@@ -346,6 +349,13 @@ export function startServer(opts: {
           }
         }
         return json({ snoozedUntil: snooze.until() }, req.headers.get("accept-encoding"));
+      }
+      if (pathname === "/api/notifications/log" && req.method === "GET") {
+        // What has pinged (newest first, every session). Read-level like the rest of this block —
+        // and it only ever restates alerts this bridge already pushed to the device.
+        const denied = guard(req, cfg, "read");
+        if (denied) return denied;
+        return json({ entries: notifyLog.recent() }, req.headers.get("accept-encoding"));
       }
       if (pathname === "/api/notifications/prefs") {
         // Which agent statuses push (bridge-wide). Read-level like snooze — managing your own

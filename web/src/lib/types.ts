@@ -262,6 +262,24 @@ export interface NotifyPrefs {
   updates: boolean;
 }
 
+/**
+ * One past notification, as the bell's history lists it. Mirrors NotifyLogEntry in
+ * bridge/notify-log.ts. In-memory on the bridge, so it resets when the bridge restarts.
+ */
+export interface NotifyLogEntry {
+  id: number;
+  /** When it fired (epoch ms). */
+  ts: number;
+  agent: string;
+  workspaceLabel: string;
+  cwd: string;
+  status: "blocked" | "done";
+  /** The pane that pinged — the entry deep-links to it. */
+  paneId: string;
+  /** Registry name of the pane's session; absent for the primary. */
+  session?: string;
+}
+
 /** Lower sorts first — "needs you" at the top. Mirrors STATUS_RANK on the server. */
 export const STATUS_RANK: Record<AgentStatus, number> = {
   blocked: 0,

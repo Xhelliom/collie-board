@@ -549,6 +549,40 @@ descendant this doesn't have; native buttons carry Tab and their own accessible 
 
 ---
 
+## 18. 🔵 A bell: what pinged, after the notification is gone
+
+Upstream's notification coordinator is deliberate about the lock screen — one slot for the whole
+herd, retracted the moment the work is handled. The corollary is that a ping you slept through leaves
+**no trace anywhere**: nothing in the app says an agent needed you at 3am, and nothing takes you to
+the pane that asked. The alert is the only record, and it deletes itself.
+
+| | |
+|---|---|
+| Commit | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* |
+| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
+| Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
+
+**Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
+transition that survives the debounce — so an alert that resolved at your desk inside the debounce
+window never enters the history either, and one entry means one agent, carrying its `paneId`. The
+sink's summary can't do that job: a multi-agent digest has no pane to deep-link to, and a silent
+retraction re-renders the same summary again.
+
+**Before the mute gate, on purpose.** An alert that fired during quiet hours is precisely the one you
+go looking for afterwards. Snooze suppresses the buzz; it doesn't rewrite what happened.
+
+**In memory, bounded, not persisted.** Fifty entries in a ring, gone with the bridge. It is runtime
+state — the thing this history exists to survive is the *notification*, not the process.
+
+**Fetched when the sheet opens.** The snapshot poll runs every 1.5s and fifty entries in it would be
+a permanent tax on a list you consult occasionally.
+
+**A notification that arrived while the app was open lands here too** — the bridge records the alert
+it pushed, and whether a visible client made the service worker suppress the banner is downstream of
+that.
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately
