@@ -193,6 +193,28 @@ describe("extractStatusLines — recovers the stripped chrome under the box", ()
   });
 });
 
+// Regression: a statusline is an arbitrary user command's output (git state, PR/review state, a
+// context meter, a session timer are all independently toggled rows), so nothing caps its height —
+// but MAX_STATUS_LINES did, at 3. Above it locateInputBox's walk stops mid-run instead of on the
+// bottom border, so the box is never found at all: extractStatusLines went silently empty AND
+// extractInputDraft went null, which is what actually broke sendGuardedReply ("Message didn't reach
+// the input box") even though the text was sitting right there in the box. Raised to 8.
+describe("the statusline run is as tall as a real statusline (MAX_STATUS_LINES)", () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => `status row ${i}`);
+
+  it.each([4, 5, 6, 7, 8])("locates the box and recovers all %i rows, not just the first 3", (n) => {
+    const lines = boxBufferWithStatus("❯ my draft", rows(n));
+    expect(extractStatusLines(lines)).toEqual(rows(n));
+    expect(extractInputDraft(lines)).toBe("my draft");
+  });
+
+  it("still falls back to the raw mirror past the deliberate ceiling", () => {
+    const lines = boxBufferWithStatus("❯ my draft", rows(9));
+    expect(extractStatusLines(lines)).toEqual([]);
+    expect(extractInputDraft(lines)).toBeNull();
+  });
+});
+
 // extractInputDraft recovers a user draft stranded on the "❯" prompt line (a queued-then-recalled
 // message that stripChrome would otherwise hide) — the marker + separator stripped, trimmed; null
 // for an empty box, a TUI placeholder, or no box at the tail.
