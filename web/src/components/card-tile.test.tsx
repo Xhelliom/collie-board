@@ -21,6 +21,7 @@ function card(over: Partial<CardView> = {}): CardView {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    origin: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -85,6 +86,20 @@ describe("CardTile — status row (loud / named / silent)", () => {
   it("says nothing once the copilot is done with it", () => {
     const { container } = render(<CardTile card={card({ copilotBusy: false })} onClick={() => {}} />);
     expect(container.textContent).toBe("ship the diff view");
+  });
+
+  it("a card the copilot filed on its own says so — with nothing else on the tile, and next to its tag", () => {
+    // The tile it lands on is exactly the one whose status row wouldn't otherwise render: a fresh
+    // backlog card, no pane, no branch. And the tag is still its own — provenance didn't cost it.
+    render(<CardTile card={card({ origin: "copilot", tag: "infra" })} onClick={() => {}} />);
+    expect(screen.getByText("auto")).toBeInTheDocument();
+    expect(screen.getByText("infra")).toBeInTheDocument();
+  });
+
+  it("drops the automatic badge while the copilot is working on that card — one sparkle, not two", () => {
+    render(<CardTile card={card({ origin: "copilot", copilotBusy: true })} onClick={() => {}} />);
+    expect(screen.getByText("copilot")).toBeInTheDocument();
+    expect(screen.queryByText("auto")).toBeNull();
   });
 
   it("the tag chip renders alongside whichever status treatment is showing", () => {

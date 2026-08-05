@@ -21,6 +21,7 @@ function card(status: CardStatus): CardView {
     parentId: "container",
     duplicateOf: null,
     dependsOn: null,
+    origin: null,
     tag: null,
     position: 0,
     createdAt: 0,

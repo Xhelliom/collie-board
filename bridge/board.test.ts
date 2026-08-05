@@ -230,6 +230,7 @@ describe("reconcileOne", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    origin: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -566,6 +567,7 @@ describe("initialPrompt", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    origin: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -1050,6 +1052,7 @@ describe("handoff prompts", () => {
     parentId: null,
     duplicateOf: null,
     dependsOn: null,
+    origin: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -2476,6 +2479,18 @@ describe("the copilot tags what it creates", () => {
     expect(store.listChildren(card.id).map((c) => c.tag)).toEqual(["docs", "ui"]);
   });
 
+  it("leaves a split's cards unmarked — you dictated the dump, and `parentId` already says where they came from", async () => {
+    const store = db();
+    const card = store.createCard({ title: "x", rawInput: "two things" });
+    const { copilot } = fakeCopilot({ title: "Container", split: [{ title: "one" }, { title: "two" }] });
+
+    await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
+
+    const children = store.listChildren(card.id);
+    expect(children.map((c) => c.origin)).toEqual([null, null]);
+    expect(children.every((c) => c.parentId === card.id)).toBe(true);
+  });
+
   it("makes one split agree with itself — two spellings of a tag neither the board had", async () => {
     const store = db();
     const card = store.createCard({ title: "x", rawInput: "two things" });
@@ -2487,6 +2502,25 @@ describe("the copilot tags what it creates", () => {
     await new CopilotCoordinator(store, copilot, cfg).reformulate(card.id);
 
     expect(store.listChildren(card.id).map((c) => c.tag)).toEqual(["front-end", "front-end"]);
+  });
+
+  it("marks a review follow-up as written by the copilot — the card it followed stays untouched", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r", tag: "infra" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
+    const { copilot } = fakeCopilot({ verdict: "partial", notes: "ok", todos: [{ title: "next" }] });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const created = store.listCards().find((c) => c.title === "next")!;
+    expect(created.origin).toBe("copilot");
+    // And it still carries a real tag: provenance is a second axis, it doesn't cost the card its own.
+    expect(created.tag).toBe("infra");
+    expect(store.getCard(reviewed.id)?.origin).toBeNull();
   });
 
   it("tags a review follow-up, defaulting to the tag of the work it followed", async () => {

@@ -7,6 +7,7 @@ import {
   canDropCard,
   MANUAL_STATUSES,
   loadRepoScope,
+  matchesFilters,
   positionFor,
   repoName,
   reposOf,
@@ -162,6 +163,31 @@ describe("tagsOf", () => {
 
   it("is empty on a board with no tags at all", () => {
     expect(tagsOf([card(null, 1), card(null, 2)])).toEqual([]);
+  });
+});
+
+describe("matchesFilters", () => {
+  const card = (over: Partial<CardView>) => ({ tag: null, origin: null, ...over }) as CardView;
+  const auto = card({ origin: "copilot", tag: "infra" });
+  const hand = card({ tag: "infra" });
+
+  it("keeps everything when neither filter is on", () => {
+    expect([auto, hand].filter((c) => matchesFilters(c, { tag: null, autoOnly: false }))).toEqual([
+      auto,
+      hand,
+    ]);
+  });
+
+  it("isolates the cards the copilot filed on its own", () => {
+    expect([auto, hand].filter((c) => matchesFilters(c, { tag: null, autoOnly: true }))).toEqual([
+      auto,
+    ]);
+  });
+
+  it("composes with the tag — an automatic card keeps its own tag, so both axes still answer", () => {
+    expect(matchesFilters(auto, { tag: "infra", autoOnly: true })).toBe(true);
+    expect(matchesFilters(auto, { tag: "ui", autoOnly: true })).toBe(false);
+    expect(matchesFilters(hand, { tag: "infra", autoOnly: true })).toBe(false);
   });
 });
 

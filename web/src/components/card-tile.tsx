@@ -114,7 +114,9 @@ export function CardTile({
   // `copilotBusy` counts: a card the copilot is writing is typically a bare title with no pane, no
   // branch and no criteria yet — i.e. exactly the card whose meta row does NOT render, which is
   // where this used to live and therefore never showed.
-  const statusRow = Boolean(loud || named || repo || card.copilotBusy);
+  // `origin` counts for the same reason as `copilotBusy`: an automatic card is a fresh backlog card
+  // with no pane, no branch and no repo shown, i.e. exactly the tile whose row 1 doesn't render.
+  const statusRow = Boolean(loud || named || repo || card.copilotBusy || card.origin);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
@@ -187,6 +189,15 @@ export function CardTile({
               <span className="flex shrink-0 animate-pulse items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
                 <Sparkles className="size-3" />
                 copilot
+              </span>
+            )}
+            {/* "This card wrote itself" — the review filed it while you were elsewhere, and nothing
+                else on the tile would say so. Suppressed while `copilotBusy` is up: two identical
+                sparkles side by side, one of them pulsing, reads as one glitching badge. */}
+            {card.origin === "copilot" && !card.copilotBusy && (
+              <span className="flex shrink-0 items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
+                <Sparkles className="size-3" />
+                auto
               </span>
             )}
             {card.tag && (

@@ -49,7 +49,9 @@ export function FollowUpsControl() {
           <div className="min-w-0">
             <div className="font-medium">Follow-up cards</div>
             <p className="text-sm text-muted-foreground">
-              When a card is done, add what the review found still undone to the backlog.
+              When a card is done, add what the review found still undone to the backlog. Those
+              cards are marked <span className="font-medium text-foreground">auto</span>, and the
+              board filters on it.
             </p>
           </div>
         </div>

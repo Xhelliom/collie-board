@@ -1090,6 +1090,10 @@ export class CopilotCoordinator {
         status: "backlog",
         repoPath: card.repoPath,
         baseRef: card.baseRef,
+        // The one place a card appears with nobody asking: the review runs hours later, while you
+        // are somewhere else. Nothing else on the card would say so — a split doesn't get this,
+        // because you dictated it and `parentId` already points at the dump it came out of.
+        origin: "copilot",
         // A follow-up to reviewed work lives in the same area as the work — the reviewed card's tag
         // is the better default than none, and the copilot only overrides it when it says otherwise.
         tag: pickTag(todo.tag, tags) ?? card.tag,
