@@ -178,35 +178,36 @@ export function ReadingView({
               {note ?? "Loading…"}
             </div>
           ) : (
-            <>
-              <TranscriptView entries={entries} agent={agent} />
-              {/* Text sitting on the terminal's "❯" line — a DRAFT, which is not the same thing as a
-                  queued message and must not read as one. A draft was typed and not submitted (the
-                  common case: you wrote it while the agent was busy compacting); a QUEUED message was
-                  submitted, and Claude Code then replaces the line with "Press up to edit queued
-                  messages" — its text is nowhere in the mirror, so this block can never show it (see
-                  INPUT_PLACEHOLDERS in harness/claude/chrome.ts, which is why the draft goes null).
-                  Same vocabulary as the composer's own chip, so one thing has one name in this app.
-                  Rendered dashed and muted: it is the one thing on screen that is NOT in the
-                  conversation. Verbatim text node, never Markdown — this is raw input. */}
-              {pendingInput && (
-                <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
-                  <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    <User className="size-3" />
-                    Draft in terminal · not sent
-                  </div>
-                  <div className="whitespace-pre-wrap break-words text-base text-muted-foreground">
-                    {pendingInput}
-                  </div>
-                </div>
-              )}
-              {working && (
-                <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Still writing — this turn appears when the agent finishes it.
-                </div>
-              )}
-            </>
+            <TranscriptView entries={entries} agent={agent} />
+          )}
+          {/* Outside the entries branch on purpose: a draft on the input line doesn't depend on the
+              transcript having loaded, so it must show even while entries is still empty ("Loading…"
+              or a no-log/empty pane) — otherwise it's stuck behind the fetch that has nothing to do
+              with it. Text sitting on the terminal's "❯" line — a DRAFT, which is not the same thing
+              as a queued message and must not read as one. A draft was typed and not submitted (the
+              common case: you wrote it while the agent was busy compacting); a QUEUED message was
+              submitted, and Claude Code then replaces the line with "Press up to edit queued
+              messages" — its text is nowhere in the mirror, so this block can never show it (see
+              INPUT_PLACEHOLDERS in harness/claude/chrome.ts, which is why the draft goes null).
+              Same vocabulary as the composer's own chip, so one thing has one name in this app.
+              Rendered dashed and muted: it is the one thing on screen that is NOT in the
+              conversation. Verbatim text node, never Markdown — this is raw input. */}
+          {pendingInput && (
+            <div className="mt-3 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <User className="size-3" />
+                Draft in terminal · not sent
+              </div>
+              <div className="whitespace-pre-wrap break-words text-base text-muted-foreground">
+                {pendingInput}
+              </div>
+            </div>
+          )}
+          {working && (
+            <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" />
+              Still writing — this turn appears when the agent finishes it.
+            </div>
           )}
         </ChatMessageList>
       </div>

@@ -147,6 +147,18 @@ describe("ReadingView", () => {
     expect(screen.queryByText(/queued/i)).not.toBeInTheDocument();
   });
 
+  // Regression: the draft block used to live inside the `entries.length > 0` branch, so it was
+  // invisible for as long as the transcript fetch hadn't resolved yet — exactly when a message typed
+  // while the agent was busy is most likely to be sitting there.
+  it("shows a draft even before the transcript has loaded", async () => {
+    server.use(
+      http.get(/\/api\/pane\/[^/]+\/history/, () => new Promise(() => {})),
+    );
+    render(<ReadingView {...props} pendingInput="tu peux merge la PR 432" />);
+    expect(await screen.findByText("tu peux merge la PR 432")).toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+  });
+
   it("shows nothing pending when the input line is empty", async () => {
     render(<ReadingView {...props} />);
     await screen.findByText("One commit: abc1234.");
