@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.90.3] - 2026-08-06
+
+### Fixed
+- Reading mode: a message typed while the agent was mid-turn (steered straight into the running turn) is journaled by Claude Code as an `attachment` row, not a `user` row — the transcript parser only knew `user`/`assistant`, so these vanished for good instead of just being delayed (21b5013).
+- Reading mode no longer duplicates the "Draft in terminal · not sent" chip the composer already shows above the input (45de430).
+
 ## [0.90.2] - 2026-08-06
 
 ### Fixed
