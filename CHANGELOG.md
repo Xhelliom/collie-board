@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.92.0] - 2026-08-06
+
+### Added
+- A multiSelect question that is one step of a multi-question wizard now renders natively — step chips, ←/→ navigation, and an advance button labelled "Next" or "Submit" as the terminal labels it — instead of falling to the raw mirror (27d94ba).
+
+### Fixed
+- Preview-variant dialogs whose option label wraps onto continuation rows are detected again instead of falling to the raw mirror (27d94ba).
+- `multi-select-action.ts` no longer carries a literal NUL byte, which made git treat it as binary and hide every race-guard change from review; `.gitattributes` pins `*.ts`/`*.tsx` as text (27d94ba).
+- The dialog-key conformance gate now declares multi-select's ←/→ step navigation, which it emitted without declaring (2a8dd6b).
+
 ## [0.91.1] - 2026-08-06
 
 ### Fixed
