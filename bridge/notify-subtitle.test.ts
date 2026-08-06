@@ -33,6 +33,13 @@ function fakeCoordinator(alert: Alert | undefined) {
   return { currentSolo: (_paneId: string) => alert };
 }
 
+/** A coordinator whose answer changes between calls — the fast tier and the copilot's later upgrade
+ *  each call `currentSolo` at a different moment, and this simulates the pane moving on in between. */
+function fakeCoordinatorSequence(...answers: Array<Alert | undefined>) {
+  let i = 0;
+  return { currentSolo: (_paneId: string) => answers[Math.min(i++, answers.length - 1)] };
+}
+
 function fakeCopilot(answer: unknown, enabled = true) {
   let calls = 0;
   return {
@@ -271,6 +278,25 @@ describe("enrichNotification — the free-tier fallback (no copilot)", () => {
 });
 
 describe("enrichNotification — the silent update", () => {
+  test("a late copilot upgrade dropped as stale doesn't erase the fast tier's render", async () => {
+    const sink = new RecordingSink();
+    const stillHere = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    // Solo when the fast tier checks; gone (handled at the desk) by the time the copilot answers —
+    // exactly the sequence a live report traced back to "dropped a stale answer".
+    const coordinator = fakeCoordinatorSequence(stillHere, undefined);
+    await enrichNotification({
+      alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+      coordinator,
+      sink,
+      copilot: fakeCopilot({ subtitle: "should never land" }),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "the raw line that did land")]),
+      statFor: noDiff,
+    });
+    expect(sink.renders).toHaveLength(1);
+    expect(sink.renders[0]?.body).toBe("demo · the raw line that did land");
+  });
+
   test("also patches the bell's history entry, matching what the push now shows", async () => {
     const current = baseAlert({ cardId: "c1" });
     const enriched: Array<[string, string, string]> = [];
@@ -381,7 +407,9 @@ describe("enrichNotification — the silent update", () => {
       transcripts: fakeTranscripts([textEntry("assistant", "Fixed it, the mock was racing the timer.")]),
       statFor: noDiff,
     });
-    expect(sink.renders[0]?.body).toBe("demo · fixed the flaky test");
+    // The fast tier lands first (the raw line), the copilot's rephrase upgrades it right after.
+    expect(sink.renders[0]?.body).toBe("demo · Fixed it, the mock was racing the timer.");
+    expect(sink.renders.at(-1)?.body).toBe("demo · fixed the flaky test");
   });
 
   test("the last ASSISTANT text turn wins, skipping trailing user/tool rows", async () => {
@@ -428,7 +456,7 @@ describe("enrichNotification — the silent update", () => {
       statFor: noDiff,
     });
     expect(resolvedFor).toEqual({ paneId: "p1", cwd: "/home/you/demo" });
-    expect(sink.renders[0]?.body).toBe("demo · asking whether to also update the changelog");
+    expect(sink.renders.at(-1)?.body).toBe("demo · asking whether to also update the changelog");
   });
 
   test("resolvePath returning null is just no transcript signal, not a crash", async () => {
