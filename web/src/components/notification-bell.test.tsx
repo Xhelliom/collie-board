@@ -106,6 +106,27 @@ describe("NotificationBell", () => {
     expect(screen.getByText("side · collie · Ship 0.86")).toBeInTheDocument();
   });
 
+  test("a copilot subtitle wins over the card title, once it's answered", async () => {
+    const rich: NotifyLogEntry = {
+      id: 4,
+      ts: Date.now() - 1_000,
+      agent: "claude",
+      workspaceLabel: "collie",
+      cwd: "/home/you/collie",
+      status: "done",
+      paneId: "w4:p1",
+      cardTitle: "Ship 0.86",
+      subtitle: "bumped the version and wrote the changelog",
+    };
+    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [rich] })));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText("collie · bumped the version and wrote the changelog")).toBeInTheDocument();
+    expect(screen.queryByText(/Ship 0\.86/)).not.toBeInTheDocument();
+  });
+
   test("says so when nothing has pinged yet", async () => {
     const user = userEvent.setup();
     server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [] })));

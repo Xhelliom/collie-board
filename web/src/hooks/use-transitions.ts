@@ -49,12 +49,16 @@ function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "
 
 /**
  * Watch the herd for attention-wanting transitions. `openPaneId` suppresses the pane you're already
- * looking at; `session` is the herd session the snapshot was fetched for, stamped into each toast so
+ * looking at; `copilotPaneId` suppresses the board's own agent — a real pane with real transitions,
+ * whose every internal request/reset would otherwise toast exactly like a worker's (the bridge keeps
+ * it out of push/history the same way, by pane id rather than its renameable workspace label — see
+ * index.ts). `session` is the herd session the snapshot was fetched for, stamped into each toast so
  * its tap lands in the right herd. Toasts auto-dismiss in the component that renders them.
  */
 export function useAgentTransitions(
   agents: AgentView[],
   openPaneId: string | null,
+  copilotPaneId: string | null,
   session?: string,
 ): { toasts: AgentToast[]; dismiss: (id: number) => void } {
   const prev = useRef<Map<string, AgentStatus> | null>(null);
@@ -76,6 +80,7 @@ export function useAgentTransitions(
       const was = before.get(a.paneId);
       if (!was || was === a.status) continue;
       if (a.paneId === openPaneId) continue; // you're already looking at it
+      if (a.paneId === copilotPaneId) continue; // the board's own agent, not a worker
       if (a.status !== "blocked" && a.status !== "done") continue;
       fresh.push({ id: nextId.current++, ...describe(a, session) });
     }
@@ -83,7 +88,7 @@ export function useAgentTransitions(
     // One toast per pane: a blocked→done flip replaces its own notice rather than stacking a second.
     const supersededPanes = new Set(fresh.map((t) => t.paneId));
     setToasts((list) => [...list.filter((t) => !supersededPanes.has(t.paneId)), ...fresh].slice(-MAX_TOASTS));
-  }, [agents, openPaneId, session]);
+  }, [agents, openPaneId, copilotPaneId, session]);
 
   return { toasts, dismiss };
 }

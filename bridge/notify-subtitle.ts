@@ -75,6 +75,10 @@ export async function enrichNotification(opts: {
   /** `cardDiffSummary` for a card, `cwdDiffSummary` otherwise — injected so this stays testable
    *  without a real git checkout. `cardId` is omitted for a hand-launched pane. */
   statFor: (target: { cardId?: string; cwd: string }) => Promise<string>;
+  /** Patches the bell's history entry to match the live push — optional so a caller with no log (or
+   *  a test) simply doesn't get it. Without this the subtitle would only ever be visible in the
+   *  fleeting OS notification, never in the history you'd check after missing it. */
+  notifyLog?: { enrich(paneId: string, status: "blocked" | "done", subtitle: string): void };
 }): Promise<void> {
   if (!opts.copilot.enabled) return;
   const { alert } = opts;
@@ -136,4 +140,5 @@ export async function enrichNotification(opts: {
     paneId: alert.paneId,
     renotify: false,
   });
+  opts.notifyLog?.enrich(alert.paneId, alert.status, subtitle);
 }

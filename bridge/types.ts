@@ -154,6 +154,10 @@ export interface SnapshotResponse {
    * single-session deployment lists just the primary, so the switcher UI can stay hidden.
    */
   sessions: SessionSummary[];
+  /** The copilot's own pane, when it has one (primary session only) — so the client can leave its
+   *  traffic out of the foreground toast, the same way the bridge already keeps it out of push and
+   *  history. Optional — a bridge with the feature off, or predating it, simply omits it. */
+  copilotPaneId?: string | null;
   /** Notification quiet-hours: the active snooze deadline (epoch ms) or null. */
   notifications?: { snoozedUntil: number | null };
   /** Update-availability signal. Optional — a stale bridge that predates the field simply omits it,

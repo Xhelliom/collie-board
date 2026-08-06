@@ -21,6 +21,7 @@ function baseData(overrides: Partial<HomeData> = {}): HomeData {
     workspaces: [],
     tabs: [],
     sessions: fixtureSessions,
+    copilotPaneId: null,
     session: undefined,
     snoozedUntil: null,
     update: undefined,

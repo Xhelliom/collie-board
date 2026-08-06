@@ -70,6 +70,9 @@ export interface HomeData {
   tabs: TabView[];
   /** The bridge's session registry (primary-first); empty on a single-session / older bridge. */
   sessions: SessionSummary[];
+  /** The copilot's own pane, when it has one — useAgentTransitions leaves it out of the foreground
+   *  toast, the same way the bridge already keeps it out of push/history. Null on an older bridge. */
+  copilotPaneId: string | null;
   /** The session this snapshot was fetched for (undefined = primary) — so children don't re-derive. */
   session: string | undefined;
   /** Active notification snooze deadline (epoch ms), or null when not snoozed. */
@@ -149,6 +152,7 @@ function toHomeData(snap: SnapshotResponse, session: string | undefined, error: 
     workspaces: snap.workspaces ?? [],
     tabs: snap.tabs ?? [],
     sessions: snap.sessions ?? [],
+    copilotPaneId: snap.copilotPaneId ?? null,
     session,
     snoozedUntil: snap.notifications?.snoozedUntil ?? null,
     update: snap.update,
@@ -173,6 +177,7 @@ function staleHome(session: string | undefined): HomeData {
         workspaces: [],
         tabs: [],
         sessions: [],
+        copilotPaneId: null,
         session,
         snoozedUntil: null,
         update: undefined,

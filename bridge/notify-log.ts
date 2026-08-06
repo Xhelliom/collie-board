@@ -26,6 +26,11 @@ export interface NotifyLogEntry {
   sessionName?: string;
   kind?: "agent" | "shell";
   cardTitle?: string;
+  /** The copilot-authored account of what actually happened, patched in after the fact once it
+   *  answers (see notify-subtitle.ts) — the entry is logged plain the instant the alert fires (this
+   *  history is the trace of what pinged, and quiet-hours or not is decided before enrichment could
+   *  ever land), then upgraded in place if a subtitle arrives before something newer replaces it. */
+  subtitle?: string;
 }
 
 /** Entries kept. Two screens' worth of history — past that, the ping stopped being findable anyway. */
@@ -46,5 +51,17 @@ export class NotifyLog {
   /** Newest first. A copy — the caller serialises it, and must not be able to mutate ours. */
   recent(): NotifyLogEntry[] {
     return [...this.entries];
+  }
+
+  /**
+   * Patch the copilot-authored subtitle onto the entry it belongs to, once it answers. Matched by
+   * paneId + status (not an id the caller never had) against the NEWEST such entry — the one the
+   * enrichment was asked about, since a stale answer is already dropped before this is ever called
+   * (see notify-subtitle.ts's own coordinator.currentSolo check). A no-op if the entry aged out of
+   * the ring in the meantime.
+   */
+  enrich(paneId: string, status: NotifyLogEntry["status"], subtitle: string): void {
+    const entry = this.entries.find((e) => e.paneId === paneId && e.status === status);
+    if (entry) entry.subtitle = subtitle;
   }
 }

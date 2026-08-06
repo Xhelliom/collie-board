@@ -34,10 +34,18 @@ function agentsAt(status: AgentStatus): AgentView[] {
 // remount the hook and lose the `prev` map the whole diff rests on.
 let pushSnapshot: (agents: AgentView[]) => void = () => {};
 
-function Harness({ from, openPaneId }: { from: AgentStatus; openPaneId: string | null }) {
+function Harness({
+  from,
+  openPaneId,
+  copilotPaneId = null,
+}: {
+  from: AgentStatus;
+  openPaneId: string | null;
+  copilotPaneId?: string | null;
+}) {
   const [agents, setAgents] = useState<AgentView[]>(() => agentsAt(from));
   pushSnapshot = setAgents;
-  const { toasts, dismiss } = useAgentTransitions(agents, openPaneId, "side");
+  const { toasts, dismiss } = useAgentTransitions(agents, openPaneId, copilotPaneId, "side");
   return <AgentToasts toasts={toasts} onDismiss={dismiss} />;
 }
 
@@ -46,9 +54,13 @@ function Landed() {
   return <div data-testid="landed">{pathname + search}</div>;
 }
 
-function mount({ from = "working", openPaneId = null }: { from?: AgentStatus; openPaneId?: string | null } = {}) {
+function mount({
+  from = "working",
+  openPaneId = null,
+  copilotPaneId = null,
+}: { from?: AgentStatus; openPaneId?: string | null; copilotPaneId?: string | null } = {}) {
   const router = createMemoryRouter([
-    { path: "/", element: <Harness from={from} openPaneId={openPaneId} /> },
+    { path: "/", element: <Harness from={from} openPaneId={openPaneId} copilotPaneId={copilotPaneId} /> },
     { path: "/pane/:paneId", element: <Landed /> },
   ]);
   render(<RouterProvider router={router} />);
@@ -100,6 +112,13 @@ describe("AgentToasts", () => {
 
   test("says nothing about the pane you're already looking at", () => {
     mount({ openPaneId: "w1:p1" });
+    advance("blocked");
+
+    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+  });
+
+  test("says nothing about the board's own agent — a real pane, not a worker", () => {
+    mount({ copilotPaneId: "w1:p1" });
     advance("blocked");
 
     expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();

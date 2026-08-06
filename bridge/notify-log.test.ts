@@ -42,6 +42,39 @@ describe("NotifyLog", () => {
   });
 });
 
+describe("NotifyLog — enrich", () => {
+  test("patches the subtitle onto the matching paneId+status entry", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.enrich("w1:p1", "blocked", "renamed the header bell");
+    expect(log.recent()[0]?.subtitle).toBe("renamed the header bell");
+  });
+
+  test("matches by status too — a done entry for the same pane isn't touched by a blocked answer", () => {
+    const log = new NotifyLog(() => 0);
+    log.add({ ...entry(1), status: "done" });
+    log.enrich("w1:p1", "blocked", "wrong status");
+    expect(log.recent()[0]?.subtitle).toBeUndefined();
+  });
+
+  test("a paneId with no matching entry is a silent no-op", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.enrich("w1:p99", "blocked", "nobody home");
+    expect(log.recent()[0]?.subtitle).toBeUndefined();
+  });
+
+  test("matches the NEWEST entry for a pane that pinged more than once", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1)); // older, unshifted below the next add
+    log.add(entry(1));
+    log.enrich("w1:p1", "blocked", "the latest one");
+    const [newest, older] = log.recent();
+    expect(newest?.subtitle).toBe("the latest one");
+    expect(older?.subtitle).toBeUndefined();
+  });
+});
+
 // The coordinator's history hook: one record per alert that survives the debounce, and nothing for
 // one that resolves inside it (the very case the debounce exists to swallow). A retraction leaves
 // the history alone — what happened happened.

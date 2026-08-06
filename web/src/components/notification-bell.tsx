@@ -95,7 +95,9 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                 {e.status === "blocked" ? "needs you" : "is done"}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {[e.session, e.workspaceLabel, e.cardTitle ?? shortCwd(e.cwd)].filter(Boolean).join(" · ")}
+                {[e.session, e.workspaceLabel, e.subtitle ?? e.cardTitle ?? shortCwd(e.cwd)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             </span>
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>

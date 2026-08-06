@@ -29,7 +29,7 @@ export function RootLayout() {
   // routine fast polls/navigations stay invisible. Mounted here so the whole app shares one
   // detector inside the router context.
   usePollBusy();
-  const { toasts, dismiss } = useAgentTransitions(data.agents, paneId ?? null, data.session);
+  const { toasts, dismiss } = useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
   usePushSetup();
 
   // A viewport-height row on desktop (nav sidebar + content), a column on mobile (content, with the

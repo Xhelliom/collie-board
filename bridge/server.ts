@@ -184,6 +184,12 @@ export function startServer(opts: {
             workspaces,
             tabs,
             sessions: registry.list(),
+            // The copilot's own pane, when it has one — so the client can keep its notifications out
+            // of the foreground toast the same way the bridge already keeps them out of push/history
+            // (see notify-subtitle.ts's sibling guard in index.ts). Never the workspace LABEL
+            // (operator-configurable via COLLIE_BOARD_COPILOT_WORKSPACE): a pane id can't be renamed
+            // out from under this. Primary-only, like every other card/copilot fact.
+            copilotPaneId: rt.isPrimary ? copilot.paneId : null,
             notifications: { snoozedUntil: snooze.until() },
             update: updateMonitor.status(),
             ts: Date.now(),

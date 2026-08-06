@@ -165,6 +165,37 @@ describe("enrichNotification — gating", () => {
 });
 
 describe("enrichNotification — the silent update", () => {
+  test("also patches the bell's history entry, matching what the push now shows", async () => {
+    const current = baseAlert({ cardId: "c1" });
+    const enriched: Array<[string, string, string]> = [];
+    await enrichNotification({
+      alert: baseAlert({ cardId: "c1" }),
+      coordinator: fakeCoordinator(current),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+      board: fakeBoard({ title: "Card", spec: "do the thing" }),
+      transcripts: null,
+      statFor: noDiff,
+      notifyLog: { enrich: (paneId, status, subtitle) => enriched.push([paneId, status, subtitle]) },
+    });
+    expect(enriched).toEqual([["p1", "done", "renamed the header bell"]]);
+  });
+
+  test("a stale/dropped answer never touches the history — notifyLog.enrich is never called", async () => {
+    const enriched: unknown[] = [];
+    await enrichNotification({
+      alert: baseAlert({ cardId: "c1" }),
+      coordinator: fakeCoordinator(undefined), // resolved before the copilot answered
+      sink: new RecordingSink(),
+      copilot: fakeCopilot({ subtitle: "should never land" }),
+      board: fakeBoard({ title: "Card", spec: "do the thing" }),
+      transcripts: null,
+      statFor: noDiff,
+      notifyLog: { enrich: (...args) => enriched.push(args) },
+    });
+    expect(enriched).toEqual([]);
+  });
+
   test("renders the enriched body, keeping the repo name and dropping renotify", async () => {
     const sink = new RecordingSink();
     const current = baseAlert({ cardId: "c1" });

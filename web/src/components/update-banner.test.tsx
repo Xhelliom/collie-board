@@ -58,6 +58,7 @@ function homeData(update: UpdateInfo | undefined): HomeData {
     workspaces: [],
     tabs: [],
     sessions: [],
+    copilotPaneId: null,
     session: undefined,
     snoozedUntil: null,
     update,

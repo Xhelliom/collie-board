@@ -162,6 +162,8 @@ export interface SnapshotResponse {
   notifications?: { snoozedUntil: number | null };
   /** The bridge's session registry (primary-first). Absent on a single-session / older bridge. */
   sessions?: SessionSummary[];
+  /** The copilot's own pane, when it has one. Absent/null on an older bridge or a disabled copilot. */
+  copilotPaneId?: string | null;
   /** Version / upgrade status. Absent on an older bridge that doesn't report it. */
   update?: UpdateInfo;
   ts: number;
@@ -288,6 +290,10 @@ export interface NotifyLogEntry {
   sessionName?: string;
   kind?: "agent" | "shell";
   cardTitle?: string;
+  /** The copilot-authored account of what actually happened, patched in after the fact once it
+   *  answers — absent when the copilot subtitle is off, disabled, or hadn't answered yet when this
+   *  entry aged out of the bridge's 50-entry ring. */
+  subtitle?: string;
 }
 
 /** Lower sorts first — "needs you" at the top. Mirrors STATUS_RANK on the server. */

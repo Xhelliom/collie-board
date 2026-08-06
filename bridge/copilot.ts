@@ -602,7 +602,7 @@ export function reviewPrompt(input: {
  */
 export class Copilot {
   /** The pane the copilot lives in, once it has one. */
-  private paneId: string | null = null;
+  private _paneId: string | null = null;
   /** Set by ensurePane, consumed by the next prompt — see promptAndConfirm's `firstAfterLaunch`. */
   private justLaunched = false;
   /** Serialises requests: one pane is one queue, which is free rate limiting. */
@@ -631,6 +631,18 @@ export class Copilot {
     return this.cfg.boardCopilot;
   }
 
+  /**
+   * The pane the copilot currently lives in, or null before its first request (or after it drops a
+   * dead one). Public so the notification pipeline can recognise — and silence — its own traffic:
+   * the copilot is a real agent with real status transitions, and without this its every internal
+   * request/reset would page the operator exactly like a worker's would. Never the workspace LABEL
+   * (`boardCopilotWorkspace`, operator-configurable): a pane id is the one identity that can't be
+   * renamed out from under this check.
+   */
+  get paneId(): string | null {
+    return this._paneId;
+  }
+
   /** Where the answers land on disk. */
   private outPathFor(id: string): { abs: string; rel: string } {
     return { abs: join(this.workDir, OUT_DIR, `${id}.json`), rel: `${OUT_DIR}/${id}.json` };
@@ -653,7 +665,7 @@ export class Copilot {
     const { abs, rel } = this.outPathFor(id);
     try {
       await this.ensurePane();
-      if (!this.paneId) return null;
+      if (!this._paneId) return null;
       await mkdir(join(this.workDir, OUT_DIR), { recursive: true, mode: 0o700 });
       // Stale file from a previous run with the same id would be read as this answer.
       await rm(abs, { force: true });
@@ -666,12 +678,12 @@ export class Copilot {
       // deadline waiting for a file nobody was ever going to write.
       const first = this.justLaunched;
       this.justLaunched = false;
-      await promptAndConfirm(this.herdr, this.paneId, buildPrompt(rel), undefined, {
+      await promptAndConfirm(this.herdr, this._paneId, buildPrompt(rel), undefined, {
         firstAfterLaunch: first,
       });
       const answer = await this.awaitFile(abs);
       if (answer === null) {
-        console.warn(`[copilot] no answer at ${rel} within the deadline — see pane ${this.paneId}`);
+        console.warn(`[copilot] no answer at ${rel} within the deadline — see pane ${this._paneId}`);
       }
       return answer;
     } catch (err) {
@@ -679,7 +691,7 @@ export class Copilot {
       // catch here is exactly what made a swallowed first prompt take an hour to find.
       console.warn(`[copilot] request failed: ${(err as Error).message}`);
       // The pane may be the problem; drop it so the next request rebuilds one.
-      this.paneId = null;
+      this._paneId = null;
       return null;
     } finally {
       await rm(abs, { force: true }).catch(() => {});
@@ -712,7 +724,7 @@ export class Copilot {
    * that reason, silently, until this class started logging.
    */
   private async ensurePane(): Promise<void> {
-    if (this.paneId) return;
+    if (this._paneId) return;
     await mkdir(this.workDir, { recursive: true, mode: 0o700 });
 
     const snap = this.snapshot();
@@ -722,7 +734,7 @@ export class Copilot {
     // An agent already running in our directory IS the copilot — reuse it as-is.
     const running = here.find((p) => mine(p.paneId));
     if (running) {
-      this.paneId = running.paneId;
+      this._paneId = running.paneId;
       console.log(`[copilot] adopted the existing agent in ${running.paneId}`);
       return;
     }
@@ -736,7 +748,7 @@ export class Copilot {
 
     const kind = this.cfg.boardCopilotKind || this.cfg.boardAgentKind;
     await launchAgent(this.herdr, paneId, kind, agentNameFor(label));
-    this.paneId = paneId;
+    this._paneId = paneId;
     this.requestsSinceReset = 0;
     this.justLaunched = true;
     console.log(`[copilot] agent ready in ${paneId} (${this.workDir})`);
@@ -749,9 +761,9 @@ export class Copilot {
    */
   private async reset(): Promise<void> {
     const clear = this.cfg.boardCopilotClear || this.adapter.clear;
-    if (!this.paneId || !clear) return;
+    if (!this._paneId || !clear) return;
     try {
-      await promptAndConfirm(this.herdr, this.paneId, clear);
+      await promptAndConfirm(this.herdr, this._paneId, clear);
       this.requestsSinceReset = 0;
     } catch {
       // A failed clear only means a fuller context next request — not worth failing over.
@@ -763,9 +775,9 @@ export class Copilot {
    * poll loop; costs nothing when the copilot is idle or disabled.
    */
   observe(snap: EngineSnapshot): void {
-    if (!this.paneId || snap.bridge === "disconnected") return;
-    const live = [...snap.agents, ...snap.shellPanes].some((p) => p.paneId === this.paneId);
-    if (!live) this.paneId = null;
+    if (!this._paneId || snap.bridge === "disconnected") return;
+    const live = [...snap.agents, ...snap.shellPanes].some((p) => p.paneId === this._paneId);
+    if (!live) this._paneId = null;
   }
 }
 
@@ -801,6 +813,12 @@ export class CopilotCoordinator {
    */
   busy(): ReadonlySet<string> {
     return this.busyCards;
+  }
+
+  /** Passthrough to {@link Copilot.paneId} — the snapshot route only holds this coordinator, not the
+   *  raw `Copilot`, so this is how it learns which pane to keep out of the notify pipeline. */
+  get paneId(): string | null {
+    return this.copilot.paneId;
   }
 
   /**

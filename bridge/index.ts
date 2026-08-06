@@ -219,6 +219,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
                 })
             : undefined,
           statFor: ({ cardId, cwd }) => (cardId ? cardDiffSummary(board, cardId) : cwdDiffSummary(cwd)),
+          notifyLog,
         }).catch(() => {});
       }
     },
@@ -230,6 +231,11 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   // card's pane id is meaningless in another herdr server (see server.ts). One DB read per
   // transition (a real status change, not a poll tick), same cost class as reconcile()'s.
   engine.onTransition((agent, from, to) => {
+    // The copilot is a real agent with real status transitions — every request/reset would otherwise
+    // page the operator exactly like a worker's would. Its pane id, never its (renameable) workspace
+    // label, so COLLIE_BOARD_COPILOT_WORKSPACE can't reopen this hole. Primary-only, same as the
+    // copilot itself.
+    if (isPrimary && agent.paneId === copilot.paneId) return;
     const withCard = isPrimary
       ? (withCardFields([agent], board.listOpenSessions(), board)[0] ?? agent)
       : agent;
