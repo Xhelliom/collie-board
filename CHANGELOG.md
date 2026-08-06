@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.89.0] - 2026-08-06
+
+### Added
+- The copilot-authored subtitle now also patches the bell's history entry, not just the live push — open the bell after missing the toast and it shows the same enriched line (f270e6e).
+
+### Fixed
+- The board's own copilot agent no longer pings the operator for its own status transitions (push, history, and the in-app toast) — matched by pane id, so renaming `COLLIE_BOARD_COPILOT_WORKSPACE` can't reopen the leak (f270e6e).
+
 ## [0.88.0] - 2026-08-06
 
 ### Added
