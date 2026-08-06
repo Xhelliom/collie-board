@@ -144,7 +144,31 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="New card">
+    // The confirm action is PINNED below the scroller, not the last thing in it: this form is taller
+    // than the sheet on a phone, so a button at the end of the body opens below the fold and has to
+    // be scrolled to. The derived title rides with it — it is the preview of what the tap creates.
+    <BottomSheet
+      open={open}
+      onClose={onClose}
+      title="New card"
+      footer={
+        <div className="flex flex-col gap-1">
+          {title && (
+            <p className="truncate px-1 text-xs text-muted-foreground">
+              Titre déduit : <span className="text-foreground">{title}</span>
+            </p>
+          )}
+          <Button
+            variant="brand"
+            onClick={create}
+            disabled={!title}
+            className="h-12 w-full rounded-xl text-sm font-semibold"
+          >
+            Ajouter au backlog
+          </Button>
+        </div>
+      }
+    >
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
@@ -243,20 +267,6 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
         </label>
 
         <TagField value={tag} onChange={setTag} tags={tags} />
-
-        {title && (
-          <p className="truncate text-xs text-muted-foreground">
-            Titre déduit : <span className="text-foreground">{title}</span>
-          </p>
-        )}
-        <Button
-          variant="brand"
-          onClick={create}
-          disabled={!title}
-          className="mt-1 h-12 rounded-xl text-sm font-semibold"
-        >
-          Ajouter au backlog
-        </Button>
       </div>
     </BottomSheet>
   );

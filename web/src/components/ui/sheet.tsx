@@ -153,6 +153,8 @@ interface BottomSheetProps {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** Pinned below the scroller — a form's confirm action goes here, not at the end of the body. */
+  footer?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }
@@ -165,7 +167,7 @@ interface BottomSheetProps {
 //
 // The breakpoint is a matchMedia read, not a CSS class, because `direction` is a prop Vaul uses to
 // pick the drag axis and the enter/exit transform — CSS can't switch that.
-export function BottomSheet({ open, onClose, title, children, className }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, footer, children, className }: BottomSheetProps) {
   const desktop = useIsDesktop();
   return (
     <SheetShell
@@ -173,12 +175,15 @@ export function BottomSheet({ open, onClose, title, children, className }: Botto
       onClose={onClose}
       direction={desktop ? "right" : "bottom"}
       title={title}
+      footer={footer}
       // No top border: the panel already reads as a separate surface against the dimmed backdrop, and
       // a hairline there drew as a bright seam under the rounded corners rather than an edge.
       className={cn(
         desktop
           ? "inset-y-0 right-0 w-[26rem] max-w-[92vw] rounded-l-2xl border-l"
-          : "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
+          : "inset-x-0 bottom-0 max-h-[82dvh] w-full rounded-t-2xl",
+        // The footer carries the safe-area inset itself; adding it here too would double it.
+        !desktop && !footer && "pb-[calc(env(safe-area-inset-bottom)_+_1rem)]",
         className,
       )}
     >
