@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.89.2] - 2026-08-06
+
+### Fixed
+- The toast and the bell now put name + verb + repo on one line and give the subtitle/card title its own two-line row, instead of both fighting for one truncated line (cd22676).
+
 ## [0.89.1] - 2026-08-06
 
 ### Changed
