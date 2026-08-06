@@ -927,9 +927,6 @@ export function AgentChat({
             // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
             poll={revalidator.state}
             working={agent?.status === "working"}
-            // A message typed while the agent was busy lives on the terminal's input line and nowhere
-            // else — the same stabilised value the composer surfaces as "Draft in terminal".
-            pendingInput={terminalDraft}
             dialogPresent={dialogPresent}
             onShowTerminal={() => setReading(false)}
           />
