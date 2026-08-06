@@ -25,6 +25,7 @@ import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { BottomSheet, GrabHandle } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/app-header";
+import { NotificationBell } from "@/components/notification-bell";
 import { AnsiOutput } from "@/components/ansi-output";
 import { parseAnsi } from "@/lib/ansi";
 import { splitLines } from "@/lib/blocks";
@@ -837,6 +838,10 @@ export function AgentChat({
               ) : (
                 <StatusBadge status={agent.status} stale={connecting} />
               ))}
+            {/* The bell, last — same anchored slot it holds in AppHeader (app-header.tsx). This
+                toolbar REPLACES that shell from `lg` up, so without this the one control that's meant
+                to be on every screen vanishes the moment you open a pane on a desktop. */}
+            <NotificationBell />
           </div>
         </div>
 

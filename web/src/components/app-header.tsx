@@ -74,11 +74,13 @@ export function AppHeader({
             )}
           </div>
           <div className="flex items-center gap-3">
-            {/* The bell leads the right cluster on every screen — one place to find what pinged, so
-                a notification you missed on the phone is still reachable from wherever you are. */}
-            <NotificationBell />
             {rightLead}
             {rightTrail}
+            {/* The bell closes the right cluster on every screen. In a right-aligned row the anchored
+                slot is the LAST one, and the bell is the only control present everywhere — so it gets
+                it, and the screen's own controls (which change from screen to screen anyway) shift
+                instead of pushing the bell around. */}
+            <NotificationBell />
           </div>
         </>
       )}
