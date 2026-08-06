@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.90.1] - 2026-08-06
+
+### Fixed
+- New-card sheet: the "Ajouter au backlog" button is pinned below the scroller instead of sitting at the end of the form, so it is reachable without scrolling on a phone (473d928).
+
 ## [0.90.0] - 2026-08-06
 
 ### Added
