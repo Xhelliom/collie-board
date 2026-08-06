@@ -75,7 +75,10 @@ export async function enrichNotification(opts: {
       : Promise.resolve(null),
   ]);
   // Nothing beyond what the plain push already shows (the card title) — not worth an agent turn.
-  if (!lastMessage && !statSummary && !card?.spec) return;
+  if (!lastMessage && !statSummary && !card?.spec) {
+    console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    return;
+  }
 
   const parsed = await opts.copilot.ask((out) =>
     notifySubtitlePrompt({
@@ -88,14 +91,21 @@ export async function enrichNotification(opts: {
     }),
   );
   const subtitle = toNotifySubtitle(parsed);
-  if (!subtitle) return;
+  if (!subtitle) {
+    console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
+    return;
+  }
 
   // The alert may have resolved (handled at the desk) or been superseded by a second one (now a
   // digest) while the copilot was thinking — either way, this answer no longer describes what's on
   // the lock screen, so it's dropped rather than rendered.
   const current = opts.coordinator.currentSolo(alert.paneId);
-  if (!current || current.status !== alert.status) return;
+  if (!current || current.status !== alert.status) {
+    console.log(`[notify-subtitle] dropped a stale answer for ${alert.paneId}`);
+    return;
+  }
 
+  console.log(`[notify-subtitle] ${alert.paneId}: "${subtitle}"`);
   opts.sink.render({
     title: `${paneDisplayName(current)} ${current.status === "blocked" ? "needs you" : "is done"}`,
     body: `${current.workspaceLabel} · ${subtitle}`,
