@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.91.1] - 2026-08-06
+
+### Fixed
+- The queue card no longer shows a `<task-notification>` or other system plumbing as if a message were waiting — an idle session's own automatic notification could sit "enqueued" indefinitely since Claude Code only dequeues it on the session's next real turn (aa8c52d).
+
 ## [0.91.0] - 2026-08-06
 
 ### Added
