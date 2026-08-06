@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -5,12 +7,23 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
 import { fixtureTranscript } from "@/test/handlers";
 import type { TranscriptEntry } from "@/lib/types";
+import { parseAnsi } from "@/lib/ansi";
+import { splitLines, type Block } from "@/lib/blocks";
+import { detectWizard } from "@/lib/harness/claude/wizard";
 import { mergeTail, ReadingView } from "./reading-view";
 
 // Reading mode reads the agent's own transcript — the text that was NEVER cut to a terminal's columns
 // — and follows it forwards with `after`. Two things here can go wrong quietly, so both are pinned:
-// the merge (a duplicated or lost turn) and the dialog banner (an agent blocked behind a question the
-// reader can't see).
+// the merge (a duplicated or lost turn) and the open dialog (an agent blocked behind a question the
+// reader must be able to answer here too, not just in the mirror).
+
+const PANES_DIR = join(import.meta.dirname, "..", "fixtures", "panes");
+const fixtureText = (name: string) => readFileSync(join(PANES_DIR, name), "utf8");
+function wizardBlockFixture(name: string): Block {
+  const model = detectWizard(splitLines(parseAnsi(fixtureText(name))));
+  if (!model) throw new Error(`fixture ${name} did not detect a wizard`);
+  return { kind: "wizard", wizard: model, lines: [] };
+}
 
 beforeAll(() => {
   // jsdom doesn't implement scrollTo; the message list auto-scrolls to the newest turn.
@@ -55,8 +68,7 @@ describe("ReadingView", () => {
     paneId: "w1:p1",
     agent: "claude",
     poll: "idle",
-    dialogPresent: false,
-    onShowTerminal: vi.fn(),
+    dialogBlock: null as Block | null,
   };
 
   it("renders the transcript's prose (the default MSW history fixture)", async () => {
@@ -126,22 +138,29 @@ describe("ReadingView", () => {
     expect(await screen.findByText(/No transcript file was found/i)).toBeInTheDocument();
   });
 
-  // A dialog exists ONLY in the TUI. Without this, an agent could sit blocked behind a question the
-  // reader never sees — the one way this mode could be worse than not having it.
-  it("banners a waiting dialog and hands the reader back to the terminal", async () => {
+  // Without this, an agent could sit blocked behind a question the reader never sees — the one way
+  // this mode could be worse than not having it. It's the SAME native card the mirror renders (this
+  // is just the wiring; WizardBlock's own presentation is covered in wizard-block.test.tsx).
+  it("renders an open dialog as a tappable card, wired to the injected handler", async () => {
     const user = userEvent.setup();
-    const onShowTerminal = vi.fn();
-    render(<ReadingView {...props} dialogPresent onShowTerminal={onShowTerminal} />);
+    const onWizardAction = vi.fn();
+    render(
+      <ReadingView
+        {...props}
+        dialogBlock={wizardBlockFixture("claude--wizard-q1.txt")}
+        onWizardAction={onWizardAction}
+      />,
+    );
 
-    const banner = await screen.findByRole("button", { name: /a question is waiting/i });
-    await user.click(banner);
-    expect(onShowTerminal).toHaveBeenCalled();
+    const option = await screen.findByRole("button", { name: /Parser/ });
+    await user.click(option);
+    expect(onWizardAction).toHaveBeenCalled();
   });
 
-  it("shows no banner while nothing is waiting", async () => {
+  it("shows no dialog card while nothing is waiting", async () => {
     render(<ReadingView {...props} />);
     await screen.findByText("One commit: abc1234.");
-    expect(screen.queryByRole("button", { name: /a question is waiting/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 
   // Text still sitting in Claude Code's OWN input queue — submitted while the agent was busy, not yet

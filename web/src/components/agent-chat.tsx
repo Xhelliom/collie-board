@@ -248,15 +248,20 @@ export function AgentChat({
   // the two probes above, so the three can't drift. This is the zero-latency fail-fast; the
   // load-bearing protection is reply-action's verify-before-submit, which also covers a dialog that
   // appears after this render.
-  const dialogPresent = useMemo(
+  //
+  // Kept as the BLOCK itself, not just a boolean: ReadingView renders it as the same native card the
+  // mirror does (its own dialog probe is downstream of this one), so both need the model, not just
+  // its presence.
+  const dialogBlock = useMemo(
     () =>
       grammarsOn
-        ? (adapterFor(agent?.agent)?.buildBlocks(splitLines(parseAnsi(display))) ?? []).some(
+        ? (adapterFor(agent?.agent)?.buildBlocks(splitLines(parseAnsi(display))) ?? []).find(
             (b) => b.kind !== "raw",
-          )
-        : false,
+          ) ?? null
+        : null,
     [display, agent?.agent, grammarsOn],
   );
+  const dialogPresent = dialogBlock !== null;
 
   // Both are threaded to the composer: the RAW value (live) plus a stabilised one. extractInputDraft
   // is stateless, so it can't distinguish a stranded draft from the ~350ms flash where our OWN
@@ -927,8 +932,12 @@ export function AgentChat({
             // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
             poll={revalidator.state}
             working={agent?.status === "working"}
-            dialogPresent={dialogPresent}
-            onShowTerminal={() => setReading(false)}
+            dialogBlock={dialogBlock}
+            dialogDisabled={readOnly || gone}
+            onPromptAction={handlePromptAction}
+            onWizardAction={handleWizardAction}
+            onPreviewAction={handlePreviewAction}
+            onMultiSelectAction={handleMultiSelectAction}
           />
         ) : (
         <>

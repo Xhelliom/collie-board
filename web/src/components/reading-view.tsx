@@ -1,10 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clock, Loader2, TriangleAlert } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
+import { QuestionHeading } from "@/components/option-button";
+import { PromptSelectBlock } from "@/components/prompt-select-block";
+import { WizardBlock } from "@/components/wizard-block";
+import { PreviewSelectBlock, type PreviewBlockAction } from "@/components/preview-select-block";
+import { MultiSelectBlock } from "@/components/multi-select-block";
+import type { MultiSelectIntent } from "@/lib/multi-select-action";
 import { fetchHistory } from "@/lib/api";
 import type { TranscriptEntry } from "@/lib/types";
+import type {
+  Block,
+  MultiSelectModel,
+  PreviewSelectModel,
+  PromptModel,
+  PromptOption,
+  WizardModel,
+} from "@/lib/blocks";
 
 // The pane screen's READING mode — the same conversation the mirror shows, but as prose.
 //
@@ -14,9 +28,12 @@ import type { TranscriptEntry } from "@/lib/types";
 // the bytes. The agent's own transcript was NEVER cut: it is the Markdown Claude actually wrote. So
 // reading mode doesn't un-wrap anything — it reads from the source that was never wrapped.
 //
-// The mirror stays exactly as it was, and stays the mode you PILOT in: native dialog buttons, the key
-// grammars, the statusline. This is the mode you READ in. Both are modes of one screen — the composer,
-// the statusline and the context gauge below it belong to neither.
+// The mirror stays exactly as it was: the key grammars, the statusline, load-older scrollback. This is
+// the mode you READ in — but an AskUserQuestion dialog (prompt/wizard/preview/multi-select) renders here
+// too, the same native buttons as the mirror, because the block model comes from the same live `display`
+// text AgentChat keeps parsing regardless of which mode is on screen (see the dialog probe comment in
+// agent-chat.tsx). Both are modes of one screen — the composer, the statusline and the context gauge
+// below it belong to neither.
 //
 // NO NEW POLL LOOP (CLAUDE.md → The board). This has no timer of its own — it rides the pane poll's
 // own heartbeat (`poll`, the router revalidator's state), and pulls only what is new via `after`
@@ -80,8 +97,12 @@ export function ReadingView({
   agent,
   poll,
   working = false,
-  dialogPresent,
-  onShowTerminal,
+  dialogBlock,
+  dialogDisabled,
+  onPromptAction,
+  onWizardAction,
+  onPreviewAction,
+  onMultiSelectAction,
 }: {
   paneId: string;
   session?: string;
@@ -94,9 +115,15 @@ export function ReadingView({
   poll: string;
   /** The agent is mid-turn, so the turn being typed in the mirror isn't in the log yet. */
   working?: boolean;
-  /** A dialog is up in the TUI: it exists ONLY there, so reading mode has to say so. */
-  dialogPresent: boolean;
-  onShowTerminal: () => void;
+  /** The live dialog block (prompt/wizard/preview/multi-select), parsed from the same mirror text
+   *  as AgentChat's dialog probe — null when no dialog is on screen. */
+  dialogBlock: Block | null;
+  /** Read-only device or a gone pane: the card renders (for context) but can't be pressed. */
+  dialogDisabled?: boolean;
+  onPromptAction?: (option: PromptOption, prompt: PromptModel) => void | Promise<void>;
+  onWizardAction?: (keys: string[], wizard: WizardModel) => void | Promise<void>;
+  onPreviewAction?: (action: PreviewBlockAction, preview: PreviewSelectModel) => void | Promise<void>;
+  onMultiSelectAction?: (action: MultiSelectIntent, multi: MultiSelectModel) => void | Promise<void>;
 }) {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -159,21 +186,6 @@ export function ReadingView({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* A dialog lives ONLY in the TUI — reading mode can't render it and the composer refuses to
-          type past it. Without this banner an agent could sit blocked behind a question the reader
-          never sees, which is the one way this mode could be worse than no mode at all. */}
-      {dialogPresent && (
-        <button
-          type="button"
-          onClick={onShowTerminal}
-          className="mx-3 mt-1.5 flex shrink-0 items-center gap-2 rounded-md border border-status-blocked/40 bg-status-blocked/15 px-3 py-2 text-left text-sm transition-colors active:bg-status-blocked/25"
-        >
-          <TriangleAlert className="size-4 shrink-0 text-status-blocked" />
-          <span className="min-w-0 flex-1">A question is waiting — it can only be answered here.</span>
-          <span className="shrink-0 font-medium underline">Terminal</span>
-        </button>
-      )}
-
       <div className="min-h-0 min-w-0 flex-1">
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {entries.length === 0 ? (
@@ -183,11 +195,48 @@ export function ReadingView({
           ) : (
             <TranscriptView entries={entries} agent={agent} />
           )}
+          {/* The open dialog, if any — same native card the mirror shows, at the tail of the
+              conversation. `question` isn't repeated for wizard/preview/multi-select (each block
+              carries its own heading); a single-choice prompt-select doesn't, because in the mirror
+              it stays visible in the raw scrollback just above (option-button.tsx), which reading
+              mode has none of — so it gets one added here. */}
+          {dialogBlock && (
+            <div className="pt-2">
+              {dialogBlock.kind === "prompt-select" && (
+                <QuestionHeading>{dialogBlock.prompt.question}</QuestionHeading>
+              )}
+              {dialogBlock.kind === "prompt-select" ? (
+                <PromptSelectBlock
+                  prompt={dialogBlock.prompt}
+                  disabled={dialogDisabled}
+                  onAction={(option) => onPromptAction?.(option, dialogBlock.prompt)}
+                />
+              ) : dialogBlock.kind === "wizard" ? (
+                <WizardBlock
+                  wizard={dialogBlock.wizard}
+                  disabled={dialogDisabled}
+                  onAction={(keys) => onWizardAction?.(keys, dialogBlock.wizard)}
+                />
+              ) : dialogBlock.kind === "preview-select" ? (
+                <PreviewSelectBlock
+                  preview={dialogBlock.preview}
+                  disabled={dialogDisabled}
+                  onAction={(action) => onPreviewAction?.(action, dialogBlock.preview)}
+                />
+              ) : dialogBlock.kind === "multi-select" ? (
+                <MultiSelectBlock
+                  multi={dialogBlock.multi}
+                  disabled={dialogDisabled}
+                  onAction={(action) => onMultiSelectAction?.(action, dialogBlock.multi)}
+                />
+              ) : null}
+            </div>
+          )}
           {/* A draft on the terminal's "❯" line is NOT repeated here: the composer's own
               "Draft in terminal" chip is mounted above the input in both modes, so showing it a
               second time inside the conversation body was a duplicate, not a second piece of
               information. */}
-          {working && (
+          {working && !dialogBlock && (
             <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
               Still writing — this turn appears when the agent finishes it.
