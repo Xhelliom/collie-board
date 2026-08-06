@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.87.0] - 2026-08-06
+
+### Added
+- Notification settings: "Copilot subtitle" toggle — once enabled (needs the copilot itself on), a push/history entry silently gains a one-line account of what the agent actually did or asked, from its last transcript message and (for `done`) its diff stat (0979df2).
+
+### Changed
+- Push/history entries now name a pane the same way the in-app toast does — a rename over the bare agent name, the card title over the raw cwd (0979df2).
+
 ## [0.86.2] - 2026-08-06
 
 ### Fixed
