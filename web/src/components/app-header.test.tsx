@@ -29,7 +29,7 @@ describe("AppHeader — the contextual toolbar", () => {
     expect(screen.queryByText("ignored")).toBeNull();
   });
 
-  it("renders the right cluster (lead then trail) in order", () => {
+  it("renders the right cluster lead, then trail, then the bell last", () => {
     render(
       <AppHeader
         title="Pane"
@@ -37,8 +37,14 @@ describe("AppHeader — the contextual toolbar", () => {
         rightTrail={<button type="button">Éditer</button>}
       />,
     );
-    expect(screen.getByText("working")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Éditer" })).toBeInTheDocument();
+    const lead = screen.getByText("working");
+    const trail = screen.getByRole("button", { name: "Éditer" });
+    const bell = screen.getByRole("button", { name: "Notifications" });
+    // The bell is the anchored slot: last in a right-aligned row, so it sits at the same x on every
+    // screen whatever lead/trail that screen mounts. This order IS the anchoring.
+    // Node.DOCUMENT_POSITION_FOLLOWING — b comes after a in document order.
+    expect(lead.compareDocumentPosition(trail) & 4).toBeTruthy();
+    expect(trail.compareDocumentPosition(bell) & 4).toBeTruthy();
   });
 
   it("the override takes over the whole row (title and back chevron yield)", () => {
