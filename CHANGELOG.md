@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.87.2] - 2026-08-06
+
+### Fixed
+- A pane's card fields (cardId/cardTitle/branch) never reached the notification pipeline — every push/history alert silently fell back to the bare cwd, and the copilot-authored subtitle (0.87.0) never had a card to work from. `withCardFields` was only ever wired into the `/api/snapshot` response (7132528).
+
 ## [0.87.1] - 2026-08-06
 
 ### Fixed
