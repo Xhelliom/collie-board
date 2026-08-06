@@ -144,14 +144,14 @@ describe("ReadingView", () => {
     expect(screen.queryByRole("button", { name: /a question is waiting/i })).not.toBeInTheDocument();
   });
 
-  // The queue card is the one thing this view can show even when nothing else has loaded: it's a
-  // fixed banner outside the scroller, always mounted, so it can never be missed by scrolling past it
-  // or hidden behind an empty/loading transcript state.
+  // Text still sitting in Claude Code's OWN input queue — submitted while the agent was busy, not yet
+  // taken or recalled. The one state that never reaches the transcript at all if it clears before the
+  // next poll, so this is the only place it can ever be shown.
   describe("the queue card", () => {
-    it("says nothing is queued by default", async () => {
+    it("shows nothing when the queue is empty", async () => {
       render(<ReadingView {...props} />);
       await screen.findByText("One commit: abc1234.");
-      expect(screen.getByText("Nothing queued")).toBeInTheDocument();
+      expect(screen.queryByText(/^Queue/)).not.toBeInTheDocument();
     });
 
     it("shows a message sitting in Claude Code's own queue, with a count", async () => {
@@ -171,16 +171,6 @@ describe("ReadingView", () => {
       render(<ReadingView {...props} />);
       expect(await screen.findByText("merge the PR once tests pass")).toBeInTheDocument();
       expect(screen.getByText("Queue (1)")).toBeInTheDocument();
-      expect(screen.queryByText("Nothing queued")).not.toBeInTheDocument();
-    });
-
-    it("is mounted even while the transcript is still loading", async () => {
-      server.use(
-        http.get(/\/api\/pane\/[^/]+\/history/, () => new Promise(() => {})),
-      );
-      render(<ReadingView {...props} />);
-      expect(screen.getByText("Nothing queued")).toBeInTheDocument();
-      expect(screen.getByText("Loading…")).toBeInTheDocument();
     });
   });
 });

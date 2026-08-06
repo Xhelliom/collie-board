@@ -174,30 +174,6 @@ export function ReadingView({
         </button>
       )}
 
-      {/* Always mounted, even empty — the queue is the one state that never reaches the transcript at
-          all if it's cleared (recalled, or taken and answered) before you scroll to where a
-          conditionally-shown card would have been. Outside the scroller so it can't be missed. */}
-      <div className="mx-3 mt-1.5 shrink-0 rounded-md border border-dashed bg-muted/30 px-3 py-2">
-        <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          <Clock className="size-3" />
-          Queue{queued.length > 0 ? ` (${queued.length})` : ""}
-        </div>
-        {queued.length > 0 ? (
-          <div className="mt-1 space-y-1.5">
-            {queued.map((text, i) => (
-              <div
-                key={i}
-                className="whitespace-pre-wrap break-words text-base text-muted-foreground"
-              >
-                {text}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-1 text-sm text-muted-foreground/60">Nothing queued</div>
-        )}
-      </div>
-
       <div className="min-h-0 min-w-0 flex-1">
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {entries.length === 0 ? (
@@ -215,6 +191,27 @@ export function ReadingView({
             <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
               Still writing — this turn appears when the agent finishes it.
+            </div>
+          )}
+          {/* The one state that never reaches the transcript at all if it's cleared (recalled, or
+              taken and answered) before the next poll. Inside the scroller, below "still writing",
+              so it auto-follows to the bottom with everything else. */}
+          {queued.length > 0 && (
+            <div className="mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <Clock className="size-3" />
+                Queue ({queued.length})
+              </div>
+              <div className="mt-1 space-y-1.5">
+                {queued.map((text, i) => (
+                  <div
+                    key={i}
+                    className="whitespace-pre-wrap break-words text-base text-muted-foreground"
+                  >
+                    {text}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </ChatMessageList>
