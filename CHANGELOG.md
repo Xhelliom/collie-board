@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.91.0] - 2026-08-06
+
+### Added
+- Reading mode now shows a "Queue" card for messages still sitting in Claude Code's own input queue — the one state that never reaches the transcript at all if it clears before the next poll. Sits below the transcript, hidden when nothing is queued (2b9744d, cb2b947).
+
 ## [0.90.3] - 2026-08-06
 
 ### Fixed
