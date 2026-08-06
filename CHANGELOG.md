@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.89.1] - 2026-08-06
+
+### Changed
+- The toast and the bell now share one notification-formatting helper (`notifyVerb`/`notifyDetail`) instead of two hand-kept copies — the toast can't ever carry a copilot subtitle (it's gone before that answer could land), but everything else about how a notification names itself now changes in one place (2cc1989).
+
 ## [0.89.0] - 2026-08-06
 
 ### Added
