@@ -1,6 +1,8 @@
 // Frontend mirror of the bridge's domain model (bridge/types.ts). Kept as a small, deliberate
 // duplicate so the web app builds independently of the Bun server's source tree.
 
+import { shortCwd } from "@/lib/format";
+
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
 export interface AgentView {
@@ -66,6 +68,31 @@ export function paneDisplayName(pane: Pick<AgentView, "paneLabel" | "sessionName
   if (pane.paneLabel) return pane.paneLabel;
   if (pane.sessionName) return pane.sessionName;
   return pane.kind === "shell" ? "shell" : pane.agent;
+}
+
+/** "needs you" / "is done" — the one word choice every notification surface (toast, bell, and the
+ *  push body on the bridge side) makes the same way. */
+export function notifyVerb(status: "blocked" | "done"): string {
+  return status === "blocked" ? "needs you" : "is done";
+}
+
+/**
+ * The notification's second line: herd session, workspace, then the richest thing known about WHAT
+ * happened — the copilot's own account when it has answered, else the card title, else the bare cwd.
+ * Shared by the toast (use-transitions.ts) and the bell (notification-bell.tsx) so upgrading one
+ * upgrades both; the toast's input simply never carries a `subtitle` (see that hook's header comment
+ * for why it can't).
+ */
+export function notifyDetail(input: {
+  session?: string;
+  workspaceLabel: string;
+  cardTitle?: string;
+  subtitle?: string;
+  cwd: string;
+}): string {
+  return [input.session, input.workspaceLabel, input.subtitle ?? input.cardTitle ?? shortCwd(input.cwd)]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** A Herdr workspace ("space") — a project-scoped container of tabs. */
