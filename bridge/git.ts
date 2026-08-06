@@ -270,6 +270,20 @@ export async function diffFile(
 }
 
 /**
+ * A one-screen `--stat` summary of a {@link DiffStat}, as text — the copilot's review input (both
+ * {@link cardDiffSummary} and {@link cwdDiffSummary} format through this one place). Pure + exported.
+ */
+export function formatDiffStat(stat: DiffStat): string {
+  if (stat.files.length === 0) return "(no changes)";
+  const lines = stat.files
+    .slice(0, 100)
+    .map((f) => `${f.path} | ${f.kind === "text" ? `+${f.added} -${f.removed}` : f.kind}`);
+  if (stat.files.length > 100) lines.push(`… and ${stat.files.length - 100} more files`);
+  lines.push(`${stat.files.length} files changed, ${stat.added} insertions(+), ${stat.removed} deletions(-)`);
+  return lines.join("\n");
+}
+
+/**
  * A one-screen `--stat` summary of a card's diff, as text — the copilot's review input.
  *
  * Explicitly NOT the full diff: the stat is enough to judge drift from the acceptance criteria, and
@@ -285,13 +299,18 @@ export async function cardDiffSummary(
   const cwd = await worktreePathFor(card.repoPath, card.branch);
   if (!cwd) return "(no worktree for this card)";
   const stat = await diffStat(cwd, card.baseRef);
-  if (stat.files.length === 0) return "(no changes on this branch)";
-  const lines = stat.files
-    .slice(0, 100)
-    .map((f) => `${f.path} | ${f.kind === "text" ? `+${f.added} -${f.removed}` : f.kind}`);
-  if (stat.files.length > 100) lines.push(`… and ${stat.files.length - 100} more files`);
-  lines.push(`${stat.files.length} files changed, ${stat.added} insertions(+), ${stat.removed} deletions(-)`);
-  return lines.join("\n");
+  return stat.files.length === 0 ? "(no changes on this branch)" : formatDiffStat(stat);
+}
+
+/**
+ * Same summary, for a pane with no card behind it — a hand-launched agent has no branch/base ref to
+ * measure from, so this is simply "what's uncommitted right now" (`diffStat(cwd, null)` resolves to
+ * a diff against HEAD, per {@link resolveBase}). Used by notify-subtitle.ts so the copilot-authored
+ * subtitle has real material even outside the card system.
+ */
+export async function cwdDiffSummary(cwd: string, git: GitRunner = runGit): Promise<string> {
+  const stat = await diffStat(cwd, null, git);
+  return formatDiffStat(stat);
 }
 
 // ── integration ───────────────────────────────────────────────────────────────

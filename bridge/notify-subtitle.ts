@@ -20,6 +20,9 @@ import type { TranscriptEntry } from "./transcript.ts";
  *  literal can never structurally match). */
 interface TranscriptReader {
   page(sessionId: string, opts: { limit: number }): Promise<{ entries: TranscriptEntry[] } | null>;
+  /** Same page, by resolved file path — the {@link enrichNotification}'s `resolvePath` fallback, for
+   *  a pane herdr never gave a session id (verified live: this is common, not the rare case). */
+  pageAt(path: string, opts: { limit: number }): Promise<{ entries: TranscriptEntry[] } | null>;
 }
 
 /**
@@ -27,8 +30,14 @@ interface TranscriptReader {
  * account of what the agent did or is asking, for the copilot to work from. Null on any read/parse
  * failure or empty transcript; the feature is optional, so that just means a plainer subtitle.
  */
-async function lastAssistantSnippet(store: TranscriptReader, sessionId: string): Promise<string | null> {
-  const page = await store.page(sessionId, { limit: 6 }).catch(() => null);
+async function lastAssistantSnippet(
+  store: TranscriptReader,
+  by: { sessionId: string } | { path: string },
+): Promise<string | null> {
+  const page = await ("sessionId" in by
+    ? store.page(by.sessionId, { limit: 6 })
+    : store.pageAt(by.path, { limit: 6 })
+  ).catch(() => null);
   if (!page) return null;
   for (let i = page.entries.length - 1; i >= 0; i--) {
     const entry = page.entries[i]!;
@@ -59,19 +68,34 @@ export async function enrichNotification(opts: {
   /** Just the corner of `BoardDb` this needs. */
   board: { getCard(id: string): { title: string; spec: string | null } | null };
   transcripts: TranscriptReader | null;
-  /** `cardDiffSummary` — injected so this stays testable without a real git checkout. */
-  statFor: (cardId: string) => Promise<string>;
+  /** `resolveWithoutSession`, bound to this session's herdr/transcript source — the same fallback
+   *  ContextTracker already relies on for a pane herdr reports no `agent_session` for. Optional: a
+   *  bridge with transcripts off, or a caller that doesn't need the fallback, just omits it. */
+  resolvePath?: (input: { paneId: string; cwd: string }) => Promise<string | null>;
+  /** `cardDiffSummary` for a card, `cwdDiffSummary` otherwise — injected so this stays testable
+   *  without a real git checkout. `cardId` is omitted for a hand-launched pane. */
+  statFor: (target: { cardId?: string; cwd: string }) => Promise<string>;
 }): Promise<void> {
   if (!opts.copilot.enabled) return;
   const { alert } = opts;
   const card = alert.cardId ? opts.board.getCard(alert.cardId) : null;
 
+  const transcriptBy = alert.agentSessionId
+    ? { sessionId: alert.agentSessionId }
+    : opts.resolvePath
+      ? await opts.resolvePath({ paneId: alert.paneId, cwd: alert.cwd })
+          .then((p) => (p ? { path: p } : null))
+          .catch(() => null)
+      : null;
+
   const [lastMessage, statSummary] = await Promise.all([
-    alert.agentSessionId && opts.transcripts
-      ? lastAssistantSnippet(opts.transcripts, alert.agentSessionId)
+    transcriptBy && opts.transcripts
+      ? lastAssistantSnippet(opts.transcripts, transcriptBy)
       : Promise.resolve(null),
-    alert.status === "done" && alert.cardId
-      ? opts.statFor(alert.cardId).catch(() => null)
+    // Every `done` pane gets a diff attempt now, card or not — a hand-launched agent has no branch
+    // to measure from, so `cwdDiffSummary` (via statFor) just reads what's currently uncommitted.
+    alert.status === "done"
+      ? opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null)
       : Promise.resolve(null),
   ]);
   // Nothing beyond what the plain push already shows (the card title) — not worth an agent turn.

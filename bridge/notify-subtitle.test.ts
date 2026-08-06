@@ -8,7 +8,7 @@ import type { TranscriptEntry } from "./transcript.ts";
 // enrichNotification is the second, silent push: it only ever fires after the plain one, so every
 // test starts from an alert that has already been rendered once (the base case NotificationCoordinator
 // itself covers). What's under test here is purely the enrichment decision — ask or don't, render or
-// drop — driven by fakes so no real copilot pane or transcript file is involved.
+// drop — driven by fakes so no real copilot pane, git checkout, or transcript file is involved.
 
 function baseAlert(overrides: Partial<FiredAlert> = {}): FiredAlert {
   return {
@@ -56,11 +56,16 @@ function textEntry(role: TranscriptEntry["role"], text: string): TranscriptEntry
   return { uuid: "u1", ts: "", role, parts: [{ kind: "text", text }] };
 }
 
-function fakeTranscripts(entries: TranscriptEntry[]) {
-  return { page: async (_id: string, _opts: { limit: number }) => ({ entries }) };
+/** `byPath` entries answer `pageAt` — the resolvePath fallback for a pane with no reported session. */
+function fakeTranscripts(entries: TranscriptEntry[], byPath?: TranscriptEntry[]) {
+  return {
+    page: async (_id: string, _opts: { limit: number }) => ({ entries }),
+    pageAt: async (_path: string, _opts: { limit: number }) => ({ entries: byPath ?? entries }),
+  };
 }
 
-const neverStat = async (_cardId: string) => "(unused)";
+const noDiff = async (_target: { cardId?: string; cwd: string }) => "(no changes)";
+const neverResolvePath = async (_input: { paneId: string; cwd: string }) => null;
 
 describe("enrichNotification — gating", () => {
   test("never asks the copilot when it's disabled", async () => {
@@ -73,16 +78,16 @@ describe("enrichNotification — gating", () => {
       copilot,
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
       transcripts: null,
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(copilot.calls).toBe(0);
     expect(sink.renders).toEqual([]);
   });
 
-  test("skips the copilot turn when there's nothing beyond the bare card title", async () => {
+  test("skips the copilot turn when there's truly nothing to work with", async () => {
     const sink = new RecordingSink();
     const copilot = fakeCopilot({ subtitle: "should never be asked" });
-    // `blocked`, so no diff stat is even fetched — leaves no spec, no transcript, no diff at all.
+    // `blocked`, so no diff is even attempted — leaves no spec, no transcript, no diff at all.
     const alert = baseAlert({ status: "blocked", cardId: "c1" });
     await enrichNotification({
       alert,
@@ -91,24 +96,52 @@ describe("enrichNotification — gating", () => {
       copilot,
       board: fakeBoard({ title: "Card", spec: null }),
       transcripts: null,
-      statFor: neverStat,
+      resolvePath: neverResolvePath,
+      statFor: noDiff,
     });
     expect(copilot.calls).toBe(0);
     expect(sink.renders).toEqual([]);
   });
 
-  test("a hand-launched pane (no card, no session) has nothing to enrich from", async () => {
+  test("a hand-launched `done` pane still gets a cwd diff attempt — no card required", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert(); // no cardId at all
+    let statTarget: { cardId?: string; cwd: string } | undefined;
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot({ subtitle: "cleaned up the trim-tools helper" }),
+      board: fakeBoard(null),
+      transcripts: null,
+      statFor: async (target) => {
+        statTarget = target;
+        return "trim-tools.ts | +12 -3";
+      },
+    });
+    expect(statTarget).toEqual({ cardId: undefined, cwd: "/home/you/demo" });
+    expect(sink.renders[0]?.body).toBe("demo · cleaned up the trim-tools helper");
+  });
+
+  test("a hand-launched `blocked` pane has nothing to enrich from — no diff attempted", async () => {
     const sink = new RecordingSink();
     const copilot = fakeCopilot({ subtitle: "should never be asked" });
+    const alert = baseAlert({ status: "blocked" });
+    let statCalls = 0;
     await enrichNotification({
-      alert: baseAlert(),
-      coordinator: fakeCoordinator(baseAlert()),
+      alert,
+      coordinator: fakeCoordinator(alert),
       sink,
       copilot,
       board: fakeBoard(null),
       transcripts: null,
-      statFor: neverStat,
+      resolvePath: neverResolvePath,
+      statFor: async () => {
+        statCalls++;
+        return "unused";
+      },
     });
+    expect(statCalls).toBe(0);
     expect(copilot.calls).toBe(0);
   });
 
@@ -122,7 +155,7 @@ describe("enrichNotification — gating", () => {
       copilot: fakeCopilot(null), // no answer — irrelevant to this assertion
       board: fakeBoard({ title: "Card", spec: "the spec" }),
       transcripts: null,
-      statFor: async (_id) => {
+      statFor: async () => {
         statCalls++;
         return "stat";
       },
@@ -142,7 +175,7 @@ describe("enrichNotification — the silent update", () => {
       copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
       transcripts: null,
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(sink.renders).toEqual([
       {
@@ -163,7 +196,7 @@ describe("enrichNotification — the silent update", () => {
       copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
       transcripts: null,
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(sink.renders).toEqual([]);
   });
@@ -178,7 +211,8 @@ describe("enrichNotification — the silent update", () => {
       copilot: fakeCopilot({ subtitle: "needs the staging API key" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
       transcripts: null,
-      statFor: neverStat,
+      resolvePath: neverResolvePath,
+      statFor: noDiff,
     });
     expect(sink.renders).toEqual([]);
   });
@@ -193,14 +227,14 @@ describe("enrichNotification — the silent update", () => {
       copilot: fakeCopilot(null),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
       transcripts: null,
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(sink.renders).toEqual([]);
   });
 
   test("pulls the agent's last transcript message in without a card at all", async () => {
     const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1" }); // no cardId
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" }); // no cardId, no diff
     await enrichNotification({
       alert,
       coordinator: fakeCoordinator(alert),
@@ -208,14 +242,14 @@ describe("enrichNotification — the silent update", () => {
       copilot: fakeCopilot({ subtitle: "fixed the flaky test" }),
       board: fakeBoard(null),
       transcripts: fakeTranscripts([textEntry("assistant", "Fixed it, the mock was racing the timer.")]),
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(sink.renders[0]?.body).toBe("demo · fixed the flaky test");
   });
 
   test("the last ASSISTANT text turn wins, skipping trailing user/tool rows", async () => {
     const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1" });
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
     let seenPrompt = "";
     await enrichNotification({
       alert,
@@ -234,9 +268,66 @@ describe("enrichNotification — the silent update", () => {
         textEntry("user", "thanks"),
         { uuid: "u2", ts: "", role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: "ls" }] },
       ]),
-      statFor: neverStat,
+      statFor: noDiff,
     });
     expect(seenPrompt).toContain("the real closing message");
+  });
+
+  test("falls back to resolvePath + pageAt when herdr reported no agent_session", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ status: "blocked" }); // no agentSessionId, no cardId
+    let resolvedFor: { paneId: string; cwd: string } | undefined;
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot({ subtitle: "asking whether to also update the changelog" }),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([], [textEntry("assistant", "Should I also update the changelog?")]),
+      resolvePath: async (input) => {
+        resolvedFor = input;
+        return "/home/you/.claude/projects/-demo/abc.jsonl";
+      },
+      statFor: noDiff,
+    });
+    expect(resolvedFor).toEqual({ paneId: "p1", cwd: "/home/you/demo" });
+    expect(sink.renders[0]?.body).toBe("demo · asking whether to also update the changelog");
+  });
+
+  test("resolvePath returning null is just no transcript signal, not a crash", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ status: "blocked", cardId: "c1" });
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot({ subtitle: "should never be asked" }),
+      board: fakeBoard({ title: "Card", spec: null }), // no spec either — truly nothing
+      transcripts: fakeTranscripts([textEntry("assistant", "unreachable")]),
+      resolvePath: neverResolvePath,
+      statFor: noDiff,
+    });
+    expect(sink.renders).toEqual([]);
+  });
+
+  test("an agent-reported session id always wins over resolvePath", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    let resolvePathCalls = 0;
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot({ subtitle: "ok" }),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "the reported-session message")]),
+      resolvePath: async () => {
+        resolvePathCalls++;
+        return "/should/not/be/used.jsonl";
+      },
+      statFor: noDiff,
+    });
+    expect(resolvePathCalls).toBe(0);
   });
 });
 

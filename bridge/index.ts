@@ -33,8 +33,9 @@ import {
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
-import { cardDiffSummary } from "./git.ts";
-import { ClaudeTranscriptSource, TranscriptStore } from "./transcript.ts";
+import { cardDiffSummary, cwdDiffSummary } from "./git.ts";
+import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
+import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 
 // How often the registry rescans the filesystem for sessions that appeared/disappeared after boot.
@@ -205,7 +206,19 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
           copilot,
           board,
           transcripts,
-          statFor: (cardId) => cardDiffSummary(board, cardId),
+          // A pane herdr gave no `agent_session` for still usually has a real transcript on disk —
+          // the same directory/process resolution ContextTracker already relies on (context.ts).
+          resolvePath: transcripts
+            ? ({ paneId, cwd }) =>
+                resolveWithoutSession({
+                  source: transcripts.source,
+                  paneProcess: (id) => herdr.paneProcess(id),
+                  startedAt: processStartedAt,
+                  paneId,
+                  cwd,
+                })
+            : undefined,
+          statFor: ({ cardId, cwd }) => (cardId ? cardDiffSummary(board, cardId) : cwdDiffSummary(cwd)),
         }).catch(() => {});
       }
     },
