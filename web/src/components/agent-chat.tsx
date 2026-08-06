@@ -34,7 +34,6 @@ import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows"
 import { FindBar } from "@/components/find-bar";
 import { PaneMenu } from "@/components/pane-menu";
 import { Composer, type ComposerHandle } from "@/components/composer";
-import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
@@ -1069,16 +1068,6 @@ export function AgentChat({
                   {line}
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* The same gauge CardTile/the card screen show, now for ANY agent pane — the bridge reads
-              the transcript of every live agent, not just the card-backed ones (UI_AUDIT.md G1/G3).
-              Omitted entirely when there's no figure, so an unreadable agent shows no gauge rather
-              than a made-up one. Mobile only — `ContextRailColumn` is desktop's own source now. */}
-          {agent?.ctxPct != null && (
-            <div className="border-t border-border/40 px-3 py-1.5 lg:hidden">
-              <ContextGauge pct={agent.ctxPct} tokens={agent.ctxTokens} />
             </div>
           )}
 
