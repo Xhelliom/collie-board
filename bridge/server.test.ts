@@ -10,6 +10,7 @@ import {
   isHostAllowed,
   normalizeTabLabel,
   paneReadResponse,
+  parseNotifyPrefsPatch,
   resolveStaticPath,
   sendReplySteps,
   startupWarnings,
@@ -342,6 +343,32 @@ describe("paneReadResponse — pane read → REST body", () => {
       truncated: false,
       revision: 0,
     });
+  });
+});
+
+describe("parseNotifyPrefsPatch — /api/notifications/prefs body validation", () => {
+  test("accepts a partial patch of known boolean keys", () => {
+    expect(parseNotifyPrefsPatch({ blocked: false, copilotSubtitle: true })).toEqual({
+      blocked: false,
+      copilotSubtitle: true,
+    });
+  });
+
+  test("an empty patch is valid — a no-op that echoes current prefs", () => {
+    expect(parseNotifyPrefsPatch({})).toEqual({});
+  });
+
+  test("drops unknown keys silently", () => {
+    expect(parseNotifyPrefsPatch({ blocked: true, bogus: true })).toEqual({ blocked: true });
+  });
+
+  test("rejects a non-boolean value for a known key", () => {
+    expect(parseNotifyPrefsPatch({ copilotSubtitle: "yes" })).toBeNull();
+  });
+
+  test("rejects a non-object body", () => {
+    expect(parseNotifyPrefsPatch(null)).toBeNull();
+    expect(parseNotifyPrefsPatch("blocked")).toBeNull();
   });
 });
 

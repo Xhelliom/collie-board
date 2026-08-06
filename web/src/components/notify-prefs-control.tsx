@@ -6,14 +6,20 @@ import { useNotifyPrefs } from "@/hooks/use-notify-prefs";
 import type { NotifyPrefs } from "@/lib/api";
 
 // Which lifecycle events are worth a push. Bridge-wide (fans out to every device, like the snooze),
-// so the copy says so. Three switches: "Needs input" (blocked, default on), "Finished" (done,
-// default off), and "App updates" (updates, default on). Optimistic toggle with revert on failure —
-// see useNotifyPrefs.
+// so the copy says so. Four switches: "Needs input" (blocked, default on), "Finished" (done,
+// default off), "App updates" (updates, default on), and "Copilot subtitle" (default off — a no-op
+// unless the copilot itself is enabled too). Optimistic toggle with revert on failure — see
+// useNotifyPrefs.
 
 const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string }> = [
   { key: "blocked", label: "Needs input", hint: "an agent is waiting on you" },
   { key: "done", label: "Finished", hint: "an agent completes its task" },
   { key: "updates", label: "App updates", hint: "a new Collie version is available" },
+  {
+    key: "copilotSubtitle",
+    label: "Copilot subtitle",
+    hint: "let the copilot describe what happened, once it answers (needs the copilot enabled)",
+  },
 ];
 
 export function NotifyPrefsControl() {

@@ -6,7 +6,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { getNotifyLog } from "@/lib/api";
 import { shortCwd, timeAgo } from "@/lib/format";
 import { panePath } from "@/lib/nav";
-import type { NotifyLogEntry } from "@/lib/types";
+import { paneDisplayName, type NotifyLogEntry } from "@/lib/types";
 
 // The bell, in the app header (app-header.tsx), on every screen. A push notification collapses into
 // one live slot and is retracted the moment the work is handled — right for a lock screen, and the
@@ -91,11 +91,11 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
             />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm">
-                <span className="font-medium">{e.agent}</span>{" "}
+                <span className="font-medium">{paneDisplayName(e)}</span>{" "}
                 {e.status === "blocked" ? "needs you" : "is done"}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
-                {e.workspaceLabel} · {shortCwd(e.cwd)}
+                {[e.session, e.workspaceLabel, e.cardTitle ?? shortCwd(e.cwd)].filter(Boolean).join(" · ")}
               </span>
             </span>
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>

@@ -20,6 +20,12 @@ export interface NotifyLogEntry {
   paneId: string;
   /** Registry name of the pane's session; absent for the primary (same convention as the push payload). */
   session?: string;
+  /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the in-app
+   *  toast, so the bell can name this entry exactly like the toast did when it fired. */
+  paneLabel?: string;
+  sessionName?: string;
+  kind?: "agent" | "shell";
+  cardTitle?: string;
 }
 
 /** Entries kept. Two screens' worth of history — past that, the ping stopped being findable anyway. */

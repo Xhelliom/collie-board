@@ -1,5 +1,5 @@
 import type { PushMessage } from "./push.ts";
-import type { AgentStatus, AgentView } from "./types.ts";
+import { paneDisplayName, type AgentStatus, type AgentView } from "./types.ts";
 
 // A notification shouldn't be fire-and-forget. This coordinator gives every blocked/done alert a
 // lifecycle and collapses the herd into a single, always-accurate notification:
@@ -80,11 +80,26 @@ export function makeNotifySink(
   };
 }
 
-interface Alert {
+export interface Alert {
   agent: string;
   workspaceLabel: string;
   cwd: string;
   status: NotifiableStatus;
+  /**
+   * Rename ingredients + the card title, carried through so a push and a history entry can name this
+   * alert exactly like the in-app toast does (see `paneDisplayName` and the `cardTitle ?? cwd`
+   * fallback both use).
+   */
+  paneLabel?: string;
+  sessionName?: string;
+  kind?: "agent" | "shell";
+  cardTitle?: string;
+  /** The card this pane backs, and the agent's own session id — carried through for notify-subtitle.ts,
+   *  which needs them to ask the copilot for a one-line account of what actually happened (the card's
+   *  spec, its diff stat, the agent's last transcript message). Absent for a hand-launched pane, which
+   *  the copilot then has nothing beyond the base body to improve on. */
+  cardId?: string;
+  agentSessionId?: string;
 }
 
 /** An alert that has just fired, as handed to the history hook. */
@@ -128,6 +143,12 @@ export class NotificationCoordinator<H = unknown> {
       workspaceLabel: agent.workspaceLabel,
       cwd: agent.cwd,
       status: to as NotifiableStatus,
+      paneLabel: agent.paneLabel,
+      sessionName: agent.sessionName,
+      kind: agent.kind,
+      cardTitle: agent.cardTitle,
+      cardId: agent.cardId,
+      agentSessionId: agent.agentSessionId,
     };
     const handle = this.clock.schedule(() => {
       this.pending.delete(id);
@@ -141,6 +162,17 @@ export class NotificationCoordinator<H = unknown> {
   /** Wire to `StateEngine.onRemove` — a vanished pane is implicitly resolved. */
   onRemove(paneId: string): void {
     this.resolve(paneId);
+  }
+
+  /**
+   * The outstanding alert for `paneId`, but ONLY when it's the sole one outstanding — the one shape a
+   * copilot-authored subtitle (notify-subtitle.ts) is allowed to silently replace the push body for.
+   * Undefined once the alert has resolved, or once a second one joined it and the summary became a
+   * multi-agent digest — either way, a subtitle answered against the old, single-alert shape would be
+   * stale or would land on the wrong notification.
+   */
+  currentSolo(paneId: string): Alert | undefined {
+    return this.outstanding.size === 1 ? this.outstanding.get(paneId) : undefined;
   }
 
   /**
@@ -196,10 +228,12 @@ export class NotificationCoordinator<H = unknown> {
     if (entries.length === 1) {
       const [paneId, a] = entries[0]!;
       const verb = a.status === "blocked" ? "needs you" : "is done";
-      // One outstanding agent → deep-link straight to its pane on tap.
+      // One outstanding agent → deep-link straight to its pane on tap. Same name + body priority as
+      // the in-app toast: a rename (or Claude's own /rename) over the raw agent name, the card title
+      // over the bare cwd.
       return {
-        title: `${a.agent} ${verb}`,
-        body: `${a.workspaceLabel} · ${a.cwd}`,
+        title: `${paneDisplayName(a)} ${verb}`,
+        body: `${a.workspaceLabel} · ${a.cardTitle ?? a.cwd}`,
         paneId,
         renotify,
       };
@@ -213,7 +247,7 @@ export class NotificationCoordinator<H = unknown> {
       : allDone
         ? `${n} agents done`
         : `${n} agents need attention`;
-    return { title, body: alerts.map((a) => a.agent).join(", "), renotify };
+    return { title, body: alerts.map((a) => paneDisplayName(a)).join(", "), renotify };
   }
 
   private cancelPending(id: string): void {

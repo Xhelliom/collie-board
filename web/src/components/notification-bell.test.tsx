@@ -84,6 +84,28 @@ describe("NotificationBell", () => {
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w2%3Ap1?s=side");
   });
 
+  test("a rename and a card title win over the raw agent name and cwd — same priority as the toast", async () => {
+    const rich: NotifyLogEntry = {
+      id: 3,
+      ts: Date.now() - 1_000,
+      agent: "claude",
+      workspaceLabel: "collie",
+      cwd: "/home/you/collie",
+      status: "blocked",
+      paneId: "w3:p1",
+      session: "side",
+      paneLabel: "release branch",
+      cardTitle: "Ship 0.86",
+    };
+    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [rich] })));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText(/release branch/)).toBeInTheDocument();
+    expect(screen.getByText("side · collie · Ship 0.86")).toBeInTheDocument();
+  });
+
   test("says so when nothing has pinged yet", async () => {
     const user = userEvent.setup();
     server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [] })));

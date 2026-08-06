@@ -67,6 +67,18 @@ export interface AgentView {
   ctxTokens?: number;
 }
 
+/**
+ * The name to show for a pane, in priority order: an explicit user label (herdr `pane.rename`) wins,
+ * then Claude's own `/rename` session name, then the agent name (or "shell"). Mirrors
+ * `paneDisplayName` in web/src/lib/types.ts — kept as a small, deliberate duplicate (see that file's
+ * header) so notifications.ts can name a push/history entry exactly like the in-app toast does.
+ */
+export function paneDisplayName(pane: Pick<AgentView, "paneLabel" | "sessionName" | "kind" | "agent">): string {
+  if (pane.paneLabel) return pane.paneLabel;
+  if (pane.sessionName) return pane.sessionName;
+  return pane.kind === "shell" ? "shell" : pane.agent;
+}
+
 /** A Herdr workspace ("space") — a project-scoped container of tabs. From `workspace.list`. */
 export interface WorkspaceView {
   workspaceId: string;

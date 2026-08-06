@@ -14,6 +14,7 @@ import { HandoffCoordinator } from "./handoff.ts";
 import { WrapupCoordinator } from "./wrapup.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
 import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
+import { enrichNotification } from "./notify-subtitle.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
@@ -33,7 +34,7 @@ import {
   UpdateStateStore,
 } from "./update.ts";
 import { cardDiffSummary } from "./git.ts";
-import { ClaudeTranscriptSource } from "./transcript.ts";
+import { ClaudeTranscriptSource, TranscriptStore } from "./transcript.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 
 // How often the registry rescans the filesystem for sessions that appeared/disappeared after boot.
@@ -73,6 +74,12 @@ const board = new BoardDb(join(cfg.stateDir, "board.db"));
 
 // Per-agent divergence, resolved once at boot: shipped adapters/agents.toml, then the operator's.
 const adapters = loadAdapters(cfg.adapterPaths);
+
+// One transcript store for the process (null when COLLIE_BOARD_TRANSCRIPT=off): it caches parsed
+// session logs across requests, keyed by absolute path, so sharing it is correct across herdr
+// sessions AND across its two consumers — the pane-history route (server.ts) and the copilot-authored
+// notification subtitle (notify-subtitle.ts, wired into the session factory below).
+const transcripts = cfg.transcript ? new TranscriptStore(new ClaudeTranscriptSource(cfg.transcriptRoot)) : null;
 
 // The copilot: one long-lived agent in its own workspace, driven exactly like a worker. Off unless
 // COLLIE_BOARD_COPILOT is set — it draws on the same subscription the cards do.
@@ -184,7 +191,24 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     (status) => notifyPrefs.isNotifiable(status),
     // Every alert also lands in the bell's history, tagged with the session it came from so the
     // deep-link scopes correctly (primary omits the name, like the push payload).
-    (alert) => notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) }),
+    (alert) => {
+      notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) });
+      // The copilot-authored subtitle (opt-in, see notify-prefs.ts) is a SECOND, silent push that
+      // lands later, if at all — never awaited here, and never allowed to hold up the alert it rides
+      // on. `notifications` is the coordinator being constructed right now; the callback only ever
+      // runs later, once the assignment below has completed.
+      if (notifyPrefs.current().copilotSubtitle) {
+        void enrichNotification({
+          alert,
+          coordinator: notifications,
+          sink,
+          copilot,
+          board,
+          transcripts,
+          statFor: (cardId) => cardDiffSummary(board, cardId),
+        }).catch(() => {});
+      }
+    },
   );
   engine.onTransition((agent, from, to) => notifications.onTransition(agent, from, to));
   engine.onRemove((paneId) => notifications.onRemove(paneId));
@@ -290,6 +314,7 @@ const server = startServer({
   copilot: copilotBoard,
   context: contextTracker,
   adapters,
+  transcripts,
 });
 
 const shutdown = async () => {

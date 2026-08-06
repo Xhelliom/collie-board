@@ -20,9 +20,19 @@ export interface NotifyPrefs {
    *  which otherwise bypass snooze (an update isn't quiet-hours material). Not an agent status, so it
    *  never flows through {@link isNotifiable}; the update monitor reads it directly. */
   updates: boolean;
+  /** Let the copilot replace the push body's `card title / cwd` half with a one-line account of what
+   *  actually happened (its last message, and for `done` the diff), once it answers — see
+   *  notify-subtitle.ts. Default off: it's an extra agent turn on the copilot's own quota, and a no-op
+   *  unless the copilot itself is enabled. The repo name (the body's other half) is never touched. */
+  copilotSubtitle: boolean;
 }
 
-export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = { blocked: true, done: false, updates: true };
+export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
+  blocked: true,
+  done: false,
+  updates: true,
+  copilotSubtitle: false,
+};
 
 /**
  * Coerce an untrusted parsed value into a {@link NotifyPrefs}, filling any missing or non-boolean key
@@ -34,6 +44,8 @@ export function coerceNotifyPrefs(raw: unknown): NotifyPrefs {
     blocked: typeof o.blocked === "boolean" ? o.blocked : DEFAULT_NOTIFY_PREFS.blocked,
     done: typeof o.done === "boolean" ? o.done : DEFAULT_NOTIFY_PREFS.done,
     updates: typeof o.updates === "boolean" ? o.updates : DEFAULT_NOTIFY_PREFS.updates,
+    copilotSubtitle:
+      typeof o.copilotSubtitle === "boolean" ? o.copilotSubtitle : DEFAULT_NOTIFY_PREFS.copilotSubtitle,
   };
 }
 
@@ -73,6 +85,7 @@ export class NotifyPrefsStore {
     if (typeof patch.blocked === "boolean") this.prefs.blocked = patch.blocked;
     if (typeof patch.done === "boolean") this.prefs.done = patch.done;
     if (typeof patch.updates === "boolean") this.prefs.updates = patch.updates;
+    if (typeof patch.copilotSubtitle === "boolean") this.prefs.copilotSubtitle = patch.copilotSubtitle;
     await this.save();
     return this.current();
   }

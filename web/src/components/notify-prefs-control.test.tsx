@@ -11,11 +11,11 @@ import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 // merged prefs back; a failing POST must leave the switch where it started (revert).
 
 let lastPatch: Record<string, unknown> | undefined;
-let currentPrefs: { blocked: boolean; done: boolean; updates: boolean };
+let currentPrefs: { blocked: boolean; done: boolean; updates: boolean; copilotSubtitle: boolean };
 
 beforeEach(() => {
   lastPatch = undefined;
-  currentPrefs = { blocked: true, done: false, updates: true };
+  currentPrefs = { blocked: true, done: false, updates: true, copilotSubtitle: false };
   server.use(
     http.get("/api/notifications/prefs", () => HttpResponse.json(currentPrefs)),
     http.post("/api/notifications/prefs", async ({ request }) => {
@@ -32,9 +32,11 @@ describe("NotifyPrefsControl", () => {
     const needs = await screen.findByRole("switch", { name: /needs input/i });
     const finished = await screen.findByRole("switch", { name: /finished/i });
     const updates = await screen.findByRole("switch", { name: /app updates/i });
+    const copilotSubtitle = await screen.findByRole("switch", { name: /copilot subtitle/i });
     expect(needs).toBeChecked(); // blocked default on
     expect(finished).not.toBeChecked(); // done default off
     expect(updates).toBeChecked(); // updates default on
+    expect(copilotSubtitle).not.toBeChecked(); // copilotSubtitle default off
   });
 
   test("toggling App updates POSTs the single-key partial update", async () => {

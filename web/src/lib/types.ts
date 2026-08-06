@@ -260,6 +260,10 @@ export interface NotifyPrefs {
   done: boolean;
   /** Push when a new Collie version is available (a restart or upgrade is waiting). Default on. */
   updates: boolean;
+  /** Let the copilot replace the push body's card-title half with a one-line account of what actually
+   *  happened, once it answers. Default off — an extra agent turn on the copilot's own quota, and a
+   *  no-op unless the copilot itself is enabled. */
+  copilotSubtitle: boolean;
 }
 
 /**
@@ -278,6 +282,12 @@ export interface NotifyLogEntry {
   paneId: string;
   /** Registry name of the pane's session; absent for the primary. */
   session?: string;
+  /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the toast, so
+   *  the bell can name an entry exactly like the toast did when it fired. */
+  paneLabel?: string;
+  sessionName?: string;
+  kind?: "agent" | "shell";
+  cardTitle?: string;
 }
 
 /** Lower sorts first — "needs you" at the top. Mirrors STATUS_RANK on the server. */

@@ -250,6 +250,59 @@ export function toExplanation(parsed: unknown): Explanation | null {
 }
 
 /**
+ * Ask the copilot for a push notification's subtitle — one line naming what an agent actually just
+ * did or asked, in place of the bare card title. See notify-subtitle.ts, which is the only caller and
+ * owns the "is there enough to work with" decision; this just phrases the prompt. Pure + exported so
+ * the wording is reviewable.
+ */
+export function notifySubtitlePrompt(input: {
+  verb: "needs input" | "finished";
+  cardTitle?: string;
+  cardSpec?: string | null;
+  /** `git diff --stat` against the card's base ref — `done` only; a `blocked` alert has no diff yet. */
+  statSummary?: string | null;
+  /** The agent's own last transcript message — often the plainest account there is of what it did or
+   *  is asking, in its own words. */
+  lastMessage?: string | null;
+  outPath: string;
+}): string {
+  const parts = [
+    "Someone glances at a push notification on their phone about a coding agent. Write ONE short",
+    "phrase, under 60 characters, for the notification's subtitle — replacing a bare card title with",
+    "what the agent actually just did or is asking. Do NOT act, run anything, or read the repository:",
+    "judge only from what is below.",
+    "",
+    `The agent just ${input.verb}.`,
+  ];
+  if (input.cardTitle) parts.push(`Card: ${input.cardTitle}`);
+  if (input.cardSpec) parts.push("Spec:", input.cardSpec);
+  if (input.statSummary) parts.push("", "What changed (git diff --stat):", input.statSummary);
+  if (input.lastMessage) parts.push("", "The agent's own last message:", "---", input.lastMessage, "---");
+  parts.push(
+    "",
+    "Name the concrete outcome or question, not the task category — \"renamed the auth middleware\"",
+    "beats \"finished refactor\", \"needs the API key for staging\" beats \"needs input\". Plain words,",
+    "no markdown, no trailing period.",
+    "",
+    `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
+    "{",
+    '  "subtitle": "under 60 characters"',
+    "}",
+  );
+  return parts.join("\n");
+}
+
+/** Coerce a parsed answer into the notification subtitle string, or null. Pure + exported. */
+export function toNotifySubtitle(parsed: unknown): string | null {
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const subtitle = str(parsed as Record<string, unknown>, "subtitle");
+  if (!subtitle) return null;
+  // Defensive, not trusting: a model told "under 60 characters" occasionally hands back three times
+  // that, and this is about to sit in a push notification's one visible line.
+  return subtitle.replace(/\s+/g, " ").slice(0, 140);
+}
+
+/**
  * Snap a copilot-proposed tag onto the tags the board already uses, or keep it as a new one.
  *
  * NOT PURE, deliberately: a tag it accepts as new is PUSHED onto `inventory`, which is what makes a

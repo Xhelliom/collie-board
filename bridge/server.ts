@@ -19,7 +19,7 @@ import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
-import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
+import { resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import type {
   ActionResponse,
   BridgeConfig,
@@ -121,15 +121,17 @@ export function startServer(opts: {
    * resolved by DIRECTORY, which is only sound for an agent whose format we can actually read.
    */
   adapters: Record<string, AgentAdapter>;
+  /**
+   * The process's one transcript store (null when `COLLIE_BOARD_TRANSCRIPT=off`) — built in index.ts
+   * because notify-subtitle.ts now shares it too (a copilot-authored push subtitle reads the same
+   * parsed logs this route does). Its cache is keyed by absolute path, so sharing it across herdr
+   * sessions is correct (two sessions can front panes whose agents write into the same
+   * ~/.claude/projects root).
+   */
+  transcripts: TranscriptStore | null;
 }) {
-  const { cfg, registry, push, snooze, notifyPrefs, notifyLog, updateMonitor, audit, board, copilot, context, adapters } =
+  const { cfg, registry, push, snooze, notifyPrefs, notifyLog, updateMonitor, audit, board, copilot, context, adapters, transcripts } =
     opts;
-  // One transcript store for the process: it caches parsed session logs across requests, and the
-  // cache is keyed by absolute path, so sharing it across herdr sessions is correct (two sessions
-  // can front panes whose agents write into the same ~/.claude/projects root).
-  const transcripts = cfg.transcript
-    ? new TranscriptStore(new ClaudeTranscriptSource(cfg.transcriptRoot))
-    : null;
   // Per-session background notifications live in each session's runtime (built by the factory in
   // index.ts, wired to its StateEngine transitions). The routes here only fan preference changes and
   // snooze-clears across every live session's coordinator.
@@ -1160,7 +1162,7 @@ export function parseNotifyPrefsPatch(v: unknown): Partial<NotifyPrefs> | null {
   if (typeof v !== "object" || v === null) return null;
   const o = v as Record<string, unknown>;
   const patch: Partial<NotifyPrefs> = {};
-  for (const key of ["blocked", "done", "updates"] as const) {
+  for (const key of ["blocked", "done", "updates", "copilotSubtitle"] as const) {
     if (!(key in o)) continue;
     if (typeof o[key] !== "boolean") return null;
     patch[key] = o[key] as boolean;

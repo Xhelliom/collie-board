@@ -118,6 +118,22 @@ describe("NotificationCoordinator — debounce", () => {
     clock.fireAll();
     expect(sink.last?.title).toBe("claude is done");
   });
+
+  test("a rename and a card title win over the raw agent name and cwd — same priority as the toast", () => {
+    const { clock, sink, coord } = setup();
+    coord.onTransition(
+      { ...agent("p1", "blocked"), paneLabel: "release branch", cardTitle: "Ship 0.86" },
+      "working",
+      "blocked",
+    );
+    clock.fireAll();
+    expect(sink.last).toEqual({
+      title: "release branch needs you",
+      body: "demo · Ship 0.86",
+      paneId: "p1",
+      renotify: true,
+    });
+  });
 });
 
 describe("NotificationCoordinator — coalescing", () => {
@@ -155,6 +171,43 @@ describe("NotificationCoordinator — coalescing", () => {
       paneId: "p1",
       renotify: false, // a retraction update must not re-buzz
     });
+  });
+});
+
+describe("NotificationCoordinator — currentSolo", () => {
+  test("undefined before anything fires", () => {
+    const { coord } = setup();
+    expect(coord.currentSolo("p1")).toBeUndefined();
+  });
+
+  test("the outstanding alert once it's the sole one", () => {
+    const { clock, coord } = setup();
+    coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
+    clock.fireAll();
+    expect(coord.currentSolo("p1")?.status).toBe("blocked");
+  });
+
+  test("undefined once a second alert joins it — the summary is now a digest", () => {
+    const { clock, coord } = setup();
+    coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
+    coord.onTransition(agentNamed("p2", "codex", "blocked"), "working", "blocked");
+    clock.fireAll();
+    expect(coord.currentSolo("p1")).toBeUndefined();
+  });
+
+  test("undefined again once the sole alert resolves", () => {
+    const { clock, coord } = setup();
+    coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
+    clock.fireAll();
+    coord.onTransition(agentNamed("p1", "claude", "idle"), "blocked", "idle");
+    expect(coord.currentSolo("p1")).toBeUndefined();
+  });
+
+  test("querying the wrong paneId misses even while solo", () => {
+    const { clock, coord } = setup();
+    coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
+    clock.fireAll();
+    expect(coord.currentSolo("p2")).toBeUndefined();
   });
 });
 
