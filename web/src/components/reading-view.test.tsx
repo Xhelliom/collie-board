@@ -76,6 +76,7 @@ describe("ReadingView", () => {
           hasMore: false,
           total: 1,
           fileTruncated: false,
+          queued: [],
         }),
       ),
     );
@@ -99,6 +100,7 @@ describe("ReadingView", () => {
           hasMore: false,
           total: 2,
           fileTruncated: false,
+          queued: [],
         });
       }),
     );
@@ -140,5 +142,35 @@ describe("ReadingView", () => {
     render(<ReadingView {...props} />);
     await screen.findByText("One commit: abc1234.");
     expect(screen.queryByRole("button", { name: /a question is waiting/i })).not.toBeInTheDocument();
+  });
+
+  // Text still sitting in Claude Code's OWN input queue — submitted while the agent was busy, not yet
+  // taken or recalled. The one state that never reaches the transcript at all if it clears before the
+  // next poll, so this is the only place it can ever be shown.
+  describe("the queue card", () => {
+    it("shows nothing when the queue is empty", async () => {
+      render(<ReadingView {...props} />);
+      await screen.findByText("One commit: abc1234.");
+      expect(screen.queryByText(/^Queue/)).not.toBeInTheDocument();
+    });
+
+    it("shows a message sitting in Claude Code's own queue, with a count", async () => {
+      server.use(
+        http.get(/\/api\/pane\/[^/]+\/history/, () =>
+          HttpResponse.json({
+            paneId: "w1:p1",
+            available: true,
+            entries: [],
+            hasMore: false,
+            total: 0,
+            fileTruncated: false,
+            queued: ["merge the PR once tests pass"],
+          }),
+        ),
+      );
+      render(<ReadingView {...props} />);
+      expect(await screen.findByText("merge the PR once tests pass")).toBeInTheDocument();
+      expect(screen.getByText("Queue (1)")).toBeInTheDocument();
+    });
   });
 });

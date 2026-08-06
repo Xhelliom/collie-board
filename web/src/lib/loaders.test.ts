@@ -512,6 +512,7 @@ describe("historyLoader", () => {
           hasMore: false,
           total: 0,
           fileTruncated: false,
+          queued: [],
         });
       }),
     );
@@ -556,6 +557,7 @@ describe("historyLoader", () => {
           hasMore: false,
           total: 0,
           fileTruncated: false,
+          queued: [],
         });
       }),
     );

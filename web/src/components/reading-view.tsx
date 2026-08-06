@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Clock, Loader2, TriangleAlert } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
@@ -100,6 +100,13 @@ export function ReadingView({
 }) {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  // Messages sitting in Claude Code's OWN input queue right now — submitted while the agent was busy,
+  // not yet taken or recalled. The one state nothing else can show: the terminal's "❯" line has
+  // already swapped the text for "Press up to edit queued messages" by the time anyone reads the
+  // screen (see INPUT_PLACEHOLDERS in harness/claude/chrome.ts), and no `user`/`attachment` row for it
+  // exists in the log until it's taken or recalled. bridge/transcript.ts reads it from the ONE place
+  // it's ever written while pending: the `queue-operation enqueue` bookkeeping row.
+  const [queued, setQueued] = useState<string[]>([]);
   // What we hold, readable from the fetch without making it depend on the render's closure — otherwise
   // every arriving turn would rebuild `pull` and re-fire the effect.
   const held = useRef<TranscriptEntry[]>([]);
@@ -121,12 +128,14 @@ export function ReadingView({
       if (!res.available) {
         held.current = [];
         setEntries([]);
+        setQueued([]);
         setNote(UNAVAILABLE_COPY[res.reason] ?? UNAVAILABLE_COPY.error!);
         return;
       }
       const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
       held.current = next;
       setEntries(next);
+      setQueued(res.queued);
       setNote(next.length === 0 ? UNAVAILABLE_COPY.empty! : null);
     } catch {
       // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
@@ -182,6 +191,27 @@ export function ReadingView({
             <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
               Still writing — this turn appears when the agent finishes it.
+            </div>
+          )}
+          {/* The one state that never reaches the transcript at all if it's cleared (recalled, or
+              taken and answered) before the next poll. Inside the scroller, below "still writing",
+              so it auto-follows to the bottom with everything else. */}
+          {queued.length > 0 && (
+            <div className="mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <Clock className="size-3" />
+                Queue ({queued.length})
+              </div>
+              <div className="mt-1 space-y-1.5">
+                {queued.map((text, i) => (
+                  <div
+                    key={i}
+                    className="whitespace-pre-wrap break-words text-base text-muted-foreground"
+                  >
+                    {text}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </ChatMessageList>

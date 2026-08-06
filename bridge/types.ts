@@ -214,6 +214,8 @@ export type PaneHistoryResponse =
       total: number;
       /** The log exceeded the read cap, so only its tail was parsed. */
       fileTruncated: boolean;
+      /** Messages submitted while the agent was busy, not yet taken or recalled — oldest first. */
+      queued: string[];
     };
 
 /**

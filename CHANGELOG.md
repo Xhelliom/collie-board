@@ -7,7 +7,7 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.91.0] - 2026-08-06
+## [0.92.0] - 2026-08-06
 
 ### Added
 - A multiSelect question that is one step of a multi-question wizard now renders natively — step chips, ←/→ navigation, and an advance button labelled "Next" or "Submit" as the terminal labels it — instead of falling to the raw mirror (27d94ba).
@@ -15,6 +15,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 ### Fixed
 - Preview-variant dialogs whose option label wraps onto continuation rows are detected again instead of falling to the raw mirror (27d94ba).
 - `multi-select-action.ts` no longer carries a literal NUL byte, which made git treat it as binary and hide every race-guard change from review; `.gitattributes` pins `*.ts`/`*.tsx` as text (27d94ba).
+- The dialog-key conformance gate now declares multi-select's ←/→ step navigation, which it emitted without declaring (2a8dd6b).
+
+## [0.91.1] - 2026-08-06
+
+### Fixed
+- The queue card no longer shows a `<task-notification>` or other system plumbing as if a message were waiting — an idle session's own automatic notification could sit "enqueued" indefinitely since Claude Code only dequeues it on the session's next real turn (aa8c52d).
+
+## [0.91.0] - 2026-08-06
+
+### Added
+- Reading mode now shows a "Queue" card for messages still sitting in Claude Code's own input queue — the one state that never reaches the transcript at all if it clears before the next poll. Sits below the transcript, hidden when nothing is queued (2b9744d, cb2b947).
 
 ## [0.90.3] - 2026-08-06
 
