@@ -66,3 +66,19 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
     expect(rewriteSwitch()).toHaveAttribute("aria-checked", "true");
   });
 });
+
+// The form is taller than the sheet on a phone: put the confirm button back at the end of the body
+// and it opens below the fold, which is exactly what was reported. jsdom lays nothing out, so the
+// check is structural — the button must not live inside the panel's scroller.
+describe("NewCardSheet — the confirm action stays reachable", () => {
+  it("keeps 'Ajouter au backlog' out of the scrolling body", () => {
+    render(<NewCardSheet open onClose={() => {}} onCreate={vi.fn()} tags={[]} />);
+    const scroller = screen
+      .getByRole("textbox", { name: /what needs doing/i })
+      .closest(".overflow-y-auto")!;
+    const confirm = screen.getByRole("button", { name: /ajouter au backlog/i });
+
+    expect(scroller).not.toBeNull();
+    expect(scroller.contains(confirm)).toBe(false);
+  });
+});
