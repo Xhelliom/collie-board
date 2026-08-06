@@ -393,6 +393,13 @@ export function parseTranscript(
  * pushes, `dequeue` (taken) and `remove` (recalled via Up, never sent) both pop the front — `remove`
  * happens to also carry the content, but which one left doesn't matter, only that one did.
  *
+ * Claude Code's queue isn't only human input — it's also how it hands itself a `<task-notification>`
+ * or other plumbing to deliver on the NEXT turn, and a session sitting idle has no next turn to
+ * dequeue it on, so a system item can sit "pending" indefinitely. Filtered through
+ * {@link classifyUserText}, the same rule that already keeps such plumbing out of the transcript's
+ * `user` turns — done AFTER the FIFO walk, on the raw content, so a filtered-out system entry still
+ * consumes its own `dequeue`/`remove` instead of one meant for a real, still-pending human message.
+ *
  * PURE — no fs, no clock — like the rest of this file's parsing.
  */
 export function pendingQueue(text: string): string[] {
@@ -409,7 +416,10 @@ export function pendingQueue(text: string): string[] {
     if (row.operation === "enqueue" && typeof row.content === "string") queue.push(row.content);
     else if (row.operation === "dequeue" || row.operation === "remove") queue.shift();
   }
-  return queue;
+  return queue
+    .map((content) => classifyUserText(content))
+    .filter((c): c is { role: "user"; text: string } => c !== null && c.role === "user")
+    .map((c) => c.text);
 }
 
 /**
