@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.87.1] - 2026-08-06
+
+### Fixed
+- The copilot-subtitle enrichment now logs its outcome (skipped / stale / no usable answer / applied) — it was silent by design, which made it unobservable (735918a).
+
 ## [0.87.0] - 2026-08-06
 
 ### Added
