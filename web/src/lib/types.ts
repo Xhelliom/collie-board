@@ -252,6 +252,8 @@ export type PaneHistoryResponse =
       hasMore: boolean;
       total: number;
       fileTruncated: boolean;
+      /** Messages submitted while the agent was busy, not yet taken or recalled — oldest first. */
+      queued: string[];
     };
 
 export type ActionResponse =

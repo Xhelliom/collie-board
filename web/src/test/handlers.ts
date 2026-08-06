@@ -151,6 +151,7 @@ export const handlers = [
       hasMore: false,
       total: fixtureTranscript.length,
       fileTruncated: false,
+      queued: [],
     }),
   ),
   http.post(/\/api\/pane\/[^/]+\/reply$/, async ({ request }) => {

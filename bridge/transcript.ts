@@ -108,6 +108,13 @@ export interface TranscriptPage {
   total: number;
   /** True when the on-disk log exceeded the byte cap and we kept only its tail. */
   fileTruncated: boolean;
+  /**
+   * Messages currently sitting in Claude Code's OWN input queue, oldest first — submitted while the
+   * agent was busy, not yet taken. This is the one state {@link parseTranscript} can never produce a
+   * turn for: a queued message has no `user` row (and no `attachment` one either) until it's taken or
+   * recalled, so without this it is invisible everywhere Collie reads from the log.
+   */
+  queued: string[];
 }
 
 // ── pure parsing ──────────────────────────────────────────────────────────────
@@ -374,6 +381,35 @@ export function parseTranscript(
   }
 
   return entries;
+}
+
+/**
+ * Messages currently sitting in Claude Code's own input queue, oldest first.
+ *
+ * `{"type":"queue-operation","operation":"enqueue","content":"..."}` is the ONLY place a queued
+ * message's text is ever written while it's still pending — the terminal's "❯" line has already
+ * swapped it for the "Press up to edit queued messages" placeholder by the time anyone reads the
+ * screen, and no `user`/`attachment` row exists for it until it's taken or recalled. FIFO: `enqueue`
+ * pushes, `dequeue` (taken) and `remove` (recalled via Up, never sent) both pop the front — `remove`
+ * happens to also carry the content, but which one left doesn't matter, only that one did.
+ *
+ * PURE — no fs, no clock — like the rest of this file's parsing.
+ */
+export function pendingQueue(text: string): string[] {
+  const queue: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    let row: { type?: unknown; operation?: unknown; content?: unknown };
+    try {
+      row = JSON.parse(line) as typeof row;
+    } catch {
+      continue; // partial trailing write, or the clipped first line of a tail read
+    }
+    if (row.type !== "queue-operation") continue;
+    if (row.operation === "enqueue" && typeof row.content === "string") queue.push(row.content);
+    else if (row.operation === "dequeue" || row.operation === "remove") queue.shift();
+  }
+  return queue;
 }
 
 /**
@@ -800,6 +836,9 @@ export class TranscriptStore {
       hasMore: hasMore || (!complete && window.length > 0 && window[0] === entries[0]),
       total: entries.length,
       fileTruncated: !complete,
+      // Not cached alongside `entries`: cheap (one more pass over text already in hand), and its
+      // whole point is to reflect the tail of the log at THIS instant, not whenever it last changed.
+      queued: pendingQueue(text),
     };
   }
 }

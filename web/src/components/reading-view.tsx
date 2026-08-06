@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Clock, Loader2, TriangleAlert } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
@@ -100,6 +100,13 @@ export function ReadingView({
 }) {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [note, setNote] = useState<string | null>(null);
+  // Messages sitting in Claude Code's OWN input queue right now — submitted while the agent was busy,
+  // not yet taken or recalled. The one state nothing else can show: the terminal's "❯" line has
+  // already swapped the text for "Press up to edit queued messages" by the time anyone reads the
+  // screen (see INPUT_PLACEHOLDERS in harness/claude/chrome.ts), and no `user`/`attachment` row for it
+  // exists in the log until it's taken or recalled. bridge/transcript.ts reads it from the ONE place
+  // it's ever written while pending: the `queue-operation enqueue` bookkeeping row.
+  const [queued, setQueued] = useState<string[]>([]);
   // What we hold, readable from the fetch without making it depend on the render's closure — otherwise
   // every arriving turn would rebuild `pull` and re-fire the effect.
   const held = useRef<TranscriptEntry[]>([]);
@@ -121,12 +128,14 @@ export function ReadingView({
       if (!res.available) {
         held.current = [];
         setEntries([]);
+        setQueued([]);
         setNote(UNAVAILABLE_COPY[res.reason] ?? UNAVAILABLE_COPY.error!);
         return;
       }
       const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
       held.current = next;
       setEntries(next);
+      setQueued(res.queued);
       setNote(next.length === 0 ? UNAVAILABLE_COPY.empty! : null);
     } catch {
       // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
@@ -164,6 +173,30 @@ export function ReadingView({
           <span className="shrink-0 font-medium underline">Terminal</span>
         </button>
       )}
+
+      {/* Always mounted, even empty — the queue is the one state that never reaches the transcript at
+          all if it's cleared (recalled, or taken and answered) before you scroll to where a
+          conditionally-shown card would have been. Outside the scroller so it can't be missed. */}
+      <div className="mx-3 mt-1.5 shrink-0 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <Clock className="size-3" />
+          Queue{queued.length > 0 ? ` (${queued.length})` : ""}
+        </div>
+        {queued.length > 0 ? (
+          <div className="mt-1 space-y-1.5">
+            {queued.map((text, i) => (
+              <div
+                key={i}
+                className="whitespace-pre-wrap break-words text-base text-muted-foreground"
+              >
+                {text}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-1 text-sm text-muted-foreground/60">Nothing queued</div>
+        )}
+      </div>
 
       <div className="min-h-0 min-w-0 flex-1">
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">

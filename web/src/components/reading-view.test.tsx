@@ -76,6 +76,7 @@ describe("ReadingView", () => {
           hasMore: false,
           total: 1,
           fileTruncated: false,
+          queued: [],
         }),
       ),
     );
@@ -99,6 +100,7 @@ describe("ReadingView", () => {
           hasMore: false,
           total: 2,
           fileTruncated: false,
+          queued: [],
         });
       }),
     );
@@ -140,5 +142,45 @@ describe("ReadingView", () => {
     render(<ReadingView {...props} />);
     await screen.findByText("One commit: abc1234.");
     expect(screen.queryByRole("button", { name: /a question is waiting/i })).not.toBeInTheDocument();
+  });
+
+  // The queue card is the one thing this view can show even when nothing else has loaded: it's a
+  // fixed banner outside the scroller, always mounted, so it can never be missed by scrolling past it
+  // or hidden behind an empty/loading transcript state.
+  describe("the queue card", () => {
+    it("says nothing is queued by default", async () => {
+      render(<ReadingView {...props} />);
+      await screen.findByText("One commit: abc1234.");
+      expect(screen.getByText("Nothing queued")).toBeInTheDocument();
+    });
+
+    it("shows a message sitting in Claude Code's own queue, with a count", async () => {
+      server.use(
+        http.get(/\/api\/pane\/[^/]+\/history/, () =>
+          HttpResponse.json({
+            paneId: "w1:p1",
+            available: true,
+            entries: [],
+            hasMore: false,
+            total: 0,
+            fileTruncated: false,
+            queued: ["merge the PR once tests pass"],
+          }),
+        ),
+      );
+      render(<ReadingView {...props} />);
+      expect(await screen.findByText("merge the PR once tests pass")).toBeInTheDocument();
+      expect(screen.getByText("Queue (1)")).toBeInTheDocument();
+      expect(screen.queryByText("Nothing queued")).not.toBeInTheDocument();
+    });
+
+    it("is mounted even while the transcript is still loading", async () => {
+      server.use(
+        http.get(/\/api\/pane\/[^/]+\/history/, () => new Promise(() => {})),
+      );
+      render(<ReadingView {...props} />);
+      expect(screen.getByText("Nothing queued")).toBeInTheDocument();
+      expect(screen.getByText("Loading…")).toBeInTheDocument();
+    });
   });
 });
