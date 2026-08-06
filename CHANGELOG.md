@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.88.0] - 2026-08-06
+
+### Added
+- The copilot subtitle now works for card-less sessions too: it reads what's currently uncommitted in the pane's own cwd when there's no card/branch to diff against, and falls back to resolving the agent's transcript by directory/process when herdr reports no `agent_session` (the same fallback the context gauge already uses) (8ff678b).
+
 ## [0.87.2] - 2026-08-06
 
 ### Fixed
