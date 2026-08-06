@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.86.0] - 2026-08-05
+
+### Changed
+- Spaces carries the session switcher too — a phone can change session from there instead of going back to Herd (b280384).
+
 ## [0.85.0] - 2026-08-05
 
 ### Changed
