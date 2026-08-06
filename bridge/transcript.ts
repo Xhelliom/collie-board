@@ -24,6 +24,13 @@
 // rendering 705 fake "user" turns. `isSidechain` marks subagent traffic (dropped by default);
 // `isCompactSummary` marks the summary Claude writes when a session is compacted.
 //
+// A message typed while the agent is mid-turn (steered straight into the running turn, "surfaced
+// alongside the next tool result" rather than queued for the next one) never gets a `user` row at
+// all — verified against Claude Code 2.1.222, 2026-08-06, on this repo's own session log. It's
+// journaled as {"type":"attachment","attachment":{"type":"queued_command","prompt":"...",...}}
+// instead. Miss this shape and the message is gone from the transcript for good, not just delayed —
+// it was 5/5 of this session's own mid-turn messages, none of which ever became a `user` row.
+//
 // SECURITY. This reads files, which nothing else in the bridge does, so the path is pinned shut:
 //  - the client never supplies a path — only a pane id, which we map to a session uuid server-side;
 //  - the uuid must match a strict v4-shaped pattern before it is ever concatenated into a path;
@@ -240,6 +247,7 @@ interface RawRow {
   isSidechain?: unknown;
   isCompactSummary?: unknown;
   message?: { role?: unknown; content?: unknown } | unknown;
+  attachment?: { type?: unknown; prompt?: unknown } | unknown;
 }
 
 /**
@@ -269,6 +277,24 @@ export function parseTranscript(
       continue; // partial trailing write, or the clipped first line of a tail read
     }
     const type = row.type;
+    if (type === "attachment") {
+      const attachment = row.attachment;
+      if (attachment !== null && typeof attachment === "object") {
+        const a = attachment as { type?: unknown; prompt?: unknown };
+        if (a.type === "queued_command" && typeof a.prompt === "string") {
+          const classified = classifyUserText(a.prompt);
+          if (classified !== null) {
+            entries.push({
+              uuid: typeof row.uuid === "string" ? row.uuid : "",
+              ts: typeof row.timestamp === "string" ? row.timestamp : "",
+              role: classified.role,
+              parts: [{ kind: "text", ...clamp(classified.text, MAX_TEXT_CHARS) }],
+            });
+          }
+        }
+      }
+      continue;
+    }
     if (type !== "user" && type !== "assistant") continue;
     if (row.isSidechain === true && !opts.includeSidechains) continue;
 
