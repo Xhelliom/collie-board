@@ -7,10 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.90.1] - 2026-08-06
+## [0.90.2] - 2026-08-06
 
 ### Fixed
 - New-card sheet: the "Ajouter au backlog" button is pinned below the scroller instead of sitting at the end of the form, so it is reachable without scrolling on a phone (473d928).
+
+## [0.90.1] - 2026-08-06
+
+### Fixed
+- The fast-tier subtitle (the agent's own last line) now renders first, unconditionally — it used to run only as a fallback after awaiting the copilot, so it lost the staleness race against a moving pane just as often as the copilot did, and a notification could land with no subtitle at all even though the free tier had one ready (e05c443).
 
 ## [0.90.0] - 2026-08-06
 

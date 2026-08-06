@@ -2,20 +2,23 @@
 // (`NotifyPrefs.copilotSubtitle`, off by default): even the free tier below reads a transcript file
 // the operator may not want read for this.
 //
-// TWO TIERS. The copilot REPHRASES what happened into one clean sentence — but it's a serialised
-// agent turn (seconds to minutes, one request at a time across the whole board) and spends the same
-// quota a worker does, so it only runs when the copilot itself is enabled too. Without it (or when it
-// answers with nothing usable), this falls back to the agent's own last transcript message, VERBATIM
-// — not as good as a rephrase, but free, fast (a file read, ~10-60ms — see context.ts's own
-// measurement), and a long way better than the bare card title it replaces.
+// TWO TIERS, RENDERED IN THAT ORDER — FAST ONE FIRST, ALWAYS. The free tier (the agent's own last
+// transcript line, verbatim) needs nothing but a file read (~10-60ms — see context.ts's own
+// measurement) and renders as soon as it's ready. The copilot REPHRASES that into one clean sentence,
+// but it's a serialised agent turn — seconds to minutes, one request at a time across the whole board
+// — so it lands, if at all, as a LATER upgrade over the fast one, never instead of it. Landing the
+// fast tier first is deliberate, not just "first is faster to code": a pane the operator has already
+// handled by the time the copilot's turn comes back is exactly the case notify-subtitle's staleness
+// guard exists for (see below) — putting the free tier first means that guard only ever costs the
+// copilot's polish, never the notification's only chance at being informative at all.
 //
-// TWO-STAGE PUSH, DELIBERATELY, either way. A push notification's value decays fast, so waiting for
-// either tier before the FIRST push would defeat the alert. The plain push fires immediately,
-// unchanged (NotificationCoordinator). This module fires a SECOND, SILENT update (`renotify:false`)
-// on the same tag once it has an answer, replacing only the half of the body after the repo name —
-// the repo itself is never touched. If the alert has since resolved, or a second one joined it and
-// the summary became a multi-agent digest, the update is dropped: nothing stale ever lands on the
-// lock screen.
+// TWO-STAGE PUSH (now three-stage, counting the base one), DELIBERATELY. A push notification's value
+// decays fast, so waiting for EITHER tier before the FIRST push would defeat the alert — the plain
+// push fires immediately, unchanged (NotificationCoordinator). Each tier here that lands fires a
+// SILENT update (`renotify:false`) on the same tag, replacing only the half of the body after the
+// repo name — the repo itself is never touched. If the alert has since resolved, or a second one
+// joined it and the summary became a multi-agent digest, THAT tier's update is dropped: nothing stale
+// ever lands on the lock screen, whether it's the fast tier or the copilot's later upgrade.
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
 import type { Alert, FiredAlert, NotifySink } from "./notifications.ts";
@@ -67,12 +70,7 @@ function rawFallbackSubtitle(message: string): string {
   return clean.length > 140 ? `${clean.slice(0, 139)}…` : clean;
 }
 
-/**
- * Ask the copilot for a one-line subtitle and, if it answers before the alert moved on, silently
- * refresh the live push with it. Fire-and-forget by design — call from the coordinator's `onFire`
- * hook without awaiting it there, and never let a failure here surface: every input is best-effort.
- */
-export async function enrichNotification(opts: {
+interface EnrichOpts {
   alert: FiredAlert;
   /** Just the staleness check — see `NotificationCoordinator.currentSolo`. */
   coordinator: { currentSolo(paneId: string): Alert | undefined };
@@ -93,7 +91,39 @@ export async function enrichNotification(opts: {
    *  a test) simply doesn't get it. Without this the subtitle would only ever be visible in the
    *  fleeting OS notification, never in the history you'd check after missing it. */
   notifyLog?: { enrich(paneId: string, status: "blocked" | "done", subtitle: string): void };
-}): Promise<void> {
+}
+
+/**
+ * Render one subtitle update, but only if the alert it's ABOUT is still the thing on screen —
+ * unchanged status, still the sole outstanding one (not swallowed into a multi-agent digest). Shared
+ * by both tiers below, since both can equally arrive after the pane has moved on; returns whether it
+ * actually rendered, so a caller can tell "landed" from "the pane moved on" without duplicating the
+ * check itself.
+ */
+function pushSubtitle(opts: EnrichOpts, alert: FiredAlert, subtitle: string): boolean {
+  const current = opts.coordinator.currentSolo(alert.paneId);
+  if (!current || current.status !== alert.status) {
+    console.log(`[notify-subtitle] dropped a stale answer for ${alert.paneId}`);
+    return false;
+  }
+  console.log(`[notify-subtitle] ${alert.paneId}: "${subtitle}"`);
+  opts.sink.render({
+    title: `${paneDisplayName(current)} ${current.status === "blocked" ? "needs you" : "is done"}`,
+    body: `${current.workspaceLabel} · ${subtitle}`,
+    paneId: alert.paneId,
+    renotify: false,
+  });
+  opts.notifyLog?.enrich(alert.paneId, alert.status, subtitle);
+  return true;
+}
+
+/**
+ * Render the agent's own last line first (the fast tier — see the header), then let the copilot
+ * upgrade it once it answers, if it still can. Fire-and-forget by design — call from the
+ * coordinator's `onFire` hook without awaiting it there, and never let a failure here surface: every
+ * input is best-effort.
+ */
+export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   const { alert } = opts;
   const card = alert.cardId ? opts.board.getCard(alert.cardId) : null;
 
@@ -107,54 +137,41 @@ export async function enrichNotification(opts: {
   const lastMessage =
     transcriptBy && opts.transcripts ? await lastAssistantSnippet(opts.transcripts, transcriptBy) : null;
 
+  // FAST TIER — no queue to wait on, so this is the notification's real shot at being informative;
+  // see the header for why it goes first rather than only being a fallback for a failed copilot call.
+  const fastLanded = lastMessage ? pushSubtitle(opts, alert, rawFallbackSubtitle(lastMessage)) : false;
+
+  if (!opts.copilot.enabled) {
+    if (!fastLanded) console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    return;
+  }
+
   // The diff is copilot-prompt material only — a raw `--stat` listing isn't subtitle material on its
   // own the way the agent's own sentence is — so it's not worth a git subprocess when the copilot
   // isn't even going to see it.
   const statSummary =
-    opts.copilot.enabled && alert.status === "done"
-      ? await opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null)
-      : null;
+    alert.status === "done" ? await opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null) : null;
+  if (!lastMessage && !statSummary && !card?.spec) {
+    if (!fastLanded) console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    return;
+  }
 
-  let subtitle: string | null = null;
-  if (opts.copilot.enabled && (lastMessage || statSummary || card?.spec)) {
-    const parsed = await opts.copilot.ask((out) =>
-      notifySubtitlePrompt({
-        verb: alert.status === "blocked" ? "needs input" : "finished",
-        cardTitle: card?.title ?? alert.cardTitle,
-        cardSpec: card?.spec ?? null,
-        statSummary,
-        lastMessage,
-        outPath: out,
-      }),
-    );
-    subtitle = toNotifySubtitle(parsed);
-    if (!subtitle) console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
-  }
-  // No copilot, or it came back empty — the free tier: the agent's own words, unrephrased.
-  if (!subtitle && lastMessage) {
-    subtitle = rawFallbackSubtitle(lastMessage);
-    console.log(`[notify-subtitle] ${alert.paneId}: falling back to the agent's own last line`);
-  }
+  const parsed = await opts.copilot.ask((out) =>
+    notifySubtitlePrompt({
+      verb: alert.status === "blocked" ? "needs input" : "finished",
+      cardTitle: card?.title ?? alert.cardTitle,
+      cardSpec: card?.spec ?? null,
+      statSummary,
+      lastMessage,
+      outPath: out,
+    }),
+  );
+  const subtitle = toNotifySubtitle(parsed);
   if (!subtitle) {
-    console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
     return;
   }
-
-  // The alert may have resolved (handled at the desk) or been superseded by a second one (now a
-  // digest) while the copilot was thinking — either way, this answer no longer describes what's on
-  // the lock screen, so it's dropped rather than rendered.
-  const current = opts.coordinator.currentSolo(alert.paneId);
-  if (!current || current.status !== alert.status) {
-    console.log(`[notify-subtitle] dropped a stale answer for ${alert.paneId}`);
-    return;
-  }
-
-  console.log(`[notify-subtitle] ${alert.paneId}: "${subtitle}"`);
-  opts.sink.render({
-    title: `${paneDisplayName(current)} ${current.status === "blocked" ? "needs you" : "is done"}`,
-    body: `${current.workspaceLabel} · ${subtitle}`,
-    paneId: alert.paneId,
-    renotify: false,
-  });
-  opts.notifyLog?.enrich(alert.paneId, alert.status, subtitle);
+  // SLOW TIER upgrade. Dropped exactly like the fast one above if the pane has moved on by now — and
+  // that's fine even when it does: the fast tier, if it had anything to work with, already landed.
+  pushSubtitle(opts, alert, subtitle);
 }
