@@ -6,7 +6,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { getNotifyLog } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { panePath } from "@/lib/nav";
-import { notifyDetail, notifyVerb, paneDisplayName, type NotifyLogEntry } from "@/lib/types";
+import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEntry } from "@/lib/types";
 
 // The bell, in the app header (app-header.tsx), on every screen. A push notification collapses into
 // one live slot and is retracted the moment the work is handled — right for a lock screen, and the
@@ -79,23 +79,26 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
               // rather than looking up a pane id in the one you happen to be viewing.
               navigate(panePath(e.paneId, e.session));
             }}
-            className="flex w-full items-baseline gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+            className="flex w-full items-start gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted"
           >
             <span
               className={
                 e.status === "blocked"
-                  ? "size-2 shrink-0 translate-y-[-1px] rounded-full bg-status-blocked"
-                  : "size-2 shrink-0 translate-y-[-1px] rounded-full bg-status-done"
+                  ? "mt-1.5 size-2 shrink-0 rounded-full bg-status-blocked"
+                  : "mt-1.5 size-2 shrink-0 rounded-full bg-status-done"
               }
               aria-hidden
             />
             <span className="min-w-0 flex-1">
+              {/* Name + verb + WHERE (session/repo) share this line — short, stable identity, so the
+                  line below is free for WHAT (the copilot subtitle, which can run to two lines). */}
               <span className="block truncate text-sm">
-                <span className="font-medium">{paneDisplayName(e)}</span> {notifyVerb(e.status)}
+                <span className="font-medium">{paneDisplayName(e)}</span> {notifyVerb(e.status)} ·{" "}
+                <span className="text-muted-foreground">{notifyWhere(e)}</span>
               </span>
-              <span className="block truncate text-xs text-muted-foreground">{notifyDetail(e)}</span>
+              <span className="line-clamp-2 text-xs text-muted-foreground">{notifyWhat(e)}</span>
             </span>
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
+            <span className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
           </button>
         </li>
       ))}

@@ -77,22 +77,23 @@ export function notifyVerb(status: "blocked" | "done"): string {
 }
 
 /**
- * The notification's second line: herd session, workspace, then the richest thing known about WHAT
- * happened — the copilot's own account when it has answered, else the card title, else the bare cwd.
- * Shared by the toast (use-transitions.ts) and the bell (notification-bell.tsx) so upgrading one
- * upgrades both; the toast's input simply never carries a `subtitle` (see that hook's header comment
- * for why it can't).
+ * WHERE it happened — the herd session (only when it isn't the primary one) and the workspace/repo.
+ * Rides on the name+verb line, not its own: identity is short and stable, so it doesn't need the
+ * row's second line the way a subtitle that can run to a full sentence does.
  */
-export function notifyDetail(input: {
-  session?: string;
-  workspaceLabel: string;
-  cardTitle?: string;
-  subtitle?: string;
-  cwd: string;
-}): string {
-  return [input.session, input.workspaceLabel, input.subtitle ?? input.cardTitle ?? shortCwd(input.cwd)]
-    .filter(Boolean)
-    .join(" · ");
+export function notifyWhere(input: { session?: string; workspaceLabel: string }): string {
+  return [input.session, input.workspaceLabel].filter(Boolean).join(" · ");
+}
+
+/**
+ * WHAT happened — the richest thing known: the copilot's own account when it has answered, else the
+ * card title, else the bare cwd. Its own line, allowed to wrap (a copilot sentence runs longer than a
+ * card title ever did) — see the two-line clamp both callers render it with. Shared by the toast
+ * (use-transitions.ts) and the bell (notification-bell.tsx); the toast's input simply never carries a
+ * `subtitle` (see that hook's header comment for why it can't).
+ */
+export function notifyWhat(input: { cardTitle?: string; subtitle?: string; cwd: string }): string {
+  return input.subtitle ?? input.cardTitle ?? shortCwd(input.cwd);
 }
 
 /** A Herdr workspace ("space") — a project-scoped container of tabs. */

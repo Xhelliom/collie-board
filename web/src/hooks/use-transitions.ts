@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { notifyDetail, notifyVerb, paneDisplayName, type AgentStatus, type AgentView } from "@/lib/types";
+import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type AgentStatus, type AgentView } from "@/lib/types";
 
 // In-app lifecycle notifications. We diff each snapshot against the previous one and raise a toast
 // when an agent crosses into a state that wants attention. Background/OS notifications are handled
@@ -11,17 +11,17 @@ import { notifyDetail, notifyVerb, paneDisplayName, type AgentStatus, type Agent
 // that were already blocked — matching the server's transition semantics.
 //
 // WHAT A TOAST CARRIES (decided here; the old status line carried only `agent · workspace`), same
-// naming/formatting the bell's history uses (notifyVerb/notifyDetail in lib/types.ts) so upgrading
-// one upgrades both:
-//   • title  — the pane's display name + the verb. `paneDisplayName` is the session you'd recognise:
-//              your own pane label, else Claude's `/rename` session name, else the agent name. Three
-//              panes running "claude" used to produce three identical notices.
-//   • detail — where it happened: the herd session (only when it isn't the primary one, since that
-//              is the one you're looking at), the workspace, and the card it backs — falling back to
-//              the working directory when the pane isn't card-backed. NEVER a copilot subtitle: that
-//              answer can take seconds to minutes, and a toast is gone in {@link TOAST_TTL_MS} (see
-//              agent-toasts.tsx) — by the time it would land there's nothing left to update. The bell
-//              can show it because it's a persistent record, not a transient one.
+// naming/formatting the bell's history uses (lib/types.ts) so upgrading one upgrades both:
+//   • title  — the pane's display name, the verb, and WHERE (herd session + workspace/repo) — all
+//              short, stable identity, so it shares one line and leaves the second line to WHAT.
+//              `paneDisplayName` is the session you'd recognise: your own pane label, else Claude's
+//              `/rename` session name, else the agent name. Three panes running "claude" used to
+//              produce three identical notices.
+//   • detail — WHAT happened: the card it backs, falling back to the working directory when the
+//              pane isn't card-backed. NEVER a copilot subtitle: that answer can take seconds to
+//              minutes, and a toast is gone in {@link TOAST_TTL_MS} (see agent-toasts.tsx) — by the
+//              time it would land there's nothing left to update. The bell can show it because it's
+//              a persistent record, not a transient one.
 //   • a tap  — deep-links into the pane, in its own session.
 // Everything above is read straight off the snapshot's `AgentView`, so a toast costs no extra fetch.
 
@@ -41,12 +41,13 @@ const MAX_TOASTS = 3;
 
 function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "id"> {
   const status = a.status as "blocked" | "done";
+  const where = notifyWhere({ session, workspaceLabel: a.workspaceLabel });
   return {
     paneId: a.paneId,
     session,
     status,
-    title: `${paneDisplayName(a)} ${notifyVerb(status)}`,
-    detail: notifyDetail({ session, workspaceLabel: a.workspaceLabel, cardTitle: a.cardTitle, cwd: a.cwd }),
+    title: `${paneDisplayName(a)} ${notifyVerb(status)} · ${where}`,
+    detail: notifyWhat({ cardTitle: a.cardTitle, cwd: a.cwd }),
   };
 }
 

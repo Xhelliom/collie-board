@@ -85,8 +85,9 @@ describe("AgentToasts", () => {
     advance("done");
 
     // Not "claude is done": the pane's own name (Claude's `/rename`) is what tells three claudes apart.
-    expect(screen.getByText("the refactor is done")).toBeInTheDocument();
-    expect(screen.getByText("side · webapp · Ship the toasts")).toBeInTheDocument();
+    // Name + verb + WHERE (session · workspace) share the title line; WHAT (the card) is its own.
+    expect(screen.getByText("the refactor is done · side · webapp")).toBeInTheDocument();
+    expect(screen.getByText("Ship the toasts")).toBeInTheDocument();
   });
 
   test("stays out of the way: the stack takes no taps, and the toast can be dismissed", async () => {

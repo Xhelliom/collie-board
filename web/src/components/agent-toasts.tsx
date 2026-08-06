@@ -70,7 +70,7 @@ function Toast({ toast, onDismiss }: { toast: AgentToast; onDismiss: (id: number
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{toast.title}</span>
-          <span className="block truncate text-xs text-muted-foreground">{toast.detail}</span>
+          <span className="line-clamp-2 text-xs text-muted-foreground">{toast.detail}</span>
         </span>
       </button>
       <button

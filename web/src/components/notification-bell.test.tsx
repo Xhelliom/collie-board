@@ -103,7 +103,10 @@ describe("NotificationBell", () => {
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
     expect(await screen.findByText(/release branch/)).toBeInTheDocument();
-    expect(screen.getByText("side · collie · Ship 0.86")).toBeInTheDocument();
+    // WHERE (session · repo) shares the name+verb line; WHAT (the card title) gets its own, wrappable
+    // line — see notifyWhere/notifyWhat in lib/types.ts.
+    expect(screen.getByText("side · collie")).toBeInTheDocument();
+    expect(screen.getByText("Ship 0.86")).toBeInTheDocument();
   });
 
   test("a copilot subtitle wins over the card title, once it's answered", async () => {
@@ -123,7 +126,8 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    expect(await screen.findByText("collie · bumped the version and wrote the changelog")).toBeInTheDocument();
+    expect(await screen.findByText("collie")).toBeInTheDocument();
+    expect(screen.getByText("bumped the version and wrote the changelog")).toBeInTheDocument();
     expect(screen.queryByText(/Ship 0\.86/)).not.toBeInTheDocument();
   });
 
