@@ -152,7 +152,8 @@ function emittableKeys(block: Block): string[] | null {
     }
     case "multi-select":
       // checkbox: a digit toggles each option (and the "Chat about this" escape), Up/Down move the
-      // pointer, Enter activates it. review: the confirm screen's `1. Submit answers / 2. Cancel`.
+      // pointer, Enter activates it; a wizard step also navigates with Left/Right, as the sibling
+      // grammars do. review: the confirm screen's `1. Submit answers / 2. Cancel`.
       return block.multi.phase === "checkbox"
         ? [
             ...block.multi.options.map((o) => String(o.n)),
@@ -160,6 +161,8 @@ function emittableKeys(block: Block): string[] | null {
             "Up",
             "Down",
             "Enter",
+            ...WIZARD_BACK_KEYS,
+            ...WIZARD_NEXT_KEYS,
           ]
         : ["1", "2"];
     default: {

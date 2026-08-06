@@ -16,7 +16,7 @@
 // so the macro's own Down/Up moves don't read as drift.
 
 import { sendKeys } from "./api";
-import { type MultiSelectModel } from "./blocks";
+import { type MultiSelectModel, type WizardStepChip } from "./blocks";
 import { detectMultiSelect } from "./harness/claude/multi-select";
 import { defaultSleep, entryGuard, readModel, type ActionResult, type Sleep } from "./harness/guard";
 
@@ -31,6 +31,19 @@ export type MultiSelectIntent =
   | { kind: "confirm" } //           review: submit the answers (digit 1)
   | { kind: "cancel" }; //           review: back to the checkboxes (digit 2)
 
+/** Are these the same wizard step? The `signature` normalises `☒/☑ → ☐` across the WHOLE chip line
+ *  (it has to: the current question's chip flips on the first tick), which also erases which step you
+ *  are on. Two questions of one wizard sharing a question text and option labels would otherwise be
+ *  byte-identical to the guard, and a tap meant for the first would land on the second. Compared
+ *  explicitly here, exactly as preview-action does. */
+function sameSteps(a: WizardStepChip[] | null, b: WizardStepChip[] | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length) return false;
+  return a.every(
+    (s, i) => s.label === b[i]!.label && s.answered === b[i]!.answered && s.current === b[i]!.current,
+  );
+}
+
 /**
  * Whether two detected dialogs are the same on-screen state — the entry-guard `equals`. The
  * pointer/checkbox-independent core signature is decisive (a re-rendered dialog / different subject
@@ -38,29 +51,12 @@ export type MultiSelectIntent =
  * signature normalises out, so the FULL visible state participates. The pointer is deliberately NOT
  * compared — it is transient (the Submit macro moves it) and the signature already strips it.
  */
-/** Are these the same wizard step? The `signature` normalises `☒/☑ → ☐` across the WHOLE chip line
- *  (it has to: the current question's chip flips on the first tick), which also erases which step you
- *  are on. Two questions of one wizard sharing a question text and option labels would otherwise be
- *  byte-identical to the guard, and a tap meant for the first would land on the second. Compared
- *  explicitly here, exactly as preview-action does. */
-function sameSteps(a: MultiSelectModel, b: MultiSelectModel): boolean {
-  if (a.phase !== "checkbox" || b.phase !== "checkbox") return true;
-  if (a.steps === null || b.steps === null) return a.steps === b.steps;
-  if (a.steps.length !== b.steps.length) return false;
-  return a.steps.every(
-    (s, i) =>
-      s.label === b.steps![i]!.label &&
-      s.answered === b.steps![i]!.answered &&
-      s.current === b.steps![i]!.current,
-  );
-}
-
 export function multiSelectEquals(a: MultiSelectModel, b: MultiSelectModel): boolean {
   if (a.phase !== b.phase) return false;
   if (a.signature !== b.signature) return false;
   if (a.phase === "checkbox" && b.phase === "checkbox") {
     return (
-      sameSteps(a, b) &&
+      sameSteps(a.steps, b.steps) &&
       a.advanceLabel === b.advanceLabel &&
       a.question === b.question &&
       a.options.length === b.options.length &&
@@ -89,7 +85,7 @@ export function multiSelectIdentity(a: MultiSelectModel, b: MultiSelectModel): b
   if (a.signature !== b.signature) return false;
   if (a.phase === "checkbox" && b.phase === "checkbox") {
     return (
-      sameSteps(a, b) &&
+      sameSteps(a.steps, b.steps) &&
       a.advanceLabel === b.advanceLabel &&
       a.question === b.question &&
       a.options.length === b.options.length &&

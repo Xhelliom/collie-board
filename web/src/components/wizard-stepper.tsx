@@ -1,5 +1,4 @@
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 import type { WizardStepChip } from "@/lib/harness/claude/wizard";
 import { cn } from "@/lib/utils";
@@ -13,6 +12,11 @@ const CHIP_IDLE = "border-border/60 text-muted-foreground";
 // without the visual weight — the same trick the mirror's tap-to-open links use.
 const CHEVRON_CLASS =
   "relative flex size-7 shrink-0 items-center justify-center rounded-md border border-border/70 text-muted-foreground transition-colors active:bg-muted disabled:opacity-50 after:absolute after:-inset-2 after:content-['']";
+// The in-flight spinner. Every caller wants the same one — the blocks' own spinners are separate
+// because they sit on differently-sized controls, not because a stepper could want another icon.
+const SPINNER = (
+  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+);
 
 /**
  * The multi-question stepper strip — chips for each question plus the Left/Right step navigation.
@@ -26,23 +30,19 @@ export function WizardStepper({
   steps,
   locked,
   submitCurrent = false,
-  nextDisabled = false,
   busyBack,
   busyNext,
-  busyIcon,
   onBack,
   onNext,
 }: {
   steps: WizardStepChip[];
   locked: boolean;
-  /** The wizard's review step: the trailing Submit pill is the current one. */
+  /** The wizard's review step: the trailing Submit pill is the current one, and — since nothing
+   *  follows Submit — it is also what disables Next. */
   submitCurrent?: boolean;
-  /** Disable Next beyond `locked` — the review step has nothing after it. */
-  nextDisabled?: boolean;
   /** Show the spinner on the back / next chevron respectively. */
   busyBack: boolean;
   busyNext: boolean;
-  busyIcon: ReactNode;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -70,7 +70,7 @@ export function WizardStepper({
         onClick={onBack}
         className={CHEVRON_CLASS}
       >
-        {busyBack ? busyIcon : <ChevronLeft className="size-4" />}
+        {busyBack ? SPINNER : <ChevronLeft className="size-4" />}
       </button>
       <ol aria-label="Questions" className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {steps.map((step, i) => (
@@ -97,11 +97,11 @@ export function WizardStepper({
       <button
         type="button"
         aria-label="Next step"
-        disabled={locked || nextDisabled}
+        disabled={locked || submitCurrent}
         onClick={onNext}
         className={CHEVRON_CLASS}
       >
-        {busyNext ? busyIcon : <ChevronRight className="size-4" />}
+        {busyNext ? SPINNER : <ChevronRight className="size-4" />}
       </button>
     </div>
   );

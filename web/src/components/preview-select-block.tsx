@@ -91,7 +91,6 @@ export function PreviewSelectBlock({ preview, onAction, disabled }: PreviewSelec
           locked={locked}
           busyBack={sending === "nav-back"}
           busyNext={sending === "nav-next"}
-          busyIcon={busyIcon}
           onBack={() => press("nav-back", { kind: "nav", keys: WIZARD_BACK_KEYS })}
           onNext={() => press("nav-next", { kind: "nav", keys: WIZARD_NEXT_KEYS })}
         />

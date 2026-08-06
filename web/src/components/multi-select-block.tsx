@@ -74,7 +74,6 @@ function CheckboxPhase({
           locked={locked}
           busyBack={sending === "nav-back"}
           busyNext={sending === "nav-next"}
-          busyIcon={spinnerSm}
           onBack={() => onPress("nav-back", { kind: "nav", keys: WIZARD_BACK_KEYS })}
           onNext={() => onPress("nav-next", { kind: "nav", keys: WIZARD_NEXT_KEYS })}
         />
