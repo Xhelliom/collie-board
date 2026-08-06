@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.86.2] - 2026-08-06
+
+### Fixed
+- Dropped the mobile pane's context gauge above the composer — the context row under the header already shows a live ctx bar, so it no longer duplicates (73b1748).
+
 ## [0.86.1] - 2026-08-06
 
 ### Fixed
