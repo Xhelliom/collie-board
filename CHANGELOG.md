@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.90.0] - 2026-08-06
+
+### Added
+- Notification subtitles now work without the copilot: the agent's own last transcript line, free and instant, upgraded to a copilot rephrase only when the copilot is also enabled. Renamed the toggle to "Richer subtitle" to match (7cc327a).
+
 ## [0.89.2] - 2026-08-06
 
 ### Fixed
