@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
-import { reconcile } from "./cards.ts";
+import { reconcile, withCardFields } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
 import { Copilot, CopilotCoordinator } from "./copilot.ts";
@@ -210,7 +210,18 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       }
     },
   );
-  engine.onTransition((agent, from, to) => notifications.onTransition(agent, from, to));
+  // The raw AgentView a transition fires with never carries card fields — withCardFields is
+  // otherwise only applied in server.ts, for the /api/snapshot response. Without this, an alert's
+  // cardId/cardTitle/branch are always undefined: the push body silently falls back to the bare cwd,
+  // and notify-subtitle.ts has nothing card-shaped to hand the copilot. Primary session only — a
+  // card's pane id is meaningless in another herdr server (see server.ts). One DB read per
+  // transition (a real status change, not a poll tick), same cost class as reconcile()'s.
+  engine.onTransition((agent, from, to) => {
+    const withCard = isPrimary
+      ? (withCardFields([agent], board.listOpenSessions(), board)[0] ?? agent)
+      : agent;
+    notifications.onTransition(withCard, from, to);
+  });
   engine.onRemove((paneId) => notifications.onRemove(paneId));
 
   // Board reconciliation rides the SAME snapshot poll — no second loop, no second source of truth.
