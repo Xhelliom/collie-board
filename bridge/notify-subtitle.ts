@@ -1,14 +1,21 @@
-// Copilot-authored push subtitle — turns "repo · card title" into "repo · what actually happened",
-// spending the same fire-and-forget agent turn the post-`done` review already does. Optional
-// (`NotifyPrefs.copilotSubtitle`, off by default) and a no-op unless the copilot itself is enabled.
+// Push subtitle — turns "repo · card title" into "repo · what actually happened". Optional
+// (`NotifyPrefs.copilotSubtitle`, off by default): even the free tier below reads a transcript file
+// the operator may not want read for this.
 //
-// TWO-STAGE, DELIBERATELY. The copilot is a serialised agent turn — seconds to minutes, one request
-// at a time across the whole board — and a push notification's value decays fast, so waiting for it
-// before the FIRST push would defeat the alert. The plain push fires immediately, unchanged
-// (NotificationCoordinator). This module fires a SECOND, SILENT update (`renotify:false`) on the same
-// tag once the copilot answers, replacing only the half of the body after the repo name — the repo
-// itself is never touched. If the alert has since resolved, or a second one joined it and the summary
-// became a multi-agent digest, the update is dropped: nothing stale ever lands on the lock screen.
+// TWO TIERS. The copilot REPHRASES what happened into one clean sentence — but it's a serialised
+// agent turn (seconds to minutes, one request at a time across the whole board) and spends the same
+// quota a worker does, so it only runs when the copilot itself is enabled too. Without it (or when it
+// answers with nothing usable), this falls back to the agent's own last transcript message, VERBATIM
+// — not as good as a rephrase, but free, fast (a file read, ~10-60ms — see context.ts's own
+// measurement), and a long way better than the bare card title it replaces.
+//
+// TWO-STAGE PUSH, DELIBERATELY, either way. A push notification's value decays fast, so waiting for
+// either tier before the FIRST push would defeat the alert. The plain push fires immediately,
+// unchanged (NotificationCoordinator). This module fires a SECOND, SILENT update (`renotify:false`)
+// on the same tag once it has an answer, replacing only the half of the body after the repo name —
+// the repo itself is never touched. If the alert has since resolved, or a second one joined it and
+// the summary became a multi-agent digest, the update is dropped: nothing stale ever lands on the
+// lock screen.
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
 import type { Alert, FiredAlert, NotifySink } from "./notifications.ts";
@@ -53,6 +60,13 @@ async function lastAssistantSnippet(
   return null;
 }
 
+/** The free-tier subtitle: the agent's own last message, as-is bar whitespace and a length cap — a
+ *  push body has room for one short line, not the paragraph an agent's closing message often is. */
+function rawFallbackSubtitle(message: string): string {
+  const clean = message.replace(/\s+/g, " ").trim();
+  return clean.length > 140 ? `${clean.slice(0, 139)}…` : clean;
+}
+
 /**
  * Ask the copilot for a one-line subtitle and, if it answers before the alert moved on, silently
  * refresh the live push with it. Fire-and-forget by design — call from the coordinator's `onFire`
@@ -80,7 +94,6 @@ export async function enrichNotification(opts: {
    *  fleeting OS notification, never in the history you'd check after missing it. */
   notifyLog?: { enrich(paneId: string, status: "blocked" | "done", subtitle: string): void };
 }): Promise<void> {
-  if (!opts.copilot.enabled) return;
   const { alert } = opts;
   const card = alert.cardId ? opts.board.getCard(alert.cardId) : null;
 
@@ -91,36 +104,39 @@ export async function enrichNotification(opts: {
           .then((p) => (p ? { path: p } : null))
           .catch(() => null)
       : null;
+  const lastMessage =
+    transcriptBy && opts.transcripts ? await lastAssistantSnippet(opts.transcripts, transcriptBy) : null;
 
-  const [lastMessage, statSummary] = await Promise.all([
-    transcriptBy && opts.transcripts
-      ? lastAssistantSnippet(opts.transcripts, transcriptBy)
-      : Promise.resolve(null),
-    // Every `done` pane gets a diff attempt now, card or not — a hand-launched agent has no branch
-    // to measure from, so `cwdDiffSummary` (via statFor) just reads what's currently uncommitted.
-    alert.status === "done"
-      ? opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null)
-      : Promise.resolve(null),
-  ]);
-  // Nothing beyond what the plain push already shows (the card title) — not worth an agent turn.
-  if (!lastMessage && !statSummary && !card?.spec) {
-    console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
-    return;
+  // The diff is copilot-prompt material only — a raw `--stat` listing isn't subtitle material on its
+  // own the way the agent's own sentence is — so it's not worth a git subprocess when the copilot
+  // isn't even going to see it.
+  const statSummary =
+    opts.copilot.enabled && alert.status === "done"
+      ? await opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null)
+      : null;
+
+  let subtitle: string | null = null;
+  if (opts.copilot.enabled && (lastMessage || statSummary || card?.spec)) {
+    const parsed = await opts.copilot.ask((out) =>
+      notifySubtitlePrompt({
+        verb: alert.status === "blocked" ? "needs input" : "finished",
+        cardTitle: card?.title ?? alert.cardTitle,
+        cardSpec: card?.spec ?? null,
+        statSummary,
+        lastMessage,
+        outPath: out,
+      }),
+    );
+    subtitle = toNotifySubtitle(parsed);
+    if (!subtitle) console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
   }
-
-  const parsed = await opts.copilot.ask((out) =>
-    notifySubtitlePrompt({
-      verb: alert.status === "blocked" ? "needs input" : "finished",
-      cardTitle: card?.title ?? alert.cardTitle,
-      cardSpec: card?.spec ?? null,
-      statSummary,
-      lastMessage,
-      outPath: out,
-    }),
-  );
-  const subtitle = toNotifySubtitle(parsed);
+  // No copilot, or it came back empty — the free tier: the agent's own words, unrephrased.
+  if (!subtitle && lastMessage) {
+    subtitle = rawFallbackSubtitle(lastMessage);
+    console.log(`[notify-subtitle] ${alert.paneId}: falling back to the agent's own last line`);
+  }
   if (!subtitle) {
-    console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
+    console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
     return;
   }
 

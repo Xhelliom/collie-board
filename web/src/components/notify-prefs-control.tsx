@@ -7,9 +7,11 @@ import type { NotifyPrefs } from "@/lib/api";
 
 // Which lifecycle events are worth a push. Bridge-wide (fans out to every device, like the snooze),
 // so the copy says so. Four switches: "Needs input" (blocked, default on), "Finished" (done,
-// default off), "App updates" (updates, default on), and "Copilot subtitle" (default off — a no-op
-// unless the copilot itself is enabled too). Optimistic toggle with revert on failure — see
-// useNotifyPrefs.
+// default off), "App updates" (updates, default on), and "Richer subtitle" (default off — reads a
+// transcript file, which not everyone wants for this). That last one is two tiers server-side
+// (notify-subtitle.ts): the agent's own last line verbatim always, upgraded to a copilot rephrase
+// only when the copilot is ALSO enabled — this one switch covers both, nothing extra to configure.
+// Optimistic toggle with revert on failure — see useNotifyPrefs.
 
 const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string }> = [
   { key: "blocked", label: "Needs input", hint: "an agent is waiting on you" },
@@ -17,8 +19,8 @@ const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string 
   { key: "updates", label: "App updates", hint: "a new Collie version is available" },
   {
     key: "copilotSubtitle",
-    label: "Copilot subtitle",
-    hint: "let the copilot describe what happened, once it answers (needs the copilot enabled)",
+    label: "Richer subtitle",
+    hint: "show what the agent actually said, rephrased by the copilot when it's enabled",
   },
 ];
 

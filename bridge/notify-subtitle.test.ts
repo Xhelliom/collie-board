@@ -164,6 +164,112 @@ describe("enrichNotification — gating", () => {
   });
 });
 
+describe("enrichNotification — the free-tier fallback (no copilot)", () => {
+  test("falls back to the agent's own last line, verbatim, when the copilot is disabled", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    const copilot = fakeCopilot({ subtitle: "should never be asked" }, false);
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot,
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "Should I also bump the changelog?")]),
+      statFor: noDiff,
+    });
+    expect(copilot.calls).toBe(0);
+    expect(sink.renders[0]?.body).toBe("demo · Should I also bump the changelog?");
+  });
+
+  test("also falls back when the copilot IS enabled but answers with nothing usable", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null), // answers, but toNotifySubtitle rejects it
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "The mock was racing the timer.")]),
+      statFor: noDiff,
+    });
+    expect(sink.renders[0]?.body).toBe("demo · The mock was racing the timer.");
+  });
+
+  test("without a transcript there is no free tier to fall back to — even a card spec isn't enough", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ status: "blocked", cardId: "c1" });
+    const copilot = fakeCopilot({ subtitle: "should never be asked" }, false);
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot,
+      board: fakeBoard({ title: "Card", spec: "a real spec, but the copilot is off" }),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: noDiff,
+    });
+    expect(sink.renders).toEqual([]);
+  });
+
+  test("collapses whitespace and caps a long raw message with an ellipsis", async () => {
+    const sink = new RecordingSink();
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    const long = `line one\n\n  line two   with lots of   space   ${"x".repeat(200)}`;
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", long)]),
+      statFor: noDiff,
+    });
+    const body = sink.renders[0]?.body ?? "";
+    const subtitle = body.slice("demo · ".length);
+    expect(subtitle).toHaveLength(140);
+    expect(subtitle.endsWith("…")).toBe(true);
+    expect(subtitle).not.toContain("\n");
+    expect(subtitle).not.toContain("  ");
+  });
+
+  test("a disabled copilot still skips the git subprocess entirely — nothing would use it", async () => {
+    let statCalls = 0;
+    const alert = baseAlert({ agentSessionId: "s1", status: "done" });
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "done here")]),
+      statFor: async () => {
+        statCalls++;
+        return "unused";
+      },
+    });
+    expect(statCalls).toBe(0);
+  });
+
+  test("the free tier also patches the bell's history", async () => {
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+    const enriched: unknown[] = [];
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "the raw closing line")]),
+      statFor: noDiff,
+      notifyLog: { enrich: (...args) => enriched.push(args) },
+    });
+    expect(enriched).toEqual([["p1", "blocked", "the raw closing line"]]);
+  });
+});
+
 describe("enrichNotification — the silent update", () => {
   test("also patches the bell's history entry, matching what the push now shows", async () => {
     const current = baseAlert({ cardId: "c1" });
