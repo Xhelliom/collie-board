@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.93.0] - 2026-08-07
+
+### Added
+- Reading mode now renders an open AskUserQuestion dialog (prompt/wizard/preview/multi-select) as the same native, tappable card the terminal mirror shows, instead of a banner pointing you at the terminal (50dc5d4).
+
 ## [0.92.0] - 2026-08-06
 
 ### Added
