@@ -732,6 +732,28 @@ describe("startCard", () => {
     expect(calls).toEqual([]);
   });
 
+  it("lets the settings screen's limit override the env default, in both directions", async () => {
+    const store = db();
+    const busy = store.createCard({ title: "busy", repoPath: "/repo" });
+    store.openSession({ cardId: busy.id, paneId: "wZ:p0" });
+    const card = store.createCard({ title: "second", repoPath: "/repo" });
+
+    // One running, env default 2 — allowed until the operator says one at a time.
+    store.setMaxAgents(1);
+    const refused = await startCard(store, fakeHerdr().client as never, startCfg, card.id, {
+      sleep: async () => {},
+    });
+    expect(refused).toMatchObject({ ok: false, error: { kind: "busy" } });
+    expect((refused as { error: { message: string } }).error.message).toContain("1 agents");
+
+    // And raising it takes effect on the next tap, without a bridge restart.
+    store.setMaxAgents(4);
+    const { client, calls } = fakeHerdr();
+    const ok = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+    expect(ok.ok).toBe(true);
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
   it("remembers the worktree even when agent.start fails, so a retry doesn't re-create it", async () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo" });
@@ -2346,6 +2368,17 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     reopened.setAutoFollowUps(false);
     expect(reopened.autoFollowUps()).toBe(false);
     reopened.close();
+  });
+
+  it("reads an unset or out-of-range agent limit as 'no preference', never as a refusal", () => {
+    const store = db();
+    expect(store.maxAgents()).toBe(null); // never set — the caller keeps its env default
+    store.setMaxAgents(5);
+    expect(store.maxAgents()).toBe(5);
+    store.setMaxAgents(0);
+    expect(store.maxAgents()).toBe(null); // 0 would make starting any card impossible
+    store.setMaxAgents(9999);
+    expect(store.maxAgents()).toBe(null);
   });
 });
 

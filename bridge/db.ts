@@ -469,9 +469,9 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   updated_at INTEGER NOT NULL
 );
 
--- Board-wide operator preferences that aren't about one card or one repo. Key/value because there is
--- exactly one of these today (auto_follow_ups) and a column per switch would mean a migration per
--- switch. An absent key reads as that preference's default, so a fresh board needs no seeding.
+-- Board-wide operator preferences that aren't about one card or one repo. Key/value because a column
+-- per switch would mean a migration per switch. An absent key reads as that preference's default, so
+-- a fresh board needs no seeding.
 CREATE TABLE IF NOT EXISTS board_pref (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -480,6 +480,13 @@ CREATE TABLE IF NOT EXISTS board_pref (
 
 /** `board_pref` key for {@link BoardDb.autoFollowUps}. */
 const AUTO_FOLLOW_UPS_KEY = "auto_follow_ups";
+
+/** `board_pref` key for {@link BoardDb.maxAgents}. */
+const MAX_AGENTS_KEY = "max_agents";
+
+/** The most agents the board will ever run at once, whatever the operator types. Matches the ceiling
+ *  `COLLIE_BOARD_MAX_AGENTS` is clamped to in config.ts — one limit, two doors. */
+export const MAX_AGENTS_CAP = 32;
 
 /** A tag longer than this is a sentence, not a label, and would not fit the chip it renders as. */
 const TAG_MAX_CHARS = 24;
@@ -1103,12 +1110,38 @@ export class BoardDb {
   }
 
   setAutoFollowUps(on: boolean): void {
+    this.setPref(AUTO_FOLLOW_UPS_KEY, on ? "1" : "0");
+  }
+
+  /**
+   * How many cards may have an agent running at once — or null when nobody has set one from the
+   * phone, in which case the caller keeps its env default (`COLLIE_BOARD_MAX_AGENTS`).
+   *
+   * The limit is about the MACHINE, not the deployment: how many agents this laptop can compile and
+   * think for at once changes with what else is running on it, which is a thing you want to change
+   * from the couch — not by editing a systemd unit and restarting the bridge. Out-of-range junk in
+   * the row reads as "unset" rather than throwing: a preference must never be able to make starting
+   * a card impossible.
+   */
+  maxAgents(): number | null {
+    const row = this.db
+      .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
+      .get(MAX_AGENTS_KEY);
+    const n = row ? Number(row.value) : NaN;
+    return Number.isInteger(n) && n >= 1 && n <= MAX_AGENTS_CAP ? n : null;
+  }
+
+  setMaxAgents(n: number): void {
+    this.setPref(MAX_AGENTS_KEY, String(n));
+  }
+
+  private setPref(key: string, value: string): void {
     this.db
       .query(
         `INSERT INTO board_pref (key, value) VALUES (?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       )
-      .run(AUTO_FOLLOW_UPS_KEY, on ? "1" : "0");
+      .run(key, value);
   }
 
   // ── journal ─────────────────────────────────────────────────────────────────

@@ -36,13 +36,13 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor |
 | `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
-| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20 |
 | `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
 | `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger |
 | `web/src/router.tsx` | two routes; a per-leaf `errorElement` |
 | `web/src/routes/home.tsx` | a Board row; the screen's `<h1>` |
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger |
-| `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` (fork-only, the board's switch) |
+| `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` and `<MaxAgentsControl>` (fork-only, the board's switches) |
 | `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile`; the pane number, so two agents in one tab aren't the same card twice — brick 16 in the ledger |
 | `web/src/hooks/use-transitions.ts` | returns the transitions as toasts instead of writing to the shared status line, and names the pane rather than the agent — brick 19 in the ledger |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`); `rawTerminalPref()` for the loader; the `reading` mode flag |

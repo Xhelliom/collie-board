@@ -8,6 +8,7 @@ import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { ConnectionInfo } from "@/components/connection-info";
 import { FollowUpsControl } from "@/components/follow-ups-control";
+import { MaxAgentsControl } from "@/components/max-agents-control";
 import { Card } from "@/components/ui/card";
 import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 import { SnoozeControl } from "@/components/snooze-control";
@@ -104,6 +105,8 @@ export function SettingsRoute() {
             <SnoozeControl snoozedUntil={root?.snoozedUntil ?? null} />
           </>
         )}
+
+        <MaxAgentsControl />
 
         <FollowUpsControl />
 
