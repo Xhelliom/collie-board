@@ -94,6 +94,9 @@ interface ComposerProps {
   /** Open the pane switcher. Undefined when there's nothing to switch to (single pane) or when the
    * desktop pane column already lists the herd — the action row then simply omits the button. */
   onSwitchPane?: () => void;
+  /** Ask this session's card to hand off. Undefined for a hand-launched pane (no card to hand off) —
+   * the Quick dock then omits the row rather than showing a dead button. */
+  onHandoff?: () => Promise<void>;
 }
 
 // The composer cluster at the bottom of the pane view — everything a phone keyboard can't do on its
@@ -148,7 +151,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane },
+  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff },
   ref,
 ) {
   const revalidator = useRevalidator();
@@ -515,7 +518,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             tapped stays put and the panel grows over the mirror, not the input). Whichever of the
             mutually exclusive drawers is active renders here via the shared ComposerDock chrome. Keys
             mounts the NavTray (unmounts on close, so tab/queue reset each open); Quick mounts the two
-            one-tap reply grids; View holds the display prefs (raw terminal / wrap / font size) that
+            one-tap reply grids plus the session's Handoff; View holds the display prefs (raw terminal / wrap / font size) that
             used to sit in their own permanent row (UI_AUDIT C1) — settings you touch once, not every
             message. Agent stays a covering BottomSheet below (it's a palette, not a pad). */}
         {drawer === "keys" && (
@@ -528,6 +531,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <QuickActionsContent
               onSend={(t) => send(t, false)}
               onClose={closeDrawer}
+              onHandoff={onHandoff}
               disabled={locked || sending}
             />
           </ComposerDock>

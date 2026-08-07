@@ -7,10 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.95.0] - 2026-08-07
+## [0.96.0] - 2026-08-07
 
 ### Added
 - "En tête de colonne" in a card's *Classer* section — the phone's only way to write `position`, since the board's reorder drag is desktop-only. PATCHes `position` alone, never `status` (31179a0).
+
+## [0.95.0] - 2026-08-07
+
+### Added
+- "Hand off to a fresh session" in the composer's Quick dock, at any context level — the same call as the desktop rail's Handoff button, so the harness's own "context is running low" line is now actionable without leaving the session screen (8963eed).
 
 ## [0.94.0] - 2026-08-07
 
