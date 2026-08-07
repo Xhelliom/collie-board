@@ -36,7 +36,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor |
 | `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
-| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20 |
 | `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
 | `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger |
 | `web/src/router.tsx` | two routes; a per-leaf `errorElement` |

@@ -33,6 +33,18 @@ describe("api client", () => {
     await expect(sendReply("w1:p1", "hi")).rejects.toThrow(/herdr down/);
   });
 
+  // A refusal the bridge decided itself is a sentence meant for the screen — the url and the status
+  // code in front of it are what pushed the reason out of sight on a phone.
+  it("surfaces the bridge's own `error` sentence alone, without the path/status prefix", async () => {
+    server.use(
+      http.post(/\/api\/pane\/[^/]+\/reply$/, () =>
+        HttpResponse.json({ ok: false, error: "3 agents already running", kind: "busy" }, { status: 409 }),
+      ),
+    );
+    await expect(sendReply("w1:p1", "hi")).rejects.toThrow("3 agents already running");
+    await expect(sendReply("w1:p1", "hi")).rejects.not.toThrow(/409|\/api\//);
+  });
+
   it("uploadImage posts multipart and returns the saved path", async () => {
     server.use(
       http.post(/\/api\/pane\/[^/]+\/upload$/, () => HttpResponse.json({ ok: true, path: "/tmp/x.png" })),

@@ -79,13 +79,31 @@ function withSession(path: string, session?: string): string {
   return `${path}${sep}session=${encodeURIComponent(s)}`;
 }
 
-// Best-effort human-readable failure detail: the response body if present, else the status text.
-async function errorDetail(res: Response): Promise<string> {
+/**
+ * The failure a caller shows the user.
+ *
+ * A refusal the bridge decided ITSELF answers `{"ok":false,"error":"…","kind":"…"}`, and that
+ * `error` is already a sentence written for a phone screen ("3 agents already running — finish or
+ * hand one off first"). It becomes the whole message: prefixing it with a url and a status code
+ * only pushed the half that matters off the edge of the screen. Anything else — a proxy's html, a
+ * bare status, a plain-text 404 — keeps `<path> → <status> <body>`, which is all it has to say.
+ */
+async function apiError(res: Response, path: string): Promise<ApiError> {
+  let body = "";
   try {
-    return (await res.text()) || res.statusText;
+    body = await res.text();
   } catch {
-    return res.statusText;
+    // A body that won't read leaves the status line to speak for it.
   }
+  if (body.startsWith("{")) {
+    try {
+      const { error } = JSON.parse(body) as { error?: unknown };
+      if (typeof error === "string" && error.trim()) return new ApiError(error, res.status);
+    } catch {
+      // Not JSON after all — fall through to the raw form.
+    }
+  }
+  return new ApiError(`${path} → ${res.status} ${body || res.statusText}`, res.status);
 }
 
 // Capture the bridge's build id off any response that carries it. Every poll (snapshot/pane) — and
@@ -107,7 +125,7 @@ async function doReq<T>(path: string, init?: RequestInit): Promise<T> {
   });
   captureBuild(res);
   if (!res.ok) {
-    throw new ApiError(`${path} → ${res.status} ${await errorDetail(res)}`, res.status);
+    throw await apiError(res, path);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -194,7 +212,7 @@ export async function fetchPane(
   }
 
   if (!res.ok) {
-    throw new ApiError(`${url} → ${res.status} ${await errorDetail(res)}`, res.status);
+    throw await apiError(res, url);
   }
 
   // Parse the body BEFORE recording the ETag, so the cache only ever holds an (etag, text) pair
@@ -383,7 +401,7 @@ export function uploadImage(paneId: string, file: File, session?: string): Promi
         signal: withTimeout(undefined, UPLOAD_TIMEOUT_MS),
       });
       if (!res.ok) {
-        throw new ApiError(`upload → ${res.status} ${await errorDetail(res)}`, res.status);
+        throw await apiError(res, "upload");
       }
       return (await res.json()) as UploadResponse;
     })(),
