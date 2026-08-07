@@ -80,12 +80,6 @@ transitions are the board's, not yours.
 | **Wrap-up** | Filing a card Done asks its agent for one last note (`.board/wrapup.md`) — what it did, what it dropped — because the diff shows which lines moved, not which acceptance criterion that satisfied. That note is what the copilot's review reads. |
 | **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other — no API key, no SDK, and openable in the TUI when an answer comes out wrong. It turns a dictated brain dump into a card (splitting it into several when the dump names several things, tagging each with the board's existing vocabulary), reviews finished work into follow-up cards, and explains a failed action. Its output contract is a JSON file, never scraped terminal text. |
 
-> ⚠️ **Keep your repositories out of `/tmp`.** The systemd unit sets `PrivateTmp=yes` (upstream
-> hardening), so the service sees its own empty `/tmp` — a repo under there simply doesn't exist for
-> it, and git fails with a baffling `ENOENT … posix_spawn 'git'` that looks like git is missing when
-> it is the working directory that is. Nobody keeps a real project in `/tmp`, but a scratch repo made
-> for a quick test will do this.
-
 ### Board configuration
 
 | Variable | Default | What it does |

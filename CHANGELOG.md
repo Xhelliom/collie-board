@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.97.1] - 2026-08-07
+
+### Fixed
+- Open a PR and Done no longer fail with `Bad owner or permissions on /etc/ssh/ssh_config.d/…`: the unit's `PrivateTmp=yes` forced a user namespace where root-owned files read as `nobody`, so ssh refused every system config and no `git push` could run ([ADR 0008](.adr/0008-the-user-unit-cannot-have-a-mount-namespace.md)).
+
+### Removed
+- `PrivateTmp=yes` from the systemd unit, and with it the README's "keep your repos out of `/tmp`" warning — that trap was the same line.
+
 ## [0.97.0] - 2026-08-07
 
 ### Added
