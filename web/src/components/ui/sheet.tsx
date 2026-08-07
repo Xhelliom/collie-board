@@ -21,10 +21,12 @@ import { useIsDesktop } from "@/hooks/use-media-query";
 // this is Vaul's own escape hatch for it. The header is the drag zone — the panel is a flex column,
 // so it never scrolls out of reach.
 
-// The grab handle, in one place. It shows up twice for the same gesture — on the closed pane screen
-// as the thing you swipe up (agent-chat.tsx), and again at the top of the sheet that opens — so the
-// two must be the same object or the transition reads as a substitution. Ours rather than Vaul's
-// `Drawer.Handle`, which ships a hard-coded light-grey background that fights the theme tokens.
+// The grab handle at the top of an open sheet — the drag zone's affordance, and ONLY that. It used
+// to double as the closed pane screen's swipe-up trigger; a handle is a poor way to OPEN something
+// (no label, no hit target of its own, and it cost the mirror a band of its own), so opening is a
+// labelled button now and this stays where a handle earns its keep: on something already open.
+// Ours rather than Vaul's `Drawer.Handle`, which ships a hard-coded light-grey background that
+// fights the theme tokens.
 export function GrabHandle({ className }: { className?: string }) {
   return <span className={cn("h-1.5 w-12 rounded-full bg-muted-foreground/50", className)} />;
 }

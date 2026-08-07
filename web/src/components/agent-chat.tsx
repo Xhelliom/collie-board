@@ -13,7 +13,6 @@ import {
   TerminalSquare,
   XCircle,
 } from "lucide-react";
-import { useSwipeUp } from "@/hooks/use-swipe";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
@@ -23,7 +22,7 @@ import { closePane } from "@/lib/api";
 import { cardPath, handoffCard } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
-import { BottomSheet, GrabHandle } from "@/components/ui/sheet";
+import { BottomSheet } from "@/components/ui/sheet";
 import { AppHeader } from "@/components/app-header";
 import { NotificationBell } from "@/components/notification-bell";
 import { AnsiOutput } from "@/components/ansi-output";
@@ -100,7 +99,7 @@ type Drawer = "switcher" | "tabs" | "more" | null;
 //
 // This shell owns the pane frame: the header (the find bar takes it over while find is open), the
 // terminal mirror (freeze, find highlighting, load-older scrollback), and navigation (the nav hub +
-// swipe-up switcher). The composer cluster — draft, send, keys, quick actions, slash-commands, image
+// pane switcher). The composer cluster — draft, send, keys, quick actions, slash-commands, image
 // upload, display prefs, and the find-in-output trigger — lives in <Composer>; it reaches back here
 // only to re-follow the tail after a send, focus on a mirror tap, and open find (which freezes the tail).
 export function AgentChat({
@@ -183,11 +182,6 @@ export function AgentChat({
   }
 
   const gone = !agent;
-
-  // Swipe up (or just tap) the handle above the composer to bring up the pane switcher. A lowish
-  // threshold + a taller hit area (below) make the gesture easy to land with a thumb; tapping is the
-  // reliable fallback. "Up" naturally reveals a bottom sheet without fighting the mirror's scroll.
-  const swipe = useSwipeUp(() => setDrawer("switcher"), 24);
 
   // Mirror freeze: at the bottom we follow live output; the moment you scroll up to read backscroll
   // we hold the text steady (no reflow / no re-pin) until you jump back to latest — so a long
@@ -542,7 +536,7 @@ export function AgentChat({
   // keyboard and cover the output. You read the pane first, then tap the input to type. (Explicit
   // actions inside the composer still focus it; the mirror tap focuses it via composerRef.)
 
-  // Switch to another thread from the sidebar or the swipe-up switcher (DetailRoute keys AgentChat
+  // Switch to another thread from the sidebar or the pane switcher (DetailRoute keys AgentChat
   // by pane, so this remounts fresh — composer resets — same as opening from home).
   function switchTo(id: string) {
     closeDrawer();
@@ -550,7 +544,7 @@ export function AgentChat({
   }
 
   // The breadcrumb's pane menu switches WITHIN this space (agents and shells alike) — the whole-herd
-  // list belongs to the swipe-up switcher. Empty while the pane isn't in the snapshot yet.
+  // list belongs to the pane switcher. Empty while the pane isn't in the snapshot yet.
   const spacePanes = agent
     ? [...agents, ...shellPanes].filter((p) => p.workspaceId === agent.workspaceId)
     : [];
@@ -600,8 +594,8 @@ export function AgentChat({
 
   return (
     <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row">
-      {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the swipe-up switcher
-          groups them (redesign §5 "three panes"). Below `lg` this is the swipe-up sheet instead. */}
+      {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the pane switcher
+          groups them (redesign §5 "three panes"). Below `lg` this is the pane-switcher sheet instead. */}
       <PaneListColumn
         agents={agents}
         shellPanes={shellPanes}
@@ -868,7 +862,7 @@ export function AgentChat({
         {/* The context row (redesign §5): one row replacing the old TabStrip + PaneStrip pair above
             the mirror. `space › tab › pane` — the first two segments are plain selectors (space opens
             the space overview, tab opens the SAME TabStrip's tab list, now inside a sheet instead of
-            an always-visible strip), the last is a chip opening the swipe-up pane switcher that
+            an always-visible strip), the last is a chip opening the pane switcher that
             already existed. Right: a live ctx bar + the status chip. ~96px handed back to the mirror
             versus the two strips it replaces. */}
         {agent && (
@@ -895,7 +889,7 @@ export function AgentChat({
               )}
               <span className="shrink-0 text-muted-foreground/50">›</span>
               {/* Same segment as the desktop toolbar: this space's panes only. The whole herd stays
-                  one swipe away on the handle above the composer. */}
+                  one tap away on the composer's "Switch pane" button. */}
               <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1021,27 +1015,12 @@ export function AgentChat({
         </>
         )}
 
-        {/* Bottom region: the pane-switch handle + composer. The status line USED to float here as an
-            overlay just above the composer, but it covered the terminal tail (the prompt/cursor and
-            up-levelled prompt buttons) — it now lives as a slim row just below the header. */}
+        {/* Bottom region: the composer. The status line USED to float here as an overlay just above
+            the composer, but it covered the terminal tail (the prompt/cursor and up-levelled prompt
+            buttons) — it now lives as a slim row just below the header. The pane switcher used to
+            have a grab-handle band of its own here; it's a button in the composer's action row now
+            (see composer.tsx), which costs the mirror nothing. */}
         <div className="relative">
-
-          {/* Swipe-up / tap handle for the quick pane switcher — the sheet that switches AND closes
-              panes (each row has a ✕). A tall, full-width hit area so the swipe is easy to land (and a
-              tap always works). Hidden with a single pane — there's nothing to switch to, and closing
-              it is already reachable elsewhere, so the handle would be an affordance to nowhere.
-              `touch-none` so the gesture is ours, not a browser scroll. */}
-          {agents.length + shellPanes.length > 1 && (
-            <button
-              type="button"
-              aria-label="Switch pane"
-              {...swipe}
-              onClick={() => setDrawer("switcher")}
-              className="flex w-full touch-none items-center justify-center py-3.5 transition-colors active:bg-muted/50"
-            >
-              <GrabHandle />
-            </button>
-          )}
 
           {/* The card this pane backs. Third of the blocks this bottom region mirrors from the
               desktop rail (with the statusline and the gauge below) — and the one that was missing:
@@ -1095,6 +1074,9 @@ export function AgentChat({
             stepFontSize={stepFontSize}
             setRawTerminal={setRawTerminal}
             onSent={onSent}
+            onSwitchPane={
+              agents.length + shellPanes.length > 1 ? () => setDrawer("switcher") : undefined
+            }
           />
         </div>
       </div>
