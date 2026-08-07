@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.94.0] - 2026-08-07
+
+### Changed
+- The pane switcher opens from a labelled "Switch pane" button in the composer's action row, not the swipe-up grab handle above it — the handle afforded dragging with no label and no target of its own, and its band cost the mirror ~34px on every pane screen (80b2637).
+
+### Removed
+- The swipe-up gesture and its `useSwipeUp` hook, along with the handle band that carried it (80b2637).
+
 ## [0.93.0] - 2026-08-07
 
 ### Added
