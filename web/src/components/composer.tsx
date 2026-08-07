@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
-import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
+import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -91,6 +91,9 @@ interface ComposerProps {
   setRawTerminal: (raw: boolean) => void;
   /** Snap the mirror to the live tail (follow + revalidate + scroll) after a successful send. */
   onSent: () => void;
+  /** Open the pane switcher. Undefined when there's nothing to switch to (single pane) or when the
+   * desktop pane column already lists the herd — the action row then simply omits the button. */
+  onSwitchPane?: () => void;
 }
 
 // The composer cluster at the bottom of the pane view — everything a phone keyboard can't do on its
@@ -145,7 +148,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent },
+  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane },
   ref,
 ) {
   const revalidator = useRevalidator();
@@ -670,6 +673,23 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               open, tap again to close; secondary variant marks the one that's open. Agent only appears
               when the pane's agent has slash-commands. Send is anchored to the far side (thumb corner). */}
             <div className="flex items-center gap-2">
+              {/* Pane switcher. It USED to be a grab handle in a band of its own above the composer:
+                  an affordance that reads "drag me" with no label, no target of its own, and ~34px
+                  of the mirror spent on it permanently. A labelled icon button in the row that
+                  already exists costs zero vertical space, sits in the same thumb arc as Send, and
+                  says what it does. Sheet-still-opens-the-same-sheet — only the trigger moved. */}
+              {onSwitchPane && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 text-muted-foreground lg:hidden"
+                  aria-label="Switch pane"
+                  title="Switch pane"
+                  onClick={onSwitchPane}
+                >
+                  <PanelsTopLeft className="size-4" />
+                </Button>
+              )}
               <Button
                 variant={drawer === "keys" ? "secondary" : "ghost"}
                 size="icon"

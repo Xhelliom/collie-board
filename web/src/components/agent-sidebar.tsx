@@ -17,7 +17,7 @@ interface ThreadSidebarProps {
   className?: string;
 }
 
-// The pane switcher reused by both the side drawer's PANES section and the swipe-up bottom sheet:
+// The pane switcher reused by both the side drawer's PANES section and the pane-switcher bottom sheet:
 // every agent pane grouped/sorted like the home triage, then any bare shell panes under a "Shells"
 // group, scrollable, with the open one highlighted. Mirrors the Herdr TUI's pane list. Switching is
 // the ONLY action here — closing a pane lives in the pane pill's long-press sheet (with its own

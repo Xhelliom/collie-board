@@ -17,9 +17,9 @@ interface PaneListColumnProps {
 
 /**
  * Desktop's 296px pane list (redesign §5 "three panes") — every pane in the herd, not just this
- * space, grouped exactly as the swipe-up switcher / ThreadSidebar groups them (AGENT_GROUPS + a
+ * space, grouped exactly as the pane switcher / ThreadSidebar groups them (AGENT_GROUPS + a
  * trailing "Shells"), so the two never disagree about what a "needs you" pane is. This is the
- * desktop's ENTIRE way to switch panes — below `lg` the same data renders as the swipe-up sheet
+ * desktop's ENTIRE way to switch panes — below `lg` the same data renders as the pane-switcher sheet
  * instead (agent-chat.tsx's own ThreadSidebar mount).
  */
 export function PaneListColumn({

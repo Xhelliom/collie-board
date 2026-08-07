@@ -611,15 +611,22 @@ describe("AgentChat — terminal / reading toggle", () => {
   });
 });
 
-describe("AgentChat — pane-switcher handle", () => {
+// The trigger is a labelled button in the composer's action row, not the grab handle that used to
+// sit in a band of its own above the composer (a handle affords dragging, and that band cost the
+// mirror ~34px permanently). The sheet it opens is unchanged.
+describe("AgentChat — pane-switcher button", () => {
+  const trigger = () => screen.queryByRole("button", { name: /switch pane/i });
+
   it("is hidden when this is the only pane", () => {
     renderChat({ agents: [fixtureAgents[0]!], shellPanes: [] });
-    expect(screen.queryByRole("button", { name: /switch pane/i })).not.toBeInTheDocument();
+    expect(trigger()).not.toBeInTheDocument();
   });
 
-  it("is offered once a second pane exists", () => {
+  it("opens the switcher sheet on a plain tap once a second pane exists", async () => {
+    const user = userEvent.setup();
     renderChat({ agents: [fixtureAgents[0]!, fixtureAgents[1]!], shellPanes: [] });
-    expect(screen.getByRole("button", { name: /switch pane/i })).toBeInTheDocument();
+    await user.click(trigger()!);
+    expect(await screen.findByRole("dialog", { name: /switch pane/i })).toBeInTheDocument();
   });
 });
 
