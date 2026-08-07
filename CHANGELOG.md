@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.95.0] - 2026-08-07
+
+### Added
+- "En tête de colonne" in a card's *Classer* section — the phone's only way to write `position`, since the board's reorder drag is desktop-only. PATCHes `position` alone, never `status` (31179a0).
+
 ## [0.94.0] - 2026-08-07
 
 ### Changed
