@@ -651,13 +651,20 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
 export interface BoardPrefs {
   /** Turn a review's follow-up suggestions into backlog cards. Default off — opt in. */
   autoFollowUps: boolean;
+  /** How many cards may run an agent at once. Reads as the effective limit: the number set here,
+   *  or the bridge's `COLLIE_BOARD_MAX_AGENTS` default while none has been. */
+  maxAgents: number;
 }
+
+/** The ceiling the bridge enforces on `maxAgents` (mirrors `MAX_AGENTS_CAP`). */
+export const MAX_AGENTS_CAP = 32;
 
 export function fetchBoardPrefs(signal?: AbortSignal): Promise<BoardPrefs> {
   return apiRequest<BoardPrefs>("/api/board/prefs", { signal });
 }
 
-export function setBoardPrefs(patch: BoardPrefs): Promise<BoardPrefs> {
+/** Only the keys you send change — the bridge treats this POST as a patch. */
+export function setBoardPrefs(patch: Partial<BoardPrefs>): Promise<BoardPrefs> {
   return apiRequest<BoardPrefs>("/api/board/prefs", {
     method: "POST",
     body: JSON.stringify(patch),

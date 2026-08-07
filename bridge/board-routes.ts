@@ -24,7 +24,7 @@ import {
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
-import { isCardStatus } from "./db.ts";
+import { isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
@@ -270,13 +270,21 @@ async function route(
     return ctx.json({ ok: true });
   }
 
-  // The board's switches. One today: whether a review's follow-up suggestions become cards. Read to
-  // GET (a preference is not terminal-driving), write to change — same rule as hiding a repo.
+  // The board's switches: whether a review's follow-up suggestions become cards, and how many agents
+  // may run at once. Read to GET (a preference is not terminal-driving), write to change — same rule
+  // as hiding a repo. POST is a PATCH in spirit: only the keys present change, so the two controls on
+  // the settings screen never overwrite each other's value with a stale copy.
   if (pathname === BOARD_PREFS_ROUTE) {
+    // The concurrency limit answers as its EFFECTIVE value (the stored preference, else the env
+    // default), so the settings screen shows the number that will actually be enforced.
+    const prefs = () => ({
+      autoFollowUps: ctx.db.autoFollowUps(),
+      maxAgents: ctx.db.maxAgents() ?? ctx.cfg.boardMaxAgents,
+    });
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      return ctx.json({ autoFollowUps: ctx.db.autoFollowUps() });
+      return ctx.json(prefs());
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");
@@ -287,16 +295,27 @@ async function route(
       } catch {
         return ctx.text("bad body", 400);
       }
-      const { autoFollowUps } = (body ?? {}) as { autoFollowUps?: unknown };
-      if (typeof autoFollowUps !== "boolean") return ctx.text("autoFollowUps must be a boolean", 400);
-      ctx.db.setAutoFollowUps(autoFollowUps);
+      const { autoFollowUps, maxAgents } = (body ?? {}) as {
+        autoFollowUps?: unknown;
+        maxAgents?: unknown;
+      };
+      if (autoFollowUps !== undefined) {
+        if (typeof autoFollowUps !== "boolean")
+          return ctx.text("autoFollowUps must be a boolean", 400);
+        ctx.db.setAutoFollowUps(autoFollowUps);
+      }
+      if (maxAgents !== undefined) {
+        if (typeof maxAgents !== "number" || !Number.isInteger(maxAgents) || maxAgents < 1 || maxAgents > MAX_AGENTS_CAP)
+          return ctx.text(`maxAgents must be a whole number between 1 and ${MAX_AGENTS_CAP}`, 400);
+        ctx.db.setMaxAgents(maxAgents);
+      }
       ctx.audit.record({
         action: "board.prefs",
         session: ctx.session,
         device: ctx.device,
-        detail: { autoFollowUps },
+        detail: { autoFollowUps, maxAgents },
       });
-      return ctx.json({ autoFollowUps: ctx.db.autoFollowUps() });
+      return ctx.json(prefs());
     }
     return ctx.text("method not allowed", 405);
   }

@@ -647,12 +647,16 @@ export async function startCard(
       error: { kind: "already-running", message: "this card already has a session running" },
     };
   }
-  if (runningCards(db) >= cfg.boardMaxAgents) {
+  // The settings screen's number wins over the env default when it has been set — see
+  // `BoardDb.maxAgents`. Read here rather than at boot, so raising it takes effect on the next tap
+  // instead of on a bridge restart.
+  const maxAgents = db.maxAgents() ?? cfg.boardMaxAgents;
+  if (runningCards(db) >= maxAgents) {
     return {
       ok: false,
       error: {
         kind: "busy",
-        message: `${cfg.boardMaxAgents} agents already running — finish or hand one off first`,
+        message: `${maxAgents} agents already running — finish or hand one off first`,
       },
     };
   }
