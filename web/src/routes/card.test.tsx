@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { DangerZone, noteLabel, PromptBox, resolveWatchStep, SubtaskProgress } from "./card.tsx";
+import {
+  DangerZone,
+  noteLabel,
+  PromptBox,
+  resolveWatchStep,
+  SubtaskProgress,
+  topOfColumn,
+} from "./card.tsx";
 import type { CardStatus, CardView } from "@/lib/board";
 
 function card(status: CardStatus): CardView {
@@ -146,5 +153,31 @@ describe("SubtaskProgress", () => {
   it("pluralises when more than one sub-task is blocked", () => {
     render(<SubtaskProgress cards={[card("blocked"), card("blocked"), card("ready")]} />);
     expect(screen.getByText("2 attendent une réponse")).toBeInTheDocument();
+  });
+});
+
+// The phone's only way to write `position` — the board's drag is desktop-only. What it must not do
+// is rank against the wrong list: another column's cards, or sub-tasks that live in a container.
+describe("topOfColumn", () => {
+  const at = (status: CardStatus, position: number, parentId: string | null = null): CardView => ({
+    ...card(status),
+    position,
+    parentId,
+  });
+
+  it("lands below the lowest position in the same column", () => {
+    const moved = at("ready", 30);
+    expect(topOfColumn([at("ready", 10), at("ready", 20), moved], moved)).toBe(9);
+  });
+
+  it("ignores the other columns and the sub-tasks", () => {
+    const moved = at("ready", 30);
+    const cards = [at("backlog", -50), at("ready", 10, "container"), at("ready", 20), moved];
+    expect(topOfColumn(cards, moved)).toBe(19);
+  });
+
+  it("leaves a lone card where a new card would land", () => {
+    const moved = at("ready", 7);
+    expect(topOfColumn([moved], moved)).toBe(0);
   });
 });

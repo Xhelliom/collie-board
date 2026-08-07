@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
+  ArrowUp,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -89,6 +90,21 @@ import { paneDisplayName, type AgentStatus } from "@/lib/types";
 // task, and what happened in the sessions before this one" — the question Collie's pane mirror
 // structurally cannot.
 
+/**
+ * The `position` that puts `card` above every other card in its column — the same fractional rank
+ * the board's drag computes, with the landing slot fixed at 0. Sub-tasks are excluded: from `lg` up
+ * they scatter into their own columns, but on a phone they are folded into their container's tile,
+ * so they are not what "top of the column" is about (their order is the sub-task list's, and the
+ * container's page reorders it).
+ */
+export function topOfColumn(cards: CardView[], card: CardView): number {
+  const column = cards
+    .filter((c) => c.id !== card.id && !c.parentId && c.status === card.status)
+    .map((c) => c.position)
+    .sort((a, b) => a - b);
+  return positionFor(column, 0);
+}
+
 export function CardRoute() {
   const data = useLoaderData() as CardData;
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
@@ -148,6 +164,28 @@ export function CardRoute() {
   async function move(status: CardStatus) {
     if (!card) return;
     await patchCard(card.id, { status });
+    revalidator.revalidate();
+  }
+
+  /**
+   * The mobile half of "where in the column does this card sit". The board's drag writes `position`
+   * and is desktop-only, so on a phone the priority inside a column was frozen — "Classer" moves a
+   * card ACROSS columns and never within one.
+   *
+   * `position` alone, never `status`: the bridge routes any status through `setStatus`, which closes
+   * the session and journals a move — the same trap board.tsx's drop guards against.
+   *
+   * ponytail: to the top only, not an arbitrary slot. It is the move you actually make on a phone
+   * ("this one next"); if a middle slot ever matters, the same fetch feeds a slot picker.
+   */
+  async function toTop() {
+    if (!card) return;
+    try {
+      const { cards } = await fetchCards();
+      await patchCard(card.id, { position: topOfColumn(cards, card) });
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
     revalidator.revalidate();
   }
 
@@ -498,6 +536,20 @@ export function CardRoute() {
                           {CARD_STATUS_LABEL[s]}
                         </Button>
                       ))}
+                    {/* The one thing "Classer" could not do: rank the card WITHIN its column. Same
+                        row as the columns because it answers the same question ("where does this
+                        go"), and separated by an icon because it is the only one that stays put. */}
+                    {!card.parentId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-full"
+                        onClick={() => void toTop()}
+                      >
+                        <ArrowUp className="size-3.5" />
+                        En tête de colonne
+                      </Button>
+                    )}
                   </div>
                   {integration && integration.ahead > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
