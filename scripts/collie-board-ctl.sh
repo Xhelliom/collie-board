@@ -224,11 +224,11 @@ WorkingDirectory=${PLUGIN_ROOT}
 ExecStart=${BUN} run ${PLUGIN_ROOT}/bridge/index.ts
 Restart=on-failure
 RestartSec=5
-# Hardening: the bridge is remote shell access, so deny privilege escalation and give it a private
-# /tmp. ProtectSystem is intentionally NOT set — the only write path is the env-driven state dir,
-# which Herdr may inject to an arbitrary location, so it can't be enumerated in a static ReadWritePaths.
+# Hardening: the bridge is remote shell access, so deny privilege escalation. NO mount-namespace
+# directive belongs here (PrivateTmp, ProtectSystem, PrivateDevices, ReadOnlyPaths…): a --user unit
+# can only mount inside a USER namespace, where root-owned files read as nobody — which makes ssh
+# refuse /etc/ssh/ssh_config.d/*, so every git push (Open a PR, Done) fails. See .adr/0008.
 NoNewPrivileges=yes
-PrivateTmp=yes
 Environment=HERDR_SOCKET_PATH=${SOCKET}
 Environment=COLLIE_BOARD_PORT=${PORT}
 Environment=HERDR_PLUGIN_CONFIG_DIR=${CONFIG_DIR}
