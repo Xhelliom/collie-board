@@ -964,6 +964,32 @@ describe("Composer — quick dock (in-flow, matches the keys dock)", () => {
     // fire() closes the dock after sending.
     expect(screen.queryByRole("button", { name: "continue" })).not.toBeInTheDocument();
   });
+
+  // The handoff row is the ONE quick action that isn't a reply — it must be there whatever the ctx
+  // level (there is no gauge input at all here), and absent when the pane backs no card.
+  it("offers Handoff whenever the pane backs a card, and fires it once", async () => {
+    const user = userEvent.setup();
+    const onHandoff = vi.fn().mockResolvedValue(undefined);
+    renderComposer({ onHandoff });
+
+    await user.click(screen.getByRole("button", { name: "Quick" }));
+    await user.click(screen.getByRole("button", { name: /Hand off to a fresh session/ }));
+
+    expect(onHandoff).toHaveBeenCalledTimes(1);
+    // Closes the dock like every other quick action.
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Hand off/ })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("omits Handoff for a pane with no card", async () => {
+    const user = userEvent.setup();
+    renderComposer();
+
+    await user.click(screen.getByRole("button", { name: "Quick" }));
+    expect(screen.getByRole("button", { name: "yes" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hand off/ })).not.toBeInTheDocument();
+  });
 });
 
 describe("Composer — View row copy button (UI_AUDIT §6.4)", () => {

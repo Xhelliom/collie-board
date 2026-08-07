@@ -592,6 +592,19 @@ export function AgentChat({
   const cardId = agent?.cardId;
   const cardLabel = agent?.cardTitle ?? "Carte portée";
 
+  // The ONE handoff call this screen makes — the desktop rail's button and the composer's Quick dock
+  // both fire it, so "hand off from the session" can't drift into two behaviours. Same request the
+  // card page's own HandoffButton sends (lib/board.ts handoffCard).
+  const runHandoff = async (id: string) => {
+    try {
+      await handoffCard(id);
+      setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
+  };
+
   return (
     <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row">
       {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the pane switcher
@@ -1027,8 +1040,9 @@ export function AgentChat({
               ContextRailColumn is `lg:flex`, so below that breakpoint the card a session works on
               was unreachable from the session at all. Same destination as the rail's "Ouvrir la
               carte", one row instead of a block; absent entirely when the pane backs no card, so a
-              hand-launched pane shows no empty affordance. Handoff stays desktop-only for now — the
-              rest of the rail's mobile gap is its own card. */}
+              hand-launched pane shows no empty affordance. The rail's OTHER button (Handoff) reaches
+              mobile through the composer's Quick dock instead, where it's one tap from the reply box
+              at any ctx level. */}
           {cardId && (
             <button
               type="button"
@@ -1077,6 +1091,7 @@ export function AgentChat({
             onSwitchPane={
               agents.length + shellPanes.length > 1 ? () => setDrawer("switcher") : undefined
             }
+            onHandoff={cardId ? () => runHandoff(cardId) : undefined}
           />
         </div>
       </div>
@@ -1088,15 +1103,7 @@ export function AgentChat({
         agent={agent}
         statusLines={statusLines}
         onOpenCard={(cardId) => navigate(cardPath(cardId))}
-        onHandoff={async (cardId) => {
-          try {
-            await handoffCard(cardId);
-            setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
-          } catch (e) {
-            setStatus((e as Error).message, "error", null);
-          }
-          revalidator.revalidate();
-        }}
+        onHandoff={runHandoff}
       />
 
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
