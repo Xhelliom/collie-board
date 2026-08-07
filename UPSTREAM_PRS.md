@@ -628,7 +628,7 @@ that way: *"I get an error message /api/etc, something like that."*
 
 | | |
 |---|---|
-| Commit | `PENDING` *fix(web): a refusal shows the bridge's sentence, not the url and the status code* |
+| Commit | `5a7514c` *fix(web): a refusal shows the bridge's sentence, not the url and the status code* |
 | Files | `web/src/lib/api.ts` (`errorDetail` → `apiError`), `web/src/lib/api.test.ts` |
 | Extraction | **Clean cherry-pick.** No card in sight — every `{ok:false,error}` responder upstream (`/reply`, `/keys`, `/upload`, the pane routes) gains the same thing. |
 

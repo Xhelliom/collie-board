@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.97.0] - 2026-08-07
+
+### Added
+- "Agents at once" in Settings — the concurrency limit is a board preference set with a stepper, read at start time, no longer `COLLIE_BOARD_MAX_AGENTS` + a bridge restart (019fa46).
+
+### Fixed
+- A refusal the bridge decided itself is shown as the sentence it wrote, not `<path> → <status> {"ok":false,…}` — the reason no longer sits off the right edge of a phone (5a7514c).
+
 ## [0.96.0] - 2026-08-07
 
 ### Added
