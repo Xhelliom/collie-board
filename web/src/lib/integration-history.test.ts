@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { integrationHistory } from "./board-groups";
+import { integrationHistory, prLabel } from "./board-groups";
 import type { BoardEvent } from "./board";
 
 // The question this answers: "was this card's work ever actually merged?" Once the branch, the
@@ -59,5 +59,15 @@ describe("integrationHistory", () => {
       ev("card.merged", { base: "release" }, 300),
     ]);
     expect(got.merged).toEqual({ base: "release", ts: 300 });
+  });
+});
+
+describe("prLabel", () => {
+  it("names the PR by number", () => {
+    expect(prLabel("https://github.com/o/r/pull/171")).toBe("View PR #171");
+  });
+
+  it("stays generic for anything else", () => {
+    expect(prLabel("https://git.example/o/r/merge_requests/9")).toBe("View the PR");
   });
 });

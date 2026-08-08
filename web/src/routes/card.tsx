@@ -76,7 +76,7 @@ import {
   type CardView,
   type Integration,
 } from "@/lib/board";
-import { dependencyInfo, dependencyMet, integrationHistory } from "@/lib/board-groups";
+import { dependencyInfo, dependencyMet, integrationHistory, prLabel } from "@/lib/board-groups";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
@@ -1218,15 +1218,30 @@ function IntegrationSection({
             <GitMerge className="size-4" />
             {busy === "merge" ? "Merging…" : filing ? `Merge into ${state.base} & done` : `Merge into ${state.base}`}
           </Button>
-          <Button
-            variant="outline"
-            className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
-            disabled={busy !== null || merged || state.branchDirty}
-            onClick={() => void run("pr", "Pull request opened", filing)}
-          >
-            <GitPullRequest className="size-4" />
-            {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
-          </Button>
+          {/* Once the journal knows a PR's url, the tap that matters is "take me to it" — tapping
+              "Open a PR" again would push and hand back that same url. The history line above keeps
+              the link for after the branch is gone. */}
+          {past.pr?.url ? (
+            <a
+              href={past.pr.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+            >
+              <GitPullRequest className="size-4" />
+              {prLabel(past.pr.url)}
+            </a>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
+              disabled={busy !== null || merged || state.branchDirty}
+              onClick={() => void run("pr", "Pull request opened", filing)}
+            >
+              <GitPullRequest className="size-4" />
+              {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
+            </Button>
+          )}
         </div>
 
         {/* Shown only for text we relayed verbatim from git or herdr. Off when the copilot is,
