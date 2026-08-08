@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.98.0] - 2026-08-08
+
+### Changed
+- A card whose PR is open shows `View PR #171` instead of `Open a PR` — one tap to the page, no second push (30ec006).
+
 ## [0.97.1] - 2026-08-07
 
 ### Fixed
