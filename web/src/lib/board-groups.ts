@@ -131,6 +131,15 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
 }
 
 /**
+ * Name the PR link's button. Falls back to the generic wording rather than showing a bare url on a
+ * phone: the number is nice, the link working is what matters. Pure + exported for the test.
+ */
+export function prLabel(url: string): string {
+  const n = /\/pull\/(\d+)/.exec(url)?.[1];
+  return n ? `View PR #${n}` : "View the PR";
+}
+
+/**
  * Does this card's declared predecessor still hold it back?
  *
  * MUST mirror `startCard`'s gate in `bridge/cards.ts` — `done` and `archived` release it, anything
