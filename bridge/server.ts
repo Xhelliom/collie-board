@@ -524,8 +524,23 @@ async function readPane(
       build,
     );
   } catch (err) {
-    return text(`herdr read failed: ${(err as Error).message}`, 502);
+    const message = (err as Error).message;
+    // A pane that no longer exists is NOT an upstream failure: herdr answered perfectly, and what it
+    // said is that this pane is gone (closed, or its agent finished). 502 made the client treat a
+    // permanent, ordinary fact as a flaky connection and retry it every 1.5 s forever — which is how
+    // a closed pane turned into a "reconnecting" banner that never stopped blinking. 404 says the
+    // true thing, and it is a status the client can act on.
+    if (isPaneGone(message)) return text(message, 404);
+    return text(`herdr read failed: ${message}`, 502);
   }
+}
+
+/**
+ * True when a herdr error means "no such pane" rather than "the call failed". Matched on herdr's own
+ * error code, which it returns as `pane_not_found: pane <id> not found`. Pure + exported for the test.
+ */
+export function isPaneGone(message: string): boolean {
+  return message.includes("pane_not_found");
 }
 
 /**

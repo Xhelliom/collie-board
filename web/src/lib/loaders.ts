@@ -84,6 +84,12 @@ export interface HomeData {
   error: boolean;
   /** True when the failed refresh was rejected with HTTP 401 or 403. */
   authError: boolean;
+  /**
+   * The pane no longer exists — closed, or its agent finished (bridge answers 404). A PERMANENT
+   * fact, not a degraded connection: retrying can never bring it back, so this must not raise the
+   * reconnecting banner the way `error` does.
+   */
+  gone?: boolean;
 }
 
 export interface PaneData {
@@ -102,6 +108,12 @@ export interface PaneData {
   error: boolean;
   /** True when the failed refresh was rejected with HTTP 401 or 403. */
   authError: boolean;
+  /**
+   * The pane no longer exists — closed, or its agent finished (bridge answers 404). A PERMANENT
+   * fact, not a degraded connection: retrying can never bring it back, so this must not raise the
+   * reconnecting banner the way `error` does.
+   */
+  gone?: boolean;
 }
 
 // Keep-previous-data cache is now PER-SESSION: switching sessions must not show the other session's
@@ -285,7 +297,12 @@ export function resetRequestedLines(paneId?: string, session?: string): void {
 // Last-known pane payload, flagged degraded — stale text (empty if this pane was never fetched),
 // truncated cleared, revision 0 (the prompt-select guard rejects a 0-revision mismatch anyway). Shared
 // by the failed-refresh catch and the offline navigation fast path, so both return the same shape.
-function stalePane(paneId: string, session: string | undefined, lines: number): PaneData {
+function stalePane(
+  paneId: string,
+  session: string | undefined,
+  lines: number,
+  gone = false,
+): PaneData {
   return {
     paneId,
     session,
@@ -293,8 +310,10 @@ function stalePane(paneId: string, session: string | undefined, lines: number): 
     truncated: false,
     requestedLines: lines,
     revision: 0,
-    error: true,
+    // A gone pane is not a connection problem, so it never flags the poll as degraded — see PaneData.
+    error: !gone,
     authError: hasAuthError(session),
+    ...(gone ? { gone: true } : {}),
   };
 }
 
@@ -353,6 +372,9 @@ export async function paneLoader({
   } catch (e) {
     if (isAbortError(e)) throw e; // superseded revalidation — let React Router drop it
     rememberAuthError(session, isAuthError(e));
+    // 404 = this pane is gone for good. Distinguished from a failure because the difference is what
+    // the user is told: "we're reconnecting" (wrong, and it never resolves) vs "this pane closed".
+    if (isApiErrorStatus(e, 404)) return stalePane(paneId, session, lines, true);
     // Genuine network / server failure: show stale text flagged as degraded.
     return stalePane(paneId, session, lines);
   }

@@ -16,6 +16,7 @@ import {
   startupWarnings,
   withBuildHeader,
   type ReplySender,
+  isPaneGone,
 } from "./server.ts";
 import type { Config } from "./config.ts";
 import type { PaneRead } from "./herdr-client.ts";
@@ -650,5 +651,19 @@ describe("cacheControlFor", () => {
     ]) {
       expect(cacheControlFor(rel)).toBe("no-cache");
     }
+  });
+});
+
+// A herdr "pane_not_found" is not an upstream failure — herdr answered, and what it said is that the
+// pane is gone. Served as 502 it made the client retry a permanent fact every 1.5 s and show a
+// "reconnecting" banner that never cleared (reported 2026-08-09, on a workspace that had lost a pane).
+describe("isPaneGone", () => {
+  test("recognises herdr's pane_not_found code", () => {
+    expect(isPaneGone("herdr pane.read: pane_not_found: pane w1F:p1 not found")).toBe(true);
+  });
+
+  test("leaves a real upstream failure alone", () => {
+    expect(isPaneGone("herdr pane.read: connection refused")).toBe(false);
+    expect(isPaneGone("socket timeout")).toBe(false);
   });
 });

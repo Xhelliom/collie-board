@@ -22,7 +22,7 @@ const rejectSnapshot = (status: 401 | 403) =>
 const failPane = () =>
   server.use(http.get(/\/api\/pane\/[^/]+$/, () => new HttpResponse(null, { status: 500 })));
 
-const rejectPane = (status: 401 | 403) =>
+const rejectPane = (status: 401 | 403 | 404) =>
   server.use(http.get(/\/api\/pane\/[^/]+$/, () => new HttpResponse(null, { status })));
 
 describe("rootLoader", () => {
@@ -140,6 +140,20 @@ describe("paneLoader", () => {
     expect(stale.authError).toBe(false);
     expect(stale.text).toBe("hello from the pane");
     expect(stale.paneId).toBe("w1:p1");
+  });
+
+  // A pane that no longer exists (closed, or its agent finished) is a PERMANENT fact, not a flaky
+  // link — the bridge says so with a 404. Reported symptom: a workspace that had lost one of its two
+  // panes sat with the "reconnecting" banner blinking forever, because every poll for the dead pane
+  // failed and every failure read as a connection problem. Retrying can never bring it back.
+  it("marks a 404 as gone, not as a connection error", async () => {
+    rejectPane(404);
+    const { paneLoader } = await import("./loaders");
+    const data = await paneLoader({ params: { paneId: "w1:p1" } });
+    expect(data.gone).toBe(true);
+    // The load-bearing assertion: this is what keeps the banner off.
+    expect(data.error).toBe(false);
+    expect(data.authError).toBe(false);
   });
 
   it("returns empty text + error when no last-good exists for that pane", async () => {
