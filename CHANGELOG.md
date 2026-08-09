@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.100.0] - 2026-08-09
+
+### Changed
+- Reading mode matches the pane's terminal against the candidate logs before trusting timestamps — exact where the clock could only guess (5644b30).
+
 ## [0.99.1] - 2026-08-09
 
 ### Fixed
