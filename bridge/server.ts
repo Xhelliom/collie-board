@@ -524,8 +524,23 @@ async function readPane(
       build,
     );
   } catch (err) {
-    return text(`herdr read failed: ${(err as Error).message}`, 502);
+    const message = (err as Error).message;
+    // A pane that no longer exists is NOT an upstream failure: herdr answered perfectly, and what it
+    // said is that this pane is gone (closed, or its agent finished). 502 made the client treat a
+    // permanent, ordinary fact as a flaky connection and retry it every 1.5 s forever — which is how
+    // a closed pane turned into a "reconnecting" banner that never stopped blinking. 404 says the
+    // true thing, and it is a status the client can act on.
+    if (isPaneGone(message)) return text(message, 404);
+    return text(`herdr read failed: ${message}`, 502);
   }
+}
+
+/**
+ * True when a herdr error means "no such pane" rather than "the call failed". Matched on herdr's own
+ * error code, which it returns as `pane_not_found: pane <id> not found`. Pure + exported for the test.
+ */
+export function isPaneGone(message: string): boolean {
+  return message.includes("pane_not_found");
 }
 
 /**
@@ -584,7 +599,7 @@ async function paneHistory(
   herdr: {
     paneProcess(paneId: string): Promise<{ pid: number; cwd: string } | null>;
     /** The pane's terminal, used to identify WHICH log this pane is showing (see below). */
-    readPane(paneId: string, source: "recent", lines: number, format: "text"): Promise<{ text: string }>;
+    readPane(paneId: string, source: "recent", lines: number, format: "ansi"): Promise<{ text: string }>;
   },
   adapters: Record<string, AgentAdapter>,
   paneId: string,
@@ -617,10 +632,17 @@ async function paneHistory(
         paneId,
         cwd: pane.cwd,
         // The mirror is ground truth — herdr returns it per PANE ID, so it can never be the wrong
-        // conversation, which is the one thing the clock-based rules can get wrong. Plain text (no
-        // SGR to strip) and only consulted when several agents share the directory. This route is
-        // where being wrong is worst: it renders the whole thread.
-        paneText: async (id) => (await herdr.readPane(id, "recent", 200, "text")).text,
+        // conversation, which is the one thing the clock-based rules can get wrong. Only consulted
+        // when several agents share a directory; this route is where being wrong is worst, since it
+        // renders the whole thread.
+        //
+        // "ansi", NOT "text", and that is not a style choice: measured against herdr 0.7.5 on an
+        // IDLE pane, `format:"text"` took 6541 ms where `format:"ansi"` took 1 ms — same pane, same
+        // source, same line count (HERDR_API.md). The plain-text conversion appears to degrade
+        // badly once a pane stops producing output. At 6.5 s every history poll blew the client's
+        // 5 s budget, so reading mode sat at "reconnecting" on any agent that had finished. The
+        // escape codes cost nothing here: mirrorFragments strips them before matching anyway.
+        paneText: async (id) => (await herdr.readPane(id, "recent", 200, "ansi")).text,
       });
       page = path === null ? null : await transcripts.pageAt(path, params);
     }

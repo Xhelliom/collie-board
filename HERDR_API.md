@@ -296,3 +296,19 @@ event costs one interval, never correctness.
 
 Also visible in the 0.7.2 schema but unused by Collie: `events.wait`, `pane.send_input`,
 `agent.list`, `pane.wait_for_output` — run `herdr api schema` for the full ~80-method catalog.
+
+### `pane.read` — use `format: "ansi"`, never `"text"`, on a pane that may be idle
+
+Measured against herdr 0.7.5 (2026-08-09) on a pane whose agent had finished, same `source: "recent"`
+and same `lines: 200`:
+
+| format | time |
+|---|---|
+| `"ansi"` | **1 ms** |
+| `"text"` | **6541 ms** |
+
+The plain-text conversion degrades badly once a pane stops producing output; on a busy pane both
+return in ~1 ms, so the trap only shows up on an idle or finished agent. 6.5 s is past every timeout
+in this bridge (`DEFAULT_TIMEOUT_MS` is 5000), so a caller that asks for `"text"` simply fails —
+which is what made reading mode show a permanent "reconnecting" banner on any done agent. Ask for
+`"ansi"` and strip the SGR codes yourself; they carry no cursor sequences (already verified above).
