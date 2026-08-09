@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.100.1] - 2026-08-09
+
+### Fixed
+- A closed pane no longer reads as a broken connection — the "reconnecting" banner stopped clearing on a workspace that had lost a pane (cb68a8f).
+
 ## [0.100.0] - 2026-08-09
 
 ### Changed
