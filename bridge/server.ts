@@ -581,7 +581,11 @@ async function paneHistory(
   cfg: Config,
   transcripts: TranscriptStore | null,
   engine: StateEngine,
-  herdr: { paneProcess(paneId: string): Promise<{ pid: number; cwd: string } | null> },
+  herdr: {
+    paneProcess(paneId: string): Promise<{ pid: number; cwd: string } | null>;
+    /** The pane's terminal, used to identify WHICH log this pane is showing (see below). */
+    readPane(paneId: string, source: "recent", lines: number, format: "text"): Promise<{ text: string }>;
+  },
   adapters: Record<string, AgentAdapter>,
   paneId: string,
   url: URL,
@@ -612,6 +616,11 @@ async function paneHistory(
         startedAt: processStartedAt,
         paneId,
         cwd: pane.cwd,
+        // The mirror is ground truth — herdr returns it per PANE ID, so it can never be the wrong
+        // conversation, which is the one thing the clock-based rules can get wrong. Plain text (no
+        // SGR to strip) and only consulted when several agents share the directory. This route is
+        // where being wrong is worst: it renders the whole thread.
+        paneText: async (id) => (await herdr.readPane(id, "recent", 200, "text")).text,
       });
       page = path === null ? null : await transcripts.pageAt(path, params);
     }
