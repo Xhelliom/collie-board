@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Bell, Loader2 } from "lucide-react";
-import { useRouteLoaderData } from "react-router";
+import { Bell, ChevronRight, Images, Loader2 } from "lucide-react";
+import { Link, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
 import { BackupControl } from "@/components/backup-control";
@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { fetchConfig } from "@/lib/api";
 import { usePushControl } from "@/hooks/use-push";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
+import { galleryPath } from "@/lib/nav";
 import type { PushAvailability } from "@/lib/push";
 
 // Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
@@ -63,6 +64,21 @@ export function SettingsRoute() {
 
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4">
         <ThemeControl />
+
+        {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
+            the four places the app is about. A row here rather than a fifth item in the nav bar. */}
+        <Card className="gap-0 py-0">
+          <Link to={galleryPath()} className="flex items-center gap-3 p-4">
+            <Images className="size-5 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">Gallery</div>
+              <p className="text-sm text-muted-foreground">
+                Images your agents left in their scratchpads.
+              </p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          </Link>
+        </Card>
 
         <Card className="gap-0 py-0">
           <div className="flex items-center justify-between gap-4 p-4">

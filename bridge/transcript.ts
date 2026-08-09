@@ -40,7 +40,9 @@
 // conversation), but it reaches further back — `COLLIE_BOARD_TRANSCRIPT=off` disables the feature wholesale.
 
 import { readdir, realpath, stat } from "node:fs/promises";
-import { dirname, join, sep } from "node:path";
+import { dirname, isAbsolute, join, normalize, sep } from "node:path";
+
+import { containedIn, galleryRoot, isImagePath } from "./gallery.ts";
 
 /** First bytes of a file — enough to find the root entry without reading a multi-megabyte log. */
 async function head(path: string, bytes = 64 * 1024): Promise<string> {
@@ -79,6 +81,12 @@ export type TranscriptPart =
       /** One-line gist of the call's input (the file read, the command run) — never the whole input. */
       summary: string;
       result?: { text: string; truncated?: boolean; isError?: boolean };
+      /**
+       * Absolute path of the image this call touched, when it touched one the gallery route can
+       * actually serve (see {@link toolImagePath}). The client renders the picture in place of the
+       * tool line — "Read /…/render.png" is the one tool call whose own output is the point.
+       */
+      image?: string;
     };
 
 /**
@@ -235,6 +243,24 @@ export function summarizeToolInput(input: unknown): string {
   return oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine;
 }
 
+/**
+ * The image a tool call touched, or null. Only `file_path` counts — the argument Read/Write/Edit all
+ * name their target with — and only when it's an absolute path to a servable image type INSIDE the
+ * gallery root, because a path the gallery route would refuse is a broken `<img>` on the phone.
+ *
+ * The containment test here is on the path AS WRITTEN, which is a display filter and nothing more:
+ * this function is pure (parseTranscript touches no fs), so it can't resolve symlinks. The decision
+ * that actually guards the bytes is {@link resolveImage} in gallery.ts, which realpaths both sides at
+ * serve time. Do not read this as an authorisation check.
+ */
+export function toolImagePath(input: unknown, root: string): string | null {
+  if (input === null || typeof input !== "object") return null;
+  const p = (input as Record<string, unknown>).file_path;
+  if (typeof p !== "string" || !isAbsolute(p)) return null;
+  const full = normalize(p);
+  return isImagePath(full) && containedIn(root, full) ? full : null;
+}
+
 /** Flatten a `tool_result.content`, which is either a plain string or a list of text blocks. */
 function toolResultText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -269,8 +295,9 @@ interface RawRow {
  */
 export function parseTranscript(
   text: string,
-  opts: { includeSidechains?: boolean } = {},
+  opts: { includeSidechains?: boolean; imageRoot?: string } = {},
 ): TranscriptEntry[] {
+  const imageRoot = opts.imageRoot ?? galleryRoot();
   const entries: TranscriptEntry[] = [];
   // tool_use id → the part awaiting its result, so a `tool_result` row lands on the call that made it.
   const pendingTools = new Map<string, Extract<TranscriptPart, { kind: "tool" }>>();
@@ -337,6 +364,8 @@ export function parseTranscript(
             name: typeof b.name === "string" ? b.name : "tool",
             summary: summarizeToolInput(b.input),
           };
+          const image = toolImagePath(b.input, imageRoot);
+          if (image) part.image = image;
           if (typeof b.id === "string") pendingTools.set(b.id, part);
           parts.push(part);
         } else if (b.type === "tool_result") {

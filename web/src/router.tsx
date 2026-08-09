@@ -7,9 +7,10 @@ import { SpacesRoute } from "@/routes/spaces";
 import { DetailRoute } from "@/routes/detail";
 import { HistoryRoute } from "@/routes/history";
 import { SettingsRoute } from "@/routes/settings";
+import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
-import { historyLoader, rootLoader, paneLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
+import { galleryLoader, historyLoader, rootLoader, paneLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardLoader, cardLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 
@@ -63,6 +64,15 @@ export const router = createBrowserRouter([
       { path: "space/:spaceId", element: <SpaceRoute /> },
       { path: "spaces", element: <SpacesRoute /> },
       { path: "settings", element: <SettingsRoute /> },
+      {
+        path: "gallery",
+        loader: galleryLoader,
+        element: <GalleryRoute />,
+        errorElement: <RootError />,
+        // Same reasoning as history: the poll tick would otherwise re-walk the bridge's scratchpad
+        // tree every 1.5 s for a listing that changes when an agent happens to save a picture.
+        shouldRevalidate: () => false,
+      },
       {
         path: "pane/:paneId",
         loader: paneLoader,

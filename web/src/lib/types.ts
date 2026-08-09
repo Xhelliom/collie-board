@@ -219,7 +219,19 @@ export type TranscriptPart =
       name: string;
       summary: string;
       result?: { text: string; truncated?: boolean; isError?: boolean };
+      /** Absolute path of an image this call touched — rendered in place of the tool line. */
+      image?: string;
     };
+
+/** One image under a harness scratchpad. Mirrors `GalleryImage` in bridge/gallery.ts. */
+export interface GalleryImage {
+  path: string;
+  name: string;
+  project: string;
+  session: string;
+  size: number;
+  mtime: number;
+}
 
 /**
  * One turn. `user`/`assistant` are speech; the other two are not, and render set apart so they can't

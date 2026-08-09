@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { ImageLightboxHost } from "./image-lightbox";
 import { TranscriptView } from "./transcript-view";
 import type { TranscriptEntry } from "@/lib/types";
 
@@ -291,5 +292,53 @@ describe("TranscriptView — system notes", () => {
     );
     expect(screen.getByText(/Context compacted/)).toBeInTheDocument();
     expect(screen.getByText(/System/)).toBeInTheDocument();
+  });
+});
+
+// A tool call that touched an image renders the PICTURE, not the path — the one tool line whose
+// output is the point. Tapping it opens the viewer over the whole thread's images.
+describe("TranscriptView images", () => {
+  const IMG = "/tmp/claude-1/p/s/scratchpad/render.png";
+  const IMG2 = "/tmp/claude-1/p/s/scratchpad/other.png";
+  const imageTurn = (uuid: string, image: string): TranscriptEntry =>
+    turn({
+      uuid,
+      role: "assistant",
+      parts: [{ kind: "tool", name: "Read", summary: image, image }],
+    });
+
+  it("renders the image instead of the tool line", () => {
+    render(<TranscriptView entries={[imageTurn("t1", IMG)]} />);
+    expect(screen.getByAltText("render.png")).toHaveAttribute(
+      "src",
+      `/api/gallery/file?p=${encodeURIComponent(IMG)}`,
+    );
+    // The collapsed "Read /path" row is gone — that's the whole point of the change.
+    expect(screen.queryByText("Read")).not.toBeInTheDocument();
+  });
+
+  it("still renders an ordinary tool call as a tool line", () => {
+    const { container } = render(
+      <TranscriptView
+        entries={[turn({ role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: "ls" }] })]}
+      />,
+    );
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    // Queried as an element, not by role: the lucide wrench icon is an <svg role="img">.
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("opens the viewer over every image in the thread, on the one tapped", async () => {
+    render(
+      <>
+        <TranscriptView entries={[imageTurn("t1", IMG), imageTurn("t2", IMG2)]} />
+        <ImageLightboxHost />
+      </>,
+    );
+    await userEvent.click(screen.getByAltText("other.png"));
+    const dialog = screen.getByRole("dialog");
+    // Both are in the viewer (so it can be swiped), opened on the second.
+    expect(within(dialog).getAllByRole("img")).toHaveLength(2);
+    expect(within(dialog).getByText("2/2")).toBeInTheDocument();
   });
 });

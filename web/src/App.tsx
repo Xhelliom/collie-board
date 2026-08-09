@@ -3,6 +3,7 @@ import { RouterProvider } from "react-router";
 import { router } from "./router";
 import { BusyBar } from "@/components/busy-bar";
 import { IdleLock } from "@/components/idle-lock";
+import { ImageLightboxHost } from "@/components/image-lightbox";
 import { useIdleLock } from "@/hooks/use-idle-lock";
 import { useThemeSync } from "@/hooks/use-theme-sync";
 import { useCatchingUp } from "@/lib/idle";
@@ -29,6 +30,11 @@ export function App() {
       <div style={{ display: "contents" }} inert={covered}>
         <BusyBar />
         <RouterProvider router={router} />
+        {/* The viewer is a <dialog showModal()>, which paints in the TOP LAYER — above the cover, no
+            matter where it sits in the tree or what z-index the cover carries. So it unmounts while
+            covered, or a full-screen render would hide the very panel saying the screen is frozen.
+            The store keeps the opening, so resuming brings the image back like everything else. */}
+        {!covered && <ImageLightboxHost />}
       </div>
       {covered && <IdleLock onUnlock={unlock} catchingUp={catchingUp} />}
     </>

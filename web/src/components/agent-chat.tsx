@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Columns3,
   EllipsisVertical,
+  Images,
   Loader2,
   ScrollText,
   Search,
@@ -18,8 +19,9 @@ import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
-import { closePane } from "@/lib/api";
+import { closePane, fetchHistory } from "@/lib/api";
 import { cardPath, handoffCard } from "@/lib/board";
+import { collectImages, openLightbox } from "@/lib/lightbox";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -48,7 +50,7 @@ import { submitWizardKeys } from "@/lib/wizard-action";
 import { submitPreviewKeys, submitPreviewNote, submitPreviewOption } from "@/lib/preview-action";
 import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-select-action";
 import type { PreviewBlockAction } from "@/components/preview-select-block";
-import { canGrowRequestedLines, growRequestedLines } from "@/lib/loaders";
+import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
 import { shortCwd } from "@/lib/format";
 import { historyPath, spacePath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
@@ -309,6 +311,26 @@ export function AgentChat({
   // wrong conversation can never be served). Expose that capability on AgentView if a non-Claude agent
   // ever makes the empty tap annoying.
   const historyAvailable = Boolean(agent) && agent?.kind !== "shell";
+
+  /**
+   * Open the viewer over every image this session touched. The images are a fact of the TRANSCRIPT,
+   * which this screen doesn't hold (the mirror is a terminal snapshot, and reading mode owns its own
+   * copy), so the entry fetches one on demand — an explicit tap, never a poll. A session with no
+   * pictures says so rather than opening an empty viewer.
+   */
+  const openSessionImages = useCallback(async () => {
+    try {
+      const res = await fetchHistory(paneId, { limit: HISTORY_PAGE_SIZE }, session);
+      const images = res.available ? collectImages(res.entries) : [];
+      if (images.length === 0) {
+        setStatus("No images in this session");
+        return;
+      }
+      openLightbox(images);
+    } catch {
+      setStatus("Couldn't read this session's images", "error");
+    }
+  }, [paneId, session]);
 
   // READING MODE — the second mode of this screen (see components/reading-view.tsx). Gated on a
   // transcript existing at all, so the toggle never leads somewhere empty: a shell pane, or an agent
@@ -1180,6 +1202,16 @@ export function AgentChat({
               onClick={() => {
                 closeDrawer();
                 navigate(historyPath(paneId, session));
+              }}
+            />
+          )}
+          {agent && historyAvailable && (
+            <ActionRow
+              icon={<Images className="size-4 shrink-0 text-muted-foreground" />}
+              label="Images"
+              onClick={() => {
+                closeDrawer();
+                void openSessionImages();
               }}
             />
           )}

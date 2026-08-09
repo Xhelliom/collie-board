@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 
 import { AgentIcon } from "@/components/agent-icon";
+import { GalleryImg } from "@/components/gallery-img";
 import { MarkdownText } from "@/components/markdown-text";
+import { collectImages, openLightbox } from "@/lib/lightbox";
 import { splitHighlight } from "@/lib/transcript-search";
 import type { TranscriptEntry, TranscriptPart } from "@/lib/types";
+
+/**
+ * The thread's images, so a thumbnail deep in a turn can open the viewer over ALL of them without
+ * every layer between having to carry the list. Read-only and set once per render by TranscriptView.
+ */
+const ThreadImagesContext = createContext<string[]>([]);
 
 // Renders an agent transcript — the conversation history a Claude pane's terminal structurally
 // cannot hold (it runs on the alternate screen, which keeps no scrollback ring; see
@@ -49,6 +57,37 @@ function Highlight({ text, query }: { text: string; query: string }) {
         ),
       )}
     </>
+  );
+}
+
+/**
+ * A tool call that touched an image shows the PICTURE instead of the call. "Read
+ * /…/scratchpad/render.png" is the one tool line whose interesting part is the file itself, and a
+ * thread full of generated renders is unreadable as a list of paths.
+ *
+ * Tapping opens the viewer over every image in the thread (not just this one), so a session that
+ * produced eight variants is eight swipes rather than eight taps in and out.
+ */
+function ImagePart({ path, images }: { path: string; images: string[] }) {
+  const name = path.split("/").pop() ?? path;
+  // Not in the thread's set (a turn rendered outside a TranscriptView) — open it on its own rather
+  // than landing on someone else's image.
+  const i = images.indexOf(path);
+  return (
+    <figure className="min-w-0">
+      <button
+        type="button"
+        onClick={() => (i < 0 ? openLightbox([path]) : openLightbox(images, i))}
+        className="block max-w-full rounded-md border bg-muted/40 p-1"
+      >
+        {/* GalleryImg, not a bare <img>: an agent still writing the file would otherwise leave a
+            permanently broken thumbnail in the thread until a reload. */}
+        <GalleryImg path={path} alt={name} className="max-h-48 w-auto rounded object-contain" />
+      </button>
+      <figcaption className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+        {name}
+      </figcaption>
+    </figure>
   );
 }
 
@@ -100,8 +139,15 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
 }
 
 function Part({ part, query }: { part: TranscriptPart; query: string }) {
+  const images = useContext(ThreadImagesContext);
   // Tool output is COMMAND output, not prose — it stays verbatim in a monospace block (see ToolPart).
-  if (part.kind === "tool") return <ToolPart part={part} query={query} />;
+  if (part.kind === "tool") {
+    return part.image ? (
+      <ImagePart path={part.image} images={images} />
+    ) : (
+      <ToolPart part={part} query={query} />
+    );
+  }
   // Prose is Markdown, so it renders formatted. MarkdownText emits React elements only — never
   // markup — so this keeps the same XSS boundary the raw text node had.
   return (
@@ -177,6 +223,7 @@ export function TranscriptView({
   agent,
   query = "",
   focusedUuid,
+  images,
 }: {
   entries: TranscriptEntry[];
   /** The pane's agent name, for the per-turn brand icon. */
@@ -185,7 +232,15 @@ export function TranscriptView({
   query?: string;
   /** The turn a find/jump landed on; ringed so you can see where you were sent. */
   focusedUuid?: string;
+  /**
+   * The images to swipe through from a thumbnail. Defaults to the ones in `entries`, which is right
+   * for a view that renders the whole thread; history.tsx passes the WHOLE transcript's set instead,
+   * because it only renders a window of the newest turns and the viewer shouldn't be windowed too.
+   */
+  images?: string[];
 }) {
+  const derived = useMemo(() => collectImages(entries), [entries]);
+  const threadImages = images ?? derived;
   // Consecutive turns from the same speaker are GROUPED — only the first of a run carries the
   // role/time header. A real thread is overwhelmingly long runs of assistant turns (892 of 914 in a
   // measured session), so repeating "CLAUDE 06:43 PM" above every tool call would roughly double the
@@ -193,6 +248,7 @@ export function TranscriptView({
   let lastDay = "";
   let lastRole = "";
   return (
+    <ThreadImagesContext.Provider value={threadImages}>
     <div className="space-y-3">
       {entries.map((entry) => {
         const day = dayKey(entry.ts);
@@ -222,5 +278,6 @@ export function TranscriptView({
         );
       })}
     </div>
+    </ThreadImagesContext.Provider>
   );
 }

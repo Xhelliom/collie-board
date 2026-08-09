@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
-import { ArrowUpToLine, ChevronDown, ChevronUp, Loader2, ScrollText, Search, X } from "lucide-react";
+import { ArrowUpToLine, ChevronDown, ChevronUp, Images, Loader2, ScrollText, Search, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
@@ -8,6 +8,7 @@ import { FindBar } from "@/components/find-bar";
 import { TranscriptView } from "@/components/transcript-view";
 import { fetchHistory } from "@/lib/api";
 import { HISTORY_PAGE_SIZE, ROOT_ROUTE_ID, type HistoryData, type HomeData } from "@/lib/loaders";
+import { collectImages, openLightbox } from "@/lib/lightbox";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { matchingEntries, step, userTurnIndices } from "@/lib/transcript-search";
@@ -74,6 +75,9 @@ export function HistoryRoute() {
   const [query, setQuery] = useState("");
   // Index into `entries` (not `shown`) of the turn a find/jump landed on; -1 = nowhere yet.
   const [cursor, setCursor] = useState(-1);
+
+  // Derived from every turn in memory, not from the rendered window — see the TranscriptView call.
+  const sessionImages = useMemo(() => collectImages(entries), [entries]);
 
   const matches = useMemo(() => matchingEntries(entries, query), [entries, query]);
   const userTurns = useMemo(() => userTurnIndices(entries), [entries]);
@@ -204,6 +208,18 @@ export function HistoryRoute() {
         }
         rightLead={
           <>
+            {/* Every image this session touched, in one swipeable set. Hidden when it produced none,
+                which is most sessions — an always-there button for an empty viewer is just noise. */}
+            {sessionImages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => openLightbox(sessionImages)}
+                aria-label={`Images in this session (${sessionImages.length})`}
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+              >
+                <Images className="size-4" />
+              </button>
+            )}
             {/* A PWA has no browser find, so the view has to provide its own. */}
             <button
               type="button"
@@ -280,6 +296,9 @@ export function HistoryRoute() {
                 agent={agent?.agent}
                 query={query}
                 focusedUuid={focusedUuid}
+                // The WHOLE transcript's images, not `shown`'s: the render window holds the newest
+                // turns only, and swiping shouldn't stop at the oldest turn that happens to be drawn.
+                images={sessionImages}
               />
             </>
           )}

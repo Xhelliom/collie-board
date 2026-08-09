@@ -42,3 +42,9 @@ export function settingsPath(session?: string): string {
 export function spacesPath(session?: string): string {
   return `/spaces${sessionSearch(session)}`;
 }
+
+/** The gallery screen (every scratchpad image). Session-agnostic — the images are keyed by the
+ *  HARNESS's own project/session layout, which has nothing to do with a herdr session. */
+export function galleryPath(): string {
+  return "/gallery";
+}

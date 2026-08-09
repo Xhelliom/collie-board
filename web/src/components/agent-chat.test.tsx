@@ -18,6 +18,8 @@ vi.mock("@/lib/wizard-action", () => ({
 
 import { server } from "@/test/setup";
 import { clearStatus } from "@/lib/status";
+import { closeLightbox } from "@/lib/lightbox";
+import { ImageLightboxHost } from "@/components/image-lightbox";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
 import { fixtureAgents } from "@/test/handlers";
@@ -680,5 +682,65 @@ describe("AgentChat — top-of-mirror history affordance", () => {
     renderChat({ agent, agents: [agent], requestedLines: 600 });
     expect(showHistory()).toBeInTheDocument();
     expect(loadOlder()).not.toBeInTheDocument();
+  });
+});
+
+// The pane screen doesn't hold a transcript (the mirror is a terminal snapshot), so "Images" fetches
+// one on demand — an explicit tap, never a poll. What matters is that it reaches the viewer with the
+// session's images, and that an empty session says so instead of opening on nothing.
+describe("AgentChat — session images", () => {
+  const IMG = "/tmp/claude-1/p/s/scratchpad/render.png";
+  // The viewer's host lives in App, beside the router — so it has to be mounted here too, or
+  // "no dialog appeared" would pass for the wrong reason.
+  const renderChatWithViewer = (...args: Parameters<typeof renderChat>) => {
+    const r = renderChat(...args);
+    render(<ImageLightboxHost />);
+    return r;
+  };
+  afterEach(() => closeLightbox());
+
+  const historyReturning = (entries: unknown[]) =>
+    http.get("/api/pane/:paneId/history", () =>
+      HttpResponse.json({
+        paneId: "w1:p1",
+        available: true,
+        entries,
+        hasMore: false,
+        total: entries.length,
+        fileTruncated: false,
+        queued: [],
+      }),
+    );
+
+  const imageTurn = {
+    uuid: "t1",
+    ts: "2026-08-09T10:00:00Z",
+    role: "assistant",
+    parts: [{ kind: "tool", name: "Read", summary: IMG, image: IMG }],
+  };
+
+  it("opens the viewer over the session's images", async () => {
+    server.use(historyReturning([imageTurn]));
+    renderChatWithViewer();
+    await userEvent.click(screen.getAllByRole("button", { name: "More" })[0]!);
+    await userEvent.click(await screen.findByText("Images"));
+    expect(await screen.findByRole("dialog", { name: "Image viewer" })).toBeInTheDocument();
+    expect(screen.getByAltText("render.png")).toBeInTheDocument();
+  });
+
+  it("says so when the session produced none, rather than opening an empty viewer", async () => {
+    server.use(historyReturning([{ ...imageTurn, parts: [{ kind: "text", text: "no pictures" }] }]));
+    renderChatWithViewer();
+    await userEvent.click(screen.getAllByRole("button", { name: "More" })[0]!);
+    await userEvent.click(await screen.findByText("Images"));
+    expect(await screen.findByText("No images in this session")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Image viewer" })).not.toBeInTheDocument();
+  });
+
+  it("is hidden on a bare shell, which has no transcript to read images from", async () => {
+    const shell = { ...fixtureAgents[0]!, kind: "shell" as const };
+    renderChat({ agent: shell, agents: [shell] });
+    await userEvent.click(screen.getAllByRole("button", { name: "More" })[0]!);
+    expect(screen.queryByText("Images")).not.toBeInTheDocument();
   });
 });
