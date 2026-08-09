@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.99.0] - 2026-08-09
+
+### Added
+- Gallery: every image an agent left in its scratchpad, grouped by session, reachable from Settings (f977d66).
+- A transcript turn that read an image shows the picture instead of the tool line (f977d66).
+- Full-screen image viewer — swipe between a session's images, ←/→ on a keyboard (f977d66).
+- `Images` in the pane's ⋯ menu — the session's pictures without going through History first (11b7065).
+
 ## [0.98.0] - 2026-08-08
 
 ### Changed
