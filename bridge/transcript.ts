@@ -564,6 +564,21 @@ export interface TranscriptSource {
   load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }>;
 }
 
+/** The file facts resolution decides on. See {@link ClaudeTranscriptSource}'s constructor for why. */
+export interface FileTimes {
+  size: number;
+  mtimeMs: number;
+  /** 0 on a filesystem with no birth time (no statx) — resolution degrades, it never throws. */
+  birthtimeMs: number;
+}
+
+export type StatFn = (path: string) => Promise<FileTimes>;
+
+const realStat: StatFn = async (path) => {
+  const st = await stat(path);
+  return { size: st.size, mtimeMs: st.mtimeMs, birthtimeMs: st.birthtimeMs };
+};
+
 /**
  * Real filesystem source rooted at Claude's projects directory.
  *
@@ -576,7 +591,19 @@ export interface TranscriptSource {
 export class ClaudeTranscriptSource implements TranscriptSource {
   private readonly pathCache = new Map<string, string>();
 
-  constructor(private readonly root: string) {}
+  /**
+   * `root` is Claude's projects directory. `statFile` is injected for ONE reason: resolution decides
+   * which log belongs to which agent from the relationship between a file's BIRTH time and a
+   * process's start time, and a test fixture cannot forge a birth time — every file it writes is born
+   * now. Without this seam the two cases resolveForProcess has to tell apart (a resumed conversation
+   * vs. a second agent in the same directory) are literally inexpressible in a test, which is how the
+   * rule got inverted twice. Only the RESOLVERS use it; `load()` keeps the real stat, because what it
+   * reports must describe the bytes it actually read.
+   */
+  constructor(
+    private readonly root: string,
+    private readonly statFile: StatFn = realStat,
+  ) {}
 
   async resolve(sessionId: string): Promise<string | null> {
     if (!isSessionId(sessionId)) return null; // never build a path from an unvalidated id
@@ -635,7 +662,7 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     const dir = dirname(path);
     let self: { root: string | null; size: number; mtimeMs: number };
     try {
-      const st = await stat(path);
+      const st = await this.statFile(path);
       self = { root: conversationRoot(await head(path)), size: st.size, mtimeMs: st.mtimeMs };
     } catch {
       return path;
@@ -654,7 +681,7 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       const candidate = join(dir, name);
       if (candidate === path) continue;
       try {
-        const st = await stat(candidate);
+        const st = await this.statFile(candidate);
         if (st.mtimeMs <= best.mtimeMs || st.size < self.size) continue;
         if (conversationRoot(await head(candidate)) !== self.root) continue;
         best = { path: candidate, size: st.size, mtimeMs: st.mtimeMs };
@@ -681,21 +708,25 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     }
     // A small negative slack absorbs clock granularity on both comparisons.
     const SLACK_MS = 5_000;
-    // The log this process has been WRITING to — including one it resumed, whose file can predate the
-    // process by days. Newest write wins.
-    let live: { path: string; mtimeMs: number } | null = null;
-    // The log BORN closest after the process started. Only used when nothing has been written yet —
-    // a pane just launched and not yet prompted, where the startup log is the right answer.
+    // The most recently WRITTEN log, and whether it already existed when this process started.
+    let live: { path: string; mtimeMs: number; predatesStart: boolean } | null = null;
+    // The log born CLOSEST AFTER this process started — the only signal that tells two live agents
+    // apart, since a session log is created BY the process that owns it.
     let born: { path: string; delta: number } | null = null;
     for (const name of names) {
       if (!name.endsWith(".jsonl")) continue;
       const candidate = join(dir, name);
       try {
-        const st = await stat(candidate);
-        if (st.mtimeMs >= startedAtMs - SLACK_MS && (!live || st.mtimeMs > live.mtimeMs)) {
-          live = { path: candidate, mtimeMs: st.mtimeMs };
-        }
+        const st = await this.statFile(candidate);
         const birth = st.birthtimeMs; // 0 where statx is unavailable — then `live` has to carry it
+        if (st.mtimeMs >= startedAtMs - SLACK_MS && (!live || st.mtimeMs > live.mtimeMs)) {
+          live = {
+            path: candidate,
+            mtimeMs: st.mtimeMs,
+            // Strictly older than this process, so this process cannot have created it.
+            predatesStart: birth > 0 && birth < startedAtMs - SLACK_MS,
+          };
+        }
         if (birth) {
           const delta = birth - startedAtMs;
           if (delta >= -SLACK_MS && (!born || delta < born.delta)) {
@@ -706,7 +737,22 @@ export class ClaudeTranscriptSource implements TranscriptSource {
         continue;
       }
     }
-    const best = live ?? born;
+    // ONE categorical fact decides which rule applies — was the live log already there when we
+    // started — and not any duration threshold:
+    //
+    //  - Born BEFORE us → we cannot have created it, so this is a conversation the process RESUMED,
+    //    and "what is being written" is the only signal there is. (Claude Code also opens a log of its
+    //    own at launch and then abandons it for the resumed one, dead at a few dozen entries — that
+    //    abandoned file is exactly what `born` would hand back. Live evidence 2026-08-03: the startup
+    //    log stopped at 31 entries while the resumed one grew to 20 MB.)
+    //  - Born AFTER us → every candidate was created by SOME process around ITS OWN start, so "newest
+    //    write" merely names whichever agent spoke last — the same file for every pane in the
+    //    directory. Live evidence 2026-08-09: two agents in one repo, both panes shown one
+    //    transcript. The log born closest to OUR start is ours.
+    //
+    // With no birth times at all (`born` null, no statx) this degrades to the newest-write answer,
+    // which stays correct whenever the directory holds a single agent.
+    const best = live?.predatesStart ? live : (born ?? live);
     if (best === null) return this.resolveByCwd(cwd);
     return this.contained(best.path);
   }
@@ -726,7 +772,7 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       if (!name.endsWith(".jsonl")) continue;
       const candidate = join(dir, name);
       try {
-        const st = await stat(candidate);
+        const st = await this.statFile(candidate);
         if (!best || st.mtimeMs > best.mtimeMs) best = { path: candidate, mtimeMs: st.mtimeMs };
       } catch {
         continue;
