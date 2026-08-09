@@ -545,7 +545,12 @@ export interface TranscriptSource {
    * Falls back to {@link resolveByCwd} when neither signal is available (birth times need statx, so
    * some filesystems and platforms report 0) — a worse answer, never a wrong crash.
    */
-  resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null>;
+  resolveForProcess(
+    cwd: string,
+    startedAtMs: number,
+    /** What the pane is showing, when the caller can supply it — ground truth, tried first. */
+    mirror?: string | null,
+  ): Promise<string | null>;
 
   /**
    * Absolute path of the newest log written by an agent STARTED in `cwd`, or null.
@@ -562,6 +567,93 @@ export interface TranscriptSource {
   resolveByCwd(cwd: string): Promise<string | null>;
   /** Tail-read a log. `complete` is false when the byte cap clipped the head. */
   load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }>;
+}
+
+// ── resolution by CONTENT ─────────────────────────────────────────────────────
+//
+// The terminal mirror is ground truth: herdr hands it back per PANE ID, so it is never the wrong
+// conversation, which is exactly what every time-based rule can get wrong. Matching what the pane is
+// showing against what each candidate log contains identifies the right file outright — no clock, no
+// birth times, and it also answers the one case birth times can't (two agents in a directory where
+// one RESUMED an old conversation, so its log predates it).
+//
+// Measured on the reported failure (2026-08-09), fragments of each pane's mirror found in each log:
+//   pane w1F:p1 → 4 in 576f35ce…, 0 in 6c113786…
+//   pane w1F:p4 → 0 in 576f35ce…, 5 in 6c113786…
+// Most mirror lines match nothing (TUI chrome, box borders, the statusline, wrapped tool output), so
+// the absolute counts stay low — what identifies the log is the CONTRAST, which is total.
+
+/** Shortest mirror line worth matching. Below this, a line is chrome or a fragment of one. */
+const MIN_FRAGMENT_CHARS = 35;
+/** Bytes read off the end of each candidate log. The mirror only ever shows recent turns. */
+const CONTENT_TAIL_BYTES = 256 * 1024;
+/** Most logs compared. Bounded because a project directory can hold hundreds. */
+const MAX_CONTENT_CANDIDATES = 5;
+
+/** Collapse terminal decoration so a rendered line can be compared to log prose. Pure. */
+function flatten(text: string): string {
+  return text
+    .replace(ANSI_RE, "")
+    // Box-drawing and block glyphs are frame, not content — the TUI wraps prose inside them.
+    .replace(/[─-╿▀-▟]/g, " ")
+    .replace(/[ \t]+/g, " ");
+}
+
+/**
+ * The distinctive lines of a terminal mirror: long enough to be prose rather than chrome, with the
+ * frame collapsed away. A line survives the TUI's own wrapping as a CONTIGUOUS substring of the
+ * original text (the wrap breaks on spaces), which is what makes a plain `includes` test work. Pure.
+ */
+export function mirrorFragments(text: string): string[] {
+  return flatten(text)
+    .split("\n")
+    // Drop the TUI's own leading marker ("> " on your turn, the bullet on the agent's): it is
+    // rendering, absent from the log, and it would otherwise spoil the whole line's match.
+    .map((l) => l.trim().replace(/^[>\u23FA\u25CF\u2022\u2713\u2714\u2733]+\s+/, ""))
+    .filter((l) => l.length >= MIN_FRAGMENT_CHARS);
+}
+
+/** The prose inside a slice of session log, flattened for comparison. Pure. */
+export function logProse(tail: string): string {
+  const out: string[] = [];
+  for (const line of tail.split("\n")) {
+    try {
+      const row = JSON.parse(line) as RawRow;
+      const content = (row.message as { content?: unknown } | undefined)?.content;
+      if (typeof content === "string") out.push(content);
+      else if (Array.isArray(content)) {
+        for (const b of content) {
+          const block = b as { type?: unknown; text?: unknown };
+          if (block?.type === "text" && typeof block.text === "string") out.push(block.text);
+        }
+      }
+    } catch {
+      // A tail read starts mid-line by construction, and a live log's last line can be partial.
+    }
+  }
+  return flatten(out.join("\n")).replace(/\n/g, " ");
+}
+
+/**
+ * Which candidate the mirror belongs to, or null when the evidence doesn't single one out.
+ *
+ * Demands an OUTRIGHT winner — at least one match, and strictly more than every other candidate.
+ * A tie means the panes are showing the same words (two agents given the same prompt, or a mirror
+ * holding nothing but chrome), and guessing on a tie is how the wrong transcript gets served with
+ * confidence. Null hands the decision back to the time-based rules. Pure.
+ */
+export function pickByContent(scores: { path: string; hits: number }[]): string | null {
+  let best: { path: string; hits: number } | null = null;
+  let runnerUp = 0;
+  for (const s of scores) {
+    if (!best || s.hits > best.hits) {
+      if (best) runnerUp = best.hits;
+      best = s;
+    } else if (s.hits > runnerUp) {
+      runnerUp = s.hits;
+    }
+  }
+  return best && best.hits > 0 && best.hits > runnerUp ? best.path : null;
 }
 
 /** The file facts resolution decides on. See {@link ClaudeTranscriptSource}'s constructor for why. */
@@ -698,7 +790,11 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     return (await this.contained(best.path)) ?? path;
   }
 
-  async resolveForProcess(cwd: string, startedAtMs: number): Promise<string | null> {
+  async resolveForProcess(
+    cwd: string,
+    startedAtMs: number,
+    mirror?: string | null,
+  ): Promise<string | null> {
     const dir = join(this.root, mangleProjectDir(cwd));
     let names: string[];
     try {
@@ -706,6 +802,8 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     } catch {
       return null;
     }
+    // Every log written since this process started — the set the agent could plausibly be in.
+    const alive: { path: string; mtimeMs: number }[] = [];
     // A small negative slack absorbs clock granularity on both comparisons.
     const SLACK_MS = 5_000;
     // The most recently WRITTEN log, and whether it already existed when this process started.
@@ -719,13 +817,16 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       try {
         const st = await this.statFile(candidate);
         const birth = st.birthtimeMs; // 0 where statx is unavailable — then `live` has to carry it
-        if (st.mtimeMs >= startedAtMs - SLACK_MS && (!live || st.mtimeMs > live.mtimeMs)) {
-          live = {
-            path: candidate,
-            mtimeMs: st.mtimeMs,
-            // Strictly older than this process, so this process cannot have created it.
-            predatesStart: birth > 0 && birth < startedAtMs - SLACK_MS,
-          };
+        if (st.mtimeMs >= startedAtMs - SLACK_MS) {
+          alive.push({ path: candidate, mtimeMs: st.mtimeMs });
+          if (!live || st.mtimeMs > live.mtimeMs) {
+            live = {
+              path: candidate,
+              mtimeMs: st.mtimeMs,
+              // Strictly older than this process, so this process cannot have created it.
+              predatesStart: birth > 0 && birth < startedAtMs - SLACK_MS,
+            };
+          }
         }
         if (birth) {
           const delta = birth - startedAtMs;
@@ -737,6 +838,14 @@ export class ClaudeTranscriptSource implements TranscriptSource {
         continue;
       }
     }
+    // ASK THE MIRROR FIRST — but only when the clock is actually ambiguous. With one live log there
+    // is nothing to disambiguate, and reading tails to confirm what is already certain would put a
+    // few hundred KB of disk read on every context-gauge tick.
+    if (mirror && alive.length > 1) {
+      const byContent = await this.pickByMirror(alive, mirror);
+      if (byContent) return this.contained(byContent);
+    }
+
     // ONE categorical fact decides which rule applies — was the live log already there when we
     // started — and not any duration threshold:
     //
@@ -755,6 +864,32 @@ export class ClaudeTranscriptSource implements TranscriptSource {
     const best = live?.predatesStart ? live : (born ?? live);
     if (best === null) return this.resolveByCwd(cwd);
     return this.contained(best.path);
+  }
+
+  /**
+   * Score the newest few candidates against what the pane is actually showing, and return the one
+   * the mirror belongs to (null if the evidence is not decisive — see {@link pickByContent}).
+   * Only the TAIL of each log is read: the mirror is a viewport onto the newest turns.
+   */
+  private async pickByMirror(
+    alive: { path: string; mtimeMs: number }[],
+    mirror: string,
+  ): Promise<string | null> {
+    const fragments = mirrorFragments(mirror);
+    if (fragments.length === 0) return null;
+    const newest = [...alive].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, MAX_CONTENT_CANDIDATES);
+    const scores: { path: string; hits: number }[] = [];
+    for (const { path } of newest) {
+      try {
+        const file = Bun.file(path);
+        const tail = await file.slice(Math.max(0, file.size - CONTENT_TAIL_BYTES)).text();
+        const prose = logProse(tail);
+        scores.push({ path, hits: fragments.filter((f) => prose.includes(f)).length });
+      } catch {
+        continue; // unreadable candidate — it simply scores nothing
+      }
+    }
+    return pickByContent(scores);
   }
 
   async resolveByCwd(cwd: string): Promise<string | null> {
@@ -832,12 +967,20 @@ export async function resolveWithoutSession(opts: {
   paneId: string;
   /** The pane's cwd, as the fallback when the process route can't answer. */
   cwd: string;
+  /**
+   * The pane's terminal mirror, when the caller has one. Optional because not every caller is
+   * holding it, and resolution must keep working without it — but supplying it is what makes the
+   * answer EXACT for a directory running several agents, where the clock alone cannot decide.
+   */
+  paneText?: (paneId: string) => Promise<string | null>;
 }): Promise<string | null> {
   try {
     const proc = await opts.paneProcess(opts.paneId);
     const startedAt = proc ? await opts.startedAt(proc.pid) : null;
     if (proc && startedAt !== null) {
-      return await opts.source.resolveForProcess(proc.cwd || opts.cwd, startedAt);
+      // Best-effort: a mirror we can't read costs nothing, the time-based rules still answer.
+      const mirror = opts.paneText ? await opts.paneText(opts.paneId).catch(() => null) : null;
+      return await opts.source.resolveForProcess(proc.cwd || opts.cwd, startedAt, mirror);
     }
   } catch {
     // herdr couldn't tell us, or this platform has no /proc — fall through to the directory guess.
