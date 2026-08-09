@@ -1,6 +1,6 @@
 {
   "name": "collie-board",
-  "version": "0.99.0",
+  "version": "0.99.1",
   "private": true,
   "license": "MIT",
   "description": "Collie Board — durable Kanban cards over your Herdr agent herd, served over Tailscale",
