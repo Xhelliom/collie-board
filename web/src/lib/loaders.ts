@@ -14,13 +14,14 @@
 // even while a poll's doomed fetch is still hanging.
 
 import { rawTerminalPref } from "@/hooks/use-display-prefs";
-import { fetchHistory, fetchPane, fetchSnapshot, isApiErrorStatus } from "@/lib/api";
+import { fetchGallery, fetchHistory, fetchPane, fetchSnapshot, isApiErrorStatus } from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type {
   AgentView,
   BridgeStatus,
   DeviceAuth,
+  GalleryImage,
   PaneHistoryResponse,
   PaneReadResponse,
   SessionSummary,
@@ -422,5 +423,18 @@ export async function historyLoader({
   } catch (e) {
     if (isAbortError(e)) throw e; // superseded — let React Router drop it
     return { ...base, unavailable: "error" };
+  }
+}
+
+/**
+ * The gallery screen's payload. A failure is an EMPTY gallery, not an error screen: the images are a
+ * nice-to-have view over /tmp, and a bridge that can't walk the scratchpad tree shouldn't cost the
+ * user a route. The route opts out of revalidation, so this runs on navigation only.
+ */
+export async function galleryLoader(): Promise<GalleryImage[]> {
+  try {
+    return await fetchGallery();
+  } catch {
+    return [];
   }
 }

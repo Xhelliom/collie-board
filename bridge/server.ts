@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
+import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
@@ -245,6 +246,17 @@ export function startServer(opts: {
           text,
         });
         if (boardRes) return boardRes;
+      }
+
+      // ── Gallery: the images agents leave in their scratchpads (the fork's addition) ──
+      // Read-only and session-agnostic — the files are keyed by the HARNESS's own project/session
+      // layout, which has nothing to do with a herdr session. The whole servable set is decided
+      // inside gallery.ts against one fixed root; nothing here widens it.
+      if (pathname.startsWith("/api/gallery")) {
+        const denied = guard(req, cfg, "read");
+        if (denied) return denied;
+        const res = await handleGalleryRoute(pathname, req);
+        if (res) return secure(res);
       }
 
       // ── Structural creates: new tab / new space (each opens a fresh shell pane) ──

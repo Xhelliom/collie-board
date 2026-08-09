@@ -34,6 +34,19 @@ if (!Element.prototype.setPointerCapture) {
   Element.prototype.releasePointerCapture = vi.fn();
   Element.prototype.hasPointerCapture = () => false;
 }
+// jsdom parses <dialog> but implements neither showModal() nor close(), and the image viewer opens
+// itself with showModal() on mount (that call is what puts it in the top layer). The shim does what
+// the real methods do to the DOM — toggle `open`, fire `close` — which is everything a test can
+// observe anyway: the top layer and the backdrop have no jsdom equivalent to assert against.
+if (!HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.open = false;
+    this.dispatchEvent(new Event("close"));
+  };
+}
 
 // NOT a jsdom gap — a Node one, and a confusing one. Node 24+ defines its own `localStorage` global
 // that stays UNDEFINED unless the process was started with `--localstorage-file`, and it takes

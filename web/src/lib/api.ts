@@ -8,6 +8,7 @@ import type {
   ActionResponse,
   BridgeConfig,
   CreateResponse,
+  GalleryImage,
   NotifyLogEntry,
   NotifyPrefs,
   PaneHistoryResponse,
@@ -415,4 +416,23 @@ export function uploadImage(paneId: string, file: File, session?: string): Promi
  */
 export function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return req<T>(path, init);
+}
+
+/**
+ * Every image sitting in a harness scratchpad, newest first — the /gallery screen's whole payload.
+ * Fetched on demand, never polled: agents write these occasionally, and a poll would re-walk the
+ * scratchpad tree on the bridge every 1.5 s for nothing.
+ */
+export async function fetchGallery(): Promise<GalleryImage[]> {
+  const { images } = await req<{ images: GalleryImage[] }>("/api/gallery");
+  return images;
+}
+
+/**
+ * `src` for a gallery image. The bridge decides what is servable (one fixed scratchpad root, symlinks
+ * resolved — see bridge/gallery.ts); this only spells the URL. A path the bridge refuses comes back
+ * 404, which the `<img>` handles as a broken image rather than anything the caller must pre-check.
+ */
+export function galleryImageUrl(path: string): string {
+  return `/api/gallery/file?p=${encodeURIComponent(path)}`;
 }

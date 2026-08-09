@@ -20,36 +20,39 @@ bridge/wrapup.ts        the closing report a filed card asks its agent for
 bridge/integrate.ts     merge / PR / conflict-resolve / cleanup for a card's branch
 bridge/copilot.ts       the copilot
 bridge/adapters.ts      per-agent divergence
+bridge/gallery.ts       the scratchpad image gallery
 web/src/lib/board*.ts   the client half
-web/src/routes/{board,card}.tsx
-web/src/components/{card-tile,card-diff,context-gauge,new-card-sheet}.tsx
+web/src/lib/lightbox.ts the viewer's store + a session's image set
+web/src/routes/{board,card,gallery}.tsx
+web/src/components/{card-tile,card-diff,context-gauge,new-card-sheet,image-lightbox}.tsx
 ```
 
 What was touched in upstream files, and why — this list is the thing to keep short:
 
 | File | Change |
 |---|---|
-| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route — brick 18 in the ledger |
+| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
 | `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks; the `NotifyLog` and its coordinator hook — brick 18 in the ledger |
 | `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger |
 | `bridge/config.ts` | the `board*` config block |
 | `systemd/collie-board.service` · `scripts/collie-board-ctl.sh` (unit heredoc) | `PrivateTmp=yes` removed — a `--user` unit can only mount inside a user namespace, where ssh refuses every root-owned config and no `git push` runs ([ADR 0008](./.adr/0008-the-user-unit-cannot-have-a-mount-namespace.md)) |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
-| `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor |
+| `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor; `toolImagePath()` + the tool part's `image` field — brick 21 in the ledger |
 | `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
-| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20 |
-| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref |
-| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger |
-| `web/src/router.tsx` | two routes; a per-leaf `errorElement` |
+| `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20; `fetchGallery()` + `galleryImageUrl()` — brick 21 |
+| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref; `galleryLoader` — brick 21 in the ledger |
+| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger; the tool part's `image` and `GalleryImage` — brick 21 |
+| `web/src/router.tsx` | three routes; a per-leaf `errorElement` |
 | `web/src/routes/home.tsx` | a Board row; the screen's `<h1>` |
-| `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger |
-| `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` and `<MaxAgentsControl>` (fork-only, the board's switches) |
+| `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger; the ⋯ sheet's `Images` row — brick 21 |
+| `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` and `<MaxAgentsControl>` (fork-only, the board's switches) and the Gallery row; `history.tsx` additionally carries the session's image set into `<TranscriptView>` and the header button that opens it — brick 21 in the ledger |
 | `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile`; the pane number, so two agents in one tab aren't the same card twice — brick 16 in the ledger |
 | `web/src/hooks/use-transitions.ts` | returns the transitions as toasts instead of writing to the shared status line, and names the pane rather than the agent — brick 19 in the ledger |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`); `rawTerminalPref()` for the loader; the `reading` mode flag |
 | `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
-| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture |
+| `web/src/components/transcript-view.tsx` · `web/src/App.tsx` · `web/src/lib/nav.ts` | an image-bearing tool part renders as the picture; the viewer host mounted beside the router (unmounted while the idle cover is up); `galleryPath()` — brick 21 in the ledger |
+| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods |
 | `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
 
 Rebasing means resolving those twenty, not the whole tree. Keep it that way: if a change wants to
