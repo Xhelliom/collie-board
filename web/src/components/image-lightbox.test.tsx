@@ -60,6 +60,28 @@ describe("ImageLightboxHost", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("lands on the tapped image, not the first one", () => {
+    // The one layout fact this depends on, standing in for the layout jsdom doesn't do: a <dialog>
+    // that hasn't had showModal() called is `display: none`, so it measures 0 wide. Position the
+    // scroller before that call and `index * clientWidth` is 0 — which is exactly how a tap on the
+    // fourth image in a thread opened the first.
+    const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!;
+    Object.defineProperty(Element.prototype, "clientWidth", {
+      configurable: true,
+      get(this: Element) {
+        return this.closest("dialog")?.open ? 300 : 0;
+      },
+    });
+    try {
+      render(<ImageLightboxHost />);
+      act(() => openLightbox([A, B], 1));
+      const scroller = screen.getByRole("dialog").querySelector(".snap-x")!;
+      expect(scroller.scrollLeft).toBe(300);
+    } finally {
+      Object.defineProperty(Element.prototype, "clientWidth", clientWidth);
+    }
+  });
+
   it("refuses to open on an empty set or an index outside it", () => {
     // Callers pass indexOf() results straight in, so an out-of-range index is a real path.
     render(<ImageLightboxHost />);
