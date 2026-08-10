@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 import { GalleryImg } from "@/components/gallery-img";
@@ -52,15 +52,15 @@ export function ImageLightbox({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(index);
 
-  useEffect(() => {
-    // showModal() is what puts it in the top layer; rendering the element alone doesn't.
-    dialogRef.current?.showModal();
-  }, []);
-
-  // Jump to the opened image before paint, so it never flashes the first one and slides.
+  // Open it, THEN jump to the image that was tapped — one effect, in that order, because the order is
+  // the whole thing. showModal() is what puts the dialog in the top layer, and a <dialog> that hasn't
+  // had it called is `display: none` per the UA stylesheet: until it runs, the scroller has no width,
+  // so `index * clientWidth` is `index * 0` and every opening landed on the first image.
   useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
     const el = scrollerRef.current;
-    if (el) el.scrollLeft = index * el.clientWidth;
+    if (el && el.clientWidth > 0) el.scrollLeft = index * el.clientWidth;
   }, [index]);
 
   const name = (images[current] ?? "").split("/").pop() ?? "";
