@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -7,6 +7,7 @@ import {
   noteLabel,
   PromptBox,
   resolveWatchStep,
+  SubtaskActionsSheet,
   SubtaskProgress,
   topOfColumn,
 } from "./card.tsx";
@@ -179,5 +180,58 @@ describe("topOfColumn", () => {
   it("leaves a lone card where a new card would land", () => {
     const moved = at("ready", 7);
     expect(topOfColumn([moved], moved)).toBe(0);
+  });
+});
+
+// The phone's only way to reorder sub-tasks: the grip's HTML5 drag never starts from a touch, so it
+// is hidden below `lg` and these two rows replace it. What matters is that they write the SAME slot
+// the drop writes — `onReorder(id, index)` is neighbour-space (the list minus the moved row), so a
+// one-row move is index ± 1, exactly what dropping a row on its neighbour passes.
+describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
+  const rows = [card("ready"), card("ready"), card("ready")];
+
+  function renderSheet(index: number) {
+    const onReorder = vi.fn();
+    render(
+      <SubtaskActionsSheet
+        child={rows[index]}
+        index={index}
+        count={rows.length}
+        parentTitle="Container"
+        onClose={vi.fn()}
+        onReorder={onReorder}
+        onOpenPane={vi.fn()}
+        onDependsOn={vi.fn()}
+        onDetach={vi.fn()}
+        onDelete={vi.fn()}
+        candidates={[]}
+      />,
+    );
+    return onReorder;
+  }
+
+  it("moves a row up into the slot above it", async () => {
+    const user = userEvent.setup();
+    const onReorder = renderSheet(1);
+    await user.click(screen.getByRole("button", { name: "Monter" }));
+    expect(onReorder).toHaveBeenCalledWith(rows[1].id, 0);
+  });
+
+  it("moves a row down into the slot below it", async () => {
+    const user = userEvent.setup();
+    const onReorder = renderSheet(1);
+    await user.click(screen.getByRole("button", { name: "Descendre" }));
+    expect(onReorder).toHaveBeenCalledWith(rows[1].id, 2);
+  });
+
+  it("offers no move past either end of the list", () => {
+    renderSheet(0);
+    expect(screen.queryByRole("button", { name: "Monter" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Descendre" })).toBeInTheDocument();
+    cleanup();
+
+    renderSheet(rows.length - 1);
+    expect(screen.getByRole("button", { name: "Monter" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Descendre" })).toBeNull();
   });
 });
