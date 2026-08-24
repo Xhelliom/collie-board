@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { server } from "@/test/setup";
+import type { ClaudeUsage } from "@/lib/board";
 import { UsageGauge } from "./usage-gauge";
 
 /** The bridge's reading, as `/api/board/usage` serves it. */
@@ -16,7 +17,7 @@ const usage = (sessionPct: number) => ({
   },
 });
 
-function serve(body: unknown, seen?: URL[]) {
+function serve(body: { usage: ClaudeUsage | null }, seen?: URL[]) {
   server.use(
     http.get("/api/board/usage", ({ request }) => {
       seen?.push(new URL(request.url));
