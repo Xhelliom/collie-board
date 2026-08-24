@@ -44,6 +44,26 @@ describe("NotifyLog", () => {
   });
 });
 
+describe("NotifyLog — remove", () => {
+  test("drops just that entry, and stays dropped", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.add(entry(2));
+    const [newest] = log.recent();
+    log.remove(newest!.id);
+    expect(log.recent().map((e) => e.paneId)).toEqual(["w1:p1"]);
+    log.remove(newest!.id); // already gone — idempotent, and it doesn't take a neighbour with it
+    expect(log.recent()).toHaveLength(1);
+  });
+
+  test("an unknown id is a silent no-op", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.remove(999);
+    expect(log.recent()).toHaveLength(1);
+  });
+});
+
 describe("NotifyLog — enrich", () => {
   test("patches the subtitle onto the matching paneId+status entry", () => {
     const log = new NotifyLog(() => 0);

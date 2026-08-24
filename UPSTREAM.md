@@ -31,7 +31,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 
 | File | Change |
 |---|---|
-| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
+| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` + `DELETE /api/notifications/log/:id` routes and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
 | `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks; the `NotifyLog` and its coordinator hook — brick 18 in the ledger |
 | `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger |
 | `bridge/config.ts` | the `board*` config block |

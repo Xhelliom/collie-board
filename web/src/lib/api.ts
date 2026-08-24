@@ -361,6 +361,11 @@ export async function getNotifyLog(): Promise<NotifyLogEntry[]> {
   return entries;
 }
 
+/** Forget one entry of that history — the bell's per-row dismiss. Idempotent on the bridge. */
+export function deleteNotifyLogEntry(id: number): Promise<void> {
+  return req<void>(`/api/notifications/log/${id}`, { method: "DELETE" });
+}
+
 /** Fetch the bridge-wide notification-type preferences (which agent statuses push). */
 export function getNotifyPrefs(): Promise<NotifyPrefs> {
   return req<NotifyPrefs>("/api/notifications/prefs");

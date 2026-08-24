@@ -7,10 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.102.0] - 2026-08-24
+## [0.103.0] - 2026-08-24
 
 ### Added
 - The header bell wears a numbered badge for what has pinged, carried on the snapshot poll (9a022c6).
+
+## [0.102.0] - 2026-08-24
+
+### Added
+- Notification centre: each entry has an X that erases it, for good (bb4a1ec).
 
 ## [0.101.0] - 2026-08-24
 
