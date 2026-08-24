@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.111.2] - 2026-08-24
+
+### Fixed
+- Herd triage cards no longer overflow the viewport — the grid items couldn't shrink below their untruncated text (558e925).
+
 ## [0.111.1] - 2026-08-24
 
 ### Fixed
