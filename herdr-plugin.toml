@@ -1,6 +1,6 @@
 id = "herdr.collie-board"
 name = "Collie Board"
-version = "0.113.0"
+version = "0.113.1"
 min_herdr_version = "0.7.0"
 description = "Durable Kanban cards over your Herdr agent herd — worktree per card, handoffs, mobile PWA"
 platforms = ["linux", "macos"]

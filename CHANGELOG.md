@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.113.1] - 2026-08-24
+
+### Fixed
+- Card page: "Done" stays offerable while the branch looks unmerged — work merged outside the app (squash/rebase) can now be filed. (367ca2c)
+
 ## [0.113.0] - 2026-08-24
 
 ### Added
