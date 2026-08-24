@@ -53,6 +53,11 @@ export class NotifyLog {
     return [...this.entries];
   }
 
+  /** How many alerts the ring holds — the bell's badge, carried on every snapshot poll. */
+  count(): number {
+    return this.entries.length;
+  }
+
   /** Forget one entry — the bell's dismiss. Unknown id (already gone, or aged out) is a no-op. */
   remove(id: number): void {
     const i = this.entries.findIndex((e) => e.id === id);

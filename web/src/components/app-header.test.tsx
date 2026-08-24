@@ -1,12 +1,25 @@
+import type { ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMemoryRouter, RouterProvider } from "react-router";
 
 import { AppHeader } from "./app-header";
 import { StatusBadge } from "./status-badge";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
+
+// The header carries the bell, which reads its badge count from the root loader — so a header only
+// ever exists inside the data router, and so does every header under test.
+function renderHeader(header: ReactElement) {
+  const home = { notifyCount: 0 } as HomeData;
+  const router = createMemoryRouter([{ id: ROOT_ROUTE_ID, path: "/", loader: () => home, element: header }], {
+    hydrationData: { loaderData: { [ROOT_ROUTE_ID]: home } },
+  });
+  return render(<RouterProvider router={router} />);
+}
 
 describe("AppHeader — the contextual toolbar", () => {
   it("shows a title and subtitle, no back chevron, on a root screen", () => {
-    render(<AppHeader title="Board" subtitle="12 cards" />);
+    renderHeader(<AppHeader title="Board" subtitle="12 cards" />);
     expect(screen.getByText("Board")).toBeInTheDocument();
     expect(screen.getByText("12 cards")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
@@ -14,13 +27,13 @@ describe("AppHeader — the contextual toolbar", () => {
 
   it("shows a back chevron on an entered screen and calls onBack when tapped", async () => {
     const onBack = vi.fn();
-    render(<AppHeader title="Card" onBack={onBack} />);
+    renderHeader(<AppHeader title="Card" onBack={onBack} />);
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
   it("children override the title/subtitle block entirely (a bespoke breadcrumb)", () => {
-    render(
+    renderHeader(
       <AppHeader title="ignored" subtitle="ignored too">
         <span>webapp › main</span>
       </AppHeader>,
@@ -30,7 +43,7 @@ describe("AppHeader — the contextual toolbar", () => {
   });
 
   it("renders the right cluster lead, then trail, then the bell last", () => {
-    render(
+    renderHeader(
       <AppHeader
         title="Pane"
         rightLead={<StatusBadge status="working" />}
@@ -48,7 +61,7 @@ describe("AppHeader — the contextual toolbar", () => {
   });
 
   it("the override takes over the whole row (title and back chevron yield)", () => {
-    render(<AppHeader title="Pane" onBack={() => {}} override={<div>FINDBAR</div>} />);
+    renderHeader(<AppHeader title="Pane" onBack={() => {}} override={<div>FINDBAR</div>} />);
     expect(screen.getByText("FINDBAR")).toBeInTheDocument();
     expect(screen.queryByText("Pane")).toBeNull();
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
