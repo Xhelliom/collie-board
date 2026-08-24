@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
+  ArrowDown,
   ArrowUp,
   Check,
   ChevronLeft,
@@ -46,6 +47,7 @@ import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
 import { Switch } from "@/components/ui/switch";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardPath,
@@ -1729,6 +1731,7 @@ function SubtaskList({
   dependsOnCandidates,
 }: SubtaskListProps) {
   const navigate = useNavigate();
+  const desktop = useIsDesktop();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [linking, setLinking] = useState(false);
@@ -1743,7 +1746,10 @@ function SubtaskList({
     await onNewSubtask(t);
   }
 
-  const menuChild = childCards.find((c) => c.id === menuFor) ?? null;
+  // Index, not just the card: the "⋯" menu's Monter/Descendre write `position` through the SAME
+  // `onReorder(id, index)` the drop below does, so they need the row's slot.
+  const menuIndex = childCards.findIndex((c) => c.id === menuFor);
+  const menuChild = menuIndex < 0 ? null : childCards[menuIndex];
 
   return (
     <>
@@ -1761,7 +1767,9 @@ function SubtaskList({
           return (
             <div
               key={child.id}
-              draggable
+              // Desktop only, like the board's own drag: HTML5 drag never starts from a touch, so on
+              // a phone this row reorders from the "⋯" menu instead (and the grip below is hidden).
+              draggable={desktop}
               onDragStart={() => setHeld(child.id)}
               onDragEnd={() => setHeld(null)}
               onDragOver={(e) => {
@@ -1779,7 +1787,7 @@ function SubtaskList({
                 held === child.id && "opacity-40",
               )}
             >
-              <GripVertical className="mt-[9px] size-[14px] shrink-0 cursor-grab text-muted-foreground/55 lg:mt-0" />
+              <GripVertical className="hidden size-[14px] shrink-0 cursor-grab text-muted-foreground/55 lg:block" />
               <span
                 aria-hidden
                 className={cn("mt-[7px] size-2 shrink-0 rounded-full lg:mt-0", CARD_DOT[child.status])}
@@ -1936,7 +1944,10 @@ function SubtaskList({
 
       <SubtaskActionsSheet
         child={menuChild}
+        index={menuIndex}
+        count={childCards.length}
         parentTitle={container.title}
+        onReorder={onReorder}
         onClose={() => setMenuFor(null)}
         onOpenPane={(paneId) => navigate(panePath(paneId, session))}
         onDependsOn={onDependsOn}
@@ -1950,8 +1961,12 @@ function SubtaskList({
 
 interface SubtaskActionsSheetProps {
   child: CardView | null;
+  /** The row's slot in the sub-task list, and how many rows there are — what Monter/Descendre move. */
+  index: number;
+  count: number;
   parentTitle: string;
   onClose: () => void;
+  onReorder: (childId: string, index: number) => void;
   onOpenPane: (paneId: string) => void;
   onDependsOn: (childId: string, dependsOn: string | null) => Promise<void>;
   onDetach: (childId: string) => Promise<void>;
@@ -1960,14 +1975,19 @@ interface SubtaskActionsSheetProps {
 }
 
 /** A sub-task row's "⋯": open its pane, hand it off, set what it depends on, detach it from the
- *  container (it stays on the board, alone — nothing is deleted), or delete it outright. Mirrors
+ *  container (it stays on the board, alone — nothing is deleted), delete it outright — and, on a
+ *  phone, move it up or down, which is the only reordering a touch screen gets (the grip's HTML5
+ *  drag is desktop-only). Mirrors
  *  PaneActionsSheet's action-list/sub-view shape (action-sheet-rows.tsx) — a Back row into the
  *  "depends on" picker instead of a whole second sheet, same reasoning: a sheet inside a sheet is a
  *  back-button trap on a phone. */
-function SubtaskActionsSheet({
+export function SubtaskActionsSheet({
   child,
+  index,
+  count,
   parentTitle,
   onClose,
+  onReorder,
   onOpenPane,
   onDependsOn,
   onDetach,
@@ -2047,6 +2067,22 @@ function SubtaskActionsSheet({
               onClick={() => void handoff()}
             />
           )}
+          <div className="flex flex-col gap-1 lg:hidden">
+            {index > 0 && (
+              <ActionRow
+                icon={<ArrowUp className="size-4 shrink-0 text-muted-foreground" />}
+                label="Monter"
+                onClick={() => onReorder(child.id, index - 1)}
+              />
+            )}
+            {index < count - 1 && (
+              <ActionRow
+                icon={<ArrowDown className="size-4 shrink-0 text-muted-foreground" />}
+                label="Descendre"
+                onClick={() => onReorder(child.id, index + 1)}
+              />
+            )}
+          </div>
           <ActionRow
             icon={<Link2 className="size-4 shrink-0 text-muted-foreground" />}
             label="Dépend de…"
