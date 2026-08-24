@@ -7,10 +7,25 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.105.0] - 2026-08-24
+## [0.108.0] - 2026-08-24
 
 ### Changed
 - Sub-task rows: the drag grip is desktop-only, and the row's "⋯" menu gains Monter / Descendre so a phone can reorder too (3011450).
+
+## [0.107.0] - 2026-08-24
+
+### Added
+- An empty diff offers "base ref on main, review again" — one tap re-points the base and re-runs the copilot's review (eb09f83).
+
+## [0.106.0] - 2026-08-24
+
+### Added
+- An `idle`/`done` pane shows how long it has been settled, next to the state (2e09d6f).
+
+## [0.105.0] - 2026-08-24
+
+### Changed
+- Tapping a notification marks it read; the bell's badge only counts unread ones (3a42ff1).
 
 ## [0.104.0] - 2026-08-24
 

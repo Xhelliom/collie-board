@@ -133,6 +133,37 @@ describe("StateEngine — transition detection", () => {
   });
 });
 
+describe("StateEngine — statusSince", () => {
+  test("stamps the pane when it switches, and leaves a first sighting unstamped", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    await poll(); // first sighting — the switch-over instant is unknown, so no stamp
+    expect(engine.current().agents[0]!.statusSince).toBeUndefined();
+
+    const before = Date.now();
+    herdr.panes = [pane("w1:p1", "w1", "done", "claude")];
+    await poll();
+    const since = engine.current().agents[0]!.statusSince!;
+    expect(since).toBeGreaterThanOrEqual(before);
+
+    await poll(); // status held — the stamp must not creep forward
+    expect(engine.current().agents[0]!.statusSince).toBe(since);
+  });
+
+  test("drops the stamp with the pane, so a reused id starts unstamped", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    await poll();
+    herdr.panes = [pane("w1:p1", "w1", "done", "claude")];
+    await poll();
+    herdr.panes = [];
+    await poll();
+    herdr.panes = [pane("w1:p1", "w1", "done", "claude")];
+    await poll();
+    expect(engine.current().agents[0]!.statusSince).toBeUndefined();
+  });
+});
+
 describe("StateEngine — removal events", () => {
   test("fires onRemove when a previously-seen agent pane vanishes", async () => {
     const { herdr, removed, poll } = makeEngine();

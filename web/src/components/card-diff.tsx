@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, FileDiff, RefreshCw } from "lucide-react";
+import { ChevronRight, FileDiff, GitBranch, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { SectionLabel } from "@/components/ui/section-label";
-import { fetchDiffFile, fetchDiffStat, type DiffFile, type DiffStat } from "@/lib/board";
+import {
+  boardErrorMessage,
+  fetchDiffFile,
+  fetchDiffStat,
+  patchCard,
+  reviewCard,
+  type DiffFile,
+  type DiffStat,
+} from "@/lib/board";
 import { cn } from "@/lib/utils";
 
 // "What has the agent actually written." `--stat` first — a file list with bars is the only diff
@@ -74,7 +82,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
       </div>
 
       {stat && stat.files.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nothing changed on this branch yet.</p>
+        <EmptyDiff cardId={cardId} onFixed={load} />
       ) : (
         <div className="flex flex-col gap-1">
           {stat?.files.map((f) => (
@@ -105,6 +113,57 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
 
       <FileDiffSheet cardId={cardId} file={open} onClose={() => setOpen(null)} />
     </section>
+  );
+}
+
+/**
+ * An empty diff is more often the WRONG BASE REF than an idle agent: the card forked off a branch
+ * that already contains the work, so `git diff <base>…HEAD` comes back empty and the copilot's
+ * review duly reports that nothing changed. Reading that as "the agent did nothing" is what costs
+ * the half hour — the diff is right, the question it was asked was wrong.
+ *
+ * So the way out is a button, not a diagnosis: put the base back on `main` and ask the copilot for
+ * its verdict again. Two calls on purpose — the PATCH is the fix, the review is the re-read — and
+ * they are two routes that each already mean one thing.
+ */
+function EmptyDiff({ cardId, onFixed }: { cardId: string; onFixed: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function rebaseOnMain() {
+    setBusy(true);
+    setError(null);
+    try {
+      // ponytail: `main` literally, not the repo's resolved default branch — that would need a
+      // `git symbolic-ref refs/remotes/origin/HEAD` round trip through the bridge. Add it the day a
+      // repo on this board actually forks off `master`.
+      await patchCard(cardId, { baseRef: "main" });
+      await reviewCard(cardId);
+      await onFixed();
+    } catch (e) {
+      setError(boardErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <p className="text-xs text-muted-foreground">
+        Nothing changed on this branch — or the base ref it is measured from is the wrong one.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 gap-2"
+        disabled={busy}
+        onClick={() => void rebaseOnMain()}
+      >
+        <GitBranch className="size-4" />
+        {busy ? "Re-measuring…" : "Base ref on main, review again"}
+      </Button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   );
 }
 

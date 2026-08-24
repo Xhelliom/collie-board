@@ -78,7 +78,7 @@ export interface HomeData {
   session: string | undefined;
   /** Active notification snooze deadline (epoch ms), or null when not snoozed. */
   snoozedUntil: number | null;
-  /** How many alerts the bridge's notification history holds — the bell's badge. 0 on an older bridge. */
+  /** How many UNREAD alerts the bridge's notification history holds — the bell's badge. 0 on an older bridge. */
   notifyCount: number;
   /** Version / upgrade status for the footer update banner; undefined on an older bridge. */
   update: UpdateInfo | undefined;

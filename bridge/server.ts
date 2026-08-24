@@ -99,6 +99,7 @@ const MAX_HISTORY_LIMIT = 5000;
 const TAB_ACTION_ROUTE = /^\/api\/tab\/([^/]+)\/(rename|close)$/;
 // One entry of the bell's history, by its log id — the only thing DELETE-able there.
 const NOTIFY_LOG_ENTRY_ROUTE = /^\/api\/notifications\/log\/(\d+)$/;
+const NOTIFY_LOG_READ_ROUTE = /^\/api\/notifications\/log\/(\d+)\/read$/;
 
 export function startServer(opts: {
   cfg: Config;
@@ -387,6 +388,16 @@ export function startServer(opts: {
           const denied = guard(req, cfg, "read");
           if (denied) return denied;
           notifyLog.remove(Number(match[1]));
+          return secure(new Response(null, { status: 204 }));
+        }
+      }
+      {
+        // Mark one entry read — what the badge stops counting. Same read-level, same idempotence.
+        const match = pathname.match(NOTIFY_LOG_READ_ROUTE);
+        if (match && req.method === "POST") {
+          const denied = guard(req, cfg, "read");
+          if (denied) return denied;
+          notifyLog.markRead(Number(match[1]));
           return secure(new Response(null, { status: 204 }));
         }
       }

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
-import { useNavigate, useRouteLoaderData } from "react-router";
+import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 
 import { BottomSheet } from "@/components/ui/sheet";
-import { deleteNotifyLogEntry, getNotifyLog } from "@/lib/api";
+import { deleteNotifyLogEntry, getNotifyLog, markNotifyLogEntryRead } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
@@ -20,8 +20,8 @@ import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEnt
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  // The badge count rides the snapshot poll (bridge sends notifications.count) rather than fetching
-  // the history — same reason the list itself doesn't: 50 entries every 1.5s to render one number.
+  // The badge count rides the snapshot poll (bridge sends notifications.count — unread only) rather
+  // than fetching the history: 50 entries every 1.5s to render one number.
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const count = root?.notifyCount ?? 0;
 
@@ -53,6 +53,7 @@ export function NotificationBell() {
 /** Mounted only while the sheet is open, so its fetch runs on open and its state resets on close. */
 function NotifyLogList({ onPick }: { onPick: () => void }) {
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [entries, setEntries] = useState<NotifyLogEntry[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -93,11 +94,17 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
   return (
     <ul className="flex flex-col gap-1 overflow-y-auto">
       {entries.map((e) => (
-        <li key={e.id} className="flex items-start">
+        <li key={e.id} className={e.read ? "flex items-start opacity-55" : "flex items-start"}>
           <button
             type="button"
             onClick={() => {
               onPick();
+              // Tapping IS reading it: the badge counts unread, so the number has to drop now rather
+              // than on the next poll — revalidate once the bridge has actually taken the mark.
+              markNotifyLogEntryRead(e.id).then(
+                () => revalidator.revalidate(),
+                () => {},
+              );
               // The entry carries its own session, so a ping from another herd lands in that herd
               // rather than looking up a pane id in the one you happen to be viewing.
               navigate(panePath(e.paneId, e.session));
