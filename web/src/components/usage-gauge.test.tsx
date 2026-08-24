@@ -27,13 +27,12 @@ function serve(body: { usage: ClaudeUsage | null }, seen?: URL[]) {
 }
 
 describe("UsageGauge", () => {
-  it("shows what's LEFT of each limit, not what's used", async () => {
+  it("shows what's USED of each limit — same direction as the context gauge", async () => {
     serve(usage(53));
     render(<UsageGauge />);
 
-    // 53% used → 47% left; 15% used → 85% left.
-    expect(await screen.findByText("47%")).toBeInTheDocument();
-    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(await screen.findByText("53%")).toBeInTheDocument();
+    expect(screen.getByText("15%")).toBeInTheDocument();
     expect(screen.getByText(/resets Aug 24/)).toBeInTheDocument();
   });
 
@@ -41,13 +40,13 @@ describe("UsageGauge", () => {
     const seen: URL[] = [];
     serve(usage(53), seen);
     render(<UsageGauge />);
-    await screen.findByText("47%");
+    await screen.findByText("53%");
     expect(seen[0]?.searchParams.get("refresh")).toBeNull();
 
     serve(usage(60), seen);
     await userEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
-    expect(await screen.findByText("40%")).toBeInTheDocument();
+    expect(await screen.findByText("60%")).toBeInTheDocument();
     expect(seen[1]?.searchParams.get("refresh")).toBe("1");
   });
 
