@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.113.3] - 2026-08-24
+
+### Fixed
+- Board, desktop: drag and drop works again — the card is taken in hand a frame after `dragstart`, since hiding the source tile inside it made Chrome cancel the drag (2de8f08).
+
 ## [0.113.2] - 2026-08-24
 
 ### Fixed
