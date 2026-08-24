@@ -53,6 +53,26 @@ describe("AgentList — triage grouping", () => {
     expect(within(section).getByText("idle")).toBeInTheDocument();
   });
 
+  // jsdom does no layout, so the overflow itself can't be asserted here — this locks in the class
+  // that prevents it. Without `min-width:0` a grid item never shrinks below its min-content, and a
+  // card of `truncate` text has a min-content as wide as the untruncated string: the card grew past
+  // the viewport instead of ellipsising (measured in headless Chrome: 574px card in a 468px column).
+  it("lets the card shrink below its text: the grid items are min-w-0", () => {
+    render(
+      <AgentList
+        agents={[
+          agent({ paneId: "p1", status: "blocked" }),
+          agent({ paneId: "p2", status: "working" }),
+        ]}
+        onOpen={() => {}}
+      />,
+    );
+    for (const label of ["Needs you", "Working"]) {
+      const grid = screen.getByText(label).closest("section")!.querySelector("div.grid")!;
+      expect(grid.className).toContain("[&>*]:min-w-0");
+    }
+  });
+
   it("counts each section correctly", () => {
     render(
       <AgentList
