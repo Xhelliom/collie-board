@@ -97,6 +97,8 @@ const MAX_HISTORY_LIMIT = 5000;
 // A tab supports rename + close — an action group like the pane route. The `/api/tab` POST above
 // (create) is an exact match on `/api/tab`, so it never collides with this `/api/tab/<id>/<action>`.
 const TAB_ACTION_ROUTE = /^\/api\/tab\/([^/]+)\/(rename|close)$/;
+// One entry of the bell's history, by its log id — the only thing DELETE-able there.
+const NOTIFY_LOG_ENTRY_ROUTE = /^\/api\/notifications\/log\/(\d+)$/;
 
 export function startServer(opts: {
   cfg: Config;
@@ -376,6 +378,17 @@ export function startServer(opts: {
         const denied = guard(req, cfg, "read");
         if (denied) return denied;
         return json({ entries: notifyLog.recent() }, req.headers.get("accept-encoding"));
+      }
+      {
+        // Forget one entry. Read-level like the rest of this block — dropping your own record of a
+        // ping isn't terminal-driving — and idempotent: an id that's already gone still answers 204.
+        const match = pathname.match(NOTIFY_LOG_ENTRY_ROUTE);
+        if (match && req.method === "DELETE") {
+          const denied = guard(req, cfg, "read");
+          if (denied) return denied;
+          notifyLog.remove(Number(match[1]));
+          return secure(new Response(null, { status: 204 }));
+        }
       }
       if (pathname === "/api/notifications/prefs") {
         // Which agent statuses push (bridge-wide). Read-level like snooze — managing your own

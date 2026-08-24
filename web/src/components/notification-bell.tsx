@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { BottomSheet } from "@/components/ui/sheet";
-import { getNotifyLog } from "@/lib/api";
+import { deleteNotifyLogEntry, getNotifyLog } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { panePath } from "@/lib/nav";
 import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEntry } from "@/lib/types";
@@ -67,10 +67,20 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
     );
   }
 
+  // Dismiss is optimistic — the row leaves under your thumb — but the bridge is what makes it stick
+  // across a close/reopen, so a failed DELETE puts the entry back where it was (newest id first)
+  // rather than pretending it's gone until the next fetch says otherwise.
+  const dismiss = (entry: NotifyLogEntry) => {
+    setEntries((prev) => prev?.filter((e) => e.id !== entry.id) ?? prev);
+    deleteNotifyLogEntry(entry.id).catch(() =>
+      setEntries((prev) => (prev ? [...prev, entry].sort((a, b) => b.id - a.id) : prev)),
+    );
+  };
+
   return (
     <ul className="flex flex-col gap-1 overflow-y-auto">
       {entries.map((e) => (
-        <li key={e.id}>
+        <li key={e.id} className="flex items-start">
           <button
             type="button"
             onClick={() => {
@@ -79,7 +89,7 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
               // rather than looking up a pane id in the one you happen to be viewing.
               navigate(panePath(e.paneId, e.session));
             }}
-            className="flex w-full items-start gap-2 rounded-[10px] px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
           >
             <span
               className={
@@ -99,6 +109,14 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
               <span className="line-clamp-2 text-xs text-muted-foreground">{notifyWhat(e)}</span>
             </span>
             <span className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => dismiss(e)}
+            aria-label={`Delete notification from ${paneDisplayName(e)}`}
+            className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
+          >
+            <X className="size-3.5" />
           </button>
         </li>
       ))}

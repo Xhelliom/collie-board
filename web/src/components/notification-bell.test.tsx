@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { http, HttpResponse } from "msw";
@@ -77,7 +77,8 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    await user.click(await screen.findByRole("button", { name: /codex/ }));
+    // ^codex — the row itself, not its "Delete notification from codex" sibling.
+    await user.click(await screen.findByRole("button", { name: /^codex/ }));
 
     // The `done` entry belongs to the "side" session — the link must scope to it, not to whichever
     // session the app happens to be showing.
@@ -129,6 +130,35 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("collie")).toBeInTheDocument();
     expect(screen.getByText("bumped the version and wrote the changelog")).toBeInTheDocument();
     expect(screen.queryByText(/Ship 0\.86/)).not.toBeInTheDocument();
+  });
+
+  test("an entry can be deleted, and it stays gone across a close/reopen", async () => {
+    // The bridge is what makes a dismissal stick — the history is refetched on every open, so a
+    // row that only disappeared client-side would walk right back in.
+    let live = [...entries];
+    server.use(
+      http.get("/api/notifications/log", () => {
+        calls++;
+        return HttpResponse.json({ entries: live });
+      }),
+      http.delete("/api/notifications/log/:id", ({ params }) => {
+        live = live.filter((e) => String(e.id) !== params.id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    await user.click(await screen.findByRole("button", { name: /delete notification from claude/i }));
+    await waitFor(() => expect(screen.queryByText(/needs you/)).not.toBeInTheDocument());
+    expect(screen.getByText(/is done/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+
+    expect(await screen.findByText(/is done/)).toBeInTheDocument();
+    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
   });
 
   test("says so when nothing has pinged yet", async () => {
