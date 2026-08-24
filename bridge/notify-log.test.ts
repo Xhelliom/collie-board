@@ -64,6 +64,32 @@ describe("NotifyLog — remove", () => {
   });
 });
 
+describe("NotifyLog — markRead", () => {
+  test("a read entry stops counting toward the badge, but stays in the history", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.add(entry(2));
+    expect(log.count()).toBe(2);
+
+    const [newest] = log.recent();
+    log.markRead(newest!.id);
+    expect(log.count()).toBe(1);
+    // Read is not dismissed — the entry is still there to tap again, just not counted.
+    expect(log.recent()).toHaveLength(2);
+    expect(log.recent()[0]?.read).toBe(true);
+
+    log.markRead(newest!.id); // idempotent — a second tap doesn't double-decrement
+    expect(log.count()).toBe(1);
+  });
+
+  test("an unknown id is a silent no-op", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.markRead(999);
+    expect(log.count()).toBe(1);
+  });
+});
+
 describe("NotifyLog — enrich", () => {
   test("patches the subtitle onto the matching paneId+status entry", () => {
     const log = new NotifyLog(() => 0);
