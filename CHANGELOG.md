@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.105.0] - 2026-08-24
+
+### Added
+- An `idle`/`done` pane shows how long it has been settled, next to the state (2e09d6f).
+
 ## [0.104.0] - 2026-08-24
 
 ### Added
