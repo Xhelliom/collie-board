@@ -65,6 +65,13 @@ export interface AgentView {
    */
   ctxPct?: number;
   ctxTokens?: number;
+  /**
+   * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
+   * Set only by an observed transition: a pane already idle/done when the bridge started has no
+   * known switch-over instant and so carries no field — the UI then shows no age rather than a
+   * fabricated one. Runtime state, in memory only, gone when the pane goes.
+   */
+  statusSince?: number;
 }
 
 /**
@@ -158,7 +165,7 @@ export interface SnapshotResponse {
    *  traffic out of the foreground toast, the same way the bridge already keeps it out of push and
    *  history. Optional — a bridge with the feature off, or predating it, simply omits it. */
   copilotPaneId?: string | null;
-  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many alerts the
+  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many UNREAD alerts the
    *  history holds — the bell's badge, so it needs no poll of its own. */
   notifications?: { snoozedUntil: number | null; count?: number };
   /** Update-availability signal. Optional — a stale bridge that predates the field simply omits it,

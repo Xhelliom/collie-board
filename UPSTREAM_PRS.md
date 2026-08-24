@@ -559,7 +559,7 @@ the pane that asked. The alert is the only record, and it deletes itself.
 | | |
 |---|---|
 | Commits | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* · `bb4a1ec` (the dismiss) · `9a022c6` (the badge) |
-| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET + one DELETE route, plus `notifications.count` on the snapshot), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/lib/loaders.ts` (`notifyCount` on `HomeData`), `web/src/components/app-header.tsx` (one mount) |
+| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET + one DELETE + one POST route, plus `notifications.count` on the snapshot), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/lib/loaders.ts` (`notifyCount` on `HomeData`), `web/src/components/app-header.tsx` (one mount) |
 | Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
 
 **Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
@@ -588,6 +588,14 @@ reading: the ping you already handled sits above the one you haven't. `DELETE /a
 drops one entry from the ring and answers 204 whether it was there or not; the row leaves optimistically
 and comes back if the call fails. Read-level, like every other route in that block. No "clear all" — the
 ring already forgets at 50, and the bridge restart clears it for free.
+
+**The badge counts what is UNREAD, and tapping an entry is what reads it.** `POST /api/notifications/
+log/:id/read` sets a flag on the ring entry; `count()` stops counting it. A badge that only a *delete*
+could clear made the number a chore-list rather than a signal — you had already been to the pane. The
+entry stays in the history, dimmed: read is not dismissed, and the two verbs stay separate (tap = I
+saw it, X = I don't want it). The flag lives on the entry, so it survives a reload exactly as far as
+the entry itself does, and the tap revalidates the snapshot so the number drops under your thumb
+rather than on the next 1.5s poll.
 
 **A notification that arrived while the app was open lands here too** — the bridge records the alert
 it pushed, and whether a visible client made the service worker suppress the banner is downstream of
@@ -685,6 +693,35 @@ bridge user can read", and comparing the paths as written waves it straight thro
 doesn't follow links at all, and SVG is excluded (an image to `<img>`, a script host to a top-level
 navigation on an origin that also serves the app). `gallery.test.ts` drives all of that against a
 real directory tree, symlink included — a fake fs would only prove the code agrees with itself.
+
+---
+
+## 22. 🔵 `idle` and `done`, with a since
+
+A settled pane says *what* it is and never *since when*. On the triage screen that is the whole
+question: a session that finished thirty seconds ago and one that has been sitting there since
+lunch are the same grey word, so the list gives no reason to look at one before the other.
+
+| | |
+|---|---|
+| Commit | _(this change)_ |
+| Files | `bridge/state-engine.ts` (a `statusSince` map + three lines in the poll), `bridge/types.ts` · `web/src/lib/types.ts` (`AgentView.statusSince`), `web/src/components/agent-card.tsx` (+ test), `bridge/state-engine.test.ts` |
+| Extraction | **Clean cherry-pick.** No card in sight — the poller, the pane type and the pane row are all upstream's. |
+
+**The poller already knows.** It diffs each pane's status against the previous tick to fire
+transitions; stamping `Date.now()` on the same edge costs a `Map` and no extra call. The age then
+rides the snapshot every client already polls, so it needs no timer and no second source.
+
+**A pane first seen already `done` carries no stamp.** The bridge did not witness that switch, and
+the honest rendering of an unknown instant is nothing at all — a fresh `just now` on an agent that
+finished three hours ago is precisely the wrong reading, and the one the operator would act on. It
+appears at the pane's next real transition. Same rule the transition listeners already follow (a
+first sighting never notifies), and the stamp is dropped with the pane so a reused id starts clean.
+
+**Only `idle` and `done`.** `working` has a live spinner, `blocked` is the thing you are already
+being sent to; neither is waiting to be ranked by age. Rendered through the existing `timeAgo()`,
+next to the state rather than in a column of its own — a footnote on the word, at the same weight
+as the rest of the metadata line.
 
 ---
 
