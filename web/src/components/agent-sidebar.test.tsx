@@ -102,6 +102,20 @@ describe("ThreadSidebar", () => {
     expect(screen.queryByRole("button", { name: /close/i })).toBeNull();
   });
 
+  it("shows the context percentage only for panes that have one", () => {
+    render(
+      <ThreadSidebar
+        agents={[{ ...idleAgent, ctxPct: 42.4 }]}
+        shellPanes={[shellPane]}
+        currentPaneId=""
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("ctx 42%")).toBeInTheDocument();
+    // The shell pane has no ctxPct — it gets no gauge rather than a made-up 0%.
+    expect(screen.getByRole("button", { name: /shell/ })).not.toHaveTextContent(/ctx/);
+  });
+
   it("gives each section a status-colored bullet from the shared group palette", () => {
     const { container } = render(
       <ThreadSidebar

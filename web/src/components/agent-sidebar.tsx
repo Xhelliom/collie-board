@@ -141,6 +141,12 @@ function PaneRow({
           {shortCwd(pane.cwd)}
         </div>
       </div>
+      {/* Same at-a-glance gauge as the desktop pane column; omitted when no transcript was read. */}
+      {pane.ctxPct != null && (
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          ctx {Math.round(pane.ctxPct)}%
+        </span>
+      )}
     </button>
   );
 }
