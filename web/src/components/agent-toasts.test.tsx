@@ -111,6 +111,40 @@ describe("AgentToasts", () => {
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w1%3Ap1?s=side");
   });
 
+  test("a swipe on an incoming toast dismisses it — with a finger, either direction", async () => {
+    const user = userEvent.setup();
+    mount();
+    advance("blocked");
+    const toast = screen.getByText(/needs you/);
+
+    await user.pointer([
+      { keys: "[TouchA>]", target: toast, coords: { clientX: 20, clientY: 40 } },
+      { pointerName: "TouchA", coords: { clientX: 140, clientY: 44 } },
+      { keys: "[/TouchA]" },
+    ]);
+
+    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    // Swiped away, not destroyed: the toast is a client-side view of the bridge's notify-log, which
+    // the bell reads on open — nothing here writes to it.
+    expect(screen.queryByTestId("landed")).not.toBeInTheDocument();
+  });
+
+  test("a drag too short to dismiss springs back, and never deep-links on release", async () => {
+    const user = userEvent.setup();
+    mount();
+    advance("blocked");
+    const toast = screen.getByText(/needs you/);
+
+    await user.pointer([
+      { keys: "[TouchA>]", target: toast, coords: { clientX: 20, clientY: 40 } },
+      { pointerName: "TouchA", coords: { clientX: 60, clientY: 40 } },
+      { keys: "[/TouchA]" },
+    ]);
+
+    expect(screen.getByText(/needs you/)).toBeInTheDocument();
+    expect(screen.queryByTestId("landed")).not.toBeInTheDocument();
+  });
+
   test("says nothing about the pane you're already looking at", () => {
     mount({ openPaneId: "w1:p1" });
     advance("blocked");
