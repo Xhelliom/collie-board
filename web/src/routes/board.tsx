@@ -151,6 +151,28 @@ export function BoardRoute() {
   // "A drop is in flight, don't tear the drag state down yet." A ref rather than state because
   // `dragend` fires in the same tick as the drop and would read a stale render's value.
   const landing = useRef(false);
+  // The frame `held` is waiting on — see `arm` below, and cancelled by `dragend` so a gesture that
+  // dies before that frame can't arm the board after the fact and leave it dressed for a drag.
+  const arming = useRef(0);
+
+  /**
+   * Take the card in hand — ONE FRAME after `dragstart`, never in it.
+   *
+   * Chrome CANCELS a drag whose source loses its layout box while the gesture is still starting: you
+   * get `dragstart` immediately followed by `dragend`, no `dragover`, no drop. And this state is
+   * exactly what takes that box away — `held` hides the source tile (`hidden`, below) so the ghost
+   * can stand in for it. React flushes a dragstart update in a microtask, which lands inside that
+   * window; the next frame is outside it, and by then the drag is under way and immune.
+   *
+   * Nothing shows a frame late: `over` starts at the card's OWN slot, so the ghost appears exactly
+   * where the card already is and both changes are invisible until the pointer actually moves.
+   */
+  const arm = (id: string, from: CardStatus, slot: number) => {
+    arming.current = requestAnimationFrame(() => {
+      setHeld({ id, from });
+      setOver({ status: from, index: slot });
+    });
+  };
 
   // The repos on offer come from EVERY card, scoped or not — that strip is how you leave the repo
   // you are in, so it can't be narrowed by the scope it is meant to switch. Same "keep the active
@@ -445,7 +467,9 @@ export function BoardRoute() {
                       // and an unmounted node never receives `dragend` — so an Escape or a drop in
                       // the margin would leave the board stuck in drag state forever. Hidden, the
                       // node lives, the layout behaves as if it were gone, and its slot still counts
-                      // (see `heldSlot`, which is what keeps the index arithmetic honest).
+                      // (see `heldSlot`, which is what keeps the index arithmetic honest). Hiding it
+                      // is still a box the drag's own source loses, which is why `arm` waits a frame
+                      // before `held` is set at all — that wait is what keeps the drag alive.
                       const ghostAt = over?.status === status ? over.index : -1;
                       const heldSlot = held ? column.findIndex((e) => entryKey(e) === held.id) : -1;
                       return (
@@ -577,17 +601,16 @@ export function BoardRoute() {
                                       !entry.card.runtime &&
                                       MANUAL_STATUSES.includes(status)
                                         ? {
-                                            onStart: () => {
-                                              setHeld({ id: entry.card.id, from: status });
-                                              // Start the ghost exactly where the card already is,
-                                              // so lifting it changes nothing on screen until you
-                                              // actually move — the card fades, the layout holds.
-                                              setOver({ status, index: slot });
-                                            },
+                                            // Deferred by a frame, and that is load-bearing — see
+                                            // `arm`. The ghost starts at the card's own slot, so
+                                            // lifting it changes nothing on screen until you
+                                            // actually move.
+                                            onStart: () => arm(entry.card.id, status, slot),
                                             // Cancels only. A `dragend` that follows a real drop
                                             // must leave the state alone — the drop owns it until
                                             // the new data lands.
                                             onEnd: () => {
+                                              cancelAnimationFrame(arming.current);
                                               if (landing.current) return;
                                               setHeld(null);
                                               setOver(null);
