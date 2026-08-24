@@ -159,7 +159,7 @@ export interface Card {
   /**
    * Opt out of automatic cleanup. Off by default — once a card's wrapup settles (collected or given
    * up on), `WrapupCoordinator` cleans up the worktree on its own, the same way the "Clean up
-   * worktree" tap would, and just as safely refused if the branch turns out not to be fully merged.
+   * worktree" tap would, and just as safely refused if the branch is neither merged nor pushed.
    * This is the one flag that skips the attempt outright, for the branch the operator wants to poke
    * at afterwards.
    */

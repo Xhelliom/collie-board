@@ -341,6 +341,12 @@ export interface Integration {
   branchDirty: boolean;
   /** The base branch is checked out in the main worktree, which a merge requires. */
   baseCheckedOut: boolean;
+  /**
+   * Every commit on this branch is also on its upstream — it has been pushed, so nothing here is
+   * unrecoverable even once the checkout and the local branch are gone. False when the branch has no
+   * upstream at all, which is where every branch starts.
+   */
+  pushed: boolean;
 }
 
 /**
@@ -441,9 +447,11 @@ export async function integrationOf(
   const parsed = counts.ok ? parseLeftRight(counts.stdout) : null;
   if (!parsed) return null;
 
-  const [baseStatus, checkout] = await Promise.all([
+  const [baseStatus, checkout, unpushed] = await Promise.all([
     git(["status", "--porcelain"], repoPath),
     worktreePathFor(repoPath, branch, git),
+    // Fails outright when the branch has no upstream, which is the answer we want: nothing pushed.
+    git(["rev-list", "--count", `${branch}@{upstream}..${branch}`], repoPath),
   ]);
   const branchStatus = checkout ? await git(["status", "--porcelain"], checkout) : null;
 
@@ -455,6 +463,7 @@ export async function integrationOf(
     baseDirty: baseStatus.ok && hasRealChanges(baseStatus.stdout),
     branchDirty: (branchStatus?.ok && hasRealChanges(branchStatus.stdout)) ?? false,
     baseCheckedOut: head === base,
+    pushed: unpushed.ok && unpushed.stdout.trim() === "0",
   };
 }
 
@@ -492,9 +501,13 @@ export function refusalFor(
     if (state.branchDirty) return "branch-dirty";
     return null;
   }
-  // Cleanup deletes a checkout and a branch. `ahead > 0` means it holds commits nobody else has, and
-  // a dirty checkout means work that was never even committed — both are unrecoverable afterwards.
-  if (state.ahead > 0) return "not-merged";
+  // Cleanup deletes a checkout and a branch. `ahead > 0` means the base does not have these commits
+  // — but "the base" is not the only place they can live: a pushed branch has them on its upstream,
+  // which is exactly what the PR gesture leaves behind, and deleting a checkout of work that is
+  // already on the remote loses nothing. That is also the rule `git branch -d` enforces one step
+  // later (merged into HEAD *or its upstream*), so the two locks on this door now agree. A dirty
+  // checkout stays a refusal either way: uncommitted work is on no remote.
+  if (state.ahead > 0 && !state.pushed) return "not-merged";
   if (state.branchDirty) return "branch-dirty";
   return null;
 }
@@ -563,8 +576,9 @@ export async function pushBranch(
 /**
  * Delete the card's branch, with `-d` rather than `-D`.
  *
- * The lowercase flag refuses a branch that isn't merged. `refusalFor` already checked that, so this
- * is a second lock on the same door — and the one that is enforced by git rather than by us.
+ * The lowercase flag refuses a branch that is merged into neither HEAD nor its upstream — the same
+ * rule `refusalFor` applies one step earlier, and the one lock on that door that git enforces rather
+ * than us.
  */
 export async function deleteBranch(
   repoPath: string,

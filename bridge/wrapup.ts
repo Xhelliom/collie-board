@@ -206,8 +206,8 @@ export class WrapupCoordinator {
 
   /**
    * Tidy up on its own once a wrapup is no longer pending. Reuses `cleanupCard` itself, so it is
-   * exactly as safe as the manual "Clean up worktree" tap: a branch that turns out not to be fully
-   * merged, or a checkout with uncommitted work, refuses just the same and leaves the worktree for
+   * exactly as safe as the manual "Clean up worktree" tap: a branch that is neither merged nor
+   * pushed, or a checkout with uncommitted work, refuses just the same and leaves the worktree for
    * the operator to deal with by hand. `keepWorktree` is the one thing that skips the attempt
    * outright — set once, ahead of the tap it otherwise replaces.
    */
