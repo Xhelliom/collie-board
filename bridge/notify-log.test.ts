@@ -90,6 +90,27 @@ describe("NotifyLog — markRead", () => {
   });
 });
 
+describe("NotifyLog — markAllRead", () => {
+  test("empties the badge in one gesture, without emptying the history", () => {
+    const log = new NotifyLog(() => 0);
+    log.add(entry(1));
+    log.add(entry(2));
+    log.markAllRead();
+
+    expect(log.count()).toBe(0);
+    // Marks, never removes — every row is still there to tap, just not counted.
+    expect(log.recent()).toHaveLength(2);
+    expect(log.recent().every((e) => e.read)).toBe(true);
+
+    log.markAllRead(); // idempotent, and an empty ring would be too
+    expect(log.count()).toBe(0);
+
+    // A gesture, not a mode: whatever pings next is unread like anything else.
+    log.add(entry(3));
+    expect(log.count()).toBe(1);
+  });
+});
+
 describe("NotifyLog — enrich", () => {
   test("patches the subtitle onto the matching paneId+status entry", () => {
     const log = new NotifyLog(() => 0);

@@ -3,7 +3,7 @@ import { Bell, X } from "lucide-react";
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 
 import { BottomSheet } from "@/components/ui/sheet";
-import { deleteNotifyLogEntry, getNotifyLog, markNotifyLogEntryRead } from "@/lib/api";
+import { deleteNotifyLogEntry, getNotifyLog, markAllNotifyLogRead, markNotifyLogEntryRead } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
@@ -91,55 +91,82 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
     );
   };
 
+  // Marking is not dismissing: every row stays, it just stops counting. Optimistic like the dismiss
+  // above, and rolled back to what was on screen if the bridge refuses — the bridge is what holds
+  // the read state, so a client-only mark would walk right back in on the next open.
+  const markAllRead = () => {
+    const before = entries;
+    setEntries((prev) => prev?.map((e) => (e.read ? e : { ...e, read: true })) ?? prev);
+    markAllNotifyLogRead().then(
+      () => revalidator.revalidate(),
+      () => setEntries(before),
+    );
+  };
+
   return (
-    <ul className="flex flex-col gap-1 overflow-y-auto">
-      {entries.map((e) => (
-        <li key={e.id} className={e.read ? "flex items-start opacity-55" : "flex items-start"}>
+    <>
+      {/* Only while something is unread — with the badge already empty, this would be a button whose
+          job is done. */}
+      {entries.some((e) => !e.read) && (
+        <div className="flex justify-end pb-1">
           <button
             type="button"
-            onClick={() => {
-              onPick();
-              // Tapping IS reading it: the badge counts unread, so the number has to drop now rather
-              // than on the next poll — revalidate once the bridge has actually taken the mark.
-              markNotifyLogEntryRead(e.id).then(
-                () => revalidator.revalidate(),
-                () => {},
-              );
-              // The entry carries its own session, so a ping from another herd lands in that herd
-              // rather than looking up a pane id in the one you happen to be viewing.
-              navigate(panePath(e.paneId, e.session));
-            }}
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+            onClick={markAllRead}
+            className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
           >
-            <span
-              className={
-                e.status === "blocked"
-                  ? "mt-1.5 size-2 shrink-0 rounded-full bg-status-blocked"
-                  : "mt-1.5 size-2 shrink-0 rounded-full bg-status-done"
-              }
-              aria-hidden
-            />
-            <span className="min-w-0 flex-1">
-              {/* Name + verb + WHERE (session/repo) share this line — short, stable identity, so the
-                  line below is free for WHAT (the copilot subtitle, which can run to two lines). */}
-              <span className="block truncate text-sm">
-                <span className="font-medium">{paneDisplayName(e)}</span> {notifyVerb(e.status)} ·{" "}
-                <span className="text-muted-foreground">{notifyWhere(e)}</span>
+            Mark all read
+          </button>
+        </div>
+      )}
+      <ul className="flex flex-col gap-1 overflow-y-auto">
+        {entries.map((e) => (
+          <li key={e.id} className={e.read ? "flex items-start opacity-55" : "flex items-start"}>
+            <button
+              type="button"
+              onClick={() => {
+                onPick();
+                // Tapping IS reading it: the badge counts unread, so the number has to drop now rather
+                // than on the next poll — revalidate once the bridge has actually taken the mark.
+                markNotifyLogEntryRead(e.id).then(
+                  () => revalidator.revalidate(),
+                  () => {},
+                );
+                // The entry carries its own session, so a ping from another herd lands in that herd
+                // rather than looking up a pane id in the one you happen to be viewing.
+                navigate(panePath(e.paneId, e.session));
+              }}
+              className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
+            >
+              <span
+                className={
+                  e.status === "blocked"
+                    ? "mt-1.5 size-2 shrink-0 rounded-full bg-status-blocked"
+                    : "mt-1.5 size-2 shrink-0 rounded-full bg-status-done"
+                }
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1">
+                {/* Name + verb + WHERE (session/repo) share this line — short, stable identity, so the
+                    line below is free for WHAT (the copilot subtitle, which can run to two lines). */}
+                <span className="block truncate text-sm">
+                  <span className="font-medium">{paneDisplayName(e)}</span> {notifyVerb(e.status)} ·{" "}
+                  <span className="text-muted-foreground">{notifyWhere(e)}</span>
+                </span>
+                <span className="line-clamp-2 text-xs text-muted-foreground">{notifyWhat(e)}</span>
               </span>
-              <span className="line-clamp-2 text-xs text-muted-foreground">{notifyWhat(e)}</span>
-            </span>
-            <span className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => dismiss(e)}
-            aria-label={`Delete notification from ${paneDisplayName(e)}`}
-            className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
-          >
-            <X className="size-3.5" />
-          </button>
-        </li>
-      ))}
-    </ul>
+              <span className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => dismiss(e)}
+              aria-label={`Delete notification from ${paneDisplayName(e)}`}
+              className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
+            >
+              <X className="size-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
