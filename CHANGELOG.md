@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.111.1] - 2026-08-24
+
+### Fixed
+- The quota gauge was blank under the service — `claude` is not on a `systemd --user` PATH, so look where it installs (0d6816f).
+
 ## [0.111.0] - 2026-08-24
 
 ### Added

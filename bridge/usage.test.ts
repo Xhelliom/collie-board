@@ -2,7 +2,7 @@
 // spawns a CLI.
 import { describe, expect, it } from "bun:test";
 
-import { parseUsage, UsageTracker, USAGE_TTL_MS } from "./usage.ts";
+import { claudeCandidates, parseUsage, UsageTracker, USAGE_TTL_MS } from "./usage.ts";
 
 /** Verbatim output of `claude -p "/usage"`, captured 2026-08-24. */
 const PANEL = `You are currently using your subscription to power your Claude Code usage
@@ -80,5 +80,19 @@ describe("UsageTracker", () => {
   it("answers null when there was never a reading", async () => {
     const { t } = tracker(null, { t: 0 });
     expect(await t.get()).toBeNull();
+  });
+});
+
+describe("claudeCandidates", () => {
+  it("prefers the PATH hit, then the installers", () => {
+    expect(claudeCandidates("/home/x", "/usr/bin/claude")[0]).toBe("/usr/bin/claude");
+    expect(claudeCandidates("/home/x", null).slice(0, 2)).toEqual([
+      "/home/x/.local/bin/claude",
+      "/home/x/.claude/local/claude",
+    ]);
+  });
+
+  it("still looks in the home directory when the PATH has nothing — the service's case", () => {
+    expect(claudeCandidates("/home/x", null)).toContain("/home/x/.local/bin/claude");
   });
 });

@@ -286,7 +286,7 @@ async function route(
     const denied = ctx.guard("read");
     if (denied) return denied;
     const force = new URL(req.url).searchParams.get("refresh") === "1";
-    // null when there is no reading to be had (no `claude` on PATH, an unrecognised panel): the
+    // null when there is no reading to be had (no `claude` installed, an unrecognised panel): the
     // client then shows nothing rather than a made-up number.
     return ctx.json({ usage: await usageTracker.get(force) });
   }

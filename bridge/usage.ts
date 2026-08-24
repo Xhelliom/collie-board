@@ -10,11 +10,13 @@
 // apply: argv elements, never a shell, no client-supplied argument anywhere near it — the command
 // line here is a constant.
 //
-// DEGRADES TO NOTHING. No `claude` on PATH, a panel that stops looking like this, a timeout: the
-// endpoint answers `null` and the phone shows no gauge. A quota figure that might be wrong is worse
-// than no figure, exactly like the context gauge (context.ts).
+// DEGRADES TO NOTHING. No `claude` anywhere we look (see claudeCandidates), a panel that stops
+// looking like this, a timeout: the endpoint answers `null` and the phone shows no gauge. A quota
+// figure that might be wrong is worse than no figure, exactly like the context gauge (context.ts).
 
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 /** One of the panel's limit lines. `percent` is what's USED — the UI does the subtraction. */
 export interface UsageLimit {
@@ -59,10 +61,41 @@ export function parseUsage(out: string): UsageLimit[] {
   return limits;
 }
 
+/**
+ * Where `claude` might be, best first. Exported (and pure) because the ORDER is the decision here.
+ *
+ * Spawning it by name doesn't work under the service: a `systemd --user` unit starts with systemd's
+ * own PATH and never reads a login shell's profile, so neither installer's directory is on it and
+ * the gauge stayed blank on a machine where `claude` runs fine in a terminal. The bridge's other
+ * shell-outs (`git`, `gh`, `ps`) live in /usr/bin and so never noticed; the dependencies that don't
+ * (`bun`, `herdr`) are already reached by an absolute path or a socket. This is the same treatment.
+ *
+ * A PATH hit wins when there is one — an operator who put `claude` on the service's PATH meant that
+ * one. The rest are the published install locations, and being wrong is cheap: a candidate that
+ * isn't there is one failed stat, once per TTL. Same shape as `resolve_bun()` in
+ * `scripts/collie-board-ctl.sh`, which learned this for bun under a herdr plugin action.
+ */
+export function claudeCandidates(home: string, fromPath: string | null): string[] {
+  return [
+    ...(fromPath ? [fromPath] : []),
+    join(home, ".local", "bin", "claude"), // the native installer
+    join(home, ".claude", "local", "claude"), // `claude migrate-installer`
+    "/usr/local/bin/claude", // npm -g, and Homebrew on Intel
+    "/opt/homebrew/bin/claude", // Homebrew on Apple silicon
+  ];
+}
+
+/** The first candidate that exists, or null — which the caller degrades to "no gauge". */
+function claudeBin(): string | null {
+  return claudeCandidates(homedir(), Bun.which("claude")).find(existsSync) ?? null;
+}
+
 /** Run the CLI. Separate from the parse so the test never spawns anything. */
 async function readUsage(): Promise<string | null> {
+  const bin = claudeBin();
+  if (bin === null) return null;
   try {
-    const proc = Bun.spawn(["claude", "-p", "/usage"], {
+    const proc = Bun.spawn([bin, "-p", "/usage"], {
       // Home, not a repo: `-p` in a worktree would load that project's CLAUDE.md and settings for a
       // command that needs neither.
       cwd: homedir(),
@@ -78,7 +111,8 @@ async function readUsage(): Promise<string | null> {
       clearTimeout(timer);
     }
   } catch {
-    // No `claude` on PATH is the normal case here, not an error worth logging every 15 minutes.
+    // A CLI that is present but refuses to run is still just "no reading" — not an error worth
+    // logging every 15 minutes.
     return null;
   }
 }
