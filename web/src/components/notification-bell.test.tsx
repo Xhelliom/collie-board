@@ -53,23 +53,32 @@ function Landed() {
   return <div data-testid="landed">{pathname + search}</div>;
 }
 
-/** Nested under the root route, as in the real app: the badge count comes from its loader data. */
-function mount(notifyCount = 0) {
-  const home = { notifyCount } as HomeData;
+/**
+ * Nested under the root route, as in the real app: the badge count comes from its loader data, and
+ * the bell renders OUTSIDE the outlet (it lives in the header) so it survives a deep-link. Pass a
+ * function for a count that moves — the root loader re-runs on every navigation and revalidation.
+ */
+function mount(notifyCount: number | (() => number) = 0) {
+  const home = () => ({ notifyCount: typeof notifyCount === "function" ? notifyCount() : notifyCount }) as HomeData;
   const router = createMemoryRouter(
     [
       {
         id: ROOT_ROUTE_ID,
         path: "/",
-        loader: () => home,
-        element: <Outlet />,
+        loader: home,
+        element: (
+          <>
+            <NotificationBell />
+            <Outlet />
+          </>
+        ),
         children: [
-          { index: true, element: <NotificationBell /> },
+          { index: true, element: null },
           { path: "pane/:paneId", element: <Landed /> },
         ],
       },
     ],
-    { hydrationData: { loaderData: { [ROOT_ROUTE_ID]: home } } },
+    { hydrationData: { loaderData: { [ROOT_ROUTE_ID]: home() } } },
   );
   render(<RouterProvider router={router} />);
 }
@@ -185,6 +194,30 @@ describe("NotificationBell", () => {
 
     expect(await screen.findByText(/is done/)).toBeInTheDocument();
     expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+  });
+
+  test("tapping an entry marks it read, and the badge drops to the unread count", async () => {
+    // The badge counts UNREAD entries, so the number has to move on the tap itself — not when the
+    // row is deleted, and not only after the next 1.5s poll.
+    let live = entries.map((e) => ({ ...e }));
+    server.use(
+      http.get("/api/notifications/log", () => HttpResponse.json({ entries: live })),
+      http.post("/api/notifications/log/:id/read", ({ params }) => {
+        live = live.map((e) => (String(e.id) === params.id ? { ...e, read: true } : e));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    mount(() => live.filter((e) => !e.read).length);
+    expect(screen.getByRole("button", { name: "Notifications (2)" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^notifications/i }));
+    await user.click(await screen.findByRole("button", { name: /^claude/ }));
+
+    // The bridge is what holds the read state (it survives a reload), so the badge only drops once
+    // the POST has landed — and the entry itself is still in the history, merely not counted.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Notifications (1)" })).toBeInTheDocument());
+    expect(live).toHaveLength(2);
   });
 
   test("says so when nothing has pinged yet", async () => {
