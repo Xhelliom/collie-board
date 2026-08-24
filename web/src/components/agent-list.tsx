@@ -68,7 +68,10 @@ export function AgentList({
               ))}
             </div>
           ) : (
-            <div className="grid gap-3 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
+            // `[&>*]:min-w-0`: a grid item defaults to min-width:auto, i.e. it never shrinks below
+            // its min-content — and a card full of `truncate` text has a min-content as wide as the
+            // untruncated string, so the card grew past the viewport instead of ellipsising.
+            <div className="grid gap-3 [&>*]:min-w-0 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
               {members.map((a) =>
                 g.key === "needs" ? (
                   <NeedsYouCard key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
