@@ -770,6 +770,19 @@ export function reformulateCard(id: string): Promise<{ ok: true; card: CardView 
 }
 
 /**
+ * Ask the copilot for its verdict on this card again, now.
+ *
+ * The review normally fires on its own when the work lands. This is for the case where it judged
+ * the card against the wrong base ref and reported "nothing changed": re-point the base with
+ * `patchCard`, then call this. Returns immediately — the verdict lands on a later poll.
+ */
+export function reviewCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/review`, {
+    method: "POST",
+  });
+}
+
+/**
  * Hand the card back to the copilot WITH a correction to apply — "you said the format isn't
  * specified, say it will be JSON".
  *

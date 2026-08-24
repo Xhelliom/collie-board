@@ -1117,14 +1117,34 @@ export class CopilotCoordinator {
     }
   }
 
+  /**
+   * Re-run the review on demand, past the dedupe in {@link update}.
+   *
+   * That dedupe is per session — one review per card per session, which is right for the poll and
+   * wrong for the one case a person asks: the review judged the work from the WRONG BASE REF, said
+   * "nothing changed", and the base has just been corrected. Same request, same queue, same
+   * fire-and-forget; only the "already reviewed" test is skipped. `busyCards` still holds, so a
+   * double tap costs one agent turn.
+   */
+  async reviewNow(cardId: string, statFor: (cardId: string) => Promise<string>): Promise<void> {
+    if (!this.copilot.enabled || this.busyCards.has(cardId)) return;
+    const session = this.db.openSessionFor(cardId) ?? this.db.listSessions(cardId).at(-1);
+    this.busyCards.add(cardId);
+    try {
+      await this.review(cardId, session?.id ?? null, statFor);
+    } finally {
+      this.busyCards.delete(cardId);
+    }
+  }
+
   private async review(
     cardId: string,
-    sessionId: string,
+    sessionId: string | null,
     statFor: (cardId: string) => Promise<string>,
   ): Promise<void> {
     const card = this.db.getCard(cardId);
     if (!card) return;
-    const session = this.db.getSession(sessionId);
+    const session = sessionId ? this.db.getSession(sessionId) : null;
     const statSummary = await statFor(cardId);
     const tags = this.db.listTags();
     const parsed = await this.copilot.ask((out) =>

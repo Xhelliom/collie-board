@@ -25,7 +25,7 @@ import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
 import { isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
-import { diffFile, diffStat, worktreePathFor } from "./git.ts";
+import { cardDiffSummary, diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -695,6 +695,31 @@ async function route(
       return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
     }
     return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
+  }
+
+  // ── review: ask the copilot for its verdict again, now ───────────────────
+  //
+  // The review normally fires on its own when work lands (copilot.ts → update). This is the one
+  // case a person has to ask: the review ran against the WRONG BASE REF, reported "nothing
+  // changed", and the base has since been corrected. Nothing here re-points the base — that is a
+  // plain PATCH, and keeping the two apart means this route is also just "review it again".
+  if (action === "review" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    if (!ctx.cfg.boardCopilot) {
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    }
+    // Background, like every other copilot call: it is an agent turn behind a one-at-a-time queue,
+    // and the verdict lands in the Review section the card screen already polls.
+    void ctx.copilot.reviewNow(id, (cardId) => cardDiffSummary(db, cardId));
+    ctx.audit.record({
+      action: "card.review",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id },
+    });
+    return json({ ok: true, card: view(id) });
   }
 
   // ── explain: hand a RAW tool error to the copilot, for a person to read ──
