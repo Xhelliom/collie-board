@@ -67,6 +67,12 @@ export class NotifyLog {
     if (entry) entry.read = true;
   }
 
+  /** Mark the whole ring read — the bell's "mark all read". Marks, never removes: the history is
+   *  what the bell is for, and emptying the badge is not emptying the trace. */
+  markAllRead(): void {
+    for (const entry of this.entries) entry.read = true;
+  }
+
   /** Forget one entry — the bell's dismiss. Unknown id (already gone, or aged out) is a no-op. */
   remove(id: number): void {
     const i = this.entries.findIndex((e) => e.id === id);

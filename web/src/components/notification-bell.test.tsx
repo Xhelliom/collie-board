@@ -220,6 +220,33 @@ describe("NotificationBell", () => {
     expect(live).toHaveLength(2);
   });
 
+  test("one gesture marks every entry read — the badge empties, the history stays", async () => {
+    let live = entries.map((e) => ({ ...e }));
+    server.use(
+      http.get("/api/notifications/log", () => HttpResponse.json({ entries: live })),
+      http.post("/api/notifications/log/read-all", () => {
+        live = live.map((e) => ({ ...e, read: true }));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    mount(() => live.filter((e) => !e.read).length);
+
+    await user.click(screen.getByRole("button", { name: /^notifications/i }));
+    await user.click(await screen.findByRole("button", { name: /mark all read/i }));
+
+    // Badge gone (the bell drops its count from its aria-label — `hidden`, because the open sheet
+    // aria-hides the header behind it), rows still there, gesture retired now that nothing is
+    // unread — that last one is the whole "marks, doesn't delete" distinction.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Notifications", hidden: true })).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/needs you/)).toBeInTheDocument();
+    expect(screen.getByText(/is done/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mark all read/i })).not.toBeInTheDocument();
+    expect(live).toHaveLength(2);
+  });
+
   test("says so when nothing has pinged yet", async () => {
     const user = userEvent.setup();
     server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [] })));

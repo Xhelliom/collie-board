@@ -380,6 +380,15 @@ export function startServer(opts: {
         if (denied) return denied;
         return json({ entries: notifyLog.recent() }, req.headers.get("accept-encoding"));
       }
+      if (pathname === "/api/notifications/log/read-all" && req.method === "POST") {
+        // Empty the badge in one gesture, without emptying the history — same read-level, same
+        // idempotence as the per-entry mark. Sits above the /(\d+)/ routes below; it can't collide
+        // with them (they only match digits), it just reads in the order the bell uses them.
+        const denied = guard(req, cfg, "read");
+        if (denied) return denied;
+        notifyLog.markAllRead();
+        return secure(new Response(null, { status: 204 }));
+      }
       {
         // Forget one entry. Read-level like the rest of this block — dropping your own record of a
         // ping isn't terminal-driving — and idempotent: an id that's already gone still answers 204.
