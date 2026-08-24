@@ -1,10 +1,17 @@
-# Herdr socket API — empirically verified (v0.7.2, protocol 16)
+# Herdr socket API — empirically verified (v0.8.0, protocol 19)
 
-Probed live against a running Herdr server, most recently re-probed 2026-07-07 and cross-checked
+Probed live against a running Herdr server, most recently re-probed 2026-08-07 and cross-checked
 against the bundled machine-readable schema — `herdr api schema [--json | --output PATH]`
 (`schema_version 1`, covering requests, responses, errors, and events) is now the fastest way to
 re-derive this contract without probing. These are the facts the bridge is built on; they confirm
 the socket assumptions behind the design in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+
+**0.7.5 (protocol 17) → 0.8.0 (protocol 19) is purely additive**, diffed by dumping both binaries'
+schemas: `workspace.move_block` and the `workspace.reordered` event were added, `IntegrationTarget`
+gained `antigravity_cli` / `grok`, and **nothing was removed or changed** — every method the bridge
+calls kept its params and result shape. The two things that did move are behavioural, invisible to
+the schema, and called out where they belong below: `tab.close` on a workspace's last tab now closes
+the workspace, and `pane.read`'s `truncated` finally tells the truth.
 
 ## Transport
 
@@ -59,7 +66,7 @@ no special connection handling, no streaming. The `snapshot` bundles everything 
 bootstrap or resync in a single round trip:
 
 ```jsonc
-{ "version":"0.7.2", "protocol":16,
+{ "version":"0.8.0", "protocol":19,
   "workspaces":[ /* same record shape as workspace.list → workspaces[] */ ],
   "tabs":      [ /* same record shape as tab.list → tabs[] */ ],
   "panes":     [ /* same record shape as pane.list → panes[] */ ],
@@ -153,6 +160,13 @@ Two sibling structural ops remove panes. `tab.close` live-verified 2026-07-19 on
   creating a throwaway tab holding a plain shell pane, then `tab.close {tab_id}` — the next
   `session.snapshot` no longer lists the tab **or** its inner pane. So it's no more privileged than
   closing those panes one-by-one (which `pane.close` already allows) — same remote-shell threat model.
+- ⚠️ **Since 0.8.0, closing a workspace's LAST tab closes the workspace too** (upstream #1760, making
+  the socket match what the TUI always did). Live-verified 2026-08-07: `workspace.create` → one tab
+  `w25:t1` → `tab.close {tab_id:"w25:t1"}` → the next snapshot lists neither the pane, nor the tab,
+  **nor `w25` itself**. On 0.7.x the emptied workspace survived. Costs the board nothing: a card whose
+  pane leaves the snapshot is already reconciled to `orphaned` (`cards.ts`), and that path doesn't
+  care whether the workspace went with it. It does mean `tab.close` is now a second way to lose a
+  workspace, next to `worktree.remove` below.
 - **Success is a bare `{"result":{"type":"ok"}}`** (same shape as `pane.close`), not a record reply
   like the renames — there's nothing left to describe. The closure surfaces on the next snapshot poll;
   `tab.close` also emits a `tab_closed` event (which Collie doesn't consume).
@@ -172,9 +186,10 @@ Probed by sending `{workspace}`, `{workspace_id}` and `{id}` against a nonexiste
 the second reaches the handler at all (`workspace_not_found`), which is how you tell "wrong field
 name" from "wrong id" here.
 
-Removing the worktree takes its **workspace** down with it — that is the only way the bridge can
-close a workspace at all, since Collie exposes `pane.close` and `tab.close` but nothing for a
-workspace.
+Removing the worktree takes its **workspace** down with it — that is the only way the bridge
+*deliberately* closes a workspace, since Collie wires `pane.close` and `tab.close` but nothing that
+targets a workspace. (Herdr does have `workspace.close` `{workspace_id}` → `ok`, unwired here; and
+since 0.8.0 `tab.close` on the last tab takes the workspace down as a side effect — see above.)
 
 **`force: true` (a boolean, live-verified) is required in practice.** Without it, herdr refuses any
 checkout holding modified or untracked files:
@@ -213,6 +228,12 @@ Two sibling structural ops reorder objects. Both live-verified 2026-07-20 on the
   `tab.move {tab_id: t2, insert_index: 1}` is a **no-op**; `insert_index: 2` yields `[t1, t2]`.
 - The event catalog lists sibling `tab.moved` / `workspace.moved` events (0.7.2); emission not
   observed here (no live subscription during the probe).
+- **`workspace.move_block` `{workspace_id, insert_index}` (new in 0.8.0, protocol 19)** moves a
+  workspace *together with the worktree group it belongs to*, atomically, and emits the new
+  `workspace.reordered` event. It exists because 0.8.0 also keeps worktree parents and children
+  packed in the sidebar: moving a parent with plain `workspace.move` would now tear the block apart.
+  Unwired by Collie, and the one 0.8.0 addition with an obvious board shape — a card's worktree IS
+  such a block, so this is what board-order → herd-order would ride on. Unverified: no live probe.
 
 ## Object shapes (observed)
 
@@ -238,11 +259,20 @@ Two sibling structural ops reorder objects. Both live-verified 2026-07-20 on the
 > `scroll: {offset_from_bottom, max_offset_from_bottom, viewport_rows} | null` (all `uint64`;
 > `offset_from_bottom == 0` means the pane is scrolled to the bottom). Collie doesn't consume it yet.
 
-> **`revision` is a stub on Herdr 0.7.x** (live-verified 2026-07-05 on 0.7.0; reconfirmed unchanged
-> on 0.7.2, live-verified 2026-07-07): `pane.read`, `pane.list`, and `session.snapshot` all return
-> `revision: 0` for every pane, including actively-changing ones. Treat it as advisory /
-> future-proofing only — never as a load-bearing change detector (Collie's prompt-select race
-> guard re-derives the menu from content for exactly this reason).
+> **`revision` is a stub through Herdr 0.8.0** (live-verified 2026-07-05 on 0.7.0; reconfirmed on
+> 0.7.2 2026-07-07, and on 0.8.0 2026-08-07 by reading a pane back across 60 lines of fresh output):
+> `pane.read`, `pane.list`, and `session.snapshot` all return `revision: 0` for every pane, including
+> actively-changing ones. Treat it as advisory / future-proofing only — never as a load-bearing
+> change detector (Collie's prompt-select race guard re-derives the menu from content for exactly
+> this reason).
+
+> **`pane.read`'s `truncated` became truthful in 0.8.0** (upstream #1717). Through 0.7.x it was
+> hardcoded `false` even when the read demonstrably cut scrollback off. Live-verified 2026-08-07 on
+> 0.8.0 against a pane holding 66 lines: `lines: 5` and `lines: 20` → `truncated: true`, `lines: 100`
+> and `lines: 5000` → `false`; `source: "visible"` reports it the same way. **Collie still gates
+> "is there more to load" on `scroll` (`max_offset_from_bottom`), not on this** — deliberately: the
+> plugin's `min_herdr_version` is `0.7.0`, where `truncated: false` is a lie that would read as
+> "nothing more to fetch", while `scroll` is correct on both. Revisit only if the floor moves to 0.8.
 
 ## Event stream (now wired: event-poked polling)
 
@@ -256,10 +286,11 @@ are shaped differently — worth calling out explicitly:
   snake_case (`pane_agent_status_changed`). Real example line:
   `{"data":{"pane_id":"w6:p3","type":"pane_agent_detected","workspace_id":"w6"},"event":"pane_agent_detected"}`.
 
-The full event catalog (subscription `type` values), 0.7.2 additions marked `*`:
+The full event catalog (subscription `type` values), 0.7.2 additions marked `*`, 0.8.0's marked `†`:
 
 ```
 workspace.created  workspace.updated  workspace.renamed  workspace.closed  workspace.focused  workspace.moved *
+workspace.reordered †
 worktree.created   worktree.opened    worktree.removed
 tab.created        tab.closed         tab.focused        tab.renamed       tab.moved *
 pane.created       pane.closed        pane.focused       pane.moved        pane.exited
@@ -269,7 +300,10 @@ layout.updated *   pane.scroll_changed *
 
 `*` = new to the catalog in 0.7.2 (`workspace.moved`, `tab.moved`, `layout.updated`,
 `pane.scroll_changed`); `workspace.updated` and `pane.focused` were already listed but are called
-out here too since they're easy to miss in the block above.
+out here too since they're easy to miss in the block above. `†` = new in 0.8.0 —
+`workspace.reordered` fires for the atomic group move `workspace.move_block` performs; Collie
+doesn't subscribe to it. An unsubscribed event costs nothing here: the stream only pokes the poller,
+so anything it misses lands on the next `session.snapshot` anyway.
 
 - **Scoping, verified:** `pane.agent_status_changed`, `pane.scroll_changed`, and
   `pane.output_matched` **require** `pane_id` in the subscription (omit it →
@@ -294,8 +328,10 @@ state by itself. While the stream is healthy, interval polling relaxes to `COLLI
 fast `COLLIE_BOARD_POLL_MS` cadence. Events accelerate; the snapshot stays authoritative — a missed
 event costs one interval, never correctness.
 
-Also visible in the 0.7.2 schema but unused by Collie: `events.wait`, `pane.send_input`,
-`agent.list`, `pane.wait_for_output` — run `herdr api schema` for the full ~80-method catalog.
+Also visible in the 0.8.0 schema but unused by Collie: `events.wait`, `pane.send_input`,
+`agent.list`, `pane.wait_for_output`, `workspace.close`, `workspace.move_block` — run
+`herdr api schema` for the full 90-method catalog (89 on 0.7.5; the count is the cheapest way to
+spot that a server grew methods under you).
 
 ### `pane.read` — use `format: "ansi"`, never `"text"`, on a pane that may be idle
 

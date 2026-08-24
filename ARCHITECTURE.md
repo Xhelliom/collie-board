@@ -341,7 +341,8 @@ own cwd. Across two cards the file isn't even there.
 
 ### Three herdr behaviours the docs don't state
 
-Live-probed against 0.7.5 on 2026-07-28. Each one silently breaks the obvious implementation:
+Live-probed against 0.7.5 on 2026-07-28, re-checked against 0.8.0 on 2026-08-07. Each one silently
+breaks the obvious implementation:
 
 1. **`agent.start` does not wait.** The CLI's help says success means the agent "is ready for input",
    but that is the CLI polling afterwards. The socket method returns in ~2 ms with
@@ -350,7 +351,10 @@ Live-probed against 0.7.5 on 2026-07-28. Each one silently breaks the obvious im
 2. **`agent.prompt` does not reliably submit.** A multi-line prompt lands in Claude Code's box as
    `[Pasted text #N +M lines]` and sits there; one `Enter` afterwards submits it untouched. Same
    class as the `send_text` + `send_keys` race HERDR_API.md already documents. Read the state back
-   and look (`promptAndConfirm()`).
+   and look (`promptAndConfirm()`). 0.8.0 narrows this upstream — herdr now waits briefly between
+   the text and its own Enter (#1878) — but `promptAndConfirm` stays exactly as it is: the modal
+   case it also covers is untouched, its Enter only fires when the agent is neither `working` nor
+   `blocked` (so a prompt that did land costs nothing), and the plugin still supports 0.7.x.
 3. **`agent_session` is absent by default.** It only appears once `herdr integration install claude`
    has planted its hook — not one agent pane in a plain install carried it, which means Collie's own
    pane History is unavailable by default too. The gauge falls back to resolving the transcript from

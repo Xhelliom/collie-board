@@ -71,9 +71,12 @@ export interface WirePane {
    * +1 is the trailing newline). Exact once scrollback exists; an OVER-estimate on a near-empty
    * screen, where trailing blank rows are trimmed from the read (0+31 → 4 lines read).
    *
-   * This is the only trustworthy "is there more to load" signal Herdr gives us — `PaneRead.truncated`
-   * is ALWAYS false, even when a read demonstrably cut scrollback off (200 requested of 6895
-   * available still reports `truncated: false`). Gate on this, never on `truncated`.
+   * Gate "is there more to load" on this, never on `PaneRead.truncated` — which is a lie on every
+   * server this plugin supports the floor of. Through 0.7.x it is ALWAYS false, even when a read
+   * demonstrably cut scrollback off (200 requested of 6895 available still reports
+   * `truncated: false`). 0.8.0 fixed it (upstream #1717, live-verified 2026-08-07: 5 of 66 lines →
+   * `true`, 100 of 66 → `false`), but `min_herdr_version` is 0.7.0, so switching would silently
+   * report "nothing more to fetch" to anyone on an older server. `scroll` is right on both.
    */
   scroll?: {
     offset_from_bottom: number;
