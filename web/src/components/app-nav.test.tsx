@@ -24,6 +24,7 @@ function baseData(overrides: Partial<HomeData> = {}): HomeData {
     copilotPaneId: null,
     session: undefined,
     snoozedUntil: null,
+    notifyCount: 0,
     update: undefined,
     error: false,
     authError: false,

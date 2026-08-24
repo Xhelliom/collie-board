@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
+import { createMemoryRouter, Outlet, RouterProvider, useLocation } from "react-router";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
 import { NotificationBell } from "@/components/notification-bell";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import type { NotifyLogEntry } from "@/lib/types";
 
 // The bell's whole job: open → show what pinged → land in the pane that pinged, in ITS session. The
@@ -52,11 +53,24 @@ function Landed() {
   return <div data-testid="landed">{pathname + search}</div>;
 }
 
-function mount() {
-  const router = createMemoryRouter([
-    { path: "/", element: <NotificationBell /> },
-    { path: "/pane/:paneId", element: <Landed /> },
-  ]);
+/** Nested under the root route, as in the real app: the badge count comes from its loader data. */
+function mount(notifyCount = 0) {
+  const home = { notifyCount } as HomeData;
+  const router = createMemoryRouter(
+    [
+      {
+        id: ROOT_ROUTE_ID,
+        path: "/",
+        loader: () => home,
+        element: <Outlet />,
+        children: [
+          { index: true, element: <NotificationBell /> },
+          { path: "pane/:paneId", element: <Landed /> },
+        ],
+      },
+    ],
+    { hydrationData: { loaderData: { [ROOT_ROUTE_ID]: home } } },
+  );
   render(<RouterProvider router={router} />);
 }
 
@@ -130,6 +144,18 @@ describe("NotificationBell", () => {
     expect(await screen.findByText("collie")).toBeInTheDocument();
     expect(screen.getByText("bumped the version and wrote the changelog")).toBeInTheDocument();
     expect(screen.queryByText(/Ship 0\.86/)).not.toBeInTheDocument();
+  });
+
+  test("wears the count as a badge, without opening (or fetching) anything", () => {
+    mount(3);
+    // The count rides the snapshot poll, so it's on screen before the sheet — and its fetch — exists.
+    expect(screen.getByRole("button", { name: "Notifications (3)" })).toHaveTextContent("3");
+    expect(calls).toBe(0);
+  });
+
+  test("no badge at all when nothing has pinged", () => {
+    mount(0);
+    expect(screen.getByRole("button", { name: "Notifications" })).toHaveTextContent("");
   });
 
   test("an entry can be deleted, and it stays gone across a close/reopen", async () => {

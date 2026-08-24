@@ -78,6 +78,8 @@ export interface HomeData {
   session: string | undefined;
   /** Active notification snooze deadline (epoch ms), or null when not snoozed. */
   snoozedUntil: number | null;
+  /** How many alerts the bridge's notification history holds — the bell's badge. 0 on an older bridge. */
+  notifyCount: number;
   /** Version / upgrade status for the footer update banner; undefined on an older bridge. */
   update: UpdateInfo | undefined;
   /** True when this render is the last-good snapshot after a failed refresh. */
@@ -168,6 +170,7 @@ function toHomeData(snap: SnapshotResponse, session: string | undefined, error: 
     copilotPaneId: snap.copilotPaneId ?? null,
     session,
     snoozedUntil: snap.notifications?.snoozedUntil ?? null,
+    notifyCount: snap.notifications?.count ?? 0,
     update: snap.update,
     error,
     authError: error && hasAuthError(session),
@@ -193,6 +196,7 @@ function staleHome(session: string | undefined): HomeData {
         copilotPaneId: null,
         session,
         snoozedUntil: null,
+        notifyCount: 0,
         update: undefined,
         error: true,
         authError: hasAuthError(session),

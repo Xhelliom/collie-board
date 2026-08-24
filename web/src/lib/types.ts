@@ -186,8 +186,9 @@ export interface SnapshotResponse {
   shellPanes: AgentView[];
   workspaces: WorkspaceView[];
   tabs: TabView[];
-  /** Notification quiet-hours: the active snooze deadline (epoch ms) or null. Absent on older bridges. */
-  notifications?: { snoozedUntil: number | null };
+  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many alerts the
+   *  history holds (the bell's badge). Absent on older bridges. */
+  notifications?: { snoozedUntil: number | null; count?: number };
   /** The bridge's session registry (primary-first). Absent on a single-session / older bridge. */
   sessions?: SessionSummary[];
   /** The copilot's own pane, when it has one. Absent/null on an older bridge or a disabled copilot. */

@@ -158,8 +158,9 @@ export interface SnapshotResponse {
    *  traffic out of the foreground toast, the same way the bridge already keeps it out of push and
    *  history. Optional — a bridge with the feature off, or predating it, simply omits it. */
   copilotPaneId?: string | null;
-  /** Notification quiet-hours: the active snooze deadline (epoch ms) or null. */
-  notifications?: { snoozedUntil: number | null };
+  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many alerts the
+   *  history holds — the bell's badge, so it needs no poll of its own. */
+  notifications?: { snoozedUntil: number | null; count?: number };
   /** Update-availability signal. Optional — a stale bridge that predates the field simply omits it,
    *  which the client reads as "no info" (see bridge/update.ts). */
   update?: UpdateStatus;
