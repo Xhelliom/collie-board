@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useRouteLoaderData } from "react-router";
 
 import { BottomSheet } from "@/components/ui/sheet";
 import { getNotifyLog } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEntry } from "@/lib/types";
 
@@ -19,16 +20,28 @@ import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEnt
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  // The badge count rides the snapshot poll (bridge sends notifications.count) rather than fetching
+  // the history — same reason the list itself doesn't: 50 entries every 1.5s to render one number.
+  const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
+  const count = root?.notifyCount ?? 0;
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Notifications"
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
+        aria-label={count > 0 ? `Notifications (${count})` : "Notifications"}
+        className="relative flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
       >
         <Bell className="size-[18px]" />
+        {count > 0 && (
+          <span
+            aria-hidden
+            className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-blocked px-1 text-[10px] font-bold tabular-nums text-white"
+          >
+            {count}
+          </span>
+        )}
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Notifications">
         {open && <NotifyLogList onPick={() => setOpen(false)} />}

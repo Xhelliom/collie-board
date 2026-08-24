@@ -191,7 +191,7 @@ export function startServer(opts: {
             // (operator-configurable via COLLIE_BOARD_COPILOT_WORKSPACE): a pane id can't be renamed
             // out from under this. Primary-only, like every other card/copilot fact.
             copilotPaneId: rt.isPrimary ? copilot.paneId : null,
-            notifications: { snoozedUntil: snooze.until() },
+            notifications: { snoozedUntil: snooze.until(), count: notifyLog.count() },
             update: updateMonitor.status(),
             ts: Date.now(),
           } satisfies SnapshotResponse, req.headers.get("accept-encoding")),

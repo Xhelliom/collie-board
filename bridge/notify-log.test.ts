@@ -30,6 +30,8 @@ describe("NotifyLog", () => {
 
     const kept = log.recent();
     expect(kept).toHaveLength(NOTIFY_LOG_MAX);
+    // The bell's badge reads count() off the snapshot — it must cap with the ring, not keep climbing.
+    expect(log.count()).toBe(NOTIFY_LOG_MAX);
     expect(kept[0]?.paneId).toBe(`w1:p${NOTIFY_LOG_MAX + 9}`);
     expect(kept.at(-1)?.paneId).toBe("w1:p10");
   });

@@ -61,6 +61,7 @@ function homeData(update: UpdateInfo | undefined): HomeData {
     copilotPaneId: null,
     session: undefined,
     snoozedUntil: null,
+    notifyCount: 0,
     update,
     error: false,
     authError: false,

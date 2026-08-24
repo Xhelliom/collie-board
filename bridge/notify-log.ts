@@ -53,6 +53,11 @@ export class NotifyLog {
     return [...this.entries];
   }
 
+  /** How many alerts the ring holds — the bell's badge, carried on every snapshot poll. */
+  count(): number {
+    return this.entries.length;
+  }
+
   /**
    * Patch the copilot-authored subtitle onto the entry it belongs to, once it answers. Matched by
    * paneId + status (not an id the caller never had) against the NEWEST such entry — the one the
