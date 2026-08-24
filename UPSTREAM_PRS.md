@@ -558,8 +558,8 @@ the pane that asked. The alert is the only record, and it deletes itself.
 
 | | |
 |---|---|
-| Commit | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* |
-| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
+| Commits | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* · `9a022c6` (the badge) |
+| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route, plus `notifications.count` on the snapshot), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/lib/loaders.ts` (`notifyCount` on `HomeData`), `web/src/components/app-header.tsx` (one mount) |
 | Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
 
 **Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
@@ -576,6 +576,11 @@ state — the thing this history exists to survive is the *notification*, not th
 
 **Fetched when the sheet opens.** The snapshot poll runs every 1.5s and fifty entries in it would be
 a permanent tax on a list you consult occasionally.
+
+**The badge is one integer on the snapshot, not the history.** The same arithmetic that keeps the
+list off the poll (fifty entries every 1.5s) puts the *count* on it: it's the one thing you need
+without opening anything, it costs a field, and it hangs off a poll that already runs — the bell
+never grows a loop of its own.
 
 **A notification that arrived while the app was open lands here too** — the bridge records the alert
 it pushed, and whether a visible client made the service worker suppress the banner is downstream of

@@ -31,17 +31,17 @@ What was touched in upstream files, and why — this list is the thing to keep s
 
 | File | Change |
 |---|---|
-| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
+| `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` route and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
 | `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks; the `NotifyLog` and its coordinator hook — brick 18 in the ledger |
 | `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger |
 | `bridge/config.ts` | the `board*` config block |
 | `systemd/collie-board.service` · `scripts/collie-board-ctl.sh` (unit heredoc) | `PrivateTmp=yes` removed — a `--user` unit can only mount inside a user namespace, where ssh refuses every root-owned config and no `git push` runs ([ADR 0008](./.adr/0008-the-user-unit-cannot-have-a-mount-namespace.md)) |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |
 | `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor; `toolImagePath()` + the tool part's `image` field — brick 21 in the ledger |
-| `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3) |
+| `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3); `notifications.count` — brick 18 in the ledger |
 | `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20; `fetchGallery()` + `galleryImageUrl()` — brick 21 |
-| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref; `galleryLoader` — brick 21 in the ledger |
-| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` — brick 18 in the ledger; the tool part's `image` and `GalleryImage` — brick 21 |
+| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref; `galleryLoader` — brick 21 in the ledger; `HomeData.notifyCount` — brick 18 |
+| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` + `notifications.count` — brick 18 in the ledger; the tool part's `image` and `GalleryImage` — brick 21 |
 | `web/src/router.tsx` | three routes; a per-leaf `errorElement` |
 | `web/src/routes/home.tsx` | a Board row; the screen's `<h1>` |
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger; the ⋯ sheet's `Images` row — brick 21 |
