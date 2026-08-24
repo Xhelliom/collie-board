@@ -527,19 +527,17 @@ export function CardRoute() {
 
                 <Section label="Classer">
                   <div className="flex flex-wrap gap-2">
-                    {MANUAL_STATUSES.filter((s) => s !== card.status)
-                      .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
-                      .map((s) => (
-                        <Button
-                          key={s}
-                          variant="outline"
-                          size="sm"
-                          className="h-9 rounded-full"
-                          onClick={() => move(s)}
-                        >
-                          {CARD_STATUS_LABEL[s]}
-                        </Button>
-                      ))}
+                    {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
+                      <Button
+                        key={s}
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-full"
+                        onClick={() => move(s)}
+                      >
+                        {CARD_STATUS_LABEL[s]}
+                      </Button>
+                    ))}
                     {/* The one thing "Classer" could not do: rank the card WITHIN its column. Same
                         row as the columns because it answers the same question ("where does this
                         go"), and separated by an icon because it is the only one that stays put. */}
@@ -555,10 +553,17 @@ export function CardRoute() {
                       </Button>
                     )}
                   </div>
+                  {/* A warning, not a gate: this used to HIDE "Done", which left no way to file a
+                      card whose work was merged outside the app (a squash or a rebase lands the
+                      commits under new hashes, so `ahead` never reaches 0 and the button never came
+                      back). The hazard it warns about is real — filing sends the agent away — but
+                      only the operator knows whether the work is in. */}
                   {integration && integration.ahead > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
-                      Done sits below, with the merge — filing this card would send its agent away, and
-                      that agent is who settles a merge conflict.
+                      Done also files the card — {integration.ahead} commit
+                      {integration.ahead === 1 ? "" : "s"} are not in {integration.base} yet, and
+                      filing sends away the agent who would settle a merge conflict. Merge below
+                      instead, unless the work already landed some other way.
                     </p>
                   )}
                 </Section>
