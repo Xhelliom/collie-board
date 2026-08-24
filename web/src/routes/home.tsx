@@ -7,6 +7,7 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { AgentList } from "@/components/agent-list";
 import { StatusArea } from "@/components/status-area";
 import { UpdateBanner } from "@/components/update-banner";
+import { UsageGauge } from "@/components/usage-gauge";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 
@@ -47,6 +48,10 @@ export function HomeRoute() {
         <main className="flex-1 px-4 py-5 lg:px-5 lg:py-6">
           <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} />
         </main>
+
+        {/* How much Claude Code quota is left. Below the triage, not above it: this screen answers
+            "which agent needs me" first, and a quota reading is context for that, not the answer. */}
+        <UsageGauge className="px-4 pb-1 lg:px-5" />
 
         {/* An available update / needed restart. The build stamp moved to Settings + the sidebar
             footer (app-nav.tsx) — it no longer needs a home of its own here too. */}
