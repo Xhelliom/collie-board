@@ -71,6 +71,10 @@ export class StateEngine {
   private tabs: TabView[] = [];
   private bridge: BridgeStatus = "disconnected";
   private readonly prevStatus = new Map<string, AgentStatus>();
+  // paneId → when its CURRENT status was entered (epoch ms). Only a real transition writes here, so
+  // a pane first seen already idle/done stays absent rather than claiming it just switched — the UI
+  // omits the age instead of inventing one. In memory only (`session` ephemeral), dropped with the pane.
+  private readonly statusSince = new Map<string, number>();
   // Last-known claude `/rename` session name per pane. Kept sticky so the name doesn't flicker away
   // when a pane momentarily hides its input box (a dialog / working spinner) — only cleared when the
   // pane itself vanishes (see the removal loop). Enriched from pane text each poll (see enrichSessionNames).
@@ -273,14 +277,18 @@ export class StateEngine {
       for (const a of agents) {
         const prev = this.prevStatus.get(a.paneId);
         if (prev !== undefined && prev !== a.status) {
+          this.statusSince.set(a.paneId, Date.now());
           for (const fn of this.transitionListeners) fn(a, prev, a.status);
         }
         this.prevStatus.set(a.paneId, a.status);
+        const since = this.statusSince.get(a.paneId);
+        if (since !== undefined) a.statusSince = since;
       }
       const live = new Set(agents.map((a) => a.paneId));
       for (const id of [...this.prevStatus.keys()]) {
         if (live.has(id)) continue;
         this.prevStatus.delete(id);
+        this.statusSince.delete(id);
         this.sessionNames.delete(id); // drop the cached name so a reused pane id starts clean
         for (const fn of this.removeListeners) fn(id);
       }
