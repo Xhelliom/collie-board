@@ -9,7 +9,8 @@
 //   merge    — `git merge --no-ff` into the base, in the main checkout. Nothing is pushed.
 //   pr       — push the branch, then `gh pr create`. The base is never touched.
 //   resolve  — hand a conflict to the card's own agent, to settle on its own branch.
-//   cleanup  — close the pane, remove the worktree, delete the branch. Refused unless integrated.
+//   cleanup  — close the pane, remove the worktree, delete the branch. Refused unless the commits
+//              are somewhere else: merged into the base, or pushed to the branch's upstream.
 //   discard  — the same, on work that will NEVER be integrated. The one destructive gesture.
 //
 // EVERY ONE BUT THE LAST REFUSES BEFORE IT ACTS. The gate is `refusalFor` in git.ts, and it is
@@ -90,10 +91,10 @@ export async function integrationFor(card: Card): Promise<Integration | null> {
   return await integrationOf(card.repoPath, card.branch, card.baseRef);
 }
 
-/** Read the state and apply the shared gate. Every action below starts here. */
+/** Read the state and apply the shared gate. Cleanup reads the state itself, so it asks directly. */
 async function gate(
   card: Card,
-  action: "merge" | "pr" | "cleanup",
+  action: "merge" | "pr",
 ): Promise<{ ok: true; state: Integration } | { ok: false; error: IntegrateError }> {
   const state = await integrationFor(card);
   const refusal = refusalFor(state, action);
@@ -237,8 +238,8 @@ export async function resolveConflict(
  *
  * Ordered so that a failure never leaves a worse state than it found: the pane goes first (a closed
  * pane is recoverable — the worktree is still there), then the checkout, then the branch. The branch
- * delete uses `git branch -d`, so git itself refuses one that isn't merged even if our own gate ever
- * stopped doing so.
+ * delete uses `git branch -d`, which enforces the same rule as our own gate — merged into the base,
+ * or pushed — one step later and in git rather than in us.
  */
 /**
  * Refuse cleanup while the card's closing report is still in flight.
@@ -258,15 +259,17 @@ export function wrapupGate(lastSession: CardSession | null): IntegrateError | nu
 }
 
 /**
- * Repoint every card forked from `deletedBranch` to `resolvedBase`, the ref cleanup just proved it
- * to be fully contained in (the cleanup gate refuses unless `ahead === 0`).
+ * Repoint every card forked from `deletedBranch` to `resolvedBase`, the ref the cleanup gate just
+ * checked it against.
  *
  * A dependent card's `baseRef` is persisted as the predecessor's branch name, frozen at fork time
  * (`cards.ts`). Deleting that branch here would otherwise leave it dangling forever: `resolveBase`
  * (git.ts) can't resolve a ref that no longer exists and silently falls back to `HEAD`, which empties
  * every diff and integration check the dependent ever shows again — with no error, just a card that
- * looks finished and offers no merge or PR. Repointing to `resolvedBase` changes nothing about what
- * the dependent's diff contains, since every commit reachable from `deletedBranch` is already in it.
+ * looks finished and offers no merge or PR. Repointing to `resolvedBase` changes nothing about the
+ * dependent's diff when the predecessor was merged; when it was only PUSHED (cleaned up behind an
+ * open PR), the predecessor's commits show up in the dependent's diff until that PR lands, which is
+ * the honest reading — they really are not in the base yet.
  */
 export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string): void {
   for (const dependent of db.listCards({ includeArchived: true })) {
@@ -292,8 +295,9 @@ export async function cleanupCard(
 ): Promise<Result<{ branch: string; discarded: number }>> {
   const state = await integrationFor(card);
   if (!opts.discard) {
-    const checked = await gate(card, "cleanup");
-    if (!checked.ok) return checked;
+    // `refusalFor` rather than `gate`, which would re-read the state we already have.
+    const blocked = refusalFor(state, "cleanup");
+    if (blocked) return { ok: false, error: { kind: "refused", message: refusalMessage(blocked, state) } };
     // `discard` is exempt on purpose: it is the one gesture that already means "I know, throw it away
     // anyway", and gating it too would defeat that escape hatch.
     const refusal = wrapupGate(lastSessionOf(db, card.id));

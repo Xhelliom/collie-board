@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "
 import {
   ArrowDown,
   ArrowUp,
+  Bug,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -79,6 +80,7 @@ import {
   type Integration,
 } from "@/lib/board";
 import { dependencyInfo, dependencyMet, integrationHistory, prLabel } from "@/lib/board-groups";
+import { commandsFor } from "@/lib/agent-commands";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
@@ -525,19 +527,17 @@ export function CardRoute() {
 
                 <Section label="Classer">
                   <div className="flex flex-wrap gap-2">
-                    {MANUAL_STATUSES.filter((s) => s !== card.status)
-                      .filter((s) => s !== "done" || !(integration && integration.ahead > 0))
-                      .map((s) => (
-                        <Button
-                          key={s}
-                          variant="outline"
-                          size="sm"
-                          className="h-9 rounded-full"
-                          onClick={() => move(s)}
-                        >
-                          {CARD_STATUS_LABEL[s]}
-                        </Button>
-                      ))}
+                    {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
+                      <Button
+                        key={s}
+                        variant="outline"
+                        size="sm"
+                        className="h-9 rounded-full"
+                        onClick={() => move(s)}
+                      >
+                        {CARD_STATUS_LABEL[s]}
+                      </Button>
+                    ))}
                     {/* The one thing "Classer" could not do: rank the card WITHIN its column. Same
                         row as the columns because it answers the same question ("where does this
                         go"), and separated by an icon because it is the only one that stays put. */}
@@ -553,10 +553,17 @@ export function CardRoute() {
                       </Button>
                     )}
                   </div>
+                  {/* A warning, not a gate: this used to HIDE "Done", which left no way to file a
+                      card whose work was merged outside the app (a squash or a rebase lands the
+                      commits under new hashes, so `ahead` never reaches 0 and the button never came
+                      back). The hazard it warns about is real — filing sends the agent away — but
+                      only the operator knows whether the work is in. */}
                   {integration && integration.ahead > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
-                      Done sits below, with the merge — filing this card would send its agent away, and
-                      that agent is who settles a merge conflict.
+                      Done also files the card — {integration.ahead} commit
+                      {integration.ahead === 1 ? "" : "s"} are not in {integration.base} yet, and
+                      filing sends away the agent who would settle a merge conflict. Merge below
+                      instead, unless the work already landed some other way.
                     </p>
                   )}
                 </Section>
@@ -737,6 +744,19 @@ export function CardRoute() {
                         </Card>
                       ))}
                     </div>
+                  </Section>
+                )}
+
+                {card.status === "review" && (
+                  <Section label="Review pass">
+                    <ReviewPass
+                      card={card}
+                      onRun={async (command) => {
+                        await promptCard(card.id, command);
+                        setStatus(`${command} sent — it runs in this card's agent.`, "success");
+                        revalidator.revalidate();
+                      }}
+                    />
                   </Section>
                 )}
 
@@ -1032,12 +1052,10 @@ function IntegrationSection({
             )}
           </span>
         )}
-        {/* Second-hand evidence, and worth saying so: cleanup is refused unless nothing was left to
-            integrate, so it landed even when the merge itself happened outside the board. */}
-        {past.cleanedUp && !past.merged && (
-          <span>Worktree cleaned up {timeAgo(past.cleanedUp)} — the branch was fully integrated.</span>
-        )}
-        {past.cleanedUp && past.merged && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
+        {/* No claim about WHERE the work went: cleanup takes a branch that is merged OR merely
+            pushed, so "cleaned up" alone is all this can honestly say. The merge/PR lines above are
+            the evidence, when there is any. */}
+        {past.cleanedUp && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
         {past.discarded && (
           <span>
             Discarded {timeAgo(past.discarded.ts)} — {past.discarded.commits} commit
@@ -1479,6 +1497,78 @@ function SessionRow({
  * goes prominent past the threshold) but a handoff fired mid-refactor costs more than it saves, so
  * the decision is always this tap.
  */
+/**
+ * The two review passes Claude Code already ships. Nothing here writes a review of its own — it
+ * hands the card's OWN agent a slash command, which is why the pass lands on the card's branch and
+ * worktree with no path for the UI to get wrong, and why the output is readable in that pane.
+ */
+const REVIEW_PASSES = [
+  { command: "/simplify", label: "Simplify", Icon: Sparkles },
+  { command: "/code-review", label: "Find bugs", Icon: Bug },
+] as const;
+
+/**
+ * Under the review, the obvious next tap: run a pass over what the card actually changed.
+ *
+ * Gated on the agent's own catalog rather than assumed — `/simplify` typed into a Codex pane is a
+ * line of noise, not a review. A card in review normally still has its pane (review is a landing,
+ * not a reading of the pane — see `reconcileOne`), so the missing-agent case is the exception and
+ * says what to do about it.
+ */
+export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: string) => Promise<void> }) {
+  const [pending, setPending] = useState<string | null>(null);
+
+  if (!card.runtime) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        This card's agent is gone — relaunch it on the branch to run a pass over its code.
+      </p>
+    );
+  }
+  const catalog = commandsFor(card.runtime.agent);
+  const passes = REVIEW_PASSES.filter((p) => catalog.some((c) => c.command === p.command));
+  if (passes.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        {card.runtime.agent} has no review pass to run — these are Claude Code's.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {passes.map(({ command, label, Icon }) => (
+          <Button
+            key={command}
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2"
+            disabled={pending !== null}
+            onClick={async () => {
+              setPending(command);
+              try {
+                await onRun(command);
+              } catch (e) {
+                setStatus((e as Error).message, "error", null);
+              } finally {
+                setPending(null);
+              }
+            }}
+          >
+            <Icon className="size-4" />
+            {pending === command ? "Sending…" : label}
+          </Button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Runs in this card's agent, on its branch. Follow it in the pane above — the journal records
+        which pass you asked for.
+      </p>
+    </div>
+  );
+}
+
 function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => Promise<void> }) {
   const [pending, setPending] = useState(false);
   const requested = card.session?.handoffRequestedAt != null;

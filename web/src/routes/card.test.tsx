@@ -7,6 +7,7 @@ import {
   noteLabel,
   PromptBox,
   resolveWatchStep,
+  ReviewPass,
   SubtaskActionsSheet,
   SubtaskProgress,
   topOfColumn,
@@ -233,5 +234,49 @@ describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
     renderSheet(rows.length - 1);
     expect(screen.getByRole("button", { name: "Monter" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Descendre" })).toBeNull();
+  });
+});
+
+// The whole point of the pass buttons is that they hand the card's OWN agent a command it actually
+// has — a `/simplify` typed into a Codex pane is a line of noise, and one sent to a card whose pane
+// is gone is a 409 the UI could have foreseen.
+describe("ReviewPass", () => {
+  function withAgent(agent: string | null): CardView {
+    const c = card("review");
+    if (agent === null) return c;
+    return {
+      ...c,
+      runtime: {
+        paneId: "p1",
+        agent,
+        agentStatus: "idle",
+        cwd: "/w",
+        workspaceId: "w1",
+        workspaceLabel: "w",
+      },
+    };
+  }
+
+  it("sends the command the tapped pass names", async () => {
+    const onRun = vi.fn().mockResolvedValue(undefined);
+    render(<ReviewPass card={withAgent("claude")} onRun={onRun} />);
+    await userEvent.click(screen.getByRole("button", { name: /find bugs/i }));
+    expect(onRun).toHaveBeenCalledWith("/code-review");
+    await userEvent.click(screen.getByRole("button", { name: /simplify/i }));
+    expect(onRun).toHaveBeenCalledWith("/simplify");
+    cleanup();
+  });
+
+  it("offers nothing to tap when the agent has no such commands", () => {
+    render(<ReviewPass card={withAgent("codex")} onRun={vi.fn()} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    cleanup();
+  });
+
+  it("says what to do instead when the card's agent is gone", () => {
+    render(<ReviewPass card={withAgent(null)} onRun={vi.fn()} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText(/relaunch it on the branch/i)).toBeTruthy();
+    cleanup();
   });
 });

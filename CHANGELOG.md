@@ -7,6 +7,30 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.113.2] - 2026-08-24
+
+### Fixed
+- "Open a PR & done" now closes the worktree and the session like "Merge & done" does — cleanup accepts a branch whose commits are on its upstream, and still honours "Keep this worktree". (fe19fea)
+- Card page: the cleanup line in the branch history no longer claims the branch "was fully integrated" — it can now be merely pushed. (fe19fea)
+
+## [0.113.1] - 2026-08-24
+
+### Fixed
+- Card page: "Done" stays offerable while the branch looks unmerged — work merged outside the app (squash/rebase) can now be filed. (367ca2c)
+
+## [0.113.0] - 2026-08-24
+
+### Added
+- Card in review: a **Review pass** section under the review runs `/simplify` or `/code-review` in the card's own agent, on its branch. (de16c69)
+
+### Changed
+- Journal names the slash command a prompt carried (`Ran /simplify`) instead of "Follow-up instruction sent". (de16c69)
+
+## [0.112.1] - 2026-08-24
+
+### Fixed
+- Herd triage cards no longer overflow the viewport — the grid items couldn't shrink below their untruncated text (558e925).
+
 ## [0.112.0] - 2026-08-24
 
 ### Changed

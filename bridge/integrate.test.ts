@@ -47,6 +47,7 @@ const state = (over: Partial<Integration> = {}): Integration => ({
   baseDirty: false,
   branchDirty: false,
   baseCheckedOut: true,
+  pushed: false,
   ...over,
 });
 
@@ -123,12 +124,16 @@ describe("refusalFor — the gate all three writes share", () => {
     expect(refusalFor(state({ baseDirty: true, baseCheckedOut: false }), "pr")).toBeNull();
   });
 
-  it("REFUSES CLEANUP while the branch still holds commits, or uncommitted work", () => {
-    // The one irreversible action of the three: both of these would delete work that exists nowhere
-    // else, and `git branch -d` is only the second lock on that door.
+  it("REFUSES CLEANUP of commits that exist nowhere else — but pushed IS somewhere else", () => {
+    // The one irreversible action of the three, so what it turns on is whether the commits survive
+    // the branch. `ahead > 0` alone used to be the refusal, which left every "done & pr" card
+    // holding its worktree and its pane forever: a PR'd branch is ahead of the base by definition.
     expect(refusalFor(state({ ahead: 2 }), "cleanup")).toBe("not-merged");
-    expect(refusalFor(state({ ahead: 0, branchDirty: true }), "cleanup")).toBe("branch-dirty");
+    expect(refusalFor(state({ ahead: 2, pushed: true }), "cleanup")).toBeNull();
     expect(refusalFor(state({ ahead: 0 }), "cleanup")).toBeNull();
+    // Uncommitted work is on no remote, pushed or not.
+    expect(refusalFor(state({ ahead: 0, branchDirty: true }), "cleanup")).toBe("branch-dirty");
+    expect(refusalFor(state({ ahead: 2, pushed: true, branchDirty: true }), "cleanup")).toBe("branch-dirty");
   });
 
   it("refuses everything on a card with no branch", () => {
@@ -169,7 +174,26 @@ describe("integrationOf", () => {
       baseDirty: false,
       branchDirty: false,
       baseCheckedOut: true,
+      pushed: false,
     });
+  });
+
+  it("reads `pushed` off the branch's upstream, and says no when there is none", async () => {
+    const table = {
+      "rev-parse --abbrev-ref": { stdout: "main\n" },
+      "rev-list --count --left-right": { stdout: "0\t2\n" },
+      "worktree list": { stdout: "" },
+      status: { stdout: "" },
+    };
+    for (const [upstream, want] of [
+      [{ stdout: "0\n" }, true],
+      [{ stdout: "1\n" }, false],
+      // No upstream at all: git exits non-zero, and "nothing pushed" is the right reading.
+      [{ ok: false }, false],
+    ] as const) {
+      const { git } = fakeGit({ ...table, "rev-list --count board/x@{upstream}": upstream });
+      expect((await integrationOf("/repo", "board/x", "main", git))!.pushed).toBe(want);
+    }
   });
 
   it("falls back to the checkout's current branch when the card names no base", async () => {
