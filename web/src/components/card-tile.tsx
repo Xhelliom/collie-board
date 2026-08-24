@@ -109,9 +109,8 @@ export function CardTile({
   source?: string;
   /**
    * The repo this card belongs to, named — only when the board is showing every repo at once and
-   * more than one is in play, OR the status row has nothing else to say (a quiet column). Under a
-   * repo scope the strip above says it once for the whole board, and repeating it on every tile
-   * would be a column of the same word.
+   * more than one is in play. Under a repo scope the strip above says it once for the whole board,
+   * and repeating it on every tile would be a column of the same word.
    */
   repo?: string;
   /**
@@ -197,9 +196,16 @@ export function CardTile({
                 <span className={cn("size-1.5 rounded-full", named.dot)} />
                 {CARD_STATUS_LABEL[card.status]}
               </span>
-            ) : repo ? (
-              <span className="truncate font-mono text-[11px] text-muted-foreground">{repo}</span>
             ) : null}
+            {/* The repo, always — next to the status chip on a live card, alone in the row on a
+                quiet one. A "To review" column that says four cards are waiting but not WHICH repo
+                they came out of makes you open each one to find out; the chip and the repo answer
+                different questions, so they share the row instead of taking turns. */}
+            {repo && (
+              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">
+                {repo}
+              </span>
+            )}
             {/* Same fact the open card states in full ("the copilot has this card"), same field —
                 here it only has to answer "why is this one still a bare title" from across the
                 board. Pulsing, because it ends on its own. */}
