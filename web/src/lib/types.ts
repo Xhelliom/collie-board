@@ -186,7 +186,7 @@ export interface SnapshotResponse {
   shellPanes: AgentView[];
   workspaces: WorkspaceView[];
   tabs: TabView[];
-  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many alerts the
+  /** Notifications: the active snooze deadline (epoch ms) or null, plus how many UNREAD alerts the
    *  history holds (the bell's badge). Absent on older bridges. */
   notifications?: { snoozedUntil: number | null; count?: number };
   /** The bridge's session registry (primary-first). Absent on a single-session / older bridge. */
@@ -337,6 +337,8 @@ export interface NotifyLogEntry {
    *  answers — absent when the copilot subtitle is off, disabled, or hadn't answered yet when this
    *  entry aged out of the bridge's 50-entry ring. */
   subtitle?: string;
+  /** Set when you tap the entry — the bell's badge only counts what is still unread. */
+  read?: boolean;
 }
 
 /** Lower sorts first — "needs you" at the top. Mirrors STATUS_RANK on the server. */

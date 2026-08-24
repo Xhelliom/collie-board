@@ -31,6 +31,9 @@ export interface NotifyLogEntry {
    *  history is the trace of what pinged, and quiet-hours or not is decided before enrichment could
    *  ever land), then upgraded in place if a subtitle arrives before something newer replaces it. */
   subtitle?: string;
+  /** Set the moment you tap the entry — the badge counts what is still unread. Lives with the rest
+   *  of the entry, so it survives a page reload and dies with the bridge, like everything else here. */
+  read?: boolean;
 }
 
 /** Entries kept. Two screens' worth of history — past that, the ping stopped being findable anyway. */
@@ -53,9 +56,15 @@ export class NotifyLog {
     return [...this.entries];
   }
 
-  /** How many alerts the ring holds — the bell's badge, carried on every snapshot poll. */
+  /** How many UNREAD alerts the ring holds — the bell's badge, carried on every snapshot poll. */
   count(): number {
-    return this.entries.length;
+    return this.entries.reduce((n, e) => n + (e.read ? 0 : 1), 0);
+  }
+
+  /** Mark one entry read — the bell's tap. Unknown id (already dismissed, or aged out) is a no-op. */
+  markRead(id: number): void {
+    const entry = this.entries.find((e) => e.id === id);
+    if (entry) entry.read = true;
   }
 
   /** Forget one entry — the bell's dismiss. Unknown id (already gone, or aged out) is a no-op. */

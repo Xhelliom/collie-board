@@ -366,6 +366,11 @@ export function deleteNotifyLogEntry(id: number): Promise<void> {
   return req<void>(`/api/notifications/log/${id}`, { method: "DELETE" });
 }
 
+/** Mark one entry read — the bell's tap, and what its badge stops counting. Idempotent on the bridge. */
+export function markNotifyLogEntryRead(id: number): Promise<void> {
+  return req<void>(`/api/notifications/log/${id}/read`, { method: "POST" });
+}
+
 /** Fetch the bridge-wide notification-type preferences (which agent statuses push). */
 export function getNotifyPrefs(): Promise<NotifyPrefs> {
   return req<NotifyPrefs>("/api/notifications/prefs");
