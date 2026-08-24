@@ -742,7 +742,7 @@ is one terminal away — which is the one place a phone is not.
 
 | | |
 |---|---|
-| Commits | `9cb5d0b` (the gauge) · `0d6816f` (resolve the CLI, PATH is not enough) |
+| Commits | `9cb5d0b` (the gauge) · `0d6816f` (resolve the CLI, PATH is not enough) · `dbf1ba9` (count up, not down) |
 | Files | `bridge/usage.ts` (+ test), `web/src/components/usage-gauge.tsx` (+ test), one route, one line on the dashboard |
 | Extraction | **Clean cherry-pick.** No card in sight: a subprocess, a regex and a gauge. Only the route's home moves — the fork hangs it off `/api/board/usage` because that prefix is already dispatched; upstream would give it `/api/usage` in `server.ts`. |
 
