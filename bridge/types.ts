@@ -65,6 +65,13 @@ export interface AgentView {
    */
   ctxPct?: number;
   ctxTokens?: number;
+  /**
+   * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
+   * Set only by an observed transition: a pane already idle/done when the bridge started has no
+   * known switch-over instant and so carries no field — the UI then shows no age rather than a
+   * fabricated one. Runtime state, in memory only, gone when the pane goes.
+   */
+  statusSince?: number;
 }
 
 /**

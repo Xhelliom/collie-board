@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { ShellBadge, StatusBadge, StatusDot } from "@/components/status-badge";
 import { AgentIcon } from "@/components/agent-icon";
 import { CtxBar } from "@/components/ctx-bar";
-import { shortCwd } from "@/lib/format";
+import { shortCwd, timeAgo } from "@/lib/format";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
@@ -18,9 +18,21 @@ import type { AgentView } from "@/lib/types";
 // different urgencies (loud → medium → bare row), not one card reused three times at different
 // tints. This one stays as the space view's card: every pane in a tab is equally "current", so
 // there is no urgency ranking to express there.
+/**
+ * "5m ago" for a SETTLED pane — how long it has been idle / done, so a session that just finished
+ * reads differently from one that has been sitting there all afternoon. Only idle/done (the note
+ * asks nothing for the others), and only when the bridge actually witnessed the switch: an unknown
+ * instant renders nothing rather than a made-up duration (see `AgentView.statusSince`).
+ */
+function settledFor(agent: AgentView): string | null {
+  if (agent.status !== "idle" && agent.status !== "done") return null;
+  return agent.statusSince === undefined ? null : timeAgo(agent.statusSince);
+}
+
 export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () => void }) {
   const isShell = agent.kind === "shell";
   const blocked = agent.status === "blocked";
+  const settled = settledFor(agent);
   return (
     <button
       type="button"
@@ -71,6 +83,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
             {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
         </div>
+        {settled && <span className="shrink-0 text-[11px] text-muted-foreground">{settled}</span>}
         {isShell ? <ShellBadge /> : <StatusBadge status={agent.status} />}
         <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
       </Card>
@@ -155,6 +168,7 @@ export function WorkingCard({ agent, onClick }: { agent: AgentView; onClick: () 
  *  settled pane earns the least ink of the three. */
 export function IdleDoneRow({ agent, onClick }: { agent: AgentView; onClick: () => void }) {
   const isShell = agent.kind === "shell";
+  const settled = settledFor(agent);
   return (
     <button
       type="button"
@@ -178,8 +192,11 @@ export function IdleDoneRow({ agent, onClick }: { agent: AgentView; onClick: () 
       <span className="w-16 shrink-0 truncate font-mono text-[11px] text-muted-foreground sm:w-20 lg:w-24">
         {repoName(agent.cwd)}
       </span>
+      {/* The state, and — when we know it — how long it has held. Same span: the age is a footnote
+          on the state, not a column of its own. */}
       <span className="shrink-0 truncate font-mono text-[11px] text-muted-foreground">
         {isShell ? "shell" : STATUS_LABEL[agent.status]}
+        {settled && ` · ${settled}`}
       </span>
     </button>
   );
