@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.112.0] - 2026-08-24
+
+### Changed
+- The quota gauge rests as one line — the limit closest to its wall — and opens on tap; the bar thickens from 3 to 6 px at the amber threshold and the card opens itself past 85 % (e56e817).
+
 ## [0.111.2] - 2026-08-24
 
 ### Fixed
