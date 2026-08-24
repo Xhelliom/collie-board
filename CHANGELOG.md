@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.112.0] - 2026-08-24
+
+### Added
+- Card in review: a **Review pass** section under the review runs `/simplify` or `/code-review` in the card's own agent, on its branch. (de16c69)
+
+### Changed
+- Journal names the slash command a prompt carried (`Ran /simplify`) instead of "Follow-up instruction sent". (de16c69)
+
 ## [0.111.1] - 2026-08-24
 
 ### Fixed
