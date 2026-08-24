@@ -371,6 +371,11 @@ export function markNotifyLogEntryRead(id: number): Promise<void> {
   return req<void>(`/api/notifications/log/${id}/read`, { method: "POST" });
 }
 
+/** Mark the whole history read — the bell's "mark all read". Marks only: nothing leaves the list. */
+export function markAllNotifyLogRead(): Promise<void> {
+  return req<void>("/api/notifications/log/read-all", { method: "POST" });
+}
+
 /** Fetch the bridge-wide notification-type preferences (which agent statuses push). */
 export function getNotifyPrefs(): Promise<NotifyPrefs> {
   return req<NotifyPrefs>("/api/notifications/prefs");
