@@ -53,6 +53,12 @@ export class NotifyLog {
     return [...this.entries];
   }
 
+  /** Forget one entry — the bell's dismiss. Unknown id (already gone, or aged out) is a no-op. */
+  remove(id: number): void {
+    const i = this.entries.findIndex((e) => e.id === id);
+    if (i !== -1) this.entries.splice(i, 1);
+  }
+
   /**
    * Patch the copilot-authored subtitle onto the entry it belongs to, once it answers. Matched by
    * paneId + status (not an id the caller never had) against the NEWEST such entry — the one the
