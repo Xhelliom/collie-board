@@ -889,7 +889,10 @@ async function route(
     } catch (err) {
       return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
     }
-    db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true });
+    // A bare slash command is the whole instruction, so name it: "Follow-up instruction sent" is
+    // useless for finding the review pass you launched two hours ago. Free text stays a char count.
+    const command = /^\/[\w-]+$/.test(promptText.trim()) ? promptText.trim() : undefined;
+    db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, ...(command ? { command } : {}) });
     ctx.audit.record({
       action: "card.prompt",
       paneId: session.paneId,

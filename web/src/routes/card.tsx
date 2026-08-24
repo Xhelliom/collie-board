@@ -3,6 +3,7 @@ import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "
 import {
   ArrowDown,
   ArrowUp,
+  Bug,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -79,6 +80,7 @@ import {
   type Integration,
 } from "@/lib/board";
 import { dependencyInfo, dependencyMet, integrationHistory, prLabel } from "@/lib/board-groups";
+import { commandsFor } from "@/lib/agent-commands";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
@@ -737,6 +739,19 @@ export function CardRoute() {
                         </Card>
                       ))}
                     </div>
+                  </Section>
+                )}
+
+                {card.status === "review" && (
+                  <Section label="Review pass">
+                    <ReviewPass
+                      card={card}
+                      onRun={async (command) => {
+                        await promptCard(card.id, command);
+                        setStatus(`${command} sent — it runs in this card's agent.`, "success");
+                        revalidator.revalidate();
+                      }}
+                    />
                   </Section>
                 )}
 
@@ -1479,6 +1494,78 @@ function SessionRow({
  * goes prominent past the threshold) but a handoff fired mid-refactor costs more than it saves, so
  * the decision is always this tap.
  */
+/**
+ * The two review passes Claude Code already ships. Nothing here writes a review of its own — it
+ * hands the card's OWN agent a slash command, which is why the pass lands on the card's branch and
+ * worktree with no path for the UI to get wrong, and why the output is readable in that pane.
+ */
+const REVIEW_PASSES = [
+  { command: "/simplify", label: "Simplify", Icon: Sparkles },
+  { command: "/code-review", label: "Find bugs", Icon: Bug },
+] as const;
+
+/**
+ * Under the review, the obvious next tap: run a pass over what the card actually changed.
+ *
+ * Gated on the agent's own catalog rather than assumed — `/simplify` typed into a Codex pane is a
+ * line of noise, not a review. A card in review normally still has its pane (review is a landing,
+ * not a reading of the pane — see `reconcileOne`), so the missing-agent case is the exception and
+ * says what to do about it.
+ */
+export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: string) => Promise<void> }) {
+  const [pending, setPending] = useState<string | null>(null);
+
+  if (!card.runtime) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        This card's agent is gone — relaunch it on the branch to run a pass over its code.
+      </p>
+    );
+  }
+  const catalog = commandsFor(card.runtime.agent);
+  const passes = REVIEW_PASSES.filter((p) => catalog.some((c) => c.command === p.command));
+  if (passes.length === 0) {
+    return (
+      <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
+        {card.runtime.agent} has no review pass to run — these are Claude Code's.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {passes.map(({ command, label, Icon }) => (
+          <Button
+            key={command}
+            variant="outline"
+            size="sm"
+            className="h-9 gap-2"
+            disabled={pending !== null}
+            onClick={async () => {
+              setPending(command);
+              try {
+                await onRun(command);
+              } catch (e) {
+                setStatus((e as Error).message, "error", null);
+              } finally {
+                setPending(null);
+              }
+            }}
+          >
+            <Icon className="size-4" />
+            {pending === command ? "Sending…" : label}
+          </Button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Runs in this card's agent, on its branch. Follow it in the pane above — the journal records
+        which pass you asked for.
+      </p>
+    </div>
+  );
+}
+
 function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => Promise<void> }) {
   const [pending, setPending] = useState(false);
   const requested = card.session?.handoffRequestedAt != null;

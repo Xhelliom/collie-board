@@ -206,6 +206,7 @@ export function describeEvent(event: BoardEvent): string {
     case "card.worktree":
       return `Worktree on ${String(p.branch)}${p.after ? `, after “${String(p.after)}”` : ""}`;
     case "card.prompted":
+      if (p.command) return `Ran ${String(p.command)}`;
       return p.followUp ? "Follow-up instruction sent" : "Spec sent to the agent";
     case "card.start_failed":
       return `Start failed at ${String(p.stage)}: ${String(p.error)}`;
