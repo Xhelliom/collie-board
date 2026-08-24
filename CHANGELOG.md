@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.109.0] - 2026-08-24
+
+### Added
+- The dashboard shows how much Claude Code quota is left, read from `claude -p "/usage"` — cached 15 min, refreshed on arrival, with a refresh button (9cb5d0b).
+
 ## [0.108.0] - 2026-08-24
 
 ### Changed
