@@ -559,7 +559,7 @@ the pane that asked. The alert is the only record, and it deletes itself.
 | | |
 |---|---|
 | Commit | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* |
-| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
+| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET + one DELETE route), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/components/app-header.tsx` (one mount) |
 | Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
 
 **Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
@@ -576,6 +576,12 @@ state — the thing this history exists to survive is the *notification*, not th
 
 **Fetched when the sheet opens.** The snapshot poll runs every 1.5s and fifty entries in it would be
 a permanent tax on a list you consult occasionally.
+
+**An entry can be thrown away, one row at a time.** A history you can't prune is a history you stop
+reading: the ping you already handled sits above the one you haven't. `DELETE /api/notifications/log/:id`
+drops one entry from the ring and answers 204 whether it was there or not; the row leaves optimistically
+and comes back if the call fails. Read-level, like every other route in that block. No "clear all" — the
+ring already forgets at 50, and the bridge restart clears it for free.
 
 **A notification that arrived while the app was open lands here too** — the bridge records the alert
 it pushed, and whether a visible client made the service worker suppress the banner is downstream of
