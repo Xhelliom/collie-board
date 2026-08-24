@@ -734,7 +734,7 @@ as the rest of the metadata line.
 
 ---
 
-## 23. 🟡 How much Claude Code quota is left, on the dashboard
+## 23. 🟡 How much Claude Code quota is used, on the dashboard
 
 A herd of Claude sessions burns one shared subscription, and the phone screen that tells you which
 agent to look at cannot tell you whether starting another one is affordable. `/usage` knows, and it
@@ -756,6 +756,10 @@ would mean reading the user's credentials against an undocumented API. See ADR 0
 **It disappears rather than lie.** No `claude` to be found, a panel that stops looking like this, a
 timeout: the endpoint answers `null` and the gauge renders nothing — the context gauge's posture,
 for the same reason. The parse is one exported regex with a captured panel in its test.
+
+**Show what's USED, not what's left.** It first rendered the remainder. Correct, and wrong in place:
+the context gauge inches away fills with what's consumed, and `/usage` itself says "% used" — so a
+right number gets read as a wrong one. Whichever direction upstream picks, both bars must pick it.
 
 **Do not spawn it by name — this cost a release.** A `systemd --user` unit starts with systemd's own
 PATH and reads no login shell profile, so `~/.local/bin` isn't on it and `Bun.spawn(["claude", …])`

@@ -18,7 +18,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-/** One of the panel's limit lines. `percent` is what's USED — the UI does the subtraction. */
+/** One of the panel's limit lines. `percent` is what's USED, which is what the gauge shows. */
 export interface UsageLimit {
   /** The limit's own name, verbatim: "Current session", "Current week (all models)", … */
   label: string;
