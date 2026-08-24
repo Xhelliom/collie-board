@@ -796,3 +796,33 @@ export function refineCard(id: string, instruction: string): Promise<{ ok: true;
     body: JSON.stringify({ instruction }),
   });
 }
+
+/** One Claude Code limit line, as `/usage` prints it (bridge/usage.ts). */
+export interface UsageLimit {
+  label: string;
+  /** Percentage of that limit already USED — the gauge shows 100 − this. */
+  percent: number;
+  resetsAt: string | null;
+}
+
+export interface ClaudeUsage {
+  limits: UsageLimit[];
+  /** When the bridge took this reading (epoch ms). */
+  checkedAt: number;
+}
+
+/**
+ * How much Claude Code quota is left. `null` when the bridge has no reading to give (no `claude` on
+ * the host, an unrecognised panel) — the caller shows nothing rather than a made-up number.
+ *
+ * The bridge caches it for 15 minutes, so calling this on every visit to the dashboard is cheap;
+ * `refresh` skips that cache and is what the gauge's refresh button sends.
+ */
+export function fetchUsage(
+  refresh = false,
+  signal?: AbortSignal,
+): Promise<{ usage: ClaudeUsage | null }> {
+  return apiRequest<{ usage: ClaudeUsage | null }>(`/api/board/usage${refresh ? "?refresh=1" : ""}`, {
+    signal: withTimeout(signal, GET_TIMEOUT_MS),
+  });
+}

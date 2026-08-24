@@ -28,6 +28,7 @@ import { isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { cardDiffSummary, diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
+import { usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -39,6 +40,9 @@ const REPOS_HIDE_ROUTE = "/api/repos/hide";
 
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
+
+/** `/api/board/usage` — how much Claude Code quota is left (see usage.ts). */
+const BOARD_USAGE_ROUTE = "/api/board/usage";
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
@@ -274,6 +278,19 @@ async function route(
   // may run at once. Read to GET (a preference is not terminal-driving), write to change — same rule
   // as hiding a repo. POST is a PATCH in spirit: only the keys present change, so the two controls on
   // the settings screen never overwrite each other's value with a stale copy.
+  // The Claude Code quota gauge. A read, cached for the TTL in usage.ts, so the dashboard asking on
+  // every visit costs one subprocess per quarter hour rather than one per page load. `?refresh=1` is
+  // the refresh control on that gauge — it skips the cache, which is the whole point of the button.
+  if (pathname === BOARD_USAGE_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const force = new URL(req.url).searchParams.get("refresh") === "1";
+    // null when there is no reading to be had (no `claude` on PATH, an unrecognised panel): the
+    // client then shows nothing rather than a made-up number.
+    return ctx.json({ usage: await usageTracker.get(force) });
+  }
+
   if (pathname === BOARD_PREFS_ROUTE) {
     // The concurrency limit answers as its EFFECTIVE value (the stored preference, else the env
     // default), so the settings screen shows the number that will actually be enforced.

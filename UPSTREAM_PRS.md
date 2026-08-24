@@ -734,6 +734,35 @@ as the rest of the metadata line.
 
 ---
 
+## 23. 🟡 How much Claude Code quota is left, on the dashboard
+
+A herd of Claude sessions burns one shared subscription, and the phone screen that tells you which
+agent to look at cannot tell you whether starting another one is affordable. `/usage` knows, and it
+is one terminal away — which is the one place a phone is not.
+
+| | |
+|---|---|
+| Commit | _(this change)_ |
+| Files | `bridge/usage.ts` (+ test), `web/src/components/usage-gauge.tsx` (+ test), one route, one line on the dashboard |
+| Extraction | **Clean cherry-pick.** No card in sight: a subprocess, a regex and a gauge. Only the route's home moves — the fork hangs it off `/api/board/usage` because that prefix is already dispatched; upstream would give it `/api/usage` in `server.ts`. |
+
+**`claude -p "/usage"` prints the panel as plain text in ~1.5 s and spends no model turn** — the
+panel is rendered locally. So this is a subprocess and a regex, not an agent request against the
+quota it is measuring. The alternatives were checked first and all came up empty:
+`~/.claude/stats-cache.json` holds cumulative tokens and no limits (and went five weeks stale on the
+machine this was written on); the session transcripts record no limit state; the OAuth endpoint
+would mean reading the user's credentials against an undocumented API. See ADR 0009.
+
+**It disappears rather than lie.** No `claude` on `PATH`, a panel that stops looking like this, a
+timeout: the endpoint answers `null` and the gauge renders nothing — the context gauge's posture,
+for the same reason. The parse is one exported regex with a captured panel in its test.
+
+**Cached fifteen minutes, fetched on mount, refreshable by button.** No timer, no poll loop: a
+five-hour window does not move fast enough to earn one, and the loader that revalidates every 1.5 s
+is exactly the wrong place to hang it.
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately
