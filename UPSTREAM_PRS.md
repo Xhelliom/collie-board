@@ -558,7 +558,7 @@ the pane that asked. The alert is the only record, and it deletes itself.
 
 | | |
 |---|---|
-| Commits | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* · `bb4a1ec` (the dismiss) · `9a022c6` (the badge) · `3a42ff1` (the tap reads it) · `CAF011D` (mark all read) |
+| Commits | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* · `bb4a1ec` (the dismiss) · `9a022c6` (the badge) · `3a42ff1` (the tap reads it) · `fe5ddb5` (mark all read) |
 | Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET + one DELETE + one POST route, plus `notifications.count` on the snapshot), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/lib/loaders.ts` (`notifyCount` on `HomeData`), `web/src/components/app-header.tsx` (one mount) |
 | Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
 
