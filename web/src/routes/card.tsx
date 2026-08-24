@@ -1052,12 +1052,10 @@ function IntegrationSection({
             )}
           </span>
         )}
-        {/* Second-hand evidence, and worth saying so: cleanup is refused unless nothing was left to
-            integrate, so it landed even when the merge itself happened outside the board. */}
-        {past.cleanedUp && !past.merged && (
-          <span>Worktree cleaned up {timeAgo(past.cleanedUp)} — the branch was fully integrated.</span>
-        )}
-        {past.cleanedUp && past.merged && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
+        {/* No claim about WHERE the work went: cleanup takes a branch that is merged OR merely
+            pushed, so "cleaned up" alone is all this can honestly say. The merge/PR lines above are
+            the evidence, when there is any. */}
+        {past.cleanedUp && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
         {past.discarded && (
           <span>
             Discarded {timeAgo(past.discarded.ts)} — {past.discarded.commits} commit

@@ -735,7 +735,7 @@ export function fetchIntegration(id: string): Promise<{ integration: Integration
  *
  * `merge` is local and pushes nothing; `pr` pushes the branch and never touches the base; `resolve`
  * hands a conflict to the card's own agent, to settle on its own branch; `cleanup` removes the
- * worktree and deletes the branch, and is refused unless the work is already integrated.
+ * worktree and deletes the branch, and is refused unless the work is merged or at least pushed.
  */
 export function integrateCard(
   id: string,
