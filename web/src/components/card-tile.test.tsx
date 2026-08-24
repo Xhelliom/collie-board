@@ -50,10 +50,16 @@ function runtime(over: Partial<CardRuntime> = {}): CardRuntime {
 }
 
 describe("CardTile — status row (loud / named / silent)", () => {
-  it("blocked is loud: a solid chip naming the column, and no repo text (the chip owns the row)", () => {
+  it("blocked is loud: a solid chip naming the column, with the repo beside it", () => {
     render(<CardTile card={card({ status: "blocked" })} onClick={() => {}} repo="collie-board" />);
     expect(screen.getByText("Needs you")).toBeInTheDocument();
-    expect(screen.queryByText("collie-board")).toBeNull();
+    expect(screen.getByText("collie-board")).toBeInTheDocument();
+  });
+
+  // The two live columns the repo used to be invisible in: a named chip owned the whole row.
+  it.each(["working", "review"] as const)("%s names the repo next to its status", (status) => {
+    render(<CardTile card={card({ status })} onClick={() => {}} repo="collie-board" />);
+    expect(screen.getByText("collie-board")).toBeInTheDocument();
   });
 
   it("working is named: the column label shows, with no pill background of its own", () => {
