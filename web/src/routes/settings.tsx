@@ -55,14 +55,17 @@ export function SettingsRoute() {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col">
+    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       <AppHeader title="Settings" />
 
       {/* The screen's one h1 — the header already says "Settings", but as a SectionLabel span. Kept
           outside <main>, whose space-y-4 would otherwise hand its first real child a stray margin. */}
       <h1 className="sr-only">Settings</h1>
 
-      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4">
+      {/* No page-level ceiling above `lg` (same as the other routes) — but settings rows are
+          label-on-the-left / control-on-the-right, not a grid, so the column caps ITSELF at a
+          reading width rather than stretching a switch 2000px away from its label. */}
+      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:max-w-3xl lg:px-5 lg:py-6">
         <ThemeControl />
 
         {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of

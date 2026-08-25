@@ -33,7 +33,9 @@ const FONT_MAX = 16;
  *
  * At 12px monospace a character is ~7px, so ~80 columns needs ~560px. Panes here measure a median
  * of 81 columns and a max of 233 — on a phone that means most lines run off the edge, and reading
- * the mirror becomes a horizontal pan. Matches the app's own `max-w-screen-sm` container.
+ * the mirror becomes a horizontal pan. It is a VIEWPORT threshold, not a container one — the
+ * routes no longer stop at 640px above `lg`, but a viewport narrower than that still can't show
+ * 80 columns.
  */
 const WRAP_BELOW_PX = 640;
 
