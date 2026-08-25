@@ -23,8 +23,8 @@ import {
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
-import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
-import { isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
+import type { BoardDb, BoardEvent, Card, CardCategory, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
+import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { cardDiffSummary, diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
@@ -296,6 +296,7 @@ async function route(
     // default), so the settings screen shows the number that will actually be enforced.
     const prefs = () => ({
       autoFollowUps: ctx.db.autoFollowUps(),
+      followUpCategories: ctx.db.followUpCategories(),
       maxAgents: ctx.db.maxAgents() ?? ctx.cfg.boardMaxAgents,
     });
     if (req.method === "GET") {
@@ -312,14 +313,25 @@ async function route(
       } catch {
         return ctx.text("bad body", 400);
       }
-      const { autoFollowUps, maxAgents } = (body ?? {}) as {
+      const { autoFollowUps, followUpCategories, maxAgents } = (body ?? {}) as {
         autoFollowUps?: unknown;
+        followUpCategories?: unknown;
         maxAgents?: unknown;
       };
       if (autoFollowUps !== undefined) {
         if (typeof autoFollowUps !== "boolean")
           return ctx.text("autoFollowUps must be a boolean", 400);
         ctx.db.setAutoFollowUps(autoFollowUps);
+      }
+      // Replaced wholesale, not patched per key: the settings screen always holds the full list, and
+      // "the ones I want" is a shorter thing to reason about than five independent flags.
+      if (followUpCategories !== undefined) {
+        if (
+          !Array.isArray(followUpCategories) ||
+          !followUpCategories.every((c) => CARD_CATEGORIES.includes(c as CardCategory))
+        )
+          return ctx.text(`followUpCategories must be a list of: ${CARD_CATEGORIES.join(", ")}`, 400);
+        ctx.db.setFollowUpCategories(followUpCategories as CardCategory[]);
       }
       if (maxAgents !== undefined) {
         if (typeof maxAgents !== "number" || !Number.isInteger(maxAgents) || maxAgents < 1 || maxAgents > MAX_AGENTS_CAP)
@@ -330,7 +342,7 @@ async function route(
         action: "board.prefs",
         session: ctx.session,
         device: ctx.device,
-        detail: { autoFollowUps, maxAgents },
+        detail: { autoFollowUps, followUpCategories, maxAgents },
       });
       return ctx.json(prefs());
     }

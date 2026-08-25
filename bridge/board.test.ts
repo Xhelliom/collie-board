@@ -1408,6 +1408,30 @@ describe("pickTag", () => {
   });
 });
 
+describe("followUpCategories", () => {
+  it("defaults to the whole vocabulary — opting into follow-ups opts into all of them", () => {
+    expect(db().followUpCategories()).toEqual(["test", "feature", "bug", "docs", "chore"]);
+  });
+
+  it("round-trips a subset in the vocabulary's order, and survives the restart", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "collie-cats-")), "board.db");
+    const first = new BoardDb(file);
+    first.setFollowUpCategories(["docs", "feature"]);
+    first.close();
+
+    // Stored order doesn't matter: the vocabulary's does, so the settings rows never shuffle.
+    const reopened = new BoardDb(file);
+    expect(reopened.followUpCategories()).toEqual(["feature", "docs"]);
+    reopened.close();
+  });
+
+  it("tells an empty list apart from an unset one — none is a real answer", () => {
+    const store = db();
+    store.setFollowUpCategories([]);
+    expect(store.followUpCategories()).toEqual([]);
+  });
+});
+
 describe("pickCategory", () => {
   it("takes a category from the vocabulary, however the model cased it", () => {
     expect(pickCategory("test")).toBe("test");
@@ -2612,6 +2636,54 @@ describe("the copilot tags what it creates", () => {
     expect(of("click through the sheet").tag).toBe("ui");
     // …and the card a person made carries no category at all.
     expect(store.getCard(reviewed.id)?.category).toBeNull();
+  });
+
+  it("files nothing in a category switched off — and the rest of the review's cards land normally", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
+    store.setFollowUpCategories(["feature", "bug", "docs", "chore"]);
+    const { copilot } = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [
+        { title: "click through the sheet", category: "test" },
+        { title: "the empty state is missing", category: "feature" },
+        // No category at all snaps to `chore`, and `chore` is on — so it lands.
+        { title: "whatever this is" },
+      ],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const titles = store.listCards().map((c) => c.title);
+    // Never created, not created-then-hidden: nothing on the board, and nothing the review links to.
+    expect(titles).not.toContain("click through the sheet");
+    expect(titles).toContain("the empty state is missing");
+    expect(titles).toContain("whatever this is");
+    expect(store.listReviews(reviewed.id)[0]?.todos.map((t) => t.title)).toEqual([
+      "the empty state is missing",
+      "whatever this is",
+    ]);
+  });
+
+  it("keeps the global switch the coarser cut — off, no category can let a card through", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setFollowUpCategories(["test", "feature", "bug", "docs", "chore"]);
+    const { copilot } = fakeCopilot({ verdict: "partial", notes: "ok", todos: [{ title: "next", category: "feature" }] });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(store.listCards().map((c) => c.title)).not.toContain("next");
   });
 
   it("points a review follow-up back at the card it came out of — without making that card a container", async () => {
