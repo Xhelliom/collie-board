@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 
+import { server } from "@/test/setup";
 import {
   DangerZone,
+  IntegrationSection,
   noteLabel,
   PromptBox,
   resolveWatchStep,
@@ -12,7 +15,7 @@ import {
   SubtaskProgress,
   topOfColumn,
 } from "./card.tsx";
-import type { CardStatus, CardView } from "@/lib/board";
+import type { CardStatus, CardView, Integration } from "@/lib/board";
 
 function card(status: CardStatus): CardView {
   return {
@@ -277,6 +280,70 @@ describe("ReviewPass", () => {
     render(<ReviewPass card={withAgent(null)} onRun={vi.fn()} />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByText(/relaunch it on the branch/i)).toBeTruthy();
+    cleanup();
+  });
+});
+
+// The screen used to read a single axis — `ahead`, the distance to the LOCAL base — and the PR path
+// moves work somewhere that axis cannot see. `pushed` is the second axis; these are the three states
+// it has to tell apart.
+describe("IntegrationSection — merged, pushed, and neither", () => {
+  function integration(over: Partial<Integration> = {}): Integration {
+    return {
+      branch: "board/x",
+      base: "main",
+      ahead: 2,
+      behind: 0,
+      baseDirty: false,
+      branchDirty: false,
+      baseCheckedOut: true,
+      pushed: false,
+      ...over,
+    };
+  }
+
+  async function show(over: Partial<Integration> = {}) {
+    server.use(
+      http.get("*/api/cards/:id/integration", () =>
+        HttpResponse.json({ integration: integration(over) }),
+      ),
+    );
+    render(
+      <IntegrationSection card={card("working")} events={[]} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    await screen.findByText("board/x");
+  }
+
+  const cleanupButton = () => screen.queryByRole("button", { name: /clean up worktree/i });
+  const discardButton = () => screen.queryByRole("button", { name: /discard this work/i });
+
+  it("offers cleanup on a pushed branch, and keeps discard next to it", async () => {
+    await show({ ahead: 2, pushed: true });
+    expect(cleanupButton()).toBeTruthy();
+    expect(discardButton()).toBeTruthy();
+    cleanup();
+  });
+
+  it("refuses cleanup when the commits are nowhere but here", async () => {
+    await show({ ahead: 2, pushed: false });
+    expect(cleanupButton()).toBeNull();
+    expect(discardButton()).toBeTruthy();
+    cleanup();
+  });
+
+  it("does not claim to throw away commits the remote already has", async () => {
+    await show({ ahead: 2, pushed: true });
+    await userEvent.click(discardButton()!);
+    expect(screen.getByRole("button", { name: /drop the branch and archive/i })).toBeTruthy();
+    cleanup();
+  });
+
+  it("still counts what a discard destroys when nothing was pushed", async () => {
+    await show({ ahead: 2, pushed: false, branchDirty: true });
+    await userEvent.click(discardButton()!);
+    expect(
+      screen.getByRole("button", { name: /throw away 2 commits and uncommitted work\?/i }),
+    ).toBeTruthy();
     cleanup();
   });
 });
