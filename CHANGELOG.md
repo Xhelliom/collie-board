@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.114.0] - 2026-08-25
+
+### Added
+- Card page: the PR line says what the pull request BECAME — merged / closed without merging / open — read from `gh pr view` on its own route, cached a minute, off the poll. Falls back to the journal's "PR opened …" when `gh` is absent, unauthenticated or the repo has no GitHub remote. (fa21c74)
+
 ## [0.113.4] - 2026-08-25
 
 ### Fixed

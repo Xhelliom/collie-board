@@ -729,6 +729,26 @@ export function fetchIntegration(id: string): Promise<{ integration: Integration
   );
 }
 
+/** What a card's pull request became, as GitHub sees it right now. */
+export interface PrStatus {
+  state: "open" | "merged" | "closed";
+  url: string;
+  /** Epoch ms, null unless it was merged. */
+  mergedAt: number | null;
+}
+
+/**
+ * Ask GitHub what the card's PR became — the one call behind a card that leaves the machine.
+ *
+ * Kept OFF `fetchIntegration` on purpose: that one renders the section, this one only sharpens a
+ * sentence in it, so it is asked afterwards and the screen never waits on it. `null` whenever GitHub
+ * cannot be asked (no `gh`, not logged in, no GitHub remote, no PR, offline) — the caller then keeps
+ * showing what the journal knows rather than inventing a state. Cached a minute bridge-side.
+ */
+export function fetchPrStatus(id: string): Promise<{ pr: PrStatus | null }> {
+  return apiRequest<{ pr: PrStatus | null }>(`/api/cards/${encodeURIComponent(id)}/pr`);
+}
+
 /**
  * The four gestures that end a branch's life. All refuse before they act, so a rejection arrives as
  * a sentence to show rather than as a repository left in a state nobody asked for.
