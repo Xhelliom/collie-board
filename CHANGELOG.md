@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.113.4] - 2026-08-25
+
+### Fixed
+- Settings, desktop: the screen widens past 640px above `lg` like every other route — its column caps itself at a reading width instead (62ca5f7).
+
 ## [0.113.3] - 2026-08-24
 
 ### Fixed
