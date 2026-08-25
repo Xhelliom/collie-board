@@ -53,6 +53,16 @@ describe("describe", () => {
     );
   });
 
+  it("says how far a correction on a container went, and where a sub-task's came from", () => {
+    expect(
+      describeEvent(event("copilot.refined", { instruction: "the format is json", subtasks: 2 })),
+    ).toBe("Corrected on your instruction: “the format is json” — and 2 sub-tasks");
+    // On the sub-task itself: you never typed an instruction here, its parent did.
+    expect(
+      describeEvent(event("copilot.refined", { instruction: "the format is json", parentId: "c1" })),
+    ).toBe("Corrected with its parent card: “the format is json”");
+  });
+
   it("mentions the predecessor a worktree was forked from", () => {
     expect(describeEvent(event("card.worktree", { branch: "board/x", after: "Audit" }))).toBe(
       "Worktree on board/x, after “Audit”",
