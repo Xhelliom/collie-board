@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.115.0] - 2026-08-25
+
+### Added
+
+- Every card the copilot files on its own now carries a category — `test`, `feature`, `bug`, `docs` or `chore` — on an axis of its own, so the one tag a card carries still names its area (406fe52).
+
 ## [0.114.1] - 2026-08-25
 
 ### Fixed

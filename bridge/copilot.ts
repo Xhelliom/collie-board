@@ -21,7 +21,15 @@ import { join } from "node:path";
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
-import { isPendingWrapup, normalizeTag, type BoardDb, type Card, type ReviewTodo } from "./db.ts";
+import {
+  CARD_CATEGORIES,
+  isPendingWrapup,
+  normalizeTag,
+  type BoardDb,
+  type Card,
+  type CardCategory,
+  type ReviewTodo,
+} from "./db.ts";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -92,6 +100,12 @@ export interface SplitTask {
   acceptance?: string[];
   /** The one tag this card carries, as PROPOSED — snapped onto the inventory by {@link pickTag}. */
   tag?: string;
+  /**
+   * What kind of follow-up this is, as PROPOSED — snapped onto the vocabulary by
+   * {@link pickCategory}. Only ever asked for, and only ever applied, on a review's follow-ups: a
+   * split is a card you dictated, and those carry no category (see {@link Card.category}).
+   */
+  category?: string;
   /**
    * Index of an EARLIER task in the same list that must finish first, or absent for "independent".
    *
@@ -192,6 +206,8 @@ export function toSplit(v: unknown): SplitTask[] | undefined {
     if (spec) task.spec = spec;
     const tag = str(o, "tag");
     if (tag) task.tag = tag;
+    const category = str(o, "category");
+    if (category) task.category = category;
     const acceptance = strList(o, "acceptance");
     if (acceptance) task.acceptance = acceptance;
     const dep = o.depends_on ?? o.dependsOn;
@@ -332,6 +348,20 @@ export function pickTag(proposed: string | undefined, inventory: string[]): stri
   // come from one theme, in one breath, and neither spelling was on the board a second ago.
   if (!existing) inventory.push(tag);
   return existing ?? tag;
+}
+
+/**
+ * Snap a copilot-proposed category onto the closed vocabulary. Pure + exported.
+ *
+ * Unlike {@link pickTag} this invents NOTHING: the vocabulary is the whole point — a sixth category
+ * the model made up would be a card that no filter built on these five can see. Anything it doesn't
+ * recognise, and a missing answer, land on `chore`: the bucket that already means "the rest", and
+ * the safe direction — a mis-filed chore is noise, a mis-filed `test` is a card hidden by a filter
+ * that was meant to hide the noise.
+ */
+export function pickCategory(proposed: string | undefined): CardCategory {
+  const key = proposed?.trim().toLowerCase();
+  return CARD_CATEGORIES.find((c) => c === key) ?? "chore";
 }
 
 /** Coerce a parsed answer into a {@link ReviewResult}. Pure. */
@@ -551,6 +581,28 @@ export function explainPrompt(input: {
 }
 
 /**
+ * The category rule, shown only to the prompt that files cards nobody asked for. Pure.
+ *
+ * Separate from {@link tagRule} because it answers a different question and must not be allowed to
+ * blur into it: the tag says WHERE the work lives, the category says WHY this card exists. Asked in
+ * the same breath, a model reliably answers `test` to both and the board loses its area filter.
+ */
+function categoryRule(): string[] {
+  return [
+    "",
+    "CATEGORY. Separate from the tag, and not a second guess at it: the tag says which AREA of the",
+    "product the work is in, the category says WHY this card exists. Exactly one of:",
+    "- test: nobody has exercised this yet — a manual pass, a missing automated test, a check to run.",
+    "- feature: something the work was meant to do and does not do yet, or an acceptance criterion",
+    "  left uncovered.",
+    "- bug: something that looks broken or off-spec in what you just reviewed.",
+    "- docs: README, CHANGELOG, an ADR, a comment that no longer matches the code.",
+    "- chore: cleanup, refactoring, dependency or tooling work, a TODO left behind.",
+    "Pick the one that names why the card exists, not the one that sounds most urgent.",
+  ];
+}
+
+/**
  * The post-`done` review prompt. Takes `git diff --stat` and the handoff note, NEVER the full diff:
  * the stat is enough to judge drift from the acceptance criteria, and the full diff would burn the
  * quota this feature is supposed to be careful with. Pure + exported.
@@ -582,13 +634,14 @@ export function reviewPrompt(input: {
     "Each todo becomes a new backlog card. Give it the same care as a card someone would write by",
     "hand: a spec grounded in what you just reviewed, not a bare title. Empty list if there are none.",
     ...tagRule(input.tags ?? []),
+    ...categoryRule(),
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "verdict": "complete | partial | drift",',
     '  "notes": "one short paragraph: what looks done, what looks missing or off-spec",',
     '  "todos": [',
-    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…" }',
+    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore" }',
     "  ]",
     "}",
   );
@@ -1193,6 +1246,11 @@ export class CopilotCoordinator {
         // A follow-up to reviewed work lives in the same area as the work — the reviewed card's tag
         // is the better default than none, and the copilot only overrides it when it says otherwise.
         tag: pickTag(todo.tag, tags) ?? card.tag,
+        // …and WHY it exists, on the same card and on a different axis (see CardCategory). Never
+        // inherited from the reviewed card the way the tag is: the area is shared, the reason is not
+        // — and never null, because "an automatic card with no category" is the state this whole
+        // field exists to abolish.
+        category: pickCategory(todo.category),
       });
       return { title: todo.title, cardId: created.id };
     });

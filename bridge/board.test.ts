@@ -34,6 +34,7 @@ import {
   explainPrompt,
   toExplanation,
   parseJsonish,
+  pickCategory,
   pickTag,
   refinePrompt,
   reformulatePrompt,
@@ -232,6 +233,7 @@ describe("reconcileOne", () => {
     dependsOn: null,
     origin: null,
     originCardId: null,
+    category: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -570,6 +572,7 @@ describe("initialPrompt", () => {
     dependsOn: null,
     origin: null,
     originCardId: null,
+    category: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -1078,6 +1081,7 @@ describe("handoff prompts", () => {
     dependsOn: null,
     origin: null,
     originCardId: null,
+    category: null,
     tag: null,
     position: 0,
     createdAt: 0,
@@ -1401,6 +1405,26 @@ describe("pickTag", () => {
   it("is null when there is nothing to tag with", () => {
     expect(pickTag(undefined, ["bug"])).toBeNull();
     expect(pickTag("   ", ["bug"])).toBeNull();
+  });
+});
+
+describe("pickCategory", () => {
+  it("takes a category from the vocabulary, however the model cased it", () => {
+    expect(pickCategory("test")).toBe("test");
+    expect(pickCategory(" Feature ")).toBe("feature");
+    expect(pickCategory("BUG")).toBe("bug");
+  });
+
+  it("falls back to chore rather than inventing a sixth category", () => {
+    // A category no filter knows about is a card that filter can never show — the one outcome the
+    // closed vocabulary exists to prevent.
+    expect(pickCategory("refactor")).toBe("chore");
+    expect(pickCategory("testing")).toBe("chore");
+    expect(pickCategory("")).toBe("chore");
+  });
+
+  it("is never null — an automatic card always carries one", () => {
+    expect(pickCategory(undefined)).toBe("chore");
   });
 });
 
@@ -2557,6 +2581,37 @@ describe("the copilot tags what it creates", () => {
     // And it still carries a real tag: provenance is a second axis, it doesn't cost the card its own.
     expect(created.tag).toBe("infra");
     expect(store.getCard(reviewed.id)?.origin).toBeNull();
+  });
+
+  it("categorises every review follow-up, on an axis of its own — and no hand-written card", async () => {
+    const store = db();
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r", tag: "ui" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
+    const { copilot } = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [
+        { title: "click through the sheet", category: "test" },
+        { title: "the empty state is missing", category: "feature" },
+        { title: "whatever this is", category: "polish" },
+      ],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const of = (title: string) => store.listCards().find((c) => c.title === title)!;
+    expect(of("click through the sheet").category).toBe("test");
+    expect(of("the empty state is missing").category).toBe("feature");
+    // Off-vocabulary lands on the bucket that means "the rest", never on a sixth category.
+    expect(of("whatever this is").category).toBe("chore");
+    // The second axis: all three still carry the reviewed card's ONE area tag.
+    expect(of("click through the sheet").tag).toBe("ui");
+    // …and the card a person made carries no category at all.
+    expect(store.getCard(reviewed.id)?.category).toBeNull();
   });
 
   it("points a review follow-up back at the card it came out of — without making that card a container", async () => {

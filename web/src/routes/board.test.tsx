@@ -44,6 +44,7 @@ function card(id: string, status: CardStatus, position: number): CardView {
     dependsOn: null,
     origin: null,
     originCardId: null,
+    category: null,
     tag: null,
     position,
     createdAt: 0,
