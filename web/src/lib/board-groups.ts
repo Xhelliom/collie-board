@@ -1,4 +1,5 @@
-import type { BoardEvent, CardStatus, CardView } from "./board";
+import type { BoardEvent, CardStatus, CardView, PrStatus } from "./board";
+import { timeAgo } from "./format";
 
 // Turning the flat card list into what the board renders.
 //
@@ -128,6 +129,23 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
     else if (e.type === "card.discarded") out.discarded = { commits: p.commits ?? 0, ts: e.ts };
   }
   return out;
+}
+
+/**
+ * The PR line's sentence: what the pull request IS, not the instant it was opened.
+ *
+ * `status` is null whenever GitHub could not be asked — no `gh`, no auth, no GitHub remote, offline —
+ * and that case falls back to the one thing the journal can prove, which is when the PR was opened.
+ * Degrading to the old wording is the point: a card that says "opened 4m ago" about a PR merged
+ * hours ago is the bug this exists to kill, and an invented state would be the same bug again.
+ *
+ * Pure + exported for the test.
+ */
+export function prSentence(status: PrStatus | null, openedTs: number): string {
+  if (status?.state === "merged") return `PR merged · ${timeAgo(status.mergedAt ?? openedTs)}`;
+  if (status?.state === "closed") return `PR closed without merging · opened ${timeAgo(openedTs)}`;
+  // Open, or unknown: both are honestly described by when it was opened.
+  return `PR opened ${timeAgo(openedTs)}`;
 }
 
 /**

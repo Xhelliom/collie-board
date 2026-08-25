@@ -11,6 +11,8 @@ import {
   mergeIntoBase,
   parseLeftRight,
   parsePrUrl,
+  parsePrView,
+  prStatusOf,
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
@@ -72,6 +74,64 @@ describe("parsePrUrl", () => {
 
   it("is null when there is none, rather than returning a half-url", () => {
     expect(parsePrUrl("https://github.com/o/r")).toBeNull();
+  });
+});
+
+describe("parsePrView", () => {
+  it("reads what the PR became, with the merge time in epoch ms", () => {
+    const got = parsePrView(
+      '{"mergedAt":"2026-08-24T15:37:36Z","state":"MERGED","url":"https://github.com/o/r/pull/1"}',
+    );
+    expect(got).toEqual({
+      state: "merged",
+      url: "https://github.com/o/r/pull/1",
+      mergedAt: Date.parse("2026-08-24T15:37:36Z"),
+    });
+  });
+
+  it("keeps a closed PR distinct from an open one", () => {
+    // The whole point: "closed without merging" and "still open" must not read the same on the card.
+    expect(parsePrView('{"mergedAt":null,"state":"CLOSED","url":"https://gh/o/r/pull/2"}')?.state).toBe("closed");
+    expect(parsePrView('{"mergedAt":null,"state":"OPEN","url":"https://gh/o/r/pull/3"}')).toEqual({
+      state: "open",
+      url: "https://gh/o/r/pull/3",
+      mergedAt: null,
+    });
+  });
+
+  it("is null for anything it does not recognise, rather than a guess", () => {
+    expect(parsePrView("no pull requests found for branch \"board/x\"")).toBeNull();
+    expect(parsePrView('{"state":"DRAFTED","url":"https://gh/o/r/pull/4"}')).toBeNull();
+    expect(parsePrView('{"state":"OPEN"}')).toBeNull();
+    expect(parsePrView("")).toBeNull();
+  });
+});
+
+describe("prStatusOf", () => {
+  it("asks gh for the branch's PR", async () => {
+    const { git, calls } = fakeGit({
+      "pr view": { stdout: '{"state":"MERGED","mergedAt":"2026-08-24T15:37:36Z","url":"https://gh/o/r/pull/1"}' },
+    });
+    expect((await prStatusOf("/repo", "board/x", git))?.state).toBe("merged");
+    expect(calls[0]).toEqual(["pr", "view", "board/x", "--json", "state,mergedAt,url"]);
+  });
+
+  it("degrades to null rather than to an error — no gh, no auth, no remote, no PR", async () => {
+    const { git } = fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } });
+    expect(await prStatusOf("/repo", "board/x", git)).toBeNull();
+    // `gh` missing from PATH entirely: Bun.spawn throws rather than answering.
+    const throws: GitRunner = async () => {
+      throw new Error("ENOENT");
+    };
+    expect(await prStatusOf("/repo", "board/x", throws)).toBeNull();
+  });
+
+  it("never hands a branch name to gh's flag parser", async () => {
+    // `gh pr view` takes one positional and so accepts no `--` separator, and `branch` is a writable
+    // card field. A name that could be read as a flag is refused here instead.
+    const { git, calls } = fakeGit({});
+    expect(await prStatusOf("/repo", "--json", git)).toBeNull();
+    expect(calls).toEqual([]);
   });
 });
 

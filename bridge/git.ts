@@ -669,3 +669,64 @@ export async function createPr(
   }
   return { ok: false, error: message.split("\n").slice(0, 4).join("\n") };
 }
+
+/**
+ * What a card's pull request BECAME, as GitHub sees it. `mergedAt` is epoch ms, null unless merged.
+ *
+ * Deliberately not part of {@link Integration}: everything there is answered by local refs, this one
+ * leaves the machine.
+ */
+export interface PrStatus {
+  state: "open" | "merged" | "closed";
+  url: string;
+  mergedAt: number | null;
+}
+
+/**
+ * Parse `gh pr view --json state,mergedAt,url`. Anything unrecognised is `null`, never a guess —
+ * the card then keeps saying only what its journal knows.
+ *
+ * Pure + exported: this is the fragile half, so it is the half with a test.
+ */
+export function parsePrView(stdout: string): PrStatus | null {
+  let raw: { state?: unknown; mergedAt?: unknown; url?: unknown };
+  try {
+    raw = JSON.parse(stdout) as typeof raw;
+  } catch {
+    return null;
+  }
+  // `gh` shouts them: OPEN / MERGED / CLOSED.
+  const state = typeof raw.state === "string" ? raw.state.toLowerCase() : "";
+  if (state !== "open" && state !== "merged" && state !== "closed") return null;
+  if (typeof raw.url !== "string" || !raw.url) return null;
+  const merged = typeof raw.mergedAt === "string" ? Date.parse(raw.mergedAt) : NaN;
+  return { state, url: raw.url, mergedAt: Number.isFinite(merged) ? merged : null };
+}
+
+/**
+ * Ask GitHub what the branch's pull request became. THE ONE NETWORK READ IN THIS MODULE.
+ *
+ * Never called from `integrationOf` and never from a poll — it is its own on-demand route, cached by
+ * `prStatusFor` (integrate.ts), because half a second of network has no business in a section the
+ * card screen renders on open.
+ *
+ * DEGRADES TO `null`, ALWAYS: no `gh` on PATH (Bun.spawn throws), not logged in, no GitHub remote,
+ * no PR for this branch, offline. Same posture as the context gauge — no reading beats a wrong one.
+ *
+ * `gh pr view` takes exactly one positional and so cannot be given a `--` separator; `branch` is
+ * usually the board's own slug, but it is a writable card field, so a leading `-` is refused here
+ * rather than handed to a flag parser.
+ */
+export async function prStatusOf(
+  repoPath: string,
+  branch: string,
+  gh: GitRunner = runGh,
+): Promise<PrStatus | null> {
+  if (!branch || branch.startsWith("-")) return null;
+  try {
+    const r = await gh(["pr", "view", branch, "--json", "state,mergedAt,url"], repoPath);
+    return r.ok ? parsePrView(r.stdout) : null;
+  } catch {
+    return null;
+  }
+}

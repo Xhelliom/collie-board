@@ -60,6 +60,7 @@ import {
   explainError,
   fetchCards,
   fetchIntegration,
+  fetchPrStatus,
   handoffCard,
   integrateCard,
   MANUAL_STATUSES,
@@ -78,8 +79,9 @@ import {
   type CardStatus,
   type CardView,
   type Integration,
+  type PrStatus,
 } from "@/lib/board";
-import { dependencyInfo, dependencyMet, integrationHistory, prLabel } from "@/lib/board-groups";
+import { dependencyInfo, dependencyMet, integrationHistory, prLabel, prSentence } from "@/lib/board-groups";
 import { commandsFor } from "@/lib/agent-commands";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
@@ -1021,6 +1023,7 @@ function IntegrationSection({
   onState: (state: Integration | null | undefined) => void;
 }) {
   const [state, setState] = useState<Integration | null | undefined>(undefined);
+  const [pr, setPr] = useState<PrStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [awaitingResolve, setAwaitingResolve] = useState(false);
@@ -1031,6 +1034,8 @@ function IntegrationSection({
   // What the journal remembers, which outlives the branch. A merged-and-cleaned-up card has nothing
   // left for git to answer about, and "done" alone never said whether the code actually landed.
   const past = integrationHistory(events);
+  // A stable dependency for the PR read below: `past` is rebuilt on every render, its timestamp is not.
+  const prOpenedAt = past.pr?.ts ?? null;
   const history =
     past.merged || past.pr || past.cleanedUp || past.discarded ? (
       <div className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -1041,7 +1046,7 @@ function IntegrationSection({
         )}
         {past.pr && (
           <span>
-            PR opened {timeAgo(past.pr.ts)}
+            {prSentence(pr, past.pr.ts)}
             {past.pr.url && (
               <>
                 {" — "}
@@ -1079,6 +1084,24 @@ function IntegrationSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // GitHub, not git — the one read on this screen that leaves the machine, so it is fired AFTER the
+  // section has rendered rather than inside `load`, and only when the journal says there is a PR to
+  // ask about at all. The line starts as what the journal knows and sharpens when GitHub answers;
+  // when it can't (no `gh`, no auth, no remote, offline) the answer is null and the line stays as it
+  // was. Bridge-side cache, no timer: the card open and the taps below are the only clock.
+  useEffect(() => {
+    if (!prOpenedAt) return;
+    let live = true;
+    fetchPrStatus(card.id)
+      .then((r) => live && setPr(r.pr))
+      .catch(() => {
+        // A card whose PR cannot be looked up still renders; it just keeps the journal's wording.
+      });
+    return () => {
+      live = false;
+    };
+  }, [card.id, prOpenedAt]);
 
   // Once "resolve" is sent, the actual merge commit lands seconds or minutes later, in the agent's
   // own time — nothing here waits for it. Rather than leave the operator to remember to come back and
