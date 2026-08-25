@@ -13,6 +13,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 
 - Every card the copilot files on its own now carries a category — `test`, `feature`, `bug`, `docs` or `chore` — on an axis of its own, so the one tag a card carries still names its area (406fe52).
 
+## [0.114.1] - 2026-08-25
+
+### Fixed
+- Card page: after "Open a PR", the screen offers "Clean up worktree" instead of Discard alone — it reads `pushed`, not just the distance to the local base, and keeps Discard alongside it (96b5a9a).
+- Card page: the "Done" warning and the Discard confirmation tell "these commits exist nowhere else" apart from "they are on the remote, not in the base yet" (96b5a9a).
+
 ## [0.114.0] - 2026-08-25
 
 ### Added

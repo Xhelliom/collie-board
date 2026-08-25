@@ -562,10 +562,12 @@ export function CardRoute() {
                       only the operator knows whether the work is in. */}
                   {integration && integration.ahead > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
-                      Done also files the card — {integration.ahead} commit
-                      {integration.ahead === 1 ? "" : "s"} are not in {integration.base} yet, and
-                      filing sends away the agent who would settle a merge conflict. Merge below
-                      instead, unless the work already landed some other way.
+                      Done also files the card, and filing sends away the agent who would settle a
+                      merge conflict. {integration.ahead} commit
+                      {integration.ahead === 1 ? " is" : "s are"}{" "}
+                      {integration.pushed
+                        ? `on the branch's remote but not in ${integration.base} yet — the PR still has to land.`
+                        : `not in ${integration.base} yet, and nowhere else either — merge below instead, unless the work already landed some other way.`}
                     </p>
                   )}
                 </Section>
@@ -1011,7 +1013,7 @@ export function resolveWatchStep(
  * the only thing that changes any of it, apart from the agent committing, which is what the manual
  * refresh is for.
  */
-function IntegrationSection({
+export function IntegrationSection({
   card,
   events,
   onDone,
@@ -1175,7 +1177,22 @@ function IntegrationSection({
     );
   }
 
-  const merged = state.ahead === 0;
+  // The base has every commit: nothing left to integrate. Gates merge and PR, the same way
+  // refusalFor's "nothing-to-merge" does.
+  const integrated = state.ahead === 0;
+  // Nothing here exists ONLY here — the base has it, or a PR push left it on the branch's upstream.
+  // THAT is what makes deleting this checkout lose nothing, and it is the rule refusalFor("cleanup")
+  // enforces; reading `integrated` for it kept offering Discard alone to work already on a remote.
+  const safeToDelete = integrated || state.pushed;
+  // What a discard actually takes with it. Commits already pushed are NOT on the list — they
+  // outlive the branch, and saying otherwise was this button's one lie.
+  const discardLoss =
+    [
+      state.pushed ? null : `${state.ahead} commit${state.ahead === 1 ? "" : "s"}`,
+      state.branchDirty ? "uncommitted work" : null,
+    ]
+      .filter(Boolean)
+      .join(" and ") || null;
   // Only what genuinely stops a merge. `baseDirty` deliberately isn't here: git merges over
   // uncommitted changes it doesn't touch, and refuses by itself when it would — see refusalFor.
   const mergeBlocker = !state.baseCheckedOut ? `the repository is not on ${state.base}` : null;
@@ -1193,7 +1210,7 @@ function IntegrationSection({
             <span>{state.base}</span>
           </div>
           <div className="text-[13px] text-muted-foreground">
-            {merged ? (
+            {integrated ? (
               `already in ${state.base}`
             ) : (
               <>
@@ -1233,7 +1250,7 @@ function IntegrationSection({
 
         {/* Both of these are refusals the client can see coming. Saying them here rather than
             letting the button fail is the difference between "not yet, because X" and an error. */}
-        {!merged && !state.branchDirty && mergeBlocker && (
+        {!integrated && !state.branchDirty && mergeBlocker && (
           <p className="rounded-lg border border-dashed border-status-working/45 bg-status-working/10 px-3 py-2 text-xs text-status-working">
             {mergeBlocker} — a PR still works.
           </p>
@@ -1244,7 +1261,7 @@ function IntegrationSection({
             baseCheckedOut — `baseDirty` reads the checkout AS IT STANDS, not a checkout of
             `state.base` specifically, so when the two disagree this would name the wrong branch
             (mergeBlocker already explains that case). */}
-        {!merged && state.baseCheckedOut && state.baseDirty && (
+        {!integrated && state.baseCheckedOut && state.baseDirty && (
           <p className="text-xs text-muted-foreground">
             {state.base} has uncommitted changes. The merge goes through unless it touches the same
             files — git checks before changing anything.
@@ -1255,7 +1272,7 @@ function IntegrationSection({
           <Button
             variant="outline"
             className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
-            disabled={busy !== null || merged || state.branchDirty || mergeBlocker !== null}
+            disabled={busy !== null || integrated || state.branchDirty || mergeBlocker !== null}
             onClick={() => void run("merge", `Merged into ${state.base}`, filing)}
           >
             <GitMerge className="size-4" />
@@ -1278,7 +1295,7 @@ function IntegrationSection({
             <Button
               variant="outline"
               className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
-              disabled={busy !== null || merged || state.branchDirty}
+              disabled={busy !== null || integrated || state.branchDirty}
               onClick={() => void run("pr", "Pull request opened", filing)}
             >
               <GitPullRequest className="size-4" />
@@ -1366,49 +1383,64 @@ function IntegrationSection({
           </div>
         )}
 
-        {merged ? (
-          <div className="flex flex-col gap-2">
-            {/* The backend refuses this too (`wrapupGate`), but saying so BEFORE the tap beats a
-                surprise error: `session` is already null on a filed card, so without this the screen
-                has nothing else to show that a note is still being written into the checkout this
-                button is about to delete. */}
-            {card.wrapupPending && (
-              <p className="text-xs text-muted-foreground">
-                The agent is still writing its closing report — cleaning up now would lose it. Wait
-                for it to finish.
-              </p>
-            )}
+        {/* Not a choice between two buttons — two different gestures. Cleanup frees the worktree and
+            closes the session `done`; discard forces it away and closes it `abandoned`. They used to
+            be a ternary on "is it merged", which made the pushed-but-not-merged state — the state
+            the PR path leaves behind — offer only the destructive one, for commits sitting safely on
+            a remote. Both belong there: cleanup leads, discard stays, quieter. */}
+        <div className="flex flex-col gap-2">
+          {safeToDelete && (
+            <>
+              {/* The backend refuses this too (`wrapupGate`), but saying so BEFORE the tap beats a
+                  surprise error: `session` is already null on a filed card, so without this the
+                  screen has nothing else to show that a note is still being written into the
+                  checkout this button is about to delete. */}
+              {card.wrapupPending && (
+                <p className="text-xs text-muted-foreground">
+                  The agent is still writing its closing report — cleaning up now would lose it. Wait
+                  for it to finish.
+                </p>
+              )}
+              <Button
+                variant="outline"
+                className="h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
+                disabled={busy !== null || card.wrapupPending}
+                onClick={() => {
+                  if (!confirm("cleanup")) return;
+                  void run("cleanup", "Worktree removed");
+                }}
+              >
+                <Trash2 className="size-4" />
+                {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+              </Button>
+            </>
+          )}
+          {/* The gesture that can destroy work, so it names what it is about to lose and nothing
+              more — a count you can check against the diff above, minus anything the remote already
+              has. Second tap to mean it, like every destructive tap on this screen. */}
+          {!integrated && (
             <Button
-              variant="outline"
-              className="h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
-              disabled={busy !== null || card.wrapupPending}
+              variant={safeToDelete ? "ghost" : "outline"}
+              className={
+                safeToDelete
+                  ? "h-9 w-fit gap-2 text-destructive"
+                  : "h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
+              }
+              disabled={busy !== null}
               onClick={() => {
-                if (!confirm("cleanup")) return;
-                void run("cleanup", "Worktree removed");
+                if (!confirm("discard")) return;
+                void run("discard", "Discarded");
               }}
             >
               <Trash2 className="size-4" />
-              {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+              {pending === "discard"
+                ? discardLoss
+                  ? `Throw away ${discardLoss}?`
+                  : "Drop the branch and archive the card?"
+                : "Discard this work"}
             </Button>
-          </div>
-        ) : (
-          /* The one gesture here that destroys work. It says exactly what it is about to lose —
-             a count you can check against the diff above — and takes a second tap to mean it. */
-          <Button
-            variant="outline"
-            className="h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"
-            disabled={busy !== null}
-            onClick={() => {
-              if (!confirm("discard")) return;
-              void run("discard", "Discarded");
-            }}
-          >
-            <Trash2 className="size-4" />
-            {pending === "discard"
-              ? `Throw away ${state.ahead} commit${state.ahead === 1 ? "" : "s"}${state.branchDirty ? " and uncommitted work" : ""}?`
-              : "Discard this work"}
-          </Button>
-        )}
+          )}
+        </div>
       </div>
     </Section>
   );

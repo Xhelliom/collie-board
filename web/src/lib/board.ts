@@ -726,6 +726,12 @@ export interface Integration {
   /** The CARD's checkout has uncommitted work — merging would leave it behind. */
   branchDirty: boolean;
   baseCheckedOut: boolean;
+  /**
+   * Every commit is on the branch's upstream too. This is where the PR path leaves the work — not
+   * in the base, but not only here either — and the difference between "nowhere else" and "on the
+   * remote" is the whole reason `cleanup` accepts a branch `ahead` still calls unmerged.
+   */
+  pushed: boolean;
 }
 
 /** What a card's branch looks like right now. Null when the card has no branch. */
