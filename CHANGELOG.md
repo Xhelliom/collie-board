@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.117.0] - 2026-08-25
+
+### Changed
+
+- Copilot: correcting a split card now corrects its sub-tasks too, in the same request — a forgotten constraint reaches the cards an agent is actually handed, instead of only the container nobody opens (ebf6e5f).
+
 ## [0.116.0] - 2026-08-25
 
 ### Added

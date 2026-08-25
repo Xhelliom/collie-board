@@ -37,6 +37,7 @@ import {
   pickCategory,
   pickTag,
   refinePrompt,
+  toSubtaskEdits,
   reformulatePrompt,
   reviewPrompt,
   slugBranch,
@@ -1372,6 +1373,53 @@ describe("copilot prompts", () => {
     expect(p).toContain(".board/out/ef56.json");
     expect(p).not.toContain("duplicate_of");
     expect(p).not.toContain("split");
+    expect(p).not.toContain("subtasks");
+  });
+
+  it("carries a container's sub-tasks into the same correction, keyed by id", () => {
+    // A correction that stops at the parent leaves the cards someone actually works from describing
+    // the old task. The ids are in the prompt because the answer only names the ones that change.
+    const p = refinePrompt({
+      title: "Export the reports",
+      spec: "Two exporters.",
+      acceptance: ["both export"],
+      instruction: "the format will be json",
+      subtasks: [
+        { id: "c1", title: "Export the monthly report", spec: "Format unspecified.", acceptance: ["it downloads"] },
+        { id: "c2", title: "Export the yearly report", spec: null, acceptance: [] },
+      ],
+      outPath: "/out.json",
+    });
+    expect(p).toContain("[c1] Export the monthly report");
+    expect(p).toContain("[c2] Export the yearly report");
+    expect(p).toContain("Format unspecified.");
+    expect(p).toContain('"subtasks": [');
+    expect(p).toMatch(/never drop one/);
+    // Still a correction, not a re-triage — the two things a refine never does stay out.
+    expect(p).not.toContain("duplicate_of");
+  });
+});
+
+describe("toSubtaskEdits", () => {
+  it("keeps the entries that carry an id and some text", () => {
+    expect(
+      toSubtaskEdits({
+        subtasks: [
+          { id: "c1", title: "new title", acceptance: ["a", "  "] },
+          { id: "c2", spec: "new spec" },
+        ],
+      }),
+    ).toEqual([{ id: "c1", title: "new title", acceptance: ["a"] }, { id: "c2", spec: "new spec" }]);
+  });
+
+  it("drops an id with nothing behind it — that is 'unchanged' in the shape of a change", () => {
+    expect(toSubtaskEdits({ subtasks: [{ id: "c1" }, { id: "c2", spec: "  " }] })).toEqual([]);
+  });
+
+  it("drops the malformed rest without taking the answer down with it", () => {
+    expect(toSubtaskEdits({ subtasks: ["c1", null, 7, { title: "no id" }] })).toEqual([]);
+    expect(toSubtaskEdits({ subtasks: "nope" })).toEqual([]);
+    expect(toSubtaskEdits(null)).toEqual([]);
   });
 });
 
@@ -2850,6 +2898,84 @@ describe("CopilotCoordinator.refine", () => {
 
     expect(prompts).toEqual([]);
     expect(store.getCard(card.id)!.title).toBe("x");
+  });
+
+  // A container holds no work — its sub-tasks do, and they are what an agent is handed. A correction
+  // that stopped at the parent left every one of them contradicting it.
+  it("carries the correction through to the sub-tasks the answer names", async () => {
+    const store = db();
+    const parent = store.createCard({ title: "Export the reports", spec: "Format unspecified." });
+    const monthly = store.createCard({
+      title: "Export the monthly report",
+      spec: "Format unspecified.",
+      acceptance: ["it downloads"],
+      parentId: parent.id,
+    });
+    const yearly = store.createCard({ title: "Export the yearly report", parentId: parent.id });
+    const { prompts, copilot } = answering({
+      title: "Export the reports as JSON",
+      spec: "Both exports are JSON.",
+      subtasks: [
+        {
+          id: monthly.id,
+          title: "Export the monthly report as JSON",
+          spec: "JSON.",
+          acceptance: ["the downloaded file is valid json"],
+        },
+      ],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(parent.id, "the format will be json");
+
+    expect(prompts[0]).toContain(`[${monthly.id}] Export the monthly report`);
+    expect(prompts[0]).toContain(`[${yearly.id}] Export the yearly report`);
+    expect(store.getCard(parent.id)!.title).toBe("Export the reports as JSON");
+    const fixed = store.getCard(monthly.id)!;
+    expect(fixed.title).toBe("Export the monthly report as JSON");
+    expect(fixed.acceptance).toEqual(["the downloaded file is valid json"]);
+    // Left out of the answer means the correction never reached it — not "blank it".
+    expect(store.getCard(yearly.id)!.title).toBe("Export the yearly report");
+    // Both ends of the trail: the parent says how far it went, the child says where it came from.
+    expect(store.listEvents(parent.id).find((e) => e.type === "copilot.refined")!.payload).toEqual({
+      instruction: "the format will be json",
+      subtasks: 1,
+    });
+    expect(store.listEvents(monthly.id).find((e) => e.type === "copilot.refined")!.payload).toEqual({
+      instruction: "the format will be json",
+      parentId: parent.id,
+    });
+  });
+
+  it("never rewrites a card that is not a child of the one being corrected", async () => {
+    // The ids come back from the model, which was shown them — an unchecked one is a correction
+    // landing on someone else's card.
+    const store = db();
+    const parent = store.createCard({ title: "container" });
+    store.createCard({ title: "child", parentId: parent.id });
+    const stranger = store.createCard({ title: "not in this split" });
+    const { copilot } = answering({
+      title: "container, corrected",
+      subtasks: [{ id: stranger.id, title: "hijacked" }, { id: "no-such-card", title: "ghost" }],
+    });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(parent.id, "fix it");
+
+    expect(store.getCard(stranger.id)!.title).toBe("not in this split");
+    expect(store.listEvents(parent.id).find((e) => e.type === "copilot.refined")!.payload).toEqual({
+      instruction: "fix it",
+    });
+  });
+
+  it("leaves an archived sub-task out — archiving one is how you say it is not the work", async () => {
+    const store = db();
+    const parent = store.createCard({ title: "container" });
+    const dropped = store.createCard({ title: "abandoned branch", parentId: parent.id });
+    store.setStatus(dropped.id, "archived", "test");
+    const { prompts, copilot } = answering({ title: "container, corrected" });
+
+    await new CopilotCoordinator(store, copilot, cfg).refine(parent.id, "fix it");
+
+    expect(prompts[0]).not.toContain("abandoned branch");
   });
 });
 

@@ -222,10 +222,18 @@ export function describeEvent(event: BoardEvent): string {
       return `Copilot rewrote the card${Number(p.split) > 0 ? ` and split it into ${String(p.split)}` : ""}`;
     case "copilot.reformulate_failed":
       return "Copilot couldn't rewrite this card";
-    case "copilot.refined":
+    case "copilot.refined": {
       // The instruction IS the entry: "the copilot corrected this card" without saying what you
       // asked for sends you looking for the correction somewhere it isn't.
-      return `Corrected on your instruction: “${String(p.instruction ?? "")}”`;
+      const quoted = `“${String(p.instruction ?? "")}”`;
+      // On a sub-task the instruction was given to the parent, and saying "on your instruction" on a
+      // card you never typed one into reads as the board inventing corrections.
+      if (p.parentId) return `Corrected with its parent card: ${quoted}`;
+      const subs = Number(p.subtasks) || 0;
+      return `Corrected on your instruction: ${quoted}${
+        subs > 0 ? ` — and ${subs} sub-task${subs > 1 ? "s" : ""}` : ""
+      }`;
+    }
     case "copilot.refine_failed":
       return `Copilot couldn't apply “${String(p.instruction ?? "that correction")}”`;
     case "copilot.review_failed":

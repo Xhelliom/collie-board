@@ -249,6 +249,49 @@ export function toReformulation(parsed: unknown): Reformulation | null {
   return Object.keys(out).length ? out : null;
 }
 
+/**
+ * One sub-task of a container card, corrected along with its parent.
+ *
+ * Keyed by `id` rather than by position: the answer only carries the sub-tasks the correction
+ * actually reached, so an index would point at the wrong card the moment one is left out.
+ */
+export interface SubtaskEdit {
+  id: string;
+  title?: string;
+  spec?: string;
+  acceptance?: string[];
+}
+
+/**
+ * Coerce a refinement's `subtasks` field into {@link SubtaskEdit}s, dropping anything malformed.
+ *
+ * An entry with an id and no text is dropped too: that is the model saying "unchanged" in the shape
+ * of a change, and applying it would be a no-op patch with a journal entry behind it. The ids are
+ * NOT trusted here — they are echoed back from the prompt, and the caller checks each one is still a
+ * child of the card being corrected. Pure + exported.
+ */
+export function toSubtaskEdits(parsed: unknown): SubtaskEdit[] {
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+  const v = (parsed as Record<string, unknown>).subtasks ?? (parsed as Record<string, unknown>).sub_tasks;
+  if (!Array.isArray(v)) return [];
+  const out: SubtaskEdit[] = [];
+  for (const entry of v) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const o = entry as Record<string, unknown>;
+    const id = str(o, "id");
+    if (!id) continue;
+    const edit: SubtaskEdit = { id };
+    const title = str(o, "title");
+    if (title) edit.title = title;
+    const spec = str(o, "spec");
+    if (spec) edit.spec = spec;
+    const acceptance = strList(o, "acceptance");
+    if (acceptance) edit.acceptance = acceptance;
+    if (edit.title || edit.spec || edit.acceptance) out.push(edit);
+  }
+  return out;
+}
+
 /** Coerce a parsed answer into an {@link Explanation}. Pure. */
 export function toExplanation(parsed: unknown): Explanation | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -489,6 +532,14 @@ export function refinePrompt(input: {
   spec: string | null;
   acceptance: string[];
   instruction: string;
+  /**
+   * The card's sub-tasks, when it has any. A container's text is not the work — the sub-tasks are —
+   * so a correction that stops at the parent leaves every card someone actually opens describing the
+   * task as it was before. They ride in the SAME request as the parent's own correction: one call,
+   * one reading of the instruction, and no chance of the parent and its children being corrected
+   * into disagreement by two independent passes.
+   */
+  subtasks?: { id: string; title: string; spec: string | null; acceptance: string[] }[];
   outPath: string;
 }): string {
   const parts = [
@@ -501,6 +552,19 @@ export function refinePrompt(input: {
   if (input.spec) parts.push("", "Spec:", input.spec);
   if (input.acceptance.length) {
     parts.push("", "Acceptance criteria:", ...input.acceptance.map((a) => `- ${a}`));
+  }
+  const subtasks = input.subtasks ?? [];
+  if (subtasks.length) {
+    parts.push(
+      "",
+      "This card is a CONTAINER: it holds no work of its own, and everything below is one of its",
+      "sub-tasks — the cards someone will actually open and work from.",
+    );
+    for (const sub of subtasks) {
+      parts.push("", `[${sub.id}] ${sub.title}`);
+      if (sub.spec) parts.push(sub.spec);
+      if (sub.acceptance.length) parts.push(...sub.acceptance.map((a) => `- ${a}`));
+    }
   }
   parts.push(
     "",
@@ -516,12 +580,33 @@ export function refinePrompt(input: {
     "",
     "Return the WHOLE card, corrected — what you write replaces it, so a field you leave out is a",
     "field the card loses.",
+  );
+  if (subtasks.length) {
+    parts.push(
+      "",
+      "Then carry the correction INTO the sub-tasks it reaches. A sub-task left saying what the",
+      "correction just changed contradicts its own parent, and it is the one that gets worked on.",
+      "Return an entry in `subtasks` for each sub-task that changes, under the id in its brackets,",
+      "with its whole corrected text — same rule as above, a field you leave out is a field it loses.",
+      "Leave OUT every sub-task the correction does not reach; returning one unchanged is only a",
+      "chance to lose its wording. Never invent a sub-task and never drop one: this is a correction,",
+      "not a re-split.",
+    );
+  }
+  parts.push(
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "title": "one short imperative line",',
     '  "spec": "markdown: the corrected spec",',
-    '  "acceptance": ["checkable statement", "..."]',
+    '  "acceptance": ["checkable statement", "..."]' + (subtasks.length ? "," : ""),
+    ...(subtasks.length
+      ? [
+          '  "subtasks": [',
+          '    { "id": "the id in brackets", "title": "…", "spec": "…", "acceptance": ["…"] }',
+          "  ]",
+        ]
+      : []),
     "}",
   );
   return parts.join("\n");
@@ -909,12 +994,23 @@ export class CopilotCoordinator {
    * didn't. Reformulating re-reads the dictation, which for a card you have since edited (or split)
    * is the destructive answer to "just say the format is JSON".
    *
+   * A CONTAINER IS CORRECTED THROUGH TO ITS SUB-TASKS. The parent of a split holds no work; the
+   * children do, and they are what an agent is handed. A correction that stopped at the parent —
+   * which is what this did before 0.117.0 — left every sub-task still describing the task as it was,
+   * so the one card that got the missing constraint was the one nobody opens. Same request, so the
+   * instruction is read once and the parent cannot be corrected into disagreement with its own
+   * children.
+   *
    * Background and fire-and-forget like every other copilot call — the card rewrites itself on a
    * later poll, and nothing breaks if the answer never comes.
    */
   async refine(cardId: string, instruction: string): Promise<void> {
     const card = this.db.getCard(cardId);
     if (!this.copilot.enabled || !card || !instruction.trim()) return;
+    // A container's own text is not the work — its sub-tasks are. Correcting only the parent is how
+    // a forgotten constraint lands on the one card nobody opens and on none of the cards they do.
+    // Archived children are out: taking one out of the split is how you say it is not the work.
+    const children = this.db.listChildren(cardId).filter((c) => c.status !== "archived");
     this.busyCards.add(cardId);
     try {
       const parsed = await this.copilot.ask((out) =>
@@ -923,6 +1019,12 @@ export class CopilotCoordinator {
           spec: card.spec,
           acceptance: card.acceptance,
           instruction,
+          subtasks: children.map((c) => ({
+            id: c.id,
+            title: c.title,
+            spec: c.spec,
+            acceptance: c.acceptance,
+          })),
           outPath: out,
         }),
       );
@@ -945,7 +1047,31 @@ export class CopilotCoordinator {
         },
         "copilot",
       );
-      this.db.recordEvent(cardId, "copilot.refined", { instruction });
+      // Then the sub-tasks the answer says the correction reached. Each id is re-read from the board
+      // rather than trusted: it is echoed back from the prompt, the request took a minute, and an
+      // unchecked one would let a correction rewrite a card that is not part of this split at all.
+      // Text only, exactly like the parent — a correction rewords, it never refiles, restarts or
+      // re-splits, so a sub-task with a worktree behind it is safe to correct and needs it most.
+      let updated = 0;
+      for (const edit of toSubtaskEdits(parsed)) {
+        const child = this.db.getCard(edit.id);
+        if (!child || child.parentId !== cardId) continue;
+        this.db.patchCard(
+          child.id,
+          {
+            ...(edit.title ? { title: edit.title } : {}),
+            ...(edit.spec ? { spec: edit.spec } : {}),
+            ...(edit.acceptance ? { acceptance: edit.acceptance } : {}),
+          },
+          "copilot",
+        );
+        this.db.recordEvent(child.id, "copilot.refined", { instruction, parentId: cardId });
+        updated++;
+      }
+      this.db.recordEvent(cardId, "copilot.refined", {
+        instruction,
+        ...(updated ? { subtasks: updated } : {}),
+      });
     } finally {
       this.busyCards.delete(cardId);
     }
