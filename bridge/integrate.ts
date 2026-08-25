@@ -29,12 +29,14 @@ import {
   deleteBranch,
   integrationOf,
   mergeIntoBase,
+  prStatusOf,
   pushBranch,
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
   worktreePathFor,
   type Integration,
+  type PrStatus,
 } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 
@@ -89,6 +91,37 @@ type Result<T> = { ok: true; value: T } | { ok: false; error: IntegrateError };
 export async function integrationFor(card: Card): Promise<Integration | null> {
   if (!card.repoPath || !card.branch) return null;
   return await integrationOf(card.repoPath, card.branch, card.baseRef);
+}
+
+/**
+ * How long a PR reading stays fresh. A pull request changes state a handful of times in its life, so
+ * a minute is nowhere near stale enough to mislead, and it is long enough that re-reading the card
+ * after every tap costs nothing.
+ */
+const PR_TTL_MS = 60_000;
+
+/** ponytail: one entry per card branch, never evicted — bounded by the size of the board. */
+const prCache = new Map<string, { at: number; value: PrStatus | null }>();
+
+/**
+ * What the card's PR became, cached.
+ *
+ * THE ONLY NETWORK CALL BEHIND A CARD. It is deliberately NOT folded into `integrationFor`: that one
+ * rides the card screen's own on-open read, and half a second of GitHub would be half a second of a
+ * section not rendering. The screen asks for this separately, afterwards, and shows what its journal
+ * knows until the answer lands. Nothing here is periodic — the tap and the card open are the clock.
+ *
+ * A `null` reading is cached like any other: a repo with no `gh`, no auth or no GitHub remote must
+ * not spawn a doomed subprocess on every read of the card.
+ */
+export async function prStatusFor(card: Card, now: () => number = Date.now): Promise<PrStatus | null> {
+  if (!card.repoPath || !card.branch) return null;
+  const key = `${card.repoPath}\u0000${card.branch}`;
+  const hit = prCache.get(key);
+  if (hit && now() - hit.at < PR_TTL_MS) return hit.value;
+  const value = await prStatusOf(card.repoPath, card.branch);
+  prCache.set(key, { at: now(), value });
+  return value;
 }
 
 /** Read the state and apply the shared gate. Cleanup reads the state itself, so it asks directly. */

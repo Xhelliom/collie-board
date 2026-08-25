@@ -27,7 +27,7 @@ import type { BoardDb, BoardEvent, Card, CardPatch, CardStatus, ReviewTodo } fro
 import { isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { cardDiffSummary, diffFile, diffStat, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
-import { cleanupCard, integrationFor, mergeCard, prForCard, resolveConflict } from "./integrate.ts";
+import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
@@ -51,7 +51,7 @@ const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -772,6 +772,22 @@ async function route(
       detail: { cardId: id, tried },
     });
     return json({ ok: true, card: view(id) });
+  }
+
+  // What the card's pull request BECAME — open, merged, or closed without merging.
+  //
+  // Its own route rather than a field of `integration` because it is the one read in the board that
+  // leaves the machine: the card screen renders the section from that GET immediately and asks this
+  // one afterwards, so a slow, absent or unauthenticated `gh` never delays anything. Cached for a
+  // minute (integrate.ts), never polled, and `null` whenever GitHub cannot be asked — the screen then
+  // keeps saying only what the journal knows, which is when the PR was opened.
+  if (action === "pr") {
+    if (req.method !== "GET") return text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    return json({ pr: await prStatusFor(card) });
   }
 
   // ── integration: where the branch stands, and the three taps that end it ──

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { integrationHistory, prLabel } from "./board-groups";
+import { integrationHistory, prLabel, prSentence } from "./board-groups";
 import type { BoardEvent } from "./board";
 
 // The question this answers: "was this card's work ever actually merged?" Once the branch, the
@@ -69,5 +69,31 @@ describe("prLabel", () => {
 
   it("stays generic for anything else", () => {
     expect(prLabel("https://git.example/o/r/merge_requests/9")).toBe("View the PR");
+  });
+});
+
+describe("prSentence", () => {
+  const opened = Date.parse("2026-08-24T15:00:00Z");
+  const merged = Date.parse("2026-08-24T15:37:36Z");
+
+  it("says a merged PR is merged, not that it was opened minutes ago", () => {
+    // The bug this exists for: a card showed "PR opened 4m ago" about a PR merged hours earlier.
+    const out = prSentence({ state: "merged", url: "https://gh/o/r/pull/1", mergedAt: merged }, opened);
+    expect(out).toContain("merged");
+    expect(out).not.toContain("opened");
+  });
+
+  it("distinguishes a PR closed without merging from one still open", () => {
+    const closed = prSentence({ state: "closed", url: "https://gh/o/r/pull/2", mergedAt: null }, opened);
+    const open = prSentence({ state: "open", url: "https://gh/o/r/pull/3", mergedAt: null }, opened);
+    expect(closed).toContain("closed without merging");
+    expect(closed).not.toBe(open);
+    expect(open).toContain("PR opened");
+  });
+
+  it("falls back to the journal's wording when GitHub cannot be asked", () => {
+    // No `gh`, no auth, no GitHub remote, offline — the honest answer is the one thing we can prove.
+    expect(prSentence(null, opened)).toBe(prSentence({ state: "open", url: "u", mergedAt: null }, opened));
+    expect(prSentence(null, opened)).toContain("PR opened");
   });
 });

@@ -7,11 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.113.5] - 2026-08-25
+## [0.114.1] - 2026-08-25
 
 ### Fixed
 - Card page: after "Open a PR", the screen offers "Clean up worktree" instead of Discard alone — it reads `pushed`, not just the distance to the local base, and keeps Discard alongside it (96b5a9a).
 - Card page: the "Done" warning and the Discard confirmation tell "these commits exist nowhere else" apart from "they are on the remote, not in the base yet" (96b5a9a).
+
+## [0.114.0] - 2026-08-25
+
+### Added
+- Card page: the PR line says what the pull request BECAME — merged / closed without merging / open — read from `gh pr view` on its own route, cached a minute, off the poll. Falls back to the journal's "PR opened …" when `gh` is absent, unauthenticated or the repo has no GitHub remote. (fa21c74)
 
 ## [0.113.4] - 2026-08-25
 
