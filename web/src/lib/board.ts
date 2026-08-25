@@ -102,6 +102,12 @@ export interface CardView {
    * from. Immutable, and it may dangle (deleted source) — resolve it, don't assume it exists.
    */
   originCardId: string | null;
+  /**
+   * WHY an automatic card exists, on a different axis from {@link tag} (which says where the work
+   * lives). Always null when {@link origin} is null — a person's card is not classified. Immutable,
+   * like `origin`.
+   */
+  category: "test" | "feature" | "bug" | "docs" | "chore" | null;
   /** One tag, or none — most cards have none, and that is a normal card. Colour: {@link tagHue}. */
   tag: string | null;
   position: number;

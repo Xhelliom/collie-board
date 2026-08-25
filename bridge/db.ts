@@ -68,6 +68,19 @@ export function isLiveStatus(status: CardStatus): boolean {
  */
 export type CardOrigin = "copilot";
 
+/**
+ * WHAT KIND of follow-up an automatic card is — the second axis {@link Card.tag} can't carry.
+ *
+ * A closed vocabulary, because the only thing this exists for is triage: `test` is the one that
+ * piles up ("nobody has clicked through X yet") and `feature` is the one worth keeping, and a free
+ * string would give you neither reliably. Set ONLY on cards with {@link Card.origin} — a card a
+ * person wrote has no category at all, and `null` says exactly that.
+ */
+export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore";
+
+/** The categories, in the order the prompt lists them. The single source of the vocabulary. */
+export const CARD_CATEGORIES: readonly CardCategory[] = ["test", "feature", "bug", "docs", "chore"];
+
 export interface Card {
   id: string;
   title: string;
@@ -136,6 +149,15 @@ export interface Card {
    * the right degradation for a caption.
    */
   originCardId: string | null;
+  /**
+   * What kind of follow-up this is, for a card the copilot filed on its own — see
+   * {@link CardCategory}. Always null when {@link origin} is null: a person's card is not
+   * classified, it is simply a card.
+   *
+   * Like `origin`, written once at creation and unreachable from any PATCH: it describes why the
+   * card appeared, and that doesn't change.
+   */
+  category: CardCategory | null;
   /**
    * ONE tag, or none. Free text, normalised by {@link normalizeTag} — the name IS the identity, so
    * "Bug", "bug " and "bug" are the same tag with the same colour everywhere.
@@ -245,6 +267,7 @@ interface CardRow {
   depends_on: string | null;
   origin: string | null;
   origin_card_id: string | null;
+  category: string | null;
   tag: string | null;
   position: number;
   created_at: number;
@@ -347,6 +370,9 @@ function toCard(r: CardRow): Card {
     // is the one error this field must never make.
     origin: r.origin === "copilot" ? "copilot" : null,
     originCardId: r.origin_card_id ?? null,
+    // Anything unrecognised reads as "not classified", same degradation as `origin` above: a wrong
+    // category would send a card to the wrong side of a filter, and no category shows it either way.
+    category: CARD_CATEGORIES.includes(r.category as CardCategory) ? (r.category as CardCategory) : null,
     // No tag is the normal state, not a gap: every card written before tags existed reads as null,
     // and nothing downstream may treat that as missing data.
     tag: r.tag ?? null,
@@ -410,6 +436,8 @@ CREATE TABLE IF NOT EXISTS card (
   origin       TEXT,
   -- Which card it came out of — see Card.originCardId. Soft, like the three above.
   origin_card_id TEXT,
+  -- What kind of follow-up an automatic card is — see Card.category. NULL for a person's card.
+  category     TEXT,
   -- One tag or none. Nullable by design — see Card.tag.
   tag          TEXT,
   position     INTEGER NOT NULL DEFAULT 0,
@@ -525,6 +553,8 @@ export interface NewCard {
   origin?: CardOrigin;
   /** Omit for a card that came from nowhere but a person — see {@link Card.originCardId}. */
   originCardId?: string | null;
+  /** Only meaningful alongside {@link NewCard.origin} — see {@link Card.category}. */
+  category?: CardCategory;
   tag?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
@@ -700,6 +730,10 @@ export class BoardDb {
       // their `origin` badge and simply say nothing about where they came from, which is what
       // they said yesterday.
       { table: "card", column: "origin_card_id", ddl: "TEXT" },
+      // 0.115: what kind of follow-up an automatic card is. No backfill: the follow-ups already on
+      // the board were written before the copilot was asked to say, and guessing from a title is
+      // exactly the unreliable classification this field exists to replace.
+      { table: "card", column: "category", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -723,8 +757,8 @@ export class BoardDb {
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
                            branch, workspace_id, agent_kind, parent_id, depends_on, origin,
-                           origin_card_id, tag, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           origin_card_id, category, tag, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -741,6 +775,7 @@ export class BoardDb {
         input.dependsOn ?? null,
         input.origin ?? null,
         input.originCardId ?? null,
+        input.category ?? null,
         normalizeTag(input.tag),
         input.position ?? (minPos ?? 0) - 1,
         ts,
