@@ -1225,8 +1225,15 @@ export class CopilotCoordinator {
     // wants.
     // ponytail: the suggestions are dropped, not stored card-less — a `cardId: null` todo renders as
     // "deleted since" (struck through). Keep them if that ever gets its own rendering.
-    const suggested = this.db.autoFollowUps() ? (result.todos ?? []) : [];
-    const todos: ReviewTodo[] = suggested.map((todo) => {
+    // …and only in the categories still switched on — the finer cut under the global switch. Applied
+    // HERE, before `createCard`, because the ask is "don't produce the card", not "hide it after":
+    // a card filed and then filtered out still shows up in every count, every export and every
+    // review record that links to it.
+    const wanted = new Set(this.db.followUpCategories());
+    const suggested = (this.db.autoFollowUps() ? (result.todos ?? []) : [])
+      .map((todo) => ({ todo, category: pickCategory(todo.category) }))
+      .filter(({ category }) => wanted.has(category));
+    const todos: ReviewTodo[] = suggested.map(({ todo, category }) => {
       const created = this.db.createCard({
         title: todo.title,
         spec: todo.spec ?? null,
@@ -1249,8 +1256,9 @@ export class CopilotCoordinator {
         // …and WHY it exists, on the same card and on a different axis (see CardCategory). Never
         // inherited from the reviewed card the way the tag is: the area is shared, the reason is not
         // — and never null, because "an automatic card with no category" is the state this whole
-        // field exists to abolish.
-        category: pickCategory(todo.category),
+        // field exists to abolish. Already snapped above: the same value the filter just judged, so
+        // a card can never be admitted as one category and filed as another.
+        category,
       });
       return { title: todo.title, cardId: created.id };
     });

@@ -509,6 +509,9 @@ CREATE TABLE IF NOT EXISTS board_pref (
 /** `board_pref` key for {@link BoardDb.autoFollowUps}. */
 const AUTO_FOLLOW_UPS_KEY = "auto_follow_ups";
 
+/** `board_pref` key for {@link BoardDb.followUpCategories}. */
+const FOLLOW_UP_CATEGORIES_KEY = "follow_up_categories";
+
 /** `board_pref` key for {@link BoardDb.maxAgents}. */
 const MAX_AGENTS_KEY = "max_agents";
 
@@ -1146,6 +1149,32 @@ export class BoardDb {
 
   setAutoFollowUps(on: boolean): void {
     this.setPref(AUTO_FOLLOW_UPS_KEY, on ? "1" : "0");
+  }
+
+  /**
+   * Which {@link CardCategory} kinds a review is allowed to file — one notch finer than
+   * {@link autoFollowUps}, which stays the coarse cut: with it off, none of these matter.
+   *
+   * Defaults to ALL of them, so opting into follow-ups still means opting into follow-ups; this is
+   * the knob for "the missing-feature ones, not the go-click-through-it ones". Stored as the ENABLED
+   * list rather than a flag per key, because the vocabulary is closed by design (see
+   * `pickCategory`) — and an empty row is a real answer ("none"), distinct from the absent row that
+   * means "all".
+   */
+  followUpCategories(): CardCategory[] {
+    const row = this.db
+      .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
+      .get(FOLLOW_UP_CATEGORIES_KEY);
+    if (!row) return [...CARD_CATEGORIES];
+    const stored = new Set(row.value.split(","));
+    // Filtered through the vocabulary, in ITS order: junk in the row can't conjure a sixth category,
+    // and can't make the settings rows shuffle.
+    return CARD_CATEGORIES.filter((c) => stored.has(c));
+  }
+
+  setFollowUpCategories(categories: CardCategory[]): void {
+    const wanted = new Set(categories);
+    this.setPref(FOLLOW_UP_CATEGORIES_KEY, CARD_CATEGORIES.filter((c) => wanted.has(c)).join(","));
   }
 
   /**

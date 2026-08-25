@@ -19,6 +19,15 @@ export type CardStatus =
   | "orphaned"
   | "archived";
 
+/**
+ * Mirrors the bridge's `CARD_CATEGORIES` — the closed vocabulary an automatic card is filed under.
+ * A value, not just a type, because the settings screen renders one switch per entry and the board
+ * has to agree with the bridge on both the list and its order.
+ */
+export const CARD_CATEGORIES = ["test", "feature", "bug", "docs", "chore"] as const;
+
+export type CardCategory = (typeof CARD_CATEGORIES)[number];
+
 export interface CardSession {
   id: string;
   cardId: string;
@@ -107,7 +116,7 @@ export interface CardView {
    * lives). Always null when {@link origin} is null — a person's card is not classified. Immutable,
    * like `origin`.
    */
-  category: "test" | "feature" | "bug" | "docs" | "chore" | null;
+  category: CardCategory | null;
   /** One tag, or none — most cards have none, and that is a normal card. Colour: {@link tagHue}. */
   tag: string | null;
   position: number;
@@ -657,6 +666,10 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
 export interface BoardPrefs {
   /** Turn a review's follow-up suggestions into backlog cards. Default off — opt in. */
   autoFollowUps: boolean;
+  /** Which kinds of follow-up may be filed, once `autoFollowUps` is on. Defaults to all of them;
+   *  the global switch stays the coarse cut, and off means none of these are consulted. A category
+   *  left out here produces NO card — nothing is created and then hidden. */
+  followUpCategories: CardCategory[];
   /** How many cards may run an agent at once. Reads as the effective limit: the number set here,
    *  or the bridge's `COLLIE_BOARD_MAX_AGENTS` default while none has been. */
   maxAgents: number;

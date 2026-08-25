@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.116.0] - 2026-08-25
+
+### Added
+
+- Settings: one follow-up switch per category under the global one, so the test cards can go without losing the missing-feature ones — a category switched off produces no card at all, rather than a card hidden after the fact (2478701).
+
 ## [0.115.0] - 2026-08-25
 
 ### Added
