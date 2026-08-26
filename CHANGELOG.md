@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.123.0] - 2026-08-26
+
+### Changed
+- The first push now carries its body: the free subtitle tiers are awaited (bounded at 1.5s) before the alert renders, so a sleeping phone gets one complete, buzzing message instead of a silent update it can never see — NOTIFY_AUDIT.md §N10 (3b1ecb7)
+- Only the copilot still fires a second, silent update; off by default, so the default configuration sends exactly one message per alert (3b1ecb7)
+
 ## [0.122.0] - 2026-08-26
 
 ### Added
