@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
+import type { DiffStat } from "./git.ts";
 import { enrichNotification } from "./notify-subtitle.ts";
 import { NotificationCoordinator } from "./notifications.ts";
 import type { Alert, FiredAlert, HerdSummary, NotifySink } from "./notifications.ts";
@@ -73,7 +74,18 @@ function fakeTranscripts(entries: TranscriptEntry[], byPath?: TranscriptEntry[])
   };
 }
 
-const noDiff = async (_target: { cardId?: string; cwd: string }) => "(no changes)";
+/** A stat with `n` text files in it — only the counts matter to anything under test here. */
+function fakeStat(n: number, added: number, removed: number): DiffStat {
+  return {
+    base: "HEAD",
+    files: Array.from({ length: n }, (_, i) => ({ path: `f${i}.ts`, added: 0, removed: 0, kind: "text" as const })),
+    added,
+    removed,
+  };
+}
+
+/** Nothing to measure — the shape `cardDiffStat` returns for a card with no branch or no worktree. */
+const noDiff = async (_target: { cardId?: string; cwd: string }) => null;
 const neverResolvePath = async (_input: { paneId: string; cwd: string }) => null;
 
 describe("enrichNotification — gating", () => {
@@ -125,11 +137,12 @@ describe("enrichNotification — gating", () => {
       transcripts: null,
       statFor: async (target) => {
         statTarget = target;
-        return "trim-tools.ts | +12 -3";
+        return fakeStat(1, 12, 3);
       },
     });
     expect(statTarget).toEqual({ cardId: undefined, cwd: "/home/you/demo" });
-    expect(sink.renders[0]?.body).toBe("cleaned up the trim-tools helper");
+    // Tier 3 lands first (no transcript here), the copilot's rephrase upgrades it right after.
+    expect(sink.renders.map((r) => r.body)).toEqual(["1 file, +12 -3", "cleaned up the trim-tools helper"]);
   });
 
   test("a hand-launched `blocked` pane has nothing to enrich from — no diff attempted", async () => {
@@ -147,7 +160,7 @@ describe("enrichNotification — gating", () => {
       resolvePath: neverResolvePath,
       statFor: async () => {
         statCalls++;
-        return "unused";
+        return null;
       },
     });
     expect(statCalls).toBe(0);
@@ -166,7 +179,7 @@ describe("enrichNotification — gating", () => {
       transcripts: null,
       statFor: async () => {
         statCalls++;
-        return "stat";
+        return null;
       },
     });
     expect(statCalls).toBe(0);
@@ -244,7 +257,10 @@ describe("enrichNotification — the free-tier fallback (no copilot)", () => {
     expect(subtitle).not.toContain("  ");
   });
 
-  test("a disabled copilot still skips the git subprocess entirely — nothing would use it", async () => {
+  test("a transcript line outranks the diff, and with the copilot off nothing else wants it — no subprocess", async () => {
+    // Tier 2 won, so tier 3 has no body to fill, and there is no copilot prompt to feed either.
+    // Note the gate is "would anything use it", NOT "is the copilot on" — the test below is the
+    // same alert with no transcript, and it DOES shell out.
     let statCalls = 0;
     const alert = baseAlert({ agentSessionId: "s1", status: "done" });
     await enrichNotification({
@@ -256,7 +272,7 @@ describe("enrichNotification — the free-tier fallback (no copilot)", () => {
       transcripts: fakeTranscripts([textEntry("assistant", "done here")]),
       statFor: async () => {
         statCalls++;
-        return "unused";
+        return null;
       },
     });
     expect(statCalls).toBe(0);
@@ -276,6 +292,147 @@ describe("enrichNotification — the free-tier fallback (no copilot)", () => {
       notifyLog: { enrich: (...args) => enriched.push(args) },
     });
     expect(enriched).toEqual([["p1", "blocked", "the raw closing line"]]);
+  });
+});
+
+describe("enrichNotification — tier 3, the diff line (NOTIFY_AUDIT.md §3.3)", () => {
+  /** A `done` on a card with no transcript to speak for it — where the cascade reaches tier 3. */
+  const cardDone = () =>
+    baseAlert({
+      cardId: "c1",
+      cardTitle: "Ship the header bell",
+      cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
+    });
+
+  test("a `done` on a card, copilot OFF, carries a diff summary in its body", async () => {
+    const sink = new RecordingSink();
+    const alert = cardDone();
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard({ title: "Ship the header bell", spec: "do the thing" }),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(3, 180, 12),
+    });
+    expect(sink.renders).toEqual([
+      {
+        title: "Done · Ship the header bell",
+        body: "collie-board · 3 files, +180 -12",
+        paneId: "p1",
+        renotify: false,
+      },
+    ]);
+  });
+
+  test("the stat is fetched with the copilot off — the old gate is gone", async () => {
+    let statCalls = 0;
+    const alert = cardDone();
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => {
+        statCalls++;
+        return fakeStat(1, 1, 0);
+      },
+    });
+    expect(statCalls).toBe(1);
+  });
+
+  test("the agent's own last line outranks it — the diff never lands when tier 2 did", async () => {
+    const sink = new RecordingSink();
+    const alert = { ...cardDone(), agentSessionId: "s1" };
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: fakeTranscripts([textEntry("assistant", "Bumped the version and cut the release.")]),
+      statFor: async () => fakeStat(3, 180, 12),
+    });
+    expect(sink.renders).toHaveLength(1);
+    expect(sink.renders[0]?.body).toBe("collie-board · Bumped the version and cut the release.");
+  });
+
+  test("the copilot still upgrades over it when it answers", async () => {
+    const sink = new RecordingSink();
+    const alert = cardDone();
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+      board: fakeBoard({ title: "Ship the header bell", spec: "do the thing" }),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(3, 180, 12),
+    });
+    expect(sink.renders.map((r) => r.body)).toEqual([
+      "collie-board · 3 files, +180 -12",
+      "collie-board · renamed the header bell",
+    ]);
+  });
+
+  test("an empty diff falls through to tier 4 — nothing, never the card title again", async () => {
+    const sink = new RecordingSink();
+    const alert = cardDone();
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(0, 0, 0),
+    });
+    expect(sink.renders).toEqual([]);
+  });
+
+  test("a `blocked` never gets one — a stat is an account of finished work, not of a question", async () => {
+    const sink = new RecordingSink();
+    const alert = { ...cardDone(), status: "blocked" as const };
+    let statCalls = 0;
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink,
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => {
+        statCalls++;
+        return fakeStat(3, 180, 12);
+      },
+    });
+    expect(statCalls).toBe(0);
+    expect(sink.renders).toEqual([]);
+  });
+
+  test("it also patches the bell's history, like every other tier", async () => {
+    const alert = cardDone();
+    const enriched: unknown[] = [];
+    await enrichNotification({
+      alert,
+      coordinator: fakeCoordinator(alert),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot(null, false),
+      board: fakeBoard(null),
+      transcripts: null,
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(3, 180, 12),
+      notifyLog: { enrich: (...args) => enriched.push(args) },
+    });
+    expect(enriched).toEqual([["p1", "done", "3 files, +180 -12"]]);
   });
 });
 
@@ -580,9 +737,9 @@ describe("the plain push and the subtitle update agree", () => {
         copilot: fakeCopilot({ subtitle: "fixed the flaky test" }),
         board: fakeBoard(null),
         transcripts: null,
-        statFor: noDiff,
+        statFor: async () => fakeStat(2, 5, 1), // the copilot's only material here
       });
-      const enriched = sink.renders[0]!;
+      const enriched = sink.renders.at(-1)!; // tier 3 landed first; the copilot upgraded it
       expect(enriched.title).toBe(base.title);
       expect(enriched.body).toBe(base.body ? `${base.body} · fixed the flaky test` : "fixed the flaky test");
     });

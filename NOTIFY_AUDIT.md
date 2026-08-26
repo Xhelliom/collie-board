@@ -358,9 +358,20 @@ Ce que ça donne, champ par champ :
 | Marqueur | `Needs you` / `Review` / `Done` | `alert.status` + statut de carte (§4) | oui |
 | Sujet | titre de carte, sinon repo | `alert.cardTitle`, sinon `repoName(cwd)` | oui — `cardTitle` est déjà porté par `Alert` (`notifications.ts:96`) |
 | Repo (corps) | nom court du repo | `card.repoPath` ou segment de `cwd` | oui — `repoPath` déjà lu en `notify-subtitle.ts:127` |
-| Quoi (corps) | sous-titre copilot → dernier message → `--stat` → rien | §3.3 | partiellement (§2.3) |
+| Quoi (corps) | sous-titre copilot → dernier message → `--stat` → rien | §3.3 | oui — cascade complète en 0.122.0 |
 
 ### 3.3 Le corps quand personne n'a réécrit : une cascade, pas un repli sur le sujet
+
+> **Implémenté en 0.122.0** — la cascade entière est dans `enrichNotification`
+> (`bridge/notify-subtitle.ts`). Le palier 3 rend le stat sur une ligne (`diffStatLine`,
+> `bridge/git.ts`) et il est **récupéré indépendamment du copilot** : la condition n'est plus « le
+> copilot est-il activé » mais « quelque chose l'utiliserait-il », c'est-à-dire un corps à remplir ou
+> un prompt à nourrir. Le même stat sert les deux, en deux rendus — une ligne pour l'écran verrouillé,
+> le listing par fichier pour le prompt — donc un seul sous-processus git par alerte, jamais zéro
+> quand le corps en a besoin. Le palier 4 est déjà acquis depuis 0.121.0 (§2.2). **Deux effets de
+> bord :** un `done` dont le transcript a parlé n'affiche jamais son diff (le palier 2 le prime, comme
+> la cascade le prescrit), et une carte sans worktree ne déclenche plus de tour de copilot sur un
+> `(no branch for this card)` — il n'y a rien à reformuler.
 
 Le repli actuel (`cardTitle ?? cwd`) est le pire possible : il répète le sujet. Cascade proposée,
 du plus informatif au moins, **sans jamais retomber sur le sujet** :
@@ -474,7 +485,7 @@ décider si le board a le droit d'émettre des notifications de son propre chef.
 
 Ordonnées par rapport valeur/coût. **Aucun code n'est écrit dans le cadre de la carte d'audit.**
 
-### N1 — Libérer le palier gratuit du sous-titre de la préférence copilot
+### N1 — Libérer le palier gratuit du sous-titre de la préférence copilot — ✅ fait en 0.120.0
 
 **Pourquoi** : §2.3. C'est un `if` mal placé (`bridge/index.ts:201`) qui empêche une lecture de
 transcript déjà écrite et testée de s'exécuter. Sans copilot, sans quota, sans réseau.
@@ -484,7 +495,7 @@ ajouter une seconde ; c'est le seul vrai arbitrage de la carte.
 **Acceptation** : avec `copilotSubtitle` off et le copilot off, une alerte `blocked` porte le dernier
 message de l'agent dans son corps. La préférence `copilotSubtitle` ne gouverne plus que le copilot.
 
-### N2 — Changer le sujet du titre et sortir le repo du corps
+### N2 — Changer le sujet du titre et sortir le repo du corps — ✅ fait en 0.121.0
 
 **Pourquoi** : §2.1, §2.2, §3.2. Le titre est un discriminant nul et le corps est une redondance.
 **Portée** : réécrire `NotificationCoordinator.summarize` (forme A) selon §3.2 ; dériver le repo de
@@ -493,7 +504,7 @@ message de l'agent dans son corps. La préférence `copilotSubtitle` ne gouverne
 **Acceptation** : deux alertes de deux cartes différentes ont deux titres différents ; le repo
 apparaît exactement une fois ; aucun champ n'est répété entre titre et corps.
 
-### N3 — La cascade de repli du corps
+### N3 — La cascade de repli du corps — ✅ fait en 0.122.0
 
 **Pourquoi** : §3.3. Le repli actuel répète le sujet ; le `--stat` est calculé puis jeté.
 **Portée** : implémenter la cascade sous-titre → dernier message → `--stat` → rien, et calculer le
@@ -504,10 +515,15 @@ corps. Aucun cas ne retombe sur le titre de la carte.
 ### N4 — La notification porte sur la carte en review
 
 **Pourquoi** : Partie 4. C'est la demande d'origine sur l'événement notifié.
-**Portée** : lire le statut de la carte au moment de `onFire` (déjà chargé, `notify-subtitle.ts:127`),
-appliquer le marqueur `Review`, et faire pointer le tap vers la carte plutôt que vers le pane —
-ce qui demande un champ de destination dans le payload push, à côté du `target: "settings"` existant
-(`push.ts:64-66`, `sw.ts:100-103`). Traiter les cas limites de §4.3. Dépend de N2.
+**Portée** : *revue après N3 — plus petite qu'écrite ici à l'origine.* Le marqueur ne se compose plus
+à la main : depuis N2 il vit dans `notifyContent` (`bridge/notify-content.ts`), où `Review` est **une
+ligne**. La carte est déjà chargée au moment de `onFire` (`notify-subtitle.ts:139` — la référence
+`:127` d'origine a bougé avec la cascade), et `BoardDb.getCard` rend la carte entière : `status` est
+donc là, il suffit d'élargir le type narrowé de `EnrichOpts.board` (`notify-subtitle.ts:92`), qui ne
+déclare aujourd'hui que `{ title, spec }`. **Le vrai reste du travail est le tap** : faire pointer la
+destination vers la carte plutôt que vers le pane, ce qui demande un champ dans le payload push à côté
+du `target: "settings"` existant (`push.ts:64-66`, `sw.ts:100-103`). Traiter les cas limites de §4.3.
+Dépend de N2.
 **Acceptation** : une session qui se termine sur une carte qui passe en `review` produit une
 notification dont le marqueur est `Review` et dont le tap ouvre la carte. Une session qui se termine
 sans carte est inchangée.
@@ -530,21 +546,34 @@ le droit du board à en émettre (contrainte `CLAUDE.md` : pas de nouvelle boucl
 s'accrocher à `engine.onUpdate`). Brainstorm, pas implémentation.
 **Acceptation** : une liste d'événements candidats, chacun avec son déclencheur existant et son coût.
 
-### N7 — Sortir le sous-titre de la file du copilot, ou lui donner la priorité
+### N7 — Sortir le sous-titre de la file du copilot, ou lui donner la priorité — ⚠️ largement dissoute
 
-**Pourquoi** : §2.4. Le tour court dont la valeur se périme attend derrière le tour long dont la
-valeur ne se périme pas.
-**Portée** : soit une priorité dans `Copilot.ask` (`copilot.ts:793-798`), soit un budget de temps
-propre au sous-titre au-delà duquel il abandonne. À arbitrer contre la règle « le copilot est
-sérialisé à une requête » (`CLAUDE.md`, §The board) — qui n'interdit pas un ordre, seulement un
-parallélisme. Dépend de N1 (sans N1, cette carte ne sert que les instances copilot-on).
+> **Revue après N1, N3 et N10 : sa prémisse a disparu.** §2.4 la justifiait par « le tour court dont
+> la valeur se périme attend derrière le tour long ». Or la notification n'attend plus le copilot du
+> tout : le palier gratuit rend dès qu'il est lu (N1), la cascade descend au `--stat` quand il n'y a
+> pas de transcript (N3), et le premier push part complet (N10). Ce qui périssait ne périt plus — la
+> reformulation du copilot est devenue un **bonus dont le retard ne coûte rien**.
+
+**Ce qu'il reste, et c'est mince** : la seule question encore ouverte est de savoir si la polish du
+copilot doit arriver **avant que l'opérateur ait traité le pane**, faute de quoi le garde-fou de
+fraîcheur (`currentSolo`) la jette. Ce n'est plus « l'alerte est plate », c'est « l'alerte aurait pu
+être mieux tournée ». Priorité basse, et à ne rouvrir que si un usage réel montre que la polish est
+jetée souvent.
+**Portée si on la reprend** : soit une priorité dans `Copilot.ask` (`copilot.ts:793-798`), soit un
+budget de temps propre au sous-titre au-delà duquel il abandonne. À arbitrer contre la règle « le
+copilot est sérialisé à une requête » (`CLAUDE.md`, §The board) — qui n'interdit pas un ordre,
+seulement un parallélisme.
 **Acceptation** : quand une carte atterrit, le sous-titre de notification passe avant la review de
 cette même carte.
 
 ### N8 — Renseigner `sessionName` avant les listeners de transition
 
-**Pourquoi** : §2.6. Le push est moins riche que le toast sur le même événement, pour une raison
-d'ordonnancement.
+**Pourquoi** : §2.6, *mais la cible a changé depuis N2*. La raison d'origine était « le push est moins
+riche que le toast sur le même événement ». Ce n'est plus vrai du push : N2 a sorti `paneDisplayName`
+du titre, qui vaut désormais `<marqueur> · <sujet>`. Le seul survivant est `notifications.ts:244`, la
+branche **digest multi-agents** — et la cloche, qui compose encore de son côté (N9). Le symptôme
+restant est donc : un pane renommé par `/rename` n'apparaît pas sous ce nom dans un digest ni dans
+l'historique. Correctif inchangé ; ne pas le chercher sur une alerte seule, il n'y est plus.
 **Portée** : appliquer le cache `sessionNames` dans `toView` (`state-engine.ts:203-230`) plutôt
 qu'après la boucle de transitions. Correctif de quelques lignes ; sans effet visible tant que
 personne n'utilise `/rename`, ce qui en fait une carte de faible priorité mais de coût quasi nul.
@@ -562,6 +591,55 @@ trois surfaces. Attention à la contrainte `paneDisplayName` déjà dupliquée v
 (`bridge/types.ts:80-82`) : cette carte est aussi l'occasion de trancher si ce doublon reste
 délibéré.
 **Acceptation** : une amélioration du contenu ne se code qu'une fois.
+
+### N10 — Un seul push, complet : ne différer que ce qui est lent
+
+**Pourquoi** : *découvert en vérifiant N3 sur l'appareil, pas à la lecture du code.* Une alerte part
+aujourd'hui en deux messages : l'alerte initiale, vide et **vibrante** (`renotify: true`), puis la mise
+à jour de sous-titre, complète et **silencieuse** (`renotify: false`). Les deux partagent le collapse
+topic `collie-herd` (`SEND_OPTIONS`, `bridge/push.ts:27`), et un collapse topic veut dire : *si
+l'appareil est injoignable, ne garder que le dernier*. Un téléphone endormi ne reçoit donc que le
+second — le silencieux. L'alerte se pose sans vibration, précisément dans le cas où le push existe :
+écran éteint, appareil dans la poche.
+
+*Mesuré en direct* (0.122.0, 3 abonnements — 1 FCM, 2 Mozilla) : les 6 envois d'une alerte à deux
+temps repartent tous en `201`, et la notification atteint le téléphone **environ une minute plus
+tard, sans vibration**. Un message unique à `renotify: true` envoyé seul, lui, vibre.
+
+**Mais le collapse n'est pas la cause — c'est le découpage qui ne se justifie pas.** Les coûts, tous
+mesurés :
+
+| Étape | Coût |
+|---|---|
+| Debounce avant que l'alerte parte | **30 000 ms** (`notifyDelayMs`, défaut) |
+| Palier 2 — lecture du transcript | 1–60 ms (`context.ts:55-56`) |
+| Palier 3 — `git --stat` | ~20 ms (mesuré sur une carte réelle, 10 fichiers) |
+| Palier 1 — le copilot | secondes à minutes, sérialisé sur tout le board |
+
+L'alerte attend **déjà 30 secondes**. Lui ajouter ~80 ms pour qu'elle parte complète plutôt que vide,
+c'est 0,3 % de retard en plus. Le découpage en deux temps n'a donc qu'une seule vraie justification :
+le copilot, seul palier réellement lent. Pour les paliers 2 et 3 il ne rachète rien et coûte un
+message, une vibration, et la machinerie de fraîcheur qui va avec.
+
+**Portée** : le **premier** push attend les paliers 2 et 3 et part complet. La mise à jour silencieuse
+ne subsiste que pour le copilot — de l'information supplémentaire qui arrive après, sur une alerte
+déjà lisible : c'est là que le deuxième temps est cohérent, et là seulement. Le copilot étant éteint
+par défaut, la configuration par défaut n'envoie plus qu'**un seul message**, qui vibre toujours, et
+le défaut ci-dessus disparaît sans avoir à arbitrer les collapse topics.
+
+Deux points d'attention :
+
+- `NotificationCoordinator.emit()` est synchrone et `notifications.ts` est un fichier d'upstream. Le
+  faire attendre y touche plus profondément qu'un hook. La contrainte de surface upstream est un coût
+  de rebase, pas un principe : elle ne pèse que si le fork tire encore d'upstream — à trancher, et à
+  écrire, avant de s'en affranchir ici.
+- Une lecture de transcript ou un sous-processus git qui pend ne doit **jamais** retarder l'alerte :
+  ce qu'on attend, on l'attend sous délai borné, et on part sans lui à l'expiration. Le corps vide
+  reste un repli acceptable (§3.3, palier 4) ; une alerte qui n'arrive pas, non.
+
+**Acceptation** : copilot éteint, une alerte survenue pendant que le téléphone dort arrive en **un
+seul message**, complet et vibrant. Vérifiée sur l'appareil, écran verrouillé — le seul juge, comme
+pour les troncatures.
 
 ---
 
