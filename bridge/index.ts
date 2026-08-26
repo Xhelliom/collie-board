@@ -33,7 +33,7 @@ import {
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
-import { cardDiffSummary, cwdDiffSummary } from "./git.ts";
+import { cardDiffStat, cardDiffSummary, diffStat } from "./git.ts";
 import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
@@ -224,7 +224,11 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
                 cwd,
               })
           : undefined,
-        statFor: ({ cardId, cwd }) => (cardId ? cardDiffSummary(board, cardId) : cwdDiffSummary(cwd)),
+        // The RAW stat: notify-subtitle renders it two ways — one line for the body, the full
+        // listing for the copilot prompt (§3.3). A hand-launched pane has no branch to measure from,
+        // so "what is uncommitted right now" is the only diff it has.
+        statFor: ({ cardId, cwd }) =>
+          cardId ? cardDiffStat(board, cardId) : diffStat(cwd, null),
         notifyLog,
       }).catch(() => {});
     },

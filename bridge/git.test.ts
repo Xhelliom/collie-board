@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { cwdDiffSummary, formatDiffStat, type DiffStat, type GitRunner } from "./git.ts";
+import { diffStat, diffStatLine, formatDiffStat, type DiffStat, type GitRunner } from "./git.ts";
 
-// formatDiffStat is pure; cwdDiffSummary is diffStat(cwd, null) + formatDiffStat, driven through a
-// fake GitRunner so no real git subprocess or repo on disk is involved.
+// The two renderings of one stat — formatDiffStat for a prompt, diffStatLine for a push body — are
+// pure; diffStat itself is driven through a fake GitRunner, so no real git subprocess or repo on
+// disk is involved.
 
 describe("formatDiffStat", () => {
   test("no changes reads as a plain sentence, not an empty list", () => {
@@ -43,7 +44,35 @@ describe("formatDiffStat", () => {
   });
 });
 
-describe("cwdDiffSummary", () => {
+describe("diffStatLine", () => {
+  const stat = (files: DiffStat["files"], added: number, removed: number): DiffStat => ({
+    base: "HEAD",
+    files,
+    added,
+    removed,
+  });
+  const text = (path: string) => ({ path, added: 0, removed: 0, kind: "text" as const });
+
+  test("renders the whole stat as one push-body line", () => {
+    expect(diffStatLine(stat([text("a.ts"), text("b.ts"), text("c.ts")], 180, 12))).toBe("3 files, +180 -12");
+  });
+
+  test("a single file is not `1 files`", () => {
+    expect(diffStatLine(stat([text("a.ts")], 3, 0))).toBe("1 file, +3 -0");
+  });
+
+  test("nothing changed is null, not an announcement that nothing changed", () => {
+    // Tier 3 has to be able to fall through to tier 4 (nothing) — see notify-subtitle.ts.
+    expect(diffStatLine(stat([], 0, 0))).toBeNull();
+  });
+
+  test("counts binary and untracked files too, which contribute no +/- of their own", () => {
+    const files = [text("a.ts"), { path: "logo.png", added: 0, removed: 0, kind: "binary" as const }];
+    expect(diffStatLine(stat(files, 4, 1))).toBe("2 files, +4 -1");
+  });
+});
+
+describe("diffStat against HEAD — the hand-launched pane's only diff", () => {
   function fakeGit(numstat: string, status: string): GitRunner {
     return async (args) => {
       if (args[0] === "diff") return { ok: true, stdout: numstat, stderr: "" };
@@ -54,13 +83,14 @@ describe("cwdDiffSummary", () => {
 
   test("diffs the working tree against HEAD — no card, no branch needed", async () => {
     const git = fakeGit("2\t0\tREADME.md\n", "?? scratch.txt\n");
-    const out = await cwdDiffSummary("/repo", git);
+    const out = formatDiffStat(await diffStat("/repo", null, git));
     expect(out).toContain("README.md | +2 -0");
     expect(out).toContain("scratch.txt | untracked");
   });
 
-  test("nothing uncommitted reads as no changes", async () => {
-    const git = fakeGit("", "");
-    expect(await cwdDiffSummary("/repo", git)).toBe("(no changes)");
+  test("nothing uncommitted reads as no changes, and has no body line at all", async () => {
+    const stat = await diffStat("/repo", null, fakeGit("", ""));
+    expect(formatDiffStat(stat)).toBe("(no changes)");
+    expect(diffStatLine(stat)).toBeNull();
   });
 });

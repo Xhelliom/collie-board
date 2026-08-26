@@ -309,33 +309,43 @@ export function formatDiffStat(stat: DiffStat): string {
 }
 
 /**
- * A one-screen `--stat` summary of a card's diff, as text — the copilot's review input.
- *
- * Explicitly NOT the full diff: the stat is enough to judge drift from the acceptance criteria, and
- * the full patch would burn the quota the copilot is meant to be careful with. Returns a plain
- * sentence when there is nothing to summarise, so the prompt never contains an empty section.
+ * The same stat as ONE push-body line — `3 files, +180 -12`. Null when nothing changed, so the
+ * notification body's cascade (notify-subtitle.ts §3.3) falls through to nothing rather than
+ * announcing an empty diff. Pure + exported; deliberately not {@link formatDiffStat}'s per-file
+ * listing, which is a prompt's worth of text and a lock screen's worth of nothing.
  */
+export function diffStatLine(stat: DiffStat): string | null {
+  const n = stat.files.length;
+  if (n === 0) return null;
+  return `${n} file${n === 1 ? "" : "s"}, +${stat.added} -${stat.removed}`;
+}
+
+/**
+ * A card's diff, measured in its worktree against its base ref. Null when the card has no branch or
+ * no worktree on disk — there is nothing to measure, which is not the same as measuring zero.
+ *
+ * Explicitly NOT the full patch: every consumer wants the stat, and the full diff would burn the
+ * quota the copilot is meant to be careful with.
+ */
+export async function cardDiffStat(
+  db: { getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null },
+  cardId: string,
+): Promise<DiffStat | null> {
+  const card = db.getCard(cardId);
+  if (!card?.repoPath || !card.branch) return null;
+  const cwd = await worktreePathFor(card.repoPath, card.branch);
+  if (!cwd) return null;
+  return diffStat(cwd, card.baseRef);
+}
+
+/** That stat as the copilot's review input. A plain sentence when there is nothing to summarise, so
+ *  the prompt never contains an empty section. */
 export async function cardDiffSummary(
   db: { getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null },
   cardId: string,
 ): Promise<string> {
-  const card = db.getCard(cardId);
-  if (!card?.repoPath || !card.branch) return "(no branch for this card)";
-  const cwd = await worktreePathFor(card.repoPath, card.branch);
-  if (!cwd) return "(no worktree for this card)";
-  const stat = await diffStat(cwd, card.baseRef);
-  return stat.files.length === 0 ? "(no changes on this branch)" : formatDiffStat(stat);
-}
-
-/**
- * Same summary, for a pane with no card behind it — a hand-launched agent has no branch/base ref to
- * measure from, so this is simply "what's uncommitted right now" (`diffStat(cwd, null)` resolves to
- * a diff against HEAD, per {@link resolveBase}). Used by notify-subtitle.ts so the copilot-authored
- * subtitle has real material even outside the card system.
- */
-export async function cwdDiffSummary(cwd: string, git: GitRunner = runGit): Promise<string> {
-  const stat = await diffStat(cwd, null, git);
-  return formatDiffStat(stat);
+  const stat = await cardDiffStat(db, cardId);
+  return stat ? formatDiffStat(stat) : "(no worktree for this card)";
 }
 
 // ── integration ───────────────────────────────────────────────────────────────

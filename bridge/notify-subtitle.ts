@@ -5,15 +5,22 @@
 // caller folds it into `copilot.enabled` (index.ts's onFire hook), so "off" here means "no copilot
 // polish", never "no subtitle".
 //
-// TWO TIERS, RENDERED IN THAT ORDER — FAST ONE FIRST, ALWAYS. The free tier (the agent's own last
-// transcript line, verbatim) needs nothing but a file read (~10-60ms — see context.ts's own
-// measurement) and renders as soon as it's ready. The copilot REPHRASES that into one clean sentence,
-// but it's a serialised agent turn — seconds to minutes, one request at a time across the whole board
-// — so it lands, if at all, as a LATER upgrade over the fast one, never instead of it. Landing the
-// fast tier first is deliberate, not just "first is faster to code": a pane the operator has already
-// handled by the time the copilot's turn comes back is exactly the case notify-subtitle's staleness
-// guard exists for (see below) — putting the free tier first means that guard only ever costs the
-// copilot's polish, never the notification's only chance at being informative at all.
+// THE CASCADE (NOTIFY_AUDIT.md §3.3), best content first, and it NEVER bottoms out on the subject:
+//
+//   1. the copilot's sentence, if it answers      — slow, optional, an upgrade over 2 or 3
+//   2. the agent's own last transcript line       — a file read (~10-60ms, see context.ts), verbatim
+//   3. `git diff --stat` as one line, for a `done`— "3 files, +180 -12"
+//   4. nothing                                    — a body of just the repo beats one that echoes
+//                                                   the title, which is what `cardTitle ?? cwd` did
+//
+// RENDERED IN COST ORDER, NOT CASCADE ORDER: tier 2 lands the moment it's read, tier 3 only where 2
+// gave nothing, and the copilot's tier 1 — a serialised agent turn, seconds to minutes, one request
+// at a time across the whole board — arrives later as a silent upgrade over whichever landed, never
+// instead of it. That ordering is deliberate: a pane the operator has already handled by the time
+// the copilot answers is exactly the case the staleness guard below exists for, so putting the free
+// tiers first means the guard only ever costs the polish, never the alert's one shot at saying
+// something. Tier 3's stat is fetched whether or not the copilot is on — it is CONTENT now, not just
+// the prompt material it used to be (§3.3) — but only when something could actually use it.
 //
 // TWO-STAGE PUSH (now three-stage, counting the base one), DELIBERATELY. A push notification's value
 // decays fast, so waiting for EITHER tier before the FIRST push would defeat the alert — the plain
@@ -24,6 +31,7 @@
 // ever lands on the lock screen, whether it's the fast tier or the copilot's later upgrade.
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
+import { diffStatLine, formatDiffStat, type DiffStat } from "./git.ts";
 import { notifyContent } from "./notify-content.ts";
 import type { Alert, FiredAlert, NotifySink } from "./notifications.ts";
 import type { TranscriptEntry } from "./transcript.ts";
@@ -87,9 +95,11 @@ interface EnrichOpts {
    *  ContextTracker already relies on for a pane herdr reports no `agent_session` for. Optional: a
    *  bridge with transcripts off, or a caller that doesn't need the fallback, just omits it. */
   resolvePath?: (input: { paneId: string; cwd: string }) => Promise<string | null>;
-  /** `cardDiffSummary` for a card, `cwdDiffSummary` otherwise — injected so this stays testable
-   *  without a real git checkout. `cardId` is omitted for a hand-launched pane. */
-  statFor: (target: { cardId?: string; cwd: string }) => Promise<string>;
+  /** `cardDiffStat` for a card, a plain `diffStat(cwd, null)` otherwise — injected so this stays
+   *  testable without a real git checkout. `cardId` is omitted for a hand-launched pane; null means
+   *  there is nothing to measure (no branch, no worktree), which is not the same as measuring zero.
+   *  The RAW stat, not a rendered string: it is read two ways below, one per tier. */
+  statFor: (target: { cardId?: string; cwd: string }) => Promise<DiffStat | null>;
   /** Patches the bell's history entry to match the live push — optional so a caller with no log (or
    *  a test) simply doesn't get it. Without this the subtitle would only ever be visible in the
    *  fleeting OS notification, never in the history you'd check after missing it. */
@@ -138,22 +148,37 @@ export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   const lastMessage =
     transcriptBy && opts.transcripts ? await lastAssistantSnippet(opts.transcripts, transcriptBy) : null;
 
-  // FAST TIER — no queue to wait on, so this is the notification's real shot at being informative;
+  // TIER 2 — no queue to wait on, so this is the notification's real shot at being informative;
   // see the header for why it goes first rather than only being a fallback for a failed copilot call.
   const fastLanded = lastMessage ? pushSubtitle(opts, alert, rawFallbackSubtitle(lastMessage)) : false;
 
+  // TIER 3's material, fetched whenever it could actually be USED: as the body when no transcript
+  // line beat it to it, or as the copilot's prompt material. What it is NO LONGER gated on is the
+  // copilot alone (§3.3) — that gate is what left a computed `--stat` as prompt material and never
+  // as content. It stays gated on `done`: a stat is an account of finished work, not of a question.
+  const stat =
+    alert.status === "done" && (!lastMessage || opts.copilot.enabled)
+      ? await opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null)
+      : null;
+
+  // TIER 3 — the diff as one line, and only where the cascade actually reaches it: the agent's own
+  // sentence outranks it, so this is the body of a `done` whose transcript gave us nothing. Below
+  // it there is only TIER 4, which is nothing at all — never the subject again (§3.3).
+  const statLine = stat ? diffStatLine(stat) : null;
+  const statLanded = !lastMessage && statLine ? pushSubtitle(opts, alert, statLine) : false;
+
   if (!opts.copilot.enabled) {
-    if (!fastLanded) console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    if (!fastLanded && !statLanded)
+      console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
     return;
   }
 
-  // The diff is copilot-prompt material only — a raw `--stat` listing isn't subtitle material on its
-  // own the way the agent's own sentence is — so it's not worth a git subprocess when the copilot
-  // isn't even going to see it.
-  const statSummary =
-    alert.status === "done" ? await opts.statFor({ cardId: alert.cardId, cwd: alert.cwd }).catch(() => null) : null;
+  // The same stat again, the copilot's way: the per-file listing, which is prompt material and only
+  // ever that — a lock screen has no room for it, which is exactly why tier 3 renders the one-liner.
+  const statSummary = stat ? formatDiffStat(stat) : null;
   if (!lastMessage && !statSummary && !card?.spec) {
-    if (!fastLanded) console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    if (!fastLanded && !statLanded)
+      console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
     return;
   }
 

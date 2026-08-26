@@ -358,9 +358,20 @@ Ce que ça donne, champ par champ :
 | Marqueur | `Needs you` / `Review` / `Done` | `alert.status` + statut de carte (§4) | oui |
 | Sujet | titre de carte, sinon repo | `alert.cardTitle`, sinon `repoName(cwd)` | oui — `cardTitle` est déjà porté par `Alert` (`notifications.ts:96`) |
 | Repo (corps) | nom court du repo | `card.repoPath` ou segment de `cwd` | oui — `repoPath` déjà lu en `notify-subtitle.ts:127` |
-| Quoi (corps) | sous-titre copilot → dernier message → `--stat` → rien | §3.3 | partiellement (§2.3) |
+| Quoi (corps) | sous-titre copilot → dernier message → `--stat` → rien | §3.3 | oui — cascade complète en 0.122.0 |
 
 ### 3.3 Le corps quand personne n'a réécrit : une cascade, pas un repli sur le sujet
+
+> **Implémenté en 0.122.0** — la cascade entière est dans `enrichNotification`
+> (`bridge/notify-subtitle.ts`). Le palier 3 rend le stat sur une ligne (`diffStatLine`,
+> `bridge/git.ts`) et il est **récupéré indépendamment du copilot** : la condition n'est plus « le
+> copilot est-il activé » mais « quelque chose l'utiliserait-il », c'est-à-dire un corps à remplir ou
+> un prompt à nourrir. Le même stat sert les deux, en deux rendus — une ligne pour l'écran verrouillé,
+> le listing par fichier pour le prompt — donc un seul sous-processus git par alerte, jamais zéro
+> quand le corps en a besoin. Le palier 4 est déjà acquis depuis 0.121.0 (§2.2). **Deux effets de
+> bord :** un `done` dont le transcript a parlé n'affiche jamais son diff (le palier 2 le prime, comme
+> la cascade le prescrit), et une carte sans worktree ne déclenche plus de tour de copilot sur un
+> `(no branch for this card)` — il n'y a rien à reformuler.
 
 Le repli actuel (`cardTitle ?? cwd`) est le pire possible : il répète le sujet. Cascade proposée,
 du plus informatif au moins, **sans jamais retomber sur le sujet** :
@@ -474,7 +485,7 @@ décider si le board a le droit d'émettre des notifications de son propre chef.
 
 Ordonnées par rapport valeur/coût. **Aucun code n'est écrit dans le cadre de la carte d'audit.**
 
-### N1 — Libérer le palier gratuit du sous-titre de la préférence copilot
+### N1 — Libérer le palier gratuit du sous-titre de la préférence copilot — ✅ fait en 0.120.0
 
 **Pourquoi** : §2.3. C'est un `if` mal placé (`bridge/index.ts:201`) qui empêche une lecture de
 transcript déjà écrite et testée de s'exécuter. Sans copilot, sans quota, sans réseau.
@@ -484,7 +495,7 @@ ajouter une seconde ; c'est le seul vrai arbitrage de la carte.
 **Acceptation** : avec `copilotSubtitle` off et le copilot off, une alerte `blocked` porte le dernier
 message de l'agent dans son corps. La préférence `copilotSubtitle` ne gouverne plus que le copilot.
 
-### N2 — Changer le sujet du titre et sortir le repo du corps
+### N2 — Changer le sujet du titre et sortir le repo du corps — ✅ fait en 0.121.0
 
 **Pourquoi** : §2.1, §2.2, §3.2. Le titre est un discriminant nul et le corps est une redondance.
 **Portée** : réécrire `NotificationCoordinator.summarize` (forme A) selon §3.2 ; dériver le repo de
@@ -493,7 +504,7 @@ message de l'agent dans son corps. La préférence `copilotSubtitle` ne gouverne
 **Acceptation** : deux alertes de deux cartes différentes ont deux titres différents ; le repo
 apparaît exactement une fois ; aucun champ n'est répété entre titre et corps.
 
-### N3 — La cascade de repli du corps
+### N3 — La cascade de repli du corps — ✅ fait en 0.122.0
 
 **Pourquoi** : §3.3. Le repli actuel répète le sujet ; le `--stat` est calculé puis jeté.
 **Portée** : implémenter la cascade sous-titre → dernier message → `--stat` → rien, et calculer le
