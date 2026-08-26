@@ -101,6 +101,10 @@ export interface Alert {
    *  the copilot then has nothing beyond the base body to improve on. */
   cardId?: string;
   agentSessionId?: string;
+  /** What actually happened, filled in BEFORE the alert fires by the coordinator's `subtitleFor`
+   *  hook (notify-subtitle.ts's free tiers), then overwritten in place by the copilot's later
+   *  rephrase. Read by `summarize` — this is why the very first push already carries a body. */
+  subtitle?: string;
 }
 
 /** An alert that has just fired, as handed to the history hook. */
@@ -126,6 +130,12 @@ export class NotificationCoordinator<H = unknown> {
     // the ping you go looking for afterwards. A retraction never reaches it: the summary changes,
     // what happened doesn't.
     private readonly onFire?: (alert: FiredAlert) => void,
+    // Awaited between the debounce expiring and the alert being rendered: what actually happened,
+    // if it can be had cheaply (notify-subtitle.ts's free tiers). THE FIRST PUSH IS THE ONLY ONE
+    // THAT BUZZES — the collapse topic means a sleeping phone receives only the last message on the
+    // slot, so a body that lands in a later silent update never reaches it (NOTIFY_AUDIT.md §N10).
+    // The producer owns the deadline; a hook that hangs must cost the body, never the alert.
+    private readonly subtitleFor?: (alert: FiredAlert) => Promise<string | null>,
   ) {}
 
   /** Wire to `StateEngine.onTransition`. */
@@ -151,12 +161,7 @@ export class NotificationCoordinator<H = unknown> {
       cardId: agent.cardId,
       agentSessionId: agent.agentSessionId,
     };
-    const handle = this.clock.schedule(() => {
-      this.pending.delete(id);
-      this.outstanding.set(id, alert);
-      this.onFire?.({ ...alert, paneId: id });
-      this.emit(true);
-    }, this.delayMs);
+    const handle = this.clock.schedule(() => void this.fire(id, alert), this.delayMs);
     this.pending.set(id, { handle, status: alert.status });
   }
 
@@ -210,6 +215,26 @@ export class NotificationCoordinator<H = unknown> {
     if (had) this.sink.clear();
   }
 
+  /**
+   * The debounce expired: collect what the alert can say, then render it — once. `outstanding` is
+   * populated BEFORE the wait so a resolution landing mid-wait is seen (the guard below drops the
+   * alert rather than resurrecting it); with no `subtitleFor` hook nothing is ever awaited and this
+   * stays as synchronous as it was.
+   */
+  private async fire(id: string, alert: Alert): Promise<void> {
+    this.pending.delete(id);
+    this.outstanding.set(id, alert);
+    const subtitle = this.subtitleFor
+      ? await this.subtitleFor({ ...alert, paneId: id }).catch(() => null)
+      : null;
+    // ponytail: resolved while we waited — the retraction already emitted, so just stand down. It
+    // may have emitted a clear for a slot that never showed; harmless, and the window is ~ms.
+    if (!this.outstanding.has(id)) return;
+    if (subtitle) alert.subtitle = subtitle;
+    this.onFire?.({ ...alert, paneId: id });
+    this.emit(true);
+  }
+
   private resolve(id: string): void {
     this.cancelPending(id);
     if (this.outstanding.delete(id)) this.emit(false);
@@ -229,8 +254,9 @@ export class NotificationCoordinator<H = unknown> {
     if (entries.length === 1) {
       const [paneId, a] = entries[0]!;
       // One outstanding agent → deep-link straight to its pane on tap. The sentence itself is
-      // notify-content.ts's, shared with the subtitle updates that later replace this same slot.
-      return { ...notifyContent(a, null), paneId, renotify };
+      // notify-content.ts's, shared with the copilot's later update to this same slot — which is
+      // why an already-filled `subtitle` survives every re-render of the summary.
+      return { ...notifyContent(a, a.subtitle ?? null), paneId, renotify };
     }
     const alerts = entries.map(([, a]) => a);
     const n = alerts.length;

@@ -13,8 +13,13 @@ import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
 import { WrapupCoordinator } from "./wrapup.ts";
 import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
-import { NotificationCoordinator, makeNotifySink, type NotifyClock } from "./notifications.ts";
-import { enrichNotification } from "./notify-subtitle.ts";
+import {
+  NotificationCoordinator,
+  makeNotifySink,
+  type FiredAlert,
+  type NotifyClock,
+} from "./notifications.ts";
+import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notify-subtitle.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
@@ -185,53 +190,61 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     cancel: (h) => clearTimeout(h),
   };
   const sink = makeNotifySink(push, snooze, herdTagFor(isPrimary, name), isPrimary ? undefined : name);
+  // What both notification stages read the alert's story from — the same sources, so the copilot's
+  // later rephrase and the body the first push already carries can never disagree about the facts.
+  const subtitleSources = (alert: FiredAlert): SubtitleSources => ({
+    alert,
+    board,
+    transcripts,
+    // A pane herdr gave no `agent_session` for still usually has a real transcript on disk —
+    // the same directory/process resolution ContextTracker already relies on (context.ts).
+    resolvePath: transcripts
+      ? ({ paneId, cwd }) =>
+          resolveWithoutSession({
+            source: transcripts.source,
+            paneProcess: (id) => herdr.paneProcess(id),
+            startedAt: processStartedAt,
+            paneId,
+            cwd,
+          })
+      : undefined,
+    // The RAW stat: notify-subtitle renders it two ways — one line for the body, the full listing
+    // for the copilot prompt (§3.3). A hand-launched pane has no branch to measure from, so "what
+    // is uncommitted right now" is the only diff it has.
+    statFor: ({ cardId, cwd }) => (cardId ? cardDiffStat(board, cardId) : diffStat(cwd, null)),
+  });
   const notifications = new NotificationCoordinator(
     clock,
     sink,
     cfg.notifyDelayMs,
     (status) => notifyPrefs.isNotifiable(status),
     // Every alert also lands in the bell's history, tagged with the session it came from so the
-    // deep-link scopes correctly (primary omits the name, like the push payload).
+    // deep-link scopes correctly (primary omits the name, like the push payload). The alert reaching
+    // here already carries the subtitle the push went out with, so the history reads the same.
     (alert) => {
       notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) });
-      // The subtitle is a SECOND, silent push that lands later, if at all — never awaited here, and
+      // The copilot's rephrase is the ONLY second, silent push (§N10) — never awaited here, and
       // never allowed to hold up the alert it rides on. `notifications` is the coordinator being
       // constructed right now; the callback only ever runs later, once the assignment below has
-      // completed. UNCONDITIONAL: the free tier is a transcript read (no quota, no agent), so its
-      // only condition is `transcripts` being on at all — enrichNotification checks that itself.
+      // completed.
       void enrichNotification({
-        alert,
+        ...subtitleSources(alert),
         coordinator: notifications,
         sink,
-        // `copilotSubtitle` gates the copilot's later rephrase and nothing else — folding it into
-        // `enabled` here is what "the pref is about the copilot" means, and it keeps the free tier
-        // above it running whether or not the operator wants to spend copilot quota on polish.
+        // `copilotSubtitle` gates the copilot's rephrase and nothing else — folding it into
+        // `enabled` here is what "the pref is about the copilot" means, and it leaves the free
+        // tiers below running whether or not the operator wants to spend quota on polish.
         copilot: {
           enabled: copilot.enabled && notifyPrefs.current().copilotSubtitle,
           ask: (buildPrompt) => copilot.ask(buildPrompt),
         },
-        board,
-        transcripts,
-        // A pane herdr gave no `agent_session` for still usually has a real transcript on disk —
-        // the same directory/process resolution ContextTracker already relies on (context.ts).
-        resolvePath: transcripts
-          ? ({ paneId, cwd }) =>
-              resolveWithoutSession({
-                source: transcripts.source,
-                paneProcess: (id) => herdr.paneProcess(id),
-                startedAt: processStartedAt,
-                paneId,
-                cwd,
-              })
-          : undefined,
-        // The RAW stat: notify-subtitle renders it two ways — one line for the body, the full
-        // listing for the copilot prompt (§3.3). A hand-launched pane has no branch to measure from,
-        // so "what is uncommitted right now" is the only diff it has.
-        statFor: ({ cardId, cwd }) =>
-          cardId ? cardDiffStat(board, cardId) : diffStat(cwd, null),
         notifyLog,
       }).catch(() => {});
     },
+    // The free tiers, awaited (under their own deadline) so the ONE message that buzzes is also the
+    // complete one. UNCONDITIONAL: a transcript read and a `git --stat` cost no quota and no agent
+    // turn, so their only condition is having something to read — firstSubtitle checks that itself.
+    (alert) => firstSubtitle(subtitleSources(alert)),
   );
   // The raw AgentView a transition fires with never carries card fields — withCardFields is
   // otherwise only applied in server.ts, for the /api/snapshot response. Without this, an alert's

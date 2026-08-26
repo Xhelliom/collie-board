@@ -592,7 +592,7 @@ trois surfaces. Attention à la contrainte `paneDisplayName` déjà dupliquée v
 délibéré.
 **Acceptation** : une amélioration du contenu ne se code qu'une fois.
 
-### N10 — Un seul push, complet : ne différer que ce qui est lent
+### N10 — Un seul push, complet : ne différer que ce qui est lent — ✅ fait en 0.123.0
 
 **Pourquoi** : *découvert en vérifiant N3 sur l'appareil, pas à la lecture du code.* Une alerte part
 aujourd'hui en deux messages : l'alerte initiale, vide et **vibrante** (`renotify: true`), puis la mise
@@ -632,7 +632,9 @@ Deux points d'attention :
 - `NotificationCoordinator.emit()` est synchrone et `notifications.ts` est un fichier d'upstream. Le
   faire attendre y touche plus profondément qu'un hook. La contrainte de surface upstream est un coût
   de rebase, pas un principe : elle ne pèse que si le fork tire encore d'upstream — à trancher, et à
-  écrire, avant de s'en affranchir ici.
+  écrire, avant de s'en affranchir ici. *Tranché à la livraison* : dépense assumée sur ce point précis,
+  inscrite dans [`UPSTREAM.md`](./UPSTREAM.md) comme les autres entrées — pas d'ADR, ce n'est pas une
+  levée générale de la contrainte. La brique 24 du ledger porte la facture d'extraction correspondante.
 - Une lecture de transcript ou un sous-processus git qui pend ne doit **jamais** retarder l'alerte :
   ce qu'on attend, on l'attend sous délai borné, et on part sans lui à l'expiration. Le corps vide
   reste un repli acceptable (§3.3, palier 4) ; une alerte qui n'arrive pas, non.
@@ -640,6 +642,11 @@ Deux points d'attention :
 **Acceptation** : copilot éteint, une alerte survenue pendant que le téléphone dort arrive en **un
 seul message**, complet et vibrant. Vérifiée sur l'appareil, écran verrouillé — le seul juge, comme
 pour les troncatures.
+
+*Livré en 0.123.0.* Le coordinateur attend `subtitleFor` avant de rendre ; les paliers 2 et 3 sont
+`firstSubtitle`, sous une borne de 1 500 ms. Coûts re-mesurés à la livraison : `git --stat` sur un
+dépôt sale réel **12 ms**, palier 2 sur le pire transcript de la machine (34 Mo) **220 ms** — la
+borne n'est atteinte que par du travail bloqué. Copilot éteint = **un seul message**, `renotify:true`.
 
 ---
 

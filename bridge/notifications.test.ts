@@ -344,3 +344,53 @@ describe("makeNotifySink", () => {
     expect(push.sent).toEqual([]);
   });
 });
+
+// The subtitle hook is awaited between the debounce expiring and the render (NOTIFY_AUDIT.md §N10),
+// so the alert can now be handled DURING that wait — the one new race the await introduces.
+describe("NotificationCoordinator — the awaited subtitle hook", () => {
+  function setupAwaiting(subtitleFor: () => Promise<string | null>) {
+    const clock = new FakeClock();
+    const sink = new RecordingSink();
+    const coord = new NotificationCoordinator(
+      clock,
+      sink,
+      30_000,
+      (s: AgentStatus) => s === "blocked" || s === "done",
+      undefined,
+      subtitleFor,
+    );
+    return { clock, sink, coord };
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 5));
+
+  test("the first render already carries the subtitle, still buzzing", async () => {
+    const { clock, sink, coord } = setupAwaiting(async () => "3 files, +180 -12");
+    coord.onTransition(agent("p1", "done"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.renders).toEqual([
+      { title: "Done · demo", body: "3 files, +180 -12", paneId: "p1", renotify: true },
+    ]);
+  });
+
+  test("an alert handled while the hook was still working never lands", async () => {
+    let release = (_: string | null) => {};
+    const { clock, sink, coord } = setupAwaiting(() => new Promise((r) => (release = r)));
+    coord.onTransition(agent("p1", "done"), "working", "done");
+    clock.fireAll();
+    coord.onTransition(agent("p1", "idle"), "done", "idle"); // handled at the desk mid-wait
+    release("too late to matter");
+    await settle();
+    expect(sink.renders).toEqual([]);
+  });
+
+  test("a hook that rejects costs the body, never the alert", async () => {
+    const { clock, sink, coord } = setupAwaiting(async () => {
+      throw new Error("transcript unreadable");
+    });
+    coord.onTransition(agent("p1", "blocked"), "working", "blocked");
+    clock.fireAll();
+    await settle();
+    expect(sink.renders).toEqual([{ title: "Needs you · demo", body: "", paneId: "p1", renotify: true }]);
+  });
+});
