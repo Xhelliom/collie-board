@@ -17,9 +17,10 @@ export interface PushPayload {
   /**
    * `session` is the registry name the pane lives in — carried so the click deep-links into it.
    * `target` names a non-pane destination for the tap (e.g. "settings" for an update notification);
-   * absent = the default agent deep-link path.
+   * absent = the default agent deep-link path. `cardId` is the board card to open instead of the
+   * pane, set only on a "card to read" alert (bridge/notify-content.ts's `notifyCardId`).
    */
-  data?: { paneId?: string; session?: string; target?: string };
+  data?: { paneId?: string; session?: string; target?: string; cardId?: string };
 }
 
 export type PushDecision =
@@ -38,6 +39,8 @@ export type PushDecision =
       session?: string;
       /** Non-pane tap destination (e.g. "settings"); undefined = the default agent deep-link. */
       target?: string;
+      /** Board card to open instead of the pane; undefined = the default agent deep-link. */
+      cardId?: string;
       renotify: boolean;
     };
 
@@ -54,6 +57,7 @@ export function decidePush(payload: PushPayload, hasVisibleClient: boolean): Pus
   const paneId = payload.data?.paneId;
   const session = payload.data?.session;
   const target = payload.data?.target;
+  const cardId = payload.data?.cardId;
   const tag = payload.tag ?? tagFor(paneId);
   if (payload.type === "clear") return { kind: "clear", tag };
   if (hasVisibleClient) return { kind: "suppress" };
@@ -65,6 +69,7 @@ export function decidePush(payload: PushPayload, hasVisibleClient: boolean): Pus
     paneId,
     session,
     target,
+    cardId,
     renotify: payload.renotify ?? false,
   };
 }

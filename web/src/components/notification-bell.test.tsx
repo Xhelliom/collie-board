@@ -75,6 +75,7 @@ function mount(notifyCount: number | (() => number) = 0) {
         children: [
           { index: true, element: null },
           { path: "pane/:paneId", element: <Landed /> },
+          { path: "card/:cardId", element: <Landed /> },
         ],
       },
     ],
@@ -106,6 +107,29 @@ describe("NotificationBell", () => {
     // The `done` entry belongs to the "side" session — the link must scope to it, not to whichever
     // session the app happens to be showing.
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w2%3Ap1?s=side");
+  });
+
+  test("a card-to-read entry says Review and lands on the CARD, not the pane it ran in", async () => {
+    const review: NotifyLogEntry = {
+      id: 4,
+      ts: Date.now() - 1_000,
+      agent: "claude",
+      workspaceLabel: "collie",
+      cwd: "/home/you/collie",
+      status: "done",
+      paneId: "w4:p1",
+      cardTitle: "Ship 0.86",
+      cardId: "c1",
+      cardStatus: "review",
+    };
+    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [review] })));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    // ^Review — the row, not its "Delete notification: …" sibling.
+    await user.click(await screen.findByRole("button", { name: /^Review · Ship 0\.86/ }));
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c1");
   });
 
   test("the card is the subject and the repo drops to the second line — same sentence as the push", async () => {

@@ -462,11 +462,16 @@ a tourné une vingtaine de fois avant que `onFire` ne se déclenche. **Au moment
 déjà en `review`.**
 
 Et le code lit déjà la carte à cet instant : `enrichNotification` fait
-`opts.board.getCard(alert.cardId)` (`notify-subtitle.ts:127`) — mais n'en garde que le `title` et le
-`spec`, pour le prompt du copilot. **Le statut de la carte est déjà chargé au bon moment, et jeté.**
+`opts.board.getCard(alert.cardId)` — mais n'en garde que le `title` et le `spec`, pour le prompt du
+copilot. **Le statut de la carte est déjà chargé au bon moment, et jeté.**
 
 Il n'y a donc ni poll à ajouter (interdit par `CLAUDE.md`, §The board), ni hook à créer : il faut
 lire un champ de plus sur un objet déjà en main, au moment où `onFire` compose le résumé.
+
+> **Livré (0.125.0)** : la lecture n'a pas été prise sur `enrichNotification` — ce chemin-là est
+> celui du copilot, éteint par défaut et arrivé en second push silencieux, donc le marqueur en
+> aurait dépendu. Elle est faite dans le hook de pré-tir déjà awaité entre l'expiration du débounce
+> et le rendu (`index.ts`), qui tire au même instant sans rien devoir au copilot.
 
 ### 4.3 Les cas limites à trancher
 
@@ -518,7 +523,7 @@ apparaît exactement une fois ; aucun champ n'est répété entre titre et corps
 **Acceptation** : une alerte `done` sur une carte, copilot off, porte un résumé de diff dans son
 corps. Aucun cas ne retombe sur le titre de la carte.
 
-### N4 — La notification porte sur la carte en review
+### N4 — La notification porte sur la carte en review — ✅ fait en 0.125.0
 
 **Pourquoi** : Partie 4. C'est la demande d'origine sur l'événement notifié.
 **Portée** : *revue après N3 — plus petite qu'écrite ici à l'origine.* Le marqueur ne se compose plus
@@ -538,6 +543,13 @@ deep-linkent encore vers le pane (`panePath`), donc sans elles deux surfaces sur
 **Acceptation** : une session qui se termine sur une carte qui passe en `review` produit une
 notification dont le marqueur est `Review` et dont le tap ouvre la carte, sur les trois surfaces. Une
 session qui se termine sans carte est inchangée.
+**Livré** : `notifyContent` lit un `cardStatus` (une ligne pour le marqueur) et `notifyCardId` en
+dérive la destination — une seule condition, donc le marqueur et le tap ne peuvent pas diverger. Le
+statut arrive par le hook de pré-tir du coordinateur, élargi de `subtitleFor` à `beforeFire`
+(`{ subtitle, cardStatus }`) : c'est le seul instant où la carte est déjà réconciliée (§4.2). Les
+surfaces in-app le lisent directement sur le snapshot (`withCardFields` porte `cardStatus` sur
+`AgentView`), le push par un `cardId` à côté du `target` existant. Aucune boucle, aucun hook nouveau,
+une lecture DB par alerte **tirée**.
 
 ### N5 — Instruire le digest multi-agents (et le principe même de la coalescence)
 

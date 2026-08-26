@@ -68,7 +68,12 @@ async function handlePush(event: PushEvent): Promise<void> {
   // support it (and it needs a tag).
   const options: NotificationOptions & { renotify?: boolean } = {
     body: decision.body,
-    data: { paneId: decision.paneId, session: decision.session, target: decision.target },
+    data: {
+      paneId: decision.paneId,
+      session: decision.session,
+      target: decision.target,
+      cardId: decision.cardId,
+    },
     icon: ICON,
     badge: ICON,
     tag: decision.tag,
@@ -83,6 +88,9 @@ interface NotifData {
   session?: string;
   /** Non-pane tap destination (e.g. "settings"); absent = the default agent deep-link. */
   target?: string;
+  /** The board card to open instead of the pane — set when the alert is about a card to READ, whose
+   *  pane has finished (NOTIFY_AUDIT.md §4.1). The board is primary-session-only, so no `?s=`. */
+  cardId?: string;
 }
 
 // Session query builder, inlined so the SW bundle stays dependency-free (it imports only
@@ -91,14 +99,21 @@ function sessionSearchParam(session?: string): string {
   return session ? `?s=${encodeURIComponent(session)}` : "";
 }
 
-// Tap a notification: an update push routes to Settings; everything else deep-links to the agent's
-// pane (never act on it blind — the reply lives in-app). An old cached SW that predates `target`
-// simply ignores it and takes the pane path, opening "/" for a pushed update — acceptable.
+// Tap a notification: an update push routes to Settings, a "card to read" alert opens that card, and
+// everything else deep-links to the agent's pane (never act on it blind — the reply lives in-app). An
+// old cached SW that predates `target`/`cardId` simply ignores them and takes the pane path, opening
+// "/" for a pushed update — acceptable.
 self.addEventListener("notificationclick", (event: NotificationEvent) => {
   event.notification.close();
   const data = (event.notification.data as NotifData | null) ?? {};
   if (data.target === "settings") {
     event.waitUntil(openPath("/settings"));
+    return;
+  }
+  if (data.cardId) {
+    // Same shape as lib/board.ts's `cardPath`, inlined for the same reason as sessionSearchParam:
+    // the SW bundle imports nothing but push-decision.
+    event.waitUntil(openPath(`/card/${encodeURIComponent(data.cardId)}`));
     return;
   }
   event.waitUntil(openPane(data.paneId, data.session));

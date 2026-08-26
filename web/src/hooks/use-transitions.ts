@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { notifyContent } from "@/lib/notify-content";
+import { notifyCardId, notifyContent } from "@/lib/notify-content";
 import type { AgentStatus, AgentView } from "@/lib/types";
 
 // In-app lifecycle notifications. We diff each snapshot against the previous one and raise a toast
@@ -20,7 +20,9 @@ import type { AgentStatus, AgentView } from "@/lib/types";
 //              the `null` below: that answer can take seconds to minutes, and a toast is gone in
 //              {@link TOAST_TTL_MS} (see agent-toasts.tsx), so by the time it would land there is
 //              nothing left to update. The bell shows it because it is a persistent record.
-//   • a tap  — deep-links into the pane, in its own session.
+//   • a tap  — deep-links into the pane, in its own session — EXCEPT when the alert is about a card
+//              to read (`notifyCardId`), where it follows the sentence to the card instead: the pane
+//              is finished, so the terminal is the one place with nothing left to do (§4.1).
 // Everything above is read straight off the snapshot's `AgentView`, so a toast costs no extra fetch.
 
 export interface AgentToast {
@@ -29,6 +31,8 @@ export interface AgentToast {
   paneId: string;
   /** The herd session the pane lives in (undefined = primary) — the tap scopes to it. */
   session?: string;
+  /** Set only for a "card to read" alert: the tap opens this card instead of the pane. */
+  cardId?: string;
   status: "blocked" | "done";
   title: string;
   detail: string;
@@ -39,8 +43,11 @@ const MAX_TOASTS = 3;
 
 function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "id"> {
   const status = a.status as "blocked" | "done";
-  const { title, body } = notifyContent({ status, cwd: a.cwd, cardTitle: a.cardTitle, session }, null);
-  return { paneId: a.paneId, session, status, title, detail: body };
+  // The snapshot this diff ran on is the same one `reconcile()` had already acted on, so `cardStatus`
+  // is current here with none of the re-reading the push has to do (§4.2).
+  const subject = { status, cwd: a.cwd, cardTitle: a.cardTitle, cardId: a.cardId, cardStatus: a.cardStatus, session };
+  const { title, body } = notifyContent(subject, null);
+  return { paneId: a.paneId, session, cardId: notifyCardId(subject), status, title, detail: body };
 }
 
 /**

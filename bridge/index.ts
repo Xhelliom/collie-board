@@ -241,10 +241,20 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
         notifyLog,
       }).catch(() => {});
     },
-    // The free tiers, awaited (under their own deadline) so the ONE message that buzzes is also the
-    // complete one. UNCONDITIONAL: a transcript read and a `git --stat` cost no quota and no agent
-    // turn, so their only condition is having something to read — firstSubtitle checks that itself.
-    (alert) => firstSubtitle(subtitleSources(alert)),
+    // Everything the alert can only learn once the debounce is up.
+    //   • The subtitle's free tiers, awaited (under their own deadline) so the ONE message that
+    //     buzzes is also the complete one. UNCONDITIONAL: a transcript read and a `git --stat` cost
+    //     no quota and no agent turn, so their only condition is having something to read —
+    //     firstSubtitle checks that itself.
+    //   • The card's status NOW. `reconcile()` has run ~20 times since the transition armed this
+    //     timer (a 1.5s poll against a 30s debounce), so a finished pane's card reads `review` here
+    //     where it still read `working` at the transition — which is what lets the alert be about
+    //     the card to read rather than the session that ended (NOTIFY_AUDIT.md §4.2). One DB read
+    //     per FIRED alert, on the primary session only: elsewhere the pane backs no card at all.
+    async (alert) => ({
+      subtitle: await firstSubtitle(subtitleSources(alert)),
+      cardStatus: alert.cardId ? (board.getCard(alert.cardId)?.status ?? undefined) : undefined,
+    }),
   );
   // The raw AgentView a transition fires with never carries card fields — withCardFields is
   // otherwise only applied in server.ts, for the /api/snapshot response. Without this, an alert's

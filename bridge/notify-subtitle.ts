@@ -181,8 +181,9 @@ function withDeadline<T>(work: Promise<T | null>, ms: number): Promise<T | null>
 /**
  * TIERS 2 AND 3 — the subtitle the first, buzzing push carries (§N10). The agent's own last line if
  * there is one, else the diff as one line for a `done`, else nothing at all (tier 4 — never the
- * subject again, §3.3). Wire to `NotificationCoordinator`'s `subtitleFor`: it is awaited between the
- * debounce expiring and the alert rendering, which is why the deadline above is non-negotiable.
+ * subject again, §3.3). Feeds `NotificationCoordinator`'s `beforeFire` — whose other half is the card's
+ * status, read at the same instant (index.ts, §4.2). It is awaited between the debounce expiring and
+ * the alert rendering, which is why the deadline above is non-negotiable.
  */
 export function firstSubtitle(
   opts: SubtitleSources,

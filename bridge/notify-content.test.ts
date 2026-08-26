@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { notifyContent, repoOf } from "./notify-content.ts";
+import { notifyCardId, notifyContent, repoOf } from "./notify-content.ts";
 
 // The push's whole sentence, in one pure function shared by the plain push and every later subtitle
 // update. What's under test is NOTIFY_AUDIT.md §3.2's single rule: `<marker> · <subject>` over
@@ -78,6 +78,45 @@ test("the web mirror is byte-identical to this one", async () => {
   const here = await Bun.file(new URL("./notify-content.ts", import.meta.url)).text();
   const there = await Bun.file(new URL("../web/src/lib/notify-content.ts", import.meta.url)).text();
   expect(there).toBe(here);
+});
+
+// NOTIFY_AUDIT.md §4.1 + §4.3: when the pane's card has landed in `review`, the notification is
+// about the CARD TO READ, not the session that ended — and the tap follows the sentence. Two of
+// §4.3's five rows are pure composition and live here; the other three are behaviours of the
+// coordinator and live in notifications.test.ts.
+describe("a card that landed in review", () => {
+  const REVIEW = { ...CARD, cardId: "c1", cardStatus: "review" } as const;
+
+  test("the marker says what is left to do — read the card, not `Done`", () => {
+    expect(notifyContent(REVIEW, null).title).toBe("Review · Ship 0.86");
+  });
+
+  test("the subject and the body are untouched — only the marker changed", () => {
+    expect(notifyContent(REVIEW, "3 files, +180 −12").body).toBe(
+      notifyContent({ ...CARD, cardId: "c1" }, "3 files, +180 −12").body,
+    );
+  });
+
+  test("the tap goes to the card, and only ever when the marker agrees", () => {
+    expect(notifyCardId(REVIEW)).toBe("c1");
+    // §4.3, row 1 — the operator moved the card out of review by hand. We don't lie about the state,
+    // and the tap goes back to the pane with it.
+    expect(notifyCardId({ ...CARD, cardId: "c1", cardStatus: "done" })).toBeUndefined();
+    // §4.3, row 2 — no card at all: unchanged in both halves.
+    expect(notifyCardId(HAND)).toBeUndefined();
+  });
+
+  test("§4.3 row 1 — a card the operator moved out of review still reads `Done`", () => {
+    expect(notifyContent({ ...CARD, cardId: "c1", cardStatus: "done" }, null).title).toBe("Done · Ship 0.86");
+  });
+
+  test("§4.3 row 2 — no card: the repo is the subject and the marker is `Done`, as before", () => {
+    expect(notifyContent(HAND, null).title).toBe("Done · elber");
+  });
+
+  test("`blocked` outranks it — an agent asking a question is not a card to read", () => {
+    expect(notifyContent({ ...REVIEW, status: "blocked" }, null).title).toBe("Needs you · Ship 0.86");
+  });
 });
 
 describe("the in-app surfaces", () => {

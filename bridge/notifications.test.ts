@@ -346,6 +346,15 @@ describe("makeNotifySink", () => {
     expect(push.sent).toEqual([{ type: "clear", tag: "collie:herd" }]);
   });
 
+  // A "card to read" summary (§4.1) carries its destination; every other one must not gain a field.
+  test("the sink puts the card in the push payload, and leaves it out otherwise", () => {
+    const push = new RecordingPush();
+    const sink = makeNotifySink(push, { isMuted: () => false }, "collie:herd");
+    sink.render({ title: "Review · Ship it", body: "demo", paneId: "p1", cardId: "c1", renotify: true });
+    sink.render({ title: "Done · demo", body: "", paneId: "p1", renotify: true });
+    expect(push.sent.map((m) => m.cardId)).toEqual(["c1", undefined]);
+  });
+
   test("an active snooze suppresses both render and clear", () => {
     const push = new RecordingPush();
     const sink = makeNotifySink(push, { isMuted: () => true }, "collie:herd");
@@ -359,6 +368,7 @@ describe("makeNotifySink", () => {
 // so the alert can now be handled DURING that wait — the one new race the await introduces.
 describe("NotificationCoordinator — the awaited subtitle hook", () => {
   function setupAwaiting(subtitleFor: () => Promise<string | null>) {
+    const beforeFire = async () => ({ subtitle: await subtitleFor() });
     const clock = new FakeClock();
     const sink = new RecordingSink();
     const coord = new NotificationCoordinator(
@@ -367,7 +377,7 @@ describe("NotificationCoordinator — the awaited subtitle hook", () => {
       30_000,
       (s: AgentStatus) => s === "blocked" || s === "done",
       undefined,
-      subtitleFor,
+      beforeFire,
     );
     return { clock, sink, coord };
   }
@@ -402,5 +412,98 @@ describe("NotificationCoordinator — the awaited subtitle hook", () => {
     clock.fireAll();
     await settle();
     expect(sink.renders).toEqual([{ title: "Needs you · demo", body: "", paneId: "p1", renotify: true }]);
+  });
+});
+
+// NOTIFY_AUDIT.md §4.1: a pane that finished on a card the board has since moved to `review` gets a
+// notification ABOUT THE CARD — marker, subject and destination. The card's status can only be read
+// once the debounce is up (§4.2), which is why it arrives through the same pre-fire hook as the
+// subtitle. §4.3's five edge cases: rows 1 and 2 are pure composition (notify-content.test.ts); the
+// three below are behaviours of this class.
+describe("NotificationCoordinator — the card to read", () => {
+  /** A pane backing card `c1`, exactly as `withCardFields` hands it over. */
+  const onCard = (paneId: string, status: AgentStatus, cardId = "c1"): AgentView => ({
+    ...agent(paneId, status),
+    cardId,
+    cardTitle: cardId === "c1" ? "Ship it" : "The container",
+  });
+
+  /** Like `setup`, plus the pre-fire hook telling the alert what its card reads NOW. */
+  function setupOnCard(cardStatus?: string) {
+    const clock = new FakeClock();
+    const sink = new RecordingSink();
+    const coord = new NotificationCoordinator(
+      clock,
+      sink,
+      30_000,
+      (s: AgentStatus) => s === "blocked" || s === "done",
+      undefined,
+      async () => ({ cardStatus }),
+    );
+    return { clock, sink, coord };
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 5));
+
+  test("the alert is about the card: `Review`, its title, and a tap that opens it", async () => {
+    const { clock, sink, coord } = setupOnCard("review");
+    coord.onTransition(onCard("p1", "done"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.last).toEqual({
+      title: "Review · Ship it",
+      body: "demo",
+      paneId: "p1",
+      cardId: "c1",
+      renotify: true,
+    });
+  });
+
+  test("§4.3 row 1 — a card that is not in review keeps `Done` and the pane deep-link", async () => {
+    const { clock, sink, coord } = setupOnCard("done");
+    coord.onTransition(onCard("p1", "done"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.last?.title).toBe("Done · Ship it");
+    expect(sink.last?.cardId).toBeUndefined();
+  });
+
+  test("§4.3 row 2 — a pane with no card is byte-for-byte what it was", async () => {
+    const { clock, sink, coord } = setupOnCard(undefined);
+    coord.onTransition(agent("p1", "done"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.last).toEqual({ title: "Done · demo", body: "", paneId: "p1", renotify: true });
+  });
+
+  test("§4.3 row 3 — a pane back at work before the window is up never notifies, review or not", async () => {
+    const { clock, sink, coord } = setupOnCard("review");
+    coord.onTransition(onCard("p1", "done"), "working", "done");
+    coord.onTransition(onCard("p1", "working"), "done", "working"); // the operator asked for more
+    clock.fireAll();
+    await settle();
+    expect(sink.events).toEqual([]);
+  });
+
+  test("§4.3 row 4 — a subtask notifies for itself; its container has no pane to notify from", async () => {
+    const { clock, sink, coord } = setupOnCard("review");
+    // `cards.ts` derives the container's own `review` from its subtasks, but a container has no pane,
+    // so no transition ever reaches here for it. One event, one alert, pointing at the SUBTASK.
+    coord.onTransition(onCard("p1", "done", "c1"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.renders).toHaveLength(1);
+    expect(sink.last?.cardId).toBe("c1");
+  });
+
+  test("§4.3 row 5 — a card reaching review with no pane transition behind it changes nothing", async () => {
+    // The pane fired while its card still read something else; the card lands in review afterwards
+    // (a hand-relaunched review). Nothing announces that here — a board-sourced notification is card
+    // N6 — so the alert stays exactly what it was, and nothing is left armed to re-fire.
+    const { clock, sink, coord } = setupOnCard("working");
+    coord.onTransition(onCard("p1", "done"), "working", "done");
+    clock.fireAll();
+    await settle();
+    expect(sink.renders.map((r) => r.title)).toEqual(["Done · Ship it"]);
+    expect(clock.armed).toBe(0);
   });
 });

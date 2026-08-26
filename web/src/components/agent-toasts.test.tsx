@@ -25,8 +25,8 @@ const base: AgentView = {
   cardTitle: "Ship the toasts",
 };
 
-function agentsAt(status: AgentStatus): AgentView[] {
-  return [{ ...base, status }];
+function agentsAt(status: AgentStatus, extra: Partial<AgentView> = {}): AgentView[] {
+  return [{ ...base, status, ...extra }];
 }
 
 // Snapshots arrive from the poll, not from a re-render of the tree — so the harness owns the state
@@ -62,11 +62,13 @@ function mount({
   const router = createMemoryRouter([
     { path: "/", element: <Harness from={from} openPaneId={openPaneId} copilotPaneId={copilotPaneId} /> },
     { path: "/pane/:paneId", element: <Landed /> },
+    { path: "/card/:cardId", element: <Landed /> },
   ]);
   render(<RouterProvider router={router} />);
 }
 
-const advance = (status: AgentStatus) => act(() => pushSnapshot(agentsAt(status)));
+const advance = (status: AgentStatus, extra?: Partial<AgentView>) =>
+  act(() => pushSnapshot(agentsAt(status, extra)));
 
 describe("AgentToasts", () => {
   test("the first snapshot never toasts — only a real transition does", () => {
@@ -109,6 +111,29 @@ describe("AgentToasts", () => {
     advance("blocked");
 
     await user.click(screen.getByText(/Needs you/));
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w1%3Ap1?s=side");
+  });
+
+  test("a card that landed in review: the marker changes and the tap leaves the terminal behind", async () => {
+    const user = userEvent.setup();
+    mount();
+    // `reconcile()` moved the card to `review` on the same snapshot that reported the pane done, so
+    // the diff already sees it — no re-reading, unlike the push's 30s-later fire (NOTIFY_AUDIT.md §4.2).
+    advance("done", { cardId: "c1", cardStatus: "review" });
+
+    expect(screen.getByText("Review · Ship the toasts")).toBeInTheDocument();
+    await user.click(screen.getByText("Review · Ship the toasts"));
+    // The card, not `/pane/w1%3Ap1` — the pane is where there is nothing left to do (§4.1).
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c1");
+  });
+
+  test("a card that is NOT in review is untouched — `Done`, and a tap into the pane", async () => {
+    const user = userEvent.setup();
+    mount();
+    advance("done", { cardId: "c1", cardStatus: "working" });
+
+    expect(screen.getByText("Done · Ship the toasts")).toBeInTheDocument();
+    await user.click(screen.getByText("Done · Ship the toasts"));
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w1%3Ap1?s=side");
   });
 

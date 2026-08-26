@@ -166,7 +166,7 @@ export function withCardFields(panes: AgentView[], sessions: CardSession[], db: 
     const session = byPane.get(p.paneId);
     if (!session) return p;
     const card = db.getCard(session.cardId);
-    return { ...p, branch: card?.branch ?? undefined, cardId: card?.id, cardTitle: card?.title };
+    return { ...p, branch: card?.branch ?? undefined, cardId: card?.id, cardTitle: card?.title, cardStatus: card?.status };
   });
 }
 

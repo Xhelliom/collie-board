@@ -57,6 +57,13 @@ export interface AgentView {
   /** The card this pane backs, id and title — same gating as `branch`, from the same lookup. */
   cardId?: string;
   cardTitle?: string;
+  /** …and its status, which is what tells the in-app surfaces a finished pane's card is now waiting
+   *  to be READ: the toast then says `Review` and taps through to the card rather than the terminal
+   *  (notify-content.ts, NOTIFY_AUDIT.md §4.1). Snapshot-fresh, so no ordering problem here — unlike
+   *  the push, which has to re-read it when its debounce expires (§4.2). Deliberately `string` and
+   *  not db.ts's `CardStatus`: the only reader compares it to one literal, and this file has no
+   *  business importing the board's database module for it. */
+  cardStatus?: string;
   /**
    * Context occupancy for ANY agent pane, card-backed or launched by hand (see context.ts
    * `ContextTracker.enrich` — UI_AUDIT.md G3). Held in the tracker's memory, never in the database:

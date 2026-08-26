@@ -485,7 +485,9 @@ describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md 
       0,
       (s: AgentStatus) => s === "blocked" || s === "done",
       onFire,
-      subtitleSources ? (alert) => firstSubtitle({ ...subtitleSources, alert }) : undefined,
+      subtitleSources
+        ? async (alert) => ({ subtitle: await firstSubtitle({ ...subtitleSources, alert }) })
+        : undefined,
     );
     coord.onTransition(
       {
@@ -588,7 +590,7 @@ describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md 
           sink,
           copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
         }),
-      (alert) => firstSubtitle({ ...src, alert }),
+      async (alert) => ({ subtitle: await firstSubtitle({ ...src, alert }) }),
     );
     coord.onTransition(
       {
