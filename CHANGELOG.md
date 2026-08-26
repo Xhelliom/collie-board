@@ -7,10 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.119.0] - 2026-08-26
+## [0.120.0] - 2026-08-26
 
 ### Fixed
 - Push subtitles: the free tier (the agent's own last line) no longer sits behind the copilot preference — `copilotSubtitle` now gates only the copilot's rephrase, and the settings row says so (e92bec1)
+
+## [0.119.0] - 2026-08-26
+
+### Added
+
+- Card diff: a `.md` file opens as a rendered document — the point of tapping a generated report is to read it, and the patch stays one tap away. Reads the worktree's copy over `mode=read`, so a report that was *modified* shows the whole thing, not its hunks. Every other file keeps the diff it had (0dc19b9).
 
 ## [0.118.0] - 2026-08-26
 

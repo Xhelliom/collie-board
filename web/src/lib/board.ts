@@ -610,6 +610,19 @@ export function fetchDiffFile(
 }
 
 /**
+ * The worktree's copy of one file, verbatim — what the Markdown reader renders. Same route and same
+ * path guard as {@link fetchDiffFile}, one lens over: a patch shows what moved, this shows the file.
+ */
+export function fetchWorktreeFile(
+  id: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<{ ok: true; path: string; text: string; truncated: boolean }> {
+  const q = new URLSearchParams({ mode: "read", path });
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/diff?${q}`, { signal });
+}
+
+/**
  * Ask the card's agent to write its handoff note. Returns as soon as the prompt is delivered — the
  * bridge finishes the swap (read the note, replace the pane, re-prompt) off its own poll loop, so
  * the card simply moves on its own a minute later. Never automatic: this is always a tap.
