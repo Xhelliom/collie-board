@@ -194,34 +194,39 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // deep-link scopes correctly (primary omits the name, like the push payload).
     (alert) => {
       notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) });
-      // The copilot-authored subtitle (opt-in, see notify-prefs.ts) is a SECOND, silent push that
-      // lands later, if at all — never awaited here, and never allowed to hold up the alert it rides
-      // on. `notifications` is the coordinator being constructed right now; the callback only ever
-      // runs later, once the assignment below has completed.
-      if (notifyPrefs.current().copilotSubtitle) {
-        void enrichNotification({
-          alert,
-          coordinator: notifications,
-          sink,
-          copilot,
-          board,
-          transcripts,
-          // A pane herdr gave no `agent_session` for still usually has a real transcript on disk —
-          // the same directory/process resolution ContextTracker already relies on (context.ts).
-          resolvePath: transcripts
-            ? ({ paneId, cwd }) =>
-                resolveWithoutSession({
-                  source: transcripts.source,
-                  paneProcess: (id) => herdr.paneProcess(id),
-                  startedAt: processStartedAt,
-                  paneId,
-                  cwd,
-                })
-            : undefined,
-          statFor: ({ cardId, cwd }) => (cardId ? cardDiffSummary(board, cardId) : cwdDiffSummary(cwd)),
-          notifyLog,
-        }).catch(() => {});
-      }
+      // The subtitle is a SECOND, silent push that lands later, if at all — never awaited here, and
+      // never allowed to hold up the alert it rides on. `notifications` is the coordinator being
+      // constructed right now; the callback only ever runs later, once the assignment below has
+      // completed. UNCONDITIONAL: the free tier is a transcript read (no quota, no agent), so its
+      // only condition is `transcripts` being on at all — enrichNotification checks that itself.
+      void enrichNotification({
+        alert,
+        coordinator: notifications,
+        sink,
+        // `copilotSubtitle` gates the copilot's later rephrase and nothing else — folding it into
+        // `enabled` here is what "the pref is about the copilot" means, and it keeps the free tier
+        // above it running whether or not the operator wants to spend copilot quota on polish.
+        copilot: {
+          enabled: copilot.enabled && notifyPrefs.current().copilotSubtitle,
+          ask: (buildPrompt) => copilot.ask(buildPrompt),
+        },
+        board,
+        transcripts,
+        // A pane herdr gave no `agent_session` for still usually has a real transcript on disk —
+        // the same directory/process resolution ContextTracker already relies on (context.ts).
+        resolvePath: transcripts
+          ? ({ paneId, cwd }) =>
+              resolveWithoutSession({
+                source: transcripts.source,
+                paneProcess: (id) => herdr.paneProcess(id),
+                startedAt: processStartedAt,
+                paneId,
+                cwd,
+              })
+          : undefined,
+        statFor: ({ cardId, cwd }) => (cardId ? cardDiffSummary(board, cardId) : cwdDiffSummary(cwd)),
+        notifyLog,
+      }).catch(() => {});
     },
   );
   // The raw AgentView a transition fires with never carries card fields — withCardFields is

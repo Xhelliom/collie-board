@@ -32,7 +32,7 @@ describe("NotifyPrefsControl", () => {
     const needs = await screen.findByRole("switch", { name: /needs input/i });
     const finished = await screen.findByRole("switch", { name: /finished/i });
     const updates = await screen.findByRole("switch", { name: /app updates/i });
-    const copilotSubtitle = await screen.findByRole("switch", { name: /richer subtitle/i });
+    const copilotSubtitle = await screen.findByRole("switch", { name: /copilot rephrase/i });
     expect(needs).toBeChecked(); // blocked default on
     expect(finished).not.toBeChecked(); // done default off
     expect(updates).toBeChecked(); // updates default on

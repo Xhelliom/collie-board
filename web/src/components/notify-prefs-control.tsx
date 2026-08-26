@@ -7,10 +7,10 @@ import type { NotifyPrefs } from "@/lib/api";
 
 // Which lifecycle events are worth a push. Bridge-wide (fans out to every device, like the snooze),
 // so the copy says so. Four switches: "Needs input" (blocked, default on), "Finished" (done,
-// default off), "App updates" (updates, default on), and "Richer subtitle" (default off — reads a
-// transcript file, which not everyone wants for this). That last one is two tiers server-side
-// (notify-subtitle.ts): the agent's own last line verbatim always, upgraded to a copilot rephrase
-// only when the copilot is ALSO enabled — this one switch covers both, nothing extra to configure.
+// default off), "App updates" (updates, default on), and "Copilot rephrase" (default off). That
+// last one governs the SLOW half of the subtitle only (notify-subtitle.ts): the agent's own last
+// line always lands, and this asks the copilot to rewrite it into one sentence — so the switch is
+// about spending copilot quota on polish, not about having a subtitle at all.
 // Optimistic toggle with revert on failure — see useNotifyPrefs.
 
 const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string }> = [
@@ -19,8 +19,8 @@ const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string 
   { key: "updates", label: "App updates", hint: "a new Collie version is available" },
   {
     key: "copilotSubtitle",
-    label: "Richer subtitle",
-    hint: "show what the agent actually said, rephrased by the copilot when it's enabled",
+    label: "Copilot rephrase",
+    hint: "the copilot rewrites the subtitle in one sentence — spends its quota",
   },
 ];
 

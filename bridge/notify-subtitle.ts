@@ -1,6 +1,8 @@
-// Push subtitle — turns "repo · card title" into "repo · what actually happened". Optional
-// (`NotifyPrefs.copilotSubtitle`, off by default): even the free tier below reads a transcript file
-// the operator may not want read for this.
+// Push subtitle — turns "repo · card title" into "repo · what actually happened". The free tier
+// below is NOT optional — it costs a transcript read, so its only condition is transcripts being on
+// at all. `NotifyPrefs.copilotSubtitle` (off by default) gates the SLOW tier and nothing else: the
+// caller folds it into `copilot.enabled` (index.ts's onFire hook), so "off" here means "no copilot
+// polish", never "no subtitle".
 //
 // TWO TIERS, RENDERED IN THAT ORDER — FAST ONE FIRST, ALWAYS. The free tier (the agent's own last
 // transcript line, verbatim) needs nothing but a file read (~10-60ms — see context.ts's own

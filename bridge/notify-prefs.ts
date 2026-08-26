@@ -20,10 +20,11 @@ export interface NotifyPrefs {
    *  which otherwise bypass snooze (an update isn't quiet-hours material). Not an agent status, so it
    *  never flows through {@link isNotifiable}; the update monitor reads it directly. */
   updates: boolean;
-  /** Let the copilot replace the push body's `card title / cwd` half with a one-line account of what
-   *  actually happened (its last message, and for `done` the diff), once it answers — see
-   *  notify-subtitle.ts. Default off: it's an extra agent turn on the copilot's own quota, and a no-op
-   *  unless the copilot itself is enabled. The repo name (the body's other half) is never touched. */
+  /** Let the copilot REPHRASE the push subtitle into one clean sentence (from the agent's last
+   *  message, and for `done` the diff), once it answers — see notify-subtitle.ts. Default off: it's
+   *  an extra agent turn on the copilot's own quota, and a no-op unless the copilot itself is
+   *  enabled. Off is not "plain body again" — the free tier under it (the agent's own last line,
+   *  read straight from the transcript) lands either way. The repo name is never touched. */
   copilotSubtitle: boolean;
 }
 

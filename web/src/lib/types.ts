@@ -312,9 +312,9 @@ export interface NotifyPrefs {
   done: boolean;
   /** Push when a new Collie version is available (a restart or upgrade is waiting). Default on. */
   updates: boolean;
-  /** Let the copilot replace the push body's card-title half with a one-line account of what actually
-   *  happened, once it answers. Default off — an extra agent turn on the copilot's own quota, and a
-   *  no-op unless the copilot itself is enabled. */
+  /** Let the copilot REPHRASE the push subtitle into one clean sentence, once it answers. Default
+   *  off — an extra agent turn on the copilot's own quota, and a no-op unless the copilot itself is
+   *  enabled. Off still gets a subtitle: the agent's own last line, read from the transcript. */
   copilotSubtitle: boolean;
 }
 
