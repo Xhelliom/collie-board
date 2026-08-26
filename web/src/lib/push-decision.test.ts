@@ -74,10 +74,18 @@ describe("decidePush", () => {
     });
   });
 
+  test("a card-to-read push carries the card, so the tap can leave the terminal behind", () => {
+    // The pane it ran in is finished; what's left is reading the card (bridge notify-content.ts).
+    expect(
+      decidePush({ title: "Review · Ship it", data: { paneId: "p1", cardId: "c1" } }, false),
+    ).toMatchObject({ kind: "show", paneId: "p1", cardId: "c1" });
+  });
+
   test("an agent push carries no target (defaults to the pane deep-link path)", () => {
     const decision = decidePush({ title: "claude needs you", data: { paneId: "p1" } }, false);
     expect(decision).toMatchObject({ kind: "show", paneId: "p1" });
     expect((decision as { target?: string }).target).toBeUndefined();
+    expect((decision as { cardId?: string }).cardId).toBeUndefined();
   });
 });
 

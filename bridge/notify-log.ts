@@ -26,6 +26,10 @@ export interface NotifyLogEntry {
   sessionName?: string;
   kind?: "agent" | "shell";
   cardTitle?: string;
+  /** The card the pane backed and its status at the moment the alert fired — copied straight off the
+   *  `Alert`, so the bell re-renders exactly the sentence and destination the push went out with. */
+  cardId?: string;
+  cardStatus?: string;
   /** The copilot-authored account of what actually happened, patched in after the fact once it
    *  answers (see notify-subtitle.ts) — the entry is logged plain the instant the alert fires (this
    *  history is the trace of what pinged, and quiet-hours or not is decided before enrichment could

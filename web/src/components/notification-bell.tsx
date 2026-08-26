@@ -6,14 +6,16 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { deleteNotifyLogEntry, getNotifyLog, markAllNotifyLogRead, markNotifyLogEntryRead } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
+import { cardPath } from "@/lib/board";
 import { panePath } from "@/lib/nav";
-import { notifyContent } from "@/lib/notify-content";
+import { notifyCardId, notifyContent } from "@/lib/notify-content";
 import type { NotifyLogEntry } from "@/lib/types";
 
 // The bell, in the app header (app-header.tsx), on every screen. A push notification collapses into
 // one live slot and is retracted the moment the work is handled — right for a lock screen, and the
 // reason a ping you slept through leaves no trace. This is where it does: the bridge records every
-// alert it fires (bridge/notify-log.ts), and tapping an entry lands you in the pane that pinged.
+// alert it fires (bridge/notify-log.ts), and tapping an entry lands you in the pane that pinged — or
+// on the CARD, when that is what the entry is about (lib/notify-content.ts's `notifyCardId`).
 //
 // Fetched when the sheet opens, not polled: history doesn't move while you aren't looking at it, and
 // the snapshot poll runs every 1.5s — putting 50 entries in it would be a permanent tax for a list
@@ -136,9 +138,11 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                   () => revalidator.revalidate(),
                   () => {},
                 );
-                // The entry carries its own session, so a ping from another herd lands in that herd
-                // rather than looking up a pane id in the one you happen to be viewing.
-                navigate(panePath(e.paneId, e.session));
+                // A "card to read" entry opens its card; anything else opens the pane. The entry
+                // carries its own session, so a ping from another herd lands in that herd rather
+                // than looking up a pane id in the one you happen to be viewing.
+                const card = notifyCardId(e);
+                navigate(card ? cardPath(card) : panePath(e.paneId, e.session));
               }}
               className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
             >

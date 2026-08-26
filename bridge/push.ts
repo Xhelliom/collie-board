@@ -64,6 +64,11 @@ export interface PushMessage {
   /** Where a tap should land instead of the default pane deep-link. `"settings"` for update alerts;
    *  absent = today's pane deep-link (so the agent-alert payload is unchanged). */
   target?: "settings";
+  /** The card to open on tap, for an alert that is about a card to READ (notify-content.ts's
+   *  `notifyCardId`) — the pane it ran in is finished, so the terminal is the one place with nothing
+   *  left to do (NOTIFY_AUDIT.md §4.1). Absent on every other alert, so their payload is unchanged;
+   *  an older cached SW that predates the field simply ignores it and opens the pane. */
+  cardId?: string;
   renotify?: boolean;
 }
 
@@ -121,9 +126,12 @@ export class Push {
   async send(msg: PushMessage): Promise<void> {
     // The SW reads deep-link fields from `data`. `session` is omitted for the primary (absent on the
     // message), keeping that payload identical to the pre-multi-session shape.
-    const data: { paneId?: string; session?: string; target?: "settings" } = { paneId: msg.paneId };
+    const data: { paneId?: string; session?: string; target?: "settings"; cardId?: string } = {
+      paneId: msg.paneId,
+    };
     if (msg.session !== undefined) data.session = msg.session;
     if (msg.target !== undefined) data.target = msg.target;
+    if (msg.cardId !== undefined) data.cardId = msg.cardId;
     // Per-message collapse topic — update alerts must not share the herd slot (see UPDATE_SEND_OPTIONS).
     const options = msg.type === "update" ? UPDATE_SEND_OPTIONS : SEND_OPTIONS;
     await this.broadcast(JSON.stringify({ ...msg, data }), options);

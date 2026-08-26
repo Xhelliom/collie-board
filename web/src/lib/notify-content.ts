@@ -21,6 +21,13 @@
 // AND NOTHING REPEATS. The repo appears EXACTLY ONCE: as the subject when there is no card, in the
 // body when there is. The body never falls back to the subject the way `cardTitle ?? cwd` did (§2.2)
 // — an empty body beats an echo.
+//
+// THE MARKER NAMES WHAT IS LEFT TO DO, NOT WHAT THE PANE DID (§4.1, card N4). A pane that finishes on
+// a card the board has since moved to `review` reads `Review`, not `Done` — the session is over, the
+// reading is not — and {@link notifyCardId} sends the tap to that card instead of the terminal, which
+// is precisely the place with nothing left to do. Both read the SAME `cardStatus`, so the sentence and
+// the destination can never disagree; §4.3's edge cases all fall out of that one condition being false
+// (a card the operator moved back by hand, a pane with no card at all: `Done`, tap to the pane).
 
 /** Just the corner of an alert the composition reads — a plain shape, so a test passes a literal. */
 export interface NotifySubject {
@@ -33,6 +40,16 @@ export interface NotifySubject {
    * unset and the same composition serves both.
    */
   session?: string;
+  /**
+   * The card this pane backs and its status AS OF THE MOMENT THE ALERT FIRES — not of the transition
+   * that armed it. The distinction is the whole feature: `reconcile()` moves a finished pane's card
+   * to `review` on `onUpdate`, i.e. AFTER the same poll's transition loop, so at `onTransition` the
+   * card still reads `working`. By the time the 30s debounce expires it has been reconciled ~20 times
+   * over (§4.2) — which is why the bridge reads it in the coordinator's pre-fire hook, and why the
+   * in-app surfaces can read it straight off the snapshot they diffed.
+   */
+  cardId?: string;
+  cardStatus?: string;
 }
 
 /**
@@ -55,10 +72,19 @@ export function repoOf(cwd: string): string {
 export function notifyContent(a: NotifySubject, subtitle: string | null): { title: string; body: string } {
   const repo = repoOf(a.cwd);
   const subject = a.cardTitle || repo;
-  const marker = a.status === "blocked" ? "Needs you" : "Done";
+  const marker = a.status === "blocked" ? "Needs you" : a.cardStatus === "review" ? "Review" : "Done";
   return {
     title: `${marker} · ${subject}`,
     // The repo is omitted exactly when it IS the subject — which is what keeps it to one appearance.
     body: [a.session, subject === repo ? null : repo, subtitle].filter((p): p is string => !!p).join(" · "),
   };
+}
+
+/**
+ * Where a tap should land: the CARD when the notification is about a card to read (the `Review`
+ * marker above), else undefined — the pane, exactly as before. Shared by all three surfaces (the
+ * push payload, the toast, the bell) so the marker and the destination stay one decision.
+ */
+export function notifyCardId(a: NotifySubject): string | undefined {
+  return a.cardStatus === "review" ? a.cardId : undefined;
 }

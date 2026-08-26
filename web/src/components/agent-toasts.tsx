@@ -3,13 +3,15 @@ import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent }
 import { X } from "lucide-react";
 import { useNavigate } from "react-router";
 
+import { cardPath } from "@/lib/board";
 import { panePath } from "@/lib/nav";
 import type { AgentToast } from "@/hooks/use-transitions";
 
 // The foreground notification: an agent blocked or finished while you were using the app. It lands
 // as a toast under the header — floating, so nothing on screen moves and the screen you're on stays
 // usable (the stack is pointer-events-none; only the toasts themselves take taps). Tapping one
-// deep-links into the pane that pinged, in its own session, exactly like the bell's history.
+// deep-links into the pane that pinged, in its own session — or into the CARD, when that is what the
+// toast is about (use-transitions.ts) — exactly like the bell's history.
 //
 // Under the header, not over it: the header is how you leave a screen, and a notice that covered the
 // back chevron and the bell would be the one overlay you can't get past. Bottom was already taken —
@@ -118,7 +120,7 @@ function Toast({ toast, onDismiss }: { toast: AgentToast; onDismiss: (id: number
           type="button"
           onClick={() => {
             onDismiss(toast.id);
-            navigate(panePath(toast.paneId, toast.session));
+            navigate(toast.cardId ? cardPath(toast.cardId) : panePath(toast.paneId, toast.session));
           }}
           className="flex min-w-0 flex-1 items-baseline gap-2 rounded-l-xl py-2.5 pl-3 text-left transition-colors active:bg-muted"
         >

@@ -810,7 +810,7 @@ could only write the subject twice. Its place is a history you read on a screen,
 lock screen.
 
 *Extraction cost since:* §N10 cut deeper into `notifications.ts` — the coordinator now awaits a
-`subtitleFor` hook before it renders, and `summarize` reads an `Alert.subtitle` the composer is given.
+`beforeFire` hook before it renders, and `summarize` reads an `Alert.subtitle` the composer is given.
 `notify-content.ts` itself is untouched and still lifts cleanly; the CALLER around it diverged, so the
 cherry-pick now has to re-plant one call site rather than one line.
 

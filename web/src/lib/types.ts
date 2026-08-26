@@ -42,6 +42,11 @@ export interface AgentView {
   /** The card this pane backs, id and title — same gating and source as `branch`. */
   cardId?: string;
   cardTitle?: string;
+  /** …and its status. `review` is what turns a finished pane's toast into "Review · <card>" whose tap
+   *  opens the CARD instead of the terminal it ran in (lib/notify-content.ts). `string`, not
+   *  lib/board.ts's `CardStatus` — board.ts already imports this file, and one literal comparison
+   *  does not justify pointing the cycle back. */
+  cardStatus?: string;
   /**
    * Context occupancy, for ANY agent pane — card-backed or launched by hand (bridge
    * `ContextTracker.enrich`, UI_AUDIT.md G3). Absent until the tracker's first successful transcript
@@ -312,6 +317,10 @@ export interface NotifyLogEntry {
   sessionName?: string;
   kind?: "agent" | "shell";
   cardTitle?: string;
+  /** The card this entry's pane backed and its status when the alert fired — the bell renders the
+   *  same "Review · <card>" the push sent, and taps through to the same card. */
+  cardId?: string;
+  cardStatus?: string;
   /** The copilot-authored account of what actually happened, patched in after the fact once it
    *  answers — absent when the copilot subtitle is off, disabled, or hadn't answered yet when this
    *  entry aged out of the bridge's 50-entry ring. */

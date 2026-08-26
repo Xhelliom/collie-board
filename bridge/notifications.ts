@@ -1,4 +1,4 @@
-import { notifyContent, repoOf } from "./notify-content.ts";
+import { notifyCardId, notifyContent, repoOf } from "./notify-content.ts";
 import type { PushMessage } from "./push.ts";
 import { type AgentStatus, type AgentView } from "./types.ts";
 
@@ -33,6 +33,9 @@ export interface HerdSummary {
   body: string;
   /** Deep-link target when exactly one alert is outstanding; undefined for a multi-agent digest. */
   paneId?: string;
+  /** Overrides that deep-link with the CARD, when the alert is about a card to read (see
+   *  notify-content.ts's `notifyCardId`). Absent otherwise, so a plain alert's payload is unchanged. */
+  cardId?: string;
   /** Re-alert (buzz) the device — true when a new alert arrived, false on a silent retraction update. */
   renotify: boolean;
 }
@@ -72,6 +75,7 @@ export function makeNotifySink(
       if (mute.isMuted()) return;
       const msg: PushMessage = { title: s.title, body: s.body, tag: herdTag, paneId: s.paneId, renotify: s.renotify };
       if (sessionName !== undefined) msg.session = sessionName;
+      if (s.cardId !== undefined) msg.cardId = s.cardId;
       void push.send(msg);
     },
     clear: () => {
@@ -102,7 +106,12 @@ export interface Alert {
    *  the copilot then has nothing beyond the base body to improve on. */
   cardId?: string;
   agentSessionId?: string;
-  /** What actually happened, filled in BEFORE the alert fires by the coordinator's `subtitleFor`
+  /** The card's status AS OF THE FIRE, filled in by the `beforeFire` hook alongside the subtitle —
+   *  `review` is what turns the marker into `Review` and the tap into a card deep-link (§4.1). Read
+   *  there and not at `onTransition` because the board hasn't reconciled the card yet at that point
+   *  (§4.2); see notify-content.ts's `cardStatus` for the full ordering argument. */
+  cardStatus?: string;
+  /** What actually happened, filled in BEFORE the alert fires by the coordinator's `beforeFire`
    *  hook (notify-subtitle.ts's free tiers), then overwritten in place by the copilot's later
    *  rephrase. Read by `summarize` — this is why the very first push already carries a body. */
   subtitle?: string;
@@ -131,12 +140,16 @@ export class NotificationCoordinator<H = unknown> {
     // the ping you go looking for afterwards. A retraction never reaches it: the summary changes,
     // what happened doesn't.
     private readonly onFire?: (alert: FiredAlert) => void,
-    // Awaited between the debounce expiring and the alert being rendered: what actually happened,
-    // if it can be had cheaply (notify-subtitle.ts's free tiers). THE FIRST PUSH IS THE ONLY ONE
-    // THAT BUZZES — the collapse topic means a sleeping phone receives only the last message on the
-    // slot, so a body that lands in a later silent update never reaches it (NOTIFY_AUDIT.md §N10).
+    // Awaited between the debounce expiring and the alert being rendered: everything the alert can
+    // only learn NOW, after 30 seconds of waiting.
+    //   • `subtitle` — what actually happened, if it can be had cheaply (notify-subtitle.ts's free
+    //     tiers). THE FIRST PUSH IS THE ONLY ONE THAT BUZZES — the collapse topic means a sleeping
+    //     phone receives only the last message on the slot, so a body that lands in a later silent
+    //     update never reaches it (NOTIFY_AUDIT.md §N10).
+    //   • `cardStatus` — the card's status now that the board has reconciled it, which is the whole
+    //     reason this is read here rather than at the transition (§4.2).
     // The producer owns the deadline; a hook that hangs must cost the body, never the alert.
-    private readonly subtitleFor?: (alert: FiredAlert) => Promise<string | null>,
+    private readonly beforeFire?: (alert: FiredAlert) => Promise<{ subtitle?: string | null; cardStatus?: string }>,
   ) {}
 
   /** Wire to `StateEngine.onTransition`. */
@@ -219,19 +232,20 @@ export class NotificationCoordinator<H = unknown> {
   /**
    * The debounce expired: collect what the alert can say, then render it — once. `outstanding` is
    * populated BEFORE the wait so a resolution landing mid-wait is seen (the guard below drops the
-   * alert rather than resurrecting it); with no `subtitleFor` hook nothing is ever awaited and this
+   * alert rather than resurrecting it); with no `beforeFire` hook nothing is ever awaited and this
    * stays as synchronous as it was.
    */
   private async fire(id: string, alert: Alert): Promise<void> {
     this.pending.delete(id);
     this.outstanding.set(id, alert);
-    const subtitle = this.subtitleFor
-      ? await this.subtitleFor({ ...alert, paneId: id }).catch(() => null)
+    const learned = this.beforeFire
+      ? await this.beforeFire({ ...alert, paneId: id }).catch(() => null)
       : null;
     // ponytail: resolved while we waited — the retraction already emitted, so just stand down. It
     // may have emitted a clear for a slot that never showed; harmless, and the window is ~ms.
     if (!this.outstanding.has(id)) return;
-    if (subtitle) alert.subtitle = subtitle;
+    if (learned?.subtitle) alert.subtitle = learned.subtitle;
+    if (learned?.cardStatus) alert.cardStatus = learned.cardStatus;
     this.onFire?.({ ...alert, paneId: id });
     this.emit(true);
   }
@@ -254,10 +268,12 @@ export class NotificationCoordinator<H = unknown> {
     const entries = [...this.outstanding.entries()];
     if (entries.length === 1) {
       const [paneId, a] = entries[0]!;
-      // One outstanding agent → deep-link straight to its pane on tap. The sentence itself is
-      // notify-content.ts's, shared with the copilot's later update to this same slot — which is
-      // why an already-filled `subtitle` survives every re-render of the summary.
-      return { ...notifyContent(a, a.subtitle ?? null), paneId, renotify };
+      // One outstanding agent → deep-link straight to its pane on tap, unless the alert is about a
+      // card to read, in which case the tap follows the sentence to the card (§4.1). Both come from
+      // notify-content.ts, shared with the copilot's later update to this same slot — which is why
+      // an already-filled `subtitle` survives every re-render of the summary.
+      const cardId = notifyCardId(a);
+      return { ...notifyContent(a, a.subtitle ?? null), paneId, renotify, ...(cardId ? { cardId } : {}) };
     }
     const alerts = entries.map(([, a]) => a);
     const n = alerts.length;
