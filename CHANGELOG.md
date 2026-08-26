@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.124.0] - 2026-08-26
+
+### Changed
+- The toast and the bell now say what the push says — `<Needs you|Done> · <card, else repo>` over `<session> · <repo> · <what happened>`; one composition, mirrored byte for byte across the bridge/web boundary and diffed by a test so it cannot drift (e79fe29)
+- Multi-agent digest lists the subjects, deduplicated, instead of `claude, claude, claude` (e79fe29)
+
+### Removed
+- `notifyVerb`/`notifyWhere`/`notifyWhat` — the shared sentence replaces the shared words (e79fe29)
+
 ## [0.123.0] - 2026-08-26
 
 ### Changed

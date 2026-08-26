@@ -827,7 +827,7 @@ still read `claude is done · webapp`.
 
 | | |
 |---|---|
-| Commit | *(this branch)* `feat(notify): the toast and the bell speak the push's sentence` |
+| Commit | `e79fe29` *feat(notify): the toast and the bell speak the push's sentence* |
 | Files | `web/src/lib/notify-content.ts` (new — a byte copy of `bridge/notify-content.ts`), `web/src/hooks/use-transitions.ts` (one call replaces the toast's own sentence), `web/src/lib/types.ts` (`notifyVerb`/`notifyWhere`/`notifyWhat` deleted), `bridge/notifications.ts` (`summarize`'s digest body), `bridge/notify-content.ts` (an optional `session`, and `basename` inlined so the file has no imports) |
 | Extraction | **Clean cherry-pick**, and it needs brick 24 first. Nothing in it knows the board exists: with no card the subject falls through to the repo, which is upstream's only case. |
 
