@@ -574,6 +574,55 @@ trois surfaces. Attention à la contrainte `paneDisplayName` déjà dupliquée v
 délibéré.
 **Acceptation** : une amélioration du contenu ne se code qu'une fois.
 
+### N10 — Un seul push, complet : ne différer que ce qui est lent
+
+**Pourquoi** : *découvert en vérifiant N3 sur l'appareil, pas à la lecture du code.* Une alerte part
+aujourd'hui en deux messages : l'alerte initiale, vide et **vibrante** (`renotify: true`), puis la mise
+à jour de sous-titre, complète et **silencieuse** (`renotify: false`). Les deux partagent le collapse
+topic `collie-herd` (`SEND_OPTIONS`, `bridge/push.ts:27`), et un collapse topic veut dire : *si
+l'appareil est injoignable, ne garder que le dernier*. Un téléphone endormi ne reçoit donc que le
+second — le silencieux. L'alerte se pose sans vibration, précisément dans le cas où le push existe :
+écran éteint, appareil dans la poche.
+
+*Mesuré en direct* (0.122.0, 3 abonnements — 1 FCM, 2 Mozilla) : les 6 envois d'une alerte à deux
+temps repartent tous en `201`, et la notification atteint le téléphone **environ une minute plus
+tard, sans vibration**. Un message unique à `renotify: true` envoyé seul, lui, vibre.
+
+**Mais le collapse n'est pas la cause — c'est le découpage qui ne se justifie pas.** Les coûts, tous
+mesurés :
+
+| Étape | Coût |
+|---|---|
+| Debounce avant que l'alerte parte | **30 000 ms** (`notifyDelayMs`, défaut) |
+| Palier 2 — lecture du transcript | 1–60 ms (`context.ts:55-56`) |
+| Palier 3 — `git --stat` | ~20 ms (mesuré sur une carte réelle, 10 fichiers) |
+| Palier 1 — le copilot | secondes à minutes, sérialisé sur tout le board |
+
+L'alerte attend **déjà 30 secondes**. Lui ajouter ~80 ms pour qu'elle parte complète plutôt que vide,
+c'est 0,3 % de retard en plus. Le découpage en deux temps n'a donc qu'une seule vraie justification :
+le copilot, seul palier réellement lent. Pour les paliers 2 et 3 il ne rachète rien et coûte un
+message, une vibration, et la machinerie de fraîcheur qui va avec.
+
+**Portée** : le **premier** push attend les paliers 2 et 3 et part complet. La mise à jour silencieuse
+ne subsiste que pour le copilot — de l'information supplémentaire qui arrive après, sur une alerte
+déjà lisible : c'est là que le deuxième temps est cohérent, et là seulement. Le copilot étant éteint
+par défaut, la configuration par défaut n'envoie plus qu'**un seul message**, qui vibre toujours, et
+le défaut ci-dessus disparaît sans avoir à arbitrer les collapse topics.
+
+Deux points d'attention :
+
+- `NotificationCoordinator.emit()` est synchrone et `notifications.ts` est un fichier d'upstream. Le
+  faire attendre y touche plus profondément qu'un hook. La contrainte de surface upstream est un coût
+  de rebase, pas un principe : elle ne pèse que si le fork tire encore d'upstream — à trancher, et à
+  écrire, avant de s'en affranchir ici.
+- Une lecture de transcript ou un sous-processus git qui pend ne doit **jamais** retarder l'alerte :
+  ce qu'on attend, on l'attend sous délai borné, et on part sans lui à l'expiration. Le corps vide
+  reste un repli acceptable (§3.3, palier 4) ; une alerte qui n'arrive pas, non.
+
+**Acceptation** : copilot éteint, une alerte survenue pendant que le téléphone dort arrive en **un
+seul message**, complet et vibrant. Vérifiée sur l'appareil, écran verrouillé — le seul juge, comme
+pour les troncatures.
+
 ---
 
 ## Ce que cet audit ne tranche pas
