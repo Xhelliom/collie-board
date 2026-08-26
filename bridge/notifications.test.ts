@@ -150,7 +150,7 @@ describe("NotificationCoordinator — coalescing", () => {
     // `claude, codex` named the panes with the one word herdr reports for all of them, so a digest
     // of three said "claude, claude, claude" (NOTIFY_AUDIT.md §2.1).
     expect(sink.renders.at(-1)).toEqual({
-      title: "2 agents need you",
+      title: "2 questions",
       body: "Ship 0.86 · elber",
       paneId: undefined,
       renotify: true,
@@ -165,12 +165,22 @@ describe("NotificationCoordinator — coalescing", () => {
     expect(sink.last?.body).toBe("demo");
   });
 
-  test("a mixed blocked+done herd reads as 'need attention'", () => {
+  // §3.5 — the headline counts WHAT IS WAITING, by state, not how many agents produced it: the old
+  // `3 agents done` counted the one field that is the same word on every pane (§2.1).
+  test("a mixed herd counts each state, most urgent first", () => {
     const { clock, sink, coord } = setup();
     coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
     coord.onTransition(agentNamed("p2", "codex", "done"), "working", "done");
     clock.fireAll();
-    expect(sink.last?.title).toBe("2 agents need attention");
+    expect(sink.last?.title).toBe("1 question, 1 done");
+  });
+
+  test("a uniform herd names only the state it has", () => {
+    const { clock, sink, coord } = setup();
+    coord.onTransition(agent("p1", "done"), "working", "done");
+    coord.onTransition({ ...agent("p2", "done"), cwd: "/home/you/elber" }, "working", "done");
+    clock.fireAll();
+    expect(sink.last?.title).toBe("2 done");
   });
 
   test("resolving one of two falls back to the named single, silently", () => {
@@ -465,6 +475,19 @@ describe("NotificationCoordinator — the card to read", () => {
     await settle();
     expect(sink.last?.title).toBe("Done · Ship it");
     expect(sink.last?.cardId).toBeUndefined();
+  });
+
+  // §3.5 — the digest counts by the SAME marker a single alert's title uses, so `Review` there and
+  // `to review` here can never disagree about what one of the collapsed alerts was.
+  test("a digest counts cards in review as `to review`, questions first", async () => {
+    const { clock, sink, coord } = setupOnCard("review");
+    coord.onTransition(onCard("p1", "done"), "working", "done");
+    coord.onTransition(onCard("p2", "done", "c2"), "working", "done");
+    coord.onTransition(agentNamed("p3", "codex", "blocked"), "working", "blocked");
+    clock.fireAll();
+    await settle();
+    expect(sink.last?.title).toBe("1 question, 2 to review");
+    expect(sink.last?.body).toBe("Ship it · The container · demo");
   });
 
   test("§4.3 row 2 — a pane with no card is byte-for-byte what it was", async () => {

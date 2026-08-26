@@ -1,4 +1,4 @@
-import { notifyCardId, notifyContent, repoOf } from "./notify-content.ts";
+import { notifyCardId, notifyContent, notifyMarker, repoOf } from "./notify-content.ts";
 import type { PushMessage } from "./push.ts";
 import { type AgentStatus, type AgentView } from "./types.ts";
 
@@ -9,8 +9,8 @@ import { type AgentStatus, type AgentView } from "./types.ts";
 //     desk) never reaches your phone. Herdr exposes no "user present" signal (only a `focused` pane,
 //     no activity timestamp), so we infer presence: a quickly-resolved transition is an at-desk one.
 //   • Coalesce — instead of N stacked notifications, we keep ONE summary of everything currently
-//     outstanding: the named agent when exactly one needs you, or "N agents need you" for several.
-//     Each change re-renders that single summary; when the last one resolves, we clear it.
+//     outstanding: the alert's own sentence when exactly one is, or a count-by-state digest for
+//     several. Each change re-renders that single summary; when the last one resolves, we clear it.
 //   • Retract — clearing an agent at the PC (or its pane closing) updates or removes the summary, so
 //     handled work never lingers on your lock screen.
 //
@@ -27,7 +27,7 @@ export interface NotifyClock<H> {
 
 /** The current state of the herd's single notification, derived from everything outstanding. */
 export interface HerdSummary {
-  /** Headline: "Needs you · <subject>" for one (notify-content.ts), or "3 agents need you" for several. */
+  /** Headline: "Needs you · <subject>" for one (notify-content.ts), or "1 question, 2 to review". */
   title: string;
   /** Sub-line: "<repo> · <what happened>" for one outstanding alert, or the agent names for a digest. */
   body: string;
@@ -120,6 +120,33 @@ export interface Alert {
 /** An alert that has just fired, as handed to the history hook. */
 export interface FiredAlert extends Alert {
   paneId: string;
+}
+
+/**
+ * How each state is COUNTED in a digest, in the fixed order they're listed — most urgent first: a
+ * blocked agent is stalled on an answer only you can give, a finished card is not. Fixed rather than
+ * by-size so the headline doesn't reshuffle itself every time one alert resolves.
+ *
+ * The count form is why the words differ from the single-alert markers they're keyed by ("1 Needs
+ * you" is not a sentence). The MARKERS are the same, from the same `notifyMarker` — so `Review` here
+ * and `Review` on its own notification can never mean two different things (§3.5, card N5).
+ */
+const DIGEST_COUNTS: ReadonlyArray<readonly [ReturnType<typeof notifyMarker>, (n: number) => string]> = [
+  ["Needs you", (n) => `${n} question${n > 1 ? "s" : ""}`],
+  ["Review", (n) => `${n} to review`],
+  ["Done", (n) => `${n} done`],
+];
+
+/**
+ * The digest headline: `1 question, 2 to review` — WHAT is waiting, not how many workers produced it
+ * (`3 agents done` counted the one thing that carries no information, §2.1/§3.5). Groups with nothing
+ * in them are dropped, so a uniform herd reads `3 to review` and never mentions the empty states.
+ */
+function digestTitle(alerts: Alert[]): string {
+  return DIGEST_COUNTS.map(([marker, say]) => [alerts.filter((a) => notifyMarker(a) === marker).length, say] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, say]) => say(n))
+    .join(", ");
 }
 
 export class NotificationCoordinator<H = unknown> {
@@ -276,20 +303,11 @@ export class NotificationCoordinator<H = unknown> {
       return { ...notifyContent(a, a.subtitle ?? null), paneId, renotify, ...(cardId ? { cardId } : {}) };
     }
     const alerts = entries.map(([, a]) => a);
-    const n = alerts.length;
-    const allBlocked = alerts.every((a) => a.status === "blocked");
-    const allDone = alerts.every((a) => a.status === "done");
-    const title = allBlocked
-      ? `${n} agents need you`
-      : allDone
-        ? `${n} agents done`
-        : `${n} agents need attention`;
     // The subjects, not the workers: `claude, claude, claude` named three panes with the one word
     // herdr reports for all of them (NOTIFY_AUDIT.md §2.1). Same subject rule as a single alert —
     // the card, else its repo — so a digest reads like the notifications it collapsed.
-    // ponytail: the title still counts agents (`3 agents done`); §3.5's per-state count is card N5.
     const subjects = [...new Set(alerts.map((a) => a.cardTitle || repoOf(a.cwd)))];
-    return { title, body: subjects.join(" · "), renotify };
+    return { title: digestTitle(alerts), body: subjects.join(" · "), renotify };
   }
 
   private cancelPending(id: string): void {
