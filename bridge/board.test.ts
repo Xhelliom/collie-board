@@ -36,6 +36,7 @@ import {
   parseJsonish,
   pickCategory,
   pickTag,
+  PRIORITY_NOTIFY_SUBTITLE,
   refinePrompt,
   toSubtaskEdits,
   reformulatePrompt,
@@ -1918,6 +1919,32 @@ describe("Copilot.ensurePane — adoption", () => {
   it("returns null and drops the pane when the launch fails, so the next request retries", async () => {
     const { copilot } = copilotWith(snapshot([]), new Set(["startAgent"]));
     expect(await copilot.ask(() => "hi")).toBeNull();
+  });
+
+  it("lets a notification subtitle jump a QUEUED review, and still runs one request at a time", async () => {
+    // When a session ends, the card's review and the alert's subtitle land in the same queue. The
+    // review reads the same an hour late; the subtitle is thrown away by the freshness guard once
+    // the operator has dealt with the pane (NOTIFY_AUDIT.md §2.4).
+    const { copilot } = copilotWith(snapshot([pane("wOLD:p1", "idle", { cwd: WD })]));
+    const order: string[] = [];
+    let live = 0;
+    let overlapped = false;
+    const tag = (name: string) => () => {
+      order.push(name);
+      live++;
+      overlapped ||= live > 1;
+      return name;
+    };
+    const track = (p: Promise<unknown>) => p.finally(() => void live--);
+
+    // The first is already in flight by the time the other two are queued behind it.
+    const first = track(copilot.ask(tag("in-flight")));
+    const review = track(copilot.ask(tag("review")));
+    const subtitle = track(copilot.ask(tag("subtitle"), PRIORITY_NOTIFY_SUBTITLE));
+    await Promise.all([first, review, subtitle]);
+
+    expect(order).toEqual(["in-flight", "subtitle", "review"]);
+    expect(overlapped).toBe(false);
   });
 });
 

@@ -243,6 +243,25 @@ une réécriture, et **un seul mal nommé** pour obtenir la lecture gratuite du 
 
 ### 2.4 — Quand le copilot est activé, il est en concurrence avec lui-même
 
+> **Traité en 0.127.0** (carte N7). `Copilot.ask` prend une `priority` : le sous-titre passe devant
+> tout ce qui **attend** encore (`PRIORITY_NOTIFY_SUBTITLE`, câblé dans `index.ts` — le sous-titre
+> pose une question, il n'a pas à savoir qu'il y a une file). La sérialisation est intacte : rien
+> n'interrompt le tour en cours.
+>
+> **Ce que la priorité ne répare pas, et il faut le dire.** La description ci-dessous parle de deux
+> demandes « quasi simultanées » ; elles ne le sont pas. La review part au poll suivant (~1,5 s),
+> le sous-titre après le debounce de notification (`notifyDelayMs`, 30 s par défaut) : dans la
+> config par défaut, la review de la MÊME carte a déjà commencé, et le sous-titre l'attend quand
+> même. La priorité gagne quand il y a une **rafale** — plusieurs cartes qui atterrissent ensemble,
+> ou une review encore en file — et c'est précisément le cas que §2.5 décrit comme le pire.
+> Vider ce reste-là demanderait soit de préempter un tour d'agent, soit de retarder la review,
+> deux choses plus chères que la polish qu'elles sauvent.
+>
+> **Et l'enjeu a beaucoup baissé depuis l'audit.** Le sous-titre n'attend plus le copilot pour que
+> l'alerte parte : le palier gratuit rend dès qu'il est lu (§2.3, 0.120.0), la cascade descend au
+> `git --stat` (§3.3, 0.122.0), et le premier push part complet (§N10, 0.123.0). Ce qui attend
+> derrière la file n'est plus l'information, c'est la **tournure**.
+
 Le copilot est un seul pane, sérialisé : « one pane is one queue » (`copilot.ts:746-747`), avec un
 timeout de 5 minutes par requête (`copilot.ts:40`).
 

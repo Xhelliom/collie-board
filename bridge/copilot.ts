@@ -40,6 +40,14 @@ const OUT_DIR = ".board/out";
 /** How long one request may take before we give up and free the queue. */
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
 
+/**
+ * Queue priority for the notification subtitle — the one request whose value expires.
+ *
+ * Everything else defaults to 0 and keeps its arrival order. Wired in `index.ts`, not in
+ * `notify-subtitle.ts`: the subtitle asks a question, it doesn't get to know there is a queue.
+ */
+export const PRIORITY_NOTIFY_SUBTITLE = 1;
+
 /** How often we look for the answer file. */
 const POLL_MS = 2000;
 
@@ -743,8 +751,16 @@ export class Copilot {
   private _paneId: string | null = null;
   /** Set by ensurePane, consumed by the next prompt — see promptAndConfirm's `firstAfterLaunch`. */
   private justLaunched = false;
-  /** Serialises requests: one pane is one queue, which is free rate limiting. */
-  private queue: Promise<unknown> = Promise.resolve();
+  /**
+   * Requests waiting for the pane, highest priority first — see {@link ask}. One pane is one queue,
+   * which is free rate limiting; this is the queue, and `draining` is what keeps it to one at a time.
+   */
+  private waiting: {
+    buildPrompt: (outPath: string) => string;
+    priority: number;
+    settle: (answer: unknown | null) => void;
+  }[] = [];
+  private draining = false;
   private requestsSinceReset = 0;
 
   constructor(
@@ -789,13 +805,33 @@ export class Copilot {
   /**
    * Ask one question. Serialised behind every earlier request, so a burst of cards being reviewed
    * costs one agent turn at a time rather than N in parallel against a shared quota.
+   *
+   * `priority` reorders what is still WAITING; it never interrupts the turn in flight — the
+   * serialisation is the rate limiting, and preempting an agent mid-turn would throw its work away.
+   * Higher goes first, equal priorities keep their arrival order. The only caller that raises it is
+   * the notification subtitle ({@link PRIORITY_NOTIFY_SUBTITLE}): a review is worth the same an hour
+   * late, a subtitle is worth nothing once the operator has read the alert (NOTIFY_AUDIT.md §2.4).
    */
-  ask(buildPrompt: (outPath: string) => string): Promise<unknown | null> {
+  ask(buildPrompt: (outPath: string) => string, priority = 0): Promise<unknown | null> {
     if (!this.enabled) return Promise.resolve(null);
-    const run = this.queue.then(() => this.run(buildPrompt)).catch(() => null);
-    // The queue must never adopt a rejection, or one failure would poison every later request.
-    this.queue = run.catch(() => null);
-    return run;
+    return new Promise((settle) => {
+      const at = this.waiting.findIndex((w) => w.priority < priority);
+      this.waiting.splice(at === -1 ? this.waiting.length : at, 0, { buildPrompt, priority, settle });
+      void this.drain();
+    });
+  }
+
+  /** One request at a time, oldest-of-the-highest-priority first. Never rejects — see `run`. */
+  private async drain(): Promise<void> {
+    if (this.draining) return;
+    this.draining = true;
+    try {
+      for (let next = this.waiting.shift(); next; next = this.waiting.shift()) {
+        next.settle(await this.run(next.buildPrompt).catch(() => null));
+      }
+    } finally {
+      this.draining = false;
+    }
   }
 
   private async run(buildPrompt: (outPath: string) => string): Promise<unknown | null> {

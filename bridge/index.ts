@@ -7,7 +7,7 @@ import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
-import { Copilot, CopilotCoordinator } from "./copilot.ts";
+import { Copilot, CopilotCoordinator, PRIORITY_NOTIFY_SUBTITLE } from "./copilot.ts";
 import { BoardDb } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
@@ -236,7 +236,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
         // tiers below running whether or not the operator wants to spend quota on polish.
         copilot: {
           enabled: copilot.enabled && notifyPrefs.current().copilotSubtitle,
-          ask: (buildPrompt) => copilot.ask(buildPrompt),
+          // Ahead of anything still queued — a review reads the same an hour late, this doesn't
+          // (NOTIFY_AUDIT.md §2.4). It still waits out the turn in flight.
+          ask: (buildPrompt) => copilot.ask(buildPrompt, PRIORITY_NOTIFY_SUBTITLE),
         },
         notifyLog,
       }).catch(() => {});
