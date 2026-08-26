@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
-import { CardDiff, lineClass } from "./card-diff";
+import { CardDiff, isMarkdownPath, lineClass } from "./card-diff";
 
 // A unified diff's file headers start with the same characters as its content lines, which is the
 // one thing a naive prefix check gets wrong — every patch would open with a meaningless green and
@@ -80,5 +80,66 @@ describe("CardDiff — empty diff", () => {
 
     expect(await screen.findByText("web/src/a.ts")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /base ref on main/i })).not.toBeInTheDocument();
+  });
+});
+
+// The reader. A generated report is a file the card wrote, so it is reached from the diff — but a
+// patch is not a document: reading one means fetching the FILE and rendering it. Two things must
+// hold, and the second is why the toggle exists at all: every other file is untouched.
+describe("CardDiff — Markdown reader", () => {
+  const stat = (files: unknown[]) => ({ ok: true, base: "abc123", cwd: "/w", files, added: 1, removed: 0 });
+  const md = { path: "REPORT.md", added: 4, removed: 0, kind: "text" };
+  const ts = { path: "web/src/a.ts", added: 1, removed: 0, kind: "text" };
+
+  it("classifies by extension, case-insensitively", () => {
+    expect(isMarkdownPath("REPORT.md")).toBe(true);
+    expect(isMarkdownPath("docs/notes.MARKDOWN")).toBe(true);
+    expect(isMarkdownPath("web/src/a.ts")).toBe(false);
+    expect(isMarkdownPath("mdfile")).toBe(false);
+  });
+
+  it("opens a .md rendered, and the toggle goes back to the patch", async () => {
+    const user = userEvent.setup();
+    const modes: (string | null)[] = [];
+    server.use(
+      http.get("/api/cards/c1/diff", ({ request }) => {
+        const mode = new URL(request.url).searchParams.get("mode");
+        if (!mode) return HttpResponse.json(stat([md]));
+        modes.push(mode);
+        return mode === "read"
+          ? HttpResponse.json({ ok: true, path: "REPORT.md", text: "# Verdict\n\nAll good.", truncated: false })
+          : HttpResponse.json({ ok: true, path: "REPORT.md", diff: "@@ -0,0 +1 @@\n+# Verdict", truncated: false });
+      }),
+    );
+    render(<CardDiff cardId="c1" statusKey="review" />);
+
+    await user.click(await screen.findByText("REPORT.md"));
+    // Rendered, not raw: the heading's text node is "Verdict", with the `#` consumed as structure.
+    expect(await screen.findByText("Verdict")).toBeInTheDocument();
+    expect(screen.getByText("All good.")).toBeInTheDocument();
+    await waitFor(() => expect(modes).toEqual(["read"]));
+
+    await user.click(screen.getByRole("button", { name: /show the diff/i }));
+    expect(await screen.findByText("+# Verdict")).toBeInTheDocument();
+    await waitFor(() => expect(modes).toEqual(["read", "file"]));
+  });
+
+  it("leaves every other file on the diff it always had", async () => {
+    const user = userEvent.setup();
+    const modes: (string | null)[] = [];
+    server.use(
+      http.get("/api/cards/c1/diff", ({ request }) => {
+        const mode = new URL(request.url).searchParams.get("mode");
+        if (!mode) return HttpResponse.json(stat([ts]));
+        modes.push(mode);
+        return HttpResponse.json({ ok: true, path: ts.path, diff: "@@ -1 +1 @@\n+const x = 1;", truncated: false });
+      }),
+    );
+    render(<CardDiff cardId="c1" statusKey="review" />);
+
+    await user.click(await screen.findByText(ts.path));
+    expect(await screen.findByText("+const x = 1;")).toBeInTheDocument();
+    await waitFor(() => expect(modes).toEqual(["file"]));
+    expect(screen.queryByRole("button", { name: /read the document/i })).not.toBeInTheDocument();
   });
 });

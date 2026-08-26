@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, FileDiff, GitBranch, RefreshCw } from "lucide-react";
+import { BookOpen, ChevronRight, FileDiff, FileText, GitBranch, RefreshCw } from "lucide-react";
 
+import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -8,6 +9,7 @@ import {
   boardErrorMessage,
   fetchDiffFile,
   fetchDiffStat,
+  fetchWorktreeFile,
   patchCard,
   reviewCard,
   type DiffFile,
@@ -181,6 +183,16 @@ function StatBar({ added, removed, max }: { added: number; removed: number; max:
   );
 }
 
+/**
+ * Prose we can render, rather than a patch to squint at. Pure + exported for the test.
+ *
+ * Extension only, deliberately: the file list comes from git, so the name is all we have without a
+ * second round trip, and `.md` is what a generated report is called.
+ */
+export function isMarkdownPath(path: string): boolean {
+  return /\.(md|markdown)$/i.test(path);
+}
+
 function FileDiffSheet({
   cardId,
   file,
@@ -190,19 +202,34 @@ function FileDiffSheet({
   file: DiffFile | null;
   onClose: () => void;
 }) {
-  const [diff, setDiff] = useState<string>("");
+  const [body, setBody] = useState<string>("");
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The toggle remembers the FILE it was tapped on, not just a boolean: opening another file must
+  // fall back to that file's own default, and a bare boolean reset in an effect would fetch once in
+  // the stale mode before correcting itself.
+  const [override, setOverride] = useState<{ path: string; prose: boolean } | null>(null);
+
+  // A `.md` opens READ-FIRST — the point of tapping a report is to read it, and the patch is one tap
+  // away. Every other file keeps exactly the diff it always had.
+  const markdown = file !== null && isMarkdownPath(file.path);
+  const prose = file !== null && (override?.path === file.path ? override.prose : markdown);
 
   useEffect(() => {
     if (!file) return;
     let cancelled = false;
-    setDiff("");
+    setBody("");
     setError(null);
-    void fetchDiffFile(cardId, file.path, file.kind === "untracked")
+    const load = prose
+      ? fetchWorktreeFile(cardId, file.path).then((r) => ({ body: r.text, truncated: r.truncated }))
+      : fetchDiffFile(cardId, file.path, file.kind === "untracked").then((r) => ({
+          body: r.diff,
+          truncated: r.truncated,
+        }));
+    void load
       .then((r) => {
         if (cancelled) return;
-        setDiff(r.diff);
+        setBody(r.body);
         setTruncated(r.truncated);
       })
       .catch((e) => {
@@ -211,19 +238,41 @@ function FileDiffSheet({
     return () => {
       cancelled = true;
     };
-  }, [cardId, file]);
+  }, [cardId, file, prose]);
 
   return (
     <BottomSheet open={file !== null} onClose={onClose} title={file?.path}>
+      {markdown && file && (
+        <button
+          type="button"
+          onClick={() => setOverride({ path: file.path, prose: !prose })}
+          className="mb-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
+        >
+          {prose ? <FileDiff className="size-3.5" /> : <BookOpen className="size-3.5" />}
+          {prose ? "Show the diff" : "Read the document"}
+        </button>
+      )}
       {error ? (
         <p className="text-sm text-destructive">{error}</p>
+      ) : prose ? (
+        /* The reader. `MarkdownText` emits React elements only — the same XSS boundary the patch
+           view holds, which matters just as much here: a report is whatever the agent wrote. */
+        <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background p-3">
+          {body.trim() === "" ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <FileText className="size-4" /> Empty file.
+            </p>
+          ) : (
+            <MarkdownText text={body} className="text-sm leading-[1.6]" />
+          )}
+        </div>
       ) : (
         /* Wraps on a phone, panning-free; keeps column alignment from `sm:` up, where the width
            exists to show it. Pure CSS so it follows a rotation without a re-render — unlike the
            pane mirror, which has a user-facing toggle and so has to decide in JS. */
         <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background">
           <pre className="p-2 font-mono text-xs leading-snug sm:min-w-max">
-            {diff.split("\n").map((line, i) => (
+            {body.split("\n").map((line, i) => (
               <div
                 key={i}
                 className={cn(
@@ -239,7 +288,7 @@ function FileDiffSheet({
       )}
       {truncated && (
         <p className="pt-2 text-xs text-muted-foreground">
-          Diff truncated — open it on a laptop for the rest.
+          {prose ? "File" : "Diff"} truncated — open it on a laptop for the rest.
         </p>
       )}
       <Button variant="outline" onClick={onClose} className="mt-3 h-11 w-full">
