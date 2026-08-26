@@ -515,10 +515,15 @@ corps. Aucun cas ne retombe sur le titre de la carte.
 ### N4 — La notification porte sur la carte en review
 
 **Pourquoi** : Partie 4. C'est la demande d'origine sur l'événement notifié.
-**Portée** : lire le statut de la carte au moment de `onFire` (déjà chargé, `notify-subtitle.ts:127`),
-appliquer le marqueur `Review`, et faire pointer le tap vers la carte plutôt que vers le pane —
-ce qui demande un champ de destination dans le payload push, à côté du `target: "settings"` existant
-(`push.ts:64-66`, `sw.ts:100-103`). Traiter les cas limites de §4.3. Dépend de N2.
+**Portée** : *revue après N3 — plus petite qu'écrite ici à l'origine.* Le marqueur ne se compose plus
+à la main : depuis N2 il vit dans `notifyContent` (`bridge/notify-content.ts`), où `Review` est **une
+ligne**. La carte est déjà chargée au moment de `onFire` (`notify-subtitle.ts:139` — la référence
+`:127` d'origine a bougé avec la cascade), et `BoardDb.getCard` rend la carte entière : `status` est
+donc là, il suffit d'élargir le type narrowé de `EnrichOpts.board` (`notify-subtitle.ts:92`), qui ne
+déclare aujourd'hui que `{ title, spec }`. **Le vrai reste du travail est le tap** : faire pointer la
+destination vers la carte plutôt que vers le pane, ce qui demande un champ dans le payload push à côté
+du `target: "settings"` existant (`push.ts:64-66`, `sw.ts:100-103`). Traiter les cas limites de §4.3.
+Dépend de N2.
 **Acceptation** : une session qui se termine sur une carte qui passe en `review` produit une
 notification dont le marqueur est `Review` et dont le tap ouvre la carte. Une session qui se termine
 sans carte est inchangée.
@@ -541,21 +546,34 @@ le droit du board à en émettre (contrainte `CLAUDE.md` : pas de nouvelle boucl
 s'accrocher à `engine.onUpdate`). Brainstorm, pas implémentation.
 **Acceptation** : une liste d'événements candidats, chacun avec son déclencheur existant et son coût.
 
-### N7 — Sortir le sous-titre de la file du copilot, ou lui donner la priorité
+### N7 — Sortir le sous-titre de la file du copilot, ou lui donner la priorité — ⚠️ largement dissoute
 
-**Pourquoi** : §2.4. Le tour court dont la valeur se périme attend derrière le tour long dont la
-valeur ne se périme pas.
-**Portée** : soit une priorité dans `Copilot.ask` (`copilot.ts:793-798`), soit un budget de temps
-propre au sous-titre au-delà duquel il abandonne. À arbitrer contre la règle « le copilot est
-sérialisé à une requête » (`CLAUDE.md`, §The board) — qui n'interdit pas un ordre, seulement un
-parallélisme. Dépend de N1 (sans N1, cette carte ne sert que les instances copilot-on).
+> **Revue après N1, N3 et N10 : sa prémisse a disparu.** §2.4 la justifiait par « le tour court dont
+> la valeur se périme attend derrière le tour long ». Or la notification n'attend plus le copilot du
+> tout : le palier gratuit rend dès qu'il est lu (N1), la cascade descend au `--stat` quand il n'y a
+> pas de transcript (N3), et le premier push part complet (N10). Ce qui périssait ne périt plus — la
+> reformulation du copilot est devenue un **bonus dont le retard ne coûte rien**.
+
+**Ce qu'il reste, et c'est mince** : la seule question encore ouverte est de savoir si la polish du
+copilot doit arriver **avant que l'opérateur ait traité le pane**, faute de quoi le garde-fou de
+fraîcheur (`currentSolo`) la jette. Ce n'est plus « l'alerte est plate », c'est « l'alerte aurait pu
+être mieux tournée ». Priorité basse, et à ne rouvrir que si un usage réel montre que la polish est
+jetée souvent.
+**Portée si on la reprend** : soit une priorité dans `Copilot.ask` (`copilot.ts:793-798`), soit un
+budget de temps propre au sous-titre au-delà duquel il abandonne. À arbitrer contre la règle « le
+copilot est sérialisé à une requête » (`CLAUDE.md`, §The board) — qui n'interdit pas un ordre,
+seulement un parallélisme.
 **Acceptation** : quand une carte atterrit, le sous-titre de notification passe avant la review de
 cette même carte.
 
 ### N8 — Renseigner `sessionName` avant les listeners de transition
 
-**Pourquoi** : §2.6. Le push est moins riche que le toast sur le même événement, pour une raison
-d'ordonnancement.
+**Pourquoi** : §2.6, *mais la cible a changé depuis N2*. La raison d'origine était « le push est moins
+riche que le toast sur le même événement ». Ce n'est plus vrai du push : N2 a sorti `paneDisplayName`
+du titre, qui vaut désormais `<marqueur> · <sujet>`. Le seul survivant est `notifications.ts:244`, la
+branche **digest multi-agents** — et la cloche, qui compose encore de son côté (N9). Le symptôme
+restant est donc : un pane renommé par `/rename` n'apparaît pas sous ce nom dans un digest ni dans
+l'historique. Correctif inchangé ; ne pas le chercher sur une alerte seule, il n'y est plus.
 **Portée** : appliquer le cache `sessionNames` dans `toView` (`state-engine.ts:203-230`) plutôt
 qu'après la boucle de transitions. Correctif de quelques lignes ; sans effet visible tant que
 personne n'utilise `/rename`, ce qui en fait une carte de faible priorité mais de coût quasi nul.
