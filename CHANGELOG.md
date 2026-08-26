@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.121.0] - 2026-08-26
+
+### Changed
+- Push notifications say which work, not which agent: title `<Needs you|Done> · <card, else repo>`, body `<repo> · <what happened>` — the repo appears once, nothing is repeated, and one shared composition keeps the plain push and the subtitle update from drifting apart (4fd933c)
+
 ## [0.120.0] - 2026-08-26
 
 ### Fixed
