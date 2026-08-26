@@ -1,5 +1,5 @@
-import { AGENT_GROUPS } from "./agent-groups";
-import type { AgentStatus } from "./types";
+import { AGENT_GROUPS, groupMembers } from "./agent-groups";
+import type { AgentStatus, AgentView } from "./types";
 
 const ALL_STATUSES: AgentStatus[] = ["idle", "working", "blocked", "done", "unknown"];
 
@@ -34,5 +34,29 @@ describe("AGENT_GROUPS", () => {
     expect(groupFor("idle")[0]!.key).toBe("other");
     expect(groupFor("done")[0]!.key).toBe("other");
     expect(groupFor("unknown")[0]!.key).toBe("other");
+  });
+});
+
+const pane = (paneId: string, over: Partial<AgentView> = {}): AgentView =>
+  ({ paneId, workspaceId: "w", workspaceLabel: "w", workspaceNumber: 1, tabId: "t",
+     agent: "claude", status: "idle", cwd: "/x", focused: false, kind: "agent", ...over }) as AgentView;
+
+const other = AGENT_GROUPS.find((g) => g.key === "other")!;
+const working = AGENT_GROUPS.find((g) => g.key === "working")!;
+
+describe("groupMembers", () => {
+  it("orders idle · done newest-settled first", () => {
+    const panes = [pane("a", { statusSince: 100 }), pane("b", { statusSince: 300 }), pane("c", { statusSince: 200 })];
+    expect(groupMembers(panes, other).map((p) => p.paneId)).toEqual(["b", "c", "a"]);
+  });
+
+  it("sinks panes with no known settle instant, keeping their incoming order", () => {
+    const panes = [pane("a"), pane("b", { statusSince: 100 }), pane("c")];
+    expect(groupMembers(panes, other).map((p) => p.paneId)).toEqual(["b", "a", "c"]);
+  });
+
+  it("leaves the other groups in the order the bridge sent", () => {
+    const panes = [pane("a", { status: "working", statusSince: 100 }), pane("b", { status: "working", statusSince: 300 })];
+    expect(groupMembers(panes, working).map((p) => p.paneId)).toEqual(["a", "b"]);
   });
 });
