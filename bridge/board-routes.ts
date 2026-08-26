@@ -25,7 +25,7 @@ import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, BoardEvent, Card, CardCategory, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
 import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
-import { cardDiffSummary, diffFile, diffStat, worktreePathFor } from "./git.ts";
+import { cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
 import { requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
@@ -715,6 +715,15 @@ async function route(
       return ctx.json({ ok: false, error: "no worktree for this branch", kind: "no-worktree" }, 409);
     }
     const url = new URL(req.url);
+    // `mode=read` is the same file list seen through the other lens: the file itself, not its patch.
+    // It exists for the generated `.md` reports agents leave in the worktree — a report is only ever
+    // reached from the diff (it is a file the card wrote), but reading one means reading the DOCUMENT.
+    if (url.searchParams.get("mode") === "read") {
+      const path = url.searchParams.get("path") ?? "";
+      const result = await readWorktreeFile(cwd, path);
+      if (!result.ok) return ctx.json({ ok: false, error: result.error }, 400);
+      return json({ ok: true, path, text: result.text, truncated: result.truncated });
+    }
     if (url.searchParams.get("mode") === "file") {
       const path = url.searchParams.get("path") ?? "";
       const result = await diffFile(cwd, card.baseRef, path, {

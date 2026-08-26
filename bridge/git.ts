@@ -270,6 +270,31 @@ export async function diffFile(
 }
 
 /**
+ * The worktree's own copy of one file, as text.
+ *
+ * A diff answers "what changed"; a generated report needs "what does it say", and the two part ways
+ * the moment the file is a MODIFICATION rather than a new one — a patch then carries only its hunks,
+ * which is half a document. So the reader reads the file, it does not un-prefix a patch.
+ *
+ * Same guard as {@link diffFile} and the same cap: `isSafeDiffPath` is the whole security surface
+ * for a client-supplied path, and it is the only string here that comes from a request.
+ */
+export async function readWorktreeFile(
+  cwd: string,
+  path: string,
+): Promise<{ ok: true; text: string; truncated: boolean } | { ok: false; error: string }> {
+  if (!isSafeDiffPath(cwd, path)) return { ok: false, error: "bad path" };
+  const file = Bun.file(resolve(cwd, path));
+  if (!(await file.exists())) return { ok: false, error: "no such file in this worktree" };
+  const truncated = file.size > MAX_DIFF_BYTES;
+  return {
+    ok: true,
+    text: truncated ? await file.slice(0, MAX_DIFF_BYTES).text() : await file.text(),
+    truncated,
+  };
+}
+
+/**
  * A one-screen `--stat` summary of a {@link DiffStat}, as text — the copilot's review input (both
  * {@link cardDiffSummary} and {@link cwdDiffSummary} format through this one place). Pure + exported.
  */
