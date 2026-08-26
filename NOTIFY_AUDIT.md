@@ -161,6 +161,11 @@ que c'est la seule qui compte quand le téléphone est dans la poche.
 
 ### 2.1 — Le titre ne peut pas dire autre chose que « claude »
 
+> **Corrigé en 0.121.0.** Le titre du push ne passe plus par `paneDisplayName` : il vaut
+> `<marqueur> · <sujet>` (`bridge/notify-content.ts`), où le sujet est le titre de carte, sinon le
+> repo. Le nom de l'agent ne figure plus dans le push ; il nomme encore l'alerte dans la cloche, le
+> toast in-app et le digest multi-agents. Le diagnostic ci-dessous reste la raison du changement.
+
 `paneDisplayName` (`bridge/types.ts:83-87`) essaie trois sources dans l'ordre. *Vérifié en direct*
 sur les 9 panes agents de l'instance : `paneLabel` et `sessionName` sont `null` **partout**, et
 `agent` vaut `"claude"` **partout** — y compris pour les 3 panes adossés à une carte.
@@ -175,6 +180,11 @@ lancement d'une carte : `agentNameFor(branch)` (`bridge/cards.ts:377-387`), pass
 est une fonction constante de l'agent, et un discriminant nul entre deux notifications.
 
 ### 2.2 — Le corps dit deux fois la même chose et ne dit jamais le repo
+
+> **Corrigé en 0.121.0.** Le corps vaut `<repo> · <ce qui s'est passé>`, le repo étant omis quand il
+> est déjà le sujet du titre — il apparaît donc exactement une fois, carte ou pas. Le repli
+> `cardTitle ?? cwd` a disparu : sans sous-titre, le corps se réduit au repo (ou à rien), jamais à
+> une deuxième copie du titre. Le repo est dérivé du `cwd` (`repoOf`), à l'ancre `worktrees/`.
 
 `body = ${a.workspaceLabel} · ${a.cardTitle ?? a.cwd}` (`notifications.ts:236`).
 
@@ -201,6 +211,11 @@ Le repo est pourtant disponible à deux endroits au moment du tir : dans `cwd`
 (`web/src/lib/board.ts:383-385`).
 
 ### 2.3 — Le palier gratuit de réécriture est verrouillé derrière le palier payant
+
+> **Corrigé en 0.120.0** (`e92bec1`). `enrichNotification` est appelé sans condition depuis
+> `index.ts` ; `copilotSubtitle` est replié dans l'option `copilot.enabled` passée à l'appel, donc
+> la préférence ne gate plus que la reformulation payante. La description ci-dessous décrit l'état
+> **avant** ce correctif.
 
 C'est la cause principale de « ça reste plat *malgré* le copilot ».
 
@@ -297,6 +312,12 @@ Ordre de priorité proposé pour le sujet, du plus discriminant au moins :
 2. le **repo** (`repoName(cwd)` ou `workspaceLabel`) sinon.
 
 ### 3.2 Titre et corps proposés
+
+> **Implémenté en 0.121.0** — `bridge/notify-content.ts`, une composition unique partagée par le push
+> initial (`notifications.ts`) et par chaque mise à jour de sous-titre (`notify-subtitle.ts`), de
+> sorte que les deux chemins ne peuvent plus produire deux phrases différentes. **Une réserve :** le
+> marqueur `Review` attend la règle d'événement de la partie 4 — jusque-là un `done` de carte lit
+> `Done`. Le corps du digest multi-agents (§3.5) est laissé tel quel, son arbitrage restant ouvert.
 
 Une seule règle, deux champs :
 

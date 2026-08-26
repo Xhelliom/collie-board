@@ -33,7 +33,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 |---|---|
 | `bridge/server.ts` | `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` + `DELETE /api/notifications/log/:id` + `POST /api/notifications/log/:id/read` routes and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21 |
 | `bridge/index.ts` | construct the board, copilot and adapters; four `engine.onUpdate` hooks; the `NotifyLog` and its coordinator hook — brick 18 in the ledger |
-| `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger |
+| `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger; `summarize`'s single-alert branch composes through `notify-content.ts` — brick 24 |
 | `bridge/config.ts` | the `board*` config block |
 | `systemd/collie-board.service` · `scripts/collie-board-ctl.sh` (unit heredoc) | `PrivateTmp=yes` removed — a `--user` unit can only mount inside a user namespace, where ssh refuses every root-owned config and no `git push` runs ([ADR 0008](./.adr/0008-the-user-unit-cannot-have-a-mount-namespace.md)) |
 | `bridge/herdr-client.ts` | per-request timeout, and the worktree / agent / metadata methods |

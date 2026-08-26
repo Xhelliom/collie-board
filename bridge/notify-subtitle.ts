@@ -1,5 +1,6 @@
-// Push subtitle — turns "repo · card title" into "repo · what actually happened". The free tier
-// below is NOT optional — it costs a transcript read, so its only condition is transcripts being on
+// Push subtitle — fills in the "what actually happened" half of the body notify-content.ts leaves
+// empty on the first, plain push. Title and layout are that module's, not this one's: this file only
+// ever supplies the subtitle string. The free tier below is NOT optional — it costs a transcript read, so its only condition is transcripts being on
 // at all. `NotifyPrefs.copilotSubtitle` (off by default) gates the SLOW tier and nothing else: the
 // caller folds it into `copilot.enabled` (index.ts's onFire hook), so "off" here means "no copilot
 // polish", never "no subtitle".
@@ -17,14 +18,14 @@
 // TWO-STAGE PUSH (now three-stage, counting the base one), DELIBERATELY. A push notification's value
 // decays fast, so waiting for EITHER tier before the FIRST push would defeat the alert — the plain
 // push fires immediately, unchanged (NotificationCoordinator). Each tier here that lands fires a
-// SILENT update (`renotify:false`) on the same tag, replacing only the half of the body after the
-// repo name — the repo itself is never touched. If the alert has since resolved, or a second one
-// joined it and the summary became a multi-agent digest, THAT tier's update is dropped: nothing stale
+// SILENT update (`renotify:false`) on the same tag, re-rendering the very same composition with the
+// subtitle filled in — the title and the repo are never touched. If the alert has since resolved,
+// or a second one joined it and the summary became a multi-agent digest, THAT tier's update is dropped: nothing stale
 // ever lands on the lock screen, whether it's the fast tier or the copilot's later upgrade.
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
+import { notifyContent } from "./notify-content.ts";
 import type { Alert, FiredAlert, NotifySink } from "./notifications.ts";
-import { paneDisplayName } from "./types.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 
 /** Just the corner of `TranscriptStore` this needs — narrowed so a fake can stand in for it in tests
@@ -109,12 +110,10 @@ function pushSubtitle(opts: EnrichOpts, alert: FiredAlert, subtitle: string): bo
     return false;
   }
   console.log(`[notify-subtitle] ${alert.paneId}: "${subtitle}"`);
-  opts.sink.render({
-    title: `${paneDisplayName(current)} ${current.status === "blocked" ? "needs you" : "is done"}`,
-    body: `${current.workspaceLabel} · ${subtitle}`,
-    paneId: alert.paneId,
-    renotify: false,
-  });
+  // Same composer as the plain push this replaces (notify-content.ts) — the ONLY difference between
+  // the two renders is the subtitle, so an upgrade can never also rewrite the title back to a
+  // different sentence about the same alert.
+  opts.sink.render({ ...notifyContent(current, subtitle), paneId: alert.paneId, renotify: false });
   opts.notifyLog?.enrich(alert.paneId, alert.status, subtitle);
   return true;
 }
