@@ -3,7 +3,7 @@ import { TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
-import { AGENT_GROUPS } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
 import { paneDisplayName } from "@/lib/types";
 import type { AgentView, TabView } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export function PaneListColumn({
       </div>
       <div className="flex flex-col gap-3 p-2">
         {AGENT_GROUPS.map((g) => {
-          const members = agents.filter((a) => g.match(a.status));
+          const members = groupMembers(agents, g);
           if (members.length === 0) return null;
           return (
             <PaneGroup key={g.key} label={g.label} accent={g.accent}>
