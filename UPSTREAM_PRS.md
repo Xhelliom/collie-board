@@ -861,7 +861,7 @@ lock screen every time one alert resolves.
 
 | | |
 |---|---|
-| Commit | `b3a54f2` *feat(notify): the digest counts states, not agents* |
+| Commit | `b9603b1` *feat(notify): the digest counts states, not agents* |
 | Files | `bridge/notify-content.ts` + its byte copy `web/src/lib/notify-content.ts` (the marker split out of `notifyContent` as `notifyMarker`), `bridge/notifications.ts` (`summarize`'s digest branch, ~12 lines) |
 | Extraction | **Clean cherry-pick**, and it needs bricks 24 and 25 first. The board only shows through one marker (`Review`, for a card the board moved there), which falls through to `Done` when there is no card — upstream's only case. |
 
