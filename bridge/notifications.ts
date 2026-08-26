@@ -1,3 +1,4 @@
+import { notifyContent } from "./notify-content.ts";
 import type { PushMessage } from "./push.ts";
 import { paneDisplayName, type AgentStatus, type AgentView } from "./types.ts";
 
@@ -26,9 +27,9 @@ export interface NotifyClock<H> {
 
 /** The current state of the herd's single notification, derived from everything outstanding. */
 export interface HerdSummary {
-  /** Headline: "claude needs you" for one, or "3 agents need you" for several. */
+  /** Headline: "Needs you · <subject>" for one (notify-content.ts), or "3 agents need you" for several. */
   title: string;
-  /** Sub-line: "demo · /path" for one outstanding alert, or the agent names for a digest. */
+  /** Sub-line: "<repo> · <what happened>" for one outstanding alert, or the agent names for a digest. */
   body: string;
   /** Deep-link target when exactly one alert is outstanding; undefined for a multi-agent digest. */
   paneId?: string;
@@ -86,9 +87,9 @@ export interface Alert {
   cwd: string;
   status: NotifiableStatus;
   /**
-   * Rename ingredients + the card title, carried through so a push and a history entry can name this
-   * alert exactly like the in-app toast does (see `paneDisplayName` and the `cardTitle ?? cwd`
-   * fallback both use).
+   * Rename ingredients + the card title. The card title is the push's SUBJECT (notify-content.ts);
+   * the rename ingredients name the alert in the bell's history and the multi-agent digest, exactly
+   * like the in-app toast does (`paneDisplayName`).
    */
   paneLabel?: string;
   sessionName?: string;
@@ -227,16 +228,9 @@ export class NotificationCoordinator<H = unknown> {
     const entries = [...this.outstanding.entries()];
     if (entries.length === 1) {
       const [paneId, a] = entries[0]!;
-      const verb = a.status === "blocked" ? "needs you" : "is done";
-      // One outstanding agent → deep-link straight to its pane on tap. Same name + body priority as
-      // the in-app toast: a rename (or Claude's own /rename) over the raw agent name, the card title
-      // over the bare cwd.
-      return {
-        title: `${paneDisplayName(a)} ${verb}`,
-        body: `${a.workspaceLabel} · ${a.cardTitle ?? a.cwd}`,
-        paneId,
-        renotify,
-      };
+      // One outstanding agent → deep-link straight to its pane on tap. The sentence itself is
+      // notify-content.ts's, shared with the subtitle updates that later replace this same slot.
+      return { ...notifyContent(a, null), paneId, renotify };
     }
     const alerts = entries.map(([, a]) => a);
     const n = alerts.length;

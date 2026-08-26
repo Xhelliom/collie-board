@@ -96,8 +96,10 @@ describe("NotificationCoordinator — debounce", () => {
     expect(sink.events).toEqual([]); // armed, not yet fired
     clock.fireAll();
     expect(sink.last).toEqual({
-      title: "claude needs you",
-      body: "demo · /home/you/demo",
+      // No card: the repo IS the subject, so the body carries only "what happened" — empty until a
+      // subtitle lands (notify-subtitle.ts). Never the cwd again: that only echoed the title.
+      title: "Needs you · demo",
+      body: "",
       paneId: "p1",
       renotify: true,
     });
@@ -112,24 +114,26 @@ describe("NotificationCoordinator — debounce", () => {
     expect(clock.armed).toBe(0);
   });
 
-  test("'done' uses the 'is done' verb", () => {
+  test("'done' uses the 'Done' marker", () => {
     const { clock, sink, coord } = setup();
     coord.onTransition(agent("p1", "done"), "working", "done");
     clock.fireAll();
-    expect(sink.last?.title).toBe("claude is done");
+    expect(sink.last?.title).toBe("Done · demo");
   });
 
-  test("a rename and a card title win over the raw agent name and cwd — same priority as the toast", () => {
+  test("a card title is the subject, and the repo moves into the body — each appearing once", () => {
     const { clock, sink, coord } = setup();
     coord.onTransition(
+      // The pane rename is deliberately NOT in the push: the subject is the work, not the worker
+      // (NOTIFY_AUDIT.md §3.1). It still names the alert in the bell and the multi-agent digest.
       { ...agent("p1", "blocked"), paneLabel: "release branch", cardTitle: "Ship 0.86" },
       "working",
       "blocked",
     );
     clock.fireAll();
     expect(sink.last).toEqual({
-      title: "release branch needs you",
-      body: "demo · Ship 0.86",
+      title: "Needs you · Ship 0.86",
+      body: "demo",
       paneId: "p1",
       renotify: true,
     });
@@ -166,8 +170,8 @@ describe("NotificationCoordinator — coalescing", () => {
     clock.fireAll();
     coord.onTransition(agentNamed("p2", "codex", "idle"), "blocked", "idle"); // codex handled
     expect(sink.last).toEqual({
-      title: "claude needs you",
-      body: "demo · /home/you/demo",
+      title: "Needs you · demo",
+      body: "",
       paneId: "p1",
       renotify: false, // a retraction update must not re-buzz
     });
@@ -260,7 +264,7 @@ describe("NotificationCoordinator — type preferences", () => {
     coord.onTransition(agent("p1", "done"), "working", "done");
     expect(sink.events).toEqual([]); // still debouncing
     clock.fireAll();
-    expect(sink.last?.title).toBe("claude is done");
+    expect(sink.last?.title).toBe("Done · demo");
   });
 
   test("with blocked disabled, a blocked transition doesn't push", () => {
@@ -275,7 +279,7 @@ describe("NotificationCoordinator — type preferences", () => {
     const { clock, sink, coord, prefs } = setup({ blocked: true, done: true });
     coord.onTransition(agent("p1", "done"), "working", "done");
     clock.fireAll();
-    expect(sink.last?.title).toBe("claude is done"); // delivered
+    expect(sink.last?.title).toBe("Done · demo"); // delivered
     prefs.done = false; // preference changes at runtime…
     coord.applyPrefs(); // …and the API hook re-evaluates the herd
     expect(sink.events.at(-1)).toEqual({ kind: "clear" }); // the done alert is retracted
@@ -296,7 +300,7 @@ describe("NotificationCoordinator — type preferences", () => {
     const { clock, sink, coord } = setup({ blocked: true, done: false });
     coord.onTransition(agent("p1", "blocked"), "working", "blocked");
     clock.fireAll();
-    expect(sink.last?.title).toBe("claude needs you");
+    expect(sink.last?.title).toBe("Needs you · demo");
     // The agent completes, but done pushes are disabled — so this is a non-notifiable transition
     // that resolves (retracts) the outstanding blocked alert rather than replacing it.
     coord.onTransition(agent("p1", "done"), "blocked", "done");
@@ -306,8 +310,8 @@ describe("NotificationCoordinator — type preferences", () => {
 
 describe("makeNotifySink", () => {
   const summary: HerdSummary = {
-    title: "claude needs you",
-    body: "demo · /home/you/demo",
+    title: "Needs you · Ship 0.86",
+    body: "demo",
     paneId: "p1",
     renotify: true,
   };
@@ -322,7 +326,7 @@ describe("makeNotifySink", () => {
     const push = new RecordingPush();
     makeNotifySink(push, { isMuted: () => false }, "collie:herd").render(summary);
     expect(push.sent).toEqual([
-      { title: "claude needs you", body: "demo · /home/you/demo", tag: "collie:herd", paneId: "p1", renotify: true },
+      { title: "Needs you · Ship 0.86", body: "demo", tag: "collie:herd", paneId: "p1", renotify: true },
     ]);
   });
 
