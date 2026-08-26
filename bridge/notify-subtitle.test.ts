@@ -2,16 +2,18 @@ import { describe, expect, test } from "bun:test";
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
 import type { DiffStat } from "./git.ts";
-import { enrichNotification } from "./notify-subtitle.ts";
+import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notify-subtitle.ts";
 import { NotificationCoordinator } from "./notifications.ts";
 import type { Alert, FiredAlert, HerdSummary, NotifySink } from "./notifications.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 
-// enrichNotification is the second, silent push: it only ever fires after the plain one, so every
-// test starts from an alert that has already been rendered once (the base case NotificationCoordinator
-// itself covers). What's under test here is purely the enrichment decision — ask or don't, render or
-// drop — driven by fakes so no real copilot pane, git checkout, or transcript file is involved.
+// Two stages, split where the cost is (NOTIFY_AUDIT.md §N10):
+//   • firstSubtitle — tiers 2 and 3, awaited BEFORE the one buzzing push, so it returns a string
+//     rather than rendering one. Tested by its return value.
+//   • enrichNotification — the copilot's later, silent update, and nothing else. Tested by what it
+//     renders (or refuses to render, when the pane has moved on).
+// Everything is driven by fakes: no real copilot pane, git checkout, or transcript file.
 
 function baseAlert(overrides: Partial<FiredAlert> = {}): FiredAlert {
   return {
@@ -34,13 +36,6 @@ class RecordingSink implements NotifySink {
 
 function fakeCoordinator(alert: Alert | undefined) {
   return { currentSolo: (_paneId: string) => alert };
-}
-
-/** A coordinator whose answer changes between calls — the fast tier and the copilot's later upgrade
- *  each call `currentSolo` at a different moment, and this simulates the pane moving on in between. */
-function fakeCoordinatorSequence(...answers: Array<Alert | undefined>) {
-  let i = 0;
-  return { currentSolo: (_paneId: string) => answers[Math.min(i++, answers.length - 1)] };
 }
 
 function fakeCopilot(answer: unknown, enabled = true) {
@@ -88,403 +83,245 @@ function fakeStat(n: number, added: number, removed: number): DiffStat {
 const noDiff = async (_target: { cardId?: string; cwd: string }) => null;
 const neverResolvePath = async (_input: { paneId: string; cwd: string }) => null;
 
-describe("enrichNotification — gating", () => {
-  test("never asks the copilot when it's disabled", async () => {
-    const sink = new RecordingSink();
-    const copilot = fakeCopilot({ subtitle: "renamed the header bell" }, false);
-    await enrichNotification({
-      alert: baseAlert({ cardId: "c1" }),
-      coordinator: fakeCoordinator(baseAlert({ cardId: "c1" })),
-      sink,
-      copilot,
-      board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
-    });
-    expect(copilot.calls).toBe(0);
-    expect(sink.renders).toEqual([]);
+function sources(overrides: Partial<SubtitleSources> & { alert: FiredAlert }): SubtitleSources {
+  return { board: fakeBoard(null), transcripts: null, statFor: noDiff, ...overrides };
+}
+
+/** A `done` on a card, in a worktree — the shape the cascade's tier 3 exists for. */
+const cardDone = (overrides: Partial<FiredAlert> = {}) =>
+  baseAlert({
+    cardId: "c1",
+    cardTitle: "Ship the header bell",
+    cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
+    ...overrides,
   });
 
-  test("skips the copilot turn when there's truly nothing to work with", async () => {
-    const sink = new RecordingSink();
-    const copilot = fakeCopilot({ subtitle: "should never be asked" });
-    // `blocked`, so no diff is even attempted — leaves no spec, no transcript, no diff at all.
-    const alert = baseAlert({ status: "blocked", cardId: "c1" });
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot,
-      board: fakeBoard({ title: "Card", spec: null }),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: noDiff,
-    });
-    expect(copilot.calls).toBe(0);
-    expect(sink.renders).toEqual([]);
-  });
-
-  test("a hand-launched `done` pane still gets a cwd diff attempt — no card required", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert(); // no cardId at all
-    let statTarget: { cardId?: string; cwd: string } | undefined;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "cleaned up the trim-tools helper" }),
-      board: fakeBoard(null),
-      transcripts: null,
-      statFor: async (target) => {
-        statTarget = target;
-        return fakeStat(1, 12, 3);
-      },
-    });
-    expect(statTarget).toEqual({ cardId: undefined, cwd: "/home/you/demo" });
-    // Tier 3 lands first (no transcript here), the copilot's rephrase upgrades it right after.
-    expect(sink.renders.map((r) => r.body)).toEqual(["1 file, +12 -3", "cleaned up the trim-tools helper"]);
-  });
-
-  test("a hand-launched `blocked` pane has nothing to enrich from — no diff attempted", async () => {
-    const sink = new RecordingSink();
-    const copilot = fakeCopilot({ subtitle: "should never be asked" });
-    const alert = baseAlert({ status: "blocked" });
-    let statCalls = 0;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot,
-      board: fakeBoard(null),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => {
-        statCalls++;
-        return null;
-      },
-    });
-    expect(statCalls).toBe(0);
-    expect(copilot.calls).toBe(0);
-  });
-
-  test("only fetches the diff stat for `done`, never for `blocked`", async () => {
-    let statCalls = 0;
-    const alert = baseAlert({ status: "blocked", cardId: "c1" });
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink: new RecordingSink(),
-      copilot: fakeCopilot(null), // no answer — irrelevant to this assertion
-      board: fakeBoard({ title: "Card", spec: "the spec" }),
-      transcripts: null,
-      statFor: async () => {
-        statCalls++;
-        return null;
-      },
-    });
-    expect(statCalls).toBe(0);
-  });
-});
-
-describe("enrichNotification — the free-tier fallback (no copilot)", () => {
-  test("falls back to the agent's own last line, verbatim, when the copilot is disabled", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
-    const copilot = fakeCopilot({ subtitle: "should never be asked" }, false);
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot,
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "Should I also bump the changelog?")]),
-      statFor: noDiff,
-    });
-    expect(copilot.calls).toBe(0);
-    expect(sink.renders[0]?.body).toBe("Should I also bump the changelog?");
-  });
-
-  test("also falls back when the copilot IS enabled but answers with nothing usable", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null), // answers, but toNotifySubtitle rejects it
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "The mock was racing the timer.")]),
-      statFor: noDiff,
-    });
-    expect(sink.renders[0]?.body).toBe("The mock was racing the timer.");
-  });
-
-  test("without a transcript there is no free tier to fall back to — even a card spec isn't enough", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ status: "blocked", cardId: "c1" });
-    const copilot = fakeCopilot({ subtitle: "should never be asked" }, false);
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot,
-      board: fakeBoard({ title: "Card", spec: "a real spec, but the copilot is off" }),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: noDiff,
-    });
-    expect(sink.renders).toEqual([]);
+describe("firstSubtitle — tier 2, the agent's own last line", () => {
+  test("returns the agent's last message, verbatim", async () => {
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+        transcripts: fakeTranscripts([textEntry("assistant", "Should I also bump the changelog?")]),
+      }),
+    );
+    expect(subtitle).toBe("Should I also bump the changelog?");
   });
 
   test("collapses whitespace and caps a long raw message with an ellipsis", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
     const long = `line one\n\n  line two   with lots of   space   ${"x".repeat(200)}`;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", long)]),
-      statFor: noDiff,
-    });
-    // No card here, so the repo is already the title's subject and the body is the subtitle alone.
-    const subtitle = sink.renders[0]?.body ?? "";
+    const subtitle =
+      (await firstSubtitle(
+        sources({
+          alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+          transcripts: fakeTranscripts([textEntry("assistant", long)]),
+        }),
+      )) ?? "";
     expect(subtitle).toHaveLength(140);
     expect(subtitle.endsWith("…")).toBe(true);
     expect(subtitle).not.toContain("\n");
     expect(subtitle).not.toContain("  ");
   });
 
-  test("a transcript line outranks the diff, and with the copilot off nothing else wants it — no subprocess", async () => {
-    // Tier 2 won, so tier 3 has no body to fill, and there is no copilot prompt to feed either.
-    // Note the gate is "would anything use it", NOT "is the copilot on" — the test below is the
-    // same alert with no transcript, and it DOES shell out.
-    let statCalls = 0;
-    const alert = baseAlert({ agentSessionId: "s1", status: "done" });
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink: new RecordingSink(),
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "done here")]),
-      statFor: async () => {
-        statCalls++;
-        return null;
-      },
-    });
-    expect(statCalls).toBe(0);
+  test("the last ASSISTANT text turn wins, skipping trailing user/tool rows", async () => {
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+        transcripts: fakeTranscripts([
+          textEntry("assistant", "the real closing message"),
+          textEntry("user", "thanks"),
+          { uuid: "u2", ts: "", role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: "ls" }] },
+        ]),
+      }),
+    );
+    expect(subtitle).toBe("the real closing message");
   });
 
-  test("the free tier also patches the bell's history", async () => {
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
-    const enriched: unknown[] = [];
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink: new RecordingSink(),
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "the raw closing line")]),
-      statFor: noDiff,
-      notifyLog: { enrich: (...args) => enriched.push(args) },
-    });
-    expect(enriched).toEqual([["p1", "blocked", "the raw closing line"]]);
+  test("falls back to resolvePath + pageAt when herdr reported no agent_session", async () => {
+    let resolvedFor: { paneId: string; cwd: string } | undefined;
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: baseAlert({ status: "blocked" }),
+        transcripts: fakeTranscripts([], [textEntry("assistant", "Should I also update the changelog?")]),
+        resolvePath: async (input) => {
+          resolvedFor = input;
+          return "/home/you/.claude/projects/-demo/abc.jsonl";
+        },
+      }),
+    );
+    expect(resolvedFor).toEqual({ paneId: "p1", cwd: "/home/you/demo" });
+    expect(subtitle).toBe("Should I also update the changelog?");
+  });
+
+  test("an agent-reported session id always wins over resolvePath", async () => {
+    let resolvePathCalls = 0;
+    await firstSubtitle(
+      sources({
+        alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+        transcripts: fakeTranscripts([textEntry("assistant", "the reported-session message")]),
+        resolvePath: async () => {
+          resolvePathCalls++;
+          return "/should/not/be/used.jsonl";
+        },
+      }),
+    );
+    expect(resolvePathCalls).toBe(0);
+  });
+
+  test("no transcript store at all is just no tier 2 — a `blocked` then has nothing", async () => {
+    const subtitle = await firstSubtitle(
+      sources({ alert: baseAlert({ status: "blocked", cardId: "c1" }), resolvePath: neverResolvePath }),
+    );
+    expect(subtitle).toBeNull();
   });
 });
 
-describe("enrichNotification — tier 3, the diff line (NOTIFY_AUDIT.md §3.3)", () => {
-  /** A `done` on a card with no transcript to speak for it — where the cascade reaches tier 3. */
-  const cardDone = () =>
-    baseAlert({
-      cardId: "c1",
-      cardTitle: "Ship the header bell",
-      cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
-    });
-
-  test("a `done` on a card, copilot OFF, carries a diff summary in its body", async () => {
-    const sink = new RecordingSink();
-    const alert = cardDone();
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard({ title: "Ship the header bell", spec: "do the thing" }),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => fakeStat(3, 180, 12),
-    });
-    expect(sink.renders).toEqual([
-      {
-        title: "Done · Ship the header bell",
-        body: "collie-board · 3 files, +180 -12",
-        paneId: "p1",
-        renotify: false,
-      },
-    ]);
+describe("firstSubtitle — tier 3, the diff line (NOTIFY_AUDIT.md §3.3)", () => {
+  test("a `done` with no transcript line carries the diff as one line", async () => {
+    const subtitle = await firstSubtitle(
+      sources({ alert: cardDone(), resolvePath: neverResolvePath, statFor: async () => fakeStat(3, 180, 12) }),
+    );
+    expect(subtitle).toBe("3 files, +180 -12");
   });
 
-  test("the stat is fetched with the copilot off — the old gate is gone", async () => {
+  test("the agent's own last line outranks it — no subprocess is even spent", async () => {
     let statCalls = 0;
-    const alert = cardDone();
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink: new RecordingSink(),
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => {
-        statCalls++;
-        return fakeStat(1, 1, 0);
-      },
-    });
-    expect(statCalls).toBe(1);
-  });
-
-  test("the agent's own last line outranks it — the diff never lands when tier 2 did", async () => {
-    const sink = new RecordingSink();
-    const alert = { ...cardDone(), agentSessionId: "s1" };
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "Bumped the version and cut the release.")]),
-      statFor: async () => fakeStat(3, 180, 12),
-    });
-    expect(sink.renders).toHaveLength(1);
-    expect(sink.renders[0]?.body).toBe("collie-board · Bumped the version and cut the release.");
-  });
-
-  test("the copilot still upgrades over it when it answers", async () => {
-    const sink = new RecordingSink();
-    const alert = cardDone();
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
-      board: fakeBoard({ title: "Ship the header bell", spec: "do the thing" }),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => fakeStat(3, 180, 12),
-    });
-    expect(sink.renders.map((r) => r.body)).toEqual([
-      "collie-board · 3 files, +180 -12",
-      "collie-board · renamed the header bell",
-    ]);
-  });
-
-  test("an empty diff falls through to tier 4 — nothing, never the card title again", async () => {
-    const sink = new RecordingSink();
-    const alert = cardDone();
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => fakeStat(0, 0, 0),
-    });
-    expect(sink.renders).toEqual([]);
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: cardDone({ agentSessionId: "s1" }),
+        transcripts: fakeTranscripts([textEntry("assistant", "Bumped the version and cut the release.")]),
+        statFor: async () => {
+          statCalls++;
+          return fakeStat(3, 180, 12);
+        },
+      }),
+    );
+    expect(subtitle).toBe("Bumped the version and cut the release.");
+    expect(statCalls).toBe(0);
   });
 
   test("a `blocked` never gets one — a stat is an account of finished work, not of a question", async () => {
-    const sink = new RecordingSink();
-    const alert = { ...cardDone(), status: "blocked" as const };
     let statCalls = 0;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => {
-        statCalls++;
-        return fakeStat(3, 180, 12);
-      },
-    });
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: cardDone({ status: "blocked" }),
+        resolvePath: neverResolvePath,
+        statFor: async () => {
+          statCalls++;
+          return fakeStat(3, 180, 12);
+        },
+      }),
+    );
     expect(statCalls).toBe(0);
-    expect(sink.renders).toEqual([]);
+    expect(subtitle).toBeNull();
   });
 
-  test("it also patches the bell's history, like every other tier", async () => {
-    const alert = cardDone();
-    const enriched: unknown[] = [];
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink: new RecordingSink(),
-      copilot: fakeCopilot(null, false),
-      board: fakeBoard(null),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: async () => fakeStat(3, 180, 12),
-      notifyLog: { enrich: (...args) => enriched.push(args) },
-    });
-    expect(enriched).toEqual([["p1", "done", "3 files, +180 -12"]]);
+  test("an empty diff falls through to tier 4 — nothing, never the card title again", async () => {
+    const subtitle = await firstSubtitle(
+      sources({ alert: cardDone(), resolvePath: neverResolvePath, statFor: async () => fakeStat(0, 0, 0) }),
+    );
+    expect(subtitle).toBeNull();
+  });
+
+  test("a throwing stat is just no tier 3, not a crash", async () => {
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: cardDone(),
+        resolvePath: neverResolvePath,
+        statFor: async () => {
+          throw new Error("not a git repo");
+        },
+      }),
+    );
+    expect(subtitle).toBeNull();
   });
 });
 
-describe("enrichNotification — the silent update", () => {
-  test("a late copilot upgrade dropped as stale doesn't erase the fast tier's render", async () => {
+// The first push waits on these, so what it waits on must be bounded — §N10's second point of
+// attention. A hung read costs the body; it must never cost the alert.
+describe("firstSubtitle — the deadline", () => {
+  const hangs = <T,>() => new Promise<T>(() => {});
+
+  test("a transcript read that never answers gives up and returns nothing", async () => {
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
+        transcripts: { page: hangs, pageAt: hangs },
+      }),
+      5,
+    );
+    expect(subtitle).toBeNull();
+  });
+
+  test("a `git --stat` that never answers gives up and returns nothing", async () => {
+    const subtitle = await firstSubtitle(
+      sources({ alert: cardDone(), resolvePath: neverResolvePath, statFor: hangs }),
+      5,
+    );
+    expect(subtitle).toBeNull();
+  });
+
+  test("work that answers in time is not cut off", async () => {
+    const subtitle = await firstSubtitle(
+      sources({
+        alert: cardDone(),
+        resolvePath: neverResolvePath,
+        statFor: async () => {
+          await new Promise((r) => setTimeout(r, 1));
+          return fakeStat(1, 2, 3);
+        },
+      }),
+      200,
+    );
+    expect(subtitle).toBe("1 file, +2 -3");
+  });
+});
+
+describe("enrichNotification — the copilot's silent update, and nothing else", () => {
+  test("never asks, and never renders, when the copilot is disabled", async () => {
     const sink = new RecordingSink();
-    const stillHere = baseAlert({ agentSessionId: "s1", status: "blocked" });
-    // Solo when the fast tier checks; gone (handled at the desk) by the time the copilot answers —
-    // exactly the sequence a live report traced back to "dropped a stale answer".
-    const coordinator = fakeCoordinatorSequence(stillHere, undefined);
+    const copilot = fakeCopilot({ subtitle: "renamed the header bell" }, false);
     await enrichNotification({
-      alert: baseAlert({ agentSessionId: "s1", status: "blocked" }),
-      coordinator,
+      ...sources({ alert: cardDone(), transcripts: fakeTranscripts([textEntry("assistant", "a real line")]) }),
+      alert: cardDone({ agentSessionId: "s1" }),
+      coordinator: fakeCoordinator(cardDone()),
       sink,
-      copilot: fakeCopilot({ subtitle: "should never land" }),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "the raw line that did land")]),
-      statFor: noDiff,
+      copilot,
+      board: fakeBoard({ title: "Card", spec: "do the thing" }),
     });
-    expect(sink.renders).toHaveLength(1);
-    expect(sink.renders[0]?.body).toBe("the raw line that did land");
+    expect(copilot.calls).toBe(0);
+    expect(sink.renders).toEqual([]);
   });
 
-  test("also patches the bell's history entry, matching what the push now shows", async () => {
-    const current = baseAlert({ cardId: "c1" });
-    const enriched: Array<[string, string, string]> = [];
+  test("skips the copilot turn when there's truly nothing to work with", async () => {
+    const copilot = fakeCopilot({ subtitle: "should never be asked" });
+    const alert = baseAlert({ status: "blocked", cardId: "c1" }); // no diff attempted, no transcript
     await enrichNotification({
-      alert: baseAlert({ cardId: "c1" }),
-      coordinator: fakeCoordinator(current),
+      ...sources({ alert, resolvePath: neverResolvePath }),
+      coordinator: fakeCoordinator(alert),
       sink: new RecordingSink(),
-      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
-      board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
-      notifyLog: { enrich: (paneId, status, subtitle) => enriched.push([paneId, status, subtitle]) },
+      copilot,
+      board: fakeBoard({ title: "Card", spec: null }),
     });
-    expect(enriched).toEqual([["p1", "done", "renamed the header bell"]]);
+    expect(copilot.calls).toBe(0);
   });
 
-  test("a stale/dropped answer never touches the history — notifyLog.enrich is never called", async () => {
-    const enriched: unknown[] = [];
+  test("a hand-launched `done` pane still gets a cwd diff attempt — no card required", async () => {
+    let target: { cardId?: string; cwd: string } | undefined;
+    const alert = baseAlert();
     await enrichNotification({
-      alert: baseAlert({ cardId: "c1" }),
-      coordinator: fakeCoordinator(undefined), // resolved before the copilot answered
+      ...sources({
+        alert,
+        resolvePath: neverResolvePath,
+        statFor: async (t) => {
+          target = t;
+          return fakeStat(1, 1, 0);
+        },
+      }),
+      coordinator: fakeCoordinator(alert),
       sink: new RecordingSink(),
-      copilot: fakeCopilot({ subtitle: "should never land" }),
-      board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
-      notifyLog: { enrich: (...args) => enriched.push(args) },
+      copilot: fakeCopilot({ subtitle: "tidied the imports" }),
     });
-    expect(enriched).toEqual([]);
+    expect(target).toEqual({ cardId: undefined, cwd: "/home/you/demo" });
   });
 
   test("renders the enriched body, keeping the repo name and dropping renotify", async () => {
@@ -493,13 +330,11 @@ describe("enrichNotification — the silent update", () => {
     // the one shape where both appear, each exactly once.
     const current = baseAlert({ cardId: "c1", cardTitle: "Ship the header bell" });
     await enrichNotification({
-      alert: baseAlert({ cardId: "c1", cardTitle: "Ship the header bell" }),
+      ...sources({ alert: baseAlert({ cardId: "c1", cardTitle: "Ship the header bell" }) }),
       coordinator: fakeCoordinator(current),
       sink,
       copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
     });
     expect(sink.renders).toEqual([
       {
@@ -511,32 +346,56 @@ describe("enrichNotification — the silent update", () => {
     ]);
   });
 
+  test("writes the subtitle back onto the outstanding alert, so a later re-render keeps it", async () => {
+    const current = baseAlert({ cardId: "c1", subtitle: "3 files, +180 -12" });
+    await enrichNotification({
+      ...sources({ alert: baseAlert({ cardId: "c1" }) }),
+      coordinator: fakeCoordinator(current),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+      board: fakeBoard({ title: "Card", spec: "do the thing" }),
+    });
+    expect(current.subtitle).toBe("renamed the header bell");
+  });
+
+  test("patches the bell's history entry, matching what the push now shows", async () => {
+    const current = baseAlert({ cardId: "c1" });
+    const enriched: Array<[string, string, string]> = [];
+    await enrichNotification({
+      ...sources({ alert: baseAlert({ cardId: "c1" }) }),
+      coordinator: fakeCoordinator(current),
+      sink: new RecordingSink(),
+      copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+      board: fakeBoard({ title: "Card", spec: "do the thing" }),
+      notifyLog: { enrich: (paneId, status, subtitle) => enriched.push([paneId, status, subtitle]) },
+    });
+    expect(enriched).toEqual([["p1", "done", "renamed the header bell"]]);
+  });
+
   test("drops the answer if the alert resolved while the copilot was thinking", async () => {
     const sink = new RecordingSink();
+    const enriched: unknown[] = [];
     await enrichNotification({
-      alert: baseAlert({ cardId: "c1" }),
+      ...sources({ alert: baseAlert({ cardId: "c1" }) }),
       coordinator: fakeCoordinator(undefined), // handled at the desk, or now part of a digest
       sink,
       copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
+      notifyLog: { enrich: (...args) => enriched.push(args) },
     });
     expect(sink.renders).toEqual([]);
+    expect(enriched).toEqual([]);
   });
 
   test("drops the answer if the pane's status moved on (e.g. blocked → done) meanwhile", async () => {
     const sink = new RecordingSink();
     const stale = baseAlert({ status: "done", cardId: "c1" }); // coordinator now shows `done`
     await enrichNotification({
-      alert: baseAlert({ status: "blocked", cardId: "c1" }), // this answer was asked for `blocked`
+      ...sources({ alert: baseAlert({ status: "blocked", cardId: "c1" }), resolvePath: neverResolvePath }),
       coordinator: fakeCoordinator(stale),
       sink,
       copilot: fakeCopilot({ subtitle: "needs the staging API key" }),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      resolvePath: neverResolvePath,
-      statFor: noDiff,
     });
     expect(sink.renders).toEqual([]);
   });
@@ -545,115 +404,34 @@ describe("enrichNotification — the silent update", () => {
     const sink = new RecordingSink();
     const current = baseAlert({ cardId: "c1" });
     await enrichNotification({
-      alert: baseAlert({ cardId: "c1" }),
+      ...sources({ alert: baseAlert({ cardId: "c1" }) }),
       coordinator: fakeCoordinator(current),
       sink,
       copilot: fakeCopilot(null),
       board: fakeBoard({ title: "Card", spec: "do the thing" }),
-      transcripts: null,
-      statFor: noDiff,
     });
     expect(sink.renders).toEqual([]);
   });
 
-  test("pulls the agent's last transcript message in without a card at all", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" }); // no cardId, no diff
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "fixed the flaky test" }),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "Fixed it, the mock was racing the timer.")]),
-      statFor: noDiff,
-    });
-    // The fast tier lands first (the raw line), the copilot's rephrase upgrades it right after.
-    expect(sink.renders[0]?.body).toBe("Fixed it, the mock was racing the timer.");
-    expect(sink.renders.at(-1)?.body).toBe("fixed the flaky test");
-  });
-
-  test("the last ASSISTANT text turn wins, skipping trailing user/tool rows", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
+  test("hands the agent's own last line to the prompt, card or no card", async () => {
     let seenPrompt = "";
+    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
     await enrichNotification({
-      alert,
+      ...sources({
+        alert,
+        transcripts: fakeTranscripts([textEntry("assistant", "Fixed it, the mock was racing the timer.")]),
+      }),
       coordinator: fakeCoordinator(alert),
-      sink,
+      sink: new RecordingSink(),
       copilot: {
         enabled: true,
         ask: async (build) => {
           seenPrompt = build("out.json");
-          return { subtitle: "ok" };
+          return { subtitle: "fixed the flaky test" };
         },
       },
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([
-        textEntry("assistant", "the real closing message"),
-        textEntry("user", "thanks"),
-        { uuid: "u2", ts: "", role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: "ls" }] },
-      ]),
-      statFor: noDiff,
     });
-    expect(seenPrompt).toContain("the real closing message");
-  });
-
-  test("falls back to resolvePath + pageAt when herdr reported no agent_session", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ status: "blocked" }); // no agentSessionId, no cardId
-    let resolvedFor: { paneId: string; cwd: string } | undefined;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "asking whether to also update the changelog" }),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([], [textEntry("assistant", "Should I also update the changelog?")]),
-      resolvePath: async (input) => {
-        resolvedFor = input;
-        return "/home/you/.claude/projects/-demo/abc.jsonl";
-      },
-      statFor: noDiff,
-    });
-    expect(resolvedFor).toEqual({ paneId: "p1", cwd: "/home/you/demo" });
-    expect(sink.renders.at(-1)?.body).toBe("asking whether to also update the changelog");
-  });
-
-  test("resolvePath returning null is just no transcript signal, not a crash", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ status: "blocked", cardId: "c1" });
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "should never be asked" }),
-      board: fakeBoard({ title: "Card", spec: null }), // no spec either — truly nothing
-      transcripts: fakeTranscripts([textEntry("assistant", "unreachable")]),
-      resolvePath: neverResolvePath,
-      statFor: noDiff,
-    });
-    expect(sink.renders).toEqual([]);
-  });
-
-  test("an agent-reported session id always wins over resolvePath", async () => {
-    const sink = new RecordingSink();
-    const alert = baseAlert({ agentSessionId: "s1", status: "blocked" });
-    let resolvePathCalls = 0;
-    await enrichNotification({
-      alert,
-      coordinator: fakeCoordinator(alert),
-      sink,
-      copilot: fakeCopilot({ subtitle: "ok" }),
-      board: fakeBoard(null),
-      transcripts: fakeTranscripts([textEntry("assistant", "the reported-session message")]),
-      resolvePath: async () => {
-        resolvePathCalls++;
-        return "/should/not/be/used.jsonl";
-      },
-      statFor: noDiff,
-    });
-    expect(resolvePathCalls).toBe(0);
+    expect(seenPrompt).toContain("Fixed it, the mock was racing the timer.");
   });
 });
 
@@ -688,11 +466,17 @@ describe("notifySubtitlePrompt / toNotifySubtitle", () => {
   });
 });
 
-// The regression this whole shared composition exists for: the coordinator's plain push and the
-// enrichment's silent update used to compose their own sentence each, so a perfect copilot subtitle
-// still came back under a title reading "claude is done". Drive BOTH for real and compare.
-describe("the plain push and the subtitle update agree", () => {
-  function firstPush(pane: Partial<AgentView>): HerdSummary {
+// The whole point of §N10, end to end: the coordinator, the real firstSubtitle, and — where it is
+// on — the real enrichNotification, wired exactly as index.ts wires them. The claim under test is
+// about MESSAGE COUNT and `renotify`, because every message shares one collapse topic and a sleeping
+// phone is only ever handed the last one.
+describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md §N10)", () => {
+  /** Drive the coordinator for real: transition → fire the debounce → let the awaited hook settle. */
+  async function push(
+    pane: Partial<AgentView>,
+    subtitleSources: SubtitleSources | null,
+    onFire?: (alert: FiredAlert) => void,
+  ): Promise<HerdSummary[]> {
     const sink = new RecordingSink();
     let fire = () => {};
     const coord = new NotificationCoordinator(
@@ -700,6 +484,8 @@ describe("the plain push and the subtitle update agree", () => {
       sink,
       0,
       (s: AgentStatus) => s === "blocked" || s === "done",
+      onFire,
+      subtitleSources ? (alert) => firstSubtitle({ ...subtitleSources, alert }) : undefined,
     );
     coord.onTransition(
       {
@@ -719,29 +505,124 @@ describe("the plain push and the subtitle update agree", () => {
       "done",
     );
     fire();
-    return sink.renders[0]!;
+    await new Promise((r) => setTimeout(r, 20)); // let the awaited subtitle hook settle
+    return sink.renders;
   }
 
-  for (const [name, pane] of [
-    ["a card-backed pane", { cardId: "c1", cardTitle: "Ship 0.86" }],
-    ["a hand-launched pane", {}],
-  ] as const) {
-    test(`${name}: same title, and a body that only gains the subtitle`, async () => {
-      const base = firstPush(pane);
-      const alert = baseAlert(pane);
-      const sink = new RecordingSink();
-      await enrichNotification({
-        alert,
-        coordinator: fakeCoordinator(alert),
-        sink,
-        copilot: fakeCopilot({ subtitle: "fixed the flaky test" }),
-        board: fakeBoard(null),
-        transcripts: null,
-        statFor: async () => fakeStat(2, 5, 1), // the copilot's only material here
-      });
-      const enriched = sink.renders.at(-1)!; // tier 3 landed first; the copilot upgraded it
-      expect(enriched.title).toBe(base.title);
-      expect(enriched.body).toBe(base.body ? `${base.body} · fixed the flaky test` : "fixed the flaky test");
+  test("one render, renotify:true, and the diff is already in it", async () => {
+    const renders = await push(
+      { cardId: "c1", cardTitle: "Ship the header bell", cwd: "/home/you/.herdr/worktrees/collie-board/b/x" },
+      sources({
+        alert: baseAlert(), // replaced per-alert by the coordinator
+        resolvePath: neverResolvePath,
+        statFor: async () => fakeStat(3, 180, 12),
+      }),
+    );
+    expect(renders).toEqual([
+      {
+        title: "Done · Ship the header bell",
+        body: "collie-board · 3 files, +180 -12",
+        paneId: "p1",
+        renotify: true,
+      },
+    ]);
+  });
+
+  test("one render for a transcript line too — the same single, buzzing message", async () => {
+    const renders = await push(
+      { agentSessionId: "s1" },
+      sources({
+        alert: baseAlert(),
+        transcripts: fakeTranscripts([textEntry("assistant", "Bumped the version and cut the release.")]),
+      }),
+    );
+    expect(renders).toHaveLength(1);
+    expect(renders[0]).toMatchObject({ body: "Bumped the version and cut the release.", renotify: true });
+  });
+
+  test("nothing to say still sends the alert — an empty body, once, buzzing", async () => {
+    const renders = await push({}, sources({ alert: baseAlert(), resolvePath: neverResolvePath }));
+    expect(renders).toEqual([{ title: "Done · demo", body: "", paneId: "p1", renotify: true }]);
+  });
+
+  test("the bell's history is handed the same subtitle the push went out with", async () => {
+    const fired: FiredAlert[] = [];
+    await push(
+      { agentSessionId: "s1" },
+      sources({
+        alert: baseAlert(),
+        transcripts: fakeTranscripts([textEntry("assistant", "the line that shipped")]),
+      }),
+      (alert) => fired.push(alert),
+    );
+    expect(fired.map((a) => a.subtitle)).toEqual(["the line that shipped"]);
+  });
+
+  test("with no subtitle hook at all the coordinator behaves exactly as before", async () => {
+    const renders = await push({ cardId: "c1", cardTitle: "Ship the header bell" }, null);
+    expect(renders).toEqual([
+      { title: "Done · Ship the header bell", body: "demo", paneId: "p1", renotify: true },
+    ]);
+  });
+
+  // And with the copilot ON, the second message reappears — but only for the rephrase, over a body
+  // that already said something. That is the one place a second stage is coherent.
+  test("copilot ON adds a second, SILENT message that only rewords the body", async () => {
+    const sink = new RecordingSink();
+    let fire = () => {};
+    const src = sources({
+      alert: baseAlert(),
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(3, 180, 12),
     });
-  }
+    const coord: NotificationCoordinator<number> = new NotificationCoordinator<number>(
+      { schedule: (fn: () => void) => ((fire = fn), 1), cancel: () => {} },
+      sink,
+      0,
+      (s: AgentStatus) => s === "blocked" || s === "done",
+      (alert) =>
+        void enrichNotification({
+          ...src,
+          alert,
+          coordinator: coord,
+          sink,
+          copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+        }),
+      (alert) => firstSubtitle({ ...src, alert }),
+    );
+    coord.onTransition(
+      {
+        paneId: "p1",
+        workspaceId: "w1",
+        workspaceLabel: "demo",
+        workspaceNumber: 1,
+        tabId: "w1:t1",
+        agent: "claude",
+        status: "done",
+        cwd: "/home/you/.herdr/worktrees/collie-board/b/x",
+        focused: false,
+        kind: "agent",
+        cardId: "c1",
+        cardTitle: "Ship the header bell",
+      } as AgentView,
+      "working",
+      "done",
+    );
+    fire();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sink.renders).toEqual([
+      {
+        title: "Done · Ship the header bell",
+        body: "collie-board · 3 files, +180 -12",
+        paneId: "p1",
+        renotify: true,
+      },
+      {
+        title: "Done · Ship the header bell",
+        body: "collie-board · renamed the header bell",
+        paneId: "p1",
+        renotify: false,
+      },
+    ]);
+  });
 });
