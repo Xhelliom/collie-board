@@ -530,9 +530,14 @@ déclare aujourd'hui que `{ title, spec }`. **Le vrai reste du travail est le ta
 destination vers la carte plutôt que vers le pane, ce qui demande un champ dans le payload push à côté
 du `target: "settings"` existant (`push.ts:64-66`, `sw.ts:100-103`). Traiter les cas limites de §4.3.
 Dépend de N2.
+**Revue après N9 (0.124.0)** : le marqueur profite désormais aux **trois** surfaces d'un coup — mais
+`notify-content.ts` existe en double (bridge + web), et l'écrire d'un seul côté casse le build ; la
+ligne s'écrit une fois puis se copie. En regard, le **tap s'agrandit** : le toast et la cloche
+deep-linkent encore vers le pane (`panePath`), donc sans elles deux surfaces sur trois diraient
+`Review` et ouvriraient le terminal — le défaut déplacé, pas corrigé.
 **Acceptation** : une session qui se termine sur une carte qui passe en `review` produit une
-notification dont le marqueur est `Review` et dont le tap ouvre la carte. Une session qui se termine
-sans carte est inchangée.
+notification dont le marqueur est `Review` et dont le tap ouvre la carte, sur les trois surfaces. Une
+session qui se termine sans carte est inchangée.
 
 ### N5 — Instruire le digest multi-agents (et le principe même de la coalescence)
 
