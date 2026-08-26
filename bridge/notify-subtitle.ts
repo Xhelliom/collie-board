@@ -129,10 +129,10 @@ function pushSubtitle(opts: EnrichOpts, alert: FiredAlert, subtitle: string): bo
 }
 
 /**
- * Render the agent's own last line first (the fast tier — see the header), then let the copilot
- * upgrade it once it answers, if it still can. Fire-and-forget by design — call from the
- * coordinator's `onFire` hook without awaiting it there, and never let a failure here surface: every
- * input is best-effort.
+ * Walk the cascade (see the header): the agent's own last line, else the diff stat for a `done`,
+ * each rendered the moment it's ready — then let the copilot upgrade whichever landed, if it still
+ * can. Fire-and-forget by design — call from the coordinator's `onFire` hook without awaiting it
+ * there, and never let a failure here surface: every input is best-effort.
  */
 export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   const { alert } = opts;

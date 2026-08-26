@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.122.0] - 2026-08-26
+
+### Added
+- A `done` notification with no transcript line to show now carries its diff instead: `3 files, +180 -12` (99d6d20)
+
+### Changed
+- The push body follows one cascade — copilot sentence → agent's last line → diff stat → nothing — and the stat is fetched whenever something would use it, not only when the copilot is on (99d6d20)
+- A card with no worktree no longer spends a copilot turn rephrasing "no branch for this card" (99d6d20)
+
 ## [0.121.0] - 2026-08-26
 
 ### Changed
