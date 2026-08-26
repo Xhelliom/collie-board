@@ -1,7 +1,7 @@
 import { Inbox } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { AGENT_GROUPS, type AgentGroup } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
 
@@ -42,7 +42,7 @@ export function AgentList({
   // Only render groups that actually have members — and nothing at all if every slice is empty, so
   // it adds no stray padding.
   const sections = groups
-    .map((g) => ({ g, members: agents.filter((a) => g.match(a.status)) }))
+    .map((g) => ({ g, members: groupMembers(agents, g) }))
     .filter((s) => s.members.length > 0);
   if (sections.length === 0) return null;
 

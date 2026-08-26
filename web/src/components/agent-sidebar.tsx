@@ -2,7 +2,7 @@ import { TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
-import { AGENT_GROUPS } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
 import { shortCwd } from "@/lib/format";
 import { paneDisplayName } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
@@ -38,7 +38,7 @@ export function ThreadSidebar({
   return (
     <div className={cn("flex flex-col gap-4 px-2 py-3", className)}>
       {AGENT_GROUPS.map((g) => {
-        const members = agents.filter((a) => g.match(a.status));
+        const members = groupMembers(agents, g);
         if (members.length === 0) return null;
         return (
           <Section key={g.key} label={g.label} count={members.length} accent={g.accent} dot={g.dot}>
