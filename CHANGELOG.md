@@ -7,6 +7,11 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.120.0] - 2026-08-26
+
+### Fixed
+- Push subtitles: the free tier (the agent's own last line) no longer sits behind the copilot preference — `copilotSubtitle` now gates only the copilot's rephrase, and the settings row says so (e92bec1)
+
 ## [0.119.0] - 2026-08-26
 
 ### Added
