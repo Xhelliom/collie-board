@@ -270,6 +270,11 @@ La seconde est celle qui mord. Dès qu'un deuxième agent bascule, la notificati
 §2.4 (le sous-titre arrive tard), c'est un mécanisme qui perd précisément dans le cas où on en aurait
 le plus besoin : plusieurs agents qui finissent dans la même fenêtre.
 
+> **Relu en 0.126.0 (§3.5, carte N5) : la garde reste.** Ce qu'elle jette n'est plus la seule chance
+> d'avoir un corps informatif — depuis que le digest compte par état et nomme les sujets, il en a un
+> par construction. Le raisonnement complet, y compris pourquoi le copilote ne passe pas sur le
+> digest, est en [§3.5](#35-le-digest-multi-agents).
+
 ### 2.6 — `sessionName` est renseigné après la boucle des transitions
 
 Bug secondaire, mais réel et cohérent avec §2.1. Dans `StateEngine.poll()`, la boucle qui appelle les
@@ -416,17 +421,75 @@ l'affiche déjà (`web/src/routes/card.tsx:431-432`). Pas le push.
 
 ### 3.5 Le digest multi-agents
 
-Le digest actuel (`3 agents done` / `claude, claude, claude`) hérite du même défaut de sujet, en
-pire. Proposition, à confirmer par un essai plutôt que décidée ici :
+> **Tranché et implémenté (corps en 0.124.0, titre en 0.126.0)** — carte N5. Le digest hérite du
+> défaut de sujet en pire, et il est atteint dès la **deuxième** alerte simultanée. Les deux moitiés
+> sont maintenant réparées :
+>
+> > **Titre** = `1 question, 2 to review` — le décompte **par état**, pas par agent
+> > **Corps** = les **sujets** : `Auditer les notifications · Mesurer la lecture · elber`
+>
+> Le titre lit le **même marqueur** que la notification solo (`notifyMarker`, `notify-content.ts`),
+> donc un `Review` isolé et un `to review` dans le digest ne peuvent pas désigner deux états
+> différents. Les mots diffèrent parce que la forme diffère — « 1 Needs you » n'est pas une phrase —
+> pas la règle. Un groupe vide disparaît : un troupeau homogène lit `3 to review` et ne parle pas des
+> états qu'il n'a pas.
 
-> **Titre** = `2 à relire, 1 question` (le décompte par état, pas par agent)
-> **Corps** = les **sujets**, pas les noms : `Auditer les notifications · Mesurer la lecture · elber`
+**L'ordre des groupes est fixe et le plus urgent d'abord** : `question` → `to review` → `done`. Un
+agent bloqué est arrêté sur une réponse que vous seul pouvez donner ; une carte finie ne l'est pas.
+Fixe et non trié par taille, sinon le titre se réordonne tout seul à chaque alerte qui se résout —
+sur un écran verrouillé, un titre qui bouge est un titre qu'on relit. (L'exemple de cet audit disait
+« 2 à relire, 1 question » ; c'était un rendu, pas un ordre.)
 
-Et une question ouverte, à instruire séparément (voir carte N5) : faut-il vraiment coalescer ?
-Le regroupement a été conçu pour éviter la pile de notifications identiques — un problème qui
-disparaît en grande partie si chaque notification a un sujet distinct. Une notification par carte,
-avec un `tag` par pane, pourrait être meilleure que le digest **une fois le contenu réparé**. C'est
-un changement de posture, pas un réglage : il mérite son propre arbitrage et probablement un ADR.
+#### La coalescence est **conservée** — l'option « une notification par carte » est écartée
+
+Le regroupement a été conçu pour éviter la pile de notifications identiques, et l'argument « chaque
+notification a désormais un sujet distinct, donc la pile est lisible » ne tient pas jusqu'au bout :
+
+1. **Un seul `tag` est aussi ce qui permet de rétracter.** `resolve()` ré-émet *le* résumé rétréci
+   sur le même slot (`notifications.ts:253-265`) : traiter un agent au PC met à jour la notification
+   qui reste. Avec un push par pane il faudrait un `clear` par pane, et chaque rétractation ratée
+   laisserait un fantôme sur l'écran verrouillé — exactement le défaut que la coalescence corrige.
+2. **Le budget d'affichage est par écran, pas par notification.** Empilées, N notifications se
+   regroupent et chacune se réduit à peu près à son titre ; un digest, c'est un titre **et** un corps,
+   tous deux entièrement visibles, qui portent les N sujets.
+3. **Le décompte par état est une information que la pile ne porte pas.** « 1 question, 2 to review »
+   se lit d'un coup d'œil ; trois notifications séparées demandent de les compter.
+
+Décision : **on garde la coalescence.** Il n'y a donc pas de changement de posture à arbitrer, et
+**pas d'ADR** — l'ADR n'aurait eu de raison d'être que pour fermer l'option inverse.
+
+#### Le copilote sur le digest : **non** — évalué et écarté
+
+La question posée : le copilote pourrait-il composer un sous-titre de digest, poussé en update
+silencieux, comme il le fait pour une alerte solo (`enrichNotification`, palier 1) ? Aujourd'hui il
+en est empêché par `currentSolo` (§2.5) : dès la deuxième alerte, toutes les réponses en vol sont
+jetées. Lever cette garde a été évalué. Quatre raisons de ne pas le faire, dans l'ordre de force :
+
+1. **Il n'y a rien à reformuler.** Le décompte par état et les sujets sont des faits que le bridge
+   détient déjà, localement, gratuitement, **et de façon synchrone dans le premier push qui buzz**.
+   Le copilote dépenserait du quota et des secondes pour redire moins bien ce qui est déjà écrit. Le
+   palier 1 se justifie sur une alerte solo parce qu'il y traduit un `git --stat` ou un dernier
+   message d'agent en une phrase — de la matière brute. Un digest n'a pas de matière brute : il a
+   déjà sa phrase.
+2. **Le contenu qu'il produirait n'a pas de place.** Le corps du digest porte déjà N sujets — trois
+   suffisent à saturer les deux lignes d'un écran verrouillé. Ajouter « ce qui s'est passé » pour
+   chacun est impossible ; le faire pour un seul, c'est choisir arbitrairement lequel des N compte.
+3. **Le digest est instable, la réponse est lente.** Chaque arrivée et chaque résolution le
+   re-rendent ; une réponse copilote prend des secondes à des **minutes** (file sérialisée à une
+   requête, timeout 5 min — `copilot.ts:16-17,40-41`). Elle décrirait un ensemble d'alertes qui n'existe
+   déjà plus. La garde `currentSolo` n'est pas un accident : un sous-titre répond à une *forme*.
+4. **Le coût de quota culmine exactement là.** N agents qui finissent dans la même fenêtre, c'est le
+   pic de pression sur une file d'une requête. Y ajouter un tour de digest, c'est dépenser le plus au
+   moment où l'on sert le moins.
+
+**Conséquence : la garde `currentSolo` reste telle quelle**, et elle coûte maintenant beaucoup moins
+cher — ce qu'elle jette n'est plus la seule chance d'avoir un corps informatif, puisque le digest en
+a un par construction. Le palier 1 reste ce qu'il est : une amélioration d'alerte solo.
+
+*Écarté aussi, adjacent :* mémoriser la réponse copilote sur l'alerte sans la rendre, pour qu'elle
+serve si le digest redescend à une seule alerte. Ça marcherait, mais ça affiche une phrase composée
+plusieurs minutes plus tôt sur un pane dont on ne sait plus rien — un contenu périmé sur un slot qui
+buzz. À reconsidérer seulement si quelqu'un observe le cas en vrai.
 
 ---
 
@@ -551,7 +614,15 @@ surfaces in-app le lisent directement sur le snapshot (`withCardFields` porte `c
 `AgentView`), le push par un `cardId` à côté du `target` existant. Aucune boucle, aucun hook nouveau,
 une lecture DB par alerte **tirée**.
 
-### N5 — Instruire le digest multi-agents (et le principe même de la coalescence)
+### N5 — Instruire le digest multi-agents (et le principe même de la coalescence) — ✅ livrée
+
+> **Fait, en 0.126.0.** Arbitrage rendu en [§3.5](#35-le-digest-multi-agents) : **on garde la
+> coalescence** (donc pas d'ADR — il n'avait de raison d'être que pour fermer l'option inverse) et on
+> enrichit le digest. Titre = décompte par état lu du même `notifyMarker` que la notification solo
+> (`1 question, 2 to review`), corps = les sujets (déjà acquis en 0.124.0). Le passage du copilote
+> sur le digest est évalué et **écarté** : le digest n'a pas de matière brute à reformuler, pas de
+> place pour le résultat, et sa composition change plus vite qu'une réponse ne revient. La garde
+> `currentSolo` (§2.5) reste donc telle quelle.
 
 **Pourquoi** : §2.5, §3.5. Le digest est le pire contenu émis, il est atteint dès la deuxième alerte,
 et il annule tous les sous-titres en vol.
@@ -616,7 +687,7 @@ fermer, ou à rouvrir seulement le jour où une surface redonne un rôle au nom 
 > casse le build. `notifyVerb`/`notifyWhere`/`notifyWhat` sont supprimés : ils distribuaient les mots
 > d'une phrase que chaque appelant réassemblait. Le doublon délibéré de `paneDisplayName`
 > (`bridge/types.ts:80`) reste — c'est le même arbitrage, désormais outillé. Le corps du digest liste
-> les sujets dédupliqués ; son titre compte toujours des agents (§3.5, carte N5).
+> les sujets dédupliqués ; son titre compte par état depuis 0.126.0 (§3.5, carte N5).
 
 **Pourquoi** : §1.3, C7. Trois codes composent le même contenu à trois niveaux de richesse, et une
 amélioration de l'un ne profite pas aux autres. Les helpers `notifyVerb`/`notifyWhere`/`notifyWhat`
@@ -690,7 +761,7 @@ borne n'est atteinte que par du travail bloqué. Copilot éteint = **un seul mes
 
 - **Le défaut de `NotifyPrefs.done`** (§2.7). À reconsidérer une fois N1 à N4 livrées, pas avant :
   aujourd'hui le défaut `off` est le bon réglage pour le contenu actuel.
-- **La coalescence** (N5). Assumée comme un acquis par le code actuel ; l'audit constate qu'elle
-  coûte cher et laisse l'arbitrage à sa propre carte.
+- ~~**La coalescence** (N5). Assumée comme un acquis par le code actuel ; l'audit constate qu'elle
+  coûte cher et laisse l'arbitrage à sa propre carte.~~ **Tranchée en 0.126.0 : conservée** (§3.5).
 - **La longueur exacte des troncatures** par plateforme. Les propositions de §3.2 visent « court »
   sans chiffrer ; un passage sur un vrai téléphone est le seul juge.

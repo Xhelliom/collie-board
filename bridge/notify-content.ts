@@ -72,12 +72,21 @@ export function repoOf(cwd: string): string {
 export function notifyContent(a: NotifySubject, subtitle: string | null): { title: string; body: string } {
   const repo = repoOf(a.cwd);
   const subject = a.cardTitle || repo;
-  const marker = a.status === "blocked" ? "Needs you" : a.cardStatus === "review" ? "Review" : "Done";
   return {
-    title: `${marker} · ${subject}`,
+    title: `${notifyMarker(a)} · ${subject}`,
     // The repo is omitted exactly when it IS the subject — which is what keeps it to one appearance.
     body: [a.session, subject === repo ? null : repo, subtitle].filter((p): p is string => !!p).join(" · "),
   };
+}
+
+/**
+ * The state marker alone — what is LEFT TO DO (see the header), split out of {@link notifyContent}
+ * because the multi-agent digest counts BY MARKER rather than by agent (`1 question, 2 to review`,
+ * NOTIFY_AUDIT.md §3.5, `notifications.ts`). One rule, two renderings: a digest can never disagree
+ * with the notifications it collapsed about which state each of them was in.
+ */
+export function notifyMarker(a: NotifySubject): "Needs you" | "Review" | "Done" {
+  return a.status === "blocked" ? "Needs you" : a.cardStatus === "review" ? "Review" : "Done";
 }
 
 /**

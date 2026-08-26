@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.126.0] - 2026-08-26
+
+### Changed
+
+- Multi-agent digest counts BY STATE instead of by agent: `1 question, 2 to review` replaces `3 agents done`, reading the same marker a single alert's title does — NOTIFY_AUDIT.md §3.5 (b9603b1)
+
 ## [0.125.0] - 2026-08-26
 
 ### Changed
