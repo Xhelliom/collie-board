@@ -143,16 +143,26 @@ describe("NotificationCoordinator — debounce", () => {
 describe("NotificationCoordinator — coalescing", () => {
   test("two outstanding agents collapse into one digest that buzzes", () => {
     const { clock, sink, coord } = setup();
-    coord.onTransition(agentNamed("p1", "claude", "blocked"), "working", "blocked");
-    coord.onTransition(agentNamed("p2", "codex", "blocked"), "working", "blocked");
+    coord.onTransition({ ...agent("p1", "blocked"), cardTitle: "Ship 0.86" }, "working", "blocked");
+    coord.onTransition({ ...agent("p2", "blocked"), cwd: "/home/you/elber" }, "working", "blocked");
     clock.fireAll();
-    // p1 renders as a single, then p2 promotes it to a digest.
+    // p1 renders as a single, then p2 promotes it to a digest. The body lists the SUBJECTS: the old
+    // `claude, codex` named the panes with the one word herdr reports for all of them, so a digest
+    // of three said "claude, claude, claude" (NOTIFY_AUDIT.md §2.1).
     expect(sink.renders.at(-1)).toEqual({
       title: "2 agents need you",
-      body: "claude, codex",
+      body: "Ship 0.86 · elber",
       paneId: undefined,
       renotify: true,
     });
+  });
+
+  test("two agents in the same repo say it once — the count is already in the title", () => {
+    const { clock, sink, coord } = setup();
+    coord.onTransition(agent("p1", "blocked"), "working", "blocked");
+    coord.onTransition(agent("p2", "blocked"), "working", "blocked");
+    clock.fireAll();
+    expect(sink.last?.body).toBe("demo");
   });
 
   test("a mixed blocked+done herd reads as 'need attention'", () => {

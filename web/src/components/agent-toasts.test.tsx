@@ -72,22 +72,23 @@ describe("AgentToasts", () => {
   test("the first snapshot never toasts — only a real transition does", () => {
     // Opening the app on an agent that is ALREADY stuck must stay silent…
     mount({ from: "blocked" });
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
 
     // …and the transition into it must not.
     advance("working");
     advance("blocked");
-    expect(screen.getByText(/needs you/)).toBeInTheDocument();
+    expect(screen.getByText(/Needs you/)).toBeInTheDocument();
   });
 
-  test("carries the pane's own name, the herd session, the workspace and the card", () => {
+  test("names the work, not the worker — the same sentence the push sends", () => {
     mount();
     advance("done");
 
-    // Not "claude is done": the pane's own name (Claude's `/rename`) is what tells three claudes apart.
-    // Name + verb + WHERE (session · workspace) share the title line; WHAT (the card) is its own.
-    expect(screen.getByText("the refactor is done · side · webapp")).toBeInTheDocument();
-    expect(screen.getByText("Ship the toasts")).toBeInTheDocument();
+    // Not "claude is done", and not "the refactor is done" either: the subject is the CARD, which is
+    // what the push's title says too (lib/notify-content.ts). The second line is where to go look —
+    // the herd session, then the repo, which the card title displaced out of the title.
+    expect(screen.getByText("Done · Ship the toasts")).toBeInTheDocument();
+    expect(screen.getByText("side · webapp")).toBeInTheDocument();
   });
 
   test("stays out of the way: the stack takes no taps, and the toast can be dismissed", async () => {
@@ -96,10 +97,10 @@ describe("AgentToasts", () => {
     advance("blocked");
 
     // The floating stack must not be a dead strip across the screen you're using.
-    expect(screen.getByText(/needs you/).closest("[aria-live]")).toHaveClass("pointer-events-none");
+    expect(screen.getByText(/Needs you/).closest("[aria-live]")).toHaveClass("pointer-events-none");
 
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
   });
 
   test("a tap deep-links into the pane, in its own session", async () => {
@@ -107,7 +108,7 @@ describe("AgentToasts", () => {
     mount();
     advance("blocked");
 
-    await user.click(screen.getByText(/needs you/));
+    await user.click(screen.getByText(/Needs you/));
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w1%3Ap1?s=side");
   });
 
@@ -115,7 +116,7 @@ describe("AgentToasts", () => {
     const user = userEvent.setup();
     mount();
     advance("blocked");
-    const toast = screen.getByText(/needs you/);
+    const toast = screen.getByText(/Needs you/);
 
     await user.pointer([
       { keys: "[TouchA>]", target: toast, coords: { clientX: 20, clientY: 40 } },
@@ -123,7 +124,7 @@ describe("AgentToasts", () => {
       { keys: "[/TouchA]" },
     ]);
 
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
     // Swiped away, not destroyed: the toast is a client-side view of the bridge's notify-log, which
     // the bell reads on open — nothing here writes to it.
     expect(screen.queryByTestId("landed")).not.toBeInTheDocument();
@@ -133,7 +134,7 @@ describe("AgentToasts", () => {
     const user = userEvent.setup();
     mount();
     advance("blocked");
-    const toast = screen.getByText(/needs you/);
+    const toast = screen.getByText(/Needs you/);
 
     await user.pointer([
       { keys: "[TouchA>]", target: toast, coords: { clientX: 20, clientY: 40 } },
@@ -141,7 +142,7 @@ describe("AgentToasts", () => {
       { keys: "[/TouchA]" },
     ]);
 
-    expect(screen.getByText(/needs you/)).toBeInTheDocument();
+    expect(screen.getByText(/Needs you/)).toBeInTheDocument();
     expect(screen.queryByTestId("landed")).not.toBeInTheDocument();
   });
 
@@ -149,13 +150,13 @@ describe("AgentToasts", () => {
     mount({ openPaneId: "w1:p1" });
     advance("blocked");
 
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
   });
 
   test("says nothing about the board's own agent — a real pane, not a worker", () => {
     mount({ copilotPaneId: "w1:p1" });
     advance("blocked");
 
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
   });
 });

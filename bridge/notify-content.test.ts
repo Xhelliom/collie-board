@@ -70,3 +70,22 @@ describe("notifyContent", () => {
     expect(`${title} ${body}`).not.toContain("ship-it");
   });
 });
+
+// N9's whole point: the three surfaces share ONE composition. They can't share an import — the web
+// app builds from its own source tree — so they share a byte-identical copy, and this is what keeps
+// the copy honest. If it fails: edit one file, `cp` it over the other.
+test("the web mirror is byte-identical to this one", async () => {
+  const here = await Bun.file(new URL("./notify-content.ts", import.meta.url)).text();
+  const there = await Bun.file(new URL("../web/src/lib/notify-content.ts", import.meta.url)).text();
+  expect(there).toBe(here);
+});
+
+describe("the in-app surfaces", () => {
+  test("a non-primary session opens the body — where to look, ahead of what happened", () => {
+    expect(notifyContent({ ...CARD, session: "side" }, "3 files").body).toBe("side · collie-board · 3 files");
+  });
+
+  test("the primary session adds nothing, so a toast reads exactly like the push did", () => {
+    expect(notifyContent(CARD, "3 files")).toEqual(notifyContent({ ...CARD, session: undefined }, "3 files"));
+  });
+});

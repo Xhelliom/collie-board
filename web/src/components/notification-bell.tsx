@@ -7,7 +7,8 @@ import { deleteNotifyLogEntry, getNotifyLog, markAllNotifyLogRead, markNotifyLog
 import { timeAgo } from "@/lib/format";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
-import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEntry } from "@/lib/types";
+import { notifyContent } from "@/lib/notify-content";
+import type { NotifyLogEntry } from "@/lib/types";
 
 // The bell, in the app header (app-header.tsx), on every screen. A push notification collapses into
 // one live slot and is retracted the moment the work is handled — right for a lock screen, and the
@@ -17,6 +18,10 @@ import { notifyVerb, notifyWhat, notifyWhere, paneDisplayName, type NotifyLogEnt
 // Fetched when the sheet opens, not polled: history doesn't move while you aren't looking at it, and
 // the snapshot poll runs every 1.5s — putting 50 entries in it would be a permanent tax for a list
 // consulted once in a while.
+
+/** A history row IS the notification that fired, re-rendered — same composition, plus the subtitle
+ *  the copilot back-patched into the entry after the push had already gone out. */
+const content = (e: NotifyLogEntry) => notifyContent(e, e.subtitle ?? null);
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -146,20 +151,18 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                 aria-hidden
               />
               <span className="min-w-0 flex-1">
-                {/* Name + verb + WHERE (session/repo) share this line — short, stable identity, so the
-                    line below is free for WHAT (the copilot subtitle, which can run to two lines). */}
-                <span className="block truncate text-sm">
-                  <span className="font-medium">{paneDisplayName(e)}</span> {notifyVerb(e.status)} ·{" "}
-                  <span className="text-muted-foreground">{notifyWhere(e)}</span>
-                </span>
-                <span className="line-clamp-2 text-xs text-muted-foreground">{notifyWhat(e)}</span>
+                {/* The same sentence the push sent, composed once (lib/notify-content.ts): the marker
+                    and the SUBJECT here, then where/repo/what happened on the line below, which is
+                    free to run to two lines because the copilot's subtitle lands in it. */}
+                <span className="block truncate text-sm font-medium">{content(e).title}</span>
+                <span className="line-clamp-2 text-xs text-muted-foreground">{content(e).body}</span>
               </span>
               <span className="mt-0.5 shrink-0 text-xs tabular-nums text-muted-foreground">{timeAgo(e.ts)}</span>
             </button>
             <button
               type="button"
               onClick={() => dismiss(e)}
-              aria-label={`Delete notification from ${paneDisplayName(e)}`}
+              aria-label={`Delete notification: ${content(e).title}`}
               className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
             >
               <X className="size-3.5" />

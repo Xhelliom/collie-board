@@ -127,6 +127,12 @@ propre `topic` de collapse (`push.ts:31`).
 
 ### 1.3 Les trois surfaces, et leur divergence
 
+> **Refermé en 0.124.0 (N9)** — les trois surfaces composent désormais par `notifyContent()`, dont
+> `web/src/lib/notify-content.ts` est une copie **octet pour octet** de `bridge/notify-content.ts`
+> (un test compare les deux fichiers et casse le build à la moindre dérive). Le tableau ci-dessous
+> décrit l'état d'avant : il reste la raison du changement. Ce que les surfaces in-app ajoutent au
+> push tient en un champ optionnel — la session du troupeau quand ce n'est pas la principale.
+
 Les mêmes faits sont rendus trois fois, **par trois codes différents**, avec trois niveaux de
 richesse :
 
@@ -579,8 +585,21 @@ qu'après la boucle de transitions. Correctif de quelques lignes ; sans effet vi
 personne n'utilise `/rename`, ce qui en fait une carte de faible priorité mais de coût quasi nul.
 **Acceptation** : un pane dont le nom `/rename` était connu au poll précédent porte ce nom dans
 l'`Alert` de sa transition suivante.
+**Depuis N9 (0.124.0) : plus aucun symptôme.** Le digest liste les sujets et la cloche compose comme
+le push — aucune surface ne nomme plus le pane, donc `sessionName` n'est lu par aucune notification.
+Les ingrédients de rename restent portés par l'entrée d'historique (`notify-log.ts`) sans lecteur. À
+fermer, ou à rouvrir seulement le jour où une surface redonne un rôle au nom du pane.
 
-### N9 — Une seule composition de contenu pour les trois surfaces
+### N9 — Une seule composition de contenu pour les trois surfaces — ✅ fait en 0.124.0
+
+> **Fait.** `notifyContent()` compose le push, le toast et la cloche. Pas par un import — le web se
+> construit indépendamment de l'arbre du serveur Bun, contrainte assumée du dépôt (en-tête de
+> `web/src/lib/types.ts`) — mais par une copie **octet pour octet** que `notify-content.test.ts`
+> vérifie, ce qui fait tenir l'acceptation malgré le doublon : éditer un fichier sans copier l'autre
+> casse le build. `notifyVerb`/`notifyWhere`/`notifyWhat` sont supprimés : ils distribuaient les mots
+> d'une phrase que chaque appelant réassemblait. Le doublon délibéré de `paneDisplayName`
+> (`bridge/types.ts:80`) reste — c'est le même arbitrage, désormais outillé. Le corps du digest liste
+> les sujets dédupliqués ; son titre compte toujours des agents (§3.5, carte N5).
 
 **Pourquoi** : §1.3, C7. Trois codes composent le même contenu à trois niveaux de richesse, et une
 amélioration de l'un ne profite pas aux autres. Les helpers `notifyVerb`/`notifyWhere`/`notifyWhat`

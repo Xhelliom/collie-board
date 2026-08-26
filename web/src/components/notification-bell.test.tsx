@@ -90,8 +90,8 @@ describe("NotificationBell", () => {
     expect(calls).toBe(0);
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    expect(await screen.findByText(/needs you/)).toBeInTheDocument();
-    expect(screen.getByText(/is done/)).toBeInTheDocument();
+    expect(await screen.findByText(/Needs you/)).toBeInTheDocument();
+    expect(screen.getByText(/Done ·/)).toBeInTheDocument();
     expect(calls).toBe(1);
   });
 
@@ -100,15 +100,15 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    // ^codex — the row itself, not its "Delete notification from codex" sibling.
-    await user.click(await screen.findByRole("button", { name: /^codex/ }));
+    // ^Done — the row itself, not its "Delete notification: …" sibling.
+    await user.click(await screen.findByRole("button", { name: /^Done · collie/ }));
 
     // The `done` entry belongs to the "side" session — the link must scope to it, not to whichever
     // session the app happens to be showing.
     expect(await screen.findByTestId("landed")).toHaveTextContent("/pane/w2%3Ap1?s=side");
   });
 
-  test("a rename and a card title win over the raw agent name and cwd — same priority as the toast", async () => {
+  test("the card is the subject and the repo drops to the second line — same sentence as the push", async () => {
     const rich: NotifyLogEntry = {
       id: 3,
       ts: Date.now() - 1_000,
@@ -126,14 +126,14 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    expect(await screen.findByText(/release branch/)).toBeInTheDocument();
-    // WHERE (session · repo) shares the name+verb line; WHAT (the card title) gets its own, wrappable
-    // line — see notifyWhere/notifyWhat in lib/types.ts.
+    // The pane's own names — "claude", the "release branch" label — name nothing the operator
+    // doesn't already know, and are gone from every surface since N9: the subject is the card.
+    expect(await screen.findByText("Needs you · Ship 0.86")).toBeInTheDocument();
     expect(screen.getByText("side · collie")).toBeInTheDocument();
-    expect(screen.getByText("Ship 0.86")).toBeInTheDocument();
+    expect(screen.queryByText(/release branch/)).not.toBeInTheDocument();
   });
 
-  test("a copilot subtitle wins over the card title, once it's answered", async () => {
+  test("a copilot subtitle lands under the card, not over it — nothing is said twice", async () => {
     const rich: NotifyLogEntry = {
       id: 4,
       ts: Date.now() - 1_000,
@@ -150,9 +150,10 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    expect(await screen.findByText("collie")).toBeInTheDocument();
-    expect(screen.getByText("bumped the version and wrote the changelog")).toBeInTheDocument();
-    expect(screen.queryByText(/Ship 0\.86/)).not.toBeInTheDocument();
+    // The old body was `subtitle ?? cardTitle ?? cwd` — a fallback onto the very thing the title
+    // already said. Now the card holds the title and the body is repo + what happened, in one line.
+    expect(await screen.findByText("Done · Ship 0.86")).toBeInTheDocument();
+    expect(screen.getByText("collie · bumped the version and wrote the changelog")).toBeInTheDocument();
   });
 
   test("wears the count as a badge, without opening (or fetching) anything", () => {
@@ -185,15 +186,15 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    await user.click(await screen.findByRole("button", { name: /delete notification from claude/i }));
-    await waitFor(() => expect(screen.queryByText(/needs you/)).not.toBeInTheDocument());
-    expect(screen.getByText(/is done/)).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /delete notification: Needs you · webapp/i }));
+    await waitFor(() => expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument());
+    expect(screen.getByText(/Done ·/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /notifications/i }));
 
-    expect(await screen.findByText(/is done/)).toBeInTheDocument();
-    expect(screen.queryByText(/needs you/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/Done ·/)).toBeInTheDocument();
+    expect(screen.queryByText(/Needs you/)).not.toBeInTheDocument();
   });
 
   test("tapping an entry marks it read, and the badge drops to the unread count", async () => {
@@ -212,7 +213,7 @@ describe("NotificationBell", () => {
     expect(screen.getByRole("button", { name: "Notifications (2)" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^notifications/i }));
-    await user.click(await screen.findByRole("button", { name: /^claude/ }));
+    await user.click(await screen.findByRole("button", { name: /^Needs you · webapp/ }));
 
     // The bridge is what holds the read state (it survives a reload), so the badge only drops once
     // the POST has landed — and the entry itself is still in the history, merely not counted.
@@ -241,8 +242,8 @@ describe("NotificationBell", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Notifications", hidden: true })).toBeInTheDocument(),
     );
-    expect(screen.getByText(/needs you/)).toBeInTheDocument();
-    expect(screen.getByText(/is done/)).toBeInTheDocument();
+    expect(screen.getByText(/Needs you/)).toBeInTheDocument();
+    expect(screen.getByText(/Done ·/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /mark all read/i })).not.toBeInTheDocument();
     expect(live).toHaveLength(2);
   });

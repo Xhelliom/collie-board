@@ -1,8 +1,6 @@
 // Frontend mirror of the bridge's domain model (bridge/types.ts). Kept as a small, deliberate
 // duplicate so the web app builds independently of the Bun server's source tree.
 
-import { shortCwd } from "@/lib/format";
-
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
 export interface AgentView {
@@ -75,32 +73,6 @@ export function paneDisplayName(pane: Pick<AgentView, "paneLabel" | "sessionName
   if (pane.paneLabel) return pane.paneLabel;
   if (pane.sessionName) return pane.sessionName;
   return pane.kind === "shell" ? "shell" : pane.agent;
-}
-
-/** "needs you" / "is done" — the one word choice every notification surface (toast, bell, and the
- *  push body on the bridge side) makes the same way. */
-export function notifyVerb(status: "blocked" | "done"): string {
-  return status === "blocked" ? "needs you" : "is done";
-}
-
-/**
- * WHERE it happened — the herd session (only when it isn't the primary one) and the workspace/repo.
- * Rides on the name+verb line, not its own: identity is short and stable, so it doesn't need the
- * row's second line the way a subtitle that can run to a full sentence does.
- */
-export function notifyWhere(input: { session?: string; workspaceLabel: string }): string {
-  return [input.session, input.workspaceLabel].filter(Boolean).join(" · ");
-}
-
-/**
- * WHAT happened — the richest thing known: the copilot's own account when it has answered, else the
- * card title, else the bare cwd. Its own line, allowed to wrap (a copilot sentence runs longer than a
- * card title ever did) — see the two-line clamp both callers render it with. Shared by the toast
- * (use-transitions.ts) and the bell (notification-bell.tsx); the toast's input simply never carries a
- * `subtitle` (see that hook's header comment for why it can't).
- */
-export function notifyWhat(input: { cardTitle?: string; subtitle?: string; cwd: string }): string {
-  return input.subtitle ?? input.cardTitle ?? shortCwd(input.cwd);
 }
 
 /** A Herdr workspace ("space") — a project-scoped container of tabs. */

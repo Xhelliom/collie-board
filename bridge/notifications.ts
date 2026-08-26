@@ -1,6 +1,6 @@
-import { notifyContent } from "./notify-content.ts";
+import { notifyContent, repoOf } from "./notify-content.ts";
 import type { PushMessage } from "./push.ts";
-import { paneDisplayName, type AgentStatus, type AgentView } from "./types.ts";
+import { type AgentStatus, type AgentView } from "./types.ts";
 
 // A notification shouldn't be fire-and-forget. This coordinator gives every blocked/done alert a
 // lifecycle and collapses the herd into a single, always-accurate notification:
@@ -87,9 +87,10 @@ export interface Alert {
   cwd: string;
   status: NotifiableStatus;
   /**
-   * Rename ingredients + the card title. The card title is the push's SUBJECT (notify-content.ts);
-   * the rename ingredients name the alert in the bell's history and the multi-agent digest, exactly
-   * like the in-app toast does (`paneDisplayName`).
+   * The card title is the SUBJECT of every surface's sentence (notify-content.ts). The rename
+   * ingredients are carried for the history entry alone (notify-log.ts) — since N9 no notification
+   * names the pane, so nothing reads them today; they stay because dropping a field from the log's
+   * wire shape costs more than keeping it.
    */
   paneLabel?: string;
   sessionName?: string;
@@ -267,7 +268,12 @@ export class NotificationCoordinator<H = unknown> {
       : allDone
         ? `${n} agents done`
         : `${n} agents need attention`;
-    return { title, body: alerts.map((a) => paneDisplayName(a)).join(", "), renotify };
+    // The subjects, not the workers: `claude, claude, claude` named three panes with the one word
+    // herdr reports for all of them (NOTIFY_AUDIT.md §2.1). Same subject rule as a single alert —
+    // the card, else its repo — so a digest reads like the notifications it collapsed.
+    // ponytail: the title still counts agents (`3 agents done`); §3.5's per-state count is card N5.
+    const subjects = [...new Set(alerts.map((a) => a.cardTitle || repoOf(a.cwd)))];
+    return { title, body: subjects.join(" · "), renotify };
   }
 
   private cancelPending(id: string): void {
