@@ -263,6 +263,16 @@ une réécriture, et **un seul mal nommé** pour obtenir la lecture gratuite du 
 > outstanding — jamais observé. La seconde option, un budget de temps propre au sous-titre, ne rend
 > rien de mieux : elle abandonne plus tôt. C'est une économie de quota, pas un gain de polish.
 >
+> **Ce que ce renoncement coûte vraiment, et ce n'est pas la polish.** Quand le tour du sous-titre
+> arrive enfin et que la garde le jette, ce n'est pas seulement une tournure perdue : c'est **un
+> tour d'agent dépensé pour un résultat qu'on savait déjà jeté** — du quota, ce que la règle « le
+> copilot dépense le quota de l'utilisateur » (CLAUDE.md, §The board) prend au sérieux. La garde
+> `currentSolo` n'est aujourd'hui évaluée qu'**après** la réponse (`pushSubtitle`). L'évaluer
+> **avant** de prompter demanderait de la rejouer au moment où le tour démarre, donc un crochet dans
+> la file — précisément le mécanisme qu'on vient de retirer. C'est ce qu'il faudra reprendre si la
+> mesure ci-dessous penche, et c'est là qu'il faudra le mettre : au démarrage du tour, pas dans un
+> ordre de passage.
+
 > **Condition de réouverture, et elle est déjà instrumentée** — les deux logs de `pushSubtitle`
 > (`notify-subtitle.ts`) donnent le ratio sans une ligne de code à écrire :
 >
