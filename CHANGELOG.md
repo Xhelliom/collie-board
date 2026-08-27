@@ -7,11 +7,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.126.1] - 2026-08-27
+## [0.126.2] - 2026-08-27
 
 ### Fixed
 
 - A filed card keeps its "View PR #N" button after the auto-cleanup deletes its branch — the url was always in the journal, only the section that showed it went away with `integration: null` (81039ed)
+
+## [0.126.1] - 2026-08-27
+
+### Fixed
+
+- `sessionName` is applied in `toView`, before the transition loop, so an alert carries the `/rename` name the cache knew at the previous poll — NOTIFY_AUDIT.md §2.6 (b6bd633)
 
 ## [0.126.0] - 2026-08-26
 

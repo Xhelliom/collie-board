@@ -317,18 +317,26 @@ le plus besoin : plusieurs agents qui finissent dans la même fenêtre.
 > par construction. Le raisonnement complet, y compris pourquoi le copilote ne passe pas sur le
 > digest, est en [§3.5](#35-le-digest-multi-agents).
 
-### 2.6 — `sessionName` est renseigné après la boucle des transitions
+### 2.6 — `sessionName` est renseigné après la boucle des transitions — ✅ corrigé en 0.126.1
+
+> **Corrigé.** `toView` applique le cache `sessionNames` au moment où il construit la vue, donc avant
+> la boucle des transitions ; `enrichSessionNames()` continue d'écraser avec la lecture fraîche pour
+> le snapshot. Un test tient l'ordre (`state-engine.test.ts`, « a transition listener sees the name
+> the cache already knew »).
 
 Bug secondaire, mais réel et cohérent avec §2.1. Dans `StateEngine.poll()`, la boucle qui appelle les
-listeners de transition est aux lignes 277-286 ; `enrichSessionNames()`, qui pose `a.sessionName`,
-est appelée ligne 298 — **après**. L'objet `AgentView` remis à `NotificationCoordinator.onTransition`
-n'a donc jamais son `sessionName`, même quand le cache le connaît depuis le poll précédent
-(`state-engine.ts:348-351`).
+listeners de transition venait **avant** `enrichSessionNames()`, seul endroit qui posait
+`a.sessionName`. L'objet `AgentView` remis à `NotificationCoordinator.onTransition` n'avait donc
+jamais son `sessionName`, même quand le cache le connaissait depuis le poll précédent.
 
-Le toast in-app, lui, lit le snapshot final : il a le nom. C'est une des divergences de §1.3.
+Le toast in-app, lui, lit le snapshot final : il avait le nom. C'était une des divergences de §1.3.
 
-En pratique, ça ne change rien aujourd'hui puisque `sessionName` est vide partout — mais ça signifie
-que « demander à l'opérateur de faire `/rename` » ne réparerait **pas** le push, seulement le toast.
+En pratique ça ne changeait rien, et ça n'en change toujours pas : `sessionName` est vide partout
+(personne ne tape `/rename`) et, depuis N5 et N9, **aucune surface de notification ne nomme plus le
+pane** — ni le push, ni le digest (qui liste les sujets), ni la cloche (qui compose comme le push).
+Le champ reste porté par l'`Alert` et l'entrée d'historique sans lecteur. Ce qui est réparé est donc
+l'ordre, pas un symptôme : la prochaine surface qui redonnera un rôle au nom du pane le trouvera
+rempli au lieu de vide.
 
 ### 2.7 — `done` est off par défaut, et c'est cohérent avec le reste
 
@@ -346,7 +354,7 @@ pas avant.
 | C3 | palier gratuit gardé par la pref copilot (§2.3) | aucune réécriture par défaut | **très faible** — déplacer un `if` |
 | C4 | file copilot partagée avec la review (§2.4) | sous-titre tardif | moyen — priorité ou file séparée |
 | C5 | garde `currentSolo` + digest (§2.5) | sous-titre jeté à ≥2 alertes | moyen — repenser le digest |
-| C6 | `sessionName` posé trop tard (§2.6) | push moins riche que le toast | très faible |
+| C6 | `sessionName` posé trop tard (§2.6) | push moins riche que le toast | ✅ corrigé en 0.126.1 |
 | C7 | trois compositions de contenu concurrentes (§1.3) | divergence des surfaces | moyen — factoriser |
 
 ---
@@ -716,23 +724,26 @@ seulement un parallélisme.
 **Acceptation** : quand une carte atterrit, le sous-titre de notification passe avant la review de
 cette même carte.
 
-### N8 — Renseigner `sessionName` avant les listeners de transition
+### N8 — Renseigner `sessionName` avant les listeners de transition — ✅ fait en 0.126.1
 
-**Pourquoi** : §2.6, *mais la cible a changé depuis N2*. La raison d'origine était « le push est moins
-riche que le toast sur le même événement ». Ce n'est plus vrai du push : N2 a sorti `paneDisplayName`
-du titre, qui vaut désormais `<marqueur> · <sujet>`. Le seul survivant est `notifications.ts:244`, la
-branche **digest multi-agents** — et la cloche, qui compose encore de son côté (N9). Le symptôme
-restant est donc : un pane renommé par `/rename` n'apparaît pas sous ce nom dans un digest ni dans
-l'historique. Correctif inchangé ; ne pas le chercher sur une alerte seule, il n'y est plus.
-**Portée** : appliquer le cache `sessionNames` dans `toView` (`state-engine.ts:203-230`) plutôt
-qu'après la boucle de transitions. Correctif de quelques lignes ; sans effet visible tant que
-personne n'utilise `/rename`, ce qui en fait une carte de faible priorité mais de coût quasi nul.
+> **Fait, et sans symptôme à montrer** — ce qui est le point. `toView` (`state-engine.ts:201-236`)
+> pose le nom en cache au moment de construire la vue ; `enrichSessionNames()` garde son rôle, poser
+> la lecture *fraîche* pour le snapshot. Un test échoue si l'ordre se réinverse.
+
+**Pourquoi** : §2.6. La raison d'origine était « le push est moins riche que le toast sur le même
+événement ». **Plus aucune des cibles successives ne tient** : N2 a sorti `paneDisplayName` du titre
+(`<marqueur> · <sujet>`) ; N9 a fait composer la cloche par `notifyContent()` ; et N5 (0.126.0) a
+réécrit le digest, dont le corps liste désormais les **sujets** (`cardTitle` ou le repo) et non plus
+les panes. Aucune surface ne nomme plus le pane — `paneDisplayName` n'est appelé nulle part dans
+`bridge/`, et `Alert.sessionName` / `NotifyLogEntry.sessionName` sont portés sans lecteur.
+**Ce qui restait, et qu'on répare** : le défaut d'ordre lui-même. Un champ déclaré sur deux formes de
+fil, copié à chaque alerte, et structurellement toujours vide, est un piège pour la prochaine surface
+qui redonnera un rôle au nom du pane — elle le lirait vide sans rien avoir cassé. Corriger l'ordre
+coûte trois lignes ; le laisser coûte un débogage un jour.
+**Portée** : appliquer le cache `sessionNames` dans `toView` plutôt qu'après la boucle de
+transitions.
 **Acceptation** : un pane dont le nom `/rename` était connu au poll précédent porte ce nom dans
-l'`Alert` de sa transition suivante.
-**Depuis N9 (0.124.0) : plus aucun symptôme.** Le digest liste les sujets et la cloche compose comme
-le push — aucune surface ne nomme plus le pane, donc `sessionName` n'est lu par aucune notification.
-Les ingrédients de rename restent portés par l'entrée d'historique (`notify-log.ts`) sans lecteur. À
-fermer, ou à rouvrir seulement le jour où une surface redonne un rôle au nom du pane.
+l'`Alert` de sa transition suivante. ✅
 
 ### N9 — Une seule composition de contenu pour les trois surfaces — ✅ fait en 0.124.0
 
