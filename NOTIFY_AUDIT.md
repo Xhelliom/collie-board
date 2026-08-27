@@ -32,6 +32,7 @@ seulement le timeout configuré).
 - [Partie 3 — Proposition de contenu](#partie-3--proposition-de-contenu)
 - [Partie 4 — Règle d'événement « session terminée + carte en review »](#partie-4--règle-dévénement--session-terminée--carte-en-review-)
 - [Partie 5 — Cartes à créer](#partie-5--cartes-à-créer)
+- [Partie 6 — Le board comme source d'événements](#partie-6--le-board-comme-source-dévénements-notifiables-carte-n6)
 
 ---
 
@@ -553,6 +554,11 @@ review du copilot rendue, dépendance débloquée — n'ont toujours aucun canal
 naturelle une fois cette règle en place, mais c'est un autre chantier (carte N6), et il demandera de
 décider si le board a le droit d'émettre des notifications de son propre chef.
 
+> **Tranché le 2026-08-26 en [§6](#partie-6--le-board-comme-source-dévénements-notifiables-carte-n6)** :
+> le board a ce droit, sous trois tests et une condition de rétraction, sans second canal. Le cas
+> laissé ouvert dans le tableau ci-dessus — une carte qui entre en `review` sans transition de pane —
+> y est recensé sous **B12**.
+
 ---
 
 ## Partie 5 — Cartes à créer
@@ -631,7 +637,16 @@ et il annule tous les sous-titres en vol.
 La seconde est un changement de posture et mérite un ADR. **Pas d'implémentation avant l'arbitrage.**
 **Acceptation** : une décision écrite, avec son ADR si l'option 2 est retenue.
 
-### N6 — Le board comme source d'événements notifiables
+### N6 — Le board comme source d'événements notifiables — ✅ arbitrage rendu, [§6](#partie-6--le-board-comme-source-dévénements-notifiables-carte-n6)
+
+> **Rendu le 2026-08-26.** Le board **a** le droit d'émettre, sous trois tests (le fait n'a pas été
+> demandé à l'instant · il ouvre une action · aucun pane ne le dit déjà) et une condition (savoir
+> comment il se rétracte), dans le **même** slot, digest, snooze et jeu de préférences que le reste.
+> Douze événements recensés en [§6.3](#63-le-recensement) : cinq retenus pour le push (B1, B2, B4,
+> B5, B12), deux pour la cloche seule (B7, B10), cinq écartés — dont un pour une raison structurelle
+> ([§6.5](#65-ce-qui-reste-hors-datteinte-et-pourquoi-ce-nest-pas-un-manque-de-courage)). Le
+> déclencheur commun existe déjà et n'est pas une boucle : le journal `event` tailé sur `onUpdate`
+> ([§6.2](#62-le-déclencheur-commun-existe-déjà-et-ce-nest-pas-une-boucle--le-journal)).
 
 **Pourquoi** : §1.1, §4.4. Aujourd'hui seuls les statuts de pane sont observés. Une carte orpheline,
 une review du copilot rendue, une dépendance débloquée ne notifient rien.
@@ -754,6 +769,205 @@ pour les troncatures.
 `firstSubtitle`, sous une borne de 1 500 ms. Coûts re-mesurés à la livraison : `git --stat` sur un
 dépôt sale réel **12 ms**, palier 2 sur le pire transcript de la machine (34 Mo) **220 ms** — la
 borne n'est atteinte que par du travail bloqué. Copilot éteint = **un seul message**, `renotify:true`.
+
+---
+
+## Partie 6 — Le board comme source d'événements notifiables (carte N6)
+
+> Rendu le 2026-08-26 sur la branche `board/n6-le-board-comme-source-d-evenements-notifiable`.
+> **Recensement et arbitrage. Rien n'est implémenté ici**, et aucune boucle n'est proposée (contrainte
+> dure, `CLAUDE.md` §The board).
+
+### 6.1 L'arbitrage : oui, sous trois tests et une condition
+
+La décision d'abord, l'argument ensuite.
+
+> **Le board a le droit d'émettre des notifications de son propre chef.** Rien ne justifie de réserver
+> la notification aux transitions de pane : le pane n'est pas ce que l'opérateur suit, c'est
+> l'instrument. Ce que le board sait et que le pane ignore — une carte devenue relançable, un verdict
+> rendu, un handoff qui n'a jamais abouti — est exactement ce qu'on rouvre l'application pour aller
+> chercher.
+>
+> **Mais il n'émet rien qui ne passe les trois tests ci-dessous, il ne crée aucun second canal, et un
+> fait sans règle de rétraction n'émet pas du tout.**
+
+**Test 1 — le fait est-il arrivé sans que l'opérateur le demande à l'instant ?**
+C'est le test qui élimine le plus de candidats, et c'est le bon : `integrate.ts:5` le dit déjà pour
+ses cinq gestes — « all five are TAPS ». Un merge, un PR, un démarrage sont awaités par leur route
+(`board-routes.ts:569`, `:851-853`) : la réponse HTTP **est** la notification, l'opérateur a le doigt
+dessus, et un push par-dessus est du bruit. Ne passent ce test que les faits dont la queue est
+asynchrone et dépasse largement le tap qui les a lancés (une review, un handoff, un nettoyage
+automatique), et ceux que personne n'a demandés du tout (un orphelinat).
+
+**Test 2 — le fait ouvre-t-il une action, ou raconte-t-il seulement ?**
+« La carte est passée en `working` » est du journal. « La worktree n'a pas pu être supprimée » est une
+décision qui attend. Le journal des cartes (`db.recordEvent`, `db.ts:1218`) existe précisément pour
+tout le reste, et il est déjà rendu sur l'écran de carte : un fait qui n'ouvre rien y reste.
+
+**Test 3 — un pane le dit-il déjà ?**
+C'est la règle que N4 a appliquée sans la nommer : la carte qui entre en `review` n'a pas sa propre
+notification de board, elle est portée par la transition `done` du pane qui l'y a mise. Un événement
+de board ne notifie que ce qu'aucun pane n'a signalé — sinon le même fait buzze deux fois, par deux
+chemins qui n'ont aucun moyen de savoir l'un pour l'autre.
+
+**La condition, et c'est la plus structurante : un événement de board doit dire comment il se
+rétracte.**
+Toute la machinerie de `NotificationCoordinator` repose sur des alertes **réversibles** : une alerte
+de pane s'efface parce que le pane change d'état (`notifications.ts:130-134`, `:163-165`). Un
+événement de board est **ponctuel** : `review.created` est vrai une fois et ne redevient jamais faux.
+Coalescé tel quel dans le slot du troupeau, il y resterait à vie — et le digest annoncerait « 1 to
+review » pour une carte lue il y a trois jours. **Donc : un événement de board ne rejoint le slot que
+s'il est accompagné d'un prédicat de rétraction lisible sur la carte** (« la carte a quitté `review` »,
+« la carte a été ouverte », « la carte n'est plus `orphaned` ») — évalué au même endroit que le reste,
+sur `onUpdate`. Un fait dont on ne sait pas dire quand il cesse d'être vrai ne notifie pas ; il va au
+journal, ou à la cloche, qui est une histoire et non un état.
+
+**Et : pas de second système.** Les événements de board entrent dans le **même** slot `collie:herd`,
+le **même** digest, le **même** snooze, les **mêmes** préférences (`notify-prefs.ts:31-36`). La
+tentation inverse — un tag `collie:board`, une catégorie « alerte board » — donnerait deux endroits où
+couper le son et deux notifications simultanées pour un troupeau qui n'en veut qu'une. Le seul
+assouplissement admis est **par surface** (§6.3, B7 et B10) : certains faits méritent la cloche et pas
+la vibration, et les trois surfaces sont déjà séparables depuis N9.
+
+### 6.2 Le déclencheur commun existe déjà, et ce n'est pas une boucle : le journal
+
+Presque tout ce que la Partie 5 appelait « un chantier » est **déjà écrit dans la base**. La table
+`event` (`db.ts:478-485`) est un journal append-only à clé primaire auto-incrémentée, et 33 types y
+sont posés aujourd'hui par tous les chemins confondus — poll, route HTTP, copilot :
+
+```
+card.agent_adopted · card.cleaned_up · card.cleanup_failed · card.created · card.discarded
+card.edited · card.merge_failed · card.merged · card.pr_failed · card.pr_opened · card.prompted
+card.resolve_requested · card.split_from · card.start_failed · card.status · card.worktree
+copilot.explained · copilot.explain_failed · copilot.refined · copilot.refine_failed
+copilot.reformulated · copilot.reformulate_failed · copilot.review_failed · copilot.split_kept
+handoff.completed · handoff.expired · handoff.failed · handoff.requested
+review.created · session.closed · session.opened · wrapup.collected · wrapup.expired · wrapup.failed
+```
+
+Le déclencheur unique de toute la Partie 6 tient donc en une phrase : **un consommateur accroché à
+`engine.onUpdate` (session primaire, comme `reconcile`, `ContextTracker`, `HandoffCoordinator`,
+`WrapupCoordinator` et `CopilotCoordinator` — `index.ts:280-308`) qui fait
+`SELECT … FROM event WHERE id > ?` avec un curseur en mémoire.**
+
+Pourquoi c'est bon marché, point par point :
+
+| | |
+|---|---|
+| **Nouvelle boucle** | Aucune. C'est le sixième `engine.onUpdate` d'une liste qui en compte déjà cinq. |
+| **Coût par tick** | Une requête de plage sur la clé primaire (`WHERE id > ?` = un parcours du rowid) qui rend zéro ligne dans le cas normal. Moins cher que `reconcile()`, qui interroge déjà `listOpenSessions` + `childStatusesByParent` à chaque tick. |
+| **Curseur** | Initialisé au dernier `id` au démarrage, en mémoire. Un restart ne rejoue donc pas le passé — même posture que `NotifyLog` et `CopilotCoordinator.busyCards` : runtime, non persisté (`CLAUDE.md` §The board). |
+| **Ratés** | Impossible de manquer un fait entre deux polls, contrairement à un diff de snapshots : le journal est écrit par l'action, pas dérivé d'un état. |
+| **Snapshot `disconnected`** | Sans objet — le tailer ne lit pas le snapshot, et `onUpdate` n'est de toute façon appelé qu'après un poll réussi (`state-engine.ts:306-309` : le `catch` sort avant). Les gardes des autres consommateurs restent, elles, nécessaires : elles protègent des lectures de snapshot. |
+| **Surface upstream** | Un fichier neuf (`bridge/board-notify.ts`), un `engine.onUpdate` de plus dans `index.ts`. `notifications.ts` n'est touché que si l'on veut la coalescence (§6.4). |
+
+Le tailer ne décide de rien : il ramasse tout, et ce sont les trois tests de §6.1 qui filtrent. Un
+`card.merged` passera par lui et sera jeté — c'est normal, le filtre est le fait, pas le déclencheur.
+
+### 6.3 Le recensement
+
+Colonnes : ce qui se passe · où c'est déjà écrit · ce que ça ouvre comme action · comment ça se
+rétracte · ce que ça coûte en plus du socle (§6.4) · verdict.
+
+| # | Événement | Déclencheur **existant** | Action ouverte | Rétraction | Coût propre | Verdict |
+|---|---|---|---|---|---|---|
+| **B1** | **Carte orpheline** — son pane a disparu du snapshot | `reconcile()` sur `onUpdate` → `card.status {to: "orphaned"}` (`cards.ts:260-261`) | relancer depuis le dernier handoff | la carte quitte `orphaned` | nul — le tailer suffit | **oui**, mais voir la note de masse |
+| **B2** | **Review du copilot rendue** | `CopilotCoordinator.review()` → `db.createReview` (`copilot.ts:1391`) → `review.created {reviewId, verdict}` | lire le verdict, les notes, les follow-ups | la carte quitte `review`/`done`, ou est ouverte | nul ; le verdict est déjà dans le payload | **oui** — le meilleur candidat du lot |
+| **B3** | **Follow-ups créés par la review** | même chemin → `card.created` avec `origin: "copilot"` (`copilot.ts:1363-1389`) | trier le backlog | — | — | **non séparément** : un décompte dans le corps de B2, jamais N cartes = N buzz |
+| **B4** | **Dépendance débloquée** — le prédécesseur est `done`/`archived`, le successeur devient démarrable | `card.status {to: "done"\|"archived"}` + `WHERE depends_on = ?` (la gate est `cards.ts:626-636`) | **démarrer** la carte | la carte démarre ou quitte `ready`/`backlog` | une requête non indexée sur `card`, seulement sur un `to: done`/`archived` (rare) | **oui**, marqueur propre, **off par défaut** |
+| **B5** | **Handoff échoué ou expiré** | `HandoffCoordinator.update` sur `onUpdate` → `handoff.failed` / `handoff.expired` (`handoff.ts:166`, `:191`, `:234`) | reprendre à la main — sinon la carte garde une session morte et personne ne le sait | la carte redevient live, ou est ouverte | nul | **oui** — un échec silencieux est ce qu'une notification sert le mieux |
+| **B6** | **Wrapup expiré ou échoué** | `WrapupCoordinator` sur `onUpdate` → `wrapup.expired` / `wrapup.failed` (`wrapup.ts:167`, `:200`) | aucune : il manque une note de clôture, le nettoyage a suivi quand même | — | — | **non** — échoue au test 2 |
+| **B7** | **Nettoyage automatique refusé** — worktree ou branche restée | `WrapupCoordinator.autoCleanup` → `cleanupCard` → `card.cleanup_failed` (`wrapup.ts:214-218`, `integrate.ts:365`, `:373`, `:382`) | décider : merger, pousser, ou jeter | ne se périme pas | nul | **cloche oui, push non** — c'est « il reste quelque chose sur ton disque », pas une urgence |
+| **B8** | **Merge / PR terminés ou échoués** | routes awaitées (`board-routes.ts:851-853`) → `card.merged`, `card.pr_opened`, `card.merge_failed`, `card.pr_failed` | — | — | — | **non** — test 1 : la réponse HTTP est déjà la notification |
+| **B9** | **PR mergée ou fermée sur GitHub par quelqu'un d'autre** | **aucun** — `prStatusFor` n'est lu qu'à l'ouverture de la carte, TTL 60 s, un `gh` par lecture (`integrate.ts:117-126`) | relire, nettoyer | — | **un poll réseau** | **non, et c'est structurel** (§6.5) |
+| **B10** | **Échec d'une demande copilot** — `copilot.refine_failed`, `explain_failed`, `reformulate_failed`, `review_failed` | les chemins copilot, tous asynchrones (`copilot.ts:1033`, `:1137`, `:1158`, `:1342`) | re-demander | — | nul | **cloche oui, push non** — un tap dont on n'apprend jamais qu'il n'a rien produit |
+| **B11** | **Démarrage de carte échoué** | `card.start_failed` — mais `startCard` est awaité par la route (`board-routes.ts:569`) | — | — | — | **non** — test 1 ; à rouvrir seulement si le start devient asynchrone |
+| **B12** | **Carte entrée en `review` sans transition de pane** (le cas laissé ouvert par §4.3) | `card.status {to: "review"}` hors `reconcile` | relire | la carte quitte `review` | nul | **oui**, et c'est le complément exact de N4 : même marqueur, même destination, autre déclencheur |
+
+**Note de masse sur B1.** Un herdr redémarré fait disparaître tous les panes d'un coup : `reconcile()`
+orpheline alors *tout le board* dans le même tick. C'est le risque n°1 de cette catégorie, et la
+coalescence existante l'absorbe déjà (« 4 orphaned » plutôt que quatre notifications) **à condition
+que B1 entre dans le slot du troupeau** — ce qui est précisément la position de §6.1. À noter aussi :
+la disparition du pane rétracte au même moment l'alerte de pane qui portait dessus
+(`notifications.ts:163-165`), donc l'ancienne alerte s'efface et la nouvelle arrive — c'est le bon
+comportement, mais c'est un aller-retour dans un même tick qu'il faudra regarder sur l'appareil.
+
+**Note de doublon sur B2.** Copilot actif, une carte qui atterrit produit déjà l'alerte `Review` de N4
+trente secondes après la fin de session ; la review arrive minutes plus tard. Ce ne sont pas les mêmes
+faits (« à relire » vs « le copilot a un avis dessus »), mais ça ferait deux buzz pour une carte. La
+sortie existe déjà et ne demande rien de neuf : **si l'alerte de la carte est encore en cours, la
+review l'enrichit silencieusement** — exactement ce que fait le sous-titre du copilot via
+`currentSolo` (`notifications.ts:221-223`, §2.5) — **et elle ne buzze de son propre chef que si cette
+alerte a déjà été rétractée**. Un seul cas la fait exister seule, et c'est le bon : la carte a été
+lue, puis le verdict est tombé.
+
+**Note de priorité sur B4.** C'est le seul événement de la liste qui **ouvre** une possibilité au lieu
+d'en réclamer une, et la gate est explicitement « pas un déclencheur » (`cards.ts:626`) : rien ne doit
+démarrer tout seul. Donc marqueur distinct (`Ready`, jamais `Needs you`) et préférence **off par
+défaut**, dans la même logique que `done` (§2.7). Le cas « l'opérateur est justement devant le board »
+est déjà couvert sans rien coder : le service worker supprime le push quand un onglet est visible
+(`push-decision.ts:63`).
+
+### 6.4 Le socle partagé : ce que ça coûte vraiment
+
+Le tailer est trivial ; le prix est ailleurs, et il faut le dire honnêtement. **Le pipeline de
+notification est indexé par `paneId` de bout en bout.**
+
+| Point | État aujourd'hui | Ce qu'un événement de board demande |
+|---|---|---|
+| Clé d'alerte | `pending` et `outstanding` sont des `Map<paneId, …>` (`notifications.ts:154-156`) | une clé opaque — `card:<id>` — le coordinateur n'a jamais besoin qu'elle soit un pane |
+| Type d'alerte | `Alert.status` vaut `"blocked" \| "done"` ; `FiredAlert.paneId` est **requis** (`notifications.ts:92`, `:122`) | élargir le statut, rendre `paneId` optionnel |
+| Historique | `NotifyLogEntry.paneId` requis, et `enrich()` matche dessus (`notify-log.ts:20`, `:93-96`) | même élargissement ; la cloche route **déjà** vers une carte quand il y en a une (`notification-bell.tsx:145`) — c'est une ligne |
+| Marqueur | `notifyMarker` ne connaît que `blocked`/`done`+`review` (`notify-content.ts:88-90`) | une entrée par nouveau marqueur, **dans les deux copies** du fichier (bridge + web, diffées par un test) |
+| Digest | `DIGEST_COUNTS` compte par marqueur (`notifications.ts:134-138`) | une ligne par nouveau marqueur, dans l'ordre d'urgence |
+| Préférences | quatre booléens (`notify-prefs.ts:31-36`) | un booléen par famille — **pas un par événement**, ou l'écran de réglages devient la liste de §6.3 |
+| Rétraction | `resolve()` est appelé par une transition ou une disparition de pane | le prédicat de §6.1, évalué sur `onUpdate` à côté du tailer |
+
+Deux remarques de posture :
+
+- `notifications.ts` est un **fichier upstream**. N10 y a déjà dépensé une modification profonde,
+  assumée et inscrite dans [`UPSTREAM.md`](./UPSTREAM.md). Élargir la clé et le type d'alerte est une
+  dépense du même ordre — à décider consciemment, avec le ledger [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md)
+  en regard : « un coordinateur de notifications qui ne présume pas que ses alertes sont des panes »
+  est une brique **générique**, donc elle y a sa place.
+- Une sortie moins chère existe et mérite d'être posée : **ne servir d'abord que la cloche**.
+  `NotifyLog.add()` est appelable directement (`index.ts:225` le fait déjà depuis le hook `onFire`) et
+  ne traverse ni le coordinateur, ni le débounce, ni la coalescence. B7, B10 et une première version de
+  B2 y tiennent sans toucher une ligne d'upstream, sans prédicat de rétraction (une histoire ne se
+  rétracte pas), et sans risque de réveiller un téléphone pour rien. **C'est la version à livrer en
+  premier** ; le push est l'incrément d'après, pour les seuls B1, B2, B5 et B12.
+
+### 6.5 Ce qui reste hors d'atteinte, et pourquoi ce n'est pas un manque de courage
+
+**B9 est le seul événement réellement extérieur de tout le board**, et le seul dont le déclencheur
+n'existe pas : l'état d'une PR ne se lit qu'en appelant `gh`, `prStatusFor` ne le fait qu'à l'ouverture
+de la carte, et le détecter en continu serait un poll réseau — interdit par la contrainte dure. Le
+tailer ne peut rien pour lui : GitHub n'écrit pas dans notre journal. La seule ouverture honnête est un
+**webhook** (un événement entrant, pas une boucle), ce qui suppose une porte d'entrée ; or Collie n'en
+gère qu'une, `tailscale serve`, et [ADR 0001](./.adr/0001-one-managed-front-door.md) ferme cette
+discussion. **Donc : non, et ça le reste tant que la posture d'ingress ne change pas.**
+
+Deux autres non-décisions, assumées :
+
+- **Aucun ADR n'est écrit pour §6.1.** Un ADR ferme une option qu'on reproposera ; ici l'arbitrage
+  *ouvre* — il autorise le board à émettre. Ce qui mériterait un ADR est l'inverse (« le board ne
+  notifie jamais »), et ce n'est pas ce qui est tranché. La règle de §6.1, si elle est implémentée, a
+  sa place en trois lignes dans `CLAUDE.md` §The board, à côté de « pas de nouvelle boucle ».
+- **Le prédicat de rétraction n'est pas spécifié événement par événement.** La colonne « Rétraction »
+  de §6.3 en donne l'intention ; sa forme exacte (lue sur la carte à chaque tick, ou armée une fois et
+  vérifiée à l'affichage) est un choix d'implémentation qui appartient à la carte qui le fera.
+
+### 6.6 L'ordre, si on implémente
+
+Valeur décroissante par unité de code, et chaque étape est livrable seule :
+
+1. **La cloche seule** — B2, B7, B10 via `NotifyLog.add()` + le tailer. Zéro fichier upstream touché,
+   zéro rétraction à définir. C'est déjà « le board raconte ce qui s'est passé pendant votre absence ».
+2. **B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
+   le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).
+3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
+4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
+   du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
 
 ---
 
