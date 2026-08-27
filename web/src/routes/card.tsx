@@ -1072,6 +1072,23 @@ export function IntegrationSection({
       </div>
     ) : null;
 
+  // The PR as a TAP, not a footnote — and it lives out here because the branch's death is exactly
+  // when it stops being reachable any other way. Filing a card auto-cleans its worktree, `git` then
+  // has nothing left to answer, and everything below this section's `state === null` return used to
+  // go with it: the link survived only inside the grey history line, at the bottom of a phone screen
+  // under the whole closing report. Same journal url either way — the journal outlives the branch.
+  const prLink = past.pr?.url ? (
+    <a
+      href={past.pr.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
+    >
+      <GitPullRequest className="size-4" />
+      {prLabel(past.pr.url)}
+    </a>
+  ) : null;
+
   const load = useCallback(async () => {
     let next: Integration | null = null;
     try {
@@ -1172,7 +1189,14 @@ export function IntegrationSection({
   if (state === null) {
     return (
       <Section label="Intégration">
-        {history ?? <p className="text-xs text-muted-foreground">No branch to integrate.</p>}
+        {history ? (
+          <div className="flex flex-col gap-3">
+            {history}
+            {prLink}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No branch to integrate.</p>
+        )}
       </Section>
     );
   }
@@ -1279,19 +1303,9 @@ export function IntegrationSection({
             {busy === "merge" ? "Merging…" : filing ? `Merge into ${state.base} & done` : `Merge into ${state.base}`}
           </Button>
           {/* Once the journal knows a PR's url, the tap that matters is "take me to it" — tapping
-              "Open a PR" again would push and hand back that same url. The history line above keeps
-              the link for after the branch is gone. */}
-          {past.pr?.url ? (
-            <a
-              href={past.pr.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground"
-            >
-              <GitPullRequest className="size-4" />
-              {prLabel(past.pr.url)}
-            </a>
-          ) : (
+              "Open a PR" again would push and hand back that same url. Same `prLink` the branchless
+              return above renders, so the tap doesn't vanish when the branch does. */}
+          {prLink ?? (
             <Button
               variant="outline"
               className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
