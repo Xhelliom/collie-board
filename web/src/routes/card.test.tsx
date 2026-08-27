@@ -380,6 +380,35 @@ describe("IntegrationSection — the PR outlives the branch", () => {
     cleanup();
   });
 
+  // The other half of the same surface: a card filed with `keepWorktree` on still has a branch, so
+  // `integration` answers and the section takes its MAIN return. That path renders the PR through the
+  // very same `prLink` — this test is what stops a `filing &&` from creeping back in front of it.
+  it("still offers the PR on a filed card whose branch is still there", async () => {
+    server.use(
+      http.get("*/api/cards/:id/integration", () =>
+        HttpResponse.json({
+          integration: {
+            branch: "board/x",
+            base: "main",
+            ahead: 1,
+            behind: 0,
+            branchDirty: false,
+            baseDirty: false,
+            baseCheckedOut: true,
+            pushed: true,
+          } satisfies Integration,
+        }),
+      ),
+      http.get("*/api/cards/:id/pr", () => HttpResponse.json({ pr: null })),
+    );
+    render(
+      <IntegrationSection card={card("done")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    const link = await screen.findByRole("link", { name: /view pr #42/i });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/42");
+    cleanup();
+  });
+
   it("says there is nothing to integrate when the journal has no PR either", async () => {
     server.use(http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })));
     render(<IntegrationSection card={card("done")} events={[]} onDone={vi.fn()} onState={vi.fn()} />);
