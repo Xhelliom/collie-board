@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.127.0] - 2026-08-27
+
+### Added
+
+- A card an agent files mid-turn is marked `agent` on the tile — from the `x-collie-pane` header it sends — and links back to the card its session is working in; that card's journal records `card.filed`. ADR 0010 (f6ad7ff)
+
+### Changed
+
+- Board filter → Source now keeps everything filed without anyone asking, the copilot's and an agent's alike; the query key follows its meaning: `?origin=copilot` → `?origin=auto` (f6ad7ff)
+
 ## [0.126.0] - 2026-08-26
 
 ### Changed
