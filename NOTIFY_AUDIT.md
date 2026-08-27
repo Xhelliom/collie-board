@@ -243,24 +243,36 @@ une réécriture, et **un seul mal nommé** pour obtenir la lecture gratuite du 
 
 ### 2.4 — Quand le copilot est activé, il est en concurrence avec lui-même
 
-> **Traité en 0.127.0** (carte N7). `Copilot.ask` prend une `priority` : le sous-titre passe devant
-> tout ce qui **attend** encore (`PRIORITY_NOTIFY_SUBTITLE`, câblé dans `index.ts` — le sous-titre
-> pose une question, il n'a pas à savoir qu'il y a une file). La sérialisation est intacte : rien
-> n'interrompt le tour en cours.
+> **Renoncement assumé, tranché en 0.126.0 (carte N7). Le constat ci-dessous reste exact ; c'est sa
+> conséquence qui a disparu.** N1 (0.120.0), N3 (0.122.0) et N10 (0.123.0) ont dissous la prémisse :
+> la notification n'attend plus le copilot pour partir complète. Ce qui attend derrière la file
+> n'est plus l'information, c'est la **tournure**.
 >
-> **Ce que la priorité ne répare pas, et il faut le dire.** La description ci-dessous parle de deux
-> demandes « quasi simultanées » ; elles ne le sont pas. La review part au poll suivant (~1,5 s),
-> le sous-titre après le debounce de notification (`notifyDelayMs`, 30 s par défaut) : dans la
-> config par défaut, la review de la MÊME carte a déjà commencé, et le sous-titre l'attend quand
-> même. La priorité gagne quand il y a une **rafale** — plusieurs cartes qui atterrissent ensemble,
-> ou une review encore en file — et c'est précisément le cas que §2.5 décrit comme le pire.
-> Vider ce reste-là demanderait soit de préempter un tour d'agent, soit de retarder la review,
-> deux choses plus chères que la polish qu'elles sauvent.
+> **Les deux corrections listées plus bas ont été écrites, mesurées sur pièce, et jetées.** La
+> priorité dans `Copilot.ask` réordonne ce qui **attend** ; elle ne préempte pas un tour en vol
+> (préempter, ce serait jeter le tour d'agent en cours — plus cher que la polish qu'il sauve). Or
+> elle ne peut mordre dans aucun des deux cas réels :
 >
-> **Et l'enjeu a beaucoup baissé depuis l'audit.** Le sous-titre n'attend plus le copilot pour que
-> l'alerte parte : le palier gratuit rend dès qu'il est lu (§2.3, 0.120.0), la cascade descend au
-> `git --stat` (§3.3, 0.122.0), et le premier push part complet (§N10, 0.123.0). Ce qui attend
-> derrière la file n'est plus l'information, c'est la **tournure**.
+> | Cas | La file du copilot | La garde `currentSolo` (§2.5) |
+> |---|---|---|
+> | Un seul agent finit | **vide** — la review de la même carte est en vol depuis ~28,5 s (poll `1500 ms` vs debounce `notifyDelayMs`, 30 s) | passe, mais la priorité n'a rien eu à réordonner |
+> | Plusieurs finissent | la priorité doublerait les reviews 2..N | `outstanding.size > 1` → le sous-titre est **jeté** |
+>
+> Le gain n'existe que dans la rafale, et la rafale est exactement là où §2.5 le jette. Reste un
+> créneau étroit — une review d'une **autre** carte encore en file pendant qu'une seule alerte est
+> outstanding — jamais observé. La seconde option, un budget de temps propre au sous-titre, ne rend
+> rien de mieux : elle abandonne plus tôt. C'est une économie de quota, pas un gain de polish.
+>
+> **Condition de réouverture, et elle est déjà instrumentée** — les deux logs de `pushSubtitle`
+> (`notify-subtitle.ts`) donnent le ratio sans une ligne de code à écrire :
+>
+> ```sh
+> journalctl --user -u collie-board | grep -c 'dropped a stale answer'      # polish jetée
+> journalctl --user -u collie-board | grep -cP '\[notify-subtitle\] \S+: "'  # polish rendue
+> ```
+>
+> Si le premier écrase le second sur un usage réel, la carte se rouvre — et c'est alors §2.5 (la
+> garde solo), pas la file, qu'il faudra rouvrir avec elle.
 
 Le copilot est un seul pane, sérialisé : « one pane is one queue » (`copilot.ts:746-747`), avec un
 timeout de 5 minutes par requête (`copilot.ts:40`).

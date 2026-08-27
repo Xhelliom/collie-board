@@ -7,12 +7,6 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.127.0] - 2026-08-26
-
-### Changed
-
-- `Copilot.ask` takes a priority: the notification subtitle goes ahead of any QUEUED review, the turn in flight is never interrupted — NOTIFY_AUDIT.md §2.4 (b1d5f20)
-
 ## [0.126.0] - 2026-08-26
 
 ### Changed
