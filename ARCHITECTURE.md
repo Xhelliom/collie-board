@@ -316,14 +316,36 @@ separate because they answer different questions:
 A third self-reference answers a third question, and is **not** a synonym for the first:
 
 - **`origin_card_id` — where a card came OUT of.** The reviewed card a copilot follow-up was filed
-  against. Reusing `parent_id` for it is the obvious-looking shortcut and it is wrong: it would make
-  every reviewed card a container — unstartable, its column dragged around by its own follow-ups.
+  against, or the card whose working session filed an `agent` one (below). Reusing `parent_id` for it
+  is the obvious-looking shortcut and it is wrong: it would make every reviewed card a container —
+  unstartable, its column dragged around by its own follow-ups.
   This one carries no semantics at all beyond the caption it renders as (`from “…”`, on the tile and
   at the top of the card), which is the whole point: a follow-up's title is written as a note to the
   card it belongs to, so on its own it has lost the sentence that produced it. Set at creation,
   never patched, absent from the API's create allowlist — same rule as `origin`. It may dangle (like
   `duplicate_of`, unlike `parent_id`/`depends_on`, which `deleteCard` clears), and it resolves to no
   caption, which is the right degradation for a caption.
+
+### A card that wrote itself
+
+Two writers besides a person put cards on this board, and the point of `card.origin` is that they
+are told apart rather than lumped into "not a human" (ADR 0010):
+
+- **`copilot`** — the review's follow-ups, filed while you were elsewhere. Badged **auto**, and
+  always carrying a `category` (the review's own triage of what it produced).
+- **`agent`** — a working session that decided mid-turn there was something to record and `POST`ed
+  a card through the local API. Badged **agent**, no category.
+
+The second one has a problem the first doesn't: the bridge cannot tell who is calling. So the caller
+declares itself with **`x-collie-pane`** — its `HERDR_PANE_ID`, which every herdr pane has for free —
+and the bridge does the rest: `openSessionByPane()` turns that into the card being worked on, which
+becomes `origin_card_id` (the `from “…”` caption). No match still marks the card; only the link is
+lost. `origin` and `origin_card_id` remain absent from the create allowlist, so a body can never
+claim either: the caller says WHO it is, the bridge says what that means.
+
+The session's half of the trace is a **journal entry**, not a column — `card.filed` on the source
+card, carrying the filing session's id. It is the only thing that says *which* session, on a card
+with a handoff chain, and it costs no storage.
 
 **The dependency is a gate, not a trigger.** A finished predecessor makes its successor
 start*able* — it never starts it. An agent that launches itself writes code and spends the user's

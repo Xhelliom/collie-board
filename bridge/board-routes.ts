@@ -49,6 +49,17 @@ const BACKUP_ROUTE = "/api/backup";
 /** `/api/backup/restore` — read one back, after exporting the current state as a safety net. */
 const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 
+/**
+ * How an agent filing a card says who it is: its herdr pane id, straight out of `HERDR_PANE_ID`.
+ *
+ * A HEADER and not a body field, because provenance is derived here and never declared — `origin`
+ * and `originCardId` stay out of the create allowlist (see `parseCardBody`), so the caller says
+ * only WHO it is and the bridge decides what that means. Same `x-collie-*` family as
+ * `BUILD_HEADER`, and unset by every browser client, which is what keeps a person's card a
+ * person's card. See ADR 0010.
+ */
+export const PANE_HEADER = "x-collie-pane";
+
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
   /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
@@ -449,7 +460,27 @@ async function route(
       // something real — hence the empty id, which matches nothing.
       const linkError = checkLinks(db, "", parsed.value);
       if (linkError) return text(linkError, 400);
-      const card = db.createCard({ ...parsed.value, title: parsed.value.title! });
+      // Provenance for a card an AGENT filed on its own — the same question the copilot's "auto"
+      // answers, for the other writer that opens cards while nobody is looking (ADR 0010). A pane
+      // the board doesn't know still marks the card: knowing an agent wrote it is the part the tile
+      // needs, and the link back is a bonus only a board-started session can give.
+      const pane = req.headers.get(PANE_HEADER)?.trim();
+      const filer = pane ? db.openSessionByPane(pane) : null;
+      const card = db.createCard({
+        ...parsed.value,
+        title: parsed.value.title!,
+        ...(pane ? { origin: "agent" as const, originCardId: filer?.cardId ?? null } : {}),
+      });
+      // …and the same fact from the session's side, on the card it is working in. Its journal is
+      // where "what did this agent do while I was away" gets read, and a card it opened belongs on
+      // that list — at the moment it happened, which no link from the new card can say.
+      if (filer) {
+        db.recordEvent(filer.cardId, "card.filed", {
+          sessionId: filer.id,
+          cardId: card.id,
+          title: card.title,
+        });
+      }
       // Reformulation is deliberately NOT awaited: creating a card has to be instant on a phone,
       // and this is an agent turn. The card is usable now and improves itself a minute later.
       if (card.rawInput) void ctx.copilot.reformulate(card.id);
@@ -457,7 +488,9 @@ async function route(
         action: "card.create",
         session: ctx.session,
         device: ctx.device,
-        detail: { cardId: card.id, title: card.title },
+        // The pane, when there was one: a card that wrote itself is exactly the entry an operator
+        // reading this trail wants attributed to something other than "the phone".
+        detail: { cardId: card.id, title: card.title, ...(pane ? { pane } : {}) },
       });
       return json({ ok: true, card: view(card.id) });
     }

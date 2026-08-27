@@ -19,7 +19,7 @@ import {
   wouldCycle,
 } from "./cards.ts";
 import type { Config } from "./config.ts";
-import { handleBoardRoute, parseCardBody } from "./board-routes.ts";
+import { handleBoardRoute, PANE_HEADER, parseCardBody } from "./board-routes.ts";
 import { BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   adapterFor,
@@ -3435,5 +3435,97 @@ describe("startCard — an agent is already in the worktree", () => {
     await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(calls).toContain("startAgent");
+  });
+});
+
+// ── a card an agent filed on its own ─────────────────────────────────────────
+
+describe("POST /api/cards — provenance for a card an agent filed mid-turn (ADR 0010)", () => {
+  /** A create POST, with the pane header an agent sends and a browser never does. */
+  function createPost(title: string, pane?: string): Request {
+    return new Request("http://x/api/cards", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(pane ? { [PANE_HEADER]: pane } : {}) },
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  /** The card the POST just made — the response is a view, the assertions want the row. */
+  function filed(store: BoardDb, title: string): Card {
+    return store.listCards().find((c) => c.title === title)!;
+  }
+
+  it("marks it `agent` and links it back to the card the pane is working in", async () => {
+    const store = db();
+    const source = store.createCard({ title: "the work in progress" });
+    store.openSession({ cardId: source.id, paneId: "w1:p2" });
+
+    const res = await handleBoardRoute("/api/cards", createPost("worth recording", "w1:p2"), routeCtx(store));
+
+    expect(res!.status).toBe(200);
+    expect(filed(store, "worth recording").origin).toBe("agent");
+    expect(filed(store, "worth recording").originCardId).toBe(source.id);
+  });
+
+  it("says the same thing on the session's own card, where the journal is read", async () => {
+    const store = db();
+    const source = store.createCard({ title: "the work in progress" });
+    const session = store.openSession({ cardId: source.id, paneId: "w1:p2" });
+
+    await handleBoardRoute("/api/cards", createPost("worth recording", "w1:p2"), routeCtx(store));
+
+    const entry = store.listEvents(source.id).find((e) => e.type === "card.filed");
+    const payload = entry?.payload as { sessionId: string; cardId: string; title: string } | undefined;
+    // WHICH session, not just which card: a card with a handoff chain has several, and only the
+    // journal can say which one was running when this appeared.
+    expect(payload?.sessionId).toBe(session.id);
+    expect(payload?.cardId).toBe(filed(store, "worth recording").id);
+    expect(payload?.title).toBe("worth recording");
+  });
+
+  it("still marks a pane the board never started — the mark survives without the link", async () => {
+    const store = db();
+
+    await handleBoardRoute("/api/cards", createPost("from a hand-started pane", "w9:p9"), routeCtx(store));
+
+    expect(filed(store, "from a hand-started pane").origin).toBe("agent");
+    expect(filed(store, "from a hand-started pane").originCardId).toBeNull();
+  });
+
+  it("ignores a CLOSED session's pane — herdr reuses pane ids, so that is not evidence", async () => {
+    const store = db();
+    const source = store.createCard({ title: "finished yesterday" });
+    const session = store.openSession({ cardId: source.id, paneId: "w1:p2" });
+    store.closeSession(session.id, "done");
+
+    await handleBoardRoute("/api/cards", createPost("today's note", "w1:p2"), routeCtx(store));
+
+    expect(filed(store, "today's note").originCardId).toBeNull();
+    expect(store.listEvents(source.id).some((e) => e.type === "card.filed")).toBe(false);
+  });
+
+  it("leaves a card with no pane header alone — that is the phone, and it is a person's card", async () => {
+    const store = db();
+
+    await handleBoardRoute("/api/cards", createPost("I typed this"), routeCtx(store));
+
+    expect(filed(store, "I typed this").origin).toBeNull();
+  });
+
+  it("refuses a forged origin in the body — provenance is derived, never declared", async () => {
+    const store = db();
+    const res = await handleBoardRoute(
+      "/api/cards",
+      new Request("http://x/api/cards", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title: "pretending", origin: "agent", originCardId: "nope" }),
+      }),
+      routeCtx(store),
+    );
+
+    expect(res!.status).toBe(200);
+    expect(filed(store, "pretending").origin).toBeNull();
+    expect(filed(store, "pretending").originCardId).toBeNull();
   });
 });

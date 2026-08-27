@@ -63,10 +63,18 @@ export function isLiveStatus(status: CardStatus): boolean {
 }
 
 /**
- * Where a card came from, when it came from something other than a person. One value today, and the
- * whole point of a field rather than a boolean: `null` is not "unknown", it is "someone wrote this".
+ * Where a card came from, when it came from something other than a person — and the whole point of a
+ * field rather than a boolean: `null` is not "unknown", it is "someone wrote this".
+ *
+ * Two writers open cards with nobody watching, and they are not the same writer: `copilot` is the
+ * review filing its follow-ups (see {@link CardCategory}), `agent` is a working session that decided
+ * mid-turn there was something to record. Same question — "why is this card here?" — different
+ * answer, so a shared "auto" value would flatten the only thing worth reading.
  */
-export type CardOrigin = "copilot";
+export type CardOrigin = "copilot" | "agent";
+
+/** The origins, as a set to validate against. See {@link CardOrigin}. */
+export const CARD_ORIGINS: readonly CardOrigin[] = ["copilot", "agent"];
 
 /**
  * WHAT KIND of follow-up an automatic card is — the second axis {@link Card.tag} can't carry.
@@ -75,6 +83,11 @@ export type CardOrigin = "copilot";
  * piles up ("nobody has clicked through X yet") and `feature` is the one worth keeping, and a free
  * string would give you neither reliably. Set ONLY on cards with {@link Card.origin} — a card a
  * person wrote has no category at all, and `null` says exactly that.
+ *
+ * Narrower than `origin`, and deliberately: it is the REVIEW's classification of its own output, so
+ * only `copilot` cards carry one. An `agent`-origin card has no category — the session filing it is
+ * not answering a triage question, and the switches that consult this vocabulary
+ * ({@link BoardDb.followUpCategories}) exist to throttle the review, not that session.
  */
 export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore";
 
@@ -122,21 +135,25 @@ export interface Card {
    */
   dependsOn: string | null;
   /**
-   * Who WROTE this card, when the answer isn't "a person": `copilot` for a card that appeared
-   * without anyone asking for it, null for every card someone sat down and made.
+   * Who WROTE this card, when the answer isn't "a person" — `copilot` or `agent` for a card that
+   * appeared without anyone asking for it, null for every card someone sat down and made.
    *
    * A field and not a tag, deliberately (ADR 0005 — a card has exactly one tag, and it answers what
    * KIND of work this is). Provenance is a second axis: it never changes, it must not cost the card
    * the one tag it can carry, and a reserved word inside a vocabulary that is otherwise free text
    * would have to be defended from the one writer that invents tags.
    *
-   * ONLY the unprompted path sets it — the review's follow-ups. A split does NOT: the copilot wrote
-   * those sentences, but from a dump you dictated, while you watched, and `parentId` already says so.
-   * Written once at creation and never patched: a card doesn't change where it came from.
+   * ONLY the unprompted paths set it — the review's follow-ups, and a session that filed a card
+   * mid-turn (ADR 0010). A split does NOT: the copilot wrote those sentences, but from a dump you
+   * dictated, while you watched, and `parentId` already says so. A card created through the API by
+   * hand does not either — the mark is derived from the caller declaring a herdr pane, never from
+   * the body, which is why it is absent from the create allowlist. Written once at creation and
+   * never patched: a card doesn't change where it came from.
    */
   origin: CardOrigin | null;
   /**
-   * The card this one came OUT of, or null — the reviewed card whose follow-ups this is one of.
+   * The card this one came OUT of, or null — the reviewed card whose follow-ups this is one of, or,
+   * for an `agent`-origin card, the card whose working session filed it.
    *
    * Distinct from {@link parentId} on purpose, and it is not a nicer name for it: a card with
    * children is a CONTAINER — not startable, and its column is derived from theirs. Filing a
@@ -368,7 +385,7 @@ function toCard(r: CardRow): Card {
     // Anything the current code doesn't recognise reads as "a person wrote it" — the same
     // degradation `status` gets, and the safe direction: claiming a card is automatic when it isn't
     // is the one error this field must never make.
-    origin: r.origin === "copilot" ? "copilot" : null,
+    origin: CARD_ORIGINS.includes(r.origin as CardOrigin) ? (r.origin as CardOrigin) : null,
     originCardId: r.origin_card_id ?? null,
     // Anything unrecognised reads as "not classified", same degradation as `origin` above: a wrong
     // category would send a card to the wrong side of a filter, and no category shows it either way.
@@ -989,6 +1006,24 @@ export class BoardDb {
         "SELECT * FROM session WHERE card_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
       )
       .get(cardId);
+    return row ? toSession(row) : null;
+  }
+
+  /**
+   * The open session running in a herdr pane, or null — the other direction of {@link openSessionFor},
+   * for the one caller that knows its pane and not its card: an agent filing a card mid-turn
+   * (ADR 0010), which reads `HERDR_PANE_ID` out of its own environment.
+   *
+   * Open sessions only, and that is the point rather than an optimisation: herdr reuses pane ids
+   * after a restart, so a closed session's pane is not evidence of anything. No match is the normal
+   * answer for a pane the board never started, and the caller must degrade rather than guess.
+   */
+  openSessionByPane(paneId: string): CardSession | null {
+    const row = this.db
+      .query<SessionRow, [string]>(
+        "SELECT * FROM session WHERE pane_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      )
+      .get(paneId);
     return row ? toSession(row) : null;
   }
 

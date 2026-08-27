@@ -110,6 +110,18 @@ describe("CardTile — status row (loud / named / silent)", () => {
     expect(screen.queryByText("auto")).toBeNull();
   });
 
+  it("a card a working session filed says `agent`, not `auto` — a different writer, a different lead", () => {
+    render(<CardTile card={card({ origin: "agent" })} onClick={() => {}} />);
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.queryByText("auto")).toBeNull();
+  });
+
+  it("keeps the agent badge while the copilot is busy — hiding it would credit the card to the copilot", () => {
+    render(<CardTile card={card({ origin: "agent", copilotBusy: true })} onClick={() => {}} />);
+    expect(screen.getByText("agent")).toBeInTheDocument();
+    expect(screen.getByText("copilot")).toBeInTheDocument();
+  });
+
   it("the tag chip renders alongside whichever status treatment is showing", () => {
     render(<CardTile card={card({ status: "blocked", tag: "urgent" })} onClick={() => {}} />);
     expect(screen.getByText("urgent")).toBeInTheDocument();
