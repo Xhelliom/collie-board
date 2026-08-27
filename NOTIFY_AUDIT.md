@@ -243,6 +243,47 @@ une réécriture, et **un seul mal nommé** pour obtenir la lecture gratuite du 
 
 ### 2.4 — Quand le copilot est activé, il est en concurrence avec lui-même
 
+> **Renoncement assumé, tranché en 0.126.0 (carte N7). Le constat ci-dessous reste exact ; c'est sa
+> conséquence qui a disparu.** N1 (0.120.0), N3 (0.122.0) et N10 (0.123.0) ont dissous la prémisse :
+> la notification n'attend plus le copilot pour partir complète. Ce qui attend derrière la file
+> n'est plus l'information, c'est la **tournure**.
+>
+> **Les deux corrections listées plus bas ont été écrites, mesurées sur pièce, et jetées.** La
+> priorité dans `Copilot.ask` réordonne ce qui **attend** ; elle ne préempte pas un tour en vol
+> (préempter, ce serait jeter le tour d'agent en cours — plus cher que la polish qu'il sauve). Or
+> elle ne peut mordre dans aucun des deux cas réels :
+>
+> | Cas | La file du copilot | La garde `currentSolo` (§2.5) |
+> |---|---|---|
+> | Un seul agent finit | **vide** — la review de la même carte est en vol depuis ~28,5 s (poll `1500 ms` vs debounce `notifyDelayMs`, 30 s) | passe, mais la priorité n'a rien eu à réordonner |
+> | Plusieurs finissent | la priorité doublerait les reviews 2..N | `outstanding.size > 1` → le sous-titre est **jeté** |
+>
+> Le gain n'existe que dans la rafale, et la rafale est exactement là où §2.5 le jette. Reste un
+> créneau étroit — une review d'une **autre** carte encore en file pendant qu'une seule alerte est
+> outstanding — jamais observé. La seconde option, un budget de temps propre au sous-titre, ne rend
+> rien de mieux : elle abandonne plus tôt. C'est une économie de quota, pas un gain de polish.
+>
+> **Ce que ce renoncement coûte vraiment, et ce n'est pas la polish.** Quand le tour du sous-titre
+> arrive enfin et que la garde le jette, ce n'est pas seulement une tournure perdue : c'est **un
+> tour d'agent dépensé pour un résultat qu'on savait déjà jeté** — du quota, ce que la règle « le
+> copilot dépense le quota de l'utilisateur » (CLAUDE.md, §The board) prend au sérieux. La garde
+> `currentSolo` n'est aujourd'hui évaluée qu'**après** la réponse (`pushSubtitle`). L'évaluer
+> **avant** de prompter demanderait de la rejouer au moment où le tour démarre, donc un crochet dans
+> la file — précisément le mécanisme qu'on vient de retirer. C'est ce qu'il faudra reprendre si la
+> mesure ci-dessous penche, et c'est là qu'il faudra le mettre : au démarrage du tour, pas dans un
+> ordre de passage.
+
+> **Condition de réouverture, et elle est déjà instrumentée** — les deux logs de `pushSubtitle`
+> (`notify-subtitle.ts`) donnent le ratio sans une ligne de code à écrire :
+>
+> ```sh
+> journalctl --user -u collie-board | grep -c 'dropped a stale answer'      # polish jetée
+> journalctl --user -u collie-board | grep -cP '\[notify-subtitle\] \S+: "'  # polish rendue
+> ```
+>
+> Si le premier écrase le second sur un usage réel, la carte se rouvre — et c'est alors §2.5 (la
+> garde solo), pas la file, qu'il faudra rouvrir avec elle.
+
 Le copilot est un seul pane, sérialisé : « one pane is one queue » (`copilot.ts:746-747`), avec un
 timeout de 5 minutes par requête (`copilot.ts:40`).
 
