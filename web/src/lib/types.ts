@@ -303,12 +303,15 @@ export interface NotifyLogEntry {
   id: number;
   /** When it fired (epoch ms). */
   ts: number;
-  agent: string;
-  workspaceLabel: string;
+  /** The pane that pinged, and where it lived. Absent on a BOARD entry — a fact the board journalled
+   *  (bridge/board-notify.ts) has no terminal behind it. Nothing renders either one. */
+  agent?: string;
+  workspaceLabel?: string;
   cwd: string;
   status: "blocked" | "done";
-  /** The pane that pinged — the entry deep-links to it. */
-  paneId: string;
+  /** The pane that pinged — the entry deep-links to it. ABSENT on a board entry, which is what sends
+   *  its tap to the card instead. */
+  paneId?: string;
   /** Registry name of the pane's session; absent for the primary. */
   session?: string;
   /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the toast, so

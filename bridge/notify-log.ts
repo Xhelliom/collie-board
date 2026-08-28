@@ -12,12 +12,17 @@ export interface NotifyLogEntry {
   id: number;
   /** When the alert fired (epoch ms). */
   ts: number;
-  agent: string;
-  workspaceLabel: string;
+  /** The pane that pinged, and where it lived. Absent on a BOARD entry (board-notify.ts): a fact the
+   *  board journalled has no terminal behind it. Neither is rendered anywhere — since N9 no
+   *  notification names the pane — they stay because dropping a field from the log's wire shape
+   *  costs more than keeping it. */
+  agent?: string;
+  workspaceLabel?: string;
   cwd: string;
   status: "blocked" | "done";
-  /** The pane that pinged — the bell deep-links to it. */
-  paneId: string;
+  /** The pane that pinged — the bell deep-links to it. ABSENT on a board entry, which is exactly
+   *  what sends its tap to the card instead (notification-bell.tsx). */
+  paneId?: string;
   /** Registry name of the pane's session; absent for the primary (same convention as the push payload). */
   session?: string;
   /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the in-app
@@ -88,7 +93,8 @@ export class NotifyLog {
    * paneId + status (not an id the caller never had) against the NEWEST such entry — the one the
    * enrichment was asked about, since a stale answer is already dropped before this is ever called
    * (see notify-subtitle.ts's own coordinator.currentSolo check). A no-op if the entry aged out of
-   * the ring in the meantime.
+   * the ring in the meantime — and never a match for a board entry, which has no pane whose
+   * transcript the copilot could have been asked about.
    */
   enrich(paneId: string, status: NotifyLogEntry["status"], subtitle: string): void {
     const entry = this.entries.find((e) => e.paneId === paneId && e.status === status);

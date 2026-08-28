@@ -132,6 +132,28 @@ describe("NotificationBell", () => {
     expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c1");
   });
 
+  test("a board entry has no pane at all, and lands on its card whatever the card now reads", async () => {
+    // What bridge/board-notify.ts writes: a fact the board journalled, with no terminal behind it.
+    // `cardStatus` is `done` here on purpose — the absent paneId, not the status, is what routes it.
+    const boardEntry: NotifyLogEntry = {
+      id: 5,
+      ts: Date.now() - 1_000,
+      cwd: "/home/you/collie",
+      status: "done",
+      cardTitle: "Ship 0.86",
+      cardId: "c9",
+      cardStatus: "done",
+      subtitle: "Copilot review: partial",
+    };
+    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [boardEntry] })));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    await user.click(await screen.findByRole("button", { name: /^Done · Ship 0\.86/ }));
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c9");
+  });
+
   test("the card is the subject and the repo drops to the second line — same sentence as the push", async () => {
     const rich: NotifyLogEntry = {
       id: 3,

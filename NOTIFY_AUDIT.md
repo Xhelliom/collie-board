@@ -881,7 +881,13 @@ couper le son et deux notifications simultanées pour un troupeau qui n'en veut 
 assouplissement admis est **par surface** (§6.3, B7 et B10) : certains faits méritent la cloche et pas
 la vibration, et les trois surfaces sont déjà séparables depuis N9.
 
-### 6.2 Le déclencheur commun existe déjà, et ce n'est pas une boucle : le journal
+### 6.2 Le déclencheur commun existe déjà, et ce n'est pas une boucle : le journal — ✅ écrit en 0.129.0
+
+> **Livré (0.129.0, `aeec4a1`)** : `bridge/board-notify.ts`, exactement la forme décrite ci-dessous —
+> `db.eventsAfter(cursor)` (`WHERE id > ? ORDER BY id`) sur un curseur en mémoire initialisé à
+> `db.lastEventId()` au démarrage, appelé depuis le **sixième** `engine.onUpdate` de `index.ts`.
+> Le `tell()` du module est le filtre de §6.1 rendu lisible en un endroit : trois types retenus, les
+> trente autres jetés.
 
 Presque tout ce que la Partie 5 appelait « un chantier » est **déjà écrit dans la base**. La table
 `event` (`db.ts:478-485`) est un journal append-only à clé primaire auto-incrémentée, et 33 types y
@@ -1013,13 +1019,30 @@ Deux autres non-décisions, assumées :
 
 Valeur décroissante par unité de code, et chaque étape est livrable seule :
 
-1. **La cloche seule** — B2, B7, B10 via `NotifyLog.add()` + le tailer. Zéro fichier upstream touché,
-   zéro rétraction à définir. C'est déjà « le board raconte ce qui s'est passé pendant votre absence ».
+1. ~~**La cloche seule** — B2, B7, B10 via `NotifyLog.add()` + le tailer. Zéro fichier upstream touché,
+   zéro rétraction à définir. C'est déjà « le board raconte ce qui s'est passé pendant votre absence ».~~
+   **✅ fait en 0.129.0** (`aeec4a1`) — voir l'encadré sous ce paragraphe.
 2. **B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
    le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).
 3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
 4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
    du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
+
+> **Étape 1 livrée en 0.129.0.** Ce que ça a réellement coûté, contre ce que cette liste annonçait :
+>
+> - **Le tailer** est `bridge/board-notify.ts` (§6.2), et rien d'autre n'est périodique.
+> - **Les trois faits** passent par `NotifyLog.add()` en direct : `review.created` avec son verdict
+>   (B2), `card.cleanup_failed` (B7), `copilot.*_failed` (B10). Donc **aucun push**, aucun débounce,
+>   aucune coalescence, **`notifications.ts` intact**, et aucun prédicat de rétraction à écrire.
+> - **Le marqueur n'a pas bougé** : les trois faits se disent avec `Needs you`/`Review`/`Done` et le
+>   récit dans le `subtitle`, donc ni entrée de digest, ni préférence, ni deuxième copie de
+>   `notify-content.ts` à tenir. Le socle de §6.4 reste **entièrement dû par l'étape 2**.
+> - **« Zéro fichier upstream touché » était faux d'un cheveu**, et c'est le seul écart : `index.ts`
+>   prend son sixième `onUpdate` (annoncé par §6.2), et `web/src/lib/types.ts` la copie du type dont
+>   `paneId` devient optionnel. Les deux étaient déjà au ledger `UPSTREAM.md` ; l'entrée y est élargie.
+> - **Le routage du tap** n'a pas eu besoin de `notifyCardId` : une entrée de board n'a pas de
+>   `paneId`, et cette absence *est* la décision (`notification-bell.tsx`). `enrich()` reste inchangé —
+>   sans pane, rien à enrichir.
 
 ---
 

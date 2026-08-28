@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.129.0] - 2026-08-28
+
+### Added
+
+- La cloche raconte ce que le board a fait pendant votre absence : la review du copilot avec son verdict, un nettoyage automatique refusé, une demande copilot échouée — le journal des cartes tailé sur le poll existant, un curseur en mémoire, donc un redémarrage ne rejoue rien (aeec4a1)
+- Le tap sur une de ces entrées ouvre la carte : elle ne vient d'aucun pane, et cette absence est la décision de routage (aeec4a1)
+
 ## [0.128.0] - 2026-08-28
 
 ### Added
