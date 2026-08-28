@@ -189,6 +189,11 @@ describe("matchesFilters", () => {
     expect(matchesFilters(auto, { tag: "ui", autoOnly: true })).toBe(false);
     expect(matchesFilters(hand, { tag: "infra", autoOnly: true })).toBe(false);
   });
+
+  it("keeps a card an agent filed too — the strip asks what appeared, not which writer", () => {
+    const byAgent = card({ origin: "agent", tag: "infra" });
+    expect(matchesFilters(byAgent, { tag: null, autoOnly: true })).toBe(true);
+  });
 });
 
 describe("reposOf", () => {

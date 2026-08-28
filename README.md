@@ -148,6 +148,13 @@ is append-only, so it already is the history.
 Every write goes through the same `guard()` as typing into a pane, and is audited. The board is
 bound to the **primary** herdr session: a pane id means nothing in another server.
 
+**`POST /api/cards` takes one header: `x-collie-pane`.** An agent filing a card mid-turn sends its
+own `HERDR_PANE_ID` there, and the card comes back marked `origin: "agent"` — badged **agent** on
+the tile — linked to whatever card that pane is working in, and noted in that card's journal. It is
+the only way in: `origin` and `originCardId` are refused in the body, so provenance is derived from
+who the caller says it is, never claimed. Nothing else changes; a request without the header is a
+person's card, as always. See [ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md).
+
 ### What is deliberately NOT built
 
 - **No multi-machine.** It would invert the architecture (headless bridge + central server). Not a

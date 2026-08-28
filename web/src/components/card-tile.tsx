@@ -1,4 +1,5 @@
 import {
+  Bot,
   Check,
   CornerDownRight,
   CornerLeftUp,
@@ -99,10 +100,10 @@ export function CardTile({
    */
   parent?: string;
   /**
-   * The card this one was filed against — the reviewed card a follow-up came out of. A follow-up's
-   * title is written as a note to the card it belongs to ("test the feature"), so on its own it is
-   * an orphan sentence; this is the half that makes it readable. Absent for the overwhelming
-   * majority of cards, and then no caption renders at all.
+   * The card this one came out of — the reviewed card a follow-up was filed against, or the card
+   * whose session filed it (ADR 0010). Either way its title is written as a note to that card
+   * ("test the feature"), so on its own it is an orphan sentence; this is the half that makes it
+   * readable. Absent for the overwhelming majority of cards, and then no caption renders at all.
    *
    * Text, not a link, for the same reason `parent` is: this tile is a `<button>`.
    */
@@ -222,6 +223,18 @@ export function CardTile({
               <span className="flex shrink-0 items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
                 <Sparkles className="size-3" />
                 auto
+              </span>
+            )}
+            {/* Same sentence, the OTHER writer: a working session decided mid-turn there was
+                something to record (ADR 0010). Its own badge rather than a second "auto", because
+                the two lead somewhere different — the copilot's card came out of a review you can
+                read, this one out of a session that is probably still running. Not suppressed by
+                `copilotBusy`: a different icon beside the pulsing sparkle reads as two badges,
+                which is what it is, and hiding it would credit the card to the copilot. */}
+            {card.origin === "agent" && (
+              <span className="flex shrink-0 items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
+                <Bot className="size-3" />
+                agent
               </span>
             )}
             {card.tag && (
