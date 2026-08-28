@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Loader2, Pencil } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+import { Check, Eye, EyeOff, FolderGit2, ImagePlus, Loader2, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -55,7 +56,19 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   // composer uses on a live pane, from the same hook, so there is one mechanism and not two. The
   // card has no pane, so the upload is owned by the sheet: `new-card` names the saved file and the
   // audit line. The board is always the primary session, so no `session` is passed.
-  const { uploading, onPaste } = useImageUpload({ paneId: "new-card", setText });
+  const { uploading, uploadImage, onPaste } = useImageUpload({ paneId: "new-card", setText });
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // The picker, not just the paste. On the phone this sheet is the ONLY way in — a dictated card is
+  // typed with the on-screen keyboard, which has no "paste an image" of its own, so a paste-only
+  // wiring meant the feature existed and could not be reached. Same input/button pair as the
+  // composer's, over the same `uploadImage`.
+  async function onPickImage(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    await uploadImage(file);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -189,14 +202,23 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             placeholder="Add a diff view scoped to the card&apos;s branch…"
             className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          {/* The shared status line lives in the header, behind this sheet — so an upload that takes
-              a few seconds says so here, where the user is looking. */}
-          {uploading && (
-            <span className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-              <Loader2 className="size-3 animate-spin" />
-              Téléversement de l&apos;image…
-            </span>
-          )}
+          {/* The shared status line lives in the header, behind this sheet, so the button carries the
+              upload's state itself — an upload that takes a few seconds says so where the user is
+              looking, and there is one control rather than a control plus a status line. */}
+          <div className="flex px-1">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+            >
+              {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+              {uploading ? "Téléversement de l'image…" : "Joindre une capture"}
+            </Button>
+          </div>
         </label>
 
         {/* On by default: a dictated brain dump is what this box is for, and rewriting it is the
