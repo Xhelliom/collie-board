@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   NotificationCoordinator,
   makeNotifySink,
+  type Alert,
   type HerdSummary,
   type NotifyClock,
   type NotifySink,
@@ -79,12 +80,12 @@ const agent = (paneId: string, status: AgentStatus) => agentNamed(paneId, "claud
 // flip a preference and call `coord.applyPrefs()` to exercise the runtime-change path. Defaults to
 // both kinds enabled, matching the coordinator's old static {blocked,done} set (keeps the existing
 // debounce/coalesce/retract suites unchanged).
-function setup(prefs: { blocked: boolean; done: boolean } = { blocked: true, done: true }) {
+function setup(prefs: { blocked: boolean; done: boolean; stalled?: boolean } = { blocked: true, done: true }) {
   const clock = new FakeClock();
   const sink = new RecordingSink();
-  const live = { ...prefs };
-  const isNotifiable = (s: AgentStatus): boolean =>
-    s === "blocked" ? live.blocked : s === "done" ? live.done : false;
+  const live = { stalled: true, ...prefs };
+  const isNotifiable = (s: string): boolean =>
+    s === "blocked" ? live.blocked : s === "done" ? live.done : s === "stalled" ? live.stalled : false;
   const coord = new NotificationCoordinator(clock, sink, 30_000, isNotifiable);
   return { clock, sink, coord, prefs: live };
 }
@@ -385,7 +386,7 @@ describe("NotificationCoordinator — the awaited subtitle hook", () => {
       clock,
       sink,
       30_000,
-      (s: AgentStatus) => s === "blocked" || s === "done",
+      (s: string) => s === "blocked" || s === "done",
       undefined,
       beforeFire,
     );
@@ -446,7 +447,7 @@ describe("NotificationCoordinator — the card to read", () => {
       clock,
       sink,
       30_000,
-      (s: AgentStatus) => s === "blocked" || s === "done",
+      (s: string) => s === "blocked" || s === "done",
       undefined,
       async () => ({ cardStatus }),
     );
@@ -528,5 +529,91 @@ describe("NotificationCoordinator — the card to read", () => {
     await settle();
     expect(sink.renders.map((r) => r.title)).toEqual(["Done · Ship it"]);
     expect(clock.armed).toBe(0);
+  });
+});
+
+// An alert the BOARD raised: keyed by card, no pane behind it, and retracted by its own predicate
+// rather than by a transition (bridge/board-notify.ts, NOTIFY_AUDIT.md §6.4).
+const stalled = (cardId: string, cardTitle: string): Alert => ({
+  cwd: "/src/collie-board",
+  status: "stalled",
+  cardId,
+  cardTitle,
+  subtitle: "its agent's pane is gone",
+});
+
+describe("NotificationCoordinator — an alert that is not a pane", () => {
+  test("arms under an opaque key, and its tap goes to the card because there is no pane", () => {
+    const { clock, sink, coord } = setup();
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    clock.fireAll();
+
+    expect(sink.last?.title).toBe("Stalled · Ship it");
+    expect(sink.last?.body).toBe("collie-board · its agent's pane is gone");
+    expect(sink.last?.paneId).toBeUndefined();
+    expect(sink.last?.cardId).toBe("c1");
+  });
+
+  test("retract() takes it back out of the summary, same as a resolved transition", () => {
+    const { clock, sink, coord } = setup();
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    clock.fireAll();
+    coord.retract("card:c1");
+    expect(sink.clears).toBe(1);
+  });
+
+  test("retract() before the debounce expires sends nothing at all", () => {
+    const { clock, sink, coord } = setup();
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    coord.retract("card:c1");
+    clock.fireAll();
+    expect(sink.events).toHaveLength(0);
+  });
+
+  test("the preference is honoured live, like every other kind", () => {
+    const { clock, sink, coord, prefs } = setup({ blocked: true, done: true, stalled: false });
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    clock.fireAll();
+    expect(sink.events).toHaveLength(0);
+
+    prefs.stalled = true;
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    clock.fireAll();
+    expect(sink.last?.title).toBe("Stalled · Ship it");
+
+    // …and turning it back off retracts what it already delivered.
+    prefs.stalled = false;
+    coord.applyPrefs();
+    expect(sink.clears).toBe(1);
+  });
+
+  test("a pane alert and a board alert share one digest — one slot, one notification", () => {
+    const { clock, sink, coord } = setup();
+    coord.onTransition(agent("p1", "blocked"), "working", "blocked");
+    coord.arm("card:c1", stalled("c1", "Ship it"));
+    coord.arm("card:c2", stalled("c2", "Fix it"));
+    clock.fireAll();
+
+    // Order is by urgency and fixed, not by size — see DIGEST_COUNTS.
+    expect(sink.last?.title).toBe("1 question, 2 stalled");
+    expect(sink.last?.paneId).toBeUndefined();
+  });
+
+  test("a restarted herdr: the whole board lands in ONE digest on ONE slot", async () => {
+    // What `reconcile()` does when every pane vanishes at once. The four alerts are separate timers,
+    // so they render one after another as the digest grows — the device shows one notification (the
+    // slot is shared) but it costs one message per card to get there. That last part is a known
+    // ceiling, stated at `emit`; what this pins down is the END STATE, which is what the operator
+    // sees: one digest counting the whole board, not four notifications (NOTIFY_AUDIT.md §6.3).
+    const clock = new FakeClock();
+    const sink = new RecordingSink();
+    const coord = new NotificationCoordinator(clock, sink, 30_000, () => true, undefined, async () => ({}));
+    for (const id of ["c1", "c2", "c3", "c4"]) coord.arm(`card:${id}`, stalled(id, id));
+    clock.fireAll();
+    await new Promise((r) => setTimeout(r, 5));
+
+    expect(sink.last?.title).toBe("4 stalled");
+    expect(sink.last?.paneId).toBeUndefined();
+    expect(sink.clears).toBe(0);
   });
 });

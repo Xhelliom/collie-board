@@ -5,7 +5,7 @@ import type { DiffStat } from "./git.ts";
 import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notify-subtitle.ts";
 import { NotificationCoordinator } from "./notifications.ts";
 import type { Alert, FiredAlert, HerdSummary, NotifySink } from "./notifications.ts";
-import type { AgentStatus, AgentView } from "./types.ts";
+import type { AgentView } from "./types.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 
 // Two stages, split where the cost is (NOTIFY_AUDIT.md §N10):
@@ -483,7 +483,7 @@ describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md 
       { schedule: (fn: () => void) => (fire = fn), cancel: () => {} },
       sink,
       0,
-      (s: AgentStatus) => s === "blocked" || s === "done",
+      (s: string) => s === "blocked" || s === "done",
       onFire,
       subtitleSources
         ? async (alert) => ({ subtitle: await firstSubtitle({ ...subtitleSources, alert }) })
@@ -581,7 +581,7 @@ describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md 
       { schedule: (fn: () => void) => ((fire = fn), 1), cancel: () => {} },
       sink,
       0,
-      (s: AgentStatus) => s === "blocked" || s === "done",
+      (s: string) => s === "blocked" || s === "done",
       (alert) =>
         void enrichNotification({
           ...src,
@@ -625,6 +625,59 @@ describe("copilot OFF sends exactly one message, and it buzzes (NOTIFY_AUDIT.md 
         paneId: "p1",
         renotify: false,
       },
+    ]);
+  });
+
+  // §4.1's destination has to survive the rephrase. It did not: `pushSubtitle` re-rendered the same
+  // composition without `cardId`, so the second, silent message quietly sent the tap back to the
+  // finished terminal — the one place with nothing left to do.
+  test("the silent update keeps the card deep-link the first push went out with", async () => {
+    const sink = new RecordingSink();
+    let fire = () => {};
+    const src = sources({
+      alert: baseAlert(),
+      resolvePath: neverResolvePath,
+      statFor: async () => fakeStat(3, 180, 12),
+    });
+    const coord: NotificationCoordinator<number> = new NotificationCoordinator<number>(
+      { schedule: (fn: () => void) => ((fire = fn), 1), cancel: () => {} },
+      sink,
+      0,
+      (s: string) => s === "blocked" || s === "done",
+      (alert) =>
+        void enrichNotification({
+          ...src,
+          alert,
+          coordinator: coord,
+          sink,
+          copilot: fakeCopilot({ subtitle: "renamed the header bell" }),
+        }),
+      // The board moved the card to `review` while the pane was finishing — §4.2.
+      async (alert) => ({ subtitle: await firstSubtitle({ ...src, alert }), cardStatus: "review" }),
+    );
+    coord.onTransition(
+      {
+        paneId: "p1",
+        workspaceId: "w1",
+        workspaceLabel: "demo",
+        workspaceNumber: 1,
+        tabId: "w1:t1",
+        agent: "claude",
+        status: "done",
+        cwd: "/home/you/.herdr/worktrees/collie-board/b/x",
+        focused: false,
+        kind: "agent",
+        cardId: "c1",
+        cardTitle: "Ship the header bell",
+      } as AgentView,
+      "working",
+      "done",
+    );
+    fire();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(sink.renders.map((r) => [r.title, r.cardId, r.renotify])).toEqual([
+      ["Review · Ship the header bell", "c1", true],
+      ["Review · Ship the header bell", "c1", false],
     ]);
   });
 });

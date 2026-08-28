@@ -981,6 +981,39 @@ notification est indexé par `paneId` de bout en bout.**
 | Préférences | quatre booléens (`notify-prefs.ts:31-36`) | un booléen par famille — **pas un par événement**, ou l'écran de réglages devient la liste de §6.3 |
 | Rétraction | `resolve()` est appelé par une transition ou une disparition de pane | le prédicat de §6.1, évalué sur `onUpdate` à côté du tailer |
 
+#### Le vocabulaire du digest — tranché avant la première implémentation (0.130.0)
+
+La question que posait la carte « Étendre le vocabulaire du digest aux événements de board » :
+`digestTitle()` compte par état (« 1 question, 2 à relire ») et ces mots décrivent des panes. Trois
+réponses possibles — un état par événement, un rangement sous les états existants, ou l'exclusion du
+digest. **Réponse : un seul état neuf, `Stalled`, et rien d'autre.**
+
+- **Pas de rangement sous l'existant.** Une carte orpheline sous `Needs you` ferait dire « 4
+  questions » à un digest où personne ne pose de question. C'est exactement le « 3 agents done » que
+  N5 vient de supprimer, sous un autre déguisement.
+- **Pas un état par événement.** B1 (le pane a disparu) et B5 (le handoff n'a jamais abouti) sont le
+  **même** fait pour l'opérateur : le travail s'est arrêté et rien ne le relancera. Deux marqueurs
+  pour ça donneraient deux mots pour une seule décision, et §6.4 interdit déjà la même dérive côté
+  préférences.
+- **Pas d'exclusion.** Hors digest, un événement de board vivrait dans un second canal — ce que §6.1
+  refuse en premier lieu.
+
+**L'ordre d'urgence**, complet : `Needs you` · `Stalled` · `Review` · `Done`. `Needs you` reste en
+tête — un agent bloqué attend *maintenant*, sur une session ouverte ; une carte calée a déjà cessé
+d'avancer et dix minutes de plus ne changent rien. `Stalled` passe devant `Review` pour la raison
+symétrique : une relecture est du travail qu'on choisit, une carte calée est du travail qui n'a pas
+eu lieu.
+
+**Un digest mixte se lit `1 question, 2 stalled, 1 to review`** — un seul titre, une seule
+notification, un seul slot `collie:herd`. La coalescence n'est pas touchée : c'est la même
+`summarize()`, la même `Map` d'alertes en cours, avec une clé qui n'est simplement plus obligée
+d'être un pane.
+
+**Ce que le mot doit tenir.** `Stalled` doit rester vrai pour tout ce qui rejoindra cette famille
+(B12 mis à part, qui est un `Review`). Si un futur fait est « une possibilité s'ouvre » et non « le
+travail s'est arrêté » — B4, la dépendance débloquée — il prend son propre marqueur (`Ready`) et sa
+propre préférence, comme §6.3 le dit déjà. Le test est celui-là et pas la commodité de compter.
+
 Deux remarques de posture :
 
 - `notifications.ts` est un **fichier upstream**. N10 y a déjà dépensé une modification profonde,
@@ -1022,8 +1055,9 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 1. ~~**La cloche seule** — B2, B7, B10 via `NotifyLog.add()` + le tailer. Zéro fichier upstream touché,
    zéro rétraction à définir. C'est déjà « le board raconte ce qui s'est passé pendant votre absence ».~~
    **✅ fait en 0.129.0** (`aeec4a1`) — voir l'encadré sous ce paragraphe.
-2. **B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
-   le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).
+2. ~~**B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
+   le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).~~
+   **✅ fait en 0.130.0** — voir le second encadré sous ce paragraphe.
 3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
 4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
    du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
@@ -1043,6 +1077,37 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 > - **Le routage du tap** n'a pas eu besoin de `notifyCardId` : une entrée de board n'a pas de
 >   `paneId`, et cette absence *est* la décision (`notification-bell.tsx`). `enrich()` reste inchangé —
 >   sans pane, rien à enrichir.
+
+> **Étape 2 livrée en 0.130.0.** Le socle de §6.4, posé en entier, et les deux faits qui le traversent :
+>
+> - **La clé est opaque.** `pending`/`outstanding` n'ont pas changé de type — c'étaient déjà des
+>   `Map<string, …>` — mais plus rien ne lit la clé comme un pane : `arm(key, alert)` / `retract(key)`
+>   sont publics, `onTransition` n'en est qu'un appelant, et `board-notify.ts` clé `card:<id>`.
+> - **`paneId` a migré de `FiredAlert` vers `Alert`, en optionnel** ; `FiredAlert` n'ajoute plus rien
+>   et n'est qu'un alias conservé pour les sites d'appel. Le deep-link se lit sur l'ALERTE, plus sur la
+>   clé de la Map — c'est ce qui rend une alerte sans pane possible.
+> - **Un marqueur, pas deux.** `Stalled`, pour B1 et B5 ensemble (§6.4, « Le vocabulaire du digest »),
+>   plus sa ligne de digest en deuxième position et **une** préférence `board`, par défaut **on**.
+> - **Le prédicat de rétraction est unique, lui aussi** : l'alerte tient tant que la carte se lit
+>   exactement comme le fait l'a laissée — même colonne, même session, même handoff en attente. B1 se
+>   rétracte quand la carte quitte `orphaned`, B5 quand elle reçoit une nouvelle session, qu'un
+>   handoff est redemandé, ou qu'elle quitte les colonnes vives. Évalué sur `onUpdate`, à côté du
+>   tailer, deux lectures indexées par alerte en cours — dont il n'y en a normalement aucune.
+> - **La note de masse de §6.3 tient, à moitié.** Quatre cartes orphelinées dans le même tick
+>   arrivent bien en UNE notification — même slot, un digest « 4 stalled ». Mais elles coûtent
+>   **quatre messages** pour y arriver, chacun avec `renotify` : les timers viennent à échéance dans
+>   le même tick et s'exécutent en callbacks séparés, file de microtâches vidée entre chaque, donc
+>   chaque `fire()` rend avant que le suivant ne soit appelé. Un garde « rendu identique au
+>   précédent » a été essayé et **ne sert à rien** ici — les quatre digests diffèrent, ils grossissent.
+>   Collapser réellement demande de différer le rendu au-delà du lot de timers (un macrotask), ce qui
+>   change le moment où *tout* appelant voit un rendu ; à ne faire qu'une fois le double buzz
+>   effectivement constaté sur l'appareil. Le plafond est écrit à `emit()`.
+> - **`notify-subtitle.ts` ne s'applique pas** à une alerte sans pane : ni transcript à lire, ni diff
+>   à mesurer, ni notification à ré-écrire — et son propre récit est déjà dans le `subtitle`.
+>
+> **Ce qui reste à vérifier sur l'appareil**, et que le diff ne peut pas prouver : l'aller-retour d'un
+> herdr redémarré — l'alerte de pane se rétracte à l'instant où le pane disparaît (`notifications.ts`)
+> et l'alerte `Stalled` arrive 30 s plus tard, ce qui devrait faire un silence puis un buzz, pas deux.
 
 ---
 

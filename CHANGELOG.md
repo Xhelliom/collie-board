@@ -7,6 +7,26 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.131.0] - 2026-08-28
+
+### Added
+
+- Une carte orpheline notifie le téléphone : son pane a disparu du snapshot, aucun pane ne pouvait le dire, et l'alerte se rétracte dès que la carte quitte `orphaned` (17e978d)
+- Un handoff échoué ou expiré notifie aussi — le seul échec du board que rien ne signalait : il tourne sur le poll, donc sans réponse HTTP où échouer (17e978d)
+- Un marqueur `Stalled` et sa ligne de digest, en deuxième position derrière `Needs you` ; un seul interrupteur « Board alerts » pour toute la famille, activé par défaut (17e978d)
+
+### Changed
+
+- Le coordinateur de notifications ne présume plus qu'une alerte est un pane : clé opaque, `arm`/`retract` publics, `paneId` optionnel et lu sur l'alerte au lieu de la clé (17e978d)
+- Le vocabulaire du digest est tranché par écrit avant l'implémentation (NOTIFY_AUDIT.md §6.4) : un état neuf pour les deux faits, pas un par événement, pas de rangement sous « question » (17e978d)
+- Un herdr redémarré orpheline tout le board en un tick : une seule notification sur l'appareil, « 4 stalled », mais un message par carte pour y arriver — plafond connu, noté à `emit()` (17e978d)
+
+### Fixed
+
+- N'importe quelle préférence de notification est de nouveau écrivable : la liste blanche de `/api/notifications/prefs` en portait sa propre copie, donc une bascule ajoutée ailleurs postait dans le vide et revenait à sa position (17e978d)
+- La mise à jour silencieuse du copilot ne renvoie plus le tap sur le terminal fini : elle re-tamponne le `cardId` que le premier push portait (17e978d)
+- Le copilot ne dépense plus un tour d'agent pour une alerte déjà noyée dans un digest : la vérification se fait avant la demande, plus seulement après la réponse (17e978d)
+
 ## [0.130.0] - 2026-08-28
 
 ### Added

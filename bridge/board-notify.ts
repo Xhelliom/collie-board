@@ -16,13 +16,20 @@
 // resumes from now and never replays the past into the bell. Same posture as `NotifyLog` itself and
 // as `CopilotCoordinator.busyCards`: runtime state is never persisted (CLAUDE.md §The board).
 //
-// AND IT ONLY WRITES TO THE BELL. `NotifyLog.add()` is called directly, which means no push, no
-// debounce, no coalescing and no retraction predicate to define — a history does not retract, and
-// notifications.ts is not touched (§6.4, §6.6 step 1). Waking a phone for any of this is the NEXT
-// increment, and it is the one that has to pay for the coordinator's pane-shaped assumptions.
+// IT WRITES TO TWO PLACES, AND THE DIFFERENCE IS THE RETRACTION. {@link tell} is the bell: a story,
+// told once, never taken back — `NotifyLog.add()` in the clear, no push, no debounce (§6.6 step 1).
+// {@link alarm} is the PHONE: two facts that go through the herd's own coordinator, and each one is
+// here only because it can say WHEN IT STOPS BEING TRUE (§6.1). A fact with no retraction predicate
+// would sit in the herd's slot for ever and the digest would keep announcing a three-day-old state
+// as if it were now — so it goes to the bell or nowhere.
+//
+// AND THERE IS NO SECOND CHANNEL. Same `collie:herd` slot, same digest, same snooze, same settings
+// screen as an agent going blocked. What the coordinator had to give up for that is the assumption
+// that an alert is a pane: it keys on an opaque string, and this module keys `card:<id>` (§6.4).
 
 import type { BoardEvent } from "./db.ts";
 import type { NotifyLog, NotifyLogEntry } from "./notify-log.ts";
+import type { Alert } from "./notifications.ts";
 
 /** A push body has room for one short line, not a stack trace. Same cap as notify-subtitle.ts's. */
 const oneLine = (s: string): string => {
@@ -69,43 +76,153 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
   return null;
 }
 
+/**
+ * What a journal entry is worth WAKING A PHONE for, or null — which is all but two of the
+ * thirty-odd types. The bar is higher than {@link tell}'s by exactly one condition: §6.1 lets a
+ * board fact into the herd's slot only if there is a readable predicate for when it stops being
+ * true, and {@link fingerprint} below is that predicate for both of these.
+ *
+ * Exported for the test, like `tell` — together they are the whole editorial judgement here.
+ */
+export function alarm(e: BoardEvent): string | null {
+  // B1 — the card's pane is gone from the snapshot. No pane transition can report this: the pane is
+  // what disappeared. `reconcile()` writes it (cards.ts), and a restarted herdr writes it for the
+  // whole board in one tick — which the herd's coalescing slot absorbs into one notification.
+  if (e.type === "card.status" && str(e.payload, "to") === "orphaned") {
+    return "its agent's pane is gone — relaunch from the last handoff";
+  }
+  // B5 — the handoff never landed, so the card keeps a session whose agent is out of context and
+  // has no successor. THE ONE FAILURE OF THE BOARD NOTHING ELSE REPORTS TODAY: the handoff runs off
+  // the poll (handoff.ts), so its failure has no HTTP response to surface in and no pane to signal.
+  if (e.type === "handoff.expired") return "handoff never landed — the agent wrote no note";
+  if (e.type === "handoff.failed") {
+    const error = str(e.payload, "error");
+    return oneLine(error ? `handoff failed: ${error}` : "handoff failed");
+  }
+  return null;
+}
+
 /** The corner of `BoardDb` this needs — enough to keep the test from standing up a database. */
 export interface BoardNotifySource {
   lastEventId(): number;
   eventsAfter(after: number): BoardEvent[];
   getCard(id: string): { id: string; title: string; status: string; repoPath: string | null } | null;
+  /** The card's live session, for {@link fingerprint} — two indexed reads per armed alert per tick,
+   *  of which there are normally none. */
+  openSessionFor(id: string): { id: string; handoffRequestedAt: number | null } | null;
+}
+
+/** The corner of `NotificationCoordinator` this drives: an opaque key, and its two verbs. */
+export interface BoardAlertSink {
+  arm(key: string, alert: Alert): void;
+  retract(key: string): void;
+}
+
+/** The coordinator's key for a card. A herdr pane id never looks like this, which is the whole
+ *  reason a prefix is enough to share one map with pane alerts (§6.4). */
+const keyFor = (cardId: string): string => `card:${cardId}`;
+
+/**
+ * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of both
+ * facts above. Deliberately ONE predicate rather than one per fact: §6.1 asks each fact to say when
+ * it stops being true, and both answer the same way. **The alert holds while the card still reads
+ * exactly as the fact left it** — same column, same session, same handoff state.
+ *
+ *   • B1 retracts when the card leaves `orphaned`: relaunched, archived, or moved by hand.
+ *   • B5 retracts when the card gets a new session (the handoff landed after all, or the operator
+ *     restarted it), when a fresh handoff is requested, or when the card leaves the live columns.
+ *
+ * Null once the card is gone, which retracts too — there is no longer anything to open.
+ */
+function fingerprint(db: BoardNotifySource, cardId: string): string | null {
+  const card = db.getCard(cardId);
+  if (!card) return null;
+  const session = db.openSessionFor(cardId);
+  return `${card.status}|${session?.id ?? ""}|${session?.handoffRequestedAt ?? ""}`;
 }
 
 export class BoardNotifier {
   private cursor: number;
+  /** cardId → the fingerprint its alert was armed against. The alert lives exactly as long as the
+   *  card keeps reading that way; {@link sweep} is where that is decided, every tick.
+   *
+   *  ponytail: written even when the coordinator refused the alert (the `board` preference is off),
+   *  because `arm` does not report back — so a disabled preference still costs this two indexed
+   *  reads per tick per card until that card moves. Bounded and self-clearing; give `arm` a return
+   *  value if a board ever sits on dozens of stalled cards with the preference off. */
+  private readonly armed = new Map<string, string>();
 
   constructor(
     private readonly db: BoardNotifySource,
     private readonly log: NotifyLog,
+    /** The herd's coordinator. Omitted (in a test, or if the push half is ever backed out) leaves
+     *  this a bell-only tailer, exactly as it shipped in 0.129.0. */
+    private readonly alerts?: BoardAlertSink,
   ) {
     this.cursor = db.lastEventId();
   }
 
-  /** One range scan. Hung off `engine.onUpdate`; no snapshot is read, so a `disconnected` one is
-   *  not a case here — `onUpdate` only ever fires after a successful poll anyway. */
+  /** One range scan plus one fingerprint per armed alert. Hung off `engine.onUpdate`; no snapshot is
+   *  read, so a `disconnected` one is not a case here — `onUpdate` only ever fires after a
+   *  successful poll anyway. */
   update(): void {
     for (const e of this.db.eventsAfter(this.cursor)) {
       // Advanced per row and BEFORE the work, so a fact this can't render is still consumed.
       this.cursor = e.id;
       const said = tell(e);
-      if (!said || !e.cardId) continue;
-      // The card as it reads NOW, not as the event left it: the bell composes its sentence from the
-      // same `cardTitle`/`cardStatus` a pane alert carries (notify-content.ts), and a card deleted
-      // since simply has no story left to tell.
+      const alarmed = this.alerts ? alarm(e) : null;
+      // The card is read only for a fact worth something — the other thirty types cost no query.
+      if ((!said && !alarmed) || !e.cardId) continue;
+      // The card as it reads NOW, not as the event left it: both surfaces compose their sentence
+      // from the same `cardTitle`/`cardStatus` a pane alert carries (notify-content.ts), and a card
+      // deleted since simply has no story left to tell.
       const card = this.db.getCard(e.cardId);
       if (!card) continue;
-      this.log.add({
-        ...said,
-        cwd: card.repoPath ?? "",
-        cardId: card.id,
-        cardTitle: card.title,
-        cardStatus: card.status,
-      });
+      if (said) {
+        this.log.add({
+          ...said,
+          cwd: card.repoPath ?? "",
+          cardId: card.id,
+          cardTitle: card.title,
+          cardStatus: card.status,
+        });
+      }
+      // The bell entry for an alarm is not written here: it comes from the coordinator's `onFire`
+      // hook 30 seconds later (index.ts), so a fact that retracted inside the debounce — you
+      // relaunched the card at your desk — leaves no trace on either surface.
+      if (alarmed) this.raise(card.id, card.title, card.repoPath, card.status, alarmed);
+    }
+    this.sweep();
+  }
+
+  private raise(
+    cardId: string,
+    title: string,
+    repoPath: string | null,
+    status: string,
+    subtitle: string,
+  ): void {
+    const mark = fingerprint(this.db, cardId);
+    if (mark === null) return;
+    this.armed.set(cardId, mark);
+    this.alerts?.arm(keyFor(cardId), {
+      // No `paneId`: this alert is about a card and there is no terminal behind it, which is what
+      // sends every surface's tap to the card (notify-content.ts's `notifyCardId`).
+      cwd: repoPath ?? "",
+      status: "stalled",
+      cardId,
+      cardTitle: title,
+      cardStatus: status,
+      subtitle,
+    });
+  }
+
+  /** Retract every alert whose card has moved on — see {@link fingerprint}. */
+  private sweep(): void {
+    for (const [cardId, mark] of [...this.armed]) {
+      if (fingerprint(this.db, cardId) === mark) continue;
+      this.armed.delete(cardId);
+      this.alerts?.retract(keyFor(cardId));
     }
   }
 }

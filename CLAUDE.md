@@ -137,6 +137,10 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   short — that list *is* the rebase cost.
 - **No new poll loop.** Anything periodic hangs off `engine.onUpdate`. If it's expensive, throttle it
   *inside* the consumer (see `ContextTracker`), don't add a timer.
+- **A board event that notifies must say how it retracts.** The board may raise its own alerts, in
+  the herd's slot and nowhere else — no second tag, no second channel, no per-event preference. But a
+  fact with no readable predicate for when it stops being true goes to the bell or nowhere: coalesced
+  into the slot it would announce a stale state for ever ([NOTIFY_AUDIT.md](./NOTIFY_AUDIT.md) §6.1).
 - **`card` durable, `session` ephemeral.** Never persist runtime state. If a fact can be read from
   the snapshot, read it from the snapshot.
 - **Provenance is derived, never declared.** A card an agent files on its own is marked `agent` from

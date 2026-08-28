@@ -252,6 +252,8 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     //     where it still read `working` at the transition — which is what lets the alert be about
     //     the card to read rather than the session that ended (NOTIFY_AUDIT.md §4.2). One DB read
     //     per FIRED alert, on the primary session only: elsewhere the pane backs no card at all.
+    //   • …neither of which a paneless BOARD alert has: both helpers gate on that themselves, so it
+    //     keeps the subtitle it was armed with (notify-subtitle.ts, board-notify.ts).
     async (alert) => ({
       subtitle: await firstSubtitle(subtitleSources(alert)),
       cardStatus: alert.cardId ? (board.getCard(alert.cardId)?.status ?? undefined) : undefined,
@@ -306,10 +308,12 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
     // lazily so a disabled copilot costs no git subprocesses at all.
     engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)));
-    // The board's own facts reach the bell here: a tailer over the card journal, cursored in memory
-    // from the newest id at startup. The sixth onUpdate of the list, one range scan on a primary key
-    // per tick, and it writes to NOTHING but the bell — no push, no coordinator (NOTIFY_AUDIT.md §6.6).
-    const boardNotifier = new BoardNotifier(board, notifyLog);
+    // The board's own facts reach the bell AND the phone here: a tailer over the card journal,
+    // cursored in memory from the newest id at startup. The sixth onUpdate of the list, one range
+    // scan on a primary key per tick. Two of the facts it tails go through the herd's own
+    // coordinator — same slot, same digest, same snooze — because each carries the predicate that
+    // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
+    const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
     engine.onUpdate(() => boardNotifier.update());
   }
 

@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Config } from "./config.ts";
+import type { NotifiableStatus } from "./notifications.ts";
 import type { AgentStatus } from "./types.ts";
 
 // Which agent lifecycle events are worth a push. A companion to Snooze (the do-not-disturb deadline):
@@ -26,6 +27,12 @@ export interface NotifyPrefs {
    *  enabled. Off is not "plain body again" — the free tier under it (the agent's own last line,
    *  read straight from the transcript) lands either way. The repo name is never touched. */
   copilotSubtitle: boolean;
+  /** Push when the BOARD reports a card whose work has stopped and which nothing will restart — its
+   *  pane vanished, or its handoff never landed (bridge/board-notify.ts). Default on: nobody asked
+   *  for either fact and no pane transition reports them, which is the same case `blocked` makes.
+   *  ONE boolean for the whole family, not one per event — otherwise this screen becomes the
+   *  recensement of NOTIFY_AUDIT.md §6.3. */
+  board: boolean;
 }
 
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
@@ -33,6 +40,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   done: false,
   updates: true,
   copilotSubtitle: false,
+  board: true,
 };
 
 /**
@@ -47,6 +55,7 @@ export function coerceNotifyPrefs(raw: unknown): NotifyPrefs {
     updates: typeof o.updates === "boolean" ? o.updates : DEFAULT_NOTIFY_PREFS.updates,
     copilotSubtitle:
       typeof o.copilotSubtitle === "boolean" ? o.copilotSubtitle : DEFAULT_NOTIFY_PREFS.copilotSubtitle,
+    board: typeof o.board === "boolean" ? o.board : DEFAULT_NOTIFY_PREFS.board,
   };
 }
 
@@ -75,18 +84,19 @@ export class NotifyPrefsStore {
    * Whether a transition into `status` should notify, per the current prefs. Any status that isn't a
    * notifiable kind (idle/working/unknown) is always false — mirrors the coordinator's old static set.
    */
-  isNotifiable(status: AgentStatus): boolean {
+  isNotifiable(status: AgentStatus | NotifiableStatus): boolean {
     if (status === "blocked") return this.prefs.blocked;
     if (status === "done") return this.prefs.done;
+    if (status === "stalled") return this.prefs.board;
     return false;
   }
 
-  /** Merge a partial patch (only booleans are applied), persist, and return the updated prefs. */
+  /** Merge a partial patch (only booleans are applied), persist, and return the updated prefs. The
+   *  keys are the DEFAULTS' keys, so adding a preference cannot leave this one behind. */
   async set(patch: Partial<NotifyPrefs>): Promise<NotifyPrefs> {
-    if (typeof patch.blocked === "boolean") this.prefs.blocked = patch.blocked;
-    if (typeof patch.done === "boolean") this.prefs.done = patch.done;
-    if (typeof patch.updates === "boolean") this.prefs.updates = patch.updates;
-    if (typeof patch.copilotSubtitle === "boolean") this.prefs.copilotSubtitle = patch.copilotSubtitle;
+    for (const key of Object.keys(DEFAULT_NOTIFY_PREFS) as (keyof NotifyPrefs)[]) {
+      if (typeof patch[key] === "boolean") this.prefs[key] = patch[key];
+    }
     await this.save();
     return this.current();
   }

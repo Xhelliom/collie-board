@@ -19,7 +19,9 @@ export interface NotifyLogEntry {
   agent?: string;
   workspaceLabel?: string;
   cwd: string;
-  status: "blocked" | "done";
+  /** `stalled` is the board's own (bridge/board-notify.ts): a card whose work stopped and which
+   *  nothing will restart. Same three words as the push, from the same `notifyMarker`. */
+  status: "blocked" | "done" | "stalled";
   /** The pane that pinged — the bell deep-links to it. ABSENT on a board entry, which is exactly
    *  what sends its tap to the card instead (notification-bell.tsx). */
   paneId?: string;

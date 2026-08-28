@@ -25,6 +25,15 @@ import type { NotifyLogEntry } from "@/lib/types";
  *  the copilot back-patched into the entry after the push had already gone out. */
 const content = (e: NotifyLogEntry) => notifyContent(e, e.subtitle ?? null);
 
+/** The state dot, one colour per notifiable state. `stalled` (the board's own — a card whose work
+ *  stopped) reuses the tint the board already gives an orphaned card, so the bell and the column
+ *  agree at a glance. */
+const DOT: Record<NotifyLogEntry["status"], string> = {
+  blocked: "bg-status-blocked",
+  stalled: "bg-status-unknown",
+  done: "bg-status-done",
+};
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   // The badge count rides the snapshot poll (bridge sends notifications.count — unread only) rather
@@ -141,22 +150,15 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                 // A "card to read" entry opens its card; anything else opens the pane. The entry
                 // carries its own session, so a ping from another herd lands in that herd rather
                 // than looking up a pane id in the one you happen to be viewing. A BOARD entry
-                // (bridge/board-notify.ts) has no pane at all — it is about its card, whatever that
-                // card's status now reads, so the absent paneId IS the routing decision.
-                const card = notifyCardId(e) ?? (e.paneId ? undefined : e.cardId);
+                // (bridge/board-notify.ts) has no pane at all, and `notifyCardId` reads that
+                // absence itself — one rule, shared with the push and the toast.
+                const card = notifyCardId(e);
                 if (card) navigate(cardPath(card));
                 else if (e.paneId) navigate(panePath(e.paneId, e.session));
               }}
               className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
             >
-              <span
-                className={
-                  e.status === "blocked"
-                    ? "mt-1.5 size-2 shrink-0 rounded-full bg-status-blocked"
-                    : "mt-1.5 size-2 shrink-0 rounded-full bg-status-done"
-                }
-                aria-hidden
-              />
+              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[e.status]}`} aria-hidden />
               <span className="min-w-0 flex-1">
                 {/* The same sentence the push sent, composed once (lib/notify-content.ts): the marker
                     and the SUBJECT here, then where/repo/what happened on the line below, which is

@@ -19,6 +19,7 @@ import {
   isPaneGone,
 } from "./server.ts";
 import type { Config } from "./config.ts";
+import { DEFAULT_NOTIFY_PREFS } from "./notify-prefs.ts";
 import type { PaneRead } from "./herdr-client.ts";
 
 // checkAccess is the API security gate (same-origin/CSRF + optional Tailscale identity). A
@@ -361,6 +362,14 @@ describe("parseNotifyPrefsPatch — /api/notifications/prefs body validation", (
 
   test("drops unknown keys silently", () => {
     expect(parseNotifyPrefsPatch({ blocked: true, bogus: true })).toEqual({ blocked: true });
+  });
+
+  test("every preference that exists is writable — the switch and the validator cannot drift", () => {
+    // This validator used to carry its own list of keys, and a preference added elsewhere was simply
+    // not in it: the switch posted, the patch came back empty, and the toggle snapped back on. The
+    // keys come from DEFAULT_NOTIFY_PREFS now, so the only way to fail this is to delete a default.
+    const all = Object.fromEntries(Object.keys(DEFAULT_NOTIFY_PREFS).map((k) => [k, false]));
+    expect(parseNotifyPrefsPatch(all)).toEqual(all);
   });
 
   test("rejects a non-boolean value for a known key", () => {
