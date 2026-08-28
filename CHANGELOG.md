@@ -11,8 +11,9 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 
 ### Added
 
-- Une carte du copilote dont tout le travail tient en une édition (`tiny`) propose « Finish it now » à côté de Start : son spec part à l'agent dont elle est issue et la carte est classée (a457e26)
+- Une suggestion de review dont tout le travail tient en une édition n'est plus classée en carte : elle reste sur la review, et l'écran de la carte relue propose « Finish it now » — son spec part à l'agent de cette carte, encore à son prompt dans la bonne worktree (a457e26, e41aaaf)
 - Le critère « trop petite pour une carte » est écrit une fois (`isTinyFollowUp`) : une édition dans un fichier nommé, rien à écrire de plus, rien à vérifier — et seules les catégories `docs` et `chore` peuvent y prétendre (a457e26)
+- Faute d'agent, la ligne affiche le spec en entier : rien n'ayant été classé, c'est le seul endroit où la note existe encore (e41aaaf)
 
 ## [0.127.1] - 2026-08-28
 
