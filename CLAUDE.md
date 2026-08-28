@@ -143,6 +143,9 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   into the slot it would announce a stale state for ever ([NOTIFY_AUDIT.md](./NOTIFY_AUDIT.md) §6.1).
 - **`card` durable, `session` ephemeral.** Never persist runtime state. If a fact can be read from
   the snapshot, read it from the snapshot.
+- **Provenance is derived, never declared.** A card an agent files on its own is marked `agent` from
+  the `x-collie-pane` header it sends; `origin`/`originCardId` stay out of the create allowlist, so
+  no body can claim them — [ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md).
 - **Ignore a `disconnected` snapshot.** Every consumer of `EngineSnapshot` must bail on it; a socket
   blip must never look like "the whole herd vanished".
 - **Never call `agent.start` or `agent.prompt` directly.** Use `launchAgent()` and

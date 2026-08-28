@@ -7,7 +7,7 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.130.0] - 2026-08-28
+## [0.131.0] - 2026-08-28
 
 ### Added
 
@@ -26,6 +26,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 - N'importe quelle préférence de notification est de nouveau écrivable : la liste blanche de `/api/notifications/prefs` en portait sa propre copie, donc une bascule ajoutée ailleurs postait dans le vide et revenait à sa position (17e978d)
 - La mise à jour silencieuse du copilot ne renvoie plus le tap sur le terminal fini : elle re-tamponne le `cardId` que le premier push portait (17e978d)
 - Le copilot ne dépense plus un tour d'agent pour une alerte déjà noyée dans un digest : la vérification se fait avant la demande, plus seulement après la réponse (17e978d)
+
+## [0.130.0] - 2026-08-28
+
+### Added
+
+- A card an agent files mid-turn is marked `agent` on the tile — from the `x-collie-pane` header it sends — and links back to the card its session is working in; that card's journal records `card.filed`. ADR 0010 (f6ad7ff)
+
+### Changed
+
+- Board filter → Source now keeps everything filed without anyone asking, the copilot's and an agent's alike; the query key follows its meaning: `?origin=copilot` → `?origin=auto` (f6ad7ff)
 
 ## [0.129.0] - 2026-08-28
 

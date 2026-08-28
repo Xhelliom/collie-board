@@ -117,15 +117,17 @@ export interface CardView {
   /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
   dependsOn: string | null;
   /**
-   * `"copilot"` for a card that appeared without anyone asking — the follow-ups a review files while
-   * you are elsewhere. `null` means a person wrote it, which is nearly every card. Immutable: the
-   * bridge sets it at creation and no PATCH can reach it.
+   * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
+   * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
+   * `null` means a person wrote it, which is nearly every card. Immutable: the bridge sets it at
+   * creation and no PATCH can reach it.
    */
-  origin: "copilot" | null;
+  origin: "copilot" | "agent" | null;
   /**
-   * The card this one came OUT of — the reviewed card a follow-up was filed against. Not
-   * {@link parentId}: that one makes the other card a container, this one only says where this came
-   * from. Immutable, and it may dangle (deleted source) — resolve it, don't assume it exists.
+   * The card this one came OUT of — the reviewed card a follow-up was filed against, or the card
+   * whose session filed an `"agent"` one. Not {@link parentId}: that one makes the other card a
+   * container, this one only says where this came from. Immutable, and it may dangle (deleted
+   * source) — resolve it, don't assume it exists.
    */
   originCardId: string | null;
   /**
@@ -385,7 +387,9 @@ export function matchesFilters(
   filters: { tag: string | null; autoOnly: boolean },
 ): boolean {
   if (filters.tag && card.tag !== filters.tag) return false;
-  return !filters.autoOnly || card.origin === "copilot";
+  // Any origin, not just the copilot's: the strip asks "what appeared without me?", and a filter
+  // that answered it for one of the two writers would be a gauge that is quietly wrong.
+  return !filters.autoOnly || card.origin !== null;
 }
 
 // ── repo scope ───────────────────────────────────────────────────────────────

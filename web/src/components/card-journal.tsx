@@ -214,6 +214,11 @@ export function describeEvent(event: BoardEvent): string {
       return p.after ? `Split off, after “${String(p.after)}”` : "Split off from a dictation";
     case "session.opened":
       return "Agent session opened";
+    // The other half of an `agent`-origin card's trace (ADR 0010): the new card points back here,
+    // and this points forward, at the moment it happened — which is the part a link can't say, and
+    // the only thing that tells you WHICH of a card's sessions filed it.
+    case "card.filed":
+      return `Filed a card from this session: “${String(p.title ?? "untitled")}”`;
     case "session.closed":
       return `Session ended (${String(p.outcome)})`;
     case "review.created":

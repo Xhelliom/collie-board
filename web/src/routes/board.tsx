@@ -98,11 +98,12 @@ export function BoardRoute() {
   const [params, setParams] = useSearchParams();
   const active = params.get("tag");
   const activeRepo = params.get("repo");
-  // Provenance, the third axis: `?origin=copilot` keeps only what the copilot filed on its own. A
-  // separate key rather than a value in `?tag=` because it IS separate — a card has one tag and it
-  // answers what kind of work this is (ADR 0005), so folding "who wrote it" into the same filter
-  // would make the two mutually exclusive for no reason.
-  const autoOnly = params.get("origin") === "copilot";
+  // Provenance, the third axis: `?origin=auto` keeps only what got filed without anyone asking —
+  // the copilot's follow-ups AND the cards a working session opened mid-turn (ADR 0010), which is
+  // one question and so one chip. A separate key rather than a value in `?tag=` because it IS
+  // separate — a card has one tag and it answers what kind of work this is (ADR 0005), so folding
+  // "who wrote it" into the same filter would make the two mutually exclusive for no reason.
+  const autoOnly = params.get("origin") === "auto";
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
   const setParam = (key: "tag" | "repo" | "origin", value: string | null) =>
@@ -116,7 +117,7 @@ export function BoardRoute() {
       { replace: true, preventScrollReset: true },
     );
   const pick = (tag: string | null) => setParam("tag", tag);
-  const pickAuto = (auto: boolean) => setParam("origin", auto ? "copilot" : null);
+  const pickAuto = (auto: boolean) => setParam("origin", auto ? "auto" : null);
   // The repo scope is also REMEMBERED (ADR 0006) — a tag is a momentary lens, a repo is where you
   // are working today, and the card page returns to a bare `/board` with no query on it.
   const pickRepo = (repo: string | null) => {
@@ -198,7 +199,7 @@ export function BoardRoute() {
   // alone rather than vanishing — `boardEntries` already handles a missing parent that way.
   // Offered only when there is something to offer, from the SCOPED list — same rule as the tags
   // above, so the strip never proposes a combination that comes back empty.
-  const hasAuto = scoped.some((c) => c.origin === "copilot");
+  const hasAuto = scoped.some((c) => c.origin !== null);
   const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly }));
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
