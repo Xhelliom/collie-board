@@ -27,6 +27,7 @@ import {
   TerminalSquare,
   Trash2,
   Unlink,
+  Zap,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ import {
   fetchCards,
   fetchIntegration,
   fetchPrStatus,
+  finishCardNow,
   handoffCard,
   integrateCard,
   MANUAL_STATUSES,
@@ -81,7 +83,14 @@ import {
   type Integration,
   type PrStatus,
 } from "@/lib/board";
-import { dependencyInfo, dependencyMet, integrationHistory, prLabel, prSentence } from "@/lib/board-groups";
+import {
+  dependencyInfo,
+  dependencyMet,
+  integrationHistory,
+  originAgentLive,
+  prLabel,
+  prSentence,
+} from "@/lib/board-groups";
 import { commandsFor } from "@/lib/agent-commands";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
@@ -117,6 +126,7 @@ export function CardRoute() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [starting, setStarting] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRework, setConfirmRework] = useState(false);
@@ -272,6 +282,24 @@ export function CardRoute() {
       setStatus((e as Error).message, "error", null);
     } finally {
       setStarting(false);
+      revalidator.revalidate();
+    }
+  }
+
+  // The other way out of a card, for the one the copilot judged too small to start (`card.tiny`).
+  // Real latency, like `start`: the request holds while the prompt is delivered and confirmed on
+  // somebody else's pane, so it keeps its own pending state rather than waiting for a poll.
+  async function finishNow() {
+    if (!card || finishing) return;
+    setFinishing(true);
+    setStatus("Handing it to the agent…", "info", null);
+    try {
+      await finishCardNow(card.id);
+      setStatus("Sent — the card is filed.", "success");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    } finally {
+      setFinishing(false);
       revalidator.revalidate();
     }
   }
@@ -506,13 +534,21 @@ export function CardRoute() {
                     />
                   </>
                 ) : (
-                  <StartButton
-                    card={card}
-                    pending={starting}
-                    onStart={start}
-                    predecessor={detail?.predecessor}
-                    childCount={detail?.children.length}
-                  />
+                  <>
+                    <FinishNowButton
+                      card={card}
+                      origin={detail?.originCard}
+                      pending={finishing}
+                      onFinish={finishNow}
+                    />
+                    <StartButton
+                      card={card}
+                      pending={starting}
+                      onStart={start}
+                      predecessor={detail?.predecessor}
+                      childCount={detail?.children.length}
+                    />
+                  </>
                 )}
 
                 {/* Action rail, not document — "what can I DO with this card" belongs beside its live
@@ -817,6 +853,50 @@ export function CardRoute() {
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
+    </div>
+  );
+}
+
+/**
+ * TOO SMALL FOR A CARD. The copilot's own judgement on a follow-up it filed (`CardView.tiny`,
+ * criterion in bridge/copilot.ts), and the one tap that acts on it: the work goes to the agent this
+ * card came out of — still at its prompt, in the right worktree, with the context open — and the
+ * card is filed in the same breath.
+ *
+ * ABOVE the Start button and never instead of it. This is an offer: a card you would rather start
+ * properly is still one tap away, directly below, unchanged.
+ *
+ * Renders nothing once there is nobody to hand it to — the agent has moved on, or the card has been
+ * started and now owns its own worktree. In both cases it is an ordinary card, and the Start button
+ * below already says everything there is to say about it.
+ */
+export function FinishNowButton({
+  card,
+  origin,
+  pending,
+  onFinish,
+}: {
+  card: CardView;
+  /** The card this one came out of, from the detail response. */
+  origin?: CardLink | null;
+  pending: boolean;
+  onFinish: () => void;
+}) {
+  if (!card.tiny || card.status === "done" || card.status === "archived") return null;
+  // Mirrors `finishNow`'s two refusals, said here rather than paid for as a round trip — same
+  // reasoning as StartButton's, and the same three facts the bridge checks.
+  if (card.sessionCount > 0 || card.branch) return null;
+  if (!originAgentLive(origin)) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-dashed px-3.5 py-3">
+      <p className="text-xs text-muted-foreground">
+        One edit, nothing to run — too small to be worth its own agent. The one on{" "}
+        <span className="text-foreground">“{origin!.title}”</span> can do it before it stops.
+      </p>
+      <Button variant="secondary" onClick={onFinish} disabled={pending} className="h-11 w-full gap-2">
+        <Zap className="size-4" />
+        {pending ? "Sending…" : "Finish it now"}
+      </Button>
     </div>
   );
 }

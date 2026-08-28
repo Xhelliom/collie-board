@@ -107,6 +107,12 @@ export interface SplitTask {
    */
   category?: string;
   /**
+   * The copilot's answer to "is this too small to deserve a card?", as PROPOSED — judged against
+   * {@link isTinyFollowUp} before it lands. Only ever asked for on a review's follow-ups, for the
+   * same reason `category` is: a split is a card you dictated, and nobody's own card is refused.
+   */
+  tiny?: boolean;
+  /**
    * Index of an EARLIER task in the same list that must finish first, or absent for "independent".
    *
    * Backward-only by construction, which is what makes a dependency cycle unrepresentable rather
@@ -208,6 +214,9 @@ export function toSplit(v: unknown): SplitTask[] | undefined {
     if (tag) task.tag = tag;
     const category = str(o, "category");
     if (category) task.category = category;
+    // Only a real `true` counts. A model that answers "yes", 1, or nothing at all is telling us it
+    // did not make the judgement, and the harmless direction is an ordinary backlog card.
+    if (o.tiny === true) task.tiny = true;
     const acceptance = strList(o, "acceptance");
     if (acceptance) task.acceptance = acceptance;
     const dep = o.depends_on ?? o.dependsOn;
@@ -405,6 +414,43 @@ export function pickTag(proposed: string | undefined, inventory: string[]): stri
 export function pickCategory(proposed: string | undefined): CardCategory {
   const key = proposed?.trim().toLowerCase();
   return CARD_CATEGORIES.find((c) => c === key) ?? "chore";
+}
+
+/**
+ * The categories a follow-up may be judged too small in. The code half of {@link isTinyFollowUp},
+ * and the only part of the criterion this side can actually check.
+ *
+ * `docs` and `chore` and nothing else, because the criterion's third clause — nothing to verify
+ * beyond the edit landing — is false by construction for the other three: a `bug` and a `feature`
+ * change behaviour someone has to see work, and a `test` IS the verifying. A one-line fix that the
+ * model called a bug therefore stays an ordinary card, which is the harmless direction: a missed
+ * small card costs the tap it always cost, and a wrongly small one hands unreviewed work to an
+ * agent already on its way out (the fork's rule — a gauge that might be wrong is worse than none).
+ */
+const TINY_CATEGORIES: readonly CardCategory[] = ["docs", "chore"];
+
+/**
+ * TOO SMALL FOR A CARD. The criterion, in one place, applied to one follow-up. Pure + exported.
+ *
+ * A follow-up is too small for a card when ALL THREE hold:
+ *
+ *  1. it is ONE edit to ONE file, and the review can already name the file;
+ *  2. the review already knows what to write — the whole job is in the sentence, not behind it;
+ *  3. nothing is verified beyond the edit landing: no code path changes, nothing to run, nothing
+ *     to test, no manual pass.
+ *
+ * The canonical case is "note that step 1 landed in NOTIFY_AUDIT.md": one line, into a tracking
+ * file the review just named, and the check is that the line is there. Writing an ADR fails (2) —
+ * the job is the thinking. "Add a test for the parser" fails (3) — the test has to pass. "Fix the
+ * off-by-one in `pageAt`" fails (3) too, and (1) if it needs its test updated.
+ *
+ * Clauses 1 and 2 are the reviewer's to judge — it has the diff and the handoff note open, and
+ * nothing on this side can second-guess "one edit" from a title. So the model answers them, and the
+ * code holds the floor it can hold: {@link TINY_CATEGORIES}, which is clause 3 restated as the
+ * question "could this ever be done without checking anything?".
+ */
+export function isTinyFollowUp(task: SplitTask, category: CardCategory): boolean {
+  return task.tiny === true && TINY_CATEGORIES.includes(category);
 }
 
 /** Coerce a parsed answer into a {@link ReviewResult}. Pure. */
@@ -688,6 +734,29 @@ function categoryRule(): string[] {
 }
 
 /**
+ * The "too small for a card" rule, shown to the same prompt {@link categoryRule} is. Pure.
+ *
+ * The SAME criterion as {@link isTinyFollowUp}, said to the one reader that can judge its first two
+ * clauses — the code half only holds the floor. Kept beside the category rule and not folded into
+ * it: the category says why the card exists, this says whether it should exist as a card at all.
+ */
+function tinyRule(): string[] {
+  return [
+    "",
+    "TOO SMALL FOR A CARD. Answer `tiny` for each todo. It is true only when ALL THREE hold:",
+    "- it is ONE edit to ONE file, and you can name the file right now;",
+    "- you already know what to write — the whole job is in your sentence, not behind it;",
+    "- nothing is verified beyond the edit landing: no code path changes, nothing to run, nothing",
+    "  to test, no manual pass.",
+    "“Note in NOTIFY_AUDIT.md that step 1 landed” is true: one line, into a file you just named,",
+    "and the check is that the line is there. Writing an ADR is false — the job is the thinking. Adding",
+    "a test is false — the test has to pass. A one-line fix is false — someone has to see it work.",
+    "When in doubt, false: it costs one tap, and a wrong `true` hands the work to an agent on its",
+    "way out.",
+  ];
+}
+
+/**
  * The post-`done` review prompt. Takes `git diff --stat` and the handoff note, NEVER the full diff:
  * the stat is enough to judge drift from the acceptance criteria, and the full diff would burn the
  * quota this feature is supposed to be careful with. Pure + exported.
@@ -720,13 +789,14 @@ export function reviewPrompt(input: {
     "hand: a spec grounded in what you just reviewed, not a bare title. Empty list if there are none.",
     ...tagRule(input.tags ?? []),
     ...categoryRule(),
+    ...tinyRule(),
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "verdict": "complete | partial | drift",',
     '  "notes": "one short paragraph: what looks done, what looks missing or off-spec",',
     '  "todos": [',
-    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore" }',
+    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore", "tiny": true or false }',
     "  ]",
     "}",
   );
@@ -1385,6 +1455,10 @@ export class CopilotCoordinator {
         // field exists to abolish. Already snapped above: the same value the filter just judged, so
         // a card can never be admitted as one category and filed as another.
         category,
+        // …and whether it should have been a card at all. STILL A CARD either way — the flag adds
+        // the "finish it now" route, it does not take the ordinary one away, and a follow-up nobody
+        // hands off is a follow-up you start like any other.
+        tiny: isTinyFollowUp(todo, category),
       });
       return { title: todo.title, cardId: created.id };
     });

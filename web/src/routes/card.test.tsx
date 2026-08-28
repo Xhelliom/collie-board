@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
 import {
   DangerZone,
+  FinishNowButton,
   IntegrationSection,
   noteLabel,
   PromptBox,
@@ -46,6 +47,7 @@ function card(status: CardStatus): CardView {
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
+    tiny: false,
   };
 }
 
@@ -413,6 +415,62 @@ describe("IntegrationSection — the PR outlives the branch", () => {
     server.use(http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })));
     render(<IntegrationSection card={card("done")} events={[]} onDone={vi.fn()} onState={vi.fn()} />);
     expect(await screen.findByText(/no branch to integrate/i)).toBeTruthy();
+    cleanup();
+  });
+});
+
+// The card the copilot judged too small to be a card gets a second way out, next to the ordinary
+// one — never instead of it. The criterion itself lives in bridge/copilot.ts; this is only the tap.
+describe("FinishNowButton", () => {
+  const origin = { id: "o1", title: "the bell", status: "review" as CardStatus };
+  const tiny = (over: Partial<CardView> = {}): CardView => ({
+    ...card("backlog"),
+    title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+    origin: "copilot",
+    originCardId: origin.id,
+    category: "docs",
+    tiny: true,
+    ...over,
+  });
+
+  it("offers the tap, naming the agent that would do it", async () => {
+    const onFinish = vi.fn();
+    render(<FinishNowButton card={tiny()} origin={origin} pending={false} onFinish={onFinish} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /finish it now/i }));
+    expect(onFinish).toHaveBeenCalledOnce();
+    expect(screen.getByText(/the bell/)).toBeTruthy();
+    cleanup();
+  });
+
+  it("says nothing on an ordinary card — which is nearly every card", () => {
+    render(<FinishNowButton card={tiny({ tiny: false })} origin={origin} pending={false} onFinish={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+    cleanup();
+  });
+
+  it("lapses with the agent it depended on, rather than offering a tap that answers 409", () => {
+    for (const status of ["done", "archived", "orphaned", "backlog"] as CardStatus[]) {
+      render(
+        <FinishNowButton card={tiny()} origin={{ ...origin, status }} pending={false} onFinish={vi.fn()} />,
+      );
+      expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+      cleanup();
+    }
+    // …and with no origin at all (a follow-up whose source card was deleted).
+    render(<FinishNowButton card={tiny()} origin={null} pending={false} onFinish={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+    cleanup();
+  });
+
+  it("stands down once the card owns a worktree — its own agent is the one to prompt then", () => {
+    render(
+      <FinishNowButton card={tiny({ branch: "board/note" })} origin={origin} pending={false} onFinish={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+    cleanup();
+    render(<FinishNowButton card={tiny({ sessionCount: 1 })} origin={origin} pending={false} onFinish={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
     cleanup();
   });
 });

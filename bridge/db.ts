@@ -186,6 +186,17 @@ export interface Card {
    * at afterwards.
    */
   keepWorktree: boolean;
+  /**
+   * TOO SMALL FOR A CARD — a follow-up whose whole job is one edit, which the operator can hand
+   * straight to the agent that produced it instead of starting it like an ordinary card.
+   *
+   * The criterion itself is written once, in `isTinyFollowUp()` (copilot.ts), and this column is
+   * only ever what that function decided at creation. Never patched, like `origin` and `category`:
+   * how big the job is does not change, and a card that turns out bigger is simply started.
+   *
+   * False for every card a person wrote — nobody's own card is judged too small to exist.
+   */
+  tiny: boolean;
 }
 
 export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost";
@@ -273,6 +284,7 @@ interface CardRow {
   created_at: number;
   updated_at: number;
   keep_worktree: number;
+  tiny: number;
 }
 
 interface SessionRow {
@@ -380,6 +392,9 @@ function toCard(r: CardRow): Card {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     keepWorktree: r.keep_worktree === 1,
+    // Reads false for every card written before this column existed, which is exactly right: none
+    // of them was ever judged, and "not too small" is the state that changes nothing.
+    tiny: r.tiny === 1,
   };
 }
 
@@ -443,7 +458,10 @@ CREATE TABLE IF NOT EXISTS card (
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
-  keep_worktree INTEGER NOT NULL DEFAULT 0
+  keep_worktree INTEGER NOT NULL DEFAULT 0,
+  -- The copilot judged this follow-up too small to deserve a card — see Card.tiny. 0 for every
+  -- card a person wrote.
+  tiny         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -558,6 +576,11 @@ export interface NewCard {
   originCardId?: string | null;
   /** Only meaningful alongside {@link NewCard.origin} — see {@link Card.category}. */
   category?: CardCategory;
+  /**
+   * Only ever true alongside {@link NewCard.origin} — see {@link Card.tiny}. Set at creation and
+   * absent from {@link CardPatch}, same rule as `origin` and `category`.
+   */
+  tiny?: boolean;
   tag?: string | null;
   /**
    * Explicit board position. Omit for the default — new cards land at the TOP of their column,
@@ -737,6 +760,10 @@ export class BoardDb {
       // the board were written before the copilot was asked to say, and guessing from a title is
       // exactly the unreliable classification this field exists to replace.
       { table: "card", column: "category", ddl: "TEXT" },
+      // 0.128: the follow-up that is one edit and shouldn't have been a card. No backfill: the
+      // cards already on the board were filed before the copilot was asked the question, and
+      // guessing "small" from a title is exactly the judgement this column refuses to improvise.
+      { table: "card", column: "tiny", ddl: "INTEGER NOT NULL DEFAULT 0" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -760,8 +787,8 @@ export class BoardDb {
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
                            branch, workspace_id, agent_kind, parent_id, depends_on, origin,
-                           origin_card_id, category, tag, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           origin_card_id, category, tag, tiny, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -780,6 +807,7 @@ export class BoardDb {
         input.originCardId ?? null,
         input.category ?? null,
         normalizeTag(input.tag),
+        input.tiny ? 1 : 0,
         input.position ?? (minPos ?? 0) - 1,
         ts,
         ts,

@@ -11,6 +11,8 @@ import {
   branchFromTitle,
   cardViews,
   deriveParentStatus,
+  finishNow,
+  finishNowPrompt,
   initialPrompt,
   reconcile,
   reconcileOne,
@@ -34,6 +36,7 @@ import {
   CopilotCoordinator,
   explainPrompt,
   toExplanation,
+  isTinyFollowUp,
   parseJsonish,
   pickCategory,
   pickTag,
@@ -241,6 +244,7 @@ describe("reconcileOne", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
+    tiny: false,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -580,6 +584,7 @@ describe("initialPrompt", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
+    tiny: false,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1100,6 +1105,7 @@ describe("handoff prompts", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
+    tiny: false,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
@@ -3167,9 +3173,10 @@ describe("patchCard — the edit journal", () => {
  * The board context a route test needs: auth already granted, herdr never reached. Shared because
  * two suites had grown byte-identical copies of it.
  */
-function routeCtx(store: BoardDb) {
+function routeCtx(store: BoardDb, herdr?: unknown) {
   return {
     db: store,
+    herdr,
     engine: { current: () => snapshot([]) },
     // Every card view asks the copilot what it is working on, so a route test needs one even when
     // the copilot is beside the point.
@@ -3447,5 +3454,222 @@ describe("startCard — an agent is already in the worktree", () => {
     await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
 
     expect(calls).toContain("startAgent");
+  });
+});
+
+describe("too small for a card — the criterion", () => {
+  // The case that started this: a follow-up out of the review of "the bell receives the board's
+  // events", asking for one line in a tracking file. One edit, one named file, and the only check is
+  // that the line is there — it should never have had to wait its turn in a column.
+  const theCase = {
+    title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+    spec: "Add a line to NOTIFY_AUDIT.md recording that step 1 is done.",
+    tiny: true,
+  };
+
+  it("recognises the case it was written for", () => {
+    expect(isTinyFollowUp(theCase, "docs")).toBe(true);
+  });
+
+  it("holds the floor the model cannot be trusted with — nothing verifiable is ever tiny", () => {
+    // Clause 3 restated: a bug and a feature change behaviour someone has to see work, and a test
+    // IS the verifying. The model saying `tiny` on one of those is the model answering a different
+    // question, so the card stays an ordinary card.
+    for (const category of ["bug", "feature", "test"] as const) {
+      expect(isTinyFollowUp({ ...theCase, title: "fix the off-by-one" }, category)).toBe(false);
+    }
+    expect(isTinyFollowUp({ title: "drop the dead import", tiny: true }, "chore")).toBe(true);
+  });
+
+  it("needs a real `true` — an unanswered question is an ordinary card", () => {
+    expect(isTinyFollowUp({ title: theCase.title }, "docs")).toBe(false);
+    expect(isTinyFollowUp({ ...theCase, tiny: undefined }, "docs")).toBe(false);
+    // …and a model that answers in the wrong shape has not made the judgement either.
+    expect(toSplit([{ title: "x", tiny: "yes" }])).toEqual([{ title: "x" }]);
+    expect(toSplit([{ title: "x", tiny: true }])).toEqual([{ title: "x", tiny: true }]);
+  });
+
+  it("puts the same criterion in front of the model that writes the answer", () => {
+    const p = reviewPrompt({
+      title: "the bell receives the board's events",
+      spec: null,
+      acceptance: [],
+      statSummary: "1 file changed",
+      handoffMd: null,
+      outPath: "/tmp/out.json",
+    });
+    expect(p).toMatch(/TOO SMALL FOR A CARD/);
+    expect(p).toContain("ONE edit to ONE file");
+    expect(p).toContain("NOTIFY_AUDIT.md");
+    expect(p).toContain('"tiny": true or false');
+  });
+});
+
+describe("the copilot stamps what is too small to start", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  const settle = () => new Promise((r) => setTimeout(r, 10));
+
+  /** A reviewed card whose review answers with exactly these todos. */
+  async function reviewWith(todos: unknown[]) {
+    const store = db();
+    store.setAutoFollowUps(true);
+    const reviewed = store.createCard({ title: "the bell", status: "done", repoPath: "/repo" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "here is what I did" });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return { verdict: "partial", notes: "ok", todos };
+      },
+    } as unknown as Copilot;
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+    return { store, reviewed };
+  }
+
+  it("files the small one as small, and the rest exactly as before", async () => {
+    const { store } = await reviewWith([
+      { title: "Note in NOTIFY_AUDIT.md that step 1 landed", category: "docs", tiny: true },
+      { title: "cover the parser with a test", category: "test", tiny: true },
+      { title: "the bell fires twice on reconnect", category: "bug" },
+    ]);
+    const byTitle = (t: string) => store.listCards().find((c) => c.title === t)!;
+
+    expect(byTitle("Note in NOTIFY_AUDIT.md that step 1 landed").tiny).toBe(true);
+    // A `test` the model called tiny is not one — and it lands in the backlog like any other.
+    expect(byTitle("cover the parser with a test").tiny).toBe(false);
+    expect(byTitle("the bell fires twice on reconnect").tiny).toBe(false);
+    // STILL A CARD, in the backlog, in the same column as the other two. The flag adds a route out;
+    // it does not take the ordinary one away.
+    for (const c of store.listCards().filter((c) => c.origin === "copilot")) {
+      expect(c.status).toBe("backlog");
+    }
+  });
+
+  it("leaves a card a person wrote alone — nobody's own card is judged too small to exist", () => {
+    const store = db();
+    expect(store.createCard({ title: "Note in NOTIFY_AUDIT.md that step 1 landed" }).tiny).toBe(false);
+  });
+});
+
+describe("finishNow — the card too small to start, handed to the agent it came out of", () => {
+  /** A reviewed card with a LIVE agent, and one small follow-up filed against it. */
+  function pair(opts: { tiny?: boolean; originLive?: boolean } = {}) {
+    const store = db();
+    const origin = store.createCard({ title: "the bell", status: "review", repoPath: "/repo" });
+    const session = store.openSession({ cardId: origin.id, paneId: "w1:p1" });
+    if (opts.originLive === false) store.closeSession(session.id, "done");
+    const card = store.createCard({
+      title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+      spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+      acceptance: ["the line is in NOTIFY_AUDIT.md"],
+      status: "backlog",
+      origin: "copilot",
+      originCardId: origin.id,
+      category: "docs",
+      tiny: opts.tiny ?? true,
+    });
+    return { store, origin, card };
+  }
+
+  it("prompts the ORIGIN card's pane and files the card, without starting anything", async () => {
+    const { store, origin, card } = pair();
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, async () => {});
+
+    expect(res.ok).toBe(true);
+    // No worktree, no agent launch — the whole point. Just the prompt, on somebody else's pane.
+    expect(calls).not.toContain("createWorktree");
+    expect(calls).not.toContain("startAgent");
+    expect(calls).toContain("promptAgent");
+    expect(store.getCard(card.id)!.status).toBe("done");
+    expect(store.getCard(card.id)!.branch).toBeNull();
+    // The origin is untouched as a card, and its journal says what its pane was just handed.
+    expect(store.getCard(origin.id)!.status).toBe("review");
+    expect(store.listEvents(origin.id).some((e) => (e.payload as { finishNow?: string }).finishNow === card.id)).toBe(
+      true,
+    );
+    expect(store.listEvents(card.id).some((e) => e.type === "card.finished_now")).toBe(true);
+  });
+
+  it("says what the agent is being asked, and that it is already on the branch", () => {
+    const { card } = pair();
+    const text = finishNowPrompt(card);
+    expect(text).toContain("branch you are already in");
+    expect(text).toContain("Add one line to NOTIFY_AUDIT.md saying step 1 is done.");
+    expect(text).toContain("- the line is in NOTIFY_AUDIT.md");
+  });
+
+  it("refuses an ordinary card, and points at the route that does work", async () => {
+    const { store, card } = pair({ tiny: false });
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, async () => {});
+
+    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error.kind).toBe("not-tiny");
+    expect(res.ok === false && res.error.message).toMatch(/start it/);
+    expect(calls).toHaveLength(0);
+    expect(store.getCard(card.id)!.status).toBe("backlog");
+  });
+
+  it("refuses once the card owns a worktree — that work belongs in ITS checkout, not somebody else's", async () => {
+    const { store, card } = pair();
+    store.patchCard(card.id, { branch: "board/note-the-step" });
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, async () => {});
+
+    expect(res.ok === false && res.error.kind).toBe("started");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("degrades to an ordinary card once that agent is gone", async () => {
+    const { store, card } = pair({ originLive: false });
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, async () => {});
+
+    expect(res.ok === false && res.error.kind).toBe("no-session");
+    expect(res.ok === false && res.error.message).toMatch(/start this card instead/);
+    expect(calls).toHaveLength(0);
+    // Still there, still startable — the offer lapsed, the card did not.
+    expect(store.getCard(card.id)!.status).toBe("backlog");
+  });
+
+  it("leaves the card alone when the prompt fails — nothing is filed that was never sent", async () => {
+    const { store, card } = pair();
+    const { client } = fakeHerdr(new Set(["promptAgent"]));
+
+    const res = await finishNow(store, client as never, card.id, async () => {});
+
+    expect(res.ok === false && res.error.kind).toBe("herdr");
+    expect(store.getCard(card.id)!.status).toBe("backlog");
+  });
+});
+
+describe("POST /api/cards/<id>/finish-now", () => {
+  it("is wired, and refuses an ordinary card with the sentence that names the way out", async () => {
+    const store = db();
+    const card = store.createCard({ title: "an ordinary card" });
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/finish-now`,
+      actionPost(card.id, "finish-now"),
+      routeCtx(store),
+    );
+    expect(res!.status).toBe(409);
+    expect(await res!.json()).toMatchObject({ kind: "not-tiny" });
+  });
+
+  it("404s an unknown card rather than reasoning about a card that isn't there", async () => {
+    const res = await handleBoardRoute(
+      "/api/cards/nope/finish-now",
+      actionPost("nope", "finish-now"),
+      routeCtx(db()),
+    );
+    expect(res!.status).toBe(404);
   });
 });

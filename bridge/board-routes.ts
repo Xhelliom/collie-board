@@ -16,6 +16,7 @@ import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./ba
 import {
   cardView,
   cardViews,
+  finishNow,
   isAgentGone,
   promptAndConfirm,
   releaseSession,
@@ -52,7 +53,7 @@ const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -577,6 +578,30 @@ async function route(
     if (!result.ok) {
       // 409 for "the board says no" (busy / already running / no repo) vs 502 for a herdr failure —
       // the phone shows the message either way, but the status tells a script which is retryable.
+      const status = result.error.kind === "herdr" ? 502 : 409;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, card: view(id) });
+  }
+
+  // ── finish-now: the card too small to start, handed to the agent it came out of ──
+  //
+  // The alternative to `start` above, and only ever for a card the copilot judged `tiny` (criterion
+  // in copilot.ts). Everything it refuses, it refuses BY POINTING AT `start` — the ordinary route is
+  // always still there, which is what makes this an offer and never a diversion.
+  if (action === "finish-now" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    const result = await finishNow(db, ctx.herdr, id);
+    ctx.audit.record({
+      action: "card.finish_now",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      // Same split `start` makes: 409 for "the board says no", 502 for a herdr failure.
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }

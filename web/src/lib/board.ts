@@ -132,6 +132,12 @@ export interface CardView {
   copilotBusy: boolean;
   /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
   wrapupPending: boolean;
+  /**
+   * TOO SMALL FOR A CARD — the copilot judged this follow-up's whole job to be one edit, so it can
+   * be handed to the agent it came out of instead of being started. Still an ordinary card in every
+   * other way: {@link startCard} works on it exactly as before. False for every card a person wrote.
+   */
+  tiny: boolean;
   /** Off by default. When on, the worktree is never cleaned up automatically once wrapup settles. */
   keepWorktree: boolean;
 }
@@ -552,6 +558,19 @@ export function revertCard(id: string, eventId?: number): Promise<{ ok: true; ca
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/revert`, {
     method: "POST",
     body: JSON.stringify(eventId === undefined ? {} : { eventId }),
+  });
+}
+
+/**
+ * Finish a {@link CardView.tiny} card on the spot: its spec goes to the agent the card came out of,
+ * which is still at its prompt in the right worktree, and the card is filed done.
+ *
+ * Never the only way to deal with such a card — it starts like any other. Refuses (409) when the
+ * card has already been started, or when that agent is gone, and the message says to start it.
+ */
+export function finishCardNow(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/finish-now`, {
+    method: "POST",
   });
 }
 

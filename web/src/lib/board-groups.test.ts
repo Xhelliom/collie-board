@@ -32,6 +32,7 @@ function card(id: string, over: Partial<CardView> = {}): CardView {
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
+    tiny: false,
     ...over,
   };
 }

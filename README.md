@@ -122,6 +122,7 @@ GET    /api/cards/:id                   card + sessions + reviews + journal
 PATCH  /api/cards/:id                   edit / move a column / link (parentId, dependsOn)
 DELETE /api/cards/:id
 POST   /api/cards/:id/start             worktree + workspace + agent + the spec
+POST   /api/cards/:id/finish-now        a `tiny` follow-up, handed to the agent it came out of
 POST   /api/cards/:id/prompt            a follow-up instruction
 POST   /api/cards/:id/handoff           ask for the note; the poll loop swaps the session
 POST   /api/cards/:id/reformulate       hand the card back to the copilot

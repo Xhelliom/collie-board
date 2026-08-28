@@ -339,6 +339,31 @@ This is deliberately **not** the `.board/handoff.md` mechanism: that one is for 
 inside a single card, where the next agent inherits the same worktree and can read the note from its
 own cwd. Across two cards the file isn't even there.
 
+### The follow-up that shouldn't have been a card
+
+A review's follow-ups are ordinary cards, and nearly all of them should be: they wait in the backlog,
+they get a branch, they get an agent. One shape doesn't fit. "Note in `NOTIFY_AUDIT.md` that step 1
+landed" is one line, into a file the review just named — cutting a worktree and launching an agent to
+write it costs more than the line. So `card.tiny` marks it, and the card screen offers a second tap
+next to Start: **finish it now**, which sends the card's spec to the agent the card came out of and
+files the card. That agent is still at its prompt, in the right worktree, with the context open — the
+review that produced the follow-up fires the moment its work lands.
+
+**The criterion is written once** (`isTinyFollowUp`, `bridge/copilot.ts`), and it is three clauses:
+one edit to one file the review can name; the review already knows what to write; nothing verified
+beyond the edit landing. The first two are the reviewer's to judge — nothing on the bridge side can
+tell "one edit" from a title — so the copilot answers them, in a prompt that states the same three
+clauses. The third is restated as a closed list of categories (`docs`, `chore`) and enforced in code:
+a `bug`, a `feature` and a `test` all end in someone checking the result, so none of them is ever
+tiny however the model answers. A one-line fix that misses the floor simply stays an ordinary card,
+which is the harmless direction — the fork's rule that a gauge which might be wrong is worse than no
+gauge.
+
+**It is an offer, never a diversion.** The card is filed in the backlog exactly like every other
+follow-up; `tiny` only *adds* a route out. Every refusal (`not-tiny`, already started, that agent is
+gone) says to start the card, and the Start button below is untouched. And like `startCard`, nothing
+here is automatic: the operator taps it — same reasoning as the dependency gate above.
+
 ### Three herdr behaviours the docs don't state
 
 Live-probed against 0.7.5 on 2026-07-28, re-checked against 0.8.0 on 2026-08-07. Each one silently
