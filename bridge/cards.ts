@@ -428,6 +428,23 @@ export function isTransientHerdrError(err: unknown): boolean {
   return err instanceof Error && TRANSIENT_CODES.some((code) => err.message.includes(code));
 }
 
+/**
+ * True when herdr's answer means the PANE OUTLIVED THE AGENT inside it — a restart, a crash, an agent
+ * that exited on its own. The board's own session row still says "running", because nothing about a
+ * dead agent reaches us until we try to talk to it.
+ *
+ * The counterpart of `isTransientHerdrError`: that one means "not yet", this one means "not any
+ * more". Every caller that prompts a card's agent already has a branch for the session it KNOWS is
+ * over — "this card has no running agent" — and this is that same situation, discovered one step
+ * later. Forwarding herdr's own code instead is what put `agent_not_found: agent target w44:p1 not
+ * found` on a phone screen, in place of the one sentence that helps: start the card again.
+ *
+ * Pure + exported for the test.
+ */
+export function isAgentGone(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("agent_not_found");
+}
+
 /** Run `fn`, retrying while herdr says "not yet". Every other error propagates immediately. */
 async function retryWhileNotReady<T>(fn: () => Promise<T>, wait: (ms: number) => Promise<void>): Promise<T> {
   for (let attempt = 1; ; attempt++) {

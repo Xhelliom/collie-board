@@ -18,7 +18,7 @@
 import { join } from "node:path";
 
 import type { Config } from "./config.ts";
-import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, isAgentGone, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
@@ -97,6 +97,9 @@ export function continuationPrompt(card: Card): string {
   return parts.join("\n");
 }
 
+/** Both ways a card turns out to have nobody to prompt — see `isAgentGone`. */
+export const NO_AGENT = "this card has no running agent";
+
 export type HandoffError =
   | { kind: "no-session"; message: string }
   | { kind: "already-requested"; message: string }
@@ -114,9 +117,7 @@ export async function requestHandoff(
   sleep?: (ms: number) => Promise<void>,
 ): Promise<{ ok: true; session: CardSession } | { ok: false; error: HandoffError }> {
   const session = db.openSessionFor(cardId);
-  if (!session?.paneId) {
-    return { ok: false, error: { kind: "no-session", message: "this card has no running agent" } };
-  }
+  if (!session?.paneId) return { ok: false, error: { kind: "no-session", message: NO_AGENT } };
   if (session.handoffRequestedAt !== null) {
     return {
       ok: false,
@@ -126,6 +127,9 @@ export async function requestHandoff(
   try {
     await promptAndConfirm(herdr, session.paneId, handoffPrompt(), sleep);
   } catch (err) {
+    // The pane is there, the agent in it is not — same answer as the `no-session` branch above, which
+    // is the same situation the board simply hadn't noticed yet.
+    if (isAgentGone(err)) return { ok: false, error: { kind: "no-session", message: NO_AGENT } };
     return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
   }
   const updated = db.patchSession(session.id, { handoffRequestedAt: Date.now() })!;

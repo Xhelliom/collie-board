@@ -103,6 +103,12 @@ export interface IntegrationHistory {
    *  so it is second-hand evidence that the work landed even when the merge happened outside. */
   cleanedUp: number | null;
   discarded: { commits: number; ts: number } | null;
+  /** The closing report was never even ASKED for — the agent behind the card was gone by the time the
+   *  card was filed (a restart, a crash). It matters on the card because that same failure is what
+   *  skips the automatic worktree cleanup: `WrapupCoordinator` only ever tidies up a wrapup it is
+   *  waiting on, so a request that never landed leaves the checkout behind in silence. Cleared by a
+   *  later wrapup that did get through. */
+  wrapupUnasked: number | null;
 }
 
 /**
@@ -119,7 +125,13 @@ export interface IntegrationHistory {
  * Pure + exported for the test.
  */
 export function integrationHistory(events: readonly BoardEvent[]): IntegrationHistory {
-  const out: IntegrationHistory = { merged: null, pr: null, cleanedUp: null, discarded: null };
+  const out: IntegrationHistory = {
+    merged: null,
+    pr: null,
+    cleanedUp: null,
+    discarded: null,
+    wrapupUnasked: null,
+  };
   // Oldest first in the journal, so a later event simply overwrites — the last merge is the one.
   for (const e of events) {
     const p = (e.payload ?? {}) as { base?: string; url?: string | null; commits?: number };
@@ -127,6 +139,12 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
     else if (e.type === "card.pr_opened") out.pr = { url: p.url ?? null, ts: e.ts };
     else if (e.type === "card.cleaned_up") out.cleanedUp = e.ts;
     else if (e.type === "card.discarded") out.discarded = { commits: p.commits ?? 0, ts: e.ts };
+    else if (e.type === "wrapup.unasked") out.wrapupUnasked = e.ts;
+    // A wrapup that WAS asked for clears it: the coordinator is on the case, so the silent-leftover
+    // story this flag tells is no longer the one that happened. `wrapup.failed` — the OTHER failure,
+    // where the note could not be read back — is deliberately not here: it clears the pending marker
+    // and the automatic cleanup runs, so there is nothing left for the operator to finish.
+    else if (e.type === "wrapup.requested") out.wrapupUnasked = null;
   }
   return out;
 }

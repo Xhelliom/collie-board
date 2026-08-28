@@ -1415,6 +1415,17 @@ export function IntegrationSection({
                   for it to finish.
                 </p>
               )}
+              {/* The mirror case, and the one that used to say nothing at all: the agent was already
+                  gone when the card was filed, so no report was ever asked for — and because the
+                  automatic cleanup only ever follows a wrapup it was waiting on, this checkout was
+                  left behind in silence. The work is safe (this button only shows once it is), so
+                  what is missing is the sentence, not the gesture. */}
+              {!card.wrapupPending && past.wrapupUnasked !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Its agent was already gone, so no closing report was asked for and the worktree was
+                  left in place. The work itself landed — finish up here.
+                </p>
+              )}
               <Button
                 variant="outline"
                 className="h-[38px] w-full gap-2 rounded-[10px] border-destructive/40 text-destructive"

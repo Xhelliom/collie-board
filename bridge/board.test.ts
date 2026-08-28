@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
   agentNameFor,
+  isAgentGone,
   isTransientHerdrError,
   promptAndConfirm,
   branchFromTitle,
@@ -869,6 +870,17 @@ describe("isTransientHerdrError", () => {
     expect(isTransientHerdrError(new Error("herdr agent.start: invalid_agent_name: …"))).toBe(false);
     expect(isTransientHerdrError(new Error("timed out after 5000ms"))).toBe(false);
     expect(isTransientHerdrError("agent_not_ready")).toBe(false);
+  });
+});
+
+describe("isAgentGone", () => {
+  it("tells 'not any more' apart from 'not yet' and from a real failure", () => {
+    // The real message, from a card filed after a restart: its pane was still there, the agent in it
+    // was not. Every caller turns this into "start the card again" rather than showing the code.
+    expect(isAgentGone(new Error("herdr agent.prompt: agent_not_found: agent target w44:p1 not found"))).toBe(true);
+    expect(isAgentGone(new Error("herdr agent.prompt: agent_not_ready: …"))).toBe(false);
+    expect(isAgentGone(new Error("herdr agent.prompt: pane_not_found: …"))).toBe(false);
+    expect(isAgentGone("agent_not_found")).toBe(false);
   });
 });
 

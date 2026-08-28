@@ -17,6 +17,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 
 - Board filter → Source now keeps everything filed without anyone asking, the copilot's and an agent's alike; the query key follows its meaning: `?origin=copilot` → `?origin=auto` (f6ad7ff)
 
+## [0.127.1] - 2026-08-28
+
+### Fixed
+
+- Une carte classée alors que son agent était déjà mort le dit, au-dessus du bouton qui nettoie son worktree — la demande de rapport qui ne part jamais sautait aussi le cleanup automatique, sans un mot (e521595)
+- `agent_not_found` ne remonte plus brut au téléphone sur un resolve, un handoff ou un prompt de suivi — même réponse que pour une session déjà close : relancer la carte (e521595)
+
 ## [0.127.0] - 2026-08-27
 
 ### Added
