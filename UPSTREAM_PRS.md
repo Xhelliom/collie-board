@@ -918,7 +918,7 @@ alert without a pane simply carries none.
 
 | | |
 |---|---|
-| Commit | `d3a49fe` *feat(notify): a board fact reaches the phone, in the herd's slot* |
+| Commit | `17e978d` *feat(notify): a board fact reaches the phone, in the herd's slot* |
 | Files | `bridge/notifications.ts` (the key, the two verbs, `Alert.paneId`, `retract` replacing a private `resolve` and its duplicate in `onTransition`), `bridge/notify-content.ts` + its byte copy `web/src/lib/notify-content.ts` (`notifyCardId` reads the missing pane), `bridge/notify-subtitle.ts` (one gate per entry point, and the deep-link re-stamped on the silent update), `web/src/hooks/use-transitions.ts` + `web/src/components/notification-bell.tsx` (pass / stop duplicating the rule) |
 | Extraction | **Needs a subset taken.** Drop the `stalled` status, its marker and its digest line — they are the fork's word for a card whose work stopped, and upstream has no card. What is left is generic and applies as-is: the opaque key, the optional `paneId`, and the two `notify-subtitle.ts` fixes. |
 
