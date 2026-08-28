@@ -13,6 +13,7 @@ import {
   ReviewPass,
   SubtaskActionsSheet,
   SubtaskProgress,
+  TinyTodoRow,
   topOfColumn,
 } from "./card.tsx";
 import type { BoardEvent, CardStatus, CardView, Integration } from "@/lib/board";
@@ -413,6 +414,45 @@ describe("IntegrationSection — the PR outlives the branch", () => {
     server.use(http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })));
     render(<IntegrationSection card={card("done")} events={[]} onDone={vi.fn()} onState={vi.fn()} />);
     expect(await screen.findByText(/no branch to integrate/i)).toBeTruthy();
+    cleanup();
+  });
+});
+
+// The suggestion a review makes and deliberately does NOT file. The criterion lives in
+// bridge/copilot.ts; this is the row that offers it, and the two states where it stops offering.
+describe("TinyTodoRow", () => {
+  const todo = {
+    spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+    acceptance: ["the line is in NOTIFY_AUDIT.md"],
+    doneAt: null as number | null,
+  };
+  const title = "Note in NOTIFY_AUDIT.md that step 1 landed";
+
+  it("offers the tap while this card's agent is still there", async () => {
+    const onFinish = vi.fn();
+    render(<TinyTodoRow title={title} todo={todo} live pending={false} onFinish={onFinish} />);
+
+    expect(screen.getByText(title)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: /finish it now/i }));
+    expect(onFinish).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
+  it("takes no second tap once it has been sent — the agent would do the edit twice", () => {
+    render(
+      <TinyTodoRow title={title} todo={{ ...todo, doneAt: 1 }} live pending={false} onFinish={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+    expect(screen.getByText(/sent to the agent/i)).toBeTruthy();
+    cleanup();
+  });
+
+  it("shows the spec in full when there is no agent left — nothing was filed, so this is the note", () => {
+    render(<TinyTodoRow title={title} todo={todo} live={false} pending={false} onFinish={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /finish it now/i })).toBeNull();
+    // The sentence survives the offer lapsing — otherwise not making a card would lose it.
+    expect(screen.getByText(/Add one line to NOTIFY_AUDIT\.md/)).toBeTruthy();
     cleanup();
   });
 });

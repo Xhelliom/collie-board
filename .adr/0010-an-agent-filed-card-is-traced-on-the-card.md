@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
-- **Shipped in:** 0.128.0
+- **Shipped in:** 0.130.0
 
 ## Context
 

@@ -27,6 +27,7 @@ import {
   TerminalSquare,
   Trash2,
   Unlink,
+  Zap,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ import {
   fetchCards,
   fetchIntegration,
   fetchPrStatus,
+  finishCardNow,
   handoffCard,
   integrateCard,
   MANUAL_STATUSES,
@@ -80,6 +82,7 @@ import {
   type CardView,
   type Integration,
   type PrStatus,
+  type TinyTodo,
 } from "@/lib/board";
 import { dependencyInfo, dependencyMet, integrationHistory, prLabel, prSentence } from "@/lib/board-groups";
 import { commandsFor } from "@/lib/agent-commands";
@@ -117,6 +120,8 @@ export function CardRoute() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [starting, setStarting] = useState(false);
+  /** The title of the suggestion currently being sent, so only ITS button says "Sending…". */
+  const [finishing, setFinishing] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRework, setConfirmRework] = useState(false);
@@ -272,6 +277,25 @@ export function CardRoute() {
       setStatus((e as Error).message, "error", null);
     } finally {
       setStarting(false);
+      revalidator.revalidate();
+    }
+  }
+
+  // A suggestion the review kept off the board, done here and now by this card's own agent. Real
+  // latency, like `start`: the request holds while the prompt is delivered and confirmed, so it
+  // keeps its own pending state rather than waiting for a poll. Keyed by title — that is what
+  // identifies a suggestion inside its review, and what the row shows.
+  async function finishNow(reviewId: string, title: string) {
+    if (!card || finishing) return;
+    setFinishing(title);
+    setStatus("Handing it to the agent…", "info", null);
+    try {
+      await finishCardNow(card.id, reviewId, title);
+      setStatus("Sent to the agent.", "success");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    } finally {
+      setFinishing(null);
       revalidator.revalidate();
     }
   }
@@ -733,6 +757,16 @@ export function CardRoute() {
                                     <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
                                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                                   </button>
+                                ) : todo.tiny ? (
+                                  // Never filed, on purpose — the one tap that does it is right here.
+                                  <TinyTodoRow
+                                    key={i}
+                                    title={todo.title}
+                                    todo={todo.tiny}
+                                    live={!!card.runtime}
+                                    pending={finishing === todo.title}
+                                    onFinish={() => void finishNow(r.id, todo.title)}
+                                  />
                                 ) : (
                                   // Deleted since — the title is what's left to show.
                                   <div
@@ -817,6 +851,67 @@ export function CardRoute() {
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
+    </div>
+  );
+}
+
+/**
+ * TOO SMALL FOR A CARD. The one suggestion a review makes and does not file (`TinyTodo`, criterion
+ * in bridge/copilot.ts), and the one tap that does it: its spec goes to THIS card's agent — which
+ * just did the work it came out of and is still at its prompt in the right worktree.
+ *
+ * Three states, and the third is the one that matters. Sent: said so, and no second tap, because a
+ * second delivery makes the agent do the same edit twice. On offer: the button. No agent left: the
+ * SPEC, in full — nothing was filed, so this row is the only place the note still exists, and it
+ * has to be readable by the person who now has to do it themselves. That is the price of not making
+ * a card, and it is paid here rather than by losing the sentence.
+ */
+export function TinyTodoRow({
+  title,
+  todo,
+  live,
+  pending,
+  onFinish,
+}: {
+  title: string;
+  todo: TinyTodo;
+  /** Is this card's own agent still there? Mirrors `finishNow`'s open-session gate on the bridge. */
+  live: boolean;
+  pending: boolean;
+  onFinish: () => void;
+}) {
+  const sent = todo.doneAt !== null;
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+      <div className="flex items-start gap-2">
+        {sent ? (
+          <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+        ) : (
+          <Zap className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <span className={cn("min-w-0 flex-1 text-sm", sent && "text-muted-foreground")}>{title}</span>
+      </div>
+      {sent ? (
+        <p className="text-xs text-muted-foreground">Sent to the agent {timeAgo(todo.doneAt!)}.</p>
+      ) : live ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            One edit, nothing to run — too small for a card. This card&apos;s agent can do it before
+            it stops.
+          </p>
+          <Button variant="secondary" onClick={onFinish} disabled={pending} className="h-10 w-full gap-2">
+            <Zap className="size-4" />
+            {pending ? "Sending…" : "Finish it now"}
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Too small for a card, and this card&apos;s agent is gone — here is what it said to do:
+          </p>
+          {todo.spec && <MarkdownText text={todo.spec} className="text-xs" />}
+        </>
+      )}
     </div>
   );
 }

@@ -242,9 +242,33 @@ export function isPendingWrapup(session: CardSession): boolean {
 
 /** A review-suggested follow-up, and the card it became — `cardId` is null only for data written
  *  before this linked (bare titles, no card to point at). */
+/**
+ * TOO SMALL FOR A CARD — a follow-up the review suggested and deliberately did NOT file, kept here
+ * instead, with what it takes to act on it.
+ *
+ * The criterion is written once, in `isTinyFollowUp()` (copilot.ts). The reason this lives on the
+ * review rather than on a card of its own is the whole point: "note in NOTIFY_AUDIT.md that step 1
+ * landed" is one line, and a card for it is a card you triage, filter, drag and eventually delete —
+ * a chore invented by the tool. The review row IS the right place: it is on the screen of the card
+ * whose agent would do it, at the moment you read the verdict, while that agent is still at its
+ * prompt.
+ */
+export interface TinyTodo {
+  /** Everything the agent is told to do — the same spec the card would have carried. */
+  spec: string | null;
+  acceptance: string[];
+  /** When it was handed to the agent, or null while it is still on offer. Set once, never cleared. */
+  doneAt: number | null;
+}
+
 export interface ReviewTodo {
   title: string;
   cardId: string | null;
+  /**
+   * Present exactly when this suggestion was judged too small to be filed — see {@link TinyTodo}.
+   * Mutually exclusive with `cardId` by construction: one of the two is how the suggestion exists.
+   */
+  tiny?: TinyTodo;
 }
 
 export interface Review {
@@ -356,8 +380,25 @@ function jsonReviewTodos(raw: string | null): ReviewTodo[] {
     if (typeof v === "string" && v.trim()) {
       out.push({ title: v.trim(), cardId: null });
     } else if (v && typeof v === "object" && typeof (v as { title?: unknown }).title === "string") {
-      const cardId = (v as { cardId?: unknown }).cardId;
-      out.push({ title: (v as { title: string }).title, cardId: typeof cardId === "string" ? cardId : null });
+      const o = v as { title: string; cardId?: unknown; tiny?: unknown };
+      const tiny = o.tiny && typeof o.tiny === "object" ? (o.tiny as Record<string, unknown>) : null;
+      out.push({
+        title: o.title,
+        cardId: typeof o.cardId === "string" ? o.cardId : null,
+        // A malformed `tiny` degrades to "an ordinary suggestion that was never filed", which is
+        // what the row already renders — never to a live offer with nothing behind it.
+        ...(tiny
+          ? {
+              tiny: {
+                spec: typeof tiny.spec === "string" ? tiny.spec : null,
+                acceptance: Array.isArray(tiny.acceptance)
+                  ? tiny.acceptance.filter((a): a is string => typeof a === "string")
+                  : [],
+                doneAt: typeof tiny.doneAt === "number" ? tiny.doneAt : null,
+              },
+            }
+          : {}),
+      });
     }
   }
   return out;
@@ -1132,6 +1173,24 @@ export class BoardDb {
     return row ? toReview(row) : null;
   }
 
+  /**
+   * Mark one {@link TinyTodo} as handed to the agent. The only write a review ever gets after it is
+   * created — and it has to be durable: without it the offer stays live, and a second tap makes the
+   * agent do the same edit twice (the hazard `promptAndConfirm` warns about).
+   *
+   * Keyed by TITLE inside the review, because that is what the client has and what the row shows.
+   * Idempotent: a todo already marked keeps its first timestamp.
+   */
+  markTinyTodoDone(reviewId: string, title: string): Review | null {
+    const review = this.getReview(reviewId);
+    if (!review) return null;
+    const todos = review.todos.map((t) =>
+      t.title === title && t.tiny && t.tiny.doneAt === null ? { ...t, tiny: { ...t.tiny, doneAt: this.now() } } : t,
+    );
+    this.db.query("UPDATE review SET todos = ? WHERE id = ?").run(JSON.stringify(todos), reviewId);
+    return this.getReview(reviewId);
+  }
+
   listReviews(cardId: string): Review[] {
     return this.db
       .query<ReviewRow, [string]>("SELECT * FROM review WHERE card_id = ? ORDER BY created_at")
@@ -1267,14 +1326,7 @@ export class BoardDb {
    */
   getEvent(id: number): BoardEvent | null {
     const r = this.db.query<EventRow, [number]>("SELECT * FROM event WHERE id = ?").get(id);
-    if (!r) return null;
-    return {
-      id: r.id,
-      cardId: r.card_id,
-      type: r.type,
-      payload: r.payload === null ? null : safeJson(r.payload),
-      ts: r.ts,
-    };
+    return r ? toEvent(r) : null;
   }
 
   /** A card's journal, newest first. */
@@ -1284,15 +1336,39 @@ export class BoardDb {
         "SELECT * FROM event WHERE card_id = ? ORDER BY ts DESC, id DESC LIMIT ?",
       )
       .all(cardId, limit)
-      .map((r) => ({
-        id: r.id,
-        cardId: r.card_id,
-        type: r.type,
-        payload: r.payload === null ? null : safeJson(r.payload),
-        ts: r.ts,
-      }));
+      .map(toEvent);
+  }
+
+  /**
+   * The newest journal id, or 0 on an empty journal — where the board tailer's cursor starts
+   * (board-notify.ts). In memory and never persisted, which is the whole point: a bridge restart
+   * resumes from what is in the journal NOW and so never replays the past into the bell.
+   */
+  lastEventId(): number {
+    return this.db.query<{ id: number | null }, []>("SELECT MAX(id) AS id FROM event").get()?.id ?? 0;
+  }
+
+  /**
+   * Journal entries newer than `after`, OLDEST first — the board tailer's range scan, and the reason
+   * it is cheap: `id > ?` on an AUTOINCREMENT primary key walks the rowid from the cursor and
+   * returns nothing at all in the normal case. `limit` bounds one tick, never the stream: the caller
+   * advances its cursor per row, so a burst is drained over the next few ticks instead of in one.
+   */
+  eventsAfter(after: number, limit = 200): BoardEvent[] {
+    return this.db
+      .query<EventRow, [number, number]>("SELECT * FROM event WHERE id > ? ORDER BY id LIMIT ?")
+      .all(after, limit)
+      .map(toEvent);
   }
 }
+
+const toEvent = (r: EventRow): BoardEvent => ({
+  id: r.id,
+  cardId: r.card_id,
+  type: r.type,
+  payload: r.payload === null ? null : safeJson(r.payload),
+  ts: r.ts,
+});
 
 function safeJson(raw: string): unknown {
   try {

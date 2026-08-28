@@ -56,11 +56,28 @@ export interface CardRuntime {
   sessionName?: string;
 }
 
+/**
+ * TOO SMALL FOR A CARD — a follow-up the review suggested and deliberately did NOT file.
+ *
+ * "Note in NOTIFY_AUDIT.md that step 1 landed" is one line; a card for it is a card you triage,
+ * filter, drag and eventually delete. So it stays here, on the review of the card whose agent would
+ * do it, where one tap sends it. The criterion is the bridge's (`isTinyFollowUp`, copilot.ts).
+ */
+export interface TinyTodo {
+  /** What the tap would send — and what is left to read when there is no agent to send it to. */
+  spec: string | null;
+  acceptance: string[];
+  /** When it was handed over, or null while it is still on offer. */
+  doneAt: number | null;
+}
+
 /** A follow-up the review suggested, resolved to the card it became — the bridge nulls `card` once
  *  that card is deleted, so the title survives even after the link doesn't. */
 export interface ReviewTodo {
   title: string;
   card: CardLink | null;
+  /** Set exactly when this one was never filed because it was too small — see {@link TinyTodo}. */
+  tiny?: TinyTodo;
 }
 
 export interface Review {
@@ -556,6 +573,22 @@ export function revertCard(id: string, eventId?: number): Promise<{ ok: true; ca
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/revert`, {
     method: "POST",
     body: JSON.stringify(eventId === undefined ? {} : { eventId }),
+  });
+}
+
+/**
+ * Do a {@link TinyTodo} now: its spec goes to THIS card's own agent — the one that just did the work
+ * the suggestion came out of, still at its prompt in the right worktree — and the suggestion is
+ * marked sent.
+ *
+ * `id` is the reviewed card, because that is the only card involved: the suggestion never became
+ * one. Refuses (409) on a second tap, and when that agent is gone — the suggestion stays on the
+ * review either way, spec and all.
+ */
+export function finishCardNow(id: string, reviewId: string, title: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/finish-now`, {
+    method: "POST",
+    body: JSON.stringify({ reviewId, title }),
   });
 }
 

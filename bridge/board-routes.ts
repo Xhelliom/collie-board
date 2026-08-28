@@ -16,6 +16,7 @@ import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./ba
 import {
   cardView,
   cardViews,
+  finishNow,
   isAgentGone,
   promptAndConfirm,
   releaseSession,
@@ -24,7 +25,16 @@ import {
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
-import type { BoardDb, BoardEvent, Card, CardCategory, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
+import type {
+  BoardDb,
+  BoardEvent,
+  Card,
+  CardCategory,
+  CardPatch,
+  CardStatus,
+  ReviewTodo,
+  TinyTodo,
+} from "./db.ts";
 import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -63,7 +73,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -194,10 +204,15 @@ function linkSummary(card: Card): { id: string; title: string; status: CardStatu
 
 /** A review's suggested follow-ups, resolved to the card each became — or null once it's been
  *  deleted, so the detail page can show what was suggested without linking to nothing. */
-function resolveReviewTodos(db: BoardDb, todos: ReviewTodo[]): { title: string; card: ReturnType<typeof linkSummary> | null }[] {
+function resolveReviewTodos(
+  db: BoardDb,
+  todos: ReviewTodo[],
+): { title: string; card: ReturnType<typeof linkSummary> | null; tiny?: TinyTodo }[] {
   return todos.map((t) => {
     const card = t.cardId ? db.getCard(t.cardId) : null;
-    return { title: t.title, card: card ? linkSummary(card) : null };
+    // `tiny` rides through untouched — there is no card to resolve it against, which IS the state
+    // it records, and the card screen needs its spec to say what the one tap would send.
+    return { title: t.title, card: card ? linkSummary(card) : null, ...(t.tiny ? { tiny: t.tiny } : {}) };
   });
 }
 
@@ -610,6 +625,41 @@ async function route(
     if (!result.ok) {
       // 409 for "the board says no" (busy / already running / no repo) vs 502 for a herdr failure —
       // the phone shows the message either way, but the status tells a script which is retryable.
+      const status = result.error.kind === "herdr" ? 502 : 409;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, card: view(id) });
+  }
+
+  // ── finish-now: the suggestion too small to be a card, done by the agent that is still here ──
+  //
+  // On the REVIEWED card, not on a card of its own — there isn't one, deliberately (see TinyTodo).
+  // The body names which suggestion, and the review it belongs to is checked against this card:
+  // everything below prompts this pane with text taken from that review.
+  if (action === "finish-now" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const { reviewId, title } = (body ?? {}) as { reviewId?: unknown; title?: unknown };
+    if (typeof reviewId !== "string" || typeof title !== "string" || !title.trim()) {
+      return text("reviewId and title required", 400);
+    }
+    const result = await finishNow(db, ctx.herdr, id, { reviewId, title });
+    ctx.audit.record({
+      action: "card.finish_now",
+      ...(result.ok ? { paneId: result.paneId } : {}),
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, title, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      // Same split `start` makes: 409 for "the board says no", 502 for a herdr failure.
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
