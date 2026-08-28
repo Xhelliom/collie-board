@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.128.0] - 2026-08-28
+
+### Added
+
+- Une suggestion de review dont tout le travail tient en une édition n'est plus classée en carte : elle reste sur la review, et l'écran de la carte relue propose « Finish it now » — son spec part à l'agent de cette carte, encore à son prompt dans la bonne worktree (a457e26, e41aaaf)
+- Le critère « trop petite pour une carte » est écrit une fois (`isTinyFollowUp`) : une édition dans un fichier nommé, rien à écrire de plus, rien à vérifier — et seules les catégories `docs` et `chore` peuvent y prétendre (a457e26)
+- Faute d'agent, la ligne affiche le spec en entier : rien n'ayant été classé, c'est le seul endroit où la note existe encore (e41aaaf)
+
 ## [0.127.1] - 2026-08-28
 
 ### Fixed

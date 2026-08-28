@@ -790,6 +790,110 @@ export async function startCard(
   return { ok: true, value: { card: db.getCard(cardId)!, session, worktree } };
 }
 
+/** Why a suggestion too small for a card could not, in the end, be finished on the spot. */
+export type FinishNowError =
+  | { kind: "not-tiny"; message: string }
+  | { kind: "already-done"; message: string }
+  | { kind: "no-session"; message: string }
+  | { kind: "herdr"; message: string };
+
+/**
+ * FINISH IT NOW. Hand a suggestion the copilot judged too small for a card (`TinyTodo`, criterion in
+ * copilot.ts) straight to the agent that produced it.
+ *
+ * There is nothing to set up, and that is the whole point. The work belongs on the branch the
+ * reviewed card is already sitting in, its agent is still at its prompt with the context open, and
+ * a card — plus a worktree, plus a second agent — to write one line into a tracking file costs more
+ * than the line. So this creates nothing and starts nothing: it prompts the reviewed card's own
+ * open pane, and marks the suggestion as handed over.
+ *
+ * NOT AUTOMATIC, and it never will be. The operator taps it, exactly like `startCard` — an agent
+ * that picks up work nobody handed it writes code and spends quota with nobody watching, which is
+ * the one thing this board is arranged against.
+ */
+export async function finishNow(
+  db: BoardDb,
+  herdr: HerdrClient,
+  /** The REVIEWED card — the one whose agent does the work, and whose review holds the suggestion. */
+  cardId: string,
+  todo: { reviewId: string; title: string },
+  /** Injectable so the tests don't pay promptAndConfirm's settle window. */
+  wait?: (ms: number) => Promise<void>,
+): Promise<{ ok: true; paneId: string } | { ok: false; error: FinishNowError }> {
+  const review = db.getReview(todo.reviewId);
+  const found = review?.cardId === cardId ? review.todos.find((t) => t.title === todo.title) : undefined;
+  // A review id from another card must not reach through: the write gate is per-request, not per
+  // card, and everything below prompts THIS card's pane with text taken from that review.
+  if (!found?.tiny) {
+    return {
+      ok: false,
+      error: { kind: "not-tiny", message: "no such suggestion on this card's reviews" },
+    };
+  }
+  // Already sent. Refused rather than repeated — a second delivery makes the agent do the same edit
+  // twice, which is the hazard promptAndConfirm's header is about.
+  if (found.tiny.doneAt !== null) {
+    return { ok: false, error: { kind: "already-done", message: "this one has already been sent" } };
+  }
+  const session = db.openSessionFor(cardId);
+  if (!session?.paneId) {
+    return {
+      ok: false,
+      // Says what is left, because something is: the suggestion stays on the review, spec and all,
+      // for a person to act on or to make a card of.
+      error: { kind: "no-session", message: "this card's agent is gone — the suggestion stays on the review" },
+    };
+  }
+  const text = finishNowPrompt(found.title, found.tiny);
+  try {
+    await promptAndConfirm(herdr, session.paneId, text, wait);
+  } catch (err) {
+    // A pane whose agent died since the last snapshot is the same situation as no session at all,
+    // and gets the same sentence — see requestHandoff, which reads the same way.
+    if (isAgentGone(err)) {
+      return {
+        ok: false,
+        error: { kind: "no-session", message: "this card's agent is gone — the suggestion stays on the review" },
+      };
+    }
+    return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
+  }
+  // Marked only once the prompt is confirmed delivered: a suggestion marked done by a send that
+  // never landed is one nobody will ever look at again.
+  db.markTinyTodoDone(todo.reviewId, todo.title);
+  db.recordEvent(cardId, "card.finished_now", {
+    paneId: session.paneId,
+    reviewId: todo.reviewId,
+    title: todo.title,
+    chars: text.length,
+  });
+  return { ok: true, paneId: session.paneId };
+}
+
+/**
+ * What the agent is asked, when a suggestion is finished on the spot rather than filed. Pure +
+ * exported, same as {@link initialPrompt}, so the exact words are reviewable in a test.
+ *
+ * Says it is small and where it comes from, because the agent is mid-wrapup on the very work this
+ * came out of: without that framing an instruction arriving out of nowhere reads as a new
+ * assignment, and an agent that thinks it has a new assignment goes looking for a branch to cut.
+ * It is already on the right one.
+ */
+export function finishNowPrompt(title: string, todo: { spec: string | null; acceptance: string[] }): string {
+  const parts = [
+    [
+      "One more small thing on the branch you are already in, before you stop. It came out of the",
+      "review of the work you just finished, and it is too small to be worth its own card — do it",
+      "here, now, and nothing else:",
+    ].join("\n"),
+    todo.spec?.trim() || title.trim(),
+  ];
+  if (todo.acceptance.length > 0) {
+    parts.push(["It is done when:", ...todo.acceptance.map((a) => `- ${a}`)].join("\n"));
+  }
+  return parts.join("\n\n");
+}
+
 /**
  * The prompt a fresh card opens with. Spec first, acceptance criteria as an explicit checklist —
  * an agent that can see the acceptance criteria writes toward them. Pure + exported so the exact
