@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.128.0] - 2026-08-28
+
+### Added
+
+- Une carte du copilote dont tout le travail tient en une édition (`tiny`) propose « Finish it now » à côté de Start : son spec part à l'agent dont elle est issue et la carte est classée (a457e26)
+- Le critère « trop petite pour une carte » est écrit une fois (`isTinyFollowUp`) : une édition dans un fichier nommé, rien à écrire de plus, rien à vérifier — et seules les catégories `docs` et `chore` peuvent y prétendre (a457e26)
+
 ## [0.127.1] - 2026-08-28
 
 ### Fixed
