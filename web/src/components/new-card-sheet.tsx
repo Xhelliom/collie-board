@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Eye, EyeOff, FolderGit2, Pencil } from "lucide-react";
+import { Check, Eye, EyeOff, FolderGit2, Loader2, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
 import { useLongPress } from "@/hooks/use-long-press";
+import { useImageUpload } from "@/hooks/use-image-upload";
 
 interface NewCardSheetProps {
   open: boolean;
@@ -49,6 +50,12 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
 
   // A self-update reload must not eat a half-dictated brain dump.
   useHoldReload("new-card", open);
+
+  // Paste a screenshot into the dump and its host path lands in the text — the same upload the
+  // composer uses on a live pane, from the same hook, so there is one mechanism and not two. The
+  // card has no pane, so the upload is owned by the sheet: `new-card` names the saved file and the
+  // audit line. The board is always the primary session, so no `session` is passed.
+  const { uploading, onPaste } = useImageUpload({ paneId: "new-card", setText });
 
   useEffect(() => {
     if (!open) return;
@@ -177,10 +184,19 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onPaste={onPaste}
             rows={5}
             placeholder="Add a diff view scoped to the card&apos;s branch…"
             className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
+          {/* The shared status line lives in the header, behind this sheet — so an upload that takes
+              a few seconds says so here, where the user is looking. */}
+          {uploading && (
+            <span className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              Téléversement de l&apos;image…
+            </span>
+          )}
         </label>
 
         {/* On by default: a dictated brain dump is what this box is for, and rewriting it is the

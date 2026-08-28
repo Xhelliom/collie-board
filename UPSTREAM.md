@@ -50,6 +50,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` and `<MaxAgentsControl>` (fork-only, the board's switches) and the Gallery row; `history.tsx` additionally carries the session's image set into `<TranscriptView>` and the header button that opens it — brick 21 in the ledger |
 | `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile`; the pane number, so two agents in one tab aren't the same card twice — brick 16 in the ledger ; how long an idle/done pane has been settled — brick 22 |
 | `web/src/hooks/use-transitions.ts` | returns the transitions as toasts instead of writing to the shared status line — brick 19 in the ledger; the toast's own sentence replaced by one `notifyContent()` call, the same composition the push and the bell render — brick 25; `AgentToast.cardId` from `notifyCardId()`, so the tap follows that sentence to the card — card N4, fork-only |
+| `web/src/components/composer.tsx` | the image upload + clipboard-paste pair extracted verbatim into `web/src/hooks/use-image-upload.ts` and consumed from there — brick 27 in the ledger. Pure upstream material: it leaves this list once merged |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px (`wrapDefaultFor`); `rawTerminalPref()` for the loader; the `reading` mode flag |
 | `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
@@ -57,9 +58,9 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods |
 | `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
 
-Rebasing means resolving those twenty, not the whole tree. Keep it that way: if a change wants to
+Rebasing means resolving those twenty-one, not the whole tree. Keep it that way: if a change wants to
 spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix,
-`use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` / `api.ts` /
+`composer.tsx`'s upload extraction, `use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` / `api.ts` /
 `loaders.ts`) are pure upstream material — they are in the ledger, and once merged they leave this
 list again.
 

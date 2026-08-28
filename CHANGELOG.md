@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.127.0] - 2026-08-27
+
+### Added
+
+- Coller une capture dans le champ d'une nouvelle carte la téléverse et insère son chemin dans le texte — le collage des sessions extrait en `useImageUpload`, une seule mécanique pour les deux (4ceb4ca)
+
 ## [0.126.2] - 2026-08-27
 
 ### Fixed
