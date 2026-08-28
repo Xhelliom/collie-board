@@ -22,7 +22,7 @@
 // cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
 // work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
-import { lastSessionOf, promptAndConfirm } from "./cards.ts";
+import { isAgentGone, lastSessionOf, promptAndConfirm } from "./cards.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   createPr,
@@ -221,6 +221,9 @@ export async function prForCard(db: BoardDb, card: Card): Promise<Result<{ url: 
   return { ok: true, value: { url: pr.url } };
 }
 
+/** Both ways a conflict can find nobody to hand itself to — see `resolveConflict`. */
+const NO_AGENT = "this card has no running agent — start it again to resolve the conflict";
+
 /**
  * Hand a conflict to the card's own agent, to settle in its own checkout.
  *
@@ -250,16 +253,14 @@ export async function resolveConflict(
   }
 
   const session = db.openSessionFor(card.id);
-  if (!session?.paneId) {
-    return {
-      ok: false,
-      error: { kind: "refused", message: "this card has no running agent — start it again to resolve the conflict" },
-    };
-  }
+  if (!session?.paneId) return { ok: false, error: { kind: "refused", message: NO_AGENT } };
 
   try {
     await promptAndConfirm(herdr, session.paneId, resolvePrompt(state.base, state.branch));
   } catch (err) {
+    // THE SAME SITUATION as the check above, one step later: that one catches a session the board
+    // knows is over, this one the pane that outlived its agent — which is what a restart leaves.
+    if (isAgentGone(err)) return { ok: false, error: { kind: "refused", message: NO_AGENT } };
     return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
   }
   db.recordEvent(card.id, "card.resolve_requested", { branch: state.branch, base: state.base, paneId: session.paneId });

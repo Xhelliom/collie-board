@@ -113,7 +113,12 @@ export async function requestWrapup(
   try {
     await promptAndConfirm(herdr, session.paneId, wrapupPrompt(card), sleep);
   } catch (err) {
-    db.recordEvent(card.id, "wrapup.failed", { sessionId: session.id, error: (err as Error).message });
+    // Its OWN event, not the `wrapup.failed` a collection failure records, because the consequence
+    // differs: a collection failure still clears the pending marker, so `autoCleanup` runs and the
+    // checkout goes away. A request that never landed sets no marker at all — the coordinator never
+    // hears about this card again, and the worktree stays behind with nothing said about it. The
+    // card screen reads this event to say so and offer the tap that finishes the job.
+    db.recordEvent(card.id, "wrapup.unasked", { sessionId: session.id, error: (err as Error).message });
     return false;
   }
   db.patchSession(session.id, { handoffRequestedAt: Date.now() });

@@ -16,6 +16,7 @@ import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./ba
 import {
   cardView,
   cardViews,
+  isAgentGone,
   promptAndConfirm,
   releaseSession,
   startCard,
@@ -26,7 +27,7 @@ import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb, BoardEvent, Card, CardCategory, CardPatch, CardStatus, ReviewTodo } from "./db.ts";
 import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import { cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
-import { requestHandoff } from "./handoff.ts";
+import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -919,11 +920,14 @@ async function route(
     if (typeof promptText !== "string" || promptText.trim() === "") return text("text required", 400);
     const session = db.openSessionFor(id);
     if (!session?.paneId) {
-      return ctx.json({ ok: false, error: "this card has no running agent", kind: "no-session" }, 409);
+      return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
     }
     try {
       await promptAndConfirm(ctx.herdr, session.paneId, promptText);
     } catch (err) {
+      // A pane whose agent died since the board last looked answers the same as one the board already
+      // knew was over — a 409 saying so, not a 502 carrying herdr's `agent_not_found` to the phone.
+      if (isAgentGone(err)) return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
       return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
     }
     // A bare slash command is the whole instruction, so name it: "Follow-up instruction sent" is

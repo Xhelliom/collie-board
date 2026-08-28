@@ -23,6 +23,7 @@ describe("integrationHistory", () => {
       pr: null,
       cleanedUp: null,
       discarded: null,
+      wrapupUnasked: null,
     });
   });
 
@@ -50,6 +51,26 @@ describe("integrationHistory", () => {
   it("counts what a discard threw away", () => {
     const got = integrationHistory([ev("card.discarded", { branch: "board/x", commits: 4 }, 800)]);
     expect(got.discarded).toEqual({ commits: 4, ts: 800 });
+  });
+
+  it("remembers a closing report that was never even asked for", () => {
+    // The real case: the card was filed after a restart, its agent long dead. Nothing was asked of
+    // it, so the coordinator never waited on this card and never cleaned its worktree up either —
+    // which is exactly what the card screen needs to say before offering the tap that does.
+    const got = integrationHistory([ev("card.merged", { base: "main" }, 100), ev("wrapup.unasked", {}, 200)]);
+    expect(got.wrapupUnasked).toBe(200);
+  });
+
+  it("does not confuse a report that could not be READ with one that was never asked for", () => {
+    // `wrapup.failed` is the other failure: the request landed, the marker cleared, and the automatic
+    // cleanup ran. Nothing is left over, so there is nothing for the operator to finish.
+    const got = integrationHistory([ev("wrapup.requested", {}, 100), ev("wrapup.failed", {}, 200)]);
+    expect(got.wrapupUnasked).toBeNull();
+  });
+
+  it("clears the flag once a later wrapup does get through", () => {
+    const got = integrationHistory([ev("wrapup.unasked", {}, 100), ev("wrapup.requested", {}, 200)]);
+    expect(got.wrapupUnasked).toBeNull();
   });
 
   it("keeps the LAST merge when a card was merged more than once", () => {
