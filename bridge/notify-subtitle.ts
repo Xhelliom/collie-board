@@ -34,7 +34,8 @@
 
 import { notifySubtitlePrompt, toNotifySubtitle } from "./copilot.ts";
 import { diffStatLine, formatDiffStat, type DiffStat } from "./git.ts";
-import { notifyContent } from "./notify-content.ts";
+import { notifyCardId, notifyContent } from "./notify-content.ts";
+import type { NotifyLogEntry } from "./notify-log.ts";
 import type { Alert, FiredAlert, NotifySink } from "./notifications.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 
@@ -111,7 +112,7 @@ export interface EnrichOpts extends SubtitleSources {
   /** Patches the bell's history entry to match the live push — optional so a caller with no log (or
    *  a test) simply doesn't get it. Without this the subtitle would only ever be visible in the
    *  fleeting OS notification, never in the history you'd check after missing it. */
-  notifyLog?: { enrich(paneId: string, status: "blocked" | "done", subtitle: string): void };
+  notifyLog?: { enrich(paneId: string, status: NotifyLogEntry["status"], subtitle: string): void };
 }
 
 /**
@@ -119,21 +120,29 @@ export interface EnrichOpts extends SubtitleSources {
  * unchanged status, still the sole outstanding one (not swallowed into a multi-agent digest). The
  * copilot's answer can arrive long after the pane moved on, which is exactly what this guards.
  */
-function pushSubtitle(opts: EnrichOpts, alert: FiredAlert, subtitle: string): void {
-  const current = opts.coordinator.currentSolo(alert.paneId);
+function pushSubtitle(opts: EnrichOpts, alert: FiredAlert, paneId: string, subtitle: string): void {
+  const current = opts.coordinator.currentSolo(paneId);
   if (!current || current.status !== alert.status) {
-    console.log(`[notify-subtitle] dropped a stale answer for ${alert.paneId}`);
+    console.log(`[notify-subtitle] dropped a stale answer for ${paneId}`);
     return;
   }
-  console.log(`[notify-subtitle] ${alert.paneId}: "${subtitle}"`);
+  console.log(`[notify-subtitle] ${paneId}: "${subtitle}"`);
   // Written back onto the outstanding alert, not just rendered: the coordinator re-renders that
   // summary from `Alert.subtitle` on any later change, and must not fall back to the plainer one.
   current.subtitle = subtitle;
   // Same composer as the push this replaces (notify-content.ts) — the ONLY difference between the
   // two renders is the subtitle, so an upgrade can never also rewrite the title back to a different
-  // sentence about the same alert.
-  opts.sink.render({ ...notifyContent(current, subtitle), paneId: alert.paneId, renotify: false });
-  opts.notifyLog?.enrich(alert.paneId, alert.status, subtitle);
+  // sentence about the same alert. THE DESTINATION IS RE-STAMPED TOO: `summarize` puts `cardId` on
+  // the first push for a card to read (§4.1), and leaving it off here would quietly send the second,
+  // silent render back to the finished terminal — the one place with nothing left to do.
+  const cardId = notifyCardId(current);
+  opts.sink.render({
+    ...notifyContent(current, subtitle),
+    paneId,
+    renotify: false,
+    ...(cardId ? { cardId } : {}),
+  });
+  opts.notifyLog?.enrich(paneId, alert.status, subtitle);
 }
 
 /** The agent's own last line for this pane, by reported session id or — for a pane herdr gave none
@@ -143,7 +152,7 @@ async function readLastMessage(opts: SubtitleSources): Promise<string | null> {
   if (!opts.transcripts) return null;
   const by = alert.agentSessionId
     ? { sessionId: alert.agentSessionId }
-    : opts.resolvePath
+    : opts.resolvePath && alert.paneId
       ? await opts.resolvePath({ paneId: alert.paneId, cwd: alert.cwd })
           .then((path) => (path ? { path } : null))
           .catch(() => null)
@@ -189,6 +198,10 @@ export function firstSubtitle(
   opts: SubtitleSources,
   timeoutMs: number = FIRST_PUSH_DEADLINE_MS,
 ): Promise<string | null> {
+  // NO PANE, NOTHING TO READ — and this is the gate for every caller, not one guard per call site.
+  // A board alert (board-notify.ts) has no transcript and no working tree of its own to measure, and
+  // it already carries its own account of what happened.
+  if (!opts.alert.paneId) return Promise.resolve(null);
   return withDeadline(freeSubtitle(opts), timeoutMs);
 }
 
@@ -210,6 +223,15 @@ async function freeSubtitle(opts: SubtitleSources): Promise<string | null> {
 export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   if (!opts.copilot.enabled) return;
   const { alert } = opts;
+  // Same gate as {@link firstSubtitle}: a board alert has no pane, so there is no transcript to read
+  // and no per-pane notification to re-render.
+  const paneId = alert.paneId;
+  if (!paneId) return;
+  // And nothing to rephrase if this alert is ALREADY not the thing on screen — the same check
+  // `pushSubtitle` makes after the answer comes back, made once before spending an agent turn on it.
+  // Without it a herd with two alerts outstanding pays the copilot's quota for every one of them and
+  // throws every answer away.
+  if (!opts.coordinator.currentSolo(paneId)) return;
   const card = alert.cardId ? opts.board.getCard(alert.cardId) : null;
   const lastMessage = await readLastMessage(opts);
   // The stat the copilot's way: the per-file listing, which is prompt material and only ever that —
@@ -217,7 +239,7 @@ export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   const stat = await readStat(opts);
   const statSummary = stat ? formatDiffStat(stat) : null;
   if (!lastMessage && !statSummary && !card?.spec) {
-    console.log(`[notify-subtitle] nothing to enrich ${alert.paneId} from — skipping`);
+    console.log(`[notify-subtitle] nothing to enrich ${paneId} from — skipping`);
     return;
   }
 
@@ -233,8 +255,8 @@ export async function enrichNotification(opts: EnrichOpts): Promise<void> {
   );
   const subtitle = toNotifySubtitle(parsed);
   if (!subtitle) {
-    console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${alert.paneId}`);
+    console.warn(`[notify-subtitle] copilot gave no usable subtitle for ${paneId}`);
     return;
   }
-  pushSubtitle(opts, alert, subtitle);
+  pushSubtitle(opts, alert, paneId, subtitle);
 }

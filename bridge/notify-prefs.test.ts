@@ -62,12 +62,12 @@ describe("NotifyPrefsStore", () => {
     const cfg = await tempCfg();
     const store = new NotifyPrefsStore(cfg);
     const updated = await store.set({ done: true, updates: false, copilotSubtitle: true });
-    expect(updated).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true });
+    expect(updated).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true });
 
     // Round-trips through disk: a fresh store reloads the same values (survives a restart).
     const reloaded = new NotifyPrefsStore(cfg);
     await reloaded.load();
-    expect(reloaded.current()).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true });
+    expect(reloaded.current()).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true });
   });
 
   test("current() returns a copy — callers can't mutate the store's state", async () => {

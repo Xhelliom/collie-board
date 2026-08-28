@@ -1,13 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
-import { notifyCardId, notifyContent, repoOf } from "./notify-content.ts";
+import { notifyCardId, notifyContent, notifyMarker, repoOf } from "./notify-content.ts";
 
 // The push's whole sentence, in one pure function shared by the plain push and every later subtitle
 // update. What's under test is NOTIFY_AUDIT.md §3.2's single rule: `<marker> · <subject>` over
 // `<repo> · <what happened>`, with nothing appearing twice.
 
-const CARD = { status: "done", cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it", cardTitle: "Ship 0.86" } as const;
-const HAND = { status: "done", cwd: "/home/you/git/elber" } as const;
+// Both are PANE alerts, so both carry a `paneId` — its absence is a fact of its own now (a board
+// alert, bridge/board-notify.ts), and `notifyCardId` reads it.
+const CARD = {
+  status: "done",
+  paneId: "p1",
+  cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
+  cardTitle: "Ship 0.86",
+} as const;
+const HAND = { status: "done", paneId: "p2", cwd: "/home/you/git/elber" } as const;
 
 describe("repoOf", () => {
   test("takes the segment under `worktrees`, not the branch directory below it", () => {
@@ -104,6 +111,15 @@ describe("a card that landed in review", () => {
     expect(notifyCardId({ ...CARD, cardId: "c1", cardStatus: "done" })).toBeUndefined();
     // §4.3, row 2 — no card at all: unchanged in both halves.
     expect(notifyCardId(HAND)).toBeUndefined();
+  });
+
+  test("no pane at all sends the tap to the card whatever its column — the board's own alert", () => {
+    // A board alert (bridge/board-notify.ts) has no terminal behind it, so its card is the only
+    // place its tap can go. The marker says which state that is; the destination never varies.
+    const stalled = { status: "stalled", cwd: "/src/collie-board", cardId: "c1", cardTitle: "Ship it" } as const;
+    expect(notifyMarker(stalled)).toBe("Stalled");
+    expect(notifyCardId(stalled)).toBe("c1");
+    expect(notifyContent(stalled, "its agent's pane is gone").title).toBe("Stalled · Ship it");
   });
 
   test("§4.3 row 1 — a card the operator moved out of review still reads `Done`", () => {

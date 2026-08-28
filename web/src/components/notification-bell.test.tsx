@@ -154,6 +154,30 @@ describe("NotificationBell", () => {
     expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c9");
   });
 
+  test("a stalled card reads Stalled, and lands on the card that stopped", async () => {
+    // The board's own alert, back from the coordinator's history hook (bridge/board-notify.ts):
+    // a card whose pane vanished or whose handoff never landed. No pane, so no terminal to open.
+    const stalledEntry: NotifyLogEntry = {
+      id: 6,
+      ts: Date.now() - 1_000,
+      cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
+      status: "stalled",
+      cardTitle: "Ship 0.86",
+      cardId: "c7",
+      cardStatus: "orphaned",
+      subtitle: "its agent's pane is gone — relaunch from the last handoff",
+    };
+    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [stalledEntry] })));
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("button", { name: /notifications/i }));
+    const row = await screen.findByRole("button", { name: /^Stalled · Ship 0\.86/ });
+    expect(row).toHaveTextContent("collie-board · its agent's pane is gone — relaunch from the last handoff");
+    await user.click(row);
+    expect(await screen.findByTestId("landed")).toHaveTextContent("/card/c7");
+  });
+
   test("the card is the subject and the repo drops to the second line — same sentence as the push", async () => {
     const rich: NotifyLogEntry = {
       id: 3,

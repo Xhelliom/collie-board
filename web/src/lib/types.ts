@@ -293,6 +293,9 @@ export interface NotifyPrefs {
    *  off — an extra agent turn on the copilot's own quota, and a no-op unless the copilot itself is
    *  enabled. Off still gets a subtitle: the agent's own last line, read from the transcript. */
   copilotSubtitle: boolean;
+  /** Push when the BOARD reports a card whose work has stopped and which nothing will restart — its
+   *  pane vanished, or its handoff never landed. Default on. One switch for the whole family. */
+  board: boolean;
 }
 
 /**
@@ -308,7 +311,9 @@ export interface NotifyLogEntry {
   agent?: string;
   workspaceLabel?: string;
   cwd: string;
-  status: "blocked" | "done";
+  /** `stalled` is the board's own: a card whose work stopped and which nothing will restart — its
+   *  pane vanished, or its handoff never landed (bridge/board-notify.ts). */
+  status: "blocked" | "done" | "stalled";
   /** The pane that pinged — the entry deep-links to it. ABSENT on a board entry, which is what sends
    *  its tap to the card instead. */
   paneId?: string;

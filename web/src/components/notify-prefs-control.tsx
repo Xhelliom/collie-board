@@ -6,8 +6,10 @@ import { useNotifyPrefs } from "@/hooks/use-notify-prefs";
 import type { NotifyPrefs } from "@/lib/api";
 
 // Which lifecycle events are worth a push. Bridge-wide (fans out to every device, like the snooze),
-// so the copy says so. Four switches: "Needs input" (blocked, default on), "Finished" (done,
-// default off), "App updates" (updates, default on), and "Copilot rephrase" (default off). That
+// so the copy says so. Five switches: "Needs input" (blocked, default on), "Finished" (done,
+// default off), "Board alerts" (board, default on — the board's OWN facts, one switch for the whole
+// family rather than one per event), "App updates" (updates, default on), and "Copilot rephrase"
+// (default off). That
 // last one governs the SLOW half of the subtitle only (notify-subtitle.ts): the agent's own last
 // line always lands, and this asks the copilot to rewrite it into one sentence — so the switch is
 // about spending copilot quota on polish, not about having a subtitle at all.
@@ -16,6 +18,7 @@ import type { NotifyPrefs } from "@/lib/api";
 const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string }> = [
   { key: "blocked", label: "Needs input", hint: "an agent is waiting on you" },
   { key: "done", label: "Finished", hint: "an agent completes its task" },
+  { key: "board", label: "Board alerts", hint: "a card's agent vanished, or a handoff never landed" },
   { key: "updates", label: "App updates", hint: "a new Collie version is available" },
   {
     key: "copilotSubtitle",

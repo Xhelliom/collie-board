@@ -13,7 +13,7 @@ import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
 import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
-import type { NotifyPrefs, NotifyPrefsStore } from "./notify-prefs.ts";
+import { DEFAULT_NOTIFY_PREFS, type NotifyPrefs, type NotifyPrefsStore } from "./notify-prefs.ts";
 import type { Push, PushSubscription } from "./push.ts";
 import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
@@ -1244,7 +1244,10 @@ export function parseNotifyPrefsPatch(v: unknown): Partial<NotifyPrefs> | null {
   if (typeof v !== "object" || v === null) return null;
   const o = v as Record<string, unknown>;
   const patch: Partial<NotifyPrefs> = {};
-  for (const key of ["blocked", "done", "updates", "copilotSubtitle"] as const) {
+  // The KEYS COME FROM THE DEFAULTS, never a second list: this validator is the fourth place the
+  // set of preferences was written out, and the fourth place is where one gets forgotten — a switch
+  // that posts a key nobody whitelisted looks like it toggles and silently snaps back.
+  for (const key of Object.keys(DEFAULT_NOTIFY_PREFS) as (keyof NotifyPrefs)[]) {
     if (!(key in o)) continue;
     if (typeof o[key] !== "boolean") return null;
     patch[key] = o[key] as boolean;

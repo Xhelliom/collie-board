@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { BoardNotifier, type BoardNotifySource, tell } from "./board-notify.ts";
+import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell } from "./board-notify.ts";
 import type { BoardEvent } from "./db.ts";
 import { NotifyLog } from "./notify-log.ts";
-import { notifyContent } from "./notify-content.ts";
+import { notifyCardId, notifyContent, notifyMarker } from "./notify-content.ts";
+import type { Alert } from "./notifications.ts";
 
 const event = (id: number, type: string, payload: unknown = null): BoardEvent => ({
   id,
@@ -13,15 +14,53 @@ const event = (id: number, type: string, payload: unknown = null): BoardEvent =>
   ts: 0,
 });
 
-/** A journal held in an array — the tailer only ever needs a cursor and a range. */
-function source(events: BoardEvent[]) {
+/** A journal held in an array, plus the two rows the retraction predicate reads — the tailer never
+ *  needs more of a database than a cursor, a range, and how the card stands right now. */
+function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
+  const cards: Record<string, Row> = {
+    c1: { title: "Ship the bell", status: "review", repoPath: "/src/collie-board", session: null, handoff: null },
+    ...seed,
+  };
   return {
     events,
+    cards,
     lastEventId: () => events.at(-1)?.id ?? 0,
     eventsAfter: (after: number) => events.filter((e) => e.id > after),
-    getCard: (id: string) =>
-      id === "c1" ? { id: "c1", title: "Ship the bell", status: "review", repoPath: "/src/collie-board" } : null,
-  } satisfies BoardNotifySource & { events: BoardEvent[] };
+    getCard: (id: string) => {
+      const c = cards[id];
+      return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath } : null;
+    },
+    openSessionFor: (id: string) => {
+      const c = cards[id];
+      return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
+    },
+  } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row> };
+}
+
+interface Row {
+  title: string;
+  status: string;
+  repoPath: string | null;
+  session: string | null;
+  handoff: number | null;
+}
+
+/** The coordinator, reduced to what the board drives it through: an opaque key and its two verbs. */
+function sink() {
+  const armed = new Map<string, Alert>();
+  const log: string[] = [];
+  return {
+    armed,
+    log,
+    arm: (key: string, alert: Alert) => {
+      armed.set(key, alert);
+      log.push(`arm ${key}`);
+    },
+    retract: (key: string) => {
+      armed.delete(key);
+      log.push(`retract ${key}`);
+    },
+  } satisfies BoardAlertSink & { armed: Map<string, Alert>; log: string[] };
 }
 
 describe("tell", () => {
@@ -95,5 +134,139 @@ describe("BoardNotifier", () => {
 
     expect(log.recent()).toHaveLength(1);
     expect(log.recent()[0]?.subtitle).toBe("branch kept: not merged");
+  });
+});
+
+describe("alarm", () => {
+  test("keeps the two facts nothing else reports, and says what to do about them", () => {
+    expect(alarm(event(1, "card.status", { to: "orphaned" }))).toBe(
+      "its agent's pane is gone — relaunch from the last handoff",
+    );
+    expect(alarm(event(2, "handoff.expired", { sessionId: "s1" }))).toBe(
+      "handoff never landed — the agent wrote no note",
+    );
+    expect(alarm(event(3, "handoff.failed", { error: "card has no workspace" }))).toBe(
+      "handoff failed: card has no workspace",
+    );
+  });
+
+  test("drops every other column move, and everything the bell already tells", () => {
+    expect(alarm(event(1, "card.status", { to: "review" }))).toBeNull();
+    expect(alarm(event(2, "card.status", null))).toBeNull();
+    expect(alarm(event(3, "handoff.completed", { to: "s2" }))).toBeNull();
+    expect(alarm(event(4, "review.created", { verdict: "drift" }))).toBeNull();
+    expect(alarm(event(5, "card.cleanup_failed", { stage: "worktree" }))).toBeNull();
+  });
+});
+
+describe("BoardNotifier — the board's own alerts", () => {
+  const orphan = (id: number) => ({ ...event(id, "card.status", { to: "orphaned" }), cardId: "c1" });
+
+  test("an orphaned card arms a stalled alert about the CARD, not a pane", () => {
+    const db = source([], { c1: { title: "Ship it", status: "orphaned", repoPath: "/src/collie-board", session: null, handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(orphan(1));
+    notifier.update();
+
+    const alert = alerts.armed.get("card:c1");
+    expect(alert).toBeDefined();
+    // No pane — and that absence is what sends every surface's tap to the card.
+    expect(alert?.paneId).toBeUndefined();
+    expect(notifyCardId(alert!)).toBe("c1");
+    expect(notifyMarker(alert!)).toBe("Stalled");
+    expect(notifyContent(alert!, alert!.subtitle ?? null)).toEqual({
+      title: "Stalled · Ship it",
+      body: "collie-board · its agent's pane is gone — relaunch from the last handoff",
+    });
+  });
+
+  test("it retracts the moment the card stops reading the way the fact left it", () => {
+    const db = source([], { c1: { title: "Ship it", status: "orphaned", repoPath: null, session: null, handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(orphan(1));
+    notifier.update();
+    // Still orphaned on the next tick: the alert holds, and nothing is re-sent.
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1"]);
+
+    // Relaunched — it left `orphaned`, which is this fact's whole retraction rule.
+    db.cards.c1!.status = "working";
+    db.cards.c1!.session = "s2";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+    // …and once retracted it is not swept again.
+    notifier.update();
+    expect(alerts.log).toHaveLength(2);
+  });
+
+  test("a failed handoff holds until a new one is asked for", () => {
+    const db = source([], { c1: { title: "Long one", status: "working", repoPath: null, session: "s1", handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push({ ...event(1, "handoff.expired", { sessionId: "s1" }), cardId: "c1" });
+    notifier.update();
+    expect(alerts.armed.get("card:c1")?.subtitle).toBe("handoff never landed — the agent wrote no note");
+
+    // The agent keeps working in the same pane: nobody has dealt with it, so the alert stands.
+    notifier.update();
+    expect(alerts.armed.has("card:c1")).toBe(true);
+
+    // A fresh handoff request IS dealing with it.
+    db.cards.c1!.handoff = 1_700_000_000_000;
+    notifier.update();
+    expect(alerts.armed.has("card:c1")).toBe(false);
+  });
+
+  test("a card deleted since the fact retracts too — there is nothing left to open", () => {
+    const db = source([], { c1: { title: "Gone", status: "orphaned", repoPath: null, session: null, handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(orphan(1));
+    notifier.update();
+    delete db.cards.c1;
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  });
+
+  test("a restarted herdr orphans the whole board in one tick — one alert per card, one slot", () => {
+    const cards: Record<string, Row> = {};
+    for (const id of ["c1", "c2", "c3", "c4"]) {
+      cards[id] = { title: id, status: "orphaned", repoPath: null, session: null, handoff: null };
+    }
+    const db = source([], cards);
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    // What `reconcile()` writes when every pane vanishes at once.
+    db.events.push(
+      ...["c1", "c2", "c3", "c4"].map((cardId, i) => ({ ...event(i + 1, "card.status", { to: "orphaned" }), cardId })),
+    );
+    notifier.update();
+
+    // Four alerts, four keys, and every one of them keyed by CARD — the coordinator collapses them
+    // into one digest and one `collie:herd` slot (notifications.ts), which is the point of not
+    // opening a second channel for the board.
+    expect([...alerts.armed.keys()]).toEqual(["card:c1", "card:c2", "card:c3", "card:c4"]);
+    expect(new Set([...alerts.armed.values()].map((a) => a.status))).toEqual(new Set(["stalled"]));
+  });
+
+  test("without a coordinator it stays the bell-only tailer it shipped as", () => {
+    const db = source([], { c1: { title: "Ship it", status: "orphaned", repoPath: null, session: null, handoff: null } });
+    const log = new NotifyLog(() => 0);
+    const notifier = new BoardNotifier(db, log);
+
+    db.events.push(orphan(1), event(2, "review.created", { verdict: "complete" }));
+    notifier.update();
+
+    // The orphan produced nothing — an alarm with nowhere to go is not silently turned into a bell
+    // entry, because a bell entry cannot be retracted and this fact needs to be.
+    expect(log.recent()).toHaveLength(1);
+    expect(log.recent()[0]?.subtitle).toBe("Copilot review: complete");
   });
 });

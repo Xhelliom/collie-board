@@ -17,7 +17,13 @@ import { type AgentStatus, type AgentView } from "./types.ts";
 // Pure and clock-injected so `bun test` drives it without real timers: the bridge passes
 // setTimeout/clearTimeout (see server.ts); tests pass a fake clock they fire on demand.
 
-type NotifiableStatus = "blocked" | "done";
+/**
+ * What an alert can be ABOUT. `blocked`/`done` are pane transitions; `stalled` is the board's own —
+ * a card whose work has stopped and which nothing will restart (its pane vanished, or its handoff
+ * never landed). It is deliberately ONE state for both facts and not one per event: they are the
+ * same decision for the operator (NOTIFY_AUDIT.md §6.4, "Le vocabulaire du digest").
+ */
+export type NotifiableStatus = "blocked" | "done" | "stalled";
 
 /** The timer primitive the coordinator schedules against — real setTimeout in the bridge, fake in tests. */
 export interface NotifyClock<H> {
@@ -86,8 +92,14 @@ export function makeNotifySink(
 }
 
 export interface Alert {
-  agent: string;
-  workspaceLabel: string;
+  /**
+   * The pane behind the alert — ABSENT when there isn't one. The coordinator's key is opaque (see
+   * `pending`/`outstanding`), so an alert about a card carries no pane, and that absence is what
+   * routes its tap to the card instead of a terminal (notify-content.ts's `notifyCardId`).
+   */
+  paneId?: string;
+  agent?: string;
+  workspaceLabel?: string;
   cwd: string;
   status: NotifiableStatus;
   /**
@@ -117,10 +129,10 @@ export interface Alert {
   subtitle?: string;
 }
 
-/** An alert that has just fired, as handed to the history hook. */
-export interface FiredAlert extends Alert {
-  paneId: string;
-}
+/** An alert that has just fired, as handed to the history + pre-fire hooks. Nothing is added to it
+ *  any more: `paneId` moved onto {@link Alert} itself when the coordinator stopped assuming every
+ *  alert has a pane, and the name is kept because it says WHEN the hooks see one. */
+export type FiredAlert = Alert;
 
 /**
  * How each state is COUNTED in a digest, in the fixed order they're listed — most urgent first: a
@@ -133,6 +145,10 @@ export interface FiredAlert extends Alert {
  */
 const DIGEST_COUNTS: ReadonlyArray<readonly [ReturnType<typeof notifyMarker>, (n: number) => string]> = [
   ["Needs you", (n) => `${n} question${n > 1 ? "s" : ""}`],
+  // A blocked agent is waiting on you NOW, on an open session; a stalled card already stopped, and
+  // ten more minutes change nothing — so it reads second. It reads before `Review` for the mirror
+  // reason: a review is work you choose to pick up, a stalled card is work that did not happen.
+  ["Stalled", (n) => `${n} stalled`],
   ["Review", (n) => `${n} to review`],
   ["Done", (n) => `${n} done`],
 ];
@@ -150,9 +166,12 @@ function digestTitle(alerts: Alert[]): string {
 }
 
 export class NotificationCoordinator<H = unknown> {
-  /** paneId → debouncing alert (timer + its kind) that hasn't entered the summary yet. */
+  // THE KEY IS OPAQUE. It is a pane id for a pane alert because that is the id a transition has;
+  // the board keys its own facts `card:<id>` (board-notify.ts). Nothing below reads it as anything
+  // but a string — the deep-link comes from the ALERT, not from the key (NOTIFY_AUDIT.md §6.4).
+  /** key → debouncing alert (timer + its kind) that hasn't entered the summary yet. */
   private readonly pending = new Map<string, { handle: H; status: NotifiableStatus }>();
-  /** paneId → alert that has fired and is reflected in the current summary (insertion-ordered). */
+  /** key → alert that has fired and is reflected in the current summary (insertion-ordered). */
   private readonly outstanding = new Map<string, Alert>();
 
   constructor(
@@ -161,7 +180,7 @@ export class NotificationCoordinator<H = unknown> {
     private readonly delayMs: number,
     // Whether a transition into a status should notify, read live from the prefs store so a runtime
     // change is honoured. A disabled kind behaves exactly like a non-notifiable status (idle/working).
-    private readonly isNotifiable: (status: AgentStatus) => boolean,
+    private readonly isNotifiable: (status: AgentStatus | NotifiableStatus) => boolean,
     // Called once per alert that survives the debounce, BEFORE the sink's mute gate — the history
     // (bridge/notify-log.ts) records what pinged, including during quiet hours, which is precisely
     // the ping you go looking for afterwards. A retraction never reaches it: the summary changes,
@@ -181,16 +200,11 @@ export class NotificationCoordinator<H = unknown> {
 
   /** Wire to `StateEngine.onTransition`. */
   onTransition(agent: AgentView, _from: AgentStatus, to: AgentStatus): void {
-    const id = agent.paneId;
-    if (!this.isNotifiable(to)) {
-      // Resolved to a non-notifiable (or preference-disabled) state: drop a still-pending alert,
-      // retract a delivered one.
-      this.resolve(id);
-      return;
-    }
-    // (Re)arm the debounce. A blocked→done flip lands here too, so only the latest verb survives.
-    this.cancelPending(id);
-    const alert: Alert = {
+    // (Re)arm the debounce. A blocked→done flip lands here too, so only the latest verb survives —
+    // and a resolution to a non-notifiable (or preference-disabled) state retracts instead, which is
+    // `arm`'s own first branch rather than a second copy of the same rule here.
+    this.arm(agent.paneId, {
+      paneId: agent.paneId,
       agent: agent.agent,
       workspaceLabel: agent.workspaceLabel,
       cwd: agent.cwd,
@@ -201,14 +215,28 @@ export class NotificationCoordinator<H = unknown> {
       cardTitle: agent.cardTitle,
       cardId: agent.cardId,
       agentSessionId: agent.agentSessionId,
-    };
-    const handle = this.clock.schedule(() => void this.fire(id, alert), this.delayMs);
-    this.pending.set(id, { handle, status: alert.status });
+    });
   }
+
+  /**
+   * Arm an alert under an opaque `key` — the same debounce, slot, digest and snooze a pane
+   * transition gets, for a caller that has no pane at all (bridge/board-notify.ts keys `card:<id>`).
+   * A status the prefs have disabled resolves instead, exactly as a non-notifiable transition does.
+   */
+  arm(key: string, alert: Alert): void {
+    if (!this.isNotifiable(alert.status)) {
+      this.retract(key);
+      return;
+    }
+    this.cancelPending(key);
+    const handle = this.clock.schedule(() => void this.fire(key, alert), this.delayMs);
+    this.pending.set(key, { handle, status: alert.status });
+  }
+
 
   /** Wire to `StateEngine.onRemove` — a vanished pane is implicitly resolved. */
   onRemove(paneId: string): void {
-    this.resolve(paneId);
+    this.retract(paneId);
   }
 
   /**
@@ -265,24 +293,39 @@ export class NotificationCoordinator<H = unknown> {
   private async fire(id: string, alert: Alert): Promise<void> {
     this.pending.delete(id);
     this.outstanding.set(id, alert);
-    const learned = this.beforeFire
-      ? await this.beforeFire({ ...alert, paneId: id }).catch(() => null)
-      : null;
+    const learned = this.beforeFire ? await this.beforeFire(alert).catch(() => null) : null;
     // ponytail: resolved while we waited — the retraction already emitted, so just stand down. It
     // may have emitted a clear for a slot that never showed; harmless, and the window is ~ms.
     if (!this.outstanding.has(id)) return;
     if (learned?.subtitle) alert.subtitle = learned.subtitle;
     if (learned?.cardStatus) alert.cardStatus = learned.cardStatus;
-    this.onFire?.({ ...alert, paneId: id });
+    this.onFire?.(alert);
     this.emit(true);
   }
 
-  private resolve(id: string): void {
-    this.cancelPending(id);
-    if (this.outstanding.delete(id)) this.emit(false);
+  /**
+   * Drop whatever is armed or outstanding under `key`: cancel a still-debouncing timer, retract a
+   * delivered alert and re-emit the shrunk summary. The other half of {@link arm} — public because a
+   * caller that owns its own retraction predicate (bridge/board-notify.ts) has no transition to ride.
+   */
+  retract(key: string): void {
+    this.cancelPending(key);
+    if (this.outstanding.delete(key)) this.emit(false);
   }
 
-  /** Re-render the single herd summary from whatever's outstanding (or clear it when empty). */
+  /**
+   * Re-render the single herd summary from whatever's outstanding (or clear it when empty).
+   *
+   * ponytail: ONE MESSAGE PER ALERT, even when a whole batch expires together. Timers that come due
+   * in the same tick still run as separate callbacks with the microtask queue drained between them,
+   * so each `fire()` renders before the next one is even invoked: a restarted herdr, which orphans
+   * every card in a single `reconcile()` (NOTIFY_AUDIT.md §6.3), sends a growing digest per card —
+   * one notification on the device, since they share the slot, but N messages and N `renotify`s to
+   * get there. Upstream has always done this for a herd that finishes together; the board only makes
+   * it easier to hit. Collapsing it needs the render deferred past the whole timer batch (one
+   * macrotask), which changes when every existing caller sees a render — worth doing only once the
+   * duplicate buzz has actually been observed on a device.
+   */
   private emit(renotify: boolean): void {
     if (this.outstanding.size === 0) {
       this.sink.clear();
@@ -292,17 +335,22 @@ export class NotificationCoordinator<H = unknown> {
   }
 
   private summarize(renotify: boolean): HerdSummary {
-    const entries = [...this.outstanding.entries()];
+    const entries = [...this.outstanding.values()];
     if (entries.length === 1) {
-      const [paneId, a] = entries[0]!;
+      const a = entries[0]!;
       // One outstanding agent → deep-link straight to its pane on tap, unless the alert is about a
       // card to read, in which case the tap follows the sentence to the card (§4.1). Both come from
       // notify-content.ts, shared with the copilot's later update to this same slot — which is why
       // an already-filled `subtitle` survives every re-render of the summary.
       const cardId = notifyCardId(a);
-      return { ...notifyContent(a, a.subtitle ?? null), paneId, renotify, ...(cardId ? { cardId } : {}) };
+      return {
+        ...notifyContent(a, a.subtitle ?? null),
+        ...(a.paneId ? { paneId: a.paneId } : {}),
+        renotify,
+        ...(cardId ? { cardId } : {}),
+      };
     }
-    const alerts = entries.map(([, a]) => a);
+    const alerts = entries;
     // The subjects, not the workers: `claude, claude, claude` named three panes with the one word
     // herdr reports for all of them (NOTIFY_AUDIT.md §2.1). Same subject rule as a single alert —
     // the card, else its repo — so a digest reads like the notifications it collapsed.

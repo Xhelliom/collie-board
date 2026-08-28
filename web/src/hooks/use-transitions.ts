@@ -45,7 +45,10 @@ function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "
   const status = a.status as "blocked" | "done";
   // The snapshot this diff ran on is the same one `reconcile()` had already acted on, so `cardStatus`
   // is current here with none of the re-reading the push has to do (§4.2).
-  const subject = { status, cwd: a.cwd, cardTitle: a.cardTitle, cardId: a.cardId, cardStatus: a.cardStatus, session };
+  // `paneId` is passed because `notifyCardId` reads it: an alert with NO pane is about its card
+  // whatever its column (a board alert — bridge/board-notify.ts). A toast always has one, so this
+  // says so explicitly rather than letting the absent field decide for it.
+  const subject = { status, paneId: a.paneId, cwd: a.cwd, cardTitle: a.cardTitle, cardId: a.cardId, cardStatus: a.cardStatus, session };
   const { title, body } = notifyContent(subject, null);
   return { paneId: a.paneId, session, cardId: notifyCardId(subject), status, title, detail: body };
 }

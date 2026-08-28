@@ -31,9 +31,13 @@
 
 /** Just the corner of an alert the composition reads — a plain shape, so a test passes a literal. */
 export interface NotifySubject {
-  status: "blocked" | "done";
+  status: "blocked" | "done" | "stalled";
   cwd: string;
   cardTitle?: string;
+  /** The pane behind the alert, when there IS one. Its ABSENCE is a fact: a board alert
+   *  (bridge/board-notify.ts) is about a card and nothing else, so the tap has one place to go —
+   *  see {@link notifyCardId}. Every surface passes it; none of them renders it. */
+  paneId?: string;
   /**
    * The herd session, when it isn't the primary one. In-app surfaces only: it says WHERE to go look,
    * which a history row and a toast have room for and a lock screen does not — so the push leaves it
@@ -85,15 +89,25 @@ export function notifyContent(a: NotifySubject, subtitle: string | null): { titl
  * NOTIFY_AUDIT.md §3.5, `notifications.ts`). One rule, two renderings: a digest can never disagree
  * with the notifications it collapsed about which state each of them was in.
  */
-export function notifyMarker(a: NotifySubject): "Needs you" | "Review" | "Done" {
-  return a.status === "blocked" ? "Needs you" : a.cardStatus === "review" ? "Review" : "Done";
+export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Review" | "Done" {
+  if (a.status === "blocked") return "Needs you";
+  // The card's work has STOPPED and nothing will restart it — its pane vanished, or its handoff
+  // never landed. One marker for both, because they are one decision (NOTIFY_AUDIT.md §6.4).
+  if (a.status === "stalled") return "Stalled";
+  return a.cardStatus === "review" ? "Review" : "Done";
 }
 
 /**
  * Where a tap should land: the CARD when the notification is about a card to read (the `Review`
- * marker above), else undefined — the pane, exactly as before. Shared by all three surfaces (the
- * push payload, the toast, the bell) so the marker and the destination stay one decision.
+ * marker above) or when there is no pane to land in at all, else undefined — the pane, exactly as
+ * before. Shared by all three surfaces (the push payload, the toast, the bell) so the marker and the
+ * destination stay one decision.
+ *
+ * THE MISSING PANE IS THE SECOND RULE, not a special case: an alert the board raised about a card
+ * (bridge/board-notify.ts) has no terminal behind it, so its card is the only place its tap can go —
+ * whatever column that card now reads.
  */
 export function notifyCardId(a: NotifySubject): string | undefined {
-  return a.cardStatus === "review" ? a.cardId : undefined;
+  if (a.cardStatus === "review") return a.cardId;
+  return a.paneId ? undefined : a.cardId;
 }
