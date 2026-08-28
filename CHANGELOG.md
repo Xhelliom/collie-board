@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.131.1] - 2026-08-28
+
+### Fixed
+
+- Joindre une capture à une nouvelle carte est un bouton, plus seulement un collage — la feuille est utilisée depuis le téléphone, où coller une image n'existe pas (fcb29ba)
+
 ## [0.131.0] - 2026-08-28
 
 ### Added
