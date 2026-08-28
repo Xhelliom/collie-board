@@ -140,9 +140,12 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
                 );
                 // A "card to read" entry opens its card; anything else opens the pane. The entry
                 // carries its own session, so a ping from another herd lands in that herd rather
-                // than looking up a pane id in the one you happen to be viewing.
-                const card = notifyCardId(e);
-                navigate(card ? cardPath(card) : panePath(e.paneId, e.session));
+                // than looking up a pane id in the one you happen to be viewing. A BOARD entry
+                // (bridge/board-notify.ts) has no pane at all — it is about its card, whatever that
+                // card's status now reads, so the absent paneId IS the routing decision.
+                const card = notifyCardId(e) ?? (e.paneId ? undefined : e.cardId);
+                if (card) navigate(cardPath(card));
+                else if (e.paneId) navigate(panePath(e.paneId, e.session));
               }}
               className="flex min-w-0 flex-1 items-start gap-2 rounded-[10px] py-2.5 pl-3 pr-2 text-left transition-colors hover:bg-muted/60 active:bg-muted"
             >

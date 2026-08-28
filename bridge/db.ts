@@ -1232,14 +1232,7 @@ export class BoardDb {
    */
   getEvent(id: number): BoardEvent | null {
     const r = this.db.query<EventRow, [number]>("SELECT * FROM event WHERE id = ?").get(id);
-    if (!r) return null;
-    return {
-      id: r.id,
-      cardId: r.card_id,
-      type: r.type,
-      payload: r.payload === null ? null : safeJson(r.payload),
-      ts: r.ts,
-    };
+    return r ? toEvent(r) : null;
   }
 
   /** A card's journal, newest first. */
@@ -1249,15 +1242,39 @@ export class BoardDb {
         "SELECT * FROM event WHERE card_id = ? ORDER BY ts DESC, id DESC LIMIT ?",
       )
       .all(cardId, limit)
-      .map((r) => ({
-        id: r.id,
-        cardId: r.card_id,
-        type: r.type,
-        payload: r.payload === null ? null : safeJson(r.payload),
-        ts: r.ts,
-      }));
+      .map(toEvent);
+  }
+
+  /**
+   * The newest journal id, or 0 on an empty journal — where the board tailer's cursor starts
+   * (board-notify.ts). In memory and never persisted, which is the whole point: a bridge restart
+   * resumes from what is in the journal NOW and so never replays the past into the bell.
+   */
+  lastEventId(): number {
+    return this.db.query<{ id: number | null }, []>("SELECT MAX(id) AS id FROM event").get()?.id ?? 0;
+  }
+
+  /**
+   * Journal entries newer than `after`, OLDEST first — the board tailer's range scan, and the reason
+   * it is cheap: `id > ?` on an AUTOINCREMENT primary key walks the rowid from the cursor and
+   * returns nothing at all in the normal case. `limit` bounds one tick, never the stream: the caller
+   * advances its cursor per row, so a burst is drained over the next few ticks instead of in one.
+   */
+  eventsAfter(after: number, limit = 200): BoardEvent[] {
+    return this.db
+      .query<EventRow, [number, number]>("SELECT * FROM event WHERE id > ? ORDER BY id LIMIT ?")
+      .all(after, limit)
+      .map(toEvent);
   }
 }
+
+const toEvent = (r: EventRow): BoardEvent => ({
+  id: r.id,
+  cardId: r.card_id,
+  type: r.type,
+  payload: r.payload === null ? null : safeJson(r.payload),
+  ts: r.ts,
+});
 
 function safeJson(raw: string): unknown {
   try {

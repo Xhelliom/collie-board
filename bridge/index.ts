@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
+import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
@@ -305,6 +306,11 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
     // lazily so a disabled copilot costs no git subprocesses at all.
     engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)));
+    // The board's own facts reach the bell here: a tailer over the card journal, cursored in memory
+    // from the newest id at startup. The sixth onUpdate of the list, one range scan on a primary key
+    // per tick, and it writes to NOTHING but the bell — no push, no coordinator (NOTIFY_AUDIT.md §6.6).
+    const boardNotifier = new BoardNotifier(board, notifyLog);
+    engine.onUpdate(() => boardNotifier.update());
   }
 
   engine.start();
