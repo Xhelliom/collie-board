@@ -1,11 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
 import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -160,7 +161,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   const [input, setInput] = useState(() => drafts.get(paneId) ?? "");
   const [sending, setSending] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  // Upload + clipboard paste, shared with every other draft box that can carry a screenshot
+  // (hooks/use-image-upload.ts) — on success the host path is appended here and the keyboard stays up.
+  const { uploading, uploadImage, onPaste: onPasteImage } = useImageUpload({
+    paneId,
+    session,
+    disabled: locked,
+    setText: setInput,
+    onAppended: () => focusInputEnd(),
+  });
   // Pending-send preview: set on a successful send, cleared when the mirror catches up (next text
   // update) or after a 6s safety timeout. Shows "You sent: …" so the user knows the message landed.
   const [lastSent, setLastSent] = useState<string | null>(null);
@@ -447,52 +456,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     focusInputEnd();
   }
 
-  // Upload an image; on success append its host path to the composer so the user can add context.
-  // Shared by the file picker and clipboard paste.
-  async function uploadImage(file: File) {
-    if (locked) return;
-    setUploading(true);
-    try {
-      const res = await api.uploadImage(paneId, file, session);
-      if (res.ok) {
-        const path = res.path;
-        setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${path}` : path));
-        focusInputEnd();
-        setStatus("Image added — path in message", "success");
-      } else {
-        setStatus(res.error, "error");
-      }
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err), "error");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function onPickImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
     if (!file) return;
     await uploadImage(file);
-  }
-
-  // Paste an image straight from the clipboard (e.g. a screenshot) the same way the picker does.
-  // Only intercepts when the clipboard actually carries an image file — a plain text paste (the
-  // common case) falls through untouched.
-  function onPasteImage(e: ClipboardEvent<HTMLTextAreaElement>) {
-    if (locked) return;
-    const items = e.clipboardData.items;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === "file" && item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          void uploadImage(file);
-          return;
-        }
-      }
-    }
   }
 
   return (

@@ -446,6 +446,18 @@ describe("StateEngine — session name enrichment", () => {
     expect(agent("w1:p1").sessionName).toBeUndefined();
   });
 
+  test("a transition listener sees the name the cache already knew (posed before the loop)", async () => {
+    const { herdr, engine, poll } = makeNameEngine();
+    const seen: (string | undefined)[] = [];
+    engine.onTransition((a) => seen.push(a.sessionName));
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];
+    herdr.texts.set("w1:p1", named("my-feature"));
+    await poll(); // first sighting: learns the name, fires no transition
+    herdr.panes = [pane("w1:p1", "w1", "blocked", "claude")];
+    await poll();
+    expect(seen).toEqual(["my-feature"]);
+  });
+
   test("a failing pane read never blanks the name or fails the poll", async () => {
     const { herdr, engine, poll, agent } = makeNameEngine();
     herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];

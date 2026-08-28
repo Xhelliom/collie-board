@@ -15,7 +15,7 @@ import {
   SubtaskProgress,
   topOfColumn,
 } from "./card.tsx";
-import type { CardStatus, CardView, Integration } from "@/lib/board";
+import type { BoardEvent, CardStatus, CardView, Integration } from "@/lib/board";
 
 function card(status: CardStatus): CardView {
   return {
@@ -345,6 +345,74 @@ describe("IntegrationSection — merged, pushed, and neither", () => {
     expect(
       screen.getByRole("button", { name: /throw away 2 commits and uncommitted work\?/i }),
     ).toBeTruthy();
+    cleanup();
+  });
+});
+
+// Filing a card auto-cleans its worktree, so seconds after "Open a PR & done" the branch is gone and
+// `integration` answers null — which used to take the whole section's contents with it, PR button
+// included. What is left of the card's PR then lives only in the journal, and that has to stay a TAP:
+// the grey history line under a phone-length closing report is not "the PR is still reachable".
+describe("IntegrationSection — the PR outlives the branch", () => {
+  const prOpened = [
+    {
+      id: 1,
+      cardId: "c1",
+      type: "card.pr_opened",
+      payload: { branch: "board/x", base: "main", url: "https://github.com/o/r/pull/42" },
+      ts: 2,
+    },
+    { id: 2, cardId: "c1", type: "card.cleaned_up", payload: { branch: "board/x" }, ts: 3 },
+  ] as unknown as BoardEvent[];
+
+  it("still offers the PR on a filed card whose branch has been cleaned up", async () => {
+    server.use(
+      http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })),
+      http.get("*/api/cards/:id/pr", () =>
+        HttpResponse.json({ pr: { state: "merged", url: "https://github.com/o/r/pull/42", mergedAt: 5 } }),
+      ),
+    );
+    render(
+      <IntegrationSection card={card("done")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    const link = await screen.findByRole("link", { name: /view pr #42/i });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/42");
+    cleanup();
+  });
+
+  // The other half of the same surface: a card filed with `keepWorktree` on still has a branch, so
+  // `integration` answers and the section takes its MAIN return. That path renders the PR through the
+  // very same `prLink` — this test is what stops a `filing &&` from creeping back in front of it.
+  it("still offers the PR on a filed card whose branch is still there", async () => {
+    server.use(
+      http.get("*/api/cards/:id/integration", () =>
+        HttpResponse.json({
+          integration: {
+            branch: "board/x",
+            base: "main",
+            ahead: 1,
+            behind: 0,
+            branchDirty: false,
+            baseDirty: false,
+            baseCheckedOut: true,
+            pushed: true,
+          } satisfies Integration,
+        }),
+      ),
+      http.get("*/api/cards/:id/pr", () => HttpResponse.json({ pr: null })),
+    );
+    render(
+      <IntegrationSection card={card("done")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    const link = await screen.findByRole("link", { name: /view pr #42/i });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/42");
+    cleanup();
+  });
+
+  it("says there is nothing to integrate when the journal has no PR either", async () => {
+    server.use(http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })));
+    render(<IntegrationSection card={card("done")} events={[]} onDone={vi.fn()} onState={vi.fn()} />);
+    expect(await screen.findByText(/no branch to integrate/i)).toBeTruthy();
     cleanup();
   });
 });

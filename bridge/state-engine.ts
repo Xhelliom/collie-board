@@ -204,6 +204,10 @@ export class StateEngine {
         kind: "agent" | "shell",
       ): AgentView => {
         const ws = wsById.get(p.workspace_id);
+        // Last-known /rename name, applied HERE and not only in enrichSessionNames — that runs after
+        // the transition loop below, so an alert would otherwise never carry a name the cache has
+        // known since the previous poll (NOTIFY_AUDIT.md §2.6). The fresh read still overwrites it.
+        const cachedName = this.sessionNames.get(p.pane_id);
         return {
           paneId: p.pane_id,
           workspaceId: p.workspace_id,
@@ -217,6 +221,7 @@ export class StateEngine {
           kind,
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".
           ...(typeof p.label === "string" && p.label.length > 0 ? { paneLabel: p.label } : {}),
+          ...(cachedName ? { sessionName: cachedName } : {}),
           // The agent's own session id — only the "id" kind names an on-disk transcript. Omitted
           // otherwise, so "no history for this pane" is simply the field being absent.
           ...(p.agent_session?.kind === "id" && typeof p.agent_session.value === "string"
