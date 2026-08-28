@@ -56,11 +56,28 @@ export interface CardRuntime {
   sessionName?: string;
 }
 
+/**
+ * TOO SMALL FOR A CARD — a follow-up the review suggested and deliberately did NOT file.
+ *
+ * "Note in NOTIFY_AUDIT.md that step 1 landed" is one line; a card for it is a card you triage,
+ * filter, drag and eventually delete. So it stays here, on the review of the card whose agent would
+ * do it, where one tap sends it. The criterion is the bridge's (`isTinyFollowUp`, copilot.ts).
+ */
+export interface TinyTodo {
+  /** What the tap would send — and what is left to read when there is no agent to send it to. */
+  spec: string | null;
+  acceptance: string[];
+  /** When it was handed over, or null while it is still on offer. */
+  doneAt: number | null;
+}
+
 /** A follow-up the review suggested, resolved to the card it became — the bridge nulls `card` once
  *  that card is deleted, so the title survives even after the link doesn't. */
 export interface ReviewTodo {
   title: string;
   card: CardLink | null;
+  /** Set exactly when this one was never filed because it was too small — see {@link TinyTodo}. */
+  tiny?: TinyTodo;
 }
 
 export interface Review {
@@ -132,12 +149,6 @@ export interface CardView {
   copilotBusy: boolean;
   /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
   wrapupPending: boolean;
-  /**
-   * TOO SMALL FOR A CARD — the copilot judged this follow-up's whole job to be one edit, so it can
-   * be handed to the agent it came out of instead of being started. Still an ordinary card in every
-   * other way: {@link startCard} works on it exactly as before. False for every card a person wrote.
-   */
-  tiny: boolean;
   /** Off by default. When on, the worktree is never cleaned up automatically once wrapup settles. */
   keepWorktree: boolean;
 }
@@ -562,15 +573,18 @@ export function revertCard(id: string, eventId?: number): Promise<{ ok: true; ca
 }
 
 /**
- * Finish a {@link CardView.tiny} card on the spot: its spec goes to the agent the card came out of,
- * which is still at its prompt in the right worktree, and the card is filed done.
+ * Do a {@link TinyTodo} now: its spec goes to THIS card's own agent — the one that just did the work
+ * the suggestion came out of, still at its prompt in the right worktree — and the suggestion is
+ * marked sent.
  *
- * Never the only way to deal with such a card — it starts like any other. Refuses (409) when the
- * card has already been started, or when that agent is gone, and the message says to start it.
+ * `id` is the reviewed card, because that is the only card involved: the suggestion never became
+ * one. Refuses (409) on a second tap, and when that agent is gone — the suggestion stays on the
+ * review either way, spec and all.
  */
-export function finishCardNow(id: string): Promise<{ ok: true; card: CardView }> {
+export function finishCardNow(id: string, reviewId: string, title: string): Promise<{ ok: true; card: CardView }> {
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/finish-now`, {
     method: "POST",
+    body: JSON.stringify({ reviewId, title }),
   });
 }
 

@@ -341,28 +341,35 @@ own cwd. Across two cards the file isn't even there.
 
 ### The follow-up that shouldn't have been a card
 
-A review's follow-ups are ordinary cards, and nearly all of them should be: they wait in the backlog,
-they get a branch, they get an agent. One shape doesn't fit. "Note in `NOTIFY_AUDIT.md` that step 1
-landed" is one line, into a file the review just named — cutting a worktree and launching an agent to
-write it costs more than the line. So `card.tiny` marks it, and the card screen offers a second tap
-next to Start: **finish it now**, which sends the card's spec to the agent the card came out of and
-files the card. That agent is still at its prompt, in the right worktree, with the context open — the
-review that produced the follow-up fires the moment its work lands.
+A review's follow-ups become cards, and nearly all of them should. One shape shouldn't. "Note in
+`NOTIFY_AUDIT.md` that step 1 landed" is one line into a file the review just named — and a card for
+it is a card you triage, filter, drag and eventually delete, a chore the tool invented. So that one
+**is not filed at all**: it stays on the review as a `TinyTodo`, carrying the spec the card would
+have had, and the reviewed card's screen offers it as **one tap — finish it now** — which sends it
+to that card's OWN agent. Which is right there: the review fires the moment the work lands, so the
+agent is still at its prompt, in the right worktree, with the context open.
 
 **The criterion is written once** (`isTinyFollowUp`, `bridge/copilot.ts`), and it is three clauses:
 one edit to one file the review can name; the review already knows what to write; nothing verified
 beyond the edit landing. The first two are the reviewer's to judge — nothing on the bridge side can
-tell "one edit" from a title — so the copilot answers them, in a prompt that states the same three
-clauses. The third is restated as a closed list of categories (`docs`, `chore`) and enforced in code:
-a `bug`, a `feature` and a `test` all end in someone checking the result, so none of them is ever
-tiny however the model answers. A one-line fix that misses the floor simply stays an ordinary card,
-which is the harmless direction — the fork's rule that a gauge which might be wrong is worse than no
-gauge.
+tell "one edit" from a title — so the copilot answers them, from a prompt stating the same three
+clauses. The third is restated as a closed list of categories (`docs`, `chore`) and enforced in
+code: a `bug`, a `feature` and a `test` all end in someone checking the result, so none of them is
+ever tiny however the model answers. A one-line fix that misses the floor simply becomes an ordinary
+card, which is the harmless direction — the fork's rule that a gauge which might be wrong is worse
+than no gauge.
 
-**It is an offer, never a diversion.** The card is filed in the backlog exactly like every other
-follow-up; `tiny` only *adds* a route out. Every refusal (`not-tiny`, already started, that agent is
-gone) says to start the card, and the Start button below is untouched. And like `startCard`, nothing
-here is automatic: the operator taps it — same reasoning as the dependency gate above.
+**Not filing it costs something, and the row pays it.** A suggestion with no card is a suggestion
+that cannot be started, so when that agent is gone the row shows the SPEC in full rather than an
+offer: nothing was filed, so this row is the only place the note still exists, and it has to be
+readable by the person who now has to do it. `doneAt` is the one write a review ever gets after
+creation, and it has to be durable — without it the offer stays live and a second tap makes the
+agent do the same edit twice.
+
+**Same switches, same gate.** A tiny suggestion is produced under `autoFollowUps` and the per-category
+switches exactly like a filed one — a board that asked for no follow-ups gets none of either. And
+like `startCard`, nothing here is automatic: the operator taps it, same reasoning as the dependency
+gate above.
 
 ### Three herdr behaviours the docs don't state
 

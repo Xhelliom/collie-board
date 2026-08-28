@@ -1419,8 +1419,10 @@ export class CopilotCoordinator {
     // Only once the operator has opted into it (`autoFollowUps`, off by default): a review is worth
     // having for its verdict and notes alone, and a board that refills itself is not what everyone
     // wants.
-    // ponytail: the suggestions are dropped, not stored card-less — a `cardId: null` todo renders as
-    // "deleted since" (struck through). Keep them if that ever gets its own rendering.
+    // ponytail: a suggestion refused by the switches below is dropped, not stored card-less — a
+    // `cardId: null` todo with no `tiny` renders as "deleted since" (struck through). Keep them if
+    // that ever gets its own rendering. The `tiny` ones are the opposite case: kept card-less ON
+    // PURPOSE, with their own row.
     // …and only in the categories still switched on — the finer cut under the global switch. Applied
     // HERE, before `createCard`, because the ask is "don't produce the card", not "hide it after":
     // a card filed and then filtered out still shows up in every count, every export and every
@@ -1430,6 +1432,18 @@ export class CopilotCoordinator {
       .map((todo) => ({ todo, category: pickCategory(todo.category) }))
       .filter(({ category }) => wanted.has(category));
     const todos: ReviewTodo[] = suggested.map(({ todo, category }) => {
+      // TOO SMALL FOR A CARD — and so it does not become one. The suggestion is kept on the review
+      // instead, with the spec that would have been the card's, and the card screen offers it as
+      // one tap to the agent that is still sitting right there (see TinyTodo). A card for a
+      // one-line edit is a card you triage, filter, drag and eventually delete: a chore the tool
+      // invented, which is exactly the pile this avoids.
+      if (isTinyFollowUp(todo, category)) {
+        return {
+          title: todo.title,
+          cardId: null,
+          tiny: { spec: todo.spec ?? null, acceptance: todo.acceptance ?? [], doneAt: null },
+        };
+      }
       const created = this.db.createCard({
         title: todo.title,
         spec: todo.spec ?? null,
@@ -1455,10 +1469,6 @@ export class CopilotCoordinator {
         // field exists to abolish. Already snapped above: the same value the filter just judged, so
         // a card can never be admitted as one category and filed as another.
         category,
-        // …and whether it should have been a card at all. STILL A CARD either way — the flag adds
-        // the "finish it now" route, it does not take the ordinary one away, and a follow-up nobody
-        // hands off is a follow-up you start like any other.
-        tiny: isTinyFollowUp(todo, category),
       });
       return { title: todo.title, cardId: created.id };
     });

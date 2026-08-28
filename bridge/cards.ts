@@ -790,65 +790,61 @@ export async function startCard(
   return { ok: true, value: { card: db.getCard(cardId)!, session, worktree } };
 }
 
-/** Why a card too small for a card could not, in the end, be finished on the spot. */
+/** Why a suggestion too small for a card could not, in the end, be finished on the spot. */
 export type FinishNowError =
   | { kind: "not-tiny"; message: string }
-  | { kind: "started"; message: string }
+  | { kind: "already-done"; message: string }
   | { kind: "no-session"; message: string }
   | { kind: "herdr"; message: string };
 
 /**
- * FINISH IT NOW. Hand a follow-up the copilot judged too small for a card (`Card.tiny`, criterion in
- * copilot.ts) straight to the agent that produced it, instead of starting it like an ordinary card.
+ * FINISH IT NOW. Hand a suggestion the copilot judged too small for a card (`TinyTodo`, criterion in
+ * copilot.ts) straight to the agent that produced it.
  *
- * The whole point is that there is nothing to set up. The work belongs on the branch the reviewed
- * card is already sitting in, its agent is still at its prompt with the context open, and cutting a
- * second worktree to write one line into a tracking file costs more than the line. So this never
- * starts anything: it sends the card's own spec to the ORIGIN card's open pane, and files the card.
+ * There is nothing to set up, and that is the whole point. The work belongs on the branch the
+ * reviewed card is already sitting in, its agent is still at its prompt with the context open, and
+ * a card — plus a worktree, plus a second agent — to write one line into a tracking file costs more
+ * than the line. So this creates nothing and starts nothing: it prompts the reviewed card's own
+ * open pane, and marks the suggestion as handed over.
  *
  * NOT AUTOMATIC, and it never will be. The operator taps it, exactly like `startCard` — an agent
- * that picks up work nobody handed it is the one thing the whole board is arranged against. And it
- * refuses every card that has been started: past that point the card has its own agent, and
- * `POST …/prompt` is the route that talks to it.
+ * that picks up work nobody handed it writes code and spends quota with nobody watching, which is
+ * the one thing this board is arranged against.
  */
 export async function finishNow(
   db: BoardDb,
   herdr: HerdrClient,
+  /** The REVIEWED card — the one whose agent does the work, and whose review holds the suggestion. */
   cardId: string,
+  todo: { reviewId: string; title: string },
   /** Injectable so the tests don't pay promptAndConfirm's settle window. */
   wait?: (ms: number) => Promise<void>,
-): Promise<{ ok: true; paneId: string; origin: Card } | { ok: false; error: FinishNowError }> {
-  const card = db.getCard(cardId);
-  if (!card) return { ok: false, error: { kind: "herdr", message: "card not found" } };
-  if (!card.tiny) {
+): Promise<{ ok: true; paneId: string } | { ok: false; error: FinishNowError }> {
+  const review = db.getReview(todo.reviewId);
+  const found = review?.cardId === cardId ? review.todos.find((t) => t.title === todo.title) : undefined;
+  // A review id from another card must not reach through: the write gate is per-request, not per
+  // card, and everything below prompts THIS card's pane with text taken from that review.
+  if (!found?.tiny) {
     return {
       ok: false,
-      error: { kind: "not-tiny", message: "this card is an ordinary one — start it" },
+      error: { kind: "not-tiny", message: "no such suggestion on this card's reviews" },
     };
   }
-  // Everything below assumes the card has never run. Same test `isUntouched` uses on the copilot's
-  // side, and for the same reason: a card with a session or a branch owns a worktree, and handing
-  // its work to somebody else's agent would write it in the wrong checkout.
-  if (card.branch !== null || db.listSessions(cardId).length > 0) {
+  // Already sent. Refused rather than repeated — a second delivery makes the agent do the same edit
+  // twice, which is the hazard promptAndConfirm's header is about.
+  if (found.tiny.doneAt !== null) {
+    return { ok: false, error: { kind: "already-done", message: "this one has already been sent" } };
+  }
+  const session = db.openSessionFor(cardId);
+  if (!session?.paneId) {
     return {
       ok: false,
-      error: { kind: "started", message: "this card has already been started — prompt its own agent" },
+      // Says what is left, because something is: the suggestion stays on the review, spec and all,
+      // for a person to act on or to make a card of.
+      error: { kind: "no-session", message: "this card's agent is gone — the suggestion stays on the review" },
     };
   }
-  const origin = card.originCardId ? db.getCard(card.originCardId) : null;
-  const session = origin ? db.openSessionFor(origin.id) : null;
-  if (!origin || !session?.paneId) {
-    return {
-      ok: false,
-      error: {
-        kind: "no-session",
-        // Names the way out, because it is the ordinary one: the agent that would have done this in
-        // passing is gone, so the card is now a card like any other.
-        message: "the agent this came out of is gone — start this card instead",
-      },
-    };
-  }
-  const text = finishNowPrompt(card);
+  const text = finishNowPrompt(found.title, found.tiny);
   try {
     await promptAndConfirm(herdr, session.paneId, text, wait);
   } catch (err) {
@@ -857,45 +853,43 @@ export async function finishNow(
     if (isAgentGone(err)) {
       return {
         ok: false,
-        error: { kind: "no-session", message: "the agent this came out of is gone — start this card instead" },
+        error: { kind: "no-session", message: "this card's agent is gone — the suggestion stays on the review" },
       };
     }
     return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
   }
+  // Marked only once the prompt is confirmed delivered: a suggestion marked done by a send that
+  // never landed is one nobody will ever look at again.
+  db.markTinyTodoDone(todo.reviewId, todo.title);
   db.recordEvent(cardId, "card.finished_now", {
     paneId: session.paneId,
-    originCardId: origin.id,
-    originTitle: origin.title,
+    reviewId: todo.reviewId,
+    title: todo.title,
+    chars: text.length,
   });
-  // Filed in the same breath, because the tap MEANS "this is handled" — leaving it in the backlog
-  // for the operator to close by hand puts back exactly the bookkeeping this route removes. It is a
-  // manual status like any other: if the agent botches it, drag the card back out.
-  db.setStatus(cardId, "done", `handed to the agent on “${origin.title}”`);
-  // The other card's journal too — that pane just took an instruction nobody typed into it, and the
-  // card it belongs to is the only place someone reading its diff would look for why.
-  db.recordEvent(origin.id, "card.prompted", { chars: text.length, finishNow: cardId });
-  return { ok: true, paneId: session.paneId, origin };
+  return { ok: true, paneId: session.paneId };
 }
 
 /**
- * What the agent is asked, when a card is finished on the spot rather than started. Pure + exported,
- * same as {@link initialPrompt}, so the exact words are reviewable in a test.
+ * What the agent is asked, when a suggestion is finished on the spot rather than filed. Pure +
+ * exported, same as {@link initialPrompt}, so the exact words are reviewable in a test.
  *
- * Says WHERE it comes from and that it is small, because the agent is mid-wrapup on another task:
- * without that framing a follow-up arriving out of nowhere reads as a new assignment, and the agent
- * goes looking for the branch it should be on. It is already on it.
+ * Says it is small and where it comes from, because the agent is mid-wrapup on the very work this
+ * came out of: without that framing an instruction arriving out of nowhere reads as a new
+ * assignment, and an agent that thinks it has a new assignment goes looking for a branch to cut.
+ * It is already on the right one.
  */
-export function finishNowPrompt(card: Card): string {
+export function finishNowPrompt(title: string, todo: { spec: string | null; acceptance: string[] }): string {
   const parts = [
     [
       "One more small thing on the branch you are already in, before you stop. It came out of the",
-      "review of the work you just finished, and it is too small to be worth its own agent — do it",
+      "review of the work you just finished, and it is too small to be worth its own card — do it",
       "here, now, and nothing else:",
     ].join("\n"),
-    card.spec?.trim() || card.title.trim(),
+    todo.spec?.trim() || title.trim(),
   ];
-  if (card.acceptance.length > 0) {
-    parts.push(["It is done when:", ...card.acceptance.map((a) => `- ${a}`)].join("\n"));
+  if (todo.acceptance.length > 0) {
+    parts.push(["It is done when:", ...todo.acceptance.map((a) => `- ${a}`)].join("\n"));
   }
   return parts.join("\n\n");
 }

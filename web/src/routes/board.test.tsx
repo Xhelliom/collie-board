@@ -55,7 +55,6 @@ function card(id: string, status: CardStatus, position: number): CardView {
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
-    tiny: false,
   };
 }
 

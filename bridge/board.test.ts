@@ -244,7 +244,6 @@ describe("reconcileOne", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
-    tiny: false,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -584,7 +583,6 @@ describe("initialPrompt", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
-    tiny: false,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1105,7 +1103,6 @@ describe("handoff prompts", () => {
     createdAt: 0,
     updatedAt: 0,
     keepWorktree: false,
-    tiny: false,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
@@ -3505,7 +3502,7 @@ describe("too small for a card — the criterion", () => {
   });
 });
 
-describe("the copilot stamps what is too small to start", () => {
+describe("the copilot keeps the small one off the board", () => {
   const cfg = { boardBranchPrefix: "board/" } as Config;
   const settle = () => new Promise((r) => setTimeout(r, 10));
 
@@ -3529,145 +3526,213 @@ describe("the copilot stamps what is too small to start", () => {
     return { store, reviewed };
   }
 
-  it("files the small one as small, and the rest exactly as before", async () => {
-    const { store } = await reviewWith([
-      { title: "Note in NOTIFY_AUDIT.md that step 1 landed", category: "docs", tiny: true },
-      { title: "cover the parser with a test", category: "test", tiny: true },
-      { title: "the bell fires twice on reconnect", category: "bug" },
+  it("files no card for the small one, and keeps it on the review with what it takes to do it", async () => {
+    const { store, reviewed } = await reviewWith([
+      {
+        title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+        spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+        acceptance: ["the line is in NOTIFY_AUDIT.md"],
+        category: "docs",
+        tiny: true,
+      },
     ]);
-    const byTitle = (t: string) => store.listCards().find((c) => c.title === t)!;
 
-    expect(byTitle("Note in NOTIFY_AUDIT.md that step 1 landed").tiny).toBe(true);
-    // A `test` the model called tiny is not one — and it lands in the backlog like any other.
-    expect(byTitle("cover the parser with a test").tiny).toBe(false);
-    expect(byTitle("the bell fires twice on reconnect").tiny).toBe(false);
-    // STILL A CARD, in the backlog, in the same column as the other two. The flag adds a route out;
-    // it does not take the ordinary one away.
-    for (const c of store.listCards().filter((c) => c.origin === "copilot")) {
-      expect(c.status).toBe("backlog");
-    }
+    // THE POINT: no card. A one-line edit does not become something to triage, filter and delete.
+    expect(store.listCards().filter((c) => c.origin === "copilot")).toHaveLength(0);
+    const [review] = store.listReviews(reviewed.id);
+    expect(review!.todos).toEqual([
+      {
+        title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+        cardId: null,
+        tiny: {
+          spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+          acceptance: ["the line is in NOTIFY_AUDIT.md"],
+          doneAt: null,
+        },
+      },
+    ]);
   });
 
-  it("leaves a card a person wrote alone — nobody's own card is judged too small to exist", () => {
-    const store = db();
-    expect(store.createCard({ title: "Note in NOTIFY_AUDIT.md that step 1 landed" }).tiny).toBe(false);
+  it("files every other follow-up in the backlog, exactly as before", async () => {
+    const { store, reviewed } = await reviewWith([
+      { title: "Note in NOTIFY_AUDIT.md that step 1 landed", category: "docs", tiny: true },
+      // A `test` the model called tiny is not one — the floor holds, so it lands as a card.
+      { title: "cover the parser with a test", category: "test", tiny: true },
+      { title: "the bell fires twice on reconnect", spec: "…", category: "bug" },
+    ]);
+    const filed = store.listCards().filter((c) => c.origin === "copilot");
+
+    expect(filed.map((c) => c.title).sort()).toEqual([
+      "cover the parser with a test",
+      "the bell fires twice on reconnect",
+    ]);
+    for (const c of filed) {
+      expect(c.status).toBe("backlog");
+      expect(c.originCardId).toBe(reviewed.id);
+    }
+    // …and the review lists all three, the small one card-less and the other two linked.
+    const [review] = store.listReviews(reviewed.id);
+    expect(review!.todos.map((t) => [t.cardId === null, !!t.tiny])).toEqual([
+      [true, true],
+      [false, false],
+      [false, false],
+    ]);
+  });
+
+  it("survives the round trip through the todos column — it is JSON in a text field", async () => {
+    const { store, reviewed } = await reviewWith([
+      { title: "note it", spec: "one line", acceptance: ["a"], category: "chore", tiny: true },
+    ]);
+    const [review] = store.listReviews(reviewed.id);
+    expect(store.getReview(review!.id)!.todos[0]!.tiny).toEqual({
+      spec: "one line",
+      acceptance: ["a"],
+      doneAt: null,
+    });
   });
 });
 
-describe("finishNow — the card too small to start, handed to the agent it came out of", () => {
-  /** A reviewed card with a LIVE agent, and one small follow-up filed against it. */
-  function pair(opts: { tiny?: boolean; originLive?: boolean } = {}) {
+describe("finishNow — the suggestion done by the agent that is still here", () => {
+  /** A reviewed card with a live agent and one small suggestion on its review. */
+  function reviewed(opts: { live?: boolean; tiny?: boolean; doneAt?: number } = {}) {
     const store = db();
-    const origin = store.createCard({ title: "the bell", status: "review", repoPath: "/repo" });
-    const session = store.openSession({ cardId: origin.id, paneId: "w1:p1" });
-    if (opts.originLive === false) store.closeSession(session.id, "done");
-    const card = store.createCard({
-      title: "Note in NOTIFY_AUDIT.md that step 1 landed",
-      spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
-      acceptance: ["the line is in NOTIFY_AUDIT.md"],
-      status: "backlog",
-      origin: "copilot",
-      originCardId: origin.id,
-      category: "docs",
-      tiny: opts.tiny ?? true,
+    const card = store.createCard({ title: "the bell", status: "review", repoPath: "/repo" });
+    const session = store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    if (opts.live === false) store.closeSession(session.id, "done");
+    const review = store.createReview({
+      cardId: card.id,
+      sessionId: session.id,
+      verdict: "complete",
+      todos: [
+        {
+          title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+          cardId: null,
+          ...(opts.tiny === false
+            ? {}
+            : {
+                tiny: {
+                  spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+                  acceptance: ["the line is in NOTIFY_AUDIT.md"],
+                  doneAt: opts.doneAt ?? null,
+                },
+              }),
+        },
+      ],
     });
-    return { store, origin, card };
+    return { store, card, review, title: "Note in NOTIFY_AUDIT.md that step 1 landed" };
   }
 
-  it("prompts the ORIGIN card's pane and files the card, without starting anything", async () => {
-    const { store, origin, card } = pair();
+  it("prompts the reviewed card's own pane, creates nothing, and marks the suggestion sent", async () => {
+    const { store, card, review, title } = reviewed();
     const { client, calls } = fakeHerdr();
 
-    const res = await finishNow(store, client as never, card.id, async () => {});
+    const res = await finishNow(store, client as never, card.id, { reviewId: review.id, title }, async () => {});
 
     expect(res.ok).toBe(true);
-    // No worktree, no agent launch — the whole point. Just the prompt, on somebody else's pane.
+    // No card, no worktree, no second agent — the whole point.
+    expect(store.listCards()).toHaveLength(1);
     expect(calls).not.toContain("createWorktree");
     expect(calls).not.toContain("startAgent");
     expect(calls).toContain("promptAgent");
-    expect(store.getCard(card.id)!.status).toBe("done");
-    expect(store.getCard(card.id)!.branch).toBeNull();
-    // The origin is untouched as a card, and its journal says what its pane was just handed.
-    expect(store.getCard(origin.id)!.status).toBe("review");
-    expect(store.listEvents(origin.id).some((e) => (e.payload as { finishNow?: string }).finishNow === card.id)).toBe(
-      true,
-    );
+    expect(store.getReview(review.id)!.todos[0]!.tiny!.doneAt).toBeGreaterThan(0);
     expect(store.listEvents(card.id).some((e) => e.type === "card.finished_now")).toBe(true);
+    // The card itself is untouched — it is the agent that was asked, not the board.
+    expect(store.getCard(card.id)!.status).toBe("review");
   });
 
   it("says what the agent is being asked, and that it is already on the branch", () => {
-    const { card } = pair();
-    const text = finishNowPrompt(card);
+    const text = finishNowPrompt("Note in NOTIFY_AUDIT.md that step 1 landed", {
+      spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+      acceptance: ["the line is in NOTIFY_AUDIT.md"],
+    });
     expect(text).toContain("branch you are already in");
     expect(text).toContain("Add one line to NOTIFY_AUDIT.md saying step 1 is done.");
     expect(text).toContain("- the line is in NOTIFY_AUDIT.md");
   });
 
-  it("refuses an ordinary card, and points at the route that does work", async () => {
-    const { store, card } = pair({ tiny: false });
+  it("refuses a second send rather than making the agent do the same edit twice", async () => {
+    const { store, card, review, title } = reviewed({ doneAt: 1 });
     const { client, calls } = fakeHerdr();
 
-    const res = await finishNow(store, client as never, card.id, async () => {});
+    const res = await finishNow(store, client as never, card.id, { reviewId: review.id, title }, async () => {});
 
-    expect(res.ok).toBe(false);
+    expect(res.ok === false && res.error.kind).toBe("already-done");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a suggestion that was never one of the small ones", async () => {
+    const { store, card, review, title } = reviewed({ tiny: false });
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, { reviewId: review.id, title }, async () => {});
+
     expect(res.ok === false && res.error.kind).toBe("not-tiny");
-    expect(res.ok === false && res.error.message).toMatch(/start it/);
-    expect(calls).toHaveLength(0);
-    expect(store.getCard(card.id)!.status).toBe("backlog");
-  });
-
-  it("refuses once the card owns a worktree — that work belongs in ITS checkout, not somebody else's", async () => {
-    const { store, card } = pair();
-    store.patchCard(card.id, { branch: "board/note-the-step" });
-    const { client, calls } = fakeHerdr();
-
-    const res = await finishNow(store, client as never, card.id, async () => {});
-
-    expect(res.ok === false && res.error.kind).toBe("started");
     expect(calls).toHaveLength(0);
   });
 
-  it("degrades to an ordinary card once that agent is gone", async () => {
-    const { store, card } = pair({ originLive: false });
+  it("refuses a review that belongs to another card — the write gate is per request, not per card", async () => {
+    const { store, review, title } = reviewed();
+    const other = store.createCard({ title: "someone else", status: "review" });
+    store.openSession({ cardId: other.id, paneId: "w9:p9" });
     const { client, calls } = fakeHerdr();
 
-    const res = await finishNow(store, client as never, card.id, async () => {});
+    const res = await finishNow(store, client as never, other.id, { reviewId: review.id, title }, async () => {});
+
+    expect(res.ok === false && res.error.kind).toBe("not-tiny");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps the suggestion when the agent is gone — it is the offer that lapses, not the note", async () => {
+    const { store, card, review, title } = reviewed({ live: false });
+    const { client, calls } = fakeHerdr();
+
+    const res = await finishNow(store, client as never, card.id, { reviewId: review.id, title }, async () => {});
 
     expect(res.ok === false && res.error.kind).toBe("no-session");
-    expect(res.ok === false && res.error.message).toMatch(/start this card instead/);
+    expect(res.ok === false && res.error.message).toMatch(/stays on the review/);
     expect(calls).toHaveLength(0);
-    // Still there, still startable — the offer lapsed, the card did not.
-    expect(store.getCard(card.id)!.status).toBe("backlog");
+    expect(store.getReview(review.id)!.todos[0]!.tiny!.doneAt).toBeNull();
   });
 
-  it("leaves the card alone when the prompt fails — nothing is filed that was never sent", async () => {
-    const { store, card } = pair();
+  it("leaves it on offer when the prompt fails — nothing is marked that was never sent", async () => {
+    const { store, card, review, title } = reviewed();
     const { client } = fakeHerdr(new Set(["promptAgent"]));
 
-    const res = await finishNow(store, client as never, card.id, async () => {});
+    const res = await finishNow(store, client as never, card.id, { reviewId: review.id, title }, async () => {});
 
     expect(res.ok === false && res.error.kind).toBe("herdr");
-    expect(store.getCard(card.id)!.status).toBe("backlog");
+    expect(store.getReview(review.id)!.todos[0]!.tiny!.doneAt).toBeNull();
   });
 });
 
 describe("POST /api/cards/<id>/finish-now", () => {
-  it("is wired, and refuses an ordinary card with the sentence that names the way out", async () => {
+  it("is wired, and refuses a suggestion this card's reviews don't hold", async () => {
     const store = db();
-    const card = store.createCard({ title: "an ordinary card" });
+    const card = store.createCard({ title: "the bell" });
     const res = await handleBoardRoute(
       `/api/cards/${card.id}/finish-now`,
-      actionPost(card.id, "finish-now"),
+      actionPost(card.id, "finish-now", { reviewId: "nope", title: "note it" }),
       routeCtx(store),
     );
     expect(res!.status).toBe(409);
     expect(await res!.json()).toMatchObject({ kind: "not-tiny" });
   });
 
+  it("400s a body that doesn't name a suggestion", async () => {
+    const store = db();
+    const card = store.createCard({ title: "the bell" });
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/finish-now`,
+      actionPost(card.id, "finish-now", { reviewId: "r1" }),
+      routeCtx(store),
+    );
+    expect(res!.status).toBe(400);
+  });
+
   it("404s an unknown card rather than reasoning about a card that isn't there", async () => {
     const res = await handleBoardRoute(
       "/api/cards/nope/finish-now",
-      actionPost("nope", "finish-now"),
+      actionPost("nope", "finish-now", { reviewId: "r1", title: "note it" }),
       routeCtx(db()),
     );
     expect(res!.status).toBe(404);

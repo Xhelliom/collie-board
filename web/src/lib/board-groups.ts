@@ -190,19 +190,6 @@ export function dependencyMet(predecessor: { status: CardStatus } | null | undef
   return predecessor.status === "done" || predecessor.status === "archived";
 }
 
-/**
- * Is the agent a follow-up came out of still there to be handed one more thing?
- *
- * MUST mirror `finishNow`'s gate in `bridge/cards.ts`, which asks the database for an OPEN SESSION
- * on the origin card. A live column is the client's view of that same fact: the board opens a
- * session on the way into these four and closes it on the way out. Same contract as
- * {@link dependencyMet} above — a client that disagrees offers a tap that answers 409.
- */
-export function originAgentLive(origin: { status: CardStatus } | null | undefined): boolean {
-  if (!origin) return false;
-  return ["starting", "working", "blocked", "review"].includes(origin.status);
-}
-
 export interface DependencyInfo {
   title: string;
   met: boolean;
