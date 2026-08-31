@@ -1,15 +1,13 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
-// A media query as reactive state.
+// A media query as reactive state — the app's ONE viewport reader.
 //
-// The app already had a width test — `wrapDefaultFor(window.innerWidth)` in use-display-prefs — but
-// that one reads once at mount and never hears about a resize. Which is right for it: its whole job
-// is to pick a default the user then overrides forever. It is wrong for layout, where a desktop
-// window gets dragged wider and a sheet that opened from the bottom at 900px has to know it is at
-// 1400px now.
+// There used to be a second one: `wrapDefaultFor(window.innerWidth)` in use-display-prefs, read once
+// at mount, deaf to a window dragged wider or a laptop dropped onto an external display. It goes
+// through this hook now, at the same 640px threshold.
 //
 // Layout itself belongs in CSS (`lg:` and container queries do all of it here). This exists for the
-// one thing CSS can't reach: a PROP, like the drawer's direction.
+// one thing CSS can't reach: a PROP, like the drawer's direction, or a stored preference's default.
 
 /** Tailwind's own `lg` breakpoint, in the same unit, so CSS and JS can't disagree about "wide". */
 const DESKTOP = "(min-width: 64rem)";
