@@ -31,7 +31,7 @@
 
 /** Just the corner of an alert the composition reads — a plain shape, so a test passes a literal. */
 export interface NotifySubject {
-  status: "blocked" | "done" | "stalled";
+  status: "blocked" | "done" | "stalled" | "ready";
   cwd: string;
   cardTitle?: string;
   /** The pane behind the alert, when there IS one. Its ABSENCE is a fact: a board alert
@@ -89,11 +89,16 @@ export function notifyContent(a: NotifySubject, subtitle: string | null): { titl
  * NOTIFY_AUDIT.md §3.5, `notifications.ts`). One rule, two renderings: a digest can never disagree
  * with the notifications it collapsed about which state each of them was in.
  */
-export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Review" | "Done" {
+export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Review" | "Done" | "Ready" {
   if (a.status === "blocked") return "Needs you";
   // The card's work has STOPPED and nothing will restart it — its pane vanished, or its handoff
   // never landed. One marker for both, because they are one decision (NOTIFY_AUDIT.md §6.4).
   if (a.status === "stalled") return "Stalled";
+  // The card its predecessor was blocking may now be started — and NOTHING WILL START IT FOR YOU
+  // (bridge/cards.ts, "THE DEPENDENCY IS A GATE, NOT A TRIGGER"). Its own word, never `Needs you`:
+  // this is the only marker of the set that reports an opened door rather than a demand, and
+  // dressing it up as a demand is exactly how a pleasant notification becomes an unwelcome one.
+  if (a.status === "ready") return "Ready";
   return a.cardStatus === "review" ? "Review" : "Done";
 }
 

@@ -15,7 +15,10 @@ import type { AgentStatus } from "./types.ts";
 export interface NotifyPrefs {
   /** Push when an agent becomes blocked (waiting on your input). Default on. */
   blocked: boolean;
-  /** Push when an agent finishes its task. Default off. */
+  /** Push when an agent finishes its task — and, since B12, when a card lands in `review` with no
+   *  pane behind it at all (board-notify.ts). Both read `Review · <card>` and both tap through to
+   *  the card, so both hang off one switch: the question is "do I want to be told there is
+   *  something to read", not which code path noticed. Default off. */
   done: boolean;
   /** Push when a newer Collie release is available. Default on — the off-switch for update alerts,
    *  which otherwise bypass snooze (an update isn't quiet-hours material). Not an agent status, so it
@@ -33,6 +36,12 @@ export interface NotifyPrefs {
    *  ONE boolean for the whole family, not one per event — otherwise this screen becomes the
    *  recensement of NOTIFY_AUDIT.md §6.3. */
   board: boolean;
+  /** Push when a finished predecessor leaves a card free to START (bridge/board-notify.ts).
+   *  **Default off**, like `done` and for the same reason turned around: this is the one fact of
+   *  the set that opens a possibility instead of reporting a problem, so nothing is late because
+   *  the push never came. Its own switch and not `board`'s, because it is its own marker —
+   *  `Ready`, never `Needs you` (NOTIFY_AUDIT.md §6.3, note de priorité sur B4). */
+  ready: boolean;
 }
 
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
@@ -41,6 +50,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   updates: true,
   copilotSubtitle: false,
   board: true,
+  ready: false,
 };
 
 /**
@@ -56,6 +66,7 @@ export function coerceNotifyPrefs(raw: unknown): NotifyPrefs {
     copilotSubtitle:
       typeof o.copilotSubtitle === "boolean" ? o.copilotSubtitle : DEFAULT_NOTIFY_PREFS.copilotSubtitle,
     board: typeof o.board === "boolean" ? o.board : DEFAULT_NOTIFY_PREFS.board,
+    ready: typeof o.ready === "boolean" ? o.ready : DEFAULT_NOTIFY_PREFS.ready,
   };
 }
 
@@ -88,6 +99,7 @@ export class NotifyPrefsStore {
     if (status === "blocked") return this.prefs.blocked;
     if (status === "done") return this.prefs.done;
     if (status === "stalled") return this.prefs.board;
+    if (status === "ready") return this.prefs.ready;
     return false;
   }
 

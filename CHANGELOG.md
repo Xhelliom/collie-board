@@ -7,16 +7,36 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.131.2] - 2026-08-31
+## [0.133.1] - 2026-08-31
 
 ### Changed
+
 - The mirror's wrap default follows the viewport live instead of reading `window.innerWidth` once at mount — same 640px threshold, one `useMediaQuery` (cef9a92)
 
 ### Fixed
+
 - Settings: the page scrollbar is at the window's edge again, not 700px in from it (19d2dc4)
 - Space: the build stamp is no longer printed twice on a desktop screen (19d2dc4)
 - Home: no more 96px of tab-bar clearance above `lg`, where there is no tab bar (19d2dc4)
 - The space strip wraps above `lg`, so a dozen spaces no longer push the + off the right edge (19d2dc4)
+
+## [0.133.0] - 2026-08-31
+
+### Added
+
+- Une carte passée en `review` sans qu'un pane l'y ait mise notifie enfin — statut posé à la main, review relancée : même marqueur `Review` et même tap vers la carte que N4, autre déclencheur (d3e052f)
+
+### Changed
+
+- Une alerte du board porte désormais son propre statut au lieu d'être toujours `stalled`, ce qui décide de son marqueur et de la préférence qui la gouverne (d3e052f)
+- La raison qu'estampe `reconcile()` est nommée (`paneReason()` / `DERIVED_REASON`) : c'est elle qui dit qu'un pane a déjà signalé le fait, et l'écrivain comme le lecteur la lisent au même endroit (d3e052f)
+- Une carte que son pane fait atterrir en `review`, et le conteneur qui en dérive sa colonne, ne notifient toujours qu'une fois (d3e052f)
+
+## [0.132.0] - 2026-08-31
+
+### Added
+
+- A card whose predecessor just finished says so — marker `Ready`, its own preference, off by default (4722927)
 
 ## [0.131.1] - 2026-08-28
 

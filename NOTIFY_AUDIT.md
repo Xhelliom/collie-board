@@ -594,7 +594,7 @@ lire un champ de plus sur un objet déjà en main, au moment où `onFire` compos
 | `done` sans carte du tout | marqueur `Done`, sujet = repo. Inchangé. |
 | Carte en `review` alors que le pane est reparti en `working` | pas de notification — `resolve()` a déjà rétracté (`notifications.ts:130-134`). Correct. |
 | `done` sur une **sous-tâche** dont le conteneur passe aussi en `review` (`cards.ts:60`) | notifier la sous-tâche, jamais le conteneur. Le conteneur n'a pas de pane et son passage en `review` est dérivé (`cards.ts:277-283`) — le notifier ferait deux alertes pour un événement. |
-| La carte passe en `review` **sans** transition de pane (ex. relance de review manuelle) | hors périmètre de cette règle : c'est une notification d'événement de board, pas de session (carte N6). |
+| La carte passe en `review` **sans** transition de pane (ex. relance de review manuelle) | hors périmètre de cette règle : c'est une notification d'événement de board, pas de session (carte N6). **✅ tranché sous B12 et livré en 0.133.0** : le board l'émet lui-même, même marqueur `Review` et même destination que N4, autre déclencheur. |
 
 ### 4.4 Ce que cette règle ne couvre pas
 
@@ -998,7 +998,9 @@ digest. **Réponse : un seul état neuf, `Stalled`, et rien d'autre.**
 - **Pas d'exclusion.** Hors digest, un événement de board vivrait dans un second canal — ce que §6.1
   refuse en premier lieu.
 
-**L'ordre d'urgence**, complet : `Needs you` · `Stalled` · `Review` · `Done`. `Needs you` reste en
+**L'ordre d'urgence**, complet : `Needs you` · `Stalled` · `Review` · `Done` — et depuis 0.132.0
+`Ready` en queue, le marqueur propre que le paragraphe « Ce que le mot doit tenir » ci-dessous
+réservait à B4 : dernier parce que c'est le seul état qui ne réclame rien. `Needs you` reste en
 tête — un agent bloqué attend *maintenant*, sur une session ouverte ; une carte calée a déjà cessé
 d'avancer et dix minutes de plus ne changent rien. `Stalled` passe devant `Review` pour la raison
 symétrique : une relecture est du travail qu'on choisit, une carte calée est du travail qui n'a pas
@@ -1058,9 +1060,14 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 2. ~~**B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
    le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).~~
    **✅ fait en 0.130.0** — voir le second encadré sous ce paragraphe.
-3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
-4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
-   du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
+3. ~~**B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.~~
+   **✅ fait en 0.133.0** — voir le troisième encadré sous ce paragraphe.
+4. ~~**B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
+   du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.~~
+   **✅ fait en 0.132.0** — voir le quatrième encadré sous ce paragraphe.
+
+> Les deux dernières étapes ont atterri dans l'ordre inverse de cette liste : B4 en 0.132.0, B12 en
+> 0.133.0. Les encadrés ci-dessous gardent l'ordre des étapes, pas celui des versions.
 
 > **Étape 1 livrée en 0.129.0.** Ce que ça a réellement coûté, contre ce que cette liste annonçait :
 >
@@ -1108,6 +1115,53 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 > **Ce qui reste à vérifier sur l'appareil**, et que le diff ne peut pas prouver : l'aller-retour d'un
 > herdr redémarré — l'alerte de pane se rétracte à l'instant où le pane disparaît (`notifications.ts`)
 > et l'alerte `Stalled` arrive 30 s plus tard, ce qui devrait faire un silence puis un buzz, pas deux.
+
+> **Étape 3 livrée en 0.133.0.** « Gratuit une fois le socle posé » était juste : aucun fichier neuf,
+> aucun canal neuf, aucune préférence neuve.
+>
+> - **Le fait entre par le même tailer**, dans `alarm()`, à côté de B1 et B5 — et le prédicat de
+>   rétraction unique le couvrait déjà tel quel : la colonne est dans l'empreinte, donc l'alerte tombe
+>   dès que la carte quitte `review`.
+> - **Le statut de l'alerte est `done`, pas `stalled`.** C'est ce qui lui donne le marqueur `Review` et
+>   le tap vers la carte, sans une ligne de `notify-content.ts` — les deux se déduisent déjà de
+>   `cardStatus`, et les deux copies du fichier restent identiques octet pour octet. Conséquence
+>   assumée : B12 est gouverné par la préférence **`done`** et non par `board`. C'est le bon axe — la
+>   question de l'opérateur est « est-ce que je veux qu'on me dise qu'il y a à lire », pas « par quel
+>   chemin on l'a su » — mais ça veut dire que B12 est **off par défaut**, comme N4.
+> - **Le test 3 de §6.1 est le seul vrai travail.** Il se lit sur la `reason` que `reconcile()` estampe
+>   (`cards.ts`), sortie en `paneReason()`/`DERIVED_REASON` pour que les deux fichiers ne puissent plus
+>   diverger sur la chaîne : `agent done` **est** la transition que N4 vient de notifier, et un
+>   conteneur qui dérive `review` d'un enfant ferait deux alertes pour un seul atterrissage (§4.3).
+>   Une `reason` illisible se tait aussi — « on ne sait pas » doit tomber du côté du silence.
+> - **Ce qui reste à vérifier sur l'appareil** : une carte posée en `review` à la main depuis le
+>   téléphone se notifie elle-même 30 s plus tard. C'est correct (le geste est un tap, mais la carte
+>   reste à lire), et c'est le seul cas du lot où l'opérateur avait le doigt dessus.
+
+> **Étape 4 livrée en 0.132.0.** Le seul fait du recensement qui ouvre une porte au lieu d'en réclamer
+> une, et ce que ça a coûté par-dessus le socle de l'étape 2 :
+>
+> - **Un déclencheur qui ne parle pas de sa propre carte.** `unblocks()` (board-notify.ts) est vrai sur
+>   `card.status {to: done|archived}` et ne rend aucun sous-titre : le fait appartient aux SUCCESSEURS,
+>   que seule une requête connaît. `BoardDb.dependentsOf()` est cette requête — `WHERE depends_on = ?`,
+>   **non indexée et assumée** (un scan de table sur une carte terminée, un fait rare).
+> - **La gate n'a pas bougé d'une ligne.** `startCard` refuse toujours un prédécesseur non terminé
+>   (`cards.ts`, « THE DEPENDENCY IS A GATE, NOT A TRIGGER ») ; ce module arme une alerte et s'arrête
+>   là. Le test « it notifies and STOPS THERE » est là pour que ça reste vrai.
+> - **Son propre marqueur et sa propre préférence**, comme §6.4 l'exigeait : `Ready`, jamais
+>   `Needs you` ; sa ligne de digest en **dernier** (`Needs you` · `Stalled` · `Review` · `Done` ·
+>   `Ready`) parce que c'est le seul état qui ne réclame rien ; et une sixième préférence `ready`,
+>   **off par défaut**, distincte de `board` — les rejoindre aurait forcé l'opérateur à choisir entre
+>   « ma carte est calée » et « une carte peut démarrer », qui ne sont pas la même envie.
+> - **Aucun prédicat de rétraction neuf.** Le `fingerprint` de l'étape 2 couvrait déjà le cas : un
+>   démarrage change la colonne ET ouvre une session, donc l'une ou l'autre moitié le voit. Un
+>   glissement `backlog` → `ready` à la main rétracte aussi, et c'est la bonne réponse — quelqu'un
+>   avait la carte sous les yeux.
+> - **Les successeurs déjà partis ne sont pas prévenus** : seules les colonnes `backlog`/`ready`
+>   comptent, exactement le contour que la colonne « Rétraction » de §6.3 dessinait.
+>
+> **Ce qui reste à vérifier sur l'appareil** : rien de neuf de propre à B4 — la préférence étant off,
+> le chemin par défaut est le silence. Ce qui n'est *toujours* pas vérifié sur l'appareil, ce sont les
+> deux allers-retours notés dans l'encadré de l'étape 2.
 
 ---
 

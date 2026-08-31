@@ -54,20 +54,25 @@ describe("NotifyPrefsStore", () => {
     expect(store.isNotifiable("done")).toBe(false);
     expect(store.isNotifiable("working")).toBe(false);
     expect(store.isNotifiable("idle")).toBe(false);
-    await store.set({ done: true });
+    // The board's own two: `stalled` ships on, `ready` ships OFF — it opens a door rather than
+    // asking for something, so it is the one push nobody misses (NOTIFY_AUDIT.md §6.3, B4).
+    expect(store.isNotifiable("stalled")).toBe(true);
+    expect(store.isNotifiable("ready")).toBe(false);
+    await store.set({ done: true, ready: true });
     expect(store.isNotifiable("done")).toBe(true);
+    expect(store.isNotifiable("ready")).toBe(true);
   });
 
   test("set merges a partial patch, persists, and returns the updated prefs", async () => {
     const cfg = await tempCfg();
     const store = new NotifyPrefsStore(cfg);
     const updated = await store.set({ done: true, updates: false, copilotSubtitle: true });
-    expect(updated).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true });
+    expect(updated).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true, ready: false });
 
     // Round-trips through disk: a fresh store reloads the same values (survives a restart).
     const reloaded = new NotifyPrefsStore(cfg);
     await reloaded.load();
-    expect(reloaded.current()).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true });
+    expect(reloaded.current()).toEqual({ blocked: true, done: true, updates: false, copilotSubtitle: true, board: true, ready: false });
   });
 
   test("current() returns a copy — callers can't mutate the store's state", async () => {

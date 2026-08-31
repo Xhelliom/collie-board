@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell } from "./board-notify.ts";
+import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell, unblocks } from "./board-notify.ts";
+import { DERIVED_REASON, paneReason } from "./cards.ts";
 import type { BoardEvent } from "./db.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { notifyCardId, notifyContent, notifyMarker } from "./notify-content.ts";
@@ -30,6 +31,10 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       const c = cards[id];
       return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath } : null;
     },
+    dependentsOf: (id: string) =>
+      Object.entries(cards)
+        .filter(([, c]) => c.dependsOn === id)
+        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
     openSessionFor: (id: string) => {
       const c = cards[id];
       return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
@@ -43,6 +48,8 @@ interface Row {
   repoPath: string | null;
   session: string | null;
   handoff: number | null;
+  /** The card this one waits on — the successor half is what B4 notifies. */
+  dependsOn?: string;
 }
 
 /** The coordinator, reduced to what the board drives it through: an opaque key and its two verbs. */
@@ -138,20 +145,42 @@ describe("BoardNotifier", () => {
 });
 
 describe("alarm", () => {
-  test("keeps the two facts nothing else reports, and says what to do about them", () => {
-    expect(alarm(event(1, "card.status", { to: "orphaned" }))).toBe(
-      "its agent's pane is gone — relaunch from the last handoff",
-    );
-    expect(alarm(event(2, "handoff.expired", { sessionId: "s1" }))).toBe(
-      "handoff never landed — the agent wrote no note",
-    );
-    expect(alarm(event(3, "handoff.failed", { error: "card has no workspace" }))).toBe(
-      "handoff failed: card has no workspace",
-    );
+  test("keeps the facts nothing else reports, and says what to do about them", () => {
+    expect(alarm(event(1, "card.status", { to: "orphaned" }))).toEqual({
+      status: "stalled",
+      subtitle: "its agent's pane is gone — relaunch from the last handoff",
+    });
+    expect(alarm(event(2, "handoff.expired", { sessionId: "s1" }))).toEqual({
+      status: "stalled",
+      subtitle: "handoff never landed — the agent wrote no note",
+    });
+    expect(alarm(event(3, "handoff.failed", { error: "card has no workspace" }))).toEqual({
+      status: "stalled",
+      subtitle: "handoff failed: card has no workspace",
+    });
+  });
+
+  test("B12: a card that reached `review` with no pane behind it is `done`, so it reads `Review`", () => {
+    // `done` and not `stalled`: the marker is what the operator reads, and this card is one to READ,
+    // not one whose work stopped (§6.3, B12 — the exact complement of N4).
+    expect(alarm(event(1, "card.status", { to: "review", reason: "manual" }))).toEqual({
+      status: "done",
+      subtitle: "moved to review — no session finished it",
+    });
+  });
+
+  test("B12 stays quiet for a column the board DERIVED — test 3 of §6.1, do not say it twice", () => {
+    // The pane's own `done` transition already armed the `Review` alert N4 sends…
+    expect(alarm(event(1, "card.status", { to: "review", reason: paneReason("done") }))).toBeNull();
+    // …and a container following a child into `review` would be two alerts for one landing (§4.3).
+    expect(alarm(event(2, "card.status", { to: "review", reason: DERIVED_REASON }))).toBeNull();
+    // A reason we can't read at all falls the same way: silence beats a second buzz.
+    expect(alarm(event(3, "card.status", { to: "review" }))).toBeNull();
+    expect(alarm(event(4, "card.status", { to: "review", reason: 7 }))).toBeNull();
   });
 
   test("drops every other column move, and everything the bell already tells", () => {
-    expect(alarm(event(1, "card.status", { to: "review" }))).toBeNull();
+    expect(alarm(event(1, "card.status", { to: "done", reason: "manual" }))).toBeNull();
     expect(alarm(event(2, "card.status", null))).toBeNull();
     expect(alarm(event(3, "handoff.completed", { to: "s2" }))).toBeNull();
     expect(alarm(event(4, "review.created", { verdict: "drift" }))).toBeNull();
@@ -256,6 +285,54 @@ describe("BoardNotifier — the board's own alerts", () => {
     expect(new Set([...alerts.armed.values()].map((a) => a.status))).toEqual(new Set(["stalled"]));
   });
 
+  test("B12: a card put up for review by hand arms `Review`, and the tap goes to the card", () => {
+    const db = source([], { c1: { title: "Ship the bell", status: "review", repoPath: "/src/collie-board", session: null, handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(event(1, "card.status", { to: "review", reason: "manual" }));
+    notifier.update();
+
+    const alert = alerts.armed.get("card:c1");
+    expect(alert).toBeDefined();
+    // The complement of N4 renders as N4 does — same marker, same destination, no pane in sight.
+    expect(alert?.paneId).toBeUndefined();
+    expect(notifyMarker(alert!)).toBe("Review");
+    expect(notifyCardId(alert!)).toBe("c1");
+    expect(notifyContent(alert!, alert!.subtitle ?? null)).toEqual({
+      title: "Review · Ship the bell",
+      body: "collie-board · moved to review — no session finished it",
+    });
+
+    // It holds while the card is still sitting there unread, and goes the moment it is filed.
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1"]);
+    db.cards.c1!.status = "done";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  });
+
+  test("B12: a pane that finishes moves its card to `review` and the board stays out of it", () => {
+    // What `reconcile()` writes when a pane reports `done` — and what the sub-task's container then
+    // derives from it, in the same tick. The pane's own transition is already arming the `Review`
+    // alert through `onTransition`; neither of these may arm a second one (§6.1 test 3, §4.3).
+    const cards: Record<string, Row> = {
+      c1: { title: "Sub-task", status: "review", repoPath: null, session: "s1", handoff: null },
+      c2: { title: "Container", status: "review", repoPath: null, session: null, handoff: null },
+    };
+    const db = source([], cards);
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(
+      { ...event(1, "card.status", { to: "review", reason: paneReason("done") }), cardId: "c1" },
+      { ...event(2, "card.status", { to: "review", reason: DERIVED_REASON }), cardId: "c2" },
+    );
+    notifier.update();
+
+    expect(alerts.log).toEqual([]);
+  });
+
   test("without a coordinator it stays the bell-only tailer it shipped as", () => {
     const db = source([], { c1: { title: "Ship it", status: "orphaned", repoPath: null, session: null, handoff: null } });
     const log = new NotifyLog(() => 0);
@@ -268,5 +345,106 @@ describe("BoardNotifier — the board's own alerts", () => {
     // entry, because a bell entry cannot be retracted and this fact needs to be.
     expect(log.recent()).toHaveLength(1);
     expect(log.recent()[0]?.subtitle).toBe("Copilot review: complete");
+  });
+});
+
+describe("unblocks", () => {
+  test("fires on the two column moves that lift a dependency gate, and nothing else", () => {
+    expect(unblocks(event(1, "card.status", { to: "done" }))).toBe(true);
+    expect(unblocks(event(2, "card.status", { to: "archived" }))).toBe(true);
+    for (const to of ["review", "working", "orphaned", "ready"]) {
+      expect(unblocks(event(3, "card.status", { to }))).toBe(false);
+    }
+    expect(unblocks(event(4, "card.status", null))).toBe(false);
+    expect(unblocks(event(5, "card.merged", { to: "done" }))).toBe(false);
+  });
+});
+
+describe("BoardNotifier — B4, the one that opens a door", () => {
+  /** A predecessor `c1` reaching done, with `c2` waiting on it in the column named. */
+  const waiting = (status: string) =>
+    source([], {
+      c1: { title: "Write the parser", status: "done", repoPath: "/src/collie-board", session: null, handoff: null },
+      c2: { title: "Wire the parser in", status, repoPath: "/src/collie-board", session: null, handoff: null, dependsOn: "c1" },
+    });
+  const finished = (id: number) => ({ ...event(id, "card.status", { to: "done" }), cardId: "c1" });
+
+  test("the alert is about the SUCCESSOR, wears `Ready`, and says what freed it", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(finished(1));
+    notifier.update();
+
+    // Not the card the event names: nothing is owed about `c1`, it is finished.
+    expect([...alerts.armed.keys()]).toEqual(["card:c2"]);
+    const alert = alerts.armed.get("card:c2")!;
+    expect(notifyMarker(alert)).toBe("Ready");
+    expect(notifyCardId(alert)).toBe("c2");
+    expect(notifyContent(alert, alert.subtitle ?? null)).toEqual({
+      title: "Ready · Wire the parser in",
+      body: "collie-board · “Write the parser” is done — this one can start",
+    });
+  });
+
+  test("it notifies and STOPS THERE — the gate is still a gate", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    new BoardNotifier(db, new NotifyLog(() => 0), alerts).update();
+
+    db.events.push(finished(1));
+    // The successor has not moved a column and has no session: the operator starts it, or nobody does.
+    expect(db.cards.c2!.status).toBe("ready");
+    expect(db.cards.c2!.session).toBeNull();
+  });
+
+  test("a successor already under way is told nothing — no door opened for it", () => {
+    for (const status of ["working", "review", "done", "orphaned"]) {
+      const db = waiting(status);
+      const alerts = sink();
+      const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+      db.events.push(finished(1));
+      notifier.update();
+      expect(alerts.log).toEqual([]);
+    }
+  });
+
+  test("a backlog card counts too — the gate was the only thing between it and a start", () => {
+    const db = waiting("backlog");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.armed.has("card:c2")).toBe(true);
+  });
+
+  test("it retracts the moment the card is started", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(finished(1));
+    notifier.update();
+    // Untouched on the next tick: the offer stands until somebody takes it.
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c2"]);
+
+    db.cards.c2!.status = "working";
+    db.cards.c2!.session = "s1";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c2", "retract card:c2"]);
+  });
+
+  test("a done card nobody was waiting on costs one query and says nothing", () => {
+    const db = source([], {
+      c1: { title: "Solo", status: "done", repoPath: null, session: null, handoff: null },
+    });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.log).toEqual([]);
+    expect(new NotifyLog(() => 0).recent()).toHaveLength(0);
   });
 });
