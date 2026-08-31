@@ -379,8 +379,8 @@ wrong line. The comments in that block use `’`.
 
 | | |
 |---|---|
-| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) |
-| Files | `web/src/hooks/use-media-query.ts`, `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
+| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) · `cef9a92` *refactor(display-prefs): the wrap default reads the viewport through useMediaQuery* |
+| Files | `web/src/hooks/{use-media-query,use-display-prefs}.ts` (+ their tests), `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
 | Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the card/board files and what's left applies unchanged. |
 
 Upstream is `max-w-screen-sm` on every route, which is right on the device it was built for and
@@ -389,8 +389,13 @@ Collie's, not the board's:
 
 **`useMediaQuery`.** Ten lines: `matchMedia` through `useSyncExternalStore`, at Tailwind's own `lg`
 in Tailwind's own unit so the CSS and the JS can't disagree about "wide". Upstream already had a
-width test — `wrapDefaultFor(window.innerWidth)` in `use-display-prefs` — but it reads once at mount
-and never hears a resize, which is right for a default the user then overrides and wrong for layout.
+width test — `wrapDefaultFor(window.innerWidth)` in `use-display-prefs` — but it read once at mount
+and never heard a resize. The first pass left it alone as "right for a default the user overrides
+anyway"; that was wrong, and the follow-up commit above deletes it. A default is only overridden
+once the user *has* overridden it, so `wrap` now stays absent from storage until the toggle is
+touched: absent, it follows the same hook live; stored, the stored choice wins for ever. One
+viewport reader in the app, at the two thresholds it actually has (`lg` for layout, 640px for the
+mirror), and no second one to forget to make reactive.
 
 **The sheet gets a side.** `BottomSheet` becomes bottom-on-phone / right-on-desktop: the same
 `SheetShell`, one `direction` apart, which is what Vaul's API is for. Every existing caller (keys pad,
