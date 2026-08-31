@@ -8,7 +8,6 @@ import { SpaceView } from "@/components/space-view";
 import { TabStrip } from "@/components/tab-strip";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { StatusArea } from "@/components/status-area";
-import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -117,10 +116,10 @@ export function SpaceRoute() {
           </>
         )}
 
-        {/* An available update / needed restart, then the build stamp (which bundle you're
-            running, with a stale-cache nudge). */}
-        <UpdateBanner className="px-3 pt-3" />
-        <BuildStamp className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
+        {/* An available update / needed restart. No build stamp: it lives in Settings and, above
+            `lg`, in the sidebar footer (app-nav.tsx) — a second copy here printed the same version
+            twice on one desktop screen. Same reason home dropped its own. */}
+        <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
       </div>
 
       {/* Status overlay, anchored to the bottom of the viewport. Stays outside the scroller. */}

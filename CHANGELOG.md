@@ -7,6 +7,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.1] - 2026-08-31
+
+### Changed
+
+- The mirror's wrap default follows the viewport live instead of reading `window.innerWidth` once at mount — same 640px threshold, one `useMediaQuery` (cef9a92)
+
+### Fixed
+
+- Settings: the page scrollbar is at the window's edge again, not 700px in from it (19d2dc4)
+- Space: the build stamp is no longer printed twice on a desktop screen (19d2dc4)
+- Home: no more 96px of tab-bar clearance above `lg`, where there is no tab bar (19d2dc4)
+- The space strip wraps above `lg`, so a dozen spaces no longer push the + off the right edge (19d2dc4)
+
 ## [0.133.0] - 2026-08-31
 
 ### Added

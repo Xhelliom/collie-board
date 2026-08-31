@@ -1,4 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 // Terminal mirror display preferences, persisted in localStorage.
 // Safe to call in SSR contexts (localStorage guarded throughout).
@@ -40,43 +42,37 @@ const FONT_MAX = 16;
 const WRAP_BELOW_PX = 640;
 
 /**
- * Whether wrap should START on, given the viewport width.
- *
- * NOT wrap-always: upstream's no-wrap default is right on a wide screen, where preserving column
- * alignment is what makes a TUI's boxes and tables readable at all — wrapping scatters their
- * borders. It is wrong on a phone, which cannot show the columns in the first place. So the default
- * follows the screen, and the moment the user touches the toggle their choice is stored and wins
- * forever after. Pure + exported so the threshold is testable without a DOM.
+ * The same threshold as a media query, so the default follows the screen instead of whatever the
+ * screen happened to be at mount. One viewport reader in the app (`useMediaQuery`), not two: a
+ * window dragged wider, or dropped onto an external display, re-decides the default — until the
+ * user touches the toggle, at which point the stored choice wins forever.
  */
-export function wrapDefaultFor(viewportWidth: number): boolean {
-  return viewportWidth > 0 && viewportWidth < WRAP_BELOW_PX;
-}
+const NARROW_VIEWPORT = `(width < ${WRAP_BELOW_PX}px)`;
 
-function defaults(): DisplayPrefs {
-  const width = typeof window === "undefined" ? 0 : window.innerWidth;
-  return { wrap: wrapDefaultFor(width), fontSize: 12, rawTerminal: false, reading: false };
-}
+/** What storage actually holds: `wrap` is ABSENT until the user picks one, so it can stay reactive. */
+type StoredPrefs = Omit<DisplayPrefs, "wrap"> & { wrap?: boolean };
+
+const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, reading: false };
 
 function clampFont(n: number): number {
   return Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(n)));
 }
 
-function loadPrefs(): DisplayPrefs {
+function loadPrefs(): StoredPrefs {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
-    const DEFAULTS = defaults();
     if (!raw) return DEFAULTS;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return DEFAULTS;
     const p = parsed as Record<string, unknown>;
     return {
-      wrap: typeof p.wrap === "boolean" ? p.wrap : DEFAULTS.wrap,
+      ...(typeof p.wrap === "boolean" ? { wrap: p.wrap } : {}),
       fontSize: typeof p.fontSize === "number" ? clampFont(p.fontSize) : DEFAULTS.fontSize,
       rawTerminal: typeof p.rawTerminal === "boolean" ? p.rawTerminal : DEFAULTS.rawTerminal,
       reading: typeof p.reading === "boolean" ? p.reading : DEFAULTS.reading,
     };
   } catch {
-    return defaults();
+    return DEFAULTS;
   }
 }
 
@@ -91,7 +87,7 @@ export function rawTerminalPref(): boolean {
   return loadPrefs().rawTerminal;
 }
 
-function savePrefs(prefs: DisplayPrefs): void {
+function savePrefs(prefs: StoredPrefs): void {
   try {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
@@ -116,11 +112,13 @@ export interface UseDisplayPrefsReturn {
 }
 
 export function useDisplayPrefs(): UseDisplayPrefsReturn {
-  const [prefs, setPrefs] = useState<DisplayPrefs>(loadPrefs);
+  const [stored, setPrefs] = useState<StoredPrefs>(loadPrefs);
+  const narrow = useMediaQuery(NARROW_VIEWPORT);
+  const prefs = useMemo<DisplayPrefs>(() => ({ ...stored, wrap: stored.wrap ?? narrow }), [stored, narrow]);
 
   const setWrap = useCallback((wrap: boolean) => {
     setPrefs((p) => {
-      const next: DisplayPrefs = { ...p, wrap };
+      const next: StoredPrefs = { ...p, wrap };
       savePrefs(next);
       return next;
     });
@@ -128,7 +126,7 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
 
   const setFontSize = useCallback((size: number) => {
     setPrefs((p) => {
-      const next: DisplayPrefs = { ...p, fontSize: clampFont(size) };
+      const next: StoredPrefs = { ...p, fontSize: clampFont(size) };
       savePrefs(next);
       return next;
     });
@@ -136,7 +134,7 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
 
   const stepFontSize = useCallback((delta: number) => {
     setPrefs((p) => {
-      const next: DisplayPrefs = { ...p, fontSize: clampFont(p.fontSize + delta) };
+      const next: StoredPrefs = { ...p, fontSize: clampFont(p.fontSize + delta) };
       savePrefs(next);
       return next;
     });
@@ -144,7 +142,7 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
 
   const setRawTerminal = useCallback((rawTerminal: boolean) => {
     setPrefs((p) => {
-      const next: DisplayPrefs = { ...p, rawTerminal };
+      const next: StoredPrefs = { ...p, rawTerminal };
       savePrefs(next);
       return next;
     });
@@ -152,7 +150,7 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
 
   const setReading = useCallback((reading: boolean) => {
     setPrefs((p) => {
-      const next: DisplayPrefs = { ...p, reading };
+      const next: StoredPrefs = { ...p, reading };
       savePrefs(next);
       return next;
     });
