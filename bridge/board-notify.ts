@@ -33,9 +33,10 @@
 // screen as an agent going blocked. What the coordinator had to give up for that is the assumption
 // that an alert is a pane: it keys on an opaque string, and this module keys `card:<id>` (§6.4).
 
+import { DERIVED_REASON, paneReason } from "./cards.ts";
 import type { BoardEvent } from "./db.ts";
 import type { NotifyLog, NotifyLogEntry } from "./notify-log.ts";
-import type { Alert } from "./notifications.ts";
+import type { Alert, NotifiableStatus } from "./notifications.ts";
 
 /** A push body has room for one short line, not a stack trace. Same cap as notify-subtitle.ts's. */
 const oneLine = (s: string): string => {
@@ -84,27 +85,49 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
 
 /**
  * What a journal entry is worth WAKING A PHONE for ABOUT ITS OWN CARD, or null — which is all but
- * two of the thirty-odd types ({@link unblocks} carries the third fact, which is about another
+ * three of the thirty-odd types ({@link unblocks} carries the fourth fact, which is about another
  * card). The bar is higher than {@link tell}'s by exactly one condition: §6.1 lets a
  * board fact into the herd's slot only if there is a readable predicate for when it stops being
- * true, and {@link fingerprint} below is that predicate for both of these.
+ * true, and {@link fingerprint} below is that predicate for all four.
+ *
+ * THE STATUS IS THE ALERT'S, NOT THE CARD'S COLUMN. It is what the marker and the digest count by
+ * (notify-content.ts, notifications.ts), so it is decided here, per fact, and never derived from
+ * whatever column the card happens to be sitting in when the alert fires.
  *
  * Exported for the test, like `tell` — together they are the whole editorial judgement here.
  */
-export function alarm(e: BoardEvent): string | null {
+export function alarm(e: BoardEvent): { status: NotifiableStatus; subtitle: string } | null {
   // B1 — the card's pane is gone from the snapshot. No pane transition can report this: the pane is
   // what disappeared. `reconcile()` writes it (cards.ts), and a restarted herdr writes it for the
   // whole board in one tick — which the herd's coalescing slot absorbs into one notification.
   if (e.type === "card.status" && str(e.payload, "to") === "orphaned") {
-    return "its agent's pane is gone — relaunch from the last handoff";
+    return { status: "stalled", subtitle: "its agent's pane is gone — relaunch from the last handoff" };
+  }
+  // B12 — the card entered `review` and NO PANE said so: a status posted by hand, a review asked for
+  // again. The exact complement of N4, which is §4.3's last open case: same `Review` marker, same tap
+  // to the card, other trigger — which is why the status here is `done` and not `stalled`. It rides
+  // the `done` preference a finished pane rides, because the operator's question is "do I want to be
+  // told there is something to read", not "which code path told me" (notify-prefs.ts).
+  //
+  // AND TEST 3 OF §6.1 IS THE WHOLE SUBTLETY: a fact a pane already tells must not tell it twice. The
+  // reason `reconcile()` stamps is that provenance (cards.ts) — `agent done` IS the transition N4
+  // notified, and a container deriving `review` from a child would make two alerts out of one landing
+  // (§4.3 again). A payload with no reason at all stays silent too: "can't tell" has to fall on the
+  // side of not buzzing twice.
+  if (e.type === "card.status" && str(e.payload, "to") === "review") {
+    const reason = str(e.payload, "reason");
+    if (!reason || reason === paneReason("done") || reason === DERIVED_REASON) return null;
+    return { status: "done", subtitle: "moved to review — no session finished it" };
   }
   // B5 — the handoff never landed, so the card keeps a session whose agent is out of context and
   // has no successor. THE ONE FAILURE OF THE BOARD NOTHING ELSE REPORTS TODAY: the handoff runs off
   // the poll (handoff.ts), so its failure has no HTTP response to surface in and no pane to signal.
-  if (e.type === "handoff.expired") return "handoff never landed — the agent wrote no note";
+  if (e.type === "handoff.expired") {
+    return { status: "stalled", subtitle: "handoff never landed — the agent wrote no note" };
+  }
   if (e.type === "handoff.failed") {
     const error = str(e.payload, "error");
-    return oneLine(error ? `handoff failed: ${error}` : "handoff failed");
+    return { status: "stalled", subtitle: oneLine(error ? `handoff failed: ${error}` : "handoff failed") };
   }
   return null;
 }
@@ -155,14 +178,15 @@ export interface BoardAlertSink {
 const keyFor = (cardId: string): string => `card:${cardId}`;
 
 /**
- * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of both
+ * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of all four
  * facts above. Deliberately ONE predicate rather than one per fact: §6.1 asks each fact to say when
- * it stops being true, and both answer the same way. **The alert holds while the card still reads
+ * it stops being true, and all four answer the same way. **The alert holds while the card still reads
  * exactly as the fact left it** — same column, same session, same handoff state.
  *
  *   • B1 retracts when the card leaves `orphaned`: relaunched, archived, or moved by hand.
  *   • B5 retracts when the card gets a new session (the handoff landed after all, or the operator
  *     restarted it), when a fresh handoff is requested, or when the card leaves the live columns.
+ *   • B12 retracts when the card leaves `review` — read and filed, restarted, or moved back by hand.
  *   • B4 retracts when the card STARTS — a start moves its column and opens a session, so either
  *     half of this catches it — and when it leaves `backlog`/`ready` any other way. Being dragged
  *     `backlog` → `ready` by hand retracts too, and that is the right answer rather than a near
@@ -227,7 +251,7 @@ export class BoardNotifier {
       // The bell entry for an alarm is not written here: it comes from the coordinator's `onFire`
       // hook 30 seconds later (index.ts), so a fact that retracted inside the debounce — you
       // relaunched the card at your desk — leaves no trace on either surface.
-      if (alarmed) this.raise(card, "stalled", alarmed);
+      if (alarmed) this.raise(card, alarmed.status, alarmed.subtitle);
       // B4, and the only fact here whose alert is NOT about the card the event names: the event is
       // the predecessor finishing, the news belongs to whoever it was blocking. A successor already
       // past `backlog`/`ready` is a card somebody started by hand before its gate lifted — nothing
@@ -257,6 +281,8 @@ export class BoardNotifier {
       status,
       cardId: card.id,
       cardTitle: card.title,
+      // The column as it stands NOW — `review` is what turns the marker into `Review` and the tap
+      // into a card deep-link, exactly as it does for a pane alert (notify-content.ts).
       cardStatus: card.status,
       subtitle,
     });

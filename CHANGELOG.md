@@ -7,9 +7,22 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.0] - 2026-08-31
+
+### Added
+
+- Une carte passée en `review` sans qu'un pane l'y ait mise notifie enfin — statut posé à la main, review relancée : même marqueur `Review` et même tap vers la carte que N4, autre déclencheur (d3e052f)
+
+### Changed
+
+- Une alerte du board porte désormais son propre statut au lieu d'être toujours `stalled`, ce qui décide de son marqueur et de la préférence qui la gouverne (d3e052f)
+- La raison qu'estampe `reconcile()` est nommée (`paneReason()` / `DERIVED_REASON`) : c'est elle qui dit qu'un pane a déjà signalé le fait, et l'écrivain comme le lecteur la lisent au même endroit (d3e052f)
+- Une carte que son pane fait atterrir en `review`, et le conteneur qui en dérive sa colonne, ne notifient toujours qu'une fois (d3e052f)
+
 ## [0.132.0] - 2026-08-31
 
 ### Added
+
 - A card whose predecessor just finished says so — marker `Ready`, its own preference, off by default (4722927)
 
 ## [0.131.1] - 2026-08-28

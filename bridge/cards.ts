@@ -42,6 +42,16 @@ const STATUS_COLUMN: Partial<Record<AgentStatus, CardStatus>> = {
 };
 
 /**
+ * Why a column move happened, for the journal — and named because `board-notify.ts` READS BOTH BACK.
+ * Every column this module writes is one it DERIVED from something that already speaks: a pane's own
+ * status, or a container's children. So neither is allowed to notify a second time — the pane's
+ * `done` transition is exactly the alert N4 already sends, and a container deriving `review` from a
+ * child would make two alerts out of one landing (NOTIFY_AUDIT.md §6.1 test 3, §4.3).
+ */
+export const paneReason = (status: AgentStatus | undefined): string => `agent ${status}`;
+export const DERIVED_REASON = "derived from sub-tasks";
+
+/**
  * A container card's status, derived from its children's. Urgency first, exactly like the board's
  * own column order: the point of a container is to answer "does anything under here need me?" in
  * one glance, so a single blocked child outranks three that are quietly working.
@@ -260,7 +270,7 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
       db.closeSession(session.id, "lost");
       db.setStatus(card.id, "orphaned", "pane vanished from snapshot");
     } else {
-      db.setStatus(card.id, action.status, `agent ${pane?.status}`);
+      db.setStatus(card.id, action.status, paneReason(pane?.status));
     }
   }
 
@@ -281,7 +291,7 @@ function reconcileParents(db: BoardDb): void {
     // resurrect it.
     if (!parent || parent.status === "archived") continue;
     const want = deriveParentStatus(statuses);
-    if (want && want !== parent.status) db.setStatus(parentId, want, "derived from sub-tasks");
+    if (want && want !== parent.status) db.setStatus(parentId, want, DERIVED_REASON);
   }
 }
 

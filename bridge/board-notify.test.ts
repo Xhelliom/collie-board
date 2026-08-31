@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell, unblocks } from "./board-notify.ts";
+import { DERIVED_REASON, paneReason } from "./cards.ts";
 import type { BoardEvent } from "./db.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { notifyCardId, notifyContent, notifyMarker } from "./notify-content.ts";
@@ -144,20 +145,42 @@ describe("BoardNotifier", () => {
 });
 
 describe("alarm", () => {
-  test("keeps the two facts nothing else reports, and says what to do about them", () => {
-    expect(alarm(event(1, "card.status", { to: "orphaned" }))).toBe(
-      "its agent's pane is gone — relaunch from the last handoff",
-    );
-    expect(alarm(event(2, "handoff.expired", { sessionId: "s1" }))).toBe(
-      "handoff never landed — the agent wrote no note",
-    );
-    expect(alarm(event(3, "handoff.failed", { error: "card has no workspace" }))).toBe(
-      "handoff failed: card has no workspace",
-    );
+  test("keeps the facts nothing else reports, and says what to do about them", () => {
+    expect(alarm(event(1, "card.status", { to: "orphaned" }))).toEqual({
+      status: "stalled",
+      subtitle: "its agent's pane is gone — relaunch from the last handoff",
+    });
+    expect(alarm(event(2, "handoff.expired", { sessionId: "s1" }))).toEqual({
+      status: "stalled",
+      subtitle: "handoff never landed — the agent wrote no note",
+    });
+    expect(alarm(event(3, "handoff.failed", { error: "card has no workspace" }))).toEqual({
+      status: "stalled",
+      subtitle: "handoff failed: card has no workspace",
+    });
+  });
+
+  test("B12: a card that reached `review` with no pane behind it is `done`, so it reads `Review`", () => {
+    // `done` and not `stalled`: the marker is what the operator reads, and this card is one to READ,
+    // not one whose work stopped (§6.3, B12 — the exact complement of N4).
+    expect(alarm(event(1, "card.status", { to: "review", reason: "manual" }))).toEqual({
+      status: "done",
+      subtitle: "moved to review — no session finished it",
+    });
+  });
+
+  test("B12 stays quiet for a column the board DERIVED — test 3 of §6.1, do not say it twice", () => {
+    // The pane's own `done` transition already armed the `Review` alert N4 sends…
+    expect(alarm(event(1, "card.status", { to: "review", reason: paneReason("done") }))).toBeNull();
+    // …and a container following a child into `review` would be two alerts for one landing (§4.3).
+    expect(alarm(event(2, "card.status", { to: "review", reason: DERIVED_REASON }))).toBeNull();
+    // A reason we can't read at all falls the same way: silence beats a second buzz.
+    expect(alarm(event(3, "card.status", { to: "review" }))).toBeNull();
+    expect(alarm(event(4, "card.status", { to: "review", reason: 7 }))).toBeNull();
   });
 
   test("drops every other column move, and everything the bell already tells", () => {
-    expect(alarm(event(1, "card.status", { to: "review" }))).toBeNull();
+    expect(alarm(event(1, "card.status", { to: "done", reason: "manual" }))).toBeNull();
     expect(alarm(event(2, "card.status", null))).toBeNull();
     expect(alarm(event(3, "handoff.completed", { to: "s2" }))).toBeNull();
     expect(alarm(event(4, "review.created", { verdict: "drift" }))).toBeNull();
@@ -260,6 +283,54 @@ describe("BoardNotifier — the board's own alerts", () => {
     // opening a second channel for the board.
     expect([...alerts.armed.keys()]).toEqual(["card:c1", "card:c2", "card:c3", "card:c4"]);
     expect(new Set([...alerts.armed.values()].map((a) => a.status))).toEqual(new Set(["stalled"]));
+  });
+
+  test("B12: a card put up for review by hand arms `Review`, and the tap goes to the card", () => {
+    const db = source([], { c1: { title: "Ship the bell", status: "review", repoPath: "/src/collie-board", session: null, handoff: null } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(event(1, "card.status", { to: "review", reason: "manual" }));
+    notifier.update();
+
+    const alert = alerts.armed.get("card:c1");
+    expect(alert).toBeDefined();
+    // The complement of N4 renders as N4 does — same marker, same destination, no pane in sight.
+    expect(alert?.paneId).toBeUndefined();
+    expect(notifyMarker(alert!)).toBe("Review");
+    expect(notifyCardId(alert!)).toBe("c1");
+    expect(notifyContent(alert!, alert!.subtitle ?? null)).toEqual({
+      title: "Review · Ship the bell",
+      body: "collie-board · moved to review — no session finished it",
+    });
+
+    // It holds while the card is still sitting there unread, and goes the moment it is filed.
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1"]);
+    db.cards.c1!.status = "done";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  });
+
+  test("B12: a pane that finishes moves its card to `review` and the board stays out of it", () => {
+    // What `reconcile()` writes when a pane reports `done` — and what the sub-task's container then
+    // derives from it, in the same tick. The pane's own transition is already arming the `Review`
+    // alert through `onTransition`; neither of these may arm a second one (§6.1 test 3, §4.3).
+    const cards: Record<string, Row> = {
+      c1: { title: "Sub-task", status: "review", repoPath: null, session: "s1", handoff: null },
+      c2: { title: "Container", status: "review", repoPath: null, session: null, handoff: null },
+    };
+    const db = source([], cards);
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(
+      { ...event(1, "card.status", { to: "review", reason: paneReason("done") }), cardId: "c1" },
+      { ...event(2, "card.status", { to: "review", reason: DERIVED_REASON }), cardId: "c2" },
+    );
+    notifier.update();
+
+    expect(alerts.log).toEqual([]);
   });
 
   test("without a coordinator it stays the bell-only tailer it shipped as", () => {

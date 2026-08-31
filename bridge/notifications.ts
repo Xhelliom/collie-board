@@ -18,10 +18,11 @@ import { type AgentStatus, type AgentView } from "./types.ts";
 // setTimeout/clearTimeout (see server.ts); tests pass a fake clock they fire on demand.
 
 /**
- * What an alert can be ABOUT. `blocked`/`done` are pane transitions; `stalled` and `ready` are the
- * board's own. `stalled` is a card whose work has stopped and which nothing will restart (its pane
- * vanished, or its handoff never landed) — deliberately ONE state for both facts and not one per
- * event, since they are the same decision for the operator (NOTIFY_AUDIT.md §6.4).
+ * What an alert can be ABOUT. `blocked`/`done` are pane transitions — `done` also the board's own,
+ * for a card that reached `review` with no pane behind it (bridge/board-notify.ts, B12) — and
+ * `stalled`/`ready` are the board's alone. `stalled` is a card whose work has stopped and which
+ * nothing will restart (its pane vanished, or its handoff never landed) — deliberately ONE state for
+ * both facts and not one per event, since they are the same decision for the operator (§6.4).
  *
  * `ready` is the one that OPENS a possibility instead of asking for one: the card a finished
  * predecessor was blocking may now be started. It gets its own state precisely because §6.4's test
