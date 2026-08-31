@@ -379,8 +379,8 @@ wrong line. The comments in that block use `’`.
 
 | | |
 |---|---|
-| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) · `cef9a92` *refactor(display-prefs): the wrap default reads the viewport through useMediaQuery* |
-| Files | `web/src/hooks/{use-media-query,use-display-prefs}.ts` (+ their tests), `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette}.tsx`, `web/src/routes/{home,space,detail}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
+| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) · `cef9a92` *refactor(display-prefs): the wrap default reads the viewport through useMediaQuery* · `19d2dc4` *fix(desktop): four screens that still lay themselves out for a phone* |
+| Files | `web/src/hooks/{use-media-query,use-display-prefs}.ts` (+ their tests), `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette,space-strip}.tsx`, `web/src/routes/{home,space,detail,settings}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
 | Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the card/board files and what's left applies unchanged. |
 
 Upstream is `max-w-screen-sm` on every route, which is right on the device it was built for and
@@ -418,6 +418,14 @@ SURFACES (a dashboard, a board) lose their ceiling, the screens that are DOCUMEN
 2000px line of prose is unreadable however big the display is — and a settings form stays narrow.
 Upstream has the same split (dashboard/space vs. the pane mirror's text), so the same rule applies
 even though its screens are not ours.
+
+**Four bugs the first pass left, worth taking with it.** Every one is a phone rule that nobody
+turned off above `lg`, and all four are a class or a deletion: a settings page that capped the
+SCROLLER rather than the rows, so the page's scrollbar sat 700px in from the window's edge; a build
+stamp printed both in the space footer and in the sidebar footer; `pb-24` of clearance for a tab bar
+that becomes a sidebar; and a chip strip whose scrollbar is hidden because you swipe it, which on a
+desktop hides its own trailing +. The rule they share: a mobile-first class that reserves space for,
+or hides an affordance behind, a TOUCH gesture needs the `lg:` that takes it back.
 
 **A note where the pane screen is.** Upstream's centre of gravity is the mirror, and an honest
 desktop version of it is a two-pane layout (list left, mirror right) — a rework of `AgentChat`, not a
