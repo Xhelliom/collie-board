@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell } from "./board-notify.ts";
+import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell, unblocks } from "./board-notify.ts";
 import type { BoardEvent } from "./db.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { notifyCardId, notifyContent, notifyMarker } from "./notify-content.ts";
@@ -30,6 +30,10 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       const c = cards[id];
       return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath } : null;
     },
+    dependentsOf: (id: string) =>
+      Object.entries(cards)
+        .filter(([, c]) => c.dependsOn === id)
+        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
     openSessionFor: (id: string) => {
       const c = cards[id];
       return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
@@ -43,6 +47,8 @@ interface Row {
   repoPath: string | null;
   session: string | null;
   handoff: number | null;
+  /** The card this one waits on — the successor half is what B4 notifies. */
+  dependsOn?: string;
 }
 
 /** The coordinator, reduced to what the board drives it through: an opaque key and its two verbs. */
@@ -268,5 +274,106 @@ describe("BoardNotifier — the board's own alerts", () => {
     // entry, because a bell entry cannot be retracted and this fact needs to be.
     expect(log.recent()).toHaveLength(1);
     expect(log.recent()[0]?.subtitle).toBe("Copilot review: complete");
+  });
+});
+
+describe("unblocks", () => {
+  test("fires on the two column moves that lift a dependency gate, and nothing else", () => {
+    expect(unblocks(event(1, "card.status", { to: "done" }))).toBe(true);
+    expect(unblocks(event(2, "card.status", { to: "archived" }))).toBe(true);
+    for (const to of ["review", "working", "orphaned", "ready"]) {
+      expect(unblocks(event(3, "card.status", { to }))).toBe(false);
+    }
+    expect(unblocks(event(4, "card.status", null))).toBe(false);
+    expect(unblocks(event(5, "card.merged", { to: "done" }))).toBe(false);
+  });
+});
+
+describe("BoardNotifier — B4, the one that opens a door", () => {
+  /** A predecessor `c1` reaching done, with `c2` waiting on it in the column named. */
+  const waiting = (status: string) =>
+    source([], {
+      c1: { title: "Write the parser", status: "done", repoPath: "/src/collie-board", session: null, handoff: null },
+      c2: { title: "Wire the parser in", status, repoPath: "/src/collie-board", session: null, handoff: null, dependsOn: "c1" },
+    });
+  const finished = (id: number) => ({ ...event(id, "card.status", { to: "done" }), cardId: "c1" });
+
+  test("the alert is about the SUCCESSOR, wears `Ready`, and says what freed it", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(finished(1));
+    notifier.update();
+
+    // Not the card the event names: nothing is owed about `c1`, it is finished.
+    expect([...alerts.armed.keys()]).toEqual(["card:c2"]);
+    const alert = alerts.armed.get("card:c2")!;
+    expect(notifyMarker(alert)).toBe("Ready");
+    expect(notifyCardId(alert)).toBe("c2");
+    expect(notifyContent(alert, alert.subtitle ?? null)).toEqual({
+      title: "Ready · Wire the parser in",
+      body: "collie-board · “Write the parser” is done — this one can start",
+    });
+  });
+
+  test("it notifies and STOPS THERE — the gate is still a gate", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    new BoardNotifier(db, new NotifyLog(() => 0), alerts).update();
+
+    db.events.push(finished(1));
+    // The successor has not moved a column and has no session: the operator starts it, or nobody does.
+    expect(db.cards.c2!.status).toBe("ready");
+    expect(db.cards.c2!.session).toBeNull();
+  });
+
+  test("a successor already under way is told nothing — no door opened for it", () => {
+    for (const status of ["working", "review", "done", "orphaned"]) {
+      const db = waiting(status);
+      const alerts = sink();
+      const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+      db.events.push(finished(1));
+      notifier.update();
+      expect(alerts.log).toEqual([]);
+    }
+  });
+
+  test("a backlog card counts too — the gate was the only thing between it and a start", () => {
+    const db = waiting("backlog");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.armed.has("card:c2")).toBe(true);
+  });
+
+  test("it retracts the moment the card is started", () => {
+    const db = waiting("ready");
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(finished(1));
+    notifier.update();
+    // Untouched on the next tick: the offer stands until somebody takes it.
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c2"]);
+
+    db.cards.c2!.status = "working";
+    db.cards.c2!.session = "s1";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c2", "retract card:c2"]);
+  });
+
+  test("a done card nobody was waiting on costs one query and says nothing", () => {
+    const db = source([], {
+      c1: { title: "Solo", status: "done", repoPath: null, session: null, handoff: null },
+    });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.log).toEqual([]);
+    expect(new NotifyLog(() => 0).recent()).toHaveLength(0);
   });
 });

@@ -25,12 +25,13 @@ import type { NotifyLogEntry } from "@/lib/types";
  *  the copilot back-patched into the entry after the push had already gone out. */
 const content = (e: NotifyLogEntry) => notifyContent(e, e.subtitle ?? null);
 
-/** The state dot, one colour per notifiable state. `stalled` (the board's own — a card whose work
- *  stopped) reuses the tint the board already gives an orphaned card, so the bell and the column
- *  agree at a glance. */
+/** The state dot, one colour per notifiable state. The board's own two reuse the tint the board
+ *  already gives that card — `orphaned` for `stalled`, `ready` for `ready` (lib/board.ts) — so the
+ *  bell and the column agree at a glance. */
 const DOT: Record<NotifyLogEntry["status"], string> = {
   blocked: "bg-status-blocked",
   stalled: "bg-status-unknown",
+  ready: "bg-status-idle",
   done: "bg-status-done",
 };
 

@@ -18,10 +18,16 @@
 //
 // IT WRITES TO TWO PLACES, AND THE DIFFERENCE IS THE RETRACTION. {@link tell} is the bell: a story,
 // told once, never taken back — `NotifyLog.add()` in the clear, no push, no debounce (§6.6 step 1).
-// {@link alarm} is the PHONE: two facts that go through the herd's own coordinator, and each one is
-// here only because it can say WHEN IT STOPS BEING TRUE (§6.1). A fact with no retraction predicate
-// would sit in the herd's slot for ever and the digest would keep announcing a three-day-old state
-// as if it were now — so it goes to the bell or nowhere.
+// {@link alarm} and {@link unblocks} are the PHONE: facts that go through the herd's own
+// coordinator, and each is here only because it can say WHEN IT STOPS BEING TRUE (§6.1). A fact with
+// no retraction predicate would sit in the herd's slot for ever and the digest would keep announcing
+// a three-day-old state as if it were now — so it goes to the bell or nowhere.
+//
+// AND ONE OF THEM OPENS INSTEAD OF ASKING. Everything else in this file reports something that went
+// wrong; {@link unblocks} reports that a predecessor finished and a card may now be started (§6.3,
+// B4). It is the same slot and the same digest, but its own marker — `Ready`, never `Needs you` —
+// and a preference that ships OFF, because nothing is late because the buzz never came. It starts
+// nothing: the gate at `startCard` stays a gate, and you are still the one who opens it.
 //
 // AND THERE IS NO SECOND CHANNEL. Same `collie:herd` slot, same digest, same snooze, same settings
 // screen as an agent going blocked. What the coordinator had to give up for that is the assumption
@@ -77,8 +83,9 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
 }
 
 /**
- * What a journal entry is worth WAKING A PHONE for, or null — which is all but two of the
- * thirty-odd types. The bar is higher than {@link tell}'s by exactly one condition: §6.1 lets a
+ * What a journal entry is worth WAKING A PHONE for ABOUT ITS OWN CARD, or null — which is all but
+ * two of the thirty-odd types ({@link unblocks} carries the third fact, which is about another
+ * card). The bar is higher than {@link tell}'s by exactly one condition: §6.1 lets a
  * board fact into the herd's slot only if there is a readable predicate for when it stops being
  * true, and {@link fingerprint} below is that predicate for both of these.
  *
@@ -102,11 +109,36 @@ export function alarm(e: BoardEvent): string | null {
   return null;
 }
 
+/**
+ * B4 — whether this entry FREED somebody: a card reaching `done` or `archived` lifts the gate on
+ * whatever was waiting for it (`dependsOn`, the gate at cards.ts's `startCard`).
+ *
+ * Alone of everything in this file it does not describe the card the event is about, so it cannot
+ * return a subtitle the way {@link alarm} does: the fact belongs to the SUCCESSORS, which only a
+ * query knows ({@link BoardNotifySource.dependentsOf}). That query is the only cost this fact adds
+ * over the tailer, and it is paid on a `done`/`archived` and nowhere else (§6.3).
+ *
+ * AND IT STILL STARTS NOTHING. The gate stays a gate; this is the notification that you may now
+ * open it yourself — which is why its marker is `Ready` and its preference ships off (§6.3, note
+ * de priorité sur B4).
+ */
+export function unblocks(e: BoardEvent): boolean {
+  if (e.type !== "card.status") return false;
+  const to = str(e.payload, "to");
+  return to === "done" || to === "archived";
+}
+
+/** The columns a card can sit in and still be waiting to be started — the successors this says
+ *  anything about, and the exact set its retraction predicate watches it leave. */
+const UNSTARTED = new Set(["backlog", "ready"]);
+
 /** The corner of `BoardDb` this needs — enough to keep the test from standing up a database. */
 export interface BoardNotifySource {
   lastEventId(): number;
   eventsAfter(after: number): BoardEvent[];
   getCard(id: string): { id: string; title: string; status: string; repoPath: string | null } | null;
+  /** The cards waiting on this one, for B4 ({@link unblocks}) — one unindexed scan, on a `done`. */
+  dependentsOf(id: string): { id: string; title: string; status: string; repoPath: string | null }[];
   /** The card's live session, for {@link fingerprint} — two indexed reads per armed alert per tick,
    *  of which there are normally none. */
   openSessionFor(id: string): { id: string; handoffRequestedAt: number | null } | null;
@@ -131,6 +163,10 @@ const keyFor = (cardId: string): string => `card:${cardId}`;
  *   • B1 retracts when the card leaves `orphaned`: relaunched, archived, or moved by hand.
  *   • B5 retracts when the card gets a new session (the handoff landed after all, or the operator
  *     restarted it), when a fresh handoff is requested, or when the card leaves the live columns.
+ *   • B4 retracts when the card STARTS — a start moves its column and opens a session, so either
+ *     half of this catches it — and when it leaves `backlog`/`ready` any other way. Being dragged
+ *     `backlog` → `ready` by hand retracts too, and that is the right answer rather than a near
+ *     miss: somebody had the card in front of them.
  *
  * Null once the card is gone, which retracts too — there is no longer anything to open.
  */
@@ -171,8 +207,9 @@ export class BoardNotifier {
       this.cursor = e.id;
       const said = tell(e);
       const alarmed = this.alerts ? alarm(e) : null;
+      const freed = this.alerts ? unblocks(e) : false;
       // The card is read only for a fact worth something — the other thirty types cost no query.
-      if ((!said && !alarmed) || !e.cardId) continue;
+      if ((!said && !alarmed && !freed) || !e.cardId) continue;
       // The card as it reads NOW, not as the event left it: both surfaces compose their sentence
       // from the same `cardTitle`/`cardStatus` a pane alert carries (notify-content.ts), and a card
       // deleted since simply has no story left to tell.
@@ -190,29 +227,37 @@ export class BoardNotifier {
       // The bell entry for an alarm is not written here: it comes from the coordinator's `onFire`
       // hook 30 seconds later (index.ts), so a fact that retracted inside the debounce — you
       // relaunched the card at your desk — leaves no trace on either surface.
-      if (alarmed) this.raise(card.id, card.title, card.repoPath, card.status, alarmed);
+      if (alarmed) this.raise(card, "stalled", alarmed);
+      // B4, and the only fact here whose alert is NOT about the card the event names: the event is
+      // the predecessor finishing, the news belongs to whoever it was blocking. A successor already
+      // past `backlog`/`ready` is a card somebody started by hand before its gate lifted — nothing
+      // opened for it, so it is not told.
+      if (freed) {
+        for (const next of this.db.dependentsOf(card.id)) {
+          if (!UNSTARTED.has(next.status)) continue;
+          this.raise(next, "ready", oneLine(`“${card.title}” is ${card.status} — this one can start`));
+        }
+      }
     }
     this.sweep();
   }
 
   private raise(
-    cardId: string,
-    title: string,
-    repoPath: string | null,
-    status: string,
+    card: { id: string; title: string; status: string; repoPath: string | null },
+    status: Alert["status"],
     subtitle: string,
   ): void {
-    const mark = fingerprint(this.db, cardId);
+    const mark = fingerprint(this.db, card.id);
     if (mark === null) return;
-    this.armed.set(cardId, mark);
-    this.alerts?.arm(keyFor(cardId), {
+    this.armed.set(card.id, mark);
+    this.alerts?.arm(keyFor(card.id), {
       // No `paneId`: this alert is about a card and there is no terminal behind it, which is what
       // sends every surface's tap to the card (notify-content.ts's `notifyCardId`).
-      cwd: repoPath ?? "",
-      status: "stalled",
-      cardId,
-      cardTitle: title,
-      cardStatus: status,
+      cwd: card.repoPath ?? "",
+      status,
+      cardId: card.id,
+      cardTitle: card.title,
+      cardStatus: card.status,
       subtitle,
     });
   }
