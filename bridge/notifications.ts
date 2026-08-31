@@ -18,13 +18,18 @@ import { type AgentStatus, type AgentView } from "./types.ts";
 // setTimeout/clearTimeout (see server.ts); tests pass a fake clock they fire on demand.
 
 /**
- * What an alert can be ABOUT. `blocked`/`done` are pane transitions (and `done` is also the board's,
- * for a card that reached `review` without one); `stalled` is the board's alone —
- * a card whose work has stopped and which nothing will restart (its pane vanished, or its handoff
- * never landed). It is deliberately ONE state for both facts and not one per event: they are the
- * same decision for the operator (NOTIFY_AUDIT.md §6.4, "Le vocabulaire du digest").
+ * What an alert can be ABOUT. `blocked`/`done` are pane transitions — `done` also the board's own,
+ * for a card that reached `review` with no pane behind it (bridge/board-notify.ts, B12) — and
+ * `stalled`/`ready` are the board's alone. `stalled` is a card whose work has stopped and which
+ * nothing will restart (its pane vanished, or its handoff never landed) — deliberately ONE state for
+ * both facts and not one per event, since they are the same decision for the operator (§6.4).
+ *
+ * `ready` is the one that OPENS a possibility instead of asking for one: the card a finished
+ * predecessor was blocking may now be started. It gets its own state precisely because §6.4's test
+ * is "is this still 'the work stopped'?" and this is its opposite — and because nothing here ever
+ * starts it for you (bridge/cards.ts, "THE DEPENDENCY IS A GATE, NOT A TRIGGER").
  */
-export type NotifiableStatus = "blocked" | "done" | "stalled";
+export type NotifiableStatus = "blocked" | "done" | "stalled" | "ready";
 
 /** The timer primitive the coordinator schedules against — real setTimeout in the bridge, fake in tests. */
 export interface NotifyClock<H> {
@@ -152,6 +157,9 @@ const DIGEST_COUNTS: ReadonlyArray<readonly [ReturnType<typeof notifyMarker>, (n
   ["Stalled", (n) => `${n} stalled`],
   ["Review", (n) => `${n} to review`],
   ["Done", (n) => `${n} done`],
+  // Last, and it is the whole point of the state: every marker above reports work that wants
+  // something from you, this one only says a door opened. Nothing is late because you ignored it.
+  ["Ready", (n) => `${n} ready`],
 ];
 
 /**

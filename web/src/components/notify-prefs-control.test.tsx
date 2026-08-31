@@ -11,11 +11,11 @@ import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 // merged prefs back; a failing POST must leave the switch where it started (revert).
 
 let lastPatch: Record<string, unknown> | undefined;
-let currentPrefs: { blocked: boolean; done: boolean; updates: boolean; copilotSubtitle: boolean };
+let currentPrefs: { blocked: boolean; done: boolean; updates: boolean; copilotSubtitle: boolean; board: boolean; ready: boolean };
 
 beforeEach(() => {
   lastPatch = undefined;
-  currentPrefs = { blocked: true, done: false, updates: true, copilotSubtitle: false };
+  currentPrefs = { blocked: true, done: false, updates: true, copilotSubtitle: false, board: true, ready: false };
   server.use(
     http.get("/api/notifications/prefs", () => HttpResponse.json(currentPrefs)),
     http.post("/api/notifications/prefs", async ({ request }) => {
@@ -37,6 +37,10 @@ describe("NotifyPrefsControl", () => {
     expect(finished).not.toBeChecked(); // done default off
     expect(updates).toBeChecked(); // updates default on
     expect(copilotSubtitle).not.toBeChecked(); // copilotSubtitle default off
+    // The board's two, and the difference between them: a card that stalled buzzes, a card that
+    // merely BECAME startable does not until you ask for it (NOTIFY_AUDIT.md §6.3, B4).
+    expect(await screen.findByRole("switch", { name: /board alerts/i })).toBeChecked();
+    expect(await screen.findByRole("switch", { name: /unblocked/i })).not.toBeChecked();
   });
 
   test("toggling App updates POSTs the single-key partial update", async () => {

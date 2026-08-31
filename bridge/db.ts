@@ -993,6 +993,22 @@ export class BoardDb {
     return out;
   }
 
+  /**
+   * The cards waiting on this one — the successor half of `dependsOn`, which the column is only
+   * ever read from the other way round (`getCard(card.dependsOn)`, the gate in cards.ts).
+   *
+   * NOT INDEXED, on purpose: this is a table scan, and it runs only when a card reaches
+   * `done`/`archived` (bridge/board-notify.ts, NOTIFY_AUDIT.md §6.3 B4) — a rare fact on a board
+   * whose size is counted in hundreds. Add the index when a scan per finished card stops being
+   * free, not before.
+   */
+  dependentsOf(cardId: string): Card[] {
+    return this.db
+      .query<CardRow, [string]>("SELECT * FROM card WHERE depends_on = ? ORDER BY position, created_at")
+      .all(cardId)
+      .map(toCard);
+  }
+
   /** A card's split children, in board order. Empty for the overwhelming majority of cards. */
   listChildren(parentId: string): Card[] {
     return this.db

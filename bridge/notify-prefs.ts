@@ -36,6 +36,12 @@ export interface NotifyPrefs {
    *  ONE boolean for the whole family, not one per event — otherwise this screen becomes the
    *  recensement of NOTIFY_AUDIT.md §6.3. */
   board: boolean;
+  /** Push when a finished predecessor leaves a card free to START (bridge/board-notify.ts).
+   *  **Default off**, like `done` and for the same reason turned around: this is the one fact of
+   *  the set that opens a possibility instead of reporting a problem, so nothing is late because
+   *  the push never came. Its own switch and not `board`'s, because it is its own marker —
+   *  `Ready`, never `Needs you` (NOTIFY_AUDIT.md §6.3, note de priorité sur B4). */
+  ready: boolean;
 }
 
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
@@ -44,6 +50,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   updates: true,
   copilotSubtitle: false,
   board: true,
+  ready: false,
 };
 
 /**
@@ -59,6 +66,7 @@ export function coerceNotifyPrefs(raw: unknown): NotifyPrefs {
     copilotSubtitle:
       typeof o.copilotSubtitle === "boolean" ? o.copilotSubtitle : DEFAULT_NOTIFY_PREFS.copilotSubtitle,
     board: typeof o.board === "boolean" ? o.board : DEFAULT_NOTIFY_PREFS.board,
+    ready: typeof o.ready === "boolean" ? o.ready : DEFAULT_NOTIFY_PREFS.ready,
   };
 }
 
@@ -91,6 +99,7 @@ export class NotifyPrefsStore {
     if (status === "blocked") return this.prefs.blocked;
     if (status === "done") return this.prefs.done;
     if (status === "stalled") return this.prefs.board;
+    if (status === "ready") return this.prefs.ready;
     return false;
   }
 
