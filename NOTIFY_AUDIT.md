@@ -998,7 +998,9 @@ digest. **Réponse : un seul état neuf, `Stalled`, et rien d'autre.**
 - **Pas d'exclusion.** Hors digest, un événement de board vivrait dans un second canal — ce que §6.1
   refuse en premier lieu.
 
-**L'ordre d'urgence**, complet : `Needs you` · `Stalled` · `Review` · `Done`. `Needs you` reste en
+**L'ordre d'urgence**, complet : `Needs you` · `Stalled` · `Review` · `Done` — et depuis 0.132.0
+`Ready` en queue, le marqueur propre que le paragraphe « Ce que le mot doit tenir » ci-dessous
+réservait à B4 : dernier parce que c'est le seul état qui ne réclame rien. `Needs you` reste en
 tête — un agent bloqué attend *maintenant*, sur une session ouverte ; une carte calée a déjà cessé
 d'avancer et dix minutes de plus ne changent rien. `Stalled` passe devant `Review` pour la raison
 symétrique : une relecture est du travail qu'on choisit, une carte calée est du travail qui n'a pas
@@ -1059,8 +1061,9 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
    le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).~~
    **✅ fait en 0.130.0** — voir le second encadré sous ce paragraphe.
 3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
-4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
-   du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
+4. ~~**B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
+   du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.~~
+   **✅ fait en 0.132.0** — voir le troisième encadré sous ce paragraphe.
 
 > **Étape 1 livrée en 0.129.0.** Ce que ça a réellement coûté, contre ce que cette liste annonçait :
 >
@@ -1108,6 +1111,33 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 > **Ce qui reste à vérifier sur l'appareil**, et que le diff ne peut pas prouver : l'aller-retour d'un
 > herdr redémarré — l'alerte de pane se rétracte à l'instant où le pane disparaît (`notifications.ts`)
 > et l'alerte `Stalled` arrive 30 s plus tard, ce qui devrait faire un silence puis un buzz, pas deux.
+
+> **Étape 4 livrée en 0.132.0.** Le seul fait du recensement qui ouvre une porte au lieu d'en réclamer
+> une, et ce que ça a coûté par-dessus le socle de l'étape 2 :
+>
+> - **Un déclencheur qui ne parle pas de sa propre carte.** `unblocks()` (board-notify.ts) est vrai sur
+>   `card.status {to: done|archived}` et ne rend aucun sous-titre : le fait appartient aux SUCCESSEURS,
+>   que seule une requête connaît. `BoardDb.dependentsOf()` est cette requête — `WHERE depends_on = ?`,
+>   **non indexée et assumée** (un scan de table sur une carte terminée, un fait rare).
+> - **La gate n'a pas bougé d'une ligne.** `startCard` refuse toujours un prédécesseur non terminé
+>   (`cards.ts`, « THE DEPENDENCY IS A GATE, NOT A TRIGGER ») ; ce module arme une alerte et s'arrête
+>   là. Le test « it notifies and STOPS THERE » est là pour que ça reste vrai.
+> - **Son propre marqueur et sa propre préférence**, comme §6.4 l'exigeait : `Ready`, jamais
+>   `Needs you` ; sa ligne de digest en **dernier** (`Needs you` · `Stalled` · `Review` · `Done` ·
+>   `Ready`) parce que c'est le seul état qui ne réclame rien ; et une sixième préférence `ready`,
+>   **off par défaut**, distincte de `board` — les rejoindre aurait forcé l'opérateur à choisir entre
+>   « ma carte est calée » et « une carte peut démarrer », qui ne sont pas la même envie.
+> - **Aucun prédicat de rétraction neuf.** Le `fingerprint` de l'étape 2 couvrait déjà le cas : un
+>   démarrage change la colonne ET ouvre une session, donc l'une ou l'autre moitié le voit. Un
+>   glissement `backlog` → `ready` à la main rétracte aussi, et c'est la bonne réponse — quelqu'un
+>   avait la carte sous les yeux.
+> - **Les successeurs déjà partis ne sont pas prévenus** : seules les colonnes `backlog`/`ready`
+>   comptent, exactement le contour que la colonne « Rétraction » de §6.3 dessinait.
+>
+> **Ce qui reste à vérifier sur l'appareil** : rien de neuf de propre à B4 — la préférence étant off,
+> le chemin par défaut est le silence. Ce qui n'est *toujours* pas vérifié sur l'appareil, ce sont les
+> deux allers-retours notés dans l'encadré de l'étape 2.
+
 
 ---
 

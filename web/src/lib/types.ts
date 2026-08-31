@@ -296,6 +296,10 @@ export interface NotifyPrefs {
   /** Push when the BOARD reports a card whose work has stopped and which nothing will restart — its
    *  pane vanished, or its handoff never landed. Default on. One switch for the whole family. */
   board: boolean;
+  /** Push when a finished predecessor leaves a card free to START. Default OFF — the one fact that
+   *  opens a possibility instead of reporting a problem, so nothing is late because it never came.
+   *  Its own switch, because it is its own marker: `Ready`, never `Needs you`. */
+  ready: boolean;
 }
 
 /**
@@ -311,9 +315,9 @@ export interface NotifyLogEntry {
   agent?: string;
   workspaceLabel?: string;
   cwd: string;
-  /** `stalled` is the board's own: a card whose work stopped and which nothing will restart — its
-   *  pane vanished, or its handoff never landed (bridge/board-notify.ts). */
-  status: "blocked" | "done" | "stalled";
+  /** `stalled` and `ready` are the board's own (bridge/board-notify.ts): a card whose work stopped
+   *  and which nothing will restart, and a card a finished predecessor has just unblocked. */
+  status: "blocked" | "done" | "stalled" | "ready";
   /** The pane that pinged — the entry deep-links to it. ABSENT on a board entry, which is what sends
    *  its tap to the card instead. */
   paneId?: string;
