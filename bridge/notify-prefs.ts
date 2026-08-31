@@ -15,7 +15,10 @@ import type { AgentStatus } from "./types.ts";
 export interface NotifyPrefs {
   /** Push when an agent becomes blocked (waiting on your input). Default on. */
   blocked: boolean;
-  /** Push when an agent finishes its task. Default off. */
+  /** Push when an agent finishes its task — and, since B12, when a card lands in `review` with no
+   *  pane behind it at all (board-notify.ts). Both read `Review · <card>` and both tap through to
+   *  the card, so both hang off one switch: the question is "do I want to be told there is
+   *  something to read", not which code path noticed. Default off. */
   done: boolean;
   /** Push when a newer Collie release is available. Default on — the off-switch for update alerts,
    *  which otherwise bypass snooze (an update isn't quiet-hours material). Not an agent status, so it

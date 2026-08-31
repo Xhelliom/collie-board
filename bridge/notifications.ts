@@ -18,7 +18,8 @@ import { type AgentStatus, type AgentView } from "./types.ts";
 // setTimeout/clearTimeout (see server.ts); tests pass a fake clock they fire on demand.
 
 /**
- * What an alert can be ABOUT. `blocked`/`done` are pane transitions; `stalled` is the board's own —
+ * What an alert can be ABOUT. `blocked`/`done` are pane transitions (and `done` is also the board's,
+ * for a card that reached `review` without one); `stalled` is the board's alone —
  * a card whose work has stopped and which nothing will restart (its pane vanished, or its handoff
  * never landed). It is deliberately ONE state for both facts and not one per event: they are the
  * same decision for the operator (NOTIFY_AUDIT.md §6.4, "Le vocabulaire du digest").

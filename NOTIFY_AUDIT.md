@@ -594,7 +594,7 @@ lire un champ de plus sur un objet déjà en main, au moment où `onFire` compos
 | `done` sans carte du tout | marqueur `Done`, sujet = repo. Inchangé. |
 | Carte en `review` alors que le pane est reparti en `working` | pas de notification — `resolve()` a déjà rétracté (`notifications.ts:130-134`). Correct. |
 | `done` sur une **sous-tâche** dont le conteneur passe aussi en `review` (`cards.ts:60`) | notifier la sous-tâche, jamais le conteneur. Le conteneur n'a pas de pane et son passage en `review` est dérivé (`cards.ts:277-283`) — le notifier ferait deux alertes pour un événement. |
-| La carte passe en `review` **sans** transition de pane (ex. relance de review manuelle) | hors périmètre de cette règle : c'est une notification d'événement de board, pas de session (carte N6). |
+| La carte passe en `review` **sans** transition de pane (ex. relance de review manuelle) | hors périmètre de cette règle : c'est une notification d'événement de board, pas de session (carte N6). **✅ tranché sous B12 et livré en 0.132.0** : le board l'émet lui-même, même marqueur `Review` et même destination que N4, autre déclencheur. |
 
 ### 4.4 Ce que cette règle ne couvre pas
 
@@ -1058,7 +1058,8 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 2. ~~**B1 et B5 en push** — les deux faits que personne n'a demandés et que rien d'autre ne dit. Demande
    le socle de §6.4 (clé d'alerte, `paneId` optionnel, un marqueur, une ligne de digest).~~
    **✅ fait en 0.130.0** — voir le second encadré sous ce paragraphe.
-3. **B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.
+3. ~~**B12** — le complément de N4, gratuit une fois le socle posé : même marqueur, même destination.~~
+   **✅ fait en 0.132.0** — voir le troisième encadré sous ce paragraphe.
 4. **B4** — off par défaut, marqueur `Ready`. À faire en dernier : c'est la seule notification agréable
    du lot, et une notification agréable est celle qu'on regrette le moins de ne pas avoir.
 
@@ -1108,6 +1109,27 @@ Valeur décroissante par unité de code, et chaque étape est livrable seule :
 > **Ce qui reste à vérifier sur l'appareil**, et que le diff ne peut pas prouver : l'aller-retour d'un
 > herdr redémarré — l'alerte de pane se rétracte à l'instant où le pane disparaît (`notifications.ts`)
 > et l'alerte `Stalled` arrive 30 s plus tard, ce qui devrait faire un silence puis un buzz, pas deux.
+
+> **Étape 3 livrée en 0.132.0.** « Gratuit une fois le socle posé » était juste : aucun fichier neuf,
+> aucun canal neuf, aucune préférence neuve.
+>
+> - **Le fait entre par le même tailer**, dans `alarm()`, à côté de B1 et B5 — et le prédicat de
+>   rétraction unique le couvrait déjà tel quel : la colonne est dans l'empreinte, donc l'alerte tombe
+>   dès que la carte quitte `review`.
+> - **Le statut de l'alerte est `done`, pas `stalled`.** C'est ce qui lui donne le marqueur `Review` et
+>   le tap vers la carte, sans une ligne de `notify-content.ts` — les deux se déduisent déjà de
+>   `cardStatus`, et les deux copies du fichier restent identiques octet pour octet. Conséquence
+>   assumée : B12 est gouverné par la préférence **`done`** et non par `board`. C'est le bon axe — la
+>   question de l'opérateur est « est-ce que je veux qu'on me dise qu'il y a à lire », pas « par quel
+>   chemin on l'a su » — mais ça veut dire que B12 est **off par défaut**, comme N4.
+> - **Le test 3 de §6.1 est le seul vrai travail.** Il se lit sur la `reason` que `reconcile()` estampe
+>   (`cards.ts`), sortie en `paneReason()`/`DERIVED_REASON` pour que les deux fichiers ne puissent plus
+>   diverger sur la chaîne : `agent done` **est** la transition que N4 vient de notifier, et un
+>   conteneur qui dérive `review` d'un enfant ferait deux alertes pour un seul atterrissage (§4.3).
+>   Une `reason` illisible se tait aussi — « on ne sait pas » doit tomber du côté du silence.
+> - **Ce qui reste à vérifier sur l'appareil** : une carte posée en `review` à la main depuis le
+>   téléphone se notifie elle-même 30 s plus tard. C'est correct (le geste est un tap, mais la carte
+>   reste à lire), et c'est le seul cas du lot où l'opérateur avait le doigt dessus.
 
 ---
 
