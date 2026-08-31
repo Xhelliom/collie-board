@@ -21,6 +21,9 @@ interface SpaceStripProps {
 // set), it leads with a Back button to the dashboard, then the sibling spaces for quick switching;
 // otherwise it leads with the "All" triage chip. A trailing + creates a new space. The space focused
 // in the desktop TUI gets a subtle ring; a space with a blocked agent gets a dot.
+//
+// It SCROLLS on a phone and WRAPS above `lg`: the scrollbar is hidden (you swipe), which on a
+// desktop meant a dozen spaces pushed the trailing + off the right edge with nothing to grab.
 export function SpaceStrip({
   workspaces,
   agents,
@@ -30,7 +33,7 @@ export function SpaceStrip({
   onBack,
 }: SpaceStripProps) {
   return (
-    <div className="flex snap-x snap-mandatory scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
+    <div className="flex snap-x snap-mandatory scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 lg:flex-wrap lg:overflow-x-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
       {onBack ? (
         <button
           type="button"

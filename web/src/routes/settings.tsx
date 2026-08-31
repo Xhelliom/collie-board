@@ -64,8 +64,10 @@ export function SettingsRoute() {
 
       {/* No page-level ceiling above `lg` (same as the other routes) — but settings rows are
           label-on-the-left / control-on-the-right, not a grid, so the column caps ITSELF at a
-          reading width rather than stretching a switch 2000px away from its label. */}
-      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:max-w-3xl lg:px-5 lg:py-6">
+          reading width rather than stretching a switch 2000px away from its label. The cap is on
+          the ROWS, not on <main>: capping the scroller put its scrollbar 700px in from the right
+          edge of the window, which reads as a broken page rather than a narrow column. */}
+      <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
         <ThemeControl />
 
         {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of

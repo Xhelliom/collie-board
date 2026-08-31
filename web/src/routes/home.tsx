@@ -39,7 +39,7 @@ export function HomeRoute() {
       />
 
       {/* Content region below the header: a viewport-clipped internal scroller. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-12">
         {/* The screen's one h1. Visually redundant with the toolbar title, so it's sr-only — but
             without it the triage h2s below are an orphan tree to anyone navigating by heading. */}
         <h1 className="sr-only">Herd</h1>
