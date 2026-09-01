@@ -592,6 +592,22 @@ export function finishCardNow(id: string, reviewId: string, title: string): Prom
   });
 }
 
+/**
+ * Turn a card into an ACTION on `targetId` — the manual half of the arbitrage the copilot makes on
+ * its own follow-ups: work too small to be worth a card, a worktree and an agent of its own.
+ *
+ * Its spec and acceptance become a {@link TinyTodo} on the target's screen, exactly like a copilot
+ * suggestion, and the card itself is deleted — a card AND an action saying the same thing is the
+ * chore the conversion exists to remove. Answers with the card that now holds the action, because
+ * `id` no longer resolves to anything.
+ */
+export function convertCardToAction(id: string, targetId: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/to-action`, {
+    method: "POST",
+    body: JSON.stringify({ targetId }),
+  });
+}
+
 /** Send a follow-up instruction to the card's running agent (`agent.prompt`, text + submit). */
 export function promptCard(id: string, text: string): Promise<{ ok: true; card: CardView }> {
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/prompt`, {

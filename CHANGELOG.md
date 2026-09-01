@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.134.0] - 2026-09-01
+
+### Added
+
+- Une carte peut être convertie en action sur une autre : son spec devient la ligne « Finish it now » de la carte visée, et la carte disparaît du board (a9f02f6)
+- Deux entrées — le « ⋯ » d'une sous-tâche vise le conteneur ouvert, le « ⋯ » d'une carte vise son conteneur ou la carte contre laquelle le copilot l'a classée (a9f02f6)
+
 ## [0.133.4] - 2026-09-01
 
 ### Fixed

@@ -56,6 +56,7 @@ import {
   cardPath,
   CARD_STATUS_LABEL,
   boardErrorMessage,
+  convertCardToAction,
   createCard,
   deleteCard,
   explainError,
@@ -162,6 +163,11 @@ export function CardRoute() {
         .sort((a, b) => a.position - b.position)
     : [];
 
+  // The card this one would become an action ON, or none. The container first, then the card a
+  // copilot follow-up was filed against — which is the whole point of offering this: the copilot
+  // judged this one worth a card, and you disagree.
+  const actionTarget = detail?.parent ?? detail?.originCard ?? null;
+
   // One <CardRoute /> serves every /card/:cardId, so this component is NOT remounted when you move
   // from one card to another — an armed confirmation would follow you to the next card and fire on
   // its first tap, which is the exact opposite of a guard. Same reasoning for the "⋯" menu: it must
@@ -261,6 +267,35 @@ export function CardRoute() {
   async function deleteSubtask(childId: string) {
     await deleteCard(childId);
     revalidator.revalidate();
+  }
+
+  // The manual half of what the copilot already decides on its own follow-ups: this sub-task is not
+  // worth a card, a worktree and an agent — it is one prompt to the agent THIS card already has. The
+  // sub-task goes and comes back as an action row below, exactly where a copilot suggestion sits.
+  async function convertSubtask(childId: string) {
+    if (!card) return;
+    try {
+      await convertCardToAction(childId, card.id);
+      setStatus("Convertie en action sur cette carte.", "success");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
+  }
+
+  // Same conversion, asked from the card that goes: the action lands on its container (or, for a
+  // copilot follow-up, on the card it was filed against — the one whose agent did the work). This
+  // page is about to stop existing, so it leaves for the card now holding the action.
+  async function convertToParent(target: CardLink) {
+    if (!card) return;
+    try {
+      await convertCardToAction(card.id, target.id);
+      setStatus(`Convertie en action sur « ${target.title} ».`, "success");
+      navigate(cardPath(target.id));
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+      revalidator.revalidate();
+    }
   }
 
   // Start is the one action with real latency: herdr creates a worktree, launches the agent and
@@ -612,6 +647,7 @@ export function CardRoute() {
                       onDetach={detach}
                       onDependsOn={setSubtaskDependsOn}
                       onDelete={deleteSubtask}
+                      onConvert={convertSubtask}
                       linkable={boardCards.filter(
                         (c) => c.id !== card.id && c.parentId !== card.id && !c.parentId,
                       )}
@@ -839,6 +875,22 @@ export function CardRoute() {
           taking up the bottom of the document; a menu is where a rare, dangerous action belongs. */}
       {card && (
         <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Card">
+          {actionTarget && (
+            <div className="flex flex-col pb-2">
+              <ActionRow
+                icon={<Zap className="size-4 shrink-0 text-muted-foreground" />}
+                label={`Convertir en action sur « ${actionTarget.title} »`}
+                onClick={() => {
+                  setMenuOpen(false);
+                  void convertToParent(actionTarget);
+                }}
+              />
+              <p className="px-3 pb-1 text-xs text-muted-foreground">
+                Trop petit pour une carte : le spec part comme action sur « {actionTarget.title} », à
+                donner d&apos;un tap à son agent. Cette carte-ci disparaît du board.
+              </p>
+            </div>
+          )}
           <DangerZone cardId={card.id} onDelete={remove} />
         </BottomSheet>
       )}
@@ -1973,6 +2025,8 @@ interface SubtaskListProps {
   onDetach: (childId: string) => Promise<void>;
   onDependsOn: (childId: string, dependsOn: string | null) => Promise<void>;
   onDelete: (childId: string) => Promise<void>;
+  /** Turn a sub-task into an action on the container — see `convertSubtask`. */
+  onConvert: (childId: string) => Promise<void>;
   /** Cards offered by "Lier une carte existante" — unparented cards only (linking one already inside
    *  another container would need a detach first, which this flow doesn't attempt). */
   linkable: CardView[];
@@ -1992,6 +2046,7 @@ function SubtaskList({
   onDetach,
   onDependsOn,
   onDelete,
+  onConvert,
   linkable,
   dependsOnCandidates,
 }: SubtaskListProps) {
@@ -2218,6 +2273,7 @@ function SubtaskList({
         onDependsOn={onDependsOn}
         onDetach={onDetach}
         onDelete={onDelete}
+        onConvert={onConvert}
         candidates={dependsOnCandidates}
       />
     </>
@@ -2236,6 +2292,7 @@ interface SubtaskActionsSheetProps {
   onDependsOn: (childId: string, dependsOn: string | null) => Promise<void>;
   onDetach: (childId: string) => Promise<void>;
   onDelete: (childId: string) => Promise<void>;
+  onConvert: (childId: string) => Promise<void>;
   candidates: CardView[];
 }
 
@@ -2257,6 +2314,7 @@ export function SubtaskActionsSheet({
   onDependsOn,
   onDetach,
   onDelete,
+  onConvert,
   candidates,
 }: SubtaskActionsSheetProps) {
   const [mode, setMode] = useState<"actions" | "depends">("actions");
@@ -2353,6 +2411,20 @@ export function SubtaskActionsSheet({
             label="Dépend de…"
             onClick={() => setMode("depends")}
           />
+          <div className="flex flex-col">
+            <ActionRow
+              icon={<Zap className="size-4 shrink-0 text-muted-foreground" />}
+              label="Convertir en action"
+              onClick={() => {
+                void onConvert(child.id);
+                onClose();
+              }}
+            />
+            <p className="px-3 pb-1 text-xs text-muted-foreground">
+              Trop petit pour une carte : le spec devient une action sur « {parentTitle} », à donner
+              d&apos;un tap à son agent. La carte disparaît du board.
+            </p>
+          </div>
           <div className="flex flex-col">
             <ActionRow
               icon={<Unlink className="size-4 shrink-0 text-muted-foreground" />}

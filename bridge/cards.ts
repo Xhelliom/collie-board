@@ -905,6 +905,66 @@ export function finishNowPrompt(title: string, todo: { spec: string | null; acce
 }
 
 /**
+ * The verdict a converted card's review carries. Not one of the copilot's three (`complete`,
+ * `partial`, `drift`) on purpose: the card screen prints the verdict as the block's title, and
+ * "Reviewed" over an action a person attached by hand would be a sentence nobody wrote.
+ */
+export const CONVERTED_VERDICT = "converted";
+
+/** Why a card could not be turned into an action on another one. */
+export type ConvertError = { kind: "not-found" | "no-target" | "self"; message: string };
+
+/**
+ * CONVERT A CARD INTO AN ACTION. The manual half of the arbitrage the copilot already makes on its
+ * own follow-ups (`isTinyFollowUp`, copilot.ts): this work does not deserve a card, a worktree and
+ * an agent of its own — it deserves one prompt to an agent that is already in the right place.
+ *
+ * Same storage as the copilot's, deliberately: the card's spec and acceptance become a `TinyTodo` on
+ * a review of the TARGET card, so it renders as the same row and `finishNow` hands it over the same
+ * way. Nothing here starts anything — it is the operator who taps "finish it now" afterwards.
+ *
+ * And the card goes. Leaving it on the board is the one outcome this cannot have: the point of the
+ * conversion is that the work stops being something to triage, filter and drag around, and a card
+ * plus an action saying the same thing is that chore twice over. What was in it survives as the
+ * action's spec, which the row shows in full when the target's agent is gone.
+ */
+export function convertToAction(
+  db: BoardDb,
+  /** The card that stops being one. */
+  cardId: string,
+  /** The card the action lands on — the one whose agent would do it. */
+  targetId: string,
+): { ok: true; reviewId: string } | { ok: false; error: ConvertError } {
+  const card = db.getCard(cardId);
+  if (!card) return { ok: false, error: { kind: "not-found", message: "card not found" } };
+  const target = db.getCard(targetId);
+  if (!target) {
+    return { ok: false, error: { kind: "no-target", message: "no card to put the action on" } };
+  }
+  if (target.id === card.id) {
+    return { ok: false, error: { kind: "self", message: "a card cannot become an action on itself" } };
+  }
+  // ponytail: one review row per conversion — two conversions onto the same card are two blocks on
+  // its screen, each with its own timestamp. Append into one block if that ever reads as noise.
+  const review = db.createReview({
+    cardId: target.id,
+    verdict: CONVERTED_VERDICT,
+    todos: [
+      {
+        title: card.title,
+        cardId: null,
+        tiny: { spec: card.spec, acceptance: card.acceptance, doneAt: null },
+      },
+    ],
+    convertedFrom: card.id,
+  });
+  // Children and dependents are detached rather than deleted by `deleteCard` — a sub-task of the
+  // converted card is real work, and it stays on the board on its own.
+  db.deleteCard(card.id);
+  return { ok: true, reviewId: review.id };
+}
+
+/**
  * The prompt a fresh card opens with. Spec first, acceptance criteria as an explicit checklist —
  * an agent that can see the acceptance criteria writes toward them. Pure + exported so the exact
  * text is reviewable in a test rather than only in a terminal.

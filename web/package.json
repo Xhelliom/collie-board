@@ -1,6 +1,6 @@
 {
   "name": "collie-board-web",
-  "version": "0.133.4",
+  "version": "0.134.0",
   "private": true,
   "license": "MIT",
   "type": "module",
