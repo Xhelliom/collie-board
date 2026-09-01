@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.137.0] - 2026-09-01
+
+### Changed
+
+- Le compte rendu du copilote se lit comme un rapport : `### Done` / `### Missing`, puces, chemins en code inline, bloc clôturé pour citer verbatim — le rendu Markdown existait déjà, le prompt demandait « un paragraphe » (058616c)
+- Le verdict du compte rendu passe en pastille colorée : vert `complete`, ambre `partial`, rouge `drift`, gris pour tout autre mot (058616c)
+- Écartés dans [ADR 0012](./.adr/0012-the-review-is-markdown-the-app-already-renders.md) : HTML, schémas Mermaid, coloration syntaxique (058616c)
+
 ## [0.136.1] - 2026-09-01
 
 ### Fixed

@@ -3594,6 +3594,29 @@ describe("too small for a card — the criterion", () => {
     expect(p).toContain("NOTIFY_AUDIT.md");
     expect(p).toContain('"tiny": true or false');
   });
+
+  // The card renders `notes` through the Markdown reader (ADR 0012). Asking for "one short
+  // paragraph" was asking for the one shape that reader has nothing to do with — which is what made
+  // the review read as a wall of text. The prompt is the fix, so the prompt is what is asserted.
+  it("asks for the notes in the shape the card actually renders", () => {
+    const p = reviewPrompt({
+      title: "t",
+      spec: null,
+      acceptance: [],
+      statSummary: "1 file changed",
+      handoffMd: null,
+      outPath: "/tmp/out.json",
+    });
+    expect(p).toContain("It is Markdown, and it is rendered");
+    expect(p).toContain("### Done");
+    expect(p).toContain("### Missing");
+    expect(p).toContain("`inline code`");
+    expect(p).toContain("fenced code block");
+    // …and the three that don't render are refused by name, so a model doesn't emit them literally.
+    expect(p).toContain("no HTML, no diagrams, no images");
+    // The old wording asked for prose and nothing else — it must be gone, not merely outvoted.
+    expect(p).not.toContain("one short paragraph: what looks done");
+  });
 });
 
 describe("the copilot keeps the small one off the board", () => {

@@ -292,6 +292,10 @@ export function positionFor(neighbours: number[], index: number): number {
   return (before + after) / 2;
 }
 
+/** The pill every board chip wears — shell only, the colours come from the maps below. */
+export const CHIP_SHELL =
+  "shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide";
+
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
@@ -304,6 +308,29 @@ export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   done: "border-status-idle/30 bg-status-idle/10 text-status-idle",
   archived: "border-border bg-muted text-muted-foreground",
 };
+
+/**
+ * The review verdict as a chip, on the SAME three colours the columns use — green reads "landed",
+ * amber "still moving", red "stop and look". A verdict is the one line of a review you read before
+ * deciding whether to read the rest, and set in the body text it was indistinguishable from it.
+ *
+ * Matched on the exact word the prompt asks for, lowercased: anything else — a model that answered
+ * "partially complete", or a verdict from a future prompt — lands on the neutral pill rather than
+ * being colour-coded by a substring guess. `complete` is a substring of `not complete`, and a review
+ * painted green for saying the opposite is worse than one painted grey.
+ */
+const REVIEW_VERDICT_CHIP: Record<string, string> = {
+  complete: "border-status-done/30 bg-status-done/15 text-status-done",
+  partial: "border-status-working/30 bg-status-working/15 text-status-working",
+  drift: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
+};
+
+export function verdictChip(verdict: string | null): string {
+  return (
+    REVIEW_VERDICT_CHIP[verdict?.trim().toLowerCase() ?? ""] ??
+    "border-border bg-muted text-muted-foreground"
+  );
+}
 
 // ── tags ─────────────────────────────────────────────────────────────────────
 
