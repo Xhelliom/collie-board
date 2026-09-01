@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.3] - 2026-09-01
+
+### Changed
+
+- Le nom `/rename` d'un pane sort de l'alerte et de l'entrée de cloche : aucune surface de notification ne le lisait depuis N9 (4f16ece)
+- `bridge/types.ts` perd sa copie de `paneDisplayName` — le bridge ne nomme plus aucun pane ; celle du web, elle, sert onze écrans (4f16ece)
+- Le correctif d'ordre de N8 (cache `sessionName` appliqué dans `toView`) est retiré avec son test : l'alerte en était le seul lecteur (4f16ece)
+
 ## [0.133.2] - 2026-09-01
 
 ### Fixed
