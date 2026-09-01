@@ -7,9 +7,10 @@
 //
 // THIS FILE EXISTS TWICE, BYTE FOR BYTE: `bridge/notify-content.ts` and `web/src/lib/notify-content.ts`.
 // The bridge and the web app build from separate source trees on purpose (see the header of
-// web/src/lib/types.ts), which rules out importing across the boundary — the same trade already made
-// for `paneDisplayName`. What is new is that the duplicate cannot rot: `notify-content.test.ts` diffs
-// the two copies and fails the build the moment they drift. Edit one, copy it over the other.
+// web/src/lib/types.ts), which rules out importing across the boundary. What is new is that the
+// duplicate cannot rot — unlike `paneDisplayName`'s, whose bridge copy simply went unread and was
+// deleted (NOTIFY_AUDIT.md §2.6): `notify-content.test.ts` diffs the two copies and fails the build
+// the moment they drift. Edit one, copy it over the other.
 //
 // THE SUBJECT IS THE WORK, NOT THE WORKER (§3.1-3.2): the card title when the pane backs one, the
 // repo otherwise. The agent name is deliberately gone — herdr reports the pane KIND ("claude") and

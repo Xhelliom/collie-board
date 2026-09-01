@@ -28,11 +28,8 @@ export interface NotifyLogEntry {
   paneId?: string;
   /** Registry name of the pane's session; absent for the primary (same convention as the push payload). */
   session?: string;
-  /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the in-app
-   *  toast, so the bell can name this entry exactly like the toast did when it fired. */
-  paneLabel?: string;
-  sessionName?: string;
-  kind?: "agent" | "shell";
+  /** The card the alert was about — the SUBJECT of the sentence the bell recomposes (notify-content.ts).
+   *  The pane's own names are not here: no surface names the pane (NOTIFY_AUDIT.md §2.6). */
   cardTitle?: string;
   /** The card the pane backed and its status at the moment the alert fired — copied straight off the
    *  `Alert`, so the bell re-renders exactly the sentence and destination the push went out with. */

@@ -126,7 +126,7 @@ describe("NotificationCoordinator — debounce", () => {
     const { clock, sink, coord } = setup();
     coord.onTransition(
       // The pane rename is deliberately NOT in the push: the subject is the work, not the worker
-      // (NOTIFY_AUDIT.md §3.1). It still names the alert in the bell and the multi-agent digest.
+      // (NOTIFY_AUDIT.md §3.1). No surface names it — the alert no longer even carries it (§2.6).
       { ...agent("p1", "blocked"), paneLabel: "release branch", cardTitle: "Ship 0.86" },
       "working",
       "blocked",

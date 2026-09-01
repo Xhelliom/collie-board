@@ -188,7 +188,6 @@ describe("NotificationBell", () => {
       status: "blocked",
       paneId: "w3:p1",
       session: "side",
-      paneLabel: "release branch",
       cardTitle: "Ship 0.86",
     };
     server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [rich] })));
@@ -196,11 +195,12 @@ describe("NotificationBell", () => {
     mount();
 
     await user.click(screen.getByRole("button", { name: /notifications/i }));
-    // The pane's own names — "claude", the "release branch" label — name nothing the operator
-    // doesn't already know, and are gone from every surface since N9: the subject is the card.
+    // The pane's own names name nothing the operator doesn't already know, and are gone from every
+    // surface since N9: the subject is the card. The rename ingredients no longer even reach the
+    // entry (NOTIFY_AUDIT.md §2.6) — `agent` is the last carried-but-unrendered one left.
     expect(await screen.findByText("Needs you · Ship 0.86")).toBeInTheDocument();
     expect(screen.getByText("side · collie")).toBeInTheDocument();
-    expect(screen.queryByText(/release branch/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/claude/)).not.toBeInTheDocument();
   });
 
   test("a copilot subtitle lands under the card, not over it — nothing is said twice", async () => {
