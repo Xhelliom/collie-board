@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.136.0] - 2026-09-01
+
+### Added
+
+- Un chip « Prompt » dans l'en-tête d'une carte copie `/collie-board card <id>` — la ligne se colle telle quelle dans un agent, sans relever l'id à la main (833ca98)
+
 ## [0.135.0] - 2026-09-01
 
 ### Added

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -7,6 +7,7 @@ import { server } from "@/test/setup";
 import {
   convertible,
   ConvertNowButton,
+  CopyPromptButton,
   DangerZone,
   IntegrationSection,
   noteLabel,
@@ -513,5 +514,42 @@ describe("TinyTodoRow", () => {
     // The sentence survives the offer lapsing — otherwise not making a card would lose it.
     expect(screen.getByText(/Add one line to NOTIFY_AUDIT\.md/)).toBeTruthy();
     cleanup();
+  });
+});
+
+// The whole point of the button: what lands in the clipboard is pasteable as-is, and carries THIS
+// card's id — the hand-rebuilt command it replaces is exactly where the wrong id used to come from.
+describe("CopyPromptButton", () => {
+  const secureDescriptor = Object.getOwnPropertyDescriptor(window, "isSecureContext");
+  const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+  afterEach(() => {
+    if (secureDescriptor) Object.defineProperty(window, "isSecureContext", secureDescriptor);
+    if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+    cleanup();
+  });
+
+  it("copies the skill command around the clicked card's id", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    render(
+      <>
+        <CopyPromptButton cardId="aaa-111" />
+        <CopyPromptButton cardId="bbb-222" />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /bbb-222/ }));
+
+    expect(writeText).toHaveBeenCalledWith("/collie-board card bbb-222");
+    expect(await screen.findByText("Copié")).toBeTruthy();
+  });
+
+  it("is disabled (not hidden) outside a secure context, where there is no clipboard", () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: false });
+
+    render(<CopyPromptButton cardId="aaa-111" />);
+    expect(screen.getByRole("button", { name: /aaa-111/ })).toBeDisabled();
   });
 });

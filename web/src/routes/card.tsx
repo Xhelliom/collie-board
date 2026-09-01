@@ -49,11 +49,13 @@ import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
 import { Switch } from "@/components/ui/switch";
+import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardPath,
   cardPath,
+  cardPrompt,
   CARD_STATUS_LABEL,
   boardErrorMessage,
   convertCardToAction,
@@ -499,6 +501,7 @@ export function CardRoute() {
                 </CardStatusChip>
                 {card.tag && <TagChip tag={card.tag} />}
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
+                <CopyPromptButton cardId={card.id} />
               </div>
               {/* <repo> · <branch> — a container never gets checked out, so a branch name on it is a
                   promise nothing keeps. The copilot withholds one when IT splits a card, but a card
@@ -976,6 +979,29 @@ export function CardRoute() {
         <StatusArea />
       </div>
     </div>
+  );
+}
+
+/**
+ * The card's id, wrapped in the skill command that reads it, copied in one tap. Asking an agent
+ * "is this card still worth doing?" used to mean hunting the id down and rebuilding the command by
+ * hand every time. The full line is the `title`, so what lands in the clipboard is never a guess.
+ */
+export function CopyPromptButton({ cardId }: { cardId: string }) {
+  const { canCopy, copied, copy } = useCopy();
+  const prompt = cardPrompt(cardId);
+  return (
+    <button
+      type="button"
+      disabled={!canCopy}
+      onClick={() => void copy(prompt)}
+      aria-label={`Copy agent prompt: ${prompt}`}
+      title={canCopy ? prompt : COPY_UNAVAILABLE_TITLE}
+      className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
+    >
+      {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
+      {copied ? "Copié" : "Prompt"}
+    </button>
   );
 }
 

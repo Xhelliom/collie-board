@@ -458,6 +458,16 @@ export function cardPath(cardId: string): string {
   return `/card/${encodeURIComponent(cardId)}`;
 }
 
+/**
+ * The card, as one line you can paste into an agent. Asking an agent about a card meant reading the
+ * id off the screen, retyping it, and remembering the command — this is that, copied in one tap.
+ * `collie-board` is the skill that already knows how to read a card over the local API, so the
+ * pasted line needs nothing but the id after it.
+ */
+export function cardPrompt(cardId: string): string {
+  return `/collie-board card ${cardId}`;
+}
+
 // ── api ──────────────────────────────────────────────────────────────────────
 
 // Conditional GET for the two board reads that POLL — the card list on every board screen, the
