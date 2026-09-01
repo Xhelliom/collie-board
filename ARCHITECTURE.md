@@ -393,6 +393,20 @@ switches exactly like a filed one — a board that asked for no follow-ups gets 
 like `startCard`, nothing here is automatic: the operator taps it, same reasoning as the dependency
 gate above.
 
+**And the operator makes the same call, by hand.** The arbitrage above is a judgement, not a
+privilege the copilot holds: a card you are looking at can be *converted into an action*
+(`convertToAction`, `bridge/cards.ts`) — its spec and acceptance become a `TinyTodo` on another
+card's screen, the same row with the same tap, and the card itself is deleted. Two ways in, one
+target each: a sub-task's "⋯" puts the action on the container you have open, and a card's own "⋯"
+puts it on its container — or, for a copilot follow-up, on the card it was filed against, which is
+the case this exists for (the copilot judged it worth a card and you disagree). Deleting is the
+point: a card AND an action saying the same thing is the chore the conversion removes, and what was
+in the card survives as the action's spec, shown in full when that agent is gone.
+
+The review it lands on carries the verdict `converted` and journals `card.action_added`, not
+`review.created` — the copilot reviewed nothing, and `tell` announces a `review.created` in the bell
+(NOTIFY_AUDIT §6.3 B2). An alert for a tap the operator just made is what §6 refuses.
+
 ### Three herdr behaviours the docs don't state
 
 Live-probed against 0.7.5 on 2026-07-28, re-checked against 0.8.0 on 2026-08-07. Each one silently

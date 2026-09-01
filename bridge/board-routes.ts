@@ -16,6 +16,7 @@ import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./ba
 import {
   cardView,
   cardViews,
+  convertToAction,
   finishNow,
   isAgentGone,
   promptAndConfirm,
@@ -73,7 +74,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|to-action|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -664,6 +665,38 @@ async function route(
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
     return json({ ok: true, card: view(id) });
+  }
+
+  // ── to-action: this card is not worth a card — it becomes an action on another one ────────
+  //
+  // The manual half of the copilot's arbitrage (see `convertToAction`). `id` is the card that goes;
+  // the body names the card the action lands on — the one open on screen when the sub-task was
+  // converted, or this card's own parent. Deleting is part of it, so it is gated like a delete.
+  if (action === "to-action" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return text("bad body", 400);
+    }
+    const { targetId } = (body ?? {}) as { targetId?: unknown };
+    if (typeof targetId !== "string" || !targetId.trim()) return text("targetId required", 400);
+    const result = convertToAction(db, id, targetId);
+    ctx.audit.record({
+      action: "card.to_action",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, targetId, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      // 404 only for the card in the path — a bad target is a board refusal, same 409 `start` uses.
+      if (result.error.kind === "not-found") return text("card not found", 404);
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, 409);
+    }
+    // The card in the path is gone, so the answer is the card that now holds the action.
+    return json({ ok: true, card: view(targetId) });
   }
 
   // ── reformulate: hand the card back to the copilot ───────────────────────

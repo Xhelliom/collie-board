@@ -196,7 +196,7 @@ describe("topOfColumn", () => {
 describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
   const rows = [card("ready"), card("ready"), card("ready")];
 
-  function renderSheet(index: number) {
+  function renderSheet(index: number, onConvert = vi.fn()) {
     const onReorder = vi.fn();
     render(
       <SubtaskActionsSheet
@@ -210,6 +210,7 @@ describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
         onDependsOn={vi.fn()}
         onDetach={vi.fn()}
         onDelete={vi.fn()}
+        onConvert={onConvert}
         candidates={[]}
       />,
     );
@@ -228,6 +229,17 @@ describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
     const onReorder = renderSheet(1);
     await user.click(screen.getByRole("button", { name: "Descendre" }));
     expect(onReorder).toHaveBeenCalledWith(rows[1].id, 2);
+  });
+
+  // The manual half of the copilot's arbitrage, asked from the container's own screen: the target
+  // is the card you are looking at, and the row says the card itself goes.
+  it("converts a sub-task into an action on the container", async () => {
+    const user = userEvent.setup();
+    const onConvert = vi.fn();
+    renderSheet(1, onConvert);
+    await user.click(screen.getByRole("button", { name: "Convertir en action" }));
+    expect(onConvert).toHaveBeenCalledWith(rows[1].id);
+    expect(screen.getByText(/La carte disparaît du board/)).toBeInTheDocument();
   });
 
   it("offers no move past either end of the list", () => {
