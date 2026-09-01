@@ -519,6 +519,11 @@ l'affiche déjà (`web/src/routes/card.tsx:431-432`). Pas le push.
 > différents. Les mots diffèrent parce que la forme diffère — « 1 Needs you » n'est pas une phrase —
 > pas la règle. Un groupe vide disparaît : un troupeau homogène lit `3 to review` et ne parle pas des
 > états qu'il n'a pas.
+>
+> **Le corps est borné** (0.133.4) : trois sujets, puis `+N` pour le reste, chacun coupé à 32
+> caractères — deux lignes d'écran verrouillé, et une carte au titre bavard ne pousse plus les autres
+> hors de l'écran qu'elle devait nommer. Un sujet qui ne résout à rien (pas de carte, `cwd`
+> illisible) sort de la liste au lieu d'y laisser un trou ; le titre le compte encore.
 
 **L'ordre des groupes est fixe et le plus urgent d'abord** : `question` → `to review` → `done`. Un
 agent bloqué est arrêté sur une réponse que vous seul pouvez donner ; une carte finie ne l'est pas.

@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.4] - 2026-09-01
+
+### Fixed
+
+- Le corps du digest se borne : trois sujets puis `+N`, chacun coupé à 32 caractères — une carte au titre bavard ne pousse plus les autres hors de l'écran verrouillé (9aed66f)
+- Un sujet vide (pas de carte, `cwd` illisible) sort de la liste au lieu d'y laisser un ` ·  · ` ; le titre le compte toujours (9aed66f)
+
 ## [0.133.3] - 2026-09-01
 
 ### Changed
