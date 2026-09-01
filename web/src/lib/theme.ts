@@ -36,15 +36,19 @@ export function resolveTheme(mode: ThemeMode): "light" | "dark" {
 }
 
 /**
- * Toggle the `.dark` class + the PWA status-bar color to match.
+ * Toggle the `.dark` class.
  *
- * The "#0a0a0a"/"#ffffff" pair is duplicated three times in this codebase — here, in index.html's
- * inline anti-FOUC script, and in its `.boot-splash`/`html.dark .boot-splash` CSS — because the
- * splash and the very first script run before this module (or any CSS custom property) exists to
- * read from. Not accidental copy-paste: keep all three in sync if the status-bar color ever changes.
+ * It used to swing `<meta name="theme-color">` between "#0a0a0a" and "#ffffff" too. It must not:
+ * that meta only tells Chrome which way to tint the Android system status-bar icons, while the band
+ * behind them is painted from the manifest's `theme_color`, a single value baked into the WebAPK at
+ * install time (#0a0a0a). A light theme therefore asked for dark icons over a black band — black on
+ * black, the clock and battery gone. The status-bar colour is now one fixed dark value declared in
+ * index.html and in the manifest, and nothing changes it at runtime.
+ *
+ * The "#0a0a0a"/"#ffffff" pair still lives in index.html's `.boot-splash`/`html.dark .boot-splash`
+ * CSS, which runs before any CSS custom property exists to read from — keep it in sync with
+ * --background if that ever moves.
  */
 export function applyTheme(mode: ThemeMode): void {
-  const dark = resolveTheme(mode) === "dark";
-  document.documentElement.classList.toggle("dark", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0a0a0a" : "#ffffff");
+  document.documentElement.classList.toggle("dark", resolveTheme(mode) === "dark");
 }

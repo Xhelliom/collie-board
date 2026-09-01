@@ -6,6 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
+    <!-- Status bar. Fixed, and it MUST equal the manifest's `theme_color` (web/vite.config.ts) —
+         Android is what breaks when the two disagree. The manifest value is baked into the WebAPK at
+         install time and is what actually gets painted behind the system status bar; the meta only
+         drives which way Chrome tints the system icons. When this followed the app theme, a light
+         theme asked for dark icons over the manifest's black band: black on black, nothing legible.
+         One dark value in both themes = one black band, light icons, readable either way. -->
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -15,7 +21,8 @@
     <!-- Anti-FOUC theme script (D2): must run before the boot-splash <style> below is applied, so the
          `.dark` class is already set — or absent — by first paint. Duplicates lib/theme.ts's resolve
          logic in plain JS (that module hasn't loaded yet) — keep the two in sync if the rule changes.
-         Defaults to "system" when nothing is stored, same as loadThemeMode(). -->
+         Defaults to "system" when nothing is stored, same as loadThemeMode().
+         It deliberately does NOT touch theme-color — see that meta's comment above. -->
     <script>
       (function () {
         try {
@@ -23,8 +30,6 @@
           var mode = stored === "light" || stored === "dark" ? stored : "system";
           var dark = mode === "dark" || (mode === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.classList.toggle("dark", dark);
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", dark ? "#0a0a0a" : "#ffffff");
         } catch (e) {}
       })();
     </script>
