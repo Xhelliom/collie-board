@@ -636,14 +636,16 @@ export function finishCardNow(id: string, reviewId: string, title: string): Prom
  * Its spec and acceptance become a {@link TinyTodo} on the target's screen, exactly like a copilot
  * suggestion, and the card itself is deleted — a card AND an action saying the same thing is the
  * chore the conversion exists to remove. Answers with the card that now holds the action, because
- * `id` no longer resolves to anything, and with the review that action landed in — enough to hand
- * it straight to the agent with {@link finishCardNow}, which is the whole gesture in one tap.
+ * `id` no longer resolves to anything, and with the review the action landed in AND the title it
+ * landed under — everything {@link finishCardNow} needs to hand it straight to the agent, which is
+ * the whole gesture in one tap. The title is answered rather than assumed: `finish-now` matches a
+ * suggestion by exact title, and it is the converted card's, not the row's that offered it.
  */
 export function convertCardToAction(
   id: string,
   targetId: string,
-): Promise<{ ok: true; card: CardView; reviewId: string }> {
-  return apiRequest<{ ok: true; card: CardView; reviewId: string }>(`/api/cards/${encodeURIComponent(id)}/to-action`, {
+): Promise<{ ok: true; card: CardView; reviewId: string; todoTitle: string }> {
+  return apiRequest<{ ok: true; card: CardView; reviewId: string; todoTitle: string }>(`/api/cards/${encodeURIComponent(id)}/to-action`, {
     method: "POST",
     body: JSON.stringify({ targetId }),
   });

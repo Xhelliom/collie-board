@@ -3908,6 +3908,33 @@ describe("convertToAction — the card that stops being one", () => {
     expect(store.getReview(reviewId)!.todos[0]!.tiny!.doneAt).toBeGreaterThan(0);
   });
 
+  // `finishNow` matches by EXACT title, so a caller that wants to convert and send in one gesture
+  // must be TOLD the title rather than reuse the one on screen. A promoted card gets renamed — by
+  // hand, or by a copilot reformulation — and the row that offered the conversion still says the
+  // old one. Guessing there deletes the card and then fails to send it.
+  it("answers with the title it filed the action under, not the caller's", async () => {
+    const { store, target, small } = pair();
+    store.openSession({ cardId: target.id, paneId: "w1:p1" });
+    const { client } = fakeHerdr();
+    store.patchCard(small.id, { title: "renamed after it was promoted" });
+
+    const res = convertToAction(store, small.id, target.id);
+    expect(res.ok && res.title).toBe("renamed after it was promoted");
+
+    const reviewId = res.ok ? res.reviewId : "";
+    const stale = await finishNow(store, client as never, target.id, { reviewId, title: small.title }, async () => {});
+    expect(stale.ok === false && stale.error.kind).toBe("not-tiny");
+
+    const sent = await finishNow(
+      store,
+      client as never,
+      target.id,
+      { reviewId, title: res.ok ? res.title : "" },
+      async () => {},
+    );
+    expect(sent.ok).toBe(true);
+  });
+
   // Journalled as what it is. `review.created` would credit the copilot with a review it never ran —
   // and the bell announces that one (board-notify.ts `tell`), for a tap the operator just made.
   it("journals the conversion on the target, not a review", () => {

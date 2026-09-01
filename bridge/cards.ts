@@ -934,7 +934,7 @@ export function convertToAction(
   cardId: string,
   /** The card the action lands on — the one whose agent would do it. */
   targetId: string,
-): { ok: true; reviewId: string } | { ok: false; error: ConvertError } {
+): { ok: true; reviewId: string; title: string } | { ok: false; error: ConvertError } {
   const card = db.getCard(cardId);
   if (!card) return { ok: false, error: { kind: "not-found", message: "card not found" } };
   const target = db.getCard(targetId);
@@ -961,7 +961,10 @@ export function convertToAction(
   // Children and dependents are detached rather than deleted by `deleteCard` — a sub-task of the
   // converted card is real work, and it stays on the board on its own.
   db.deleteCard(card.id);
-  return { ok: true, reviewId: review.id };
+  // The title comes back with the review id because `finishNow` matches a suggestion by EXACT title
+  // and this one is the card's, not whatever the row that offered the conversion was labelled. A
+  // caller that guesses gets it wrong the moment a promoted card was renamed — after the delete.
+  return { ok: true, reviewId: review.id, title: card.title };
 }
 
 /**

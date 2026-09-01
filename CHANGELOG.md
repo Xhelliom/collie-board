@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.137.1] - 2026-09-01
+
+### Fixed
+
+- « Finish it instead » sur une carte promue puis renommée : la carte partait, l'action ne s'envoyait pas — `to-action` répond maintenant le titre sous lequel il l'a posée (8399fb2)
+
 ## [0.137.0] - 2026-09-01
 
 ### Changed

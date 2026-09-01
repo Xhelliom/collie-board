@@ -695,10 +695,10 @@ async function route(
       if (result.error.kind === "not-found") return text("card not found", 404);
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, 409);
     }
-    // The card in the path is gone, so the answer is the card that now holds the action. The
-    // review id comes back with it because the caller may want to DO the action in the same gesture
-    // ("Finish it now instead"), and `finish-now` names the review the suggestion sits in.
-    return json({ ok: true, card: view(targetId), reviewId: result.reviewId });
+    // The card in the path is gone, so the answer is the card that now holds the action. The review
+    // id and title come back with it because the caller may want to DO the action in the same
+    // gesture ("Finish it instead"), and `finish-now` names a suggestion by review + exact title.
+    return json({ ok: true, card: view(targetId), reviewId: result.reviewId, todoTitle: result.title });
   }
 
   // ── reformulate: hand the card back to the copilot ───────────────────────
