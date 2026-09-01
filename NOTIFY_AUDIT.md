@@ -302,7 +302,7 @@ plusieurs cartes atterrissent ensemble.
 ### 2.5 — Deux gardes suppriment le sous-titre quand il finit par arriver
 
 `pushSubtitle` ne rend la mise à jour que si `coordinator.currentSolo(paneId)` répond
-(`notify-subtitle.ts:105-109`), ce qui exige **deux** conditions (`notifications.ts:167-169`) :
+(`notify-subtitle.ts:123-128`), ce qui exige **deux** conditions (`notifications.ts:258-260`) :
 
 - l'alerte est toujours en cours (le pane n'est pas reparti en `working`, n'a pas été traité) ;
 - elle est **la seule** en cours.
@@ -312,7 +312,7 @@ La seconde est celle qui mord. Dès qu'un deuxième agent bascule, la notificati
 §2.4 (le sous-titre arrive tard), c'est un mécanisme qui perd précisément dans le cas où on en aurait
 le plus besoin : plusieurs agents qui finissent dans la même fenêtre.
 
-> **Relu en 0.126.0 (§3.5, carte N5) : la garde reste.** Ce qu'elle jette n'est plus la seule chance
+> **Relu en 0.126.0 (§3.5, carte N5), réévalué le 2026-09-01 : la garde reste.** Ce qu'elle jette n'est plus la seule chance
 > d'avoir un corps informatif — depuis que le digest compte par état et nomme les sujets, il en a un
 > par construction. Le raisonnement complet, y compris pourquoi le copilote ne passe pas sur le
 > digest, est en [§3.5](#35-le-digest-multi-agents).
@@ -531,8 +531,8 @@ sur un écran verrouillé, un titre qui bouge est un titre qu'on relit. (L'exemp
 Le regroupement a été conçu pour éviter la pile de notifications identiques, et l'argument « chaque
 notification a désormais un sujet distinct, donc la pile est lisible » ne tient pas jusqu'au bout :
 
-1. **Un seul `tag` est aussi ce qui permet de rétracter.** `resolve()` ré-émet *le* résumé rétréci
-   sur le même slot (`notifications.ts:253-265`) : traiter un agent au PC met à jour la notification
+1. **Un seul `tag` est aussi ce qui permet de rétracter.** `retract()` ré-émet *le* résumé rétréci
+   sur le même slot (`notifications.ts:320-323`) : traiter un agent au PC met à jour la notification
    qui reste. Avec un push par pane il faudrait un `clear` par pane, et chaque rétractation ratée
    laisserait un fantôme sur l'écran verrouillé — exactement le défaut que la coalescence corrige.
 2. **Le budget d'affichage est par écran, pas par notification.** Empilées, N notifications se
@@ -544,12 +544,55 @@ notification a désormais un sujet distinct, donc la pile est lisible » ne tien
 Décision : **on garde la coalescence.** Il n'y a donc pas de changement de posture à arbitrer, et
 **pas d'ADR** — l'ADR n'aurait eu de raison d'être que pour fermer l'option inverse.
 
-#### Le copilote sur le digest : **non** — évalué et écarté
+#### Le copilote sur le digest : **non** — réévalué le 2026-09-01, toujours écarté
 
-La question posée : le copilote pourrait-il composer un sous-titre de digest, poussé en update
+> **Question rouverte comme prévu.** La première évaluation (0.126.0) répondait « non » avant que le
+> digest ait une forme : elle est refaite ici maintenant qu'il en a une — décompte par état lu de
+> `notifyMarker`, sujets dédupliqués. **Conclusion inchangée : on ne fait pas.** Pas de carte de mise
+> en œuvre ouverte. La garde `currentSolo` (`notifications.ts:258-260`) reste telle quelle.
+
+La question posée : le copilote pourrait-il composer un sous-titre de *digest*, poussé en update
 silencieux, comme il le fait pour une alerte solo (`enrichNotification`, palier 1) ? Aujourd'hui il
 en est empêché par `currentSolo` (§2.5) : dès la deuxième alerte, toutes les réponses en vol sont
-jetées. Lever cette garde a été évalué. Quatre raisons de ne pas le faire, dans l'ordre de force :
+jetées.
+
+**Les trois grandeurs, chiffrées.** Toutes lues dans le code ou mesurées ailleurs dans cet audit ; la
+latence réelle du copilot n'est toujours pas mesurée (cf. *Méthode et limites*), seules ses bornes de
+configuration le sont — et elles suffisent à trancher.
+
+| | Alerte solo (aujourd'hui) | Digest (ce qui est évalué) |
+|---|---|---|
+| **Requêtes copilote** pour une rafale de N alertes | **1** — `enrichNotification` sort par `currentSolo` avant de dépenser un tour (`notify-subtitle.ts:234`) | **N** — le hook `onFire` l'appelle une fois par alerte qui part (`index.ts:231`). À N=4, la moitié du cycle `RESET_EVERY = 8` (`copilot.ts:53`) dépensée à réécrire un texte déjà écrit |
+| **Latence plancher** | 2 s — `POLL_MS`, la granularité de lecture du fichier de sortie (`copilot.ts:44`) ; l'agent ne peut pas répondre « vite » | identique, mais opposée à une composition qui, elle, change à chaque arrivée **et** à chaque rétractation |
+| **Latence plafond** | 5 min (`REQUEST_TIMEOUT_MS`, `copilot.ts:41`) **plus** l'attente en file derrière les reformulations et les reviews de cartes — un seul tour à la fois, tout le board | identique, sauf que la file est à son pic exactement dans ce cas : N agents qui finissent ensemble, ce sont aussi N reviews à faire |
+| **Ce que le premier push attend** | 12–220 ms mesurés, borne dure 1 500 ms (§N10) | **inchangé** — le digest part complet sans rien attendre : son contenu est local et synchrone |
+
+**Le risque de re-notification, tranché : rédhibitoire.** L'update du palier 1 est
+`renotify: false` sur le collapse topic `collie-herd` (`push.ts:27`), et §N10 a *mesuré en direct* ce
+que ça veut dire : un téléphone endormi ne reçoit que **le dernier** message du topic. Sur une alerte
+solo, l'exception est assumée — le silencieux est le dernier mot, il ajoute de l'information à une
+alerte déjà lisible, et le copilote est éteint par défaut. Sur un digest, l'exception ne tient plus,
+pour deux raisons indépendantes :
+
+1. **L'ordre n'est plus garanti.** La réponse composée contre la forme *S* peut atterrir après le
+   rendu `renotify: true` de la forme *S+1* (une alerte de plus est arrivée). Sur le collapse topic,
+   le dernier écrase : un digest périmé recouvre le digest courant, **silencieusement**. Ce n'est plus
+   « une alerte qui ne vibre pas », c'est *un mauvais contenu qui éteint la bonne alerte*.
+2. **Le « silencieux » n'est pas vérifié là où il compte.** `renotify` n'est honoré que par les
+   navigateurs qui le supportent (`sw.ts:67-68`) et ce dépôt n'a jamais vérifié de quel côté tombe
+   iOS — c'est nommément hors du périmètre de cet audit (*Méthode et limites*). Les deux branches
+   perdent : honoré → c'est le point 1 ; ignoré → chaque `showNotification` sur le même tag ré-alerte,
+   donc N updates « silencieux » = N vibrations de plus sur la notification dont le rôle est
+   précisément de ne buzzer qu'une fois pour N agents. On ne construit pas une fonctionnalité dont la
+   prémisse — *c'est gratuit parce que c'est silencieux* — est fausse sur une plateforme et non
+   vérifiée sur l'autre.
+
+Et le clignotement se chiffre déjà sans copilote : une rafale de N alertes rend le slot **N fois**,
+chacune avec `renotify` (le plafond est écrit à `emit()`, `notifications.ts:325-337` ; constaté à
+quatre cartes orphelinées en §6.3). Y ajouter le palier 1, c'est aller jusqu'à **2N** rendus pour un
+contenu qui, lui, n'a pas bougé.
+
+**Les quatre raisons de fond**, dans l'ordre de force :
 
 1. **Il n'y a rien à reformuler.** Le décompte par état et les sujets sont des faits que le bridge
    détient déjà, localement, gratuitement, **et de façon synchrone dans le premier push qui buzz**.
@@ -561,21 +604,36 @@ jetées. Lever cette garde a été évalué. Quatre raisons de ne pas le faire, 
    suffisent à saturer les deux lignes d'un écran verrouillé. Ajouter « ce qui s'est passé » pour
    chacun est impossible ; le faire pour un seul, c'est choisir arbitrairement lequel des N compte.
 3. **Le digest est instable, la réponse est lente.** Chaque arrivée et chaque résolution le
-   re-rendent ; une réponse copilote prend des secondes à des **minutes** (file sérialisée à une
-   requête, timeout 5 min — `copilot.ts:16-17,40-41`). Elle décrirait un ensemble d'alertes qui n'existe
-   déjà plus. La garde `currentSolo` n'est pas un accident : un sous-titre répond à une *forme*.
+   re-rendent ; la réponse arrive au mieux 2 s plus tard, au pire 5 min plus tard, file comprise.
+   Elle décrirait un ensemble d'alertes qui n'existe déjà plus.
 4. **Le coût de quota culmine exactement là.** N agents qui finissent dans la même fenêtre, c'est le
-   pic de pression sur une file d'une requête. Y ajouter un tour de digest, c'est dépenser le plus au
-   moment où l'on sert le moins.
+   pic de pression sur une file d'une requête. Y ajouter N tours de digest, c'est dépenser le plus au
+   moment où l'on sert le moins — et faire attendre les reviews de ces mêmes cartes derrière.
 
-**Conséquence : la garde `currentSolo` reste telle quelle**, et elle coûte maintenant beaucoup moins
-cher — ce qu'elle jette n'est plus la seule chance d'avoir un corps informatif, puisque le digest en
-a un par construction. Le palier 1 reste ce qu'il est : une amélioration d'alerte solo.
+**L'interaction avec `currentSolo` : la garde n'est pas l'obstacle, c'est le diagnostic.** Elle
+s'applique deux fois — avant de dépenser un tour (`notify-subtitle.ts:234`) et avant de rendre la
+réponse (`notify-subtitle.ts:124`) : la première est la garde de quota, la seconde la garde de
+fraîcheur. Pour laisser le copilote adresser le digest, il faudrait remplacer les deux par un
+prédicat sur la *forme* du digest — « le même ensemble de clés en cours ». Or ce prédicat devient
+faux dès qu'une alerte arrive ou se rétracte, c'est-à-dire à l'intérieur même de la fenêtre de
+debounce, dans exactement le cas visé. **Une garde de fraîcheur correcte rejetterait donc tout ce
+qu'un palier 1 sur digest peut produire ; une garde plus laxiste publierait du périmé.** Il n'existe
+pas de version de la garde qui fasse passer un sous-titre de digest sans mentir — c'est la raison 3,
+écrite au niveau du code.
+
+**Conséquence : `currentSolo` reste telle quelle**, et elle coûte maintenant beaucoup moins cher — ce
+qu'elle jette n'est plus la seule chance d'avoir un corps informatif, puisque le digest en a un par
+construction. Le palier 1 reste ce qu'il est : une amélioration d'alerte solo. Rien à implémenter,
+donc rien à ouvrir.
 
 *Écarté aussi, adjacent :* mémoriser la réponse copilote sur l'alerte sans la rendre, pour qu'elle
 serve si le digest redescend à une seule alerte. Ça marcherait, mais ça affiche une phrase composée
 plusieurs minutes plus tôt sur un pane dont on ne sait plus rien — un contenu périmé sur un slot qui
 buzz. À reconsidérer seulement si quelqu'un observe le cas en vrai.
+
+**Ce qui rouvrirait la question** (et rien d'autre) : le digest devient déclaratif au point d'avoir de
+la matière brute à traduire — par exemple si un jour il portait un extrait par sujet — **et** le
+palier 1 sort du collapse topic partagé, donc cesse de pouvoir manger le buzz d'une alerte.
 
 ---
 
@@ -713,7 +771,9 @@ une lecture DB par alerte **tirée**.
 > (`1 question, 2 to review`), corps = les sujets (déjà acquis en 0.124.0). Le passage du copilote
 > sur le digest est évalué et **écarté** : le digest n'a pas de matière brute à reformuler, pas de
 > place pour le résultat, et sa composition change plus vite qu'une réponse ne revient. La garde
-> `currentSolo` (§2.5) reste donc telle quelle.
+> `currentSolo` (§2.5) reste donc telle quelle. *Réévalué le 2026-09-01, une fois le digest
+> structuré : coût, latence et risque de re-notification chiffrés en
+> [§3.5](#35-le-digest-multi-agents) — conclusion inchangée, aucune carte ouverte.*
 
 **Pourquoi** : §2.5, §3.5. Le digest est le pire contenu émis, il est atteint dès la deuxième alerte,
 et il annule tous les sous-titres en vol.
