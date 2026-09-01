@@ -158,6 +158,32 @@ describe("NotificationCoordinator — coalescing", () => {
     });
   });
 
+  // §3.5 — the body has two lines to fill and three subjects fill them. A fourth becomes `+1`, and a
+  // card title longer than a line is clipped, so one verbose card can't push the others off-screen.
+  test("a big herd shows three subjects and counts the rest", () => {
+    const { clock, sink, coord } = setup();
+    const titles = [
+      "Remplacer les noms d'agents par les sujets dans le digest",
+      "Ship 0.86",
+      "The container",
+      "Mesurer la lecture",
+      "Auditer les notifications",
+    ];
+    titles.forEach((cardTitle, i) => coord.onTransition({ ...agent(`p${i}`, "blocked"), cardTitle }, "working", "blocked"));
+    clock.fireAll();
+    expect(sink.last?.body).toBe("Remplacer les noms d'agents par… · Ship 0.86 · The container · +2");
+  });
+
+  // A subject that resolves to nothing costs its own entry and nothing else — no ` ·  · ` hole, and
+  // the title still counts it.
+  test("a subjectless alert drops out of the body instead of leaving a gap", () => {
+    const { clock, sink, coord } = setup();
+    coord.onTransition({ ...agent("p1", "blocked"), cardTitle: "Ship 0.86" }, "working", "blocked");
+    coord.onTransition({ ...agent("p2", "blocked"), cwd: "" }, "working", "blocked");
+    clock.fireAll();
+    expect(sink.last).toEqual({ title: "2 questions", body: "Ship 0.86", paneId: undefined, renotify: true });
+  });
+
   test("two agents in the same repo say it once — the count is already in the title", () => {
     const { clock, sink, coord } = setup();
     coord.onTransition(agent("p1", "blocked"), "working", "blocked");

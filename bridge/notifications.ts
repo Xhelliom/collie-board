@@ -41,7 +41,7 @@ export interface NotifyClock<H> {
 export interface HerdSummary {
   /** Headline: "Needs you · <subject>" for one (notify-content.ts), or "1 question, 2 to review". */
   title: string;
-  /** Sub-line: "<repo> · <what happened>" for one outstanding alert, or the agent names for a digest. */
+  /** Sub-line: "<repo> · <what happened>" for one outstanding alert, or the subjects for a digest. */
   body: string;
   /** Deep-link target when exactly one alert is outstanding; undefined for a multi-agent digest. */
   paneId?: string;
@@ -169,6 +169,30 @@ function digestTitle(alerts: Alert[]): string {
     .filter(([n]) => n > 0)
     .map(([n, say]) => say(n))
     .join(", ");
+}
+
+/**
+ * A lock screen gives the body two lines, and three subjects saturate them (§3.5) — so the list is
+ * capped at three plus a `+N` for the rest, and each subject at a length two of them still fit on a
+ * line. Without both caps one long card title pushes the others off the screen it was meant to name.
+ */
+const DIGEST_SUBJECTS = 3;
+const SUBJECT_CHARS = 32;
+const clip = (s: string) => (s.length > SUBJECT_CHARS ? `${s.slice(0, SUBJECT_CHARS - 1).trimEnd()}…` : s);
+
+/**
+ * The digest body: the SUBJECTS of what is outstanding — the card, else its repo, the same subject
+ * rule a single alert's title follows (notify-content.ts). Never the agent name: herdr reports the
+ * pane KIND for all of them, so a digest of three read `claude, claude, claude` (§2.1).
+ *
+ * A subject that resolves to nothing (no card, unreadable cwd) is DROPPED rather than joined as an
+ * empty slot — the title already carries the count, so a missing name costs its entry and no more.
+ */
+function digestBody(alerts: Alert[]): string {
+  const subjects = [...new Set(alerts.map((a) => a.cardTitle?.trim() || repoOf(a.cwd)))].filter((s) => s.length > 0);
+  const shown = subjects.slice(0, DIGEST_SUBJECTS).map(clip);
+  if (subjects.length > shown.length) shown.push(`+${subjects.length - shown.length}`);
+  return shown.join(" · ");
 }
 
 export class NotificationCoordinator<H = unknown> {
@@ -353,12 +377,7 @@ export class NotificationCoordinator<H = unknown> {
         ...(cardId ? { cardId } : {}),
       };
     }
-    const alerts = entries;
-    // The subjects, not the workers: `claude, claude, claude` named three panes with the one word
-    // herdr reports for all of them (NOTIFY_AUDIT.md §2.1). Same subject rule as a single alert —
-    // the card, else its repo — so a digest reads like the notifications it collapsed.
-    const subjects = [...new Set(alerts.map((a) => a.cardTitle || repoOf(a.cwd)))];
-    return { title: digestTitle(alerts), body: subjects.join(" · "), renotify };
+    return { title: digestTitle(entries), body: digestBody(entries), renotify };
   }
 
   private cancelPending(id: string): void {
