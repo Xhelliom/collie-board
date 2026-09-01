@@ -138,6 +138,9 @@ export default defineConfig({
         display: "standalone",
         orientation: "portrait",
         background_color: "#0a0a0a",
+        // The Android status-bar band, baked into the WebAPK at install time — this value is what
+        // actually paints it, not index.html's <meta name="theme-color">, which must MATCH it (see
+        // the comment there). One WebAPK = one colour for both themes; it cannot follow the app.
         theme_color: "#0a0a0a",
         icons: [
           // The 192/512 are safe-zone-padded, so they serve as both the regular ("any") install

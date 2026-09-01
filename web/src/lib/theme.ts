@@ -42,8 +42,9 @@ export function resolveTheme(mode: ThemeMode): "light" | "dark" {
  * that meta only tells Chrome which way to tint the Android system status-bar icons, while the band
  * behind them is painted from the manifest's `theme_color`, a single value baked into the WebAPK at
  * install time (#0a0a0a). A light theme therefore asked for dark icons over a black band — black on
- * black, the clock and battery gone. The status-bar colour is now one fixed dark value declared in
- * index.html and in the manifest, and nothing changes it at runtime.
+ * black, the clock and battery gone. Nothing in the page can repaint that band, at runtime or
+ * otherwise — a `media`-scoped meta pair was tried against the device and fails the same way, see
+ * index.html. The status-bar colour is one fixed dark value there and in the manifest.
  *
  * The "#0a0a0a"/"#ffffff" pair still lives in index.html's `.boot-splash`/`html.dark .boot-splash`
  * CSS, which runs before any CSS custom property exists to read from — keep it in sync with

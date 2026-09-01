@@ -6,12 +6,25 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <!-- Status bar. Fixed, and it MUST equal the manifest's `theme_color` (web/vite.config.ts) —
-         Android is what breaks when the two disagree. The manifest value is baked into the WebAPK at
-         install time and is what actually gets painted behind the system status bar; the meta only
-         drives which way Chrome tints the system icons. When this followed the app theme, a light
-         theme asked for dark icons over the manifest's black band: black on black, nothing legible.
-         One dark value in both themes = one black band, light icons, readable either way. -->
+    <!-- Status bar. ONE value, and it MUST equal the manifest's `theme_color` (web/vite.config.ts).
+
+         This meta does NOT paint the band. The band is the manifest's `theme_color`, baked into the
+         WebAPK at install time; the meta only tells Chrome which way to tint the system icons. When
+         the two disagree the icons vanish — a light meta over the manifest's black band asked for
+         dark icons on black, no clock, no battery (47d0a5f).
+
+         So the band cannot follow the app theme: one WebAPK, one colour, chosen at install. Both
+         values were verified against the device before settling here — don't re-litigate it:
+
+         - Two metas scoped with `media="(prefers-color-scheme: …)"`, declared at parse time so none
+           of 47d0a5f's runtime-write problem. With the OS in LIGHT mode, so the light meta matched,
+           the band stayed black and only the icon tint flipped: 47d0a5f's bug from static HTML.
+         - The manifest's `theme_color` set to #ffffff, PWA reinstalled: the band went white. That is
+           the lever, and the only one.
+
+         Dark is the value kept. White matched the light theme but put a lit band over the dark one,
+         and an Android on a night schedule sees both every day; a dark band is the one that is never
+         glaring. Changing it means changing BOTH values and reinstalling the PWA. -->
     <meta name="theme-color" content="#0a0a0a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
