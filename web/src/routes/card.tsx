@@ -285,6 +285,26 @@ export function CardRoute() {
     revalidator.revalidate();
   }
 
+  // The same conversion, done from the review the card was promoted OUT of, and carried through to
+  // the end: a suggestion this card's own copilot filed as a card, taken back and handed to the
+  // agent that is still here. Two requests rather than one — a failed `finish-now` leaves the action
+  // sitting on the review with its own "Finish it now", which is the readable half-way state.
+  async function convertAndFinish(childId: string, title: string) {
+    if (!card || finishing) return;
+    setFinishing(title);
+    setStatus("Handing it to the agent…", "info", null);
+    try {
+      const { reviewId } = await convertCardToAction(childId, card.id);
+      await finishCardNow(card.id, reviewId, title);
+      setStatus("Sent to the agent.", "success");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    } finally {
+      setFinishing(null);
+      revalidator.revalidate();
+    }
+  }
+
   // Same conversion, asked from the card that goes: the action lands on its container (or, for a
   // copilot follow-up, on the card it was filed against — the one whose agent did the work). This
   // page is about to stop existing, so it leaves for the card now holding the action.
@@ -568,13 +588,34 @@ export function CardRoute() {
                     />
                   </>
                 ) : (
-                  <StartButton
-                    card={card}
-                    pending={starting}
-                    onStart={start}
-                    predecessor={detail?.predecessor}
-                    childCount={detail?.children.length}
-                  />
+                  <>
+                    <StartButton
+                      card={card}
+                      pending={starting}
+                      onStart={start}
+                      predecessor={detail?.predecessor}
+                      childCount={detail?.children.length}
+                    />
+                    {/* The other answer to "start this?", and it belongs next to Start rather than
+                        three taps deep in the "⋯": this is too small for a worktree and an agent of
+                        its own, and the card it came out of still has one. Only while nothing has
+                        run here yet — see `convertible`. */}
+                    {actionTarget && convertible(card.status) && (
+                      <div className="flex flex-col gap-1">
+                        <ConvertNowButton
+                          id={card.id}
+                          label="Convertir en action"
+                          confirmLabel="Supprimer la carte et poser l'action ?"
+                          onConfirm={() => void convertToParent(actionTarget)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Trop petit pour une carte : le spec part comme action sur «{" "}
+                          {actionTarget.title} », à donner d&apos;un tap à son agent. Cette carte-ci
+                          disparaît du board.
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Action rail, not document — "what can I DO with this card" belongs beside its live
@@ -786,16 +827,47 @@ export function CardRoute() {
                             <div className="flex flex-col gap-1">
                               {r.todos.map((todo, i) =>
                                 todo.card ? (
-                                  <button
+                                  <div
                                     key={todo.card.id}
-                                    type="button"
-                                    onClick={() => navigate(cardPath(todo.card!.id))}
-                                    className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-left active:scale-[0.99]"
+                                    className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2"
                                   >
-                                    <CardStatusChip status={todo.card.status} className="px-1.5" />
-                                    <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
-                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                                  </button>
+                                    {/* Same height as the button under it, deliberately: opening the
+                                        card is the usual answer and a shorter row next to a full
+                                        secondary button reads as the lesser of the two. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate(cardPath(todo.card!.id))}
+                                      className="flex h-10 items-center gap-2 text-left active:scale-[0.99]"
+                                    >
+                                      <CardStatusChip status={todo.card.status} className="px-1.5" />
+                                      <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
+                                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                                    </button>
+                                    {/* The tap its filed-as-a-card neighbour never had. The suggestion
+                                        got a card; you disagree, and the agent that produced it is
+                                        still at its prompt — so take it back as an action and send it,
+                                        here, rather than opening the card to find the same gesture in
+                                        a "⋯". Offered only while that agent is there to receive it,
+                                        and only before the card was ever started: past that it holds
+                                        work of its own, and losing it is not a two-tap decision. */}
+                                    {card.runtime && convertible(todo.card.status) && (
+                                      <div className="flex items-center gap-2">
+                                        {/* The question the button answers. Without it "instead" has
+                                            no antecedent, and the row it shares reads as padding. */}
+                                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                                          Too small for a card? This card&apos;s agent is still here.
+                                        </p>
+                                        <ConvertNowButton
+                                          id={todo.card.id}
+                                          label="Finish it instead"
+                                          confirmLabel="Delete the card and send?"
+                                          busy={finishing === todo.title}
+                                          compact
+                                          onConfirm={() => void convertAndFinish(todo.card!.id, todo.title)}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : todo.tiny ? (
                                   // Never filed, on purpose — the one tap that does it is right here.
                                   <TinyTodoRow
@@ -930,6 +1002,57 @@ export function CopyPromptButton({ cardId }: { cardId: string }) {
       {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
       {copied ? "Copié" : "Prompt"}
     </button>
+  );
+}
+
+/**
+ * Can this card still be taken back as an action? Only before anything ran in it. A `working` or
+ * `review` card has a branch, a session and a journal behind it — the conversion DELETES the card,
+ * so past that point it stops being a two-tap gesture and stays in the "⋯", where the decision is
+ * deliberate. Pure + exported so the cut-off is pinned by a test rather than by a JSX condition.
+ */
+export function convertible(status: CardStatus): boolean {
+  return status === "backlog" || status === "ready";
+}
+
+/**
+ * Two taps, one card destroyed. Both entries that turn a card into an action ask twice — through the
+ * same hook as Delete, and armed under the card's OWN id, because neither this page nor a review
+ * block is remounted from one card to the next and an armed confirm must never carry over.
+ */
+export function ConvertNowButton({
+  id,
+  label,
+  confirmLabel,
+  busy,
+  compact,
+  onConfirm,
+}: {
+  /** The card that would go — the confirm's key, so it disarms when the screen moves on. */
+  id: string;
+  label: string;
+  confirmLabel: string;
+  busy?: boolean;
+  /** Sits BESIDE a more common gesture rather than under one: outline, only as wide as its label,
+   *  leaving its row to whatever explains it. A full-width secondary button next to a row reads as
+   *  that row's main action, and here the main action is opening the card — which the row does. */
+  compact?: boolean;
+  onConfirm: () => void;
+}) {
+  const { confirm, pending } = usePendingConfirm();
+  return (
+    <Button
+      variant={compact ? "outline" : "secondary"}
+      className={cn("h-10 gap-2", compact ? "shrink-0" : "w-full")}
+      disabled={busy}
+      onClick={() => {
+        if (!confirm(id)) return;
+        onConfirm();
+      }}
+    >
+      <Zap className="size-4" />
+      {busy ? "Sending…" : pending === id ? confirmLabel : label}
+    </Button>
   );
 }
 
