@@ -109,14 +109,11 @@ export interface Alert {
   cwd: string;
   status: NotifiableStatus;
   /**
-   * The card title is the SUBJECT of every surface's sentence (notify-content.ts). The rename
-   * ingredients are carried for the history entry alone (notify-log.ts) — since N9 no notification
-   * names the pane, so nothing reads them today; they stay because dropping a field from the log's
-   * wire shape costs more than keeping it.
+   * The card title is the SUBJECT of every surface's sentence (notify-content.ts). The pane's own
+   * names — its herdr label and Claude's `/rename` — are deliberately NOT carried: since N9 no
+   * notification names the pane, and a field nothing reads is one the next audit pays to rediscover
+   * (NOTIFY_AUDIT.md §2.6). They still name the pane in-app, off the snapshot (`paneDisplayName`).
    */
-  paneLabel?: string;
-  sessionName?: string;
-  kind?: "agent" | "shell";
   cardTitle?: string;
   /** The card this pane backs, and the agent's own session id — carried through for notify-subtitle.ts,
    *  which needs them to ask the copilot for a one-line account of what actually happened (the card's
@@ -218,9 +215,6 @@ export class NotificationCoordinator<H = unknown> {
       workspaceLabel: agent.workspaceLabel,
       cwd: agent.cwd,
       status: to as NotifiableStatus,
-      paneLabel: agent.paneLabel,
-      sessionName: agent.sessionName,
-      kind: agent.kind,
       cardTitle: agent.cardTitle,
       cardId: agent.cardId,
       agentSessionId: agent.agentSessionId,

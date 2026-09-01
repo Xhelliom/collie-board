@@ -317,26 +317,51 @@ le plus besoin : plusieurs agents qui finissent dans la même fenêtre.
 > par construction. Le raisonnement complet, y compris pourquoi le copilote ne passe pas sur le
 > digest, est en [§3.5](#35-le-digest-multi-agents).
 
-### 2.6 — `sessionName` est renseigné après la boucle des transitions — ✅ corrigé en 0.126.1
+### 2.6 — `sessionName` : gardé dans l'app, sorti des notifications — ✅ tranché en 0.134.0
 
-> **Corrigé.** `toView` applique le cache `sessionNames` au moment où il construit la vue, donc avant
-> la boucle des transitions ; `enrichSessionNames()` continue d'écraser avec la lecture fraîche pour
-> le snapshot. Un test tient l'ordre (`state-engine.test.ts`, « a transition listener sees the name
-> the cache already knew »).
+> **Décision.** Le nom `/rename` **reste** là où il est lu — l'`AgentView` du snapshot, d'où sept
+> surfaces in-app le tirent via `paneDisplayName` — et **disparaît** là où il ne l'est pas : l'`Alert`
+> et l'entrée d'historique. Le correctif d'ordre de N8 (0.126.1) est retiré avec elles : l'alerte
+> était son seul consommateur.
 
 Bug secondaire, mais réel et cohérent avec §2.1. Dans `StateEngine.poll()`, la boucle qui appelle les
 listeners de transition venait **avant** `enrichSessionNames()`, seul endroit qui posait
 `a.sessionName`. L'objet `AgentView` remis à `NotificationCoordinator.onTransition` n'avait donc
-jamais son `sessionName`, même quand le cache le connaissait depuis le poll précédent.
+jamais son `sessionName`, même quand le cache le connaissait depuis le poll précédent. N8 l'a corrigé
+en appliquant le cache dans `toView`.
 
-Le toast in-app, lui, lit le snapshot final : il avait le nom. C'était une des divergences de §1.3.
+Sauf que le correctif remplissait un champ que **plus personne ne lisait** : depuis N5 et N9, aucune
+surface de notification ne nomme le pane — ni le push, ni le digest (qui compte par état et liste les
+sujets), ni la cloche (qui compose par `notifyContent`). Un champ rempli, testé et jamais lu coûte
+son temps au prochain qui l'audite ; il fallait trancher.
 
-En pratique ça ne changeait rien, et ça n'en change toujours pas : `sessionName` est vide partout
-(personne ne tape `/rename`) et, depuis N5 et N9, **aucune surface de notification ne nomme plus le
-pane** — ni le push, ni le digest (qui liste les sujets), ni la cloche (qui compose comme le push).
-Le champ reste porté par l'`Alert` et l'entrée d'historique sans lecteur. Ce qui est réparé est donc
-l'ordre, pas un symptôme : la prochaine surface qui redonnera un rôle au nom du pane le trouvera
-rempli au lieu de vide.
+**Ce que la lecture des appelants a corrigé dans le constat de N8.** « `paneDisplayName` n'est appelé
+nulle part dans `bridge/` » est vrai ; « `sessionName` n'a plus de lecteur » ne l'est pas. Le champ a
+onze lecteurs, tous côté app, tous sur le snapshot : huit écrans appellent `paneDisplayName`
+(`pane-strip`, `agent-card`, `pane-list-column`, `pane-menu`, `agent-sidebar`, `pane-actions-sheet`,
+`card-tile`, l'écran carte) et trois lisent le champ directement (`agent-chat`, `history`,
+`card-tile`) — c'est-à-dire partout où une pastille ou un titre nomme un pane. Le test existe déjà :
+`pane-strip.test.tsx` → *« shows Claude's /rename session name on a pill when no user label is set »*.
+Supprimer le champ, son cache et `enrichSessionNames` aurait donc cassé le nommage des panes dans
+l'app pour nettoyer un mort qui n'était pas là.
+
+**Pourquoi ne pas le rebrancher côté notification.** Ce serait rouvrir §3.1-3.2 : le sujet est le
+travail, pas le travailleur. Le seul cas où le nom `/rename` battrait le sujet actuel est le pane
+sans carte, où le sujet retombe sur le repo — et il faudrait pour ça ajouter un champ à
+`NotifySubject`, dans les deux copies de `notify-content.ts`, pour une valeur observée `null` sur
+9 panes sur 9 (§2.1). Un discriminant qui n'existe jamais n'en est pas un.
+
+**Ce qui a été supprimé** (aucun de ces trois points n'existe en amont — le fork rétrécit) :
+
+| Suppression | Pourquoi |
+|---|---|
+| `Alert.paneLabel` / `sessionName` / `kind` (`notifications.ts`) | portés jusqu'au `onFire`, lus par personne |
+| `NotifyLogEntry.paneLabel` / `sessionName` / `kind` (les deux copies) | la cloche compose par `notifyContent`, qui ne les regarde pas |
+| l'application du cache dans `toView` + son test d'ordre | l'alerte était le seul lecteur de `sessionName` avant `enrichSessionNames` |
+| `paneDisplayName` dans `bridge/types.ts` | doublon ajouté par le fork « pour que `notifications.ts` nomme comme le toast » — le bridge ne nomme plus aucun pane |
+
+`enrichSessionNames`, le cache collant et `extractClaudeSessionName` restent intacts : ils
+alimentent le snapshot, et le snapshot alimente l'app.
 
 ### 2.7 — `done` est off par défaut, et c'est cohérent avec le reste
 
@@ -354,7 +379,7 @@ pas avant.
 | C3 | palier gratuit gardé par la pref copilot (§2.3) | aucune réécriture par défaut | **très faible** — déplacer un `if` |
 | C4 | file copilot partagée avec la review (§2.4) | sous-titre tardif | moyen — priorité ou file séparée |
 | C5 | garde `currentSolo` + digest (§2.5) | sous-titre jeté à ≥2 alertes | moyen — repenser le digest |
-| C6 | `sessionName` posé trop tard (§2.6) | push moins riche que le toast | ✅ corrigé en 0.126.1 |
+| C6 | `sessionName` posé trop tard (§2.6) | aucun : le push ne nomme plus le pane | ✅ tranché en 0.134.0 — le champ sort de l'alerte |
 | C7 | trois compositions de contenu concurrentes (§1.3) | divergence des surfaces | moyen — factoriser |
 
 ---
@@ -724,11 +749,14 @@ seulement un parallélisme.
 **Acceptation** : quand une carte atterrit, le sous-titre de notification passe avant la review de
 cette même carte.
 
-### N8 — Renseigner `sessionName` avant les listeners de transition — ✅ fait en 0.126.1
+### N8 — Renseigner `sessionName` avant les listeners de transition — ↩️ défait en 0.134.0
 
-> **Fait, et sans symptôme à montrer** — ce qui est le point. `toView` (`state-engine.ts:201-236`)
-> pose le nom en cache au moment de construire la vue ; `enrichSessionNames()` garde son rôle, poser
-> la lecture *fraîche* pour le snapshot. Un test échoue si l'ordre se réinverse.
+> **Fait en 0.126.1, puis retiré en 0.134.0** — et c'est la carte elle-même qui l'avait annoncé : elle
+> constate en toutes lettres qu'aucune surface ne nomme plus le pane. Corriger l'ordre d'un champ que
+> personne ne lit, c'est fiabiliser une plomberie qui ne va nulle part. §2.6 tranche : le champ sort
+> de l'`Alert` et de l'entrée d'historique, l'application du cache dans `toView` et son test d'ordre
+> partent avec, et `sessionName` reste ce qu'il n'avait jamais cessé d'être — le nom qu'affichent les
+> pastilles de panes dans l'app, depuis le snapshot.
 
 **Pourquoi** : §2.6. La raison d'origine était « le push est moins riche que le toast sur le même
 événement ». **Plus aucune des cibles successives ne tient** : N2 a sorti `paneDisplayName` du titre
@@ -752,9 +780,10 @@ l'`Alert` de sa transition suivante. ✅
 > `web/src/lib/types.ts`) — mais par une copie **octet pour octet** que `notify-content.test.ts`
 > vérifie, ce qui fait tenir l'acceptation malgré le doublon : éditer un fichier sans copier l'autre
 > casse le build. `notifyVerb`/`notifyWhere`/`notifyWhat` sont supprimés : ils distribuaient les mots
-> d'une phrase que chaque appelant réassemblait. Le doublon délibéré de `paneDisplayName`
-> (`bridge/types.ts:80`) reste — c'est le même arbitrage, désormais outillé. Le corps du digest liste
-> les sujets dédupliqués ; son titre compte par état depuis 0.126.0 (§3.5, carte N5).
+> d'une phrase que chaque appelant réassemblait. Le doublon de `paneDisplayName` côté bridge, lui, a
+> été supprimé en 0.134.0 : plus rien n'y nommait un pane (§2.6) — la copie du web, elle, sert sept
+> surfaces. Le corps du digest liste les sujets dédupliqués ; son titre compte par état depuis
+> 0.126.0 (§3.5, carte N5).
 
 **Pourquoi** : §1.3, C7. Trois codes composent le même contenu à trois niveaux de richesse, et une
 amélioration de l'un ne profite pas aux autres. Les helpers `notifyVerb`/`notifyWhere`/`notifyWhat`

@@ -323,11 +323,8 @@ export interface NotifyLogEntry {
   paneId?: string;
   /** Registry name of the pane's session; absent for the primary. */
   session?: string;
-  /** Rename ingredients + the card title — same fields `paneDisplayName` resolves for the toast, so
-   *  the bell can name an entry exactly like the toast did when it fired. */
-  paneLabel?: string;
-  sessionName?: string;
-  kind?: "agent" | "shell";
+  /** The card the alert was about — the subject of the sentence the bell recomposes. The pane's own
+   *  names are not carried: no notification surface names the pane (NOTIFY_AUDIT.md §2.6). */
   cardTitle?: string;
   /** The card this entry's pane backed and its status when the alert fired — the bell renders the
    *  same "Review · <card>" the push sent, and taps through to the same card. */
