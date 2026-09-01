@@ -23,4 +23,8 @@ export interface HarnessAdapter {
   /** Re-surface a user draft stranded on the input box's prompt line (null = no box / empty / a
    *  known placeholder). */
   extractInputDraft(lines: StyledLine[]): string | null;
+  /** Whether an `extractInputDraft` result is the harness's own COLLAPSED stand-in for a large draft
+   *  ("[Pasted text #3]") rather than the draft's text. The text is in the box but not on screen, so
+   *  this is the only evidence a big send has that it landed (reply-action.ts). */
+  isCollapsedDraft(draft: string): boolean;
 }

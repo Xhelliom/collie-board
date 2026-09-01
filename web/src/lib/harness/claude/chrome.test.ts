@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseAnsi } from "../../ansi";
 import { splitLines, type StyledLine } from "../../blocks";
-import { extractInputDraft, extractStatusLines, stripChrome } from "./chrome";
+import { extractInputDraft, extractStatusLines, isCollapsedDraft, stripChrome } from "./chrome";
 import { lineText } from "./markers";
 
 // Anchored on this file's directory (see prompt-select.test.ts for why not `new URL(import.meta.url)`).
@@ -215,6 +215,51 @@ describe("the statusline run is as tall as a real statusline (MAX_STATUS_LINES)"
   });
 });
 
+// Regression, same family as MAX_STATUS_LINES above: MAX_DRAFT_LINES was 12, tuned for a soft-wrapped
+// draft. A draft carrying its OWN newlines grows the box one row per line (live-verified: a 100-line
+// draft rendered a 42-row box), so locateInputBox's walk stopped mid-draft instead of on the "❯" and
+// the box vanished — extractInputDraft went null and sendGuardedReply stalled with the text sitting
+// right there in the box. Raised to 64.
+describe("the draft run is as tall as a real multi-line draft (MAX_DRAFT_LINES)", () => {
+  const continuations = (n: number) => Array.from({ length: n }, (_, i) => `  ligne ${i + 1}`);
+
+  it.each([12, 30, 64])("locates the box and folds %i continuation lines back together", (n) => {
+    const lines = wrappedBoxBuffer("❯ ligne 0", continuations(n));
+    expect(extractInputDraft(lines)).toBe(["ligne 0", ...continuations(n).map((l) => l.trim())].join(" "));
+    expect(stripChrome(lines).length).toBeLessThan(lines.length); // and it comes off the mirror
+  });
+
+  it("still falls back to the raw mirror past the deliberate ceiling", () => {
+    const lines = wrappedBoxBuffer("❯ ligne 0", continuations(65));
+    expect(extractInputDraft(lines)).toBeNull();
+    expect(stripChrome(lines)).toBe(lines);
+  });
+});
+
+// Over roughly a thousand characters Claude stops rendering the draft and paints a stand-in for it.
+// It is the only evidence a big send has that it reached the input box (reply-action.ts), so the
+// match is anchored whole-line: a draft that merely talks about a paste is not one.
+describe("isCollapsedDraft — Claude's stand-in for a draft too big to render", () => {
+  it.each(["[Pasted text #1]", "[Pasted text #3]", "[Pasted text #1 +59 lines]", "[Pasted text #2 +1 line]"])(
+    "accepts %s",
+    (chip) => {
+      expect(isCollapsedDraft(chip)).toBe(true);
+      // …and it survives the round trip through the box parser, which is how the guard sees it.
+      expect(extractInputDraft(boxBuffer(`❯ ${chip}`))).toBe(chip);
+    },
+  );
+
+  it.each([
+    "[Pasted text]",
+    "[Image #1]",
+    "look at [Pasted text #1] again",
+    "[Pasted text #1] and then some",
+    "",
+  ])("rejects %s", (notChip) => {
+    expect(isCollapsedDraft(notChip)).toBe(false);
+  });
+});
+
 // extractInputDraft recovers a user draft stranded on the "❯" prompt line (a queued-then-recalled
 // message that stripChrome would otherwise hide) — the marker + separator stripped, trimmed; null
 // for an empty box, a TUI placeholder, or no box at the tail.
@@ -300,7 +345,7 @@ describe("extractInputDraft — recovers a stranded prompt-line draft", () => {
   // Conservatism: the multi-line scan is bounded (MAX_DRAFT_LINES) and aborts on a border en route,
   // so it can't run away up a borderless buffer and strip real output as a giant "draft".
   it("does not match a box whose draft exceeds the wrap bound (falls back to raw)", () => {
-    const tooMany = Array.from({ length: 20 }, (_, i) => `  continuation ${i}`);
+    const tooMany = Array.from({ length: 65 }, (_, i) => `  continuation ${i}`);
     expect(extractInputDraft(wrappedBoxBuffer("❯ opening line", tooMany))).toBeNull();
   });
 });

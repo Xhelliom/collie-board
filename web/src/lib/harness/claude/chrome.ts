@@ -31,15 +31,38 @@ const MAX_FOOTER_LINES = 8;
 
 // A long draft WRAPS inside the input box: the "❯ …" prompt line plus continuation lines (indented,
 // no leading "❯") before the bottom border. We scan up past those to find the prompt, but only this
-// many — a bound that keeps the match tight (a borderless buffer can't strip unboundedly) while
-// comfortably covering a very long draft even on a narrow phone pane. A taller box falls back to the
-// raw mirror (safe: at worst the draft stays visible, exactly the pre-wrap-support behaviour).
-const MAX_DRAFT_LINES = 12;
+// many — a bound that stops a BORDERLESS buffer scanning unboundedly. It is not what keeps the match
+// tight: the scan aborts on any box border it meets on the way up, so a diff box or a menu can never
+// be walked through into a bogus "prompt" line.
+//
+// 12 was tuned for soft-wrap alone and was far too low for a draft carrying its own newlines: Claude
+// grows the box one row per line, up to the terminal's height (live-verified on herdr 0.8.2,
+// 2026-09-01 — a 100-line draft rendered a 42-row box). Every one of those stalled
+// `sendGuardedReply`, because locateInputBox never found the "❯" and the guard read "no draft".
+const MAX_DRAFT_LINES = 64;
 
 // Text Claude draws on the "❯" prompt line that is NOT a real user draft — it's a hint the TUI paints
 // when the box is otherwise empty. Must never be surfaced as a recoverable draft. Kept as an array so
 // more variants can be added without touching the extraction logic.
 const INPUT_PLACEHOLDERS = ["Press up to edit queued messages"];
+
+// Over roughly a thousand characters, Claude Code stops showing a draft and shows a STAND-IN for it:
+// "[Pasted text #3]", or "[Pasted text #3 +12 lines]" when the text carries newlines. Live-verified
+// on herdr 0.8.2 (2026-09-01): 699 chars render in full, 1099 collapse — it is the character count
+// that trips it, not the line count.
+//
+// The text is really in the box, it is simply not on screen to compare against, so this shape is the
+// only evidence a big send has that it landed (see reply-action.ts). Anchored whole-line, so a draft
+// that merely mentions the phrase can't pass as one.
+const COLLAPSED_DRAFT = /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/;
+
+/**
+ * Whether `draft` (as returned by {@link extractInputDraft}) is Claude's collapsed stand-in for a
+ * large draft rather than the draft's own text.
+ */
+export function isCollapsedDraft(draft: string): boolean {
+  return COLLAPSED_DRAFT.test(draft.trim());
+}
 
 /**
  * Return `lines` with any confidently-matched trailing chrome removed. When nothing matches the

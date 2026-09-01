@@ -98,7 +98,15 @@ export async function sendGuardedReply(args: GuardedReplyArgs): Promise<ReplyOut
     } catch {
       continue; // transient read failure — the bounded loop is the timeout
     }
-    if (draftCarriesSend(args.text, draft)) return submitOnly(args);
+    // Two shapes count as "our text is in the box": the text itself (windowed/wrapped), or the
+    // harness's COLLAPSED stand-in for it. Over ~1000 characters Claude Code stops rendering the
+    // draft and paints "[Pasted text #3]" instead — there is then nothing to string-match, and the
+    // guard used to stall on every long prompt: the text sat in the input box and the user had to
+    // walk over to the pane and press Enter by hand. The chip is evidence in its own right (the box
+    // is holding a big paste, and send()'s pre-clear means the only paste there is ours).
+    if (draftCarriesSend(args.text, draft) || (draft !== null && adapter.isCollapsedDraft(draft))) {
+      return submitOnly(args);
+    }
   }
 
   // The text never showed up on the input line. The likeliest cause is a dialog holding focus and
