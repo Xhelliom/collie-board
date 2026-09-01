@@ -125,7 +125,9 @@ export function CardRoute() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [starting, setStarting] = useState(false);
-  /** The title of the suggestion currently being sent, so only ITS button says "Sending…". */
+  /** Which suggestion is being sent, so only ITS button says "Sending…". A title alone is not a key:
+   *  the same suggestion can sit on two reviews of one card — the copilot's, and the one a
+   *  conversion filed — and both buttons would light up. See `busyKey`. */
   const [finishing, setFinishing] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -292,12 +294,12 @@ export function CardRoute() {
   // agent that is still here. Two requests rather than one — a failed `finish-now` leaves the action
   // sitting on the review with its own "Finish it now", which is the readable half-way state.
   //
-  // `title` only drives which button says "Sending…". The one that goes to `finish-now` is the one
-  // the conversion ANSWERS with: suggestions are matched by exact title, and a promoted card that
-  // was renamed no longer carries the title of the row you tapped.
-  async function convertAndFinish(childId: string, title: string) {
+  // Takes no title: the one that goes to `finish-now` is the one the conversion ANSWERS with, since
+  // suggestions are matched by exact title and a promoted card that was renamed no longer carries
+  // the title of the row you tapped. The card's own id keys the button — it is already unique.
+  async function convertAndFinish(childId: string) {
     if (!card || finishing) return;
-    setFinishing(title);
+    setFinishing(childId);
     setStatus("Handing it to the agent…", "info", null);
     try {
       const { reviewId, todoTitle } = await convertCardToAction(childId, card.id);
@@ -350,7 +352,7 @@ export function CardRoute() {
   // identifies a suggestion inside its review, and what the row shows.
   async function finishNow(reviewId: string, title: string) {
     if (!card || finishing) return;
-    setFinishing(title);
+    setFinishing(busyKey(reviewId, title));
     setStatus("Handing it to the agent…", "info", null);
     try {
       await finishCardNow(card.id, reviewId, title);
@@ -875,11 +877,9 @@ export function CardRoute() {
                                           id={todo.card.id}
                                           label="Finish it instead"
                                           confirmLabel="Delete the card and send?"
-                                          busy={finishing === todo.card.title}
+                                          busy={finishing === todo.card.id}
                                           compact
-                                          onConfirm={() =>
-                                            void convertAndFinish(todo.card!.id, todo.card!.title)
-                                          }
+                                          onConfirm={() => void convertAndFinish(todo.card!.id)}
                                         />
                                       </div>
                                     )}
@@ -891,7 +891,7 @@ export function CardRoute() {
                                     title={todo.title}
                                     todo={todo.tiny}
                                     live={!!card.runtime}
-                                    pending={finishing === todo.title}
+                                    pending={finishing === busyKey(r.id, todo.title)}
                                     onFinish={() => void finishNow(r.id, todo.title)}
                                   />
                                 ) : (
@@ -1019,6 +1019,16 @@ export function CopyPromptButton({ cardId }: { cardId: string }) {
       {copied ? "Copié" : "Prompt"}
     </button>
   );
+}
+
+/**
+ * Which suggestion the "Sending…" state belongs to. A suggestion is addressed by (review, title) —
+ * `finishNow` on the bridge resolves it the same way — and a title on its own is not unique on a
+ * card: converting a promoted card files the SAME title on a second review, and both rows would
+ * then claim the pending state. The review id is a uuid, so a colon cannot make two pairs collide.
+ */
+function busyKey(reviewId: string, title: string): string {
+  return `${reviewId}:${title}`;
 }
 
 /**
