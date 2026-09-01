@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.137.2] - 2026-09-01
+
+### Fixed
+
+- Deux suggestions de même titre sur une carte : leurs boutons « Finish it now » s'allumaient ensemble — l'état d'envoi est keyé sur la review, comme côté bridge (5abd34a)
+
 ## [0.137.1] - 2026-09-01
 
 ### Fixed
