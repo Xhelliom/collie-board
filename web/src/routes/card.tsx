@@ -291,13 +291,17 @@ export function CardRoute() {
   // the end: a suggestion this card's own copilot filed as a card, taken back and handed to the
   // agent that is still here. Two requests rather than one — a failed `finish-now` leaves the action
   // sitting on the review with its own "Finish it now", which is the readable half-way state.
+  //
+  // `title` only drives which button says "Sending…". The one that goes to `finish-now` is the one
+  // the conversion ANSWERS with: suggestions are matched by exact title, and a promoted card that
+  // was renamed no longer carries the title of the row you tapped.
   async function convertAndFinish(childId: string, title: string) {
     if (!card || finishing) return;
     setFinishing(title);
     setStatus("Handing it to the agent…", "info", null);
     try {
-      const { reviewId } = await convertCardToAction(childId, card.id);
-      await finishCardNow(card.id, reviewId, title);
+      const { reviewId, todoTitle } = await convertCardToAction(childId, card.id);
+      await finishCardNow(card.id, reviewId, todoTitle);
       setStatus("Sent to the agent.", "success");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
@@ -871,9 +875,11 @@ export function CardRoute() {
                                           id={todo.card.id}
                                           label="Finish it instead"
                                           confirmLabel="Delete the card and send?"
-                                          busy={finishing === todo.title}
+                                          busy={finishing === todo.card.title}
                                           compact
-                                          onConfirm={() => void convertAndFinish(todo.card!.id, todo.title)}
+                                          onConfirm={() =>
+                                            void convertAndFinish(todo.card!.id, todo.card!.title)
+                                          }
                                         />
                                       </div>
                                     )}
