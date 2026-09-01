@@ -14,7 +14,7 @@ import { detectPreviewSelectRegion } from "./preview-select";
 import { detectWizardRegion } from "./wizard";
 import { detectMultiSelectRegion } from "./multi-select";
 import { detectPromptSelectRegion } from "./prompt-select";
-import { stripChrome, extractStatusLines, extractInputDraft } from "./chrome";
+import { stripChrome, extractStatusLines, extractInputDraft, isCollapsedDraft } from "./chrome";
 
 /**
  * Claude's block pipeline: detect a tail dialog (preview / wizard / prompt-select), replacing it with
@@ -75,11 +75,12 @@ export function claudeBuildBlocks(lines: StyledLine[]): Block[] {
   return [{ kind: "raw", lines: stripChrome(lines) }];
 }
 
-export { extractStatusLines, extractInputDraft };
+export { extractStatusLines, extractInputDraft, isCollapsedDraft };
 
 export const claudeAdapter: HarnessAdapter = {
   agent: "claude",
   buildBlocks: claudeBuildBlocks,
   extractStatusLines,
   extractInputDraft,
+  isCollapsedDraft,
 };

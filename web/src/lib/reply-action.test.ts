@@ -79,6 +79,33 @@ describe("sendGuardedReply", () => {
     ]);
   });
 
+  it("submits a LONG send that Claude collapsed to a paste chip", async () => {
+    // Over ~1000 chars the input box shows "[Pasted text #3]" instead of the draft, so there is no
+    // text to string-match. The guard used to stall here and the message sat in the pane until
+    // somebody pressed Enter on the host. Live-verified collapse threshold: 699 chars render, 1099
+    // collapse (herdr 0.8.2, 2026-09-01).
+    const long = Array.from({ length: 200 }, (_, i) => `word${i}`).join(" ");
+    const calls = harness(() => paneWithDraft("[Pasted text #3]"));
+
+    const out = await sendGuardedReply({ paneId: "w1:p1", text: long, agent: "claude", ...instant });
+
+    expect(out).toEqual({ status: "sent" });
+    expect(calls).toEqual([
+      { text: long, submit: false },
+      { text: "", submit: true },
+    ]);
+  });
+
+  it("submits a long MULTI-LINE send collapsed to the '+N lines' chip", async () => {
+    const long = Array.from({ length: 60 }, (_, i) => `ligne ${i} du prompt`).join("\n");
+    const calls = harness(() => paneWithDraft("[Pasted text #1 +59 lines]"));
+
+    const out = await sendGuardedReply({ paneId: "w1:p1", text: long, agent: "claude", ...instant });
+
+    expect(out).toEqual({ status: "sent" });
+    expect(calls.some((c) => c.submit)).toBe(true);
+  });
+
   it("#34: never sends the submit key when a dialog swallowed the text", async () => {
     const calls = harness(() => paneWithDialog);
 
