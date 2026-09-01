@@ -7,6 +7,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.135.0] - 2026-09-01
+
+### Added
+
+- « Finish it instead » sur une suggestion promue en carte : la carte repart en action et l'agent encore présent la fait, en un geste (06d596b)
+- Bouton « Convertir en action » sous Start, à découvert plutôt que dans le « ⋯ » (06d596b)
+
+### Changed
+
+- Les deux entrées à découvert ne s'affichent que sur une carte `backlog`/`ready` et demandent deux taps ; le « ⋯ » reste sans condition (06d596b)
+- `POST /api/cards/:id/to-action` renvoie le `reviewId` de l'action posée (06d596b)
+
 ## [0.134.0] - 2026-09-01
 
 ### Added

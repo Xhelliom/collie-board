@@ -5,6 +5,8 @@ import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
 import {
+  convertible,
+  ConvertNowButton,
   DangerZone,
   IntegrationSection,
   noteLabel,
@@ -101,6 +103,51 @@ describe("DangerZone", () => {
 
     await user.click(screen.getByRole("button", { name: /no undo/i }));
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ConvertNowButton", () => {
+  // Same two taps as Delete, for the same reason: the card goes. A one-tap button next to Start is
+  // exactly the accident this guards against.
+  it("does not convert on the first tap — it arms and names what it destroys", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <ConvertNowButton
+        id="c1"
+        label="Finish it now instead"
+        confirmLabel="Delete the card and send it?"
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /finish it now instead/i }));
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /delete the card and send it/i }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it is busy and refuses the tap while the action is on its way", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <ConvertNowButton id="c1" label="l" confirmLabel="c" busy onConfirm={onConfirm} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Sending…" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("convertible", () => {
+  // The cut-off the two-tap entries share: a card with a branch and a journal behind it is not
+  // something you delete from a button sitting next to Start.
+  it("offers the quick conversion only before anything ran in the card", () => {
+    expect(convertible("backlog")).toBe(true);
+    expect(convertible("ready")).toBe(true);
+    for (const s of ["starting", "working", "blocked", "review", "done", "archived"] as const) {
+      expect(convertible(s)).toBe(false);
+    }
   });
 });
 
