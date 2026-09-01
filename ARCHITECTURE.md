@@ -396,10 +396,17 @@ gate above.
 **And the operator makes the same call, by hand.** The arbitrage above is a judgement, not a
 privilege the copilot holds: a card you are looking at can be *converted into an action*
 (`convertToAction`, `bridge/cards.ts`) — its spec and acceptance become a `TinyTodo` on another
-card's screen, the same row with the same tap, and the card itself is deleted. Two ways in, one
-target each: a sub-task's "⋯" puts the action on the container you have open, and a card's own "⋯"
-puts it on its container — or, for a copilot follow-up, on the card it was filed against, which is
-the case this exists for (the copilot judged it worth a card and you disagree). Deleting is the
+card's screen, the same row with the same tap, and the card itself is deleted. Four ways in, one
+target each. The two in a menu, unconditional: a sub-task's "⋯" puts the action on the container you
+have open, and a card's own "⋯" puts it on its container — or, for a copilot follow-up, on the card
+it was filed against, which is the case this exists for (the copilot judged it worth a card and you
+disagree). And two in the open, because a gesture three taps deep in a menu is one nobody finds: a
+button beside Start with the same target as the card's "⋯", and — on the review a card was promoted
+out of — "Finish it instead", which converts AND hands the action to the agent still sitting there,
+the whole arbitrage in one gesture. Those two are offered only while nothing has run in the card
+(`convertible`, `web/src/routes/card.tsx`): past `ready` it has a branch, a session and a journal
+behind it, and losing that is not a two-tap decision. Both ask twice, through the same hook as
+Delete. Deleting is the
 point: a card AND an action saying the same thing is the chore the conversion removes, and what was
 in the card survives as the action's spec, shown in full when that agent is gone.
 
