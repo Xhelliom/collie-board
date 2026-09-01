@@ -688,7 +688,9 @@ La seconde est un changement de posture et mérite un ADR. **Pas d'implémentati
 
 ### N6 — Le board comme source d'événements notifiables — ✅ arbitrage rendu, [§6](#partie-6--le-board-comme-source-dévénements-notifiables-carte-n6)
 
-> **Rendu le 2026-08-26.** Le board **a** le droit d'émettre, sous trois tests (le fait n'a pas été
+> **Rendu le 2026-08-26, en ADR le 2026-09-01**
+> ([0011](./.adr/0011-the-board-may-raise-an-alert-that-can-retract.md)).
+> Le board **a** le droit d'émettre, sous trois tests (le fait n'a pas été
 > demandé à l'instant · il ouvre une action · aucun pane ne le dit déjà) et une condition (savoir
 > comment il se rétracte), dans le **même** slot, digest, snooze et jeu de préférences que le reste.
 > Douze événements recensés en [§6.3](#63-le-recensement) : cinq retenus pour le push (B1, B2, B4,
@@ -1042,10 +1044,16 @@ discussion. **Donc : non, et ça le reste tant que la posture d'ingress ne chang
 
 Deux autres non-décisions, assumées :
 
-- **Aucun ADR n'est écrit pour §6.1.** Un ADR ferme une option qu'on reproposera ; ici l'arbitrage
+- ~~**Aucun ADR n'est écrit pour §6.1.** Un ADR ferme une option qu'on reproposera ; ici l'arbitrage
   *ouvre* — il autorise le board à émettre. Ce qui mériterait un ADR est l'inverse (« le board ne
   notifie jamais »), et ce n'est pas ce qui est tranché. La règle de §6.1, si elle est implémentée, a
-  sa place en trois lignes dans `CLAUDE.md` §The board, à côté de « pas de nouvelle boucle ».
+  sa place en trois lignes dans `CLAUDE.md` §The board, à côté de « pas de nouvelle boucle ».~~
+  **Revu le 2026-09-01 : [ADR 0011](./.adr/0011-the-board-may-raise-an-alert-that-can-retract.md).**
+  La permission ouvre, mais tout ce qui y est attaché *ferme*, et c'est là que se trouvent les options
+  qu'on repropose : le second canal, la préférence par événement, le mot de digest par événement, le
+  fait qui notifie sans savoir comment il s'arrête. La règle de trois lignes est bien dans `CLAUDE.md`,
+  et elle lie maintenant l'ADR pour l'argument, comme `.adr/README.md` le demande. Le recensement
+  événement par événement reste ici — c'est de l'audit, pas de la décision.
 - **Le prédicat de rétraction n'est pas spécifié événement par événement.** La colonne « Rétraction »
   de §6.3 en donne l'intention ; sa forme exacte (lue sur la carte à chaque tick, ou armée une fois et
   vérifiée à l'affichage) est un choix d'implémentation qui appartient à la carte qui le fera.
