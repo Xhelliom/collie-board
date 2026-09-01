@@ -69,3 +69,45 @@ describe("MarkdownText — tables", () => {
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
   });
 });
+
+// The exact shape the copilot's post-`done` review now writes (ADR 0012, `notesRule` in
+// bridge/copilot.ts). The card hands this string straight to MarkdownText, so this is where "titles
+// and code blocks render as such" is actually verified — and where a note stored BEFORE that prompt
+// change is pinned as still readable.
+describe("MarkdownText — the copilot's review notes", () => {
+  const NOTES = [
+    "### Done",
+    "- `verdictChip()` maps the three verdicts onto the status palette.",
+    "",
+    "### Missing",
+    "- nobody ran it on a phone. Check with:",
+    "",
+    "```bash",
+    "cd web && bun run test",
+    "```",
+  ].join("\n");
+
+  it("renders the headings and the fenced block as such", () => {
+    const { container } = render(<MarkdownText text={NOTES} />);
+    // The two section headings sit a rung above the bullets they open.
+    for (const h of ["Done", "Missing"]) {
+      expect(screen.getByText(h).className).toContain("font-semibold");
+    }
+    expect(container.querySelectorAll("li")).toHaveLength(2);
+    const pre = container.querySelector("pre");
+    expect(pre?.textContent).toBe("cd web && bun run test");
+    // …and the file/symbol names the prompt asks for in inline code come out as <code>, not literal
+    // backticks in the middle of a sentence.
+    expect(container.querySelector("code")?.textContent).toBe("verdictChip()");
+  });
+
+  // A review written before the prompt asked for structure is one paragraph — it must still read as
+  // one. This is the whole migration story: there isn't one.
+  it("still reads a plain paragraph written before the format existed", () => {
+    const legacy =
+      "The acceptance criteria look covered; the tests were not run on a device, so the phone layout is unverified.";
+    const { container } = render(<MarkdownText text={legacy} />);
+    expect(container.querySelectorAll("p")).toHaveLength(1);
+    expect(screen.getByText(legacy)).toBeInTheDocument();
+  });
+});

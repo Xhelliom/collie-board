@@ -8,6 +8,7 @@ import {
   MANUAL_STATUSES,
   loadRepoScope,
   matchesFilters,
+  verdictChip,
   positionFor,
   repoName,
   reposOf,
@@ -263,5 +264,23 @@ describe("normalizeTag", () => {
   // disagree, the field lights up `bug` and the card lands on something else.
   it("agrees with bridge/db.ts normalizeTag", () => {
     expect(normalizeTag(" Bug  Fix ")).toBe("bug fix");
+  });
+});
+
+// The verdict is the one line you read before deciding whether to read the rest (ADR 0012). Colour
+// carries that, so the mapping has to be exact — the near-miss it must NOT make is the third case.
+describe("verdictChip", () => {
+  it("paints the three verdicts the prompt asks for, case and spacing aside", () => {
+    expect(verdictChip("complete")).toContain("status-done");
+    expect(verdictChip(" Partial ")).toContain("status-working");
+    expect(verdictChip("DRIFT")).toContain("status-blocked");
+  });
+
+  it("falls back to the neutral pill rather than guessing on a substring", () => {
+    // `complete` is a substring of `not complete`: a review painted green for saying the opposite
+    // is worse than one painted grey. Same for a missing verdict, and for a word from a later prompt.
+    for (const v of ["not complete", "partially complete", "unclear", "", null]) {
+      expect(verdictChip(v)).toBe("border-border bg-muted text-muted-foreground");
+    }
   });
 });

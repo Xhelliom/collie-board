@@ -757,6 +757,35 @@ function tinyRule(): string[] {
 }
 
 /**
+ * How the notes are WRITTEN, because of how they are read. Pure.
+ *
+ * The card renders `notes` through the same Markdown reader the transcript uses
+ * (`web/src/components/markdown-text.tsx`) — headings, bullets, inline code and fenced blocks all
+ * come out formatted. Asking for "one short paragraph" was therefore asking for the one shape that
+ * renderer has nothing to do with, which is why the review used to read as a wall of text.
+ *
+ * The ceiling is set here rather than trimmed after: this is read on a phone, under a verdict chip,
+ * and anything past the two sections IS a todo — the review already has a field for those.
+ * `### Done` / `### Missing` are named literally so two reviews of two cards look like one report.
+ * What is deliberately NOT asked for — HTML, diagrams, tables — is argued in
+ * `.adr/0012-the-review-is-markdown-the-app-already-renders.md`.
+ */
+function notesRule(): string[] {
+  return [
+    "",
+    "HOW TO WRITE `notes`. It is Markdown, and it is rendered — write a short report, not a paragraph:",
+    "- open with `### Done`, then `### Missing`; two to five bullets each, and drop a section that",
+    "  would be empty (nothing missing is worth saying in one line, not in an empty heading).",
+    "- name every file, symbol, flag and command in `inline code` — that is what makes a review",
+    "  skimmable six hours later.",
+    "- a fenced code block ONLY to quote something verbatim: a command to run, a failing line, a",
+    "  signature that drifted. Never to re-paste the diff — you were not given it.",
+    "- no HTML, no diagrams, no images: none of them render, they arrive as literal characters.",
+    "Twenty lines is the ceiling. Anything longer is a todo, not a longer note.",
+  ];
+}
+
+/**
  * The post-`done` review prompt. Takes `git diff --stat` and the handoff note, NEVER the full diff:
  * the stat is enough to judge drift from the acceptance criteria, and the full diff would burn the
  * quota this feature is supposed to be careful with. Pure + exported.
@@ -790,11 +819,12 @@ export function reviewPrompt(input: {
     ...tagRule(input.tags ?? []),
     ...categoryRule(),
     ...tinyRule(),
+    ...notesRule(),
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
     "{",
     '  "verdict": "complete | partial | drift",',
-    '  "notes": "one short paragraph: what looks done, what looks missing or off-spec",',
+    '  "notes": "the report, as Markdown — see HOW TO WRITE `notes` above. Escape the newlines.",',
     '  "todos": [',
     '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore", "tiny": true or false }',
     "  ]",

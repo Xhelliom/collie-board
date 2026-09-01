@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { CARD_STATUS_CHIP, type CardStatus } from "@/lib/board";
+import { CARD_STATUS_CHIP, CHIP_SHELL, type CardStatus } from "@/lib/board";
 
 /**
  * A card's COLUMN as a chip — the board's counterpart to {@link StatusBadge}, which shows a live
@@ -22,13 +22,7 @@ export function CardStatusChip({
   className?: string;
 }) {
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide",
-        CARD_STATUS_CHIP[status],
-        className,
-      )}
-    >
+    <span className={cn(CHIP_SHELL, CARD_STATUS_CHIP[status], className)}>
       {children ?? status}
     </span>
   );

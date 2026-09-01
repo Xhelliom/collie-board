@@ -58,6 +58,7 @@ import {
   cardPrompt,
   CARD_STATUS_LABEL,
   boardErrorMessage,
+  CHIP_SHELL,
   convertCardToAction,
   createCard,
   deleteCard,
@@ -77,6 +78,7 @@ import {
   repoName,
   revertCard,
   startCard,
+  verdictChip,
   type CardInput,
   type BoardEvent,
   type CardLink,
@@ -819,10 +821,18 @@ export function CardRoute() {
                       {detail.reviews.map((r) => (
                         <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium capitalize">{r.verdict ?? "reviewed"}</span>
+                            <span className={cn(CHIP_SHELL, verdictChip(r.verdict))}>
+                              {r.verdict ?? "reviewed"}
+                            </span>
                             <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
                           </div>
-                          {r.notes && <MarkdownText text={r.notes} />}
+                          {/* The report reads as a report: headings, bullets and fenced blocks all
+                              come out formatted (the prompt now asks for them — copilot.ts
+                              `notesRule`), and a note written before that change is a paragraph,
+                              which renders as a paragraph. Sized like the card's own spec rather
+                              than MarkdownText's default `text-base`: it sits inside a nested card
+                              whose header is text-sm. */}
+                          {r.notes && <MarkdownText text={r.notes} className="text-sm leading-[1.6]" />}
                           {r.todos.length > 0 && (
                             <div className="flex flex-col gap-1">
                               {r.todos.map((todo, i) =>
