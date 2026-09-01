@@ -363,6 +363,17 @@ sans carte, où le sujet retombe sur le repo — et il faudrait pour ça ajouter
 `enrichSessionNames`, le cache collant et `extractClaudeSessionName` restent intacts : ils
 alimentent le snapshot, et le snapshot alimente l'app.
 
+**Et `paneDisplayName` elle-même : vivante, côté app seulement.** Recherche refaite après le retrait,
+pour qu'elle ne le soit pas une troisième fois. `bridge/` : **zéro appelant** — la copie est partie
+avec la ligne ci-dessus, et les trois occurrences qui y restent sont des commentaires
+(`notifications.ts:115`, `notify-content.ts:11`, `cards.ts:108`). `web/` : **onze sites d'appel dans
+huit fichiers** — `agent-card` (×4), `pane-strip`, `pane-list-column`, `pane-menu`, `agent-sidebar`,
+`pane-actions-sheet`, `card-tile`, `routes/card` — plus `lib/types.test.ts` qui couvre ses quatre
+branches. (Onze aussi, mais ce n'est pas le même onze que les lecteurs de `sessionName` plus haut :
+là on compte des lecteurs du champ, ici des appels de la fonction.) Il n'y a donc rien de plus à
+supprimer : la fonction est l'arbitre du nom d'un pane dans l'app — et d'un `CardRuntime`, par son
+`Pick` — et son seul code mort, le doublon bridge, l'a déjà quittée.
+
 ### 2.7 — `done` est off par défaut, et c'est cohérent avec le reste
 
 Une notification « claude is done » sans sujet ne vaut effectivement pas un buzz : le défaut
