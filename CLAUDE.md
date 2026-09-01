@@ -140,9 +140,11 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
 - **A board event that notifies must say how it retracts.** The board may raise its own alerts, in
   the herd's slot and nowhere else — no second tag, no second channel, no per-event preference. But a
   fact with no readable predicate for when it stops being true goes to the bell or nowhere: coalesced
-  into the slot it would announce a stale state for ever ([NOTIFY_AUDIT.md](./NOTIFY_AUDIT.md) §6.1).
-  And a fact **a pane already signals** is not the board's to raise — the board's alerts are the ones
-  no pane could send. `reconcile()` writing a column is the pane speaking, not the board (§6.1, test 3).
+  into the slot it would announce a stale state for ever. And a fact **a pane already signals** is not
+  the board's to raise — the board's alerts are the ones no pane could send; `reconcile()` writing a
+  column is the pane speaking, not the board.
+  [ADR 0011](./.adr/0011-the-board-may-raise-an-alert-that-can-retract.md) (census and per-event
+  reasoning: [NOTIFY_AUDIT.md](./NOTIFY_AUDIT.md) §6).
 - **`card` durable, `session` ephemeral.** Never persist runtime state. If a fact can be read from
   the snapshot, read it from the snapshot.
 - **Provenance is derived, never declared.** A card an agent files on its own is marked `agent` from

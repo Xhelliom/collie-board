@@ -52,3 +52,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0008](./0008-the-user-unit-cannot-have-a-mount-namespace.md) | The user unit cannot have a mount namespace | Accepted |
 | [0009](./0009-the-usage-gauge-shells-out-to-the-cli-not-the-copilot.md) | The usage gauge shells out to the CLI, not the copilot | Accepted |
 | [0010](./0010-an-agent-filed-card-is-traced-on-the-card.md) | An agent-filed card is traced on the card, not on the session | Accepted |
+| [0011](./0011-the-board-may-raise-an-alert-that-can-retract.md) | The board may raise its own alerts, if they can retract | Accepted |
