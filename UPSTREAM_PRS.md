@@ -954,6 +954,41 @@ carrying its own copy of the same condition.
 
 ---
 
+## 29. 🔵 A long reply is typed into the pane and never submitted
+
+Upstream's reply path already refuses to press Enter until it has SEEN its text on the input box's
+"❯" line — the #34 guard, and it is the right rule. But Claude Code stops rendering a draft past
+roughly a thousand characters and paints `[Pasted text #3]` in its place (live-verified on herdr
+0.8.2: 699 chars render in full, 1099 collapse; the character count trips it, not the line count).
+There is then no text to match, so the guard concludes the send never landed and withholds the
+submit key. The message is sitting in the box the whole time — the operator has to reach the host
+terminal and press Enter, which is precisely the thing a phone client exists to avoid.
+
+The chip is evidence in its own right: the box is holding a big paste, and the composer's own
+pre-clear sweep means the only paste there is ours. A dialog, the case the guard exists for, still
+shows no input box at all — so it still stalls and still sends nothing.
+
+| | |
+|---|---|
+| Commit | `eee02eb` *fix(web): a long prompt submits itself instead of waiting in the pane* |
+| Files | `web/src/lib/harness/claude/chrome.ts` (`isCollapsedDraft`, `MAX_DRAFT_LINES`), `web/src/lib/harness/types.ts` + `web/src/lib/harness/claude/index.ts` (one adapter member), `web/src/lib/reply-action.ts` (one condition) |
+| Extraction | **Clean cherry-pick.** No board code anywhere in it. |
+
+**The knowledge goes on the ADAPTER, not in the guard.** `reply-action.ts` is harness-agnostic by
+construction — it asks the adapter what is on screen and never parses a TUI itself. "This string is
+my collapsed stand-in for a draft" is a fact only the harness has, so it sits next to
+`extractInputDraft` as `isCollapsedDraft`; a future codex/opencode adapter answers for its own TUI or
+answers `false` and loses nothing.
+
+**A second stall travelled with it, same symptom, different cause.** `MAX_DRAFT_LINES` was 12, tuned
+for a soft-wrapped draft. A draft carrying its own newlines grows the box one row per line — a
+100-line draft rendered a 42-row box — so `locateInputBox` stopped mid-draft, found no "❯", and the
+guard again read "no draft". Raised to 64. The bound was never what kept the match tight: the scan
+aborts on any box border it meets walking up, which is what stops a diff box or a menu being walked
+through into a bogus prompt line. The bound only stops a *borderless* buffer scanning unboundedly.
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately

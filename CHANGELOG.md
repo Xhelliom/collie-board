@@ -7,6 +7,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.4] - 2026-09-01
+
+### Fixed
+
+- Un prompt long part tout seul : au-delà d'environ mille caractères Claude Code remplace le brouillon par `[Pasted text #3]`, le garde d'envoi n'y retrouvait plus son texte et gardait la touche de validation — le message attendait dans le pane qu'on vienne appuyer sur Entrée (eee02eb)
+- Un brouillon multi-ligne ne bloque plus non plus : la boîte grandit d'une ligne par ligne du texte, `MAX_DRAFT_LINES` passe de 12 à 64 (eee02eb)
+
 ## [0.133.3] - 2026-09-01
 
 ### Changed
