@@ -7,12 +7,44 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
-## [0.133.4] - 2026-09-01
+## [0.136.1] - 2026-09-01
 
 ### Fixed
 
 - Un prompt long part tout seul : au-delà d'environ mille caractères Claude Code remplace le brouillon par `[Pasted text #3]`, le garde d'envoi n'y retrouvait plus son texte et gardait la touche de validation — le message attendait dans le pane qu'on vienne appuyer sur Entrée (eee02eb)
 - Un brouillon multi-ligne ne bloque plus non plus : la boîte grandit d'une ligne par ligne du texte, `MAX_DRAFT_LINES` passe de 12 à 64 (eee02eb)
+
+## [0.136.0] - 2026-09-01
+
+### Added
+
+- Un chip « Prompt » dans l'en-tête d'une carte copie `/collie-board card <id>` — la ligne se colle telle quelle dans un agent, sans relever l'id à la main (833ca98)
+
+## [0.135.0] - 2026-09-01
+
+### Added
+
+- « Finish it instead » sur une suggestion promue en carte : la carte repart en action et l'agent encore présent la fait, en un geste (06d596b)
+- Bouton « Convertir en action » sous Start, à découvert plutôt que dans le « ⋯ » (06d596b)
+
+### Changed
+
+- Les deux entrées à découvert ne s'affichent que sur une carte `backlog`/`ready` et demandent deux taps ; le « ⋯ » reste sans condition (06d596b)
+- `POST /api/cards/:id/to-action` renvoie le `reviewId` de l'action posée (06d596b)
+
+## [0.134.0] - 2026-09-01
+
+### Added
+
+- Une carte peut être convertie en action sur une autre : son spec devient la ligne « Finish it now » de la carte visée, et la carte disparaît du board (a9f02f6)
+- Deux entrées — le « ⋯ » d'une sous-tâche vise le conteneur ouvert, le « ⋯ » d'une carte vise son conteneur ou la carte contre laquelle le copilot l'a classée (a9f02f6)
+
+## [0.133.4] - 2026-09-01
+
+### Fixed
+
+- Le corps du digest se borne : trois sujets puis `+N`, chacun coupé à 32 caractères — une carte au titre bavard ne pousse plus les autres hors de l'écran verrouillé (9aed66f)
+- Un sujet vide (pas de carte, `cwd` illisible) sort de la liste au lieu d'y laisser un ` ·  · ` ; le titre le compte toujours (9aed66f)
 
 ## [0.133.3] - 2026-09-01
 

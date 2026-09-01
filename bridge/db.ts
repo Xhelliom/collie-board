@@ -1164,6 +1164,14 @@ export class BoardDb {
     verdict?: string | null;
     notes?: string | null;
     todos?: ReviewTodo[];
+    /**
+     * Set when a PERSON attached this by hand — the id of the card that became the action on it
+     * (`convertToAction`, cards.ts). Journals `card.action_added` rather than `review.created`,
+     * because both readers of that event would otherwise say something false: the journal would
+     * credit the copilot with a review it never ran, and the bell would announce it (board-notify.ts
+     * `tell`, B2). An alert for a tap you just made is exactly what the fork's §6 refuses.
+     */
+    convertedFrom?: string;
   }): Review {
     const id = crypto.randomUUID();
     this.db
@@ -1180,7 +1188,15 @@ export class BoardDb {
         JSON.stringify(input.todos ?? []),
         this.now(),
       );
-    this.recordEvent(input.cardId, "review.created", { reviewId: id, verdict: input.verdict ?? null });
+    if (input.convertedFrom) {
+      this.recordEvent(input.cardId, "card.action_added", {
+        reviewId: id,
+        from: input.convertedFrom,
+        title: input.todos?.[0]?.title ?? null,
+      });
+    } else {
+      this.recordEvent(input.cardId, "review.created", { reviewId: id, verdict: input.verdict ?? null });
+    }
     return this.getReview(id)!;
   }
 

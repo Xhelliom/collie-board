@@ -223,6 +223,10 @@ export function describeEvent(event: BoardEvent): string {
       return `Session ended (${String(p.outcome)})`;
     case "review.created":
       return `Reviewed${p.verdict ? `: ${String(p.verdict)}` : ""}`;
+    // The card that came here is GONE — this line is the only thing left saying it ever existed, so
+    // it names it. Never "reviewed": nobody reviewed anything, someone tapped Convertir en action.
+    case "card.action_added":
+      return `Turned the card “${String(p.title ?? "untitled")}” into an action here`;
     case "copilot.reformulated":
       return `Copilot rewrote the card${Number(p.split) > 0 ? ` and split it into ${String(p.split)}` : ""}`;
     case "copilot.reformulate_failed":

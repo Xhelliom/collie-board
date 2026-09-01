@@ -11,6 +11,8 @@ import {
   branchFromTitle,
   cardViews,
   deriveParentStatus,
+  CONVERTED_VERDICT,
+  convertToAction,
   finishNow,
   finishNowPrompt,
   initialPrompt,
@@ -3828,5 +3830,140 @@ describe("POST /api/cards/<id>/finish-now", () => {
       routeCtx(db()),
     );
     expect(res!.status).toBe(404);
+  });
+});
+
+// The manual half of the same arbitrage: a card the OPERATOR judges too small becomes an action on
+// another card, and stops being a card. What matters is that the two halves produce the same thing —
+// a tiny todo `finishNow` can hand over — and that nothing is left behind on the board.
+describe("convertToAction — the card that stops being one", () => {
+  function pair() {
+    const store = db();
+    const target = store.createCard({ title: "the bell", status: "review", repoPath: "/repo" });
+    const small = store.createCard({
+      title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+      spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+      acceptance: ["the line is in NOTIFY_AUDIT.md"],
+      parentId: target.id,
+    });
+    return { store, target, small };
+  }
+
+  it("moves the card's spec onto the target as a tiny todo, and deletes the card", () => {
+    const { store, target, small } = pair();
+
+    const res = convertToAction(store, small.id, target.id);
+
+    expect(res.ok).toBe(true);
+    expect(store.getCard(small.id)).toBeNull();
+    expect(store.listCards().map((c) => c.id)).toEqual([target.id]);
+    const review = store.listReviews(target.id).at(-1)!;
+    expect(review.verdict).toBe(CONVERTED_VERDICT);
+    expect(review.todos).toEqual([
+      {
+        title: "Note in NOTIFY_AUDIT.md that step 1 landed",
+        cardId: null,
+        tiny: {
+          spec: "Add one line to NOTIFY_AUDIT.md saying step 1 is done.",
+          acceptance: ["the line is in NOTIFY_AUDIT.md"],
+          doneAt: null,
+        },
+      },
+    ]);
+  });
+
+  it("is the same row finishNow hands over", async () => {
+    const { store, target, small } = pair();
+    store.openSession({ cardId: target.id, paneId: "w1:p1" });
+    const { client } = fakeHerdr();
+
+    const res = convertToAction(store, small.id, target.id);
+    const reviewId = res.ok ? res.reviewId : "";
+    const sent = await finishNow(store, client as never, target.id, { reviewId, title: small.title }, async () => {});
+
+    expect(sent.ok).toBe(true);
+    expect(store.getReview(reviewId)!.todos[0]!.tiny!.doneAt).toBeGreaterThan(0);
+  });
+
+  // Journalled as what it is. `review.created` would credit the copilot with a review it never ran —
+  // and the bell announces that one (board-notify.ts `tell`), for a tap the operator just made.
+  it("journals the conversion on the target, not a review", () => {
+    const { store, target, small } = pair();
+
+    convertToAction(store, small.id, target.id);
+
+    const types = store.listEvents(target.id).map((e) => e.type);
+    expect(types).toContain("card.action_added");
+    expect(types).not.toContain("review.created");
+  });
+
+  it("refuses a target that isn't there, and a card becoming an action on itself", () => {
+    const { store, target, small } = pair();
+
+    const gone = convertToAction(store, small.id, "nope");
+    const self = convertToAction(store, small.id, small.id);
+
+    expect(gone.ok === false && gone.error.kind).toBe("no-target");
+    expect(self.ok === false && self.error.kind).toBe("self");
+    // Nothing half-done: the card is still a card in both cases.
+    expect(store.getCard(small.id)).not.toBeNull();
+    expect(store.listReviews(target.id)).toHaveLength(0);
+  });
+
+  // Deleting a card detaches what pointed at it — a sub-task of the converted card is real work.
+  it("leaves the converted card's own children on the board", () => {
+    const { store, target, small } = pair();
+    const grandChild = store.createCard({ title: "real work", parentId: small.id });
+
+    convertToAction(store, small.id, target.id);
+
+    expect(store.getCard(grandChild.id)!.parentId).toBeNull();
+  });
+});
+
+describe("POST /api/cards/<id>/to-action", () => {
+  it("is wired, and answers with the card that now holds the action", async () => {
+    const store = db();
+    const target = store.createCard({ title: "the bell" });
+    const small = store.createCard({ title: "note it", parentId: target.id });
+
+    const res = await handleBoardRoute(
+      `/api/cards/${small.id}/to-action`,
+      actionPost(small.id, "to-action", { targetId: target.id }),
+      routeCtx(store),
+    );
+
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toMatchObject({ ok: true, card: { id: target.id } });
+    expect(store.getCard(small.id)).toBeNull();
+  });
+
+  it("400s a body that doesn't name a target", async () => {
+    const store = db();
+    const card = store.createCard({ title: "note it" });
+    const res = await handleBoardRoute(
+      `/api/cards/${card.id}/to-action`,
+      actionPost(card.id, "to-action", {}),
+      routeCtx(store),
+    );
+    expect(res!.status).toBe(400);
+    expect(store.getCard(card.id)).not.toBeNull();
+  });
+
+  it("404s an unknown card, 409s an unknown target", async () => {
+    const store = db();
+    const card = store.createCard({ title: "note it" });
+    const missing = await handleBoardRoute(
+      "/api/cards/nope/to-action",
+      actionPost("nope", "to-action", { targetId: card.id }),
+      routeCtx(store),
+    );
+    const target = await handleBoardRoute(
+      `/api/cards/${card.id}/to-action`,
+      actionPost(card.id, "to-action", { targetId: "nope" }),
+      routeCtx(store),
+    );
+    expect(missing!.status).toBe(404);
+    expect(target!.status).toBe(409);
   });
 });

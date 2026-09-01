@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
 import {
+  convertible,
+  ConvertNowButton,
+  CopyPromptButton,
   DangerZone,
   IntegrationSection,
   noteLabel,
@@ -104,6 +107,51 @@ describe("DangerZone", () => {
   });
 });
 
+describe("ConvertNowButton", () => {
+  // Same two taps as Delete, for the same reason: the card goes. A one-tap button next to Start is
+  // exactly the accident this guards against.
+  it("does not convert on the first tap — it arms and names what it destroys", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <ConvertNowButton
+        id="c1"
+        label="Finish it now instead"
+        confirmLabel="Delete the card and send it?"
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /finish it now instead/i }));
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: /delete the card and send it/i }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it is busy and refuses the tap while the action is on its way", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <ConvertNowButton id="c1" label="l" confirmLabel="c" busy onConfirm={onConfirm} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Sending…" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("convertible", () => {
+  // The cut-off the two-tap entries share: a card with a branch and a journal behind it is not
+  // something you delete from a button sitting next to Start.
+  it("offers the quick conversion only before anything ran in the card", () => {
+    expect(convertible("backlog")).toBe(true);
+    expect(convertible("ready")).toBe(true);
+    for (const s of ["starting", "working", "blocked", "review", "done", "archived"] as const) {
+      expect(convertible(s)).toBe(false);
+    }
+  });
+});
+
 // One box, two callers: a follow-up for the running agent, and a correction for the copilot. Send
 // is an explicit tap because that textarea IS the phone's voice input — dictated text gets reread
 // before it goes anywhere.
@@ -196,7 +244,7 @@ describe("topOfColumn", () => {
 describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
   const rows = [card("ready"), card("ready"), card("ready")];
 
-  function renderSheet(index: number) {
+  function renderSheet(index: number, onConvert = vi.fn()) {
     const onReorder = vi.fn();
     render(
       <SubtaskActionsSheet
@@ -210,6 +258,7 @@ describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
         onDependsOn={vi.fn()}
         onDetach={vi.fn()}
         onDelete={vi.fn()}
+        onConvert={onConvert}
         candidates={[]}
       />,
     );
@@ -228,6 +277,17 @@ describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
     const onReorder = renderSheet(1);
     await user.click(screen.getByRole("button", { name: "Descendre" }));
     expect(onReorder).toHaveBeenCalledWith(rows[1].id, 2);
+  });
+
+  // The manual half of the copilot's arbitrage, asked from the container's own screen: the target
+  // is the card you are looking at, and the row says the card itself goes.
+  it("converts a sub-task into an action on the container", async () => {
+    const user = userEvent.setup();
+    const onConvert = vi.fn();
+    renderSheet(1, onConvert);
+    await user.click(screen.getByRole("button", { name: "Convertir en action" }));
+    expect(onConvert).toHaveBeenCalledWith(rows[1].id);
+    expect(screen.getByText(/La carte disparaît du board/)).toBeInTheDocument();
   });
 
   it("offers no move past either end of the list", () => {
@@ -454,5 +514,42 @@ describe("TinyTodoRow", () => {
     // The sentence survives the offer lapsing — otherwise not making a card would lose it.
     expect(screen.getByText(/Add one line to NOTIFY_AUDIT\.md/)).toBeTruthy();
     cleanup();
+  });
+});
+
+// The whole point of the button: what lands in the clipboard is pasteable as-is, and carries THIS
+// card's id — the hand-rebuilt command it replaces is exactly where the wrong id used to come from.
+describe("CopyPromptButton", () => {
+  const secureDescriptor = Object.getOwnPropertyDescriptor(window, "isSecureContext");
+  const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+
+  afterEach(() => {
+    if (secureDescriptor) Object.defineProperty(window, "isSecureContext", secureDescriptor);
+    if (clipboardDescriptor) Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+    cleanup();
+  });
+
+  it("copies the skill command around the clicked card's id", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    render(
+      <>
+        <CopyPromptButton cardId="aaa-111" />
+        <CopyPromptButton cardId="bbb-222" />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /bbb-222/ }));
+
+    expect(writeText).toHaveBeenCalledWith("/collie-board card bbb-222");
+    expect(await screen.findByText("Copié")).toBeTruthy();
+  });
+
+  it("is disabled (not hidden) outside a secure context, where there is no clipboard", () => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: false });
+
+    render(<CopyPromptButton cardId="aaa-111" />);
+    expect(screen.getByRole("button", { name: /aaa-111/ })).toBeDisabled();
   });
 });

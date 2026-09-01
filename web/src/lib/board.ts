@@ -458,6 +458,16 @@ export function cardPath(cardId: string): string {
   return `/card/${encodeURIComponent(cardId)}`;
 }
 
+/**
+ * The card, as one line you can paste into an agent. Asking an agent about a card meant reading the
+ * id off the screen, retyping it, and remembering the command — this is that, copied in one tap.
+ * `collie-board` is the skill that already knows how to read a card over the local API, so the
+ * pasted line needs nothing but the id after it.
+ */
+export function cardPrompt(cardId: string): string {
+  return `/collie-board card ${cardId}`;
+}
+
 // ── api ──────────────────────────────────────────────────────────────────────
 
 // Conditional GET for the two board reads that POLL — the card list on every board screen, the
@@ -589,6 +599,26 @@ export function finishCardNow(id: string, reviewId: string, title: string): Prom
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/finish-now`, {
     method: "POST",
     body: JSON.stringify({ reviewId, title }),
+  });
+}
+
+/**
+ * Turn a card into an ACTION on `targetId` — the manual half of the arbitrage the copilot makes on
+ * its own follow-ups: work too small to be worth a card, a worktree and an agent of its own.
+ *
+ * Its spec and acceptance become a {@link TinyTodo} on the target's screen, exactly like a copilot
+ * suggestion, and the card itself is deleted — a card AND an action saying the same thing is the
+ * chore the conversion exists to remove. Answers with the card that now holds the action, because
+ * `id` no longer resolves to anything, and with the review that action landed in — enough to hand
+ * it straight to the agent with {@link finishCardNow}, which is the whole gesture in one tap.
+ */
+export function convertCardToAction(
+  id: string,
+  targetId: string,
+): Promise<{ ok: true; card: CardView; reviewId: string }> {
+  return apiRequest<{ ok: true; card: CardView; reviewId: string }>(`/api/cards/${encodeURIComponent(id)}/to-action`, {
+    method: "POST",
+    body: JSON.stringify({ targetId }),
   });
 }
 

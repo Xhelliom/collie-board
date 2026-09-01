@@ -55,3 +55,13 @@ the same list from the cards a screen already holds, so the client needs no extr
   (say a "backend" *and* a "release-blocker"), asked for by someone actually triaging on the phone.
   The upgrade is additive — a `card_tag` table seeded from this column — and nothing above needs
   un-inventing to get there. A second axis is more likely to be a second FIELD than a second tag.
+- **A card the copilot files does not spend its tag on provenance** — the question re-opened on
+  2026-09-01 and answered by looking. The review's follow-ups say where they came from in three
+  fields of their own (`origin`, `originCardId`, `category`), and their tag stays the AREA: the
+  copilot proposes one under `tagRule`, and `CopilotCoordinator.review` falls back to the reviewed
+  card's tag when it doesn't (`bridge/copilot.ts`). On the live board every `origin = 'copilot'` card
+  carries a real area tag — `notifications`, `gameplay`, `structure`, `docs` — and none carries a
+  provenance word. The two axes compose rather than compete: `matchesFilters`
+  (`web/src/lib/board.ts`) ANDs the tag with the Source strip's `autoOnly`, so a generated card is
+  found under its area exactly like a hand-written one. Covered by the two follow-up tests in
+  `bridge/board.test.ts` ("tags a review follow-up…", "categorises every review follow-up…").
