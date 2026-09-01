@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.133.2] - 2026-09-01
+
+### Fixed
+
+- Android : la barre de statut n'est plus noir sur noir — `theme-color` ne suit plus le thème, il colle au `theme_color` du manifeste (le seul que la WebAPK peint), donc les icônes système restent claires en thème clair comme en thème sombre (47d0a5f)
+
 ## [0.133.1] - 2026-08-31
 
 ### Changed
