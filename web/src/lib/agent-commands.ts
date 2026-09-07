@@ -1,7 +1,8 @@
 // Pre-generated slash-command catalogs, keyed by Herdr's detected agent type (`pane.agent`).
 // Sourced from each agent's official docs (Claude Code: code.claude.com/docs; Codex:
-// developers.openai.com/codex + openai/codex; pi: pi.dev/docs; opencode: opencode.ai/docs) and
-// curated for one-tap use from a phone. A slash command is just text:
+// codex-rs/tui/src/slash_command.rs — the enum the command popup is built from, which beats the
+// prose docs; Cursor: cursor.com/docs/cli/reference/slash-commands; pi: pi.dev/docs; opencode:
+// opencode.ai/docs) and curated for one-tap use from a phone. A slash command is just text:
 // the UI sends `/command` (+ submit key) for no-arg commands, or inserts `/command ` into the
 // composer for the user to complete when the command takes an argument.
 //
@@ -80,28 +81,38 @@ const CLAUDE: readonly AgentCommand[] = [
 // ── Codex ────────────────────────────────────────────────────────────────────
 const CODEX: readonly AgentCommand[] = [
   { command: "/compact", description: "Summarize history to free up context-window tokens", takesArg: false, argHint: "", common: true, dangerous: false },
-  { command: "/clear", description: "Reset output and start a new chat in this session", takesArg: false, argHint: "", common: true, dangerous: true },
+  { command: "/clear", description: "Clear the terminal and start a new chat", takesArg: false, argHint: "", common: true, dangerous: true },
   { command: "/diff", description: "Show the git diff of the working tree (incl. untracked)", takesArg: false, argHint: "", common: true, dangerous: false },
-  { command: "/model", description: "Switch the active model and reasoning effort", takesArg: true, argHint: "<model>", common: true, dangerous: false },
-  { command: "/new", description: "Start a fresh conversation without leaving the CLI", takesArg: false, argHint: "", common: true, dangerous: true },
+  { command: "/model", description: "Choose the model and reasoning effort; picker if none given", takesArg: true, argHint: "[model]", common: true, dangerous: false },
+  { command: "/new", description: "Start a new chat during a conversation", takesArg: false, argHint: "", common: true, dangerous: true },
   { command: "/status", description: "Show model, approval policy, writable roots, token usage", takesArg: false, argHint: "", common: true, dangerous: false },
   { command: "/review", description: "Request a code review of the current working tree", takesArg: false, argHint: "", common: true, dangerous: false },
   { command: "/mention", description: "Attach specific files or folders to the context", takesArg: true, argHint: "<file>", common: true, dangerous: false },
   { command: "/permissions", description: "Adjust which actions Codex can take without asking", takesArg: false, argHint: "", common: true, dangerous: false },
   { command: "/resume", description: "Reload a previously saved conversation", takesArg: false, argHint: "", common: true, dangerous: false },
   { command: "/init", description: "Generate an AGENTS.md scaffold in this project", takesArg: false, argHint: "", common: false, dangerous: false },
-  { command: "/plan", description: "Enter plan mode to propose a strategy before running", takesArg: true, argHint: "[prompt]", common: false, dangerous: false },
-  { command: "/goal", description: "Set, pause, resume, or clear a long-running objective", takesArg: true, argHint: "[objective]", common: false, dangerous: false },
+  { command: "/rename", description: "Rename the current thread", takesArg: true, argHint: "[name]", common: false, dangerous: false },
+  { command: "/recap", description: "Summarize the current conversation now", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/export", description: "Export the conversation as markdown", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/memories", description: "Configure memory use and generation", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/hooks", description: "View and manage lifecycle hooks", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/import", description: "Import setup, this project, and recent chats from Claude Code", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/cd", description: "Change the current working directory", takesArg: true, argHint: "<path>", common: false, dangerous: false },
+  { command: "/pwd", description: "Show the current working directory", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/raw", description: "Toggle raw scrollback mode for copy-friendly selection", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/keymap", description: "Remap TUI shortcuts", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/plan", description: "Switch to Plan mode", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/goal", description: "Set or view the goal for a long-running task", takesArg: true, argHint: "[objective]", common: false, dangerous: false },
   { command: "/approve", description: "Retry an action denied by the approval reviewer", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/fork", description: "Clone the conversation into a new independent thread", takesArg: false, argHint: "", common: false, dangerous: false },
-  { command: "/side", description: "Open an ephemeral side conversation (alias: /btw)", takesArg: true, argHint: "[question]", common: false, dangerous: false },
-  { command: "/agent", description: "Switch between active subagent threads", takesArg: false, argHint: "", common: false, dangerous: false },
-  { command: "/copy", description: "Copy the latest completed response to the clipboard", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/side", description: "Start a side conversation in an ephemeral fork (alias: /btw)", takesArg: true, argHint: "[question]", common: false, dangerous: false },
+  { command: "/agents", description: "View and switch between all active agent sessions", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/subagents", description: "Switch between this session's subagents", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/copy", description: "Copy the last response, code block, or quote", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/mcp", description: "List configured MCP tools (verbose for diagnostics)", takesArg: true, argHint: "[verbose]", common: false, dangerous: false },
   { command: "/ide", description: "Include currently open editor files in the context", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/skills", description: "Browse and apply task-specific skills", takesArg: false, argHint: "", common: false, dangerous: false },
-  { command: "/personality", description: "Choose Codex communication style", takesArg: true, argHint: "<style>", common: false, dangerous: false },
-  { command: "/fast", description: "Toggle the fast service tier for the model", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/personality", description: "Choose a communication style for Codex", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/vim", description: "Toggle Vim keybindings for the composer", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/theme", description: "Preview and save a syntax-highlighting theme", takesArg: false, argHint: "", common: false, dangerous: false },
   { command: "/usage", description: "View account token activity and usage stats", takesArg: false, argHint: "", common: false, dangerous: false },
@@ -111,6 +122,46 @@ const CODEX: readonly AgentCommand[] = [
   { command: "/archive", description: "Archive the current session and exit Codex", takesArg: false, argHint: "", common: false, dangerous: true },
   { command: "/delete", description: "Permanently delete the current session", takesArg: false, argHint: "", common: false, dangerous: true },
   { command: "/quit", description: "Exit the Codex CLI immediately (alias: /exit)", takesArg: false, argHint: "", common: false, dangerous: true },
+];
+
+// ── Cursor (cursor-agent) ────────────────────────────────────────────────────
+// Cursor has no `/new`: `/clear` IS its reset ("start a new chat session"), which is the opposite
+// of Codex. `/summarize` is its `/compact`. Sourced from cursor.com/docs/cli/reference/slash-commands.
+const CURSOR: readonly AgentCommand[] = [
+  { command: "/summarize", description: "Summarize the conversation to reduce context", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/clear", description: "Start a new chat session", takesArg: false, argHint: "", common: true, dangerous: true },
+  { command: "/model", description: "Select a model; filter the picker by typing", takesArg: true, argHint: "[filter]", common: true, dangerous: false },
+  { command: "/resume", description: "Open recent chats and resume one", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/plan", description: "Switch to Plan mode, show the plan, or prompt in Plan mode", takesArg: true, argHint: "[prompt]", common: true, dangerous: false },
+  { command: "/ask", description: "Toggle Ask mode for read-only questions", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/fork", description: "Fork the current chat into a new session", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/rewind", description: "Jump back to a previous message", takesArg: false, argHint: "", common: true, dangerous: true },
+  { command: "/rename", description: "Rename the current chat session", takesArg: true, argHint: "<name>", common: true, dangerous: false },
+  { command: "/about", description: "Show CLI version, system, and account info", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/copy", description: "Copy a previous user message to the clipboard", takesArg: false, argHint: "", common: true, dangerous: false },
+  { command: "/help", description: "Show help, optionally for one command", takesArg: true, argHint: "[command]", common: true, dangerous: false },
+  { command: "/debug", description: "Toggle Debug mode or submit a prompt in Debug mode", takesArg: true, argHint: "[prompt]", common: false, dangerous: false },
+  { command: "/goal", description: "Give the agent a long-lived objective to work towards", takesArg: true, argHint: "[objective]", common: false, dangerous: false },
+  { command: "/shell", description: "Enter Shell Mode, optionally running a command", takesArg: true, argHint: "[command]", common: false, dangerous: false },
+  { command: "/run-everything", description: "Toggle Run Everything, or show its status", takesArg: true, argHint: "[on|off|status]", common: false, dangerous: true },
+  { command: "/sandbox", description: "Configure sandbox mode and network access settings", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/config", description: "Configure CLI settings interactively", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/mcp", description: "Manage MCP servers and list a server's tools", takesArg: true, argHint: "[list|list-tools]", common: false, dangerous: false },
+  { command: "/plugin", description: "Manage plugins and marketplaces", takesArg: true, argHint: "[subcommand]", common: false, dangerous: false },
+  { command: "/vim", description: "Toggle Vim keys", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/line-numbers", description: "Toggle line numbers in code blocks", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/show-thinking", description: "Toggle thinking block display", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/status-indicators", description: "Toggle terminal title status indicators", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/max-mode", description: "Toggle Max Mode on legacy request-based plans", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/open", description: "Open the repository's Git root in Cursor", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/copy-request-id", description: "Copy the last request ID to the clipboard", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/copy-conversation-id", description: "Copy the current conversation ID to the clipboard", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/logs", description: "Show the debug log path and copy it to the clipboard", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/setup-terminal", description: "Configure terminal newline keybindings", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/update", description: "Update Cursor Agent to the latest version", takesArg: false, argHint: "", common: false, dangerous: false },
+  { command: "/feedback", description: "Share feedback with the team", takesArg: true, argHint: "<message>", common: false, dangerous: false },
+  { command: "/logout", description: "Sign out from Cursor", takesArg: false, argHint: "", common: false, dangerous: true },
+  { command: "/quit", description: "Exit the CLI (alias: /exit)", takesArg: false, argHint: "", common: false, dangerous: true },
 ];
 
 // ── Pi (pi.dev) ──────────────────────────────────────────────────────────────
@@ -163,6 +214,7 @@ const OPENCODE: readonly AgentCommand[] = [
 const CATALOG: Record<string, readonly AgentCommand[]> = {
   claude: CLAUDE,
   codex: CODEX,
+  cursor: CURSOR,
   pi: PI,
   opencode: OPENCODE,
 };
@@ -178,6 +230,8 @@ export function commandsFor(agent: string | undefined | null): readonly AgentCom
   // Tolerate variants like "claude-code" / "opencode-dev".
   if (key.startsWith("claude")) return CLAUDE;
   if (key.startsWith("codex")) return CODEX;
+  // herdr's kind is `cursor`; the binary is `cursor-agent`, so a label can arrive either way.
+  if (key.startsWith("cursor")) return CURSOR;
   if (key.startsWith("opencode")) return OPENCODE;
   if (key === "pi" || key.startsWith("pi-") || key.startsWith("pi.")) return PI;
   return [];

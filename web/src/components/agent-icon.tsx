@@ -9,6 +9,7 @@ function brandKey(agent: string): string | undefined {
   if (AGENT_BRANDS[k]) return k;
   if (k.startsWith("claude")) return "claude";
   if (k.startsWith("codex")) return "codex";
+  if (k.startsWith("cursor")) return "cursor";
   if (k.startsWith("opencode")) return "opencode";
   if (k === "pi" || k.startsWith("pi-") || k.startsWith("pi.")) return "pi";
   return undefined;

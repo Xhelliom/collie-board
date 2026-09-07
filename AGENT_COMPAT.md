@@ -201,7 +201,7 @@ probable **[à vérifier]**.
 C'est le point le moins cher de toute la liste : accepter `kind === "path"` et transporter le chemin
 jusqu'à `pageAt()` — qui existe déjà et prend un chemin (`bridge/notify-subtitle.ts` s'en sert).
 
-> **Fait, en 0.138.0** (`55089e4`). `state-engine.ts` retient les deux formes, `AgentView` porte
+> **Fait, en 0.139.0** (`55089e4`). `state-engine.ts` retient les deux formes, `AgentView` porte
 > `agentSessionPath`, et `paneHistory()` le sert par `pageAt()` — le garde d'adaptateur ne s'y
 > applique pas, il ne couvre que les replis qui résolvent par répertoire. Le chemin passe par
 > `confinedSessionPath()` : realpath des deux côtés puis containment, comme partout ailleurs dans
@@ -264,6 +264,9 @@ d'agent (`web/src/lib/types.ts:67`). Aucun code à écrire si on l'accepte tel q
 
 ### 9. La commande de reset de contexte du copilote
 
+> **Réglé en 0.138.0.** `clear = "/new"` pour `codex`, `clear = "/clear"` pour `cursor`, sourcés
+> dans `adapters/agents.toml`. Le reste de la section reste le constat d'origine.
+
 **Où.** `bridge/copilot.ts:763` (`this.cfg.boardCopilotClear || this.adapter.clear`), table dans
 `adapters/agents.toml`.
 
@@ -282,6 +285,10 @@ remplit. C'est borné (chaque prompt du copilote est auto-suffisant) mais pas gr
 
 ### 10. Le catalogue de commandes slash
 
+> **Réglé en 0.138.0.** Catalogue `CURSOR` ajouté (34 entrées), catalogue `CODEX` revérifié contre
+> `slash_command.rs` : `/fast` supprimé (disparu de l'enum), `/agent` → `/agents`, dix entrées
+> rétablies.
+
 **Où.** `web/src/lib/agent-commands.ts:163` (`CATALOG`), avec un repli tolérant aux variantes
 (`claude-code`, `opencode-dev`…).
 
@@ -294,6 +301,8 @@ une perte visible sur téléphone — la palette de commandes est une des rares 
 piloter un agent sans clavier physique.
 
 ### 11. L'icône d'agent
+
+> **Réglé en 0.138.0.** `cursor` est dans `AGENT_BRANDS` (Simple Icons, CC0).
 
 **Où.** `web/src/components/agent-icon-data.ts:18` : `AGENT_BRANDS` contient `claude`, `codex`,
 `pi`, `opencode`.
