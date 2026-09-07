@@ -201,6 +201,15 @@ probable **[à vérifier]**.
 C'est le point le moins cher de toute la liste : accepter `kind === "path"` et transporter le chemin
 jusqu'à `pageAt()` — qui existe déjà et prend un chemin (`bridge/notify-subtitle.ts` s'en sert).
 
+> **Fait, en 0.138.0** (`55089e4`). `state-engine.ts` retient les deux formes, `AgentView` porte
+> `agentSessionPath`, et `paneHistory()` le sert par `pageAt()` — le garde d'adaptateur ne s'y
+> applique pas, il ne couvre que les replis qui résolvent par répertoire. Le chemin passe par
+> `confinedSessionPath()` : realpath des deux côtés puis containment, comme partout ailleurs dans
+> `transcript.ts`, avec le home pour racine puisque aucune de ces sessions ne vit sous
+> `~/.claude/projects`. **Le §4 reste entier** : le chemin arrive maintenant jusqu'au parseur, qui ne
+> sait toujours lire que les lignes de Claude Code — un rollout Codex se paginerait vide. Ce point-ci
+> était la plomberie, pas le format.
+
 ### 6. La jauge de quota `/usage`
 
 **Où.** `bridge/usage.ts` en entier, plus `web/src/components/usage-gauge.tsx` et
