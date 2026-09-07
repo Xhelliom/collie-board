@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.138.0] - 2026-09-07
+
+### Added
+- `[agent.cursor]` in `adapters/agents.toml` and a 34-entry `CURSOR` command catalog — the command button no longer hides itself on a Cursor pane (26a78bb).
+- Cursor brand mark in `AGENT_BRANDS`, replacing the "CU" initials tile (26a78bb).
+
+### Fixed
+- Codex's context reset is `/new`, not nothing — the copilot running on Codex never reset before (26a78bb).
+- `CODEX` catalog re-verified against `codex-rs/tui/src/slash_command.rs`: `/fast` dropped, `/agent` → `/agents`, `/subagents` and ten lost entries restored (26a78bb).
+
 ## [0.137.2] - 2026-09-01
 
 ### Fixed
