@@ -40,6 +40,7 @@
 // conversation), but it reaches further back — `COLLIE_BOARD_TRANSCRIPT=off` disables the feature wholesale.
 
 import { readdir, realpath, stat } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 
 import { containedIn, galleryRoot, isImagePath } from "./gallery.ts";
@@ -940,6 +941,38 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       : await file.slice(size - MAX_TRANSCRIPT_BYTES).text();
     return { text, complete, size, mtimeMs: st.mtimeMs };
   }
+}
+
+/**
+ * Confine a session path herdr REPORTED (`agent_session.kind === "path"`) before anything reads it.
+ *
+ * Its own root, because the Claude one cannot hold it: an agent reports a path precisely when its
+ * sessions are not filed under `~/.claude/projects` by cwd (a Codex rollout lives under
+ * `~/.codex/sessions/YYYY/MM/DD/` — AGENT_COMPAT.md §4-5). The home directory is where every agent's
+ * session store lives, and both sides go through realpath before the containment test, exactly like
+ * {@link ClaudeTranscriptSource}'s own `contained()` and gallery.ts's `resolveImage()`.
+ *
+ * The value comes from herdr, never from a client — this is the belt for a MISREPORTING integration,
+ * not for a request. A refused or missing path reads as "no history" rather than an error; the
+ * refusal is logged, because a session store relocated out of home (`CODEX_HOME`) would otherwise
+ * make the feature silently inert.
+ */
+export async function confinedSessionPath(
+  reported: string,
+  root: string = homedir(),
+): Promise<string | null> {
+  if (!isAbsolute(reported)) return null;
+  let full: string;
+  let realRoot: string;
+  try {
+    realRoot = await realpath(root);
+    full = await realpath(normalize(reported));
+  } catch {
+    return null; // missing file, missing root, or a dangling symlink — all "nothing to serve"
+  }
+  if (containedIn(realRoot, full)) return full;
+  console.warn(`[transcript] reported session path outside ${realRoot}, refusing: ${reported}`);
+  return null;
 }
 
 /**

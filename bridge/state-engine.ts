@@ -217,10 +217,16 @@ export class StateEngine {
           kind,
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".
           ...(typeof p.label === "string" && p.label.length > 0 ? { paneLabel: p.label } : {}),
-          // The agent's own session id — only the "id" kind names an on-disk transcript. Omitted
-          // otherwise, so "no history for this pane" is simply the field being absent.
+          // The agent's own session, in either kind herdr defines: an "id" naming an on-disk
+          // transcript, or a "path" naming the file outright — which is how an agent whose sessions
+          // aren't filed by cwd reports one (a Codex rollout is filed by DATE, so dropping the path
+          // left it with only the by-cwd fallback, which has nothing to grab). Any other kind, or no
+          // value, omits both — so "no history for this pane" is simply the fields being absent.
           ...(p.agent_session?.kind === "id" && typeof p.agent_session.value === "string"
             ? { agentSessionId: p.agent_session.value }
+            : {}),
+          ...(p.agent_session?.kind === "path" && typeof p.agent_session.value === "string"
+            ? { agentSessionPath: p.agent_session.value }
             : {}),
           // Scrollback depth + viewport = what a `recent` read can yield. Omitted when the server
           // predates `scroll`, so an older Herdr simply reads as "unknown" rather than "zero".

@@ -20,7 +20,7 @@ import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
-import { resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
+import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import type {
   ActionResponse,
   BridgeConfig,
@@ -614,16 +614,20 @@ export function historyParams(url: URL): { limit: number; before?: string; after
  * one. That is the whole safety story for a route that reads files: the only client-controlled inputs
  * are a pane id (a Map lookup) and an opaque cursor (an array lookup).
  *
- * TWO RESOLUTIONS, because the first one usually isn't there. `agent_session` only exists once the
+ * THREE RESOLUTIONS, because the first two usually aren't there. `agent_session` only exists once the
  * optional `herdr integration install <agent>` hook is in place — a plain install reports none, so
- * gating on it alone answered `no-session` for most users and made this whole feature inert. Without
- * it we resolve the same way the context gauge already does: the pane's foreground process, then its
- * directory (see `resolveWithoutSession`).
+ * gating on it alone answered `no-session` for most users and made this whole feature inert. It comes
+ * in either kind herdr defines: an `id` (a uuid we look up under the transcript root), or a `path`
+ * naming the log outright — the only workable form for an agent whose sessions aren't filed by cwd,
+ * and the one a Codex integration would report (AGENT_COMPAT.md §5). A reported path still goes
+ * through `confinedSessionPath` before a byte is read. Without either we resolve the way the context
+ * gauge does: the pane's foreground process, then its directory (see `resolveWithoutSession`).
  *
- * Both fallbacks resolve BY DIRECTORY, which is only sound for an agent whose transcript format we
- * can actually read — otherwise a codex pane sitting in a directory Claude once ran in would be
- * served Claude's conversation. Hence the two guards below: never a shell, and never an agent whose
- * adapter doesn't claim `context`. A wrong transcript is worse than no transcript.
+ * That LAST resolution is the one that resolves BY DIRECTORY, which is only sound for an agent whose
+ * transcript format we can actually read — otherwise a codex pane sitting in a directory Claude once
+ * ran in would be served Claude's conversation. Hence the two guards below: never a shell, and never
+ * an agent whose adapter doesn't claim `context` — neither guard applies to a session herdr NAMED,
+ * which by construction is this pane's own log. A wrong transcript is worse than no transcript.
  */
 async function paneHistory(
   cfg: Config,
@@ -650,13 +654,19 @@ async function paneHistory(
   // No pane, a bare shell, or an agent whose transcript format this bridge can't read: there is
   // nothing to serve, and that's an ordinary answer rather than an error.
   if (!pane || pane.kind === "shell") return unavailable("no-session");
-  if (!pane.agentSessionId && !adapterFor(adapters, pane.agent).context) return unavailable("no-session");
+  if (!pane.agentSessionId && !pane.agentSessionPath && !adapterFor(adapters, pane.agent).context)
+    return unavailable("no-session");
 
   try {
     const params = historyParams(url);
     let page: Omit<PaneHistoryResponse & { available: true }, "paneId" | "available"> | null;
     if (pane.agentSessionId) {
       page = await transcripts.page(pane.agentSessionId, params);
+    } else if (pane.agentSessionPath) {
+      // herdr named the file itself — no resolution to do, just the containment every read here is
+      // subject to. Null means refused or gone, which is the same answer as "no log".
+      const path = await confinedSessionPath(pane.agentSessionPath);
+      page = path === null ? null : await transcripts.pageAt(path, params);
     } else {
       const path = await resolveWithoutSession({
         source: transcripts.source,
