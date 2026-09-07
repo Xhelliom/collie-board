@@ -1,7 +1,7 @@
 # Per-agent divergence for collie-board. See bridge/adapters.ts for what each field means and why
 # there are only four of them.
 #
-# Herdr already normalises agent DETECTION and STATE for 16 agents with no configuration, so almost
+# Herdr already normalises agent DETECTION and STATE for 22 agents with no configuration, so almost
 # everything the board does is agent-agnostic by construction. This table only describes what herdr
 # cannot know for us.
 #
@@ -14,20 +14,43 @@
 #              Only turn this on for an agent whose format bridge/transcript.ts can actually read —
 #              a confident wrong percentage is worse than no gauge (see bridge/context.ts).
 #   session_id does the agent report a native session id to herdr?
+#
+# `clear` and `session_id` carry their evidence in a comment. `context` carries the rule: it stays
+# false until someone has run latestUsage() against a real transcript of that agent.
 
 [agent.claude]
 clear      = "/clear"
 context    = true
 session_id = true
 
-# Everything below is a placeholder until someone verifies it against the real CLI. Left explicitly
-# false rather than guessed: `context = true` on an unverified transcript format would produce a
-# number the handoff decision then leans on.
-
+# `/new` — "start a new chat during a conversation" — is Codex's own reset, read from the enum the
+# command popup is built from (codex-rs/tui/src/slash_command.rs). `/clear` exists too and also
+# starts a new chat, but it wipes the terminal with it, which is the wrong thing to do to a pane
+# the board mirrors. Read from the CLI's source, not typed into a running codex — the binary is not
+# installed on the machine this was written on.
 [agent.codex]
-clear      = ""
+clear      = "/new"
+# Rollouts do carry token counts (`token_count` events with `total_token_usage`), but in a shape
+# latestUsage() cannot read, and not under ~/.claude/projects. See AGENT_COMPAT.md §3.
 context    = false
+# A Codex session is a rollout FILE, so herdr would designate it with `--agent-session-path`, and
+# bridge/state-engine.ts only accepts `kind: "id"`. AGENT_COMPAT.md §5.
 session_id = false
+
+# herdr accepts `--kind cursor` and ships a dedicated integration, so a Cursor pane is reachable
+# today — it simply had no row here and fell through unknownAdapter().
+[agent.cursor]
+# "Start a new chat session" — cursor.com/docs/cli/reference/slash-commands. Cursor has no `/new`;
+# `/clear` is the reset. Documented, not exercised: cursor-agent is not installed here.
+clear      = "/clear"
+# Verified, not assumed: a real Cursor transcript contains no `usage` field and no token count at
+# all, so the gauge is structurally impossible from that source. AGENT_COMPAT.md §3.
+context    = false
+# The chat id is a uuid, so `kind: "id"` is plausible — but nobody has seen herdr report one.
+# Unverified stays false.
+session_id = false
+
+# Still placeholders: nobody has checked these against the real CLI.
 
 [agent.gemini]
 clear      = ""

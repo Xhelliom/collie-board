@@ -1573,6 +1573,12 @@ describe("agent adapters", () => {
     const shipped = loadAdapters([new URL("../adapters/agents.toml", import.meta.url).pathname]);
     expect(shipped.claude).toEqual({ kind: "claude", clear: "/clear", context: true, sessionId: true });
     expect(shipped.codex!.context).toBe(false);
+    // The reset commands are opposites and were once contradicted by web/src/lib/agent-commands.ts:
+    // Codex resets with /new (/clear also wipes the terminal), Cursor has no /new at all.
+    expect(shipped.codex!.clear).toBe("/new");
+    expect(shipped.cursor).toEqual({ kind: "cursor", clear: "/clear", context: false, sessionId: false });
+    // No gauge is promised on a transcript format latestUsage() has never been run against.
+    for (const kind of ["codex", "cursor"]) expect(shipped[kind]!.context).toBe(false);
   });
 
   it("survives a missing file and a broken one", () => {

@@ -14,6 +14,15 @@ describe("commandsFor", () => {
     expect(cmds.some((c) => c.command === "/branch")).toBe(false); // Claude-only command
   });
 
+  it("returns the Cursor catalog for 'cursor'", () => {
+    const cmds = commandsFor("cursor");
+    expect(cmds.length).toBeGreaterThan(0);
+    expect(cmds.some((c) => c.command === "/summarize")).toBe(true); // Cursor's /compact
+    // Cursor resets with /clear and has no /new — the exact opposite of Codex.
+    expect(cmds.some((c) => c.command === "/clear")).toBe(true);
+    expect(cmds.some((c) => c.command === "/new")).toBe(false);
+  });
+
   it("returns the Pi catalog for 'pi'", () => {
     const cmds = commandsFor("pi");
     expect(cmds.length).toBeGreaterThan(0);
@@ -31,6 +40,7 @@ describe("commandsFor", () => {
   it("is case-insensitive", () => {
     expect(commandsFor("CLAUDE")).toBe(commandsFor("claude"));
     expect(commandsFor("Codex")).toBe(commandsFor("codex"));
+    expect(commandsFor("Cursor")).toBe(commandsFor("cursor"));
     expect(commandsFor("PI")).toBe(commandsFor("pi"));
     expect(commandsFor("OpenCode")).toBe(commandsFor("opencode"));
   });
@@ -42,6 +52,7 @@ describe("commandsFor", () => {
   it("tolerates label variants via prefix (claude-code, codex-cli, opencode-dev)", () => {
     expect(commandsFor("claude-code")).toBe(commandsFor("claude"));
     expect(commandsFor("codex-cli")).toBe(commandsFor("codex"));
+    expect(commandsFor("cursor-agent")).toBe(commandsFor("cursor"));
     expect(commandsFor("opencode-dev")).toBe(commandsFor("opencode"));
     expect(commandsFor("pi-go")).toBe(commandsFor("pi"));
   });
@@ -53,7 +64,7 @@ describe("commandsFor", () => {
     expect(commandsFor(null)).toEqual([]);
   });
 
-  it.each(["claude", "codex", "pi", "opencode"])(
+  it.each(["claude", "codex", "cursor", "pi", "opencode"])(
     "exposes for '%s' a 'common' subset that is a proper, non-empty subset of all commands",
     (agent) => {
       const all = commandsFor(agent);
@@ -65,7 +76,7 @@ describe("commandsFor", () => {
     },
   );
 
-  it.each(["claude", "codex", "pi", "opencode"])(
+  it.each(["claude", "codex", "cursor", "pi", "opencode"])(
     "'%s' entries are well-formed (slash-prefixed, unique, arg hints only when takesArg)",
     (agent) => {
       const all = commandsFor(agent);
