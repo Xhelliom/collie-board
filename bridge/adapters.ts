@@ -1,6 +1,6 @@
 // Per-agent divergence, in one table.
 //
-// Herdr already normalises the hard part — it detects and reports the state of 16 agents with no
+// Herdr already normalises the hard part — it detects and reports the state of 22 agents with no
 // configuration at all — so almost everything the board does is agnostic by construction: statuses,
 // `agent.prompt`, `send_keys`, git, the handoff note, the JSON-to-a-file output contract. Nothing
 // here re-implements any of that.
@@ -44,7 +44,10 @@ export interface AgentAdapter {
  */
 export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
   claude: { kind: "claude", clear: "/clear", context: true, sessionId: true },
-  codex: { kind: "codex", clear: "", context: false, sessionId: false },
+  // Codex resets with `/new`, not `/clear` — `/clear` wipes the terminal too. Cursor is the
+  // opposite: `/clear` is its reset and it has no `/new`. Both are sourced in adapters/agents.toml.
+  codex: { kind: "codex", clear: "/new", context: false, sessionId: false },
+  cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false },
   gemini: { kind: "gemini", clear: "", context: false, sessionId: false },
   opencode: { kind: "opencode", clear: "", context: false, sessionId: false },
 };
