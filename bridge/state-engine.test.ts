@@ -543,19 +543,36 @@ describe("StateEngine — pane capability fields", () => {
     herdr.panes = [p];
     await poll();
     expect(engine.current().agents[0]!.agentSessionId).toBe("abc-123");
+    expect(engine.current().agents[0]!.agentSessionPath).toBeUndefined();
+  });
+
+  // herdr's `AgentSessionRefKind` is the enum ["id","path"] and `pane report-agent` exposes both.
+  // Dropping the path kind left an agent whose sessions aren't filed by cwd — a Codex rollout is
+  // filed by DATE — with only the by-cwd fallback, which has nothing to find (AGENT_COMPAT.md §5).
+  test("maps a path-kind agent session to agentSessionPath", async () => {
+    const { herdr, engine, poll } = makeEngine();
+    const p = pane("w1:p1", "w1", "idle", "codex");
+    const rollout = "/home/you/.codex/sessions/2026/09/07/rollout-2026-09-07T10-00-00-abc.jsonl";
+    p.agent_session = { source: "herdr:codex", agent: "codex", kind: "path", value: rollout };
+    herdr.panes = [p];
+    await poll();
+    expect(engine.current().agents[0]!.agentSessionPath).toBe(rollout);
+    expect(engine.current().agents[0]!.agentSessionId).toBeUndefined(); // never both
   });
 
   test.each([
-    ["a non-id session kind", { kind: "name", value: "my-session" }],
-    ["a session with no value", { kind: "id" }],
+    ["a session kind that is neither", { kind: "name", value: "my-session" }],
+    ["an id session with no value", { kind: "id" }],
+    ["a path session with no value", { kind: "path" }],
     ["no agent_session at all", undefined],
-  ])("omits agentSessionId for %s", async (_label, session) => {
+  ])("omits both session fields for %s", async (_label, session) => {
     const { herdr, engine, poll } = makeEngine();
     const p = pane("w1:p1", "w1", "idle", "claude");
     if (session) p.agent_session = session;
     herdr.panes = [p];
     await poll();
     expect(engine.current().agents[0]!.agentSessionId).toBeUndefined();
+    expect(engine.current().agents[0]!.agentSessionPath).toBeUndefined();
   });
 
   test("readableLines is scrollback depth PLUS the viewport (what a recent read can return)", async () => {

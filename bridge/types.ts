@@ -42,6 +42,16 @@ export interface AgentView {
    */
   agentSessionId?: string;
   /**
+   * The agent's own session as a PATH (`agent_session.kind === "path"` — herdr's `AgentSessionRefKind`
+   * is the enum `["id","path"]`, and `herdr pane report-agent` exposes both). An agent whose sessions
+   * aren't filed by cwd designates one this way: a Codex rollout lives under
+   * `~/.codex/sessions/YYYY/MM/DD/`, which neither the uuid lookup nor the by-cwd fallback can find
+   * (AGENT_COMPAT.md §4-5). Same contract as {@link agentSessionId}: herdr's value, never a client's,
+   * and the history endpoint re-derives it from the pane id — then confines it (`confinedSessionPath`)
+   * before anything reads bytes.
+   */
+  agentSessionPath?: string;
+  /**
    * Upper bound on the lines a `recent` read of this pane can return — Herdr's scrollback depth plus
    * the viewport. This is the ONLY reliable "is there more scrollback" signal: `PaneRead.truncated`
    * is always false even when a read cut history off, which is why the mirror's "Load older" button
