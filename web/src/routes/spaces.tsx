@@ -8,19 +8,21 @@ import { SessionSwitcher } from "@/components/session-switcher";
 import { StatusArea } from "@/components/status-area";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { spacePath } from "@/lib/nav";
+import { panePath, spacePath } from "@/lib/nav";
 
-// Spaces — a root tab (redesign §9). Extracted from the dashboard (see home.tsx, Phase 3); one
-// card per space, its tabs riding inside it as their own chips.
+// Spaces — a root tab (redesign §9). Extracted from the dashboard (see home.tsx, Phase 3), and
+// since the space regrouping it renders the SAME `SpacePaneTree` as the pane column and the pane
+// switcher: space → branch → panes, worktrees nested under the repo they were cut from. Tapping a
+// space header drills in (that screen owns tab selection and tab creation); tapping a row opens
+// that pane.
 export function SpacesRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const navigate = useNavigate();
-  const { newTab, newSpace } = useSpaceActions();
+  const { newSpace } = useSpaceActions();
   const [newSpaceOpen, setNewSpaceOpen] = useState(false);
 
   const drillInto = (id: string) => navigate(spacePath(id, data.session));
-  const openTab = (workspaceId: string, tabId: string) =>
-    navigate(spacePath(workspaceId, data.session, tabId));
+  const openPane = (paneId: string) => navigate(panePath(paneId, data.session));
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
@@ -41,9 +43,9 @@ export function SpacesRoute() {
             workspaces={data.workspaces}
             tabs={data.tabs}
             agents={data.agents}
+            shellPanes={data.shellPanes}
             onOpen={drillInto}
-            onSelectTab={openTab}
-            onNewTab={newTab}
+            onOpenPane={openPane}
             onNewSpace={() => setNewSpaceOpen(true)}
           />
         </main>

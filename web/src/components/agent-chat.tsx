@@ -1134,6 +1134,7 @@ export function AgentChat({
         <ThreadSidebar
           agents={agents}
           shellPanes={shellPanes}
+          tabs={tabs}
           currentPaneId={paneId}
           onSelect={switchTo}
           className="px-0 py-1"

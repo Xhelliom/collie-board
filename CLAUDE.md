@@ -159,6 +159,11 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   client-supplied path is validated and always follows `--`.
 - **The copilot spends the user's quota.** It stays off by default, serialised to one request, and
   reviews from `--stat` — never the full diff.
+- **The bridge does not know its consumers.** Anything that wants what the board knows — a voice
+  assistant, a script, another app — integrates by polling `/api/notifications/log` and writing back
+  through the card routes. Never the reverse: no sink beside push/bell/digest, no outbound client, no
+  config named after a consumer. There is no MCP server either — the skill's words: "no CLI and no
+  MCP server: use `curl`". [ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md).
 - **A change that would help upstream goes in the ledger, in the same commit.** If a brick is
   generic — it works with no card in sight — add or update its entry in
   [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) with its commit hash. Doing it later means doing it never,

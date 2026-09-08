@@ -1,30 +1,28 @@
-import { TerminalSquare } from "lucide-react";
-
-import { cn } from "@/lib/utils";
-import { AgentIcon } from "@/components/agent-icon";
-import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
-import { shortCwd } from "@/lib/format";
-import { paneDisplayName } from "@/lib/types";
-import type { AgentView } from "@/lib/types";
+import { SpacePaneTree } from "@/components/space-pane-tree";
+import type { AgentView, TabView } from "@/lib/types";
 
 interface ThreadSidebarProps {
   agents: AgentView[];
-  /** Bare shell panes (no agent) — listed in a trailing "Shells" group so fresh spaces are reachable. */
+  /** Bare shell panes (no agent) — grouped under their own space like every other pane, so a fresh
+   *  space with nothing but a shell in it is still reachable. */
   shellPanes?: AgentView[];
+  /** Used only to name each row's tab; a missing tab just leaves the pane's own tag on that line. */
+  tabs?: TabView[];
   currentPaneId: string;
   onSelect: (paneId: string) => void;
   /** Override the list container padding (e.g. flush inside a bottom sheet). */
   className?: string;
 }
 
-// The pane switcher reused by both the side drawer's PANES section and the pane-switcher bottom sheet:
-// every agent pane grouped/sorted like the home triage, then any bare shell panes under a "Shells"
-// group, scrollable, with the open one highlighted. Mirrors the Herdr TUI's pane list. Switching is
-// the ONLY action here — closing a pane lives in the pane pill's long-press sheet (with its own
-// confirm), so a fat-thumbed switch can never destroy a pane.
+// The pane switcher mounted in the pane-switcher bottom sheet: every pane grouped by space, its
+// branch under the space's name, the open one highlighted. Same `SpacePaneTree` the desktop column
+// renders, one type rung up for a thumb. Switching is the ONLY action here — closing a pane lives in
+// the pane pill's long-press sheet (with its own confirm), so a fat-thumbed switch can never destroy
+// a pane.
 export function ThreadSidebar({
   agents,
   shellPanes = [],
+  tabs = [],
   currentPaneId,
   onSelect,
   className,
@@ -36,117 +34,13 @@ export function ThreadSidebar({
   }
 
   return (
-    <div className={cn("flex flex-col gap-4 px-2 py-3", className)}>
-      {AGENT_GROUPS.map((g) => {
-        const members = groupMembers(agents, g);
-        if (members.length === 0) return null;
-        return (
-          <Section key={g.key} label={g.label} count={members.length} accent={g.accent} dot={g.dot}>
-            {members.map((a) => (
-              <PaneRow
-                key={a.paneId}
-                pane={a}
-                active={a.paneId === currentPaneId}
-                onSelect={onSelect}
-              />
-            ))}
-          </Section>
-        );
-      })}
-
-      {shellPanes.length > 0 && (
-        <Section label="Shells" count={shellPanes.length} dot="bg-status-unknown">
-          {shellPanes.map((p) => (
-            <PaneRow
-              key={p.paneId}
-              pane={p}
-              active={p.paneId === currentPaneId}
-              onSelect={onSelect}
-            />
-          ))}
-        </Section>
-      )}
-    </div>
-  );
-}
-
-function Section({
-  label,
-  count,
-  accent,
-  dot,
-  children,
-}: {
-  label: string;
-  count: number;
-  accent?: boolean;
-  /** Status-palette bullet beside the header — the same colors the status badges use, so each
-   *  section carries its at-a-glance color key. */
-  dot: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-0.5">
-      <h3
-        className={cn(
-          "flex items-center gap-1.5 px-2 pb-1 text-xs font-semibold uppercase tracking-wide",
-          accent ? "text-status-blocked" : "text-muted-foreground",
-        )}
-      >
-        <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", dot)} />
-        {label} <span className="opacity-60">({count})</span>
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function PaneRow({
-  pane,
-  active,
-  onSelect,
-}: {
-  pane: AgentView;
-  active: boolean;
-  onSelect: (paneId: string) => void;
-}) {
-  const isShell = pane.kind === "shell";
-  // A user label leads, then Claude's /rename session name, then the agent/shell name (the icon still
-  // conveys the agent). See paneDisplayName.
-  const name = paneDisplayName(pane);
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(pane.paneId)}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-        active ? "bg-accent text-accent-foreground" : "hover:bg-muted/60 active:bg-muted",
-      )}
-    >
-      {isShell ? (
-        <TerminalSquare className="size-3.5 shrink-0 text-muted-foreground" />
-      ) : (
-        // Status is conveyed by the section grouping; the row leads with the agent's logo.
-        <AgentIcon agent={pane.agent} className="size-5" />
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {/* The agent's name is what this row is FOR — it reads at the content rung, and the
-              workspace next to it stays metadata (R2). */}
-          <span className="truncate text-base font-medium">{name}</span>
-          <span className="truncate text-xs text-muted-foreground">· {pane.workspaceLabel}</span>
-        </div>
-        <div className="truncate font-mono text-xs text-muted-foreground">
-          {shortCwd(pane.cwd)}
-        </div>
-      </div>
-      {/* Same at-a-glance gauge as the desktop pane column; omitted when no transcript was read. */}
-      {pane.ctxPct != null && (
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          ctx {Math.round(pane.ctxPct)}%
-        </span>
-      )}
-    </button>
+    <SpacePaneTree
+      agents={agents}
+      shellPanes={shellPanes}
+      tabs={tabs}
+      currentPaneId={currentPaneId}
+      onSelect={onSelect}
+      className={className}
+    />
   );
 }

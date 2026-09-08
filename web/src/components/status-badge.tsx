@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { type AgentStatus, STATUS_LABEL } from "@/lib/types";
@@ -18,9 +20,22 @@ const CHIP: Record<AgentStatus, string> = {
   unknown: "border-status-unknown/30 bg-status-unknown/10 text-status-unknown",
 };
 
-export function StatusDot({ status, className }: { status: AgentStatus; className?: string }) {
+export function StatusDot({
+  status,
+  className,
+  /** Escape hatch for a COMPUTED position — the pane tree lays its dots out on a rail whose offset
+   *  depends on nesting depth, which no static utility class can express. Styling stays in
+   *  `className`; this is geometry only. */
+  style,
+}: {
+  status: AgentStatus;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
-    <span className={cn("relative flex size-2.5 shrink-0", className)}>
+    // The size lives on the WRAPPER (and the fill follows with size-full), so a caller can hand the
+    // dot another size — or a ring — through `className` without the inner disc ignoring it.
+    <span className={cn("relative flex size-2.5 shrink-0 rounded-full", className)} style={style}>
       {status === "working" && (
         <span
           className={cn(
@@ -29,7 +44,7 @@ export function StatusDot({ status, className }: { status: AgentStatus; classNam
           )}
         />
       )}
-      <span className={cn("relative inline-flex size-2.5 rounded-full", DOT[status])} />
+      <span className={cn("relative inline-flex size-full rounded-full", DOT[status])} />
     </span>
   );
 }
