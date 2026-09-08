@@ -51,3 +51,58 @@ export function worstSpaceStatus(workspaceId: string, agents: AgentView[]): Agen
     inWs[0]!.status,
   );
 }
+
+/**
+ * One space's row in the pane list: its identity, the secondary line under its name, and its panes.
+ * `branch` is the space's current branch when a pane in it backs an open card session — the same
+ * `card.branch` the snapshot already carries, never a fresh git call — and null otherwise, where the
+ * header falls back to `cwd`. A branch we can't read is shown as no branch, never as a guess.
+ */
+export interface SpaceGroup {
+  workspaceId: string;
+  label: string;
+  branch: string | null;
+  cwd: string;
+  panes: AgentView[];
+  /** Agents needing attention in this space — drives the header's alert count. */
+  blocked: number;
+  /** The space's worst agent status (blocked > working > …), or null with only shells in it. */
+  status: AgentStatus | null;
+}
+
+/**
+ * Shape the flat pane list into one group per space — the pane list's ONLY grouping (home keeps the
+ * AGENT_GROUPS triage; see agent-groups.ts). Urgency survives the regrouping by moving up a level:
+ * spaces sort worst-status-first, then by workspace number, and each row keeps its own status dot.
+ *
+ * Panes ride in the order the bridge sent them (status → space → pane), agents before shells, so two
+ * renders of an unchanged herd give the same list.
+ */
+export function groupPanesBySpace(agents: AgentView[], shellPanes: AgentView[]): SpaceGroup[] {
+  const groups = new Map<string, SpaceGroup>();
+  for (const pane of [...agents, ...shellPanes]) {
+    let g = groups.get(pane.workspaceId);
+    if (!g) {
+      g = {
+        workspaceId: pane.workspaceId,
+        label: pane.workspaceLabel,
+        branch: null,
+        cwd: pane.cwd,
+        panes: [],
+        blocked: 0,
+        status: null,
+      };
+      groups.set(pane.workspaceId, g);
+    }
+    g.panes.push(pane);
+    g.branch ??= pane.branch ?? null;
+    if (pane.kind === "shell") continue;
+    if (pane.status === "blocked") g.blocked += 1;
+    if (g.status === null || STATUS_RANK[pane.status] < STATUS_RANK[g.status]) g.status = pane.status;
+  }
+  // A space with only shells has no status to rank on; it sorts after every space that has one.
+  const rank = (g: SpaceGroup) => (g.status === null ? 99 : STATUS_RANK[g.status]);
+  return [...groups.values()].sort(
+    (a, b) => rank(a) - rank(b) || (a.panes[0]?.workspaceNumber ?? 0) - (b.panes[0]?.workspaceNumber ?? 0),
+  );
+}
