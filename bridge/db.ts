@@ -1225,7 +1225,10 @@ export class BoardDb {
 
   listReviews(cardId: string): Review[] {
     return this.db
-      .query<ReviewRow, [string]>("SELECT * FROM review WHERE card_id = ? ORDER BY created_at")
+      // `rowid` breaks the tie: the card screen shows these newest-first, and two rows written in
+      // the same millisecond (a conversion filed right after a verdict) would otherwise come back in
+      // whatever order SQLite felt like — which is the stale verdict back on top.
+      .query<ReviewRow, [string]>("SELECT * FROM review WHERE card_id = ? ORDER BY created_at, rowid")
       .all(cardId)
       .map(toReview);
   }

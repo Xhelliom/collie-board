@@ -1457,8 +1457,18 @@ export class CopilotCoordinator {
     // HERE, before `createCard`, because the ask is "don't produce the card", not "hide it after":
     // a card filed and then filtered out still shows up in every count, every export and every
     // review record that links to it.
+    // A re-read of the same card suggests the same undone work again — the prompt sees a `--stat`,
+    // which cannot show that three of the four items were since done. Without this, every tap of
+    // "review again" files another copy of every follow-up.
+    // ponytail: exact title match, so a re-worded suggestion still gets through. The upgrade path is
+    // telling the prompt what is already filed; do it the day a near-duplicate actually costs
+    // someone a triage.
+    const alreadyFiled = new Set(
+      this.db.listReviews(cardId).flatMap((r) => r.todos.map((t) => t.title)),
+    );
     const wanted = new Set(this.db.followUpCategories());
     const suggested = (this.db.autoFollowUps() ? (result.todos ?? []) : [])
+      .filter((todo) => !alreadyFiled.has(todo.title))
       .map((todo) => ({ todo, category: pickCategory(todo.category) }))
       .filter(({ category }) => wanted.has(category));
     const todos: ReviewTodo[] = suggested.map(({ todo, category }) => {

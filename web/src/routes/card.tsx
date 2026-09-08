@@ -185,6 +185,9 @@ export function CardRoute() {
     setConfirmRework(false);
     setMenuOpen(false);
     setRefining(false);
+    // This screen is NOT remounted between cards, so a request still in flight on the card you
+    // just left would otherwise show its own button as busy on the next one.
+    setReviewing(false);
   }, [card?.id]);
 
   async function move(status: CardStatus) {
@@ -408,19 +411,26 @@ export function CardRoute() {
 
   // The third copilot call on this screen, and the only one about the WORK rather than the card's
   // wording: a `partial` verdict is a to-do list you go and do, and nothing said so afterwards. The
-  // review re-reads the worktree as it stands now (uncommitted work included — bridge/git.ts
-  // `diffStat`), so the new verdict judges what is there, not what was there at the first pass.
+  // review re-measures the branch as it stands now (uncommitted work included — bridge/git.ts
+  // `diffStat`), so the new verdict judges what is there, not what was there at the first pass. It
+  // is still a `--stat` and not the files: what changes between two passes is the shape of the
+  // diff, not the copilot's reading depth.
   async function reviewAgain() {
     if (!card) return;
     setReviewing(true);
     try {
       await reviewCard(card.id);
       setStatus("Review relancée — le nouveau verdict arrive dans une minute.", "info");
+      // The POST returns the moment the queue accepts it, so clearing here would re-enable the
+      // button for the whole poll interval — and the second tap `reviewNow` silently drops still
+      // answers `{ok:true}`, telling you a review restarted when none did. Held until the loader
+      // comes back with `copilotBusy`, which then carries it.
+      await revalidator.revalidate();
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
+      revalidator.revalidate();
     } finally {
       setReviewing(false);
-      revalidator.revalidate();
     }
   }
 
@@ -851,7 +861,7 @@ export function CardRoute() {
                           question, and one more agent turn is the operator's call to spend. */}
                       <div className="flex items-center gap-2">
                         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                          Le travail a bougé depuis ? Le copilote relit la worktree telle qu'elle est.
+                          Le travail a bougé depuis ? Le copilote rejuge sur le diff actuel de la branche.
                         </p>
                         <Button
                           variant="outline"
@@ -861,7 +871,11 @@ export function CardRoute() {
                           onClick={() => void reviewAgain()}
                         >
                           <Sparkles className="size-4" />
-                          {reviewing || card.copilotBusy ? "Review en cours…" : "Relancer la review"}
+                          {/* Labelled from the local tap, not from `copilotBusy` — that set is
+                              shared with reformulate/refine, and a correction running elsewhere on
+                              this card would make this button claim a review nobody asked for. It
+                              still DISABLES on it: `reviewNow` would drop the tap anyway. */}
+                          {reviewing ? "Review en cours…" : "Relancer la review"}
                         </Button>
                       </div>
                       {/* Newest FIRST, unlike every other history on this screen: a re-review exists

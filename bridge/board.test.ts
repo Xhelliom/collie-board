@@ -2455,6 +2455,30 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(review?.todos).toEqual([{ title: "fix the parser", cardId: created!.id }]);
   });
 
+  // "Relancer la review" makes a second pass on one card the normal gesture, and the prompt reads a
+  // `--stat` — which cannot show that a follow-up was since done. Without the guard, every tap files
+  // another copy of every suggestion the first pass made.
+  it("does not re-file a follow-up an earlier review already turned into a card", async () => {
+    const store = db();
+    const reviewed = filed(store, { wrapupPending: false });
+    store.setAutoFollowUps(true);
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return { verdict: "partial", notes: "ok", todos: [{ title: "fix the parser" }] };
+      },
+    } as unknown as Copilot;
+    const coordinator = new CopilotCoordinator(store, copilot, cfg);
+
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    await coordinator.reviewNow(reviewed.id, async () => "stat");
+
+    expect(store.listReviews(reviewed.id)).toHaveLength(2);
+    expect(store.listCards().filter((c) => c.title === "fix the parser")).toHaveLength(1);
+  });
+
   it("creates no follow-up card unless the operator opted in — the review still lands", async () => {
     const store = db();
     const reviewed = filed(store, { wrapupPending: false });

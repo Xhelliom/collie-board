@@ -591,8 +591,6 @@ describe("Review section — asking for the verdict again", () => {
     await screen.findByRole("button", { name: /relancer la review/i });
   }
 
-  afterEach(cleanup);
-
   it("shows the newest verdict above the one it replaces", async () => {
     await mount();
     const verdicts = screen.getAllByText(/^(complete|partial)$/).map((el) => el.textContent);
