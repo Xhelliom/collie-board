@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.141.1] - 2026-09-08
+
+### Fixed
+
+- Une note de wrapup posée sur un checkout vide n'est plus collectée tout de suite : la revue copilote ne part plus sur `(no changes)` quand l'agent écrit son rapport avant de commiter (2a541a3)
+
 ## [0.141.0] - 2026-09-08
 
 ### Changed

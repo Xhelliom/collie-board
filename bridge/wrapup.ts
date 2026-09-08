@@ -14,9 +14,15 @@
 // request survives a restart, the deadline stops it firing days later, and the note ON DISK is the
 // real "the agent has finished writing" signal (an idle status only says it stopped talking). The
 // one thing it does NOT do is drive the pane beyond that one ask: the prompt tells the agent to
-// commit before it writes the note (never push), so by the time the note exists — the same signal
-// the copilot review waits on — the work is no longer sitting uncommitted for merge or cleanup to
-// refuse. Reading the diff or pushing is still something you do from the terminal yourself.
+// commit before it writes the note (never push), so by the time the note exists the work is no
+// longer sitting uncommitted for merge or cleanup to refuse. Reading the diff or pushing is still
+// something you do from the terminal yourself.
+//
+// That ORDER has no enforcement, so the note's existence is not on its own the signal `collect()`
+// waits on: an agent that writes its report first would otherwise hand the copilot a `(no changes)`
+// diff for work that lands a second later — twice, in 0.137. So a note over an EMPTY checkout is
+// held for {@link EMPTY_DIFF_GRACE_MS} before it is collected. A card whose work is genuinely empty
+// is filed one grace window late, which costs nothing; the deadline still ends every wait.
 //
 // Once the wrapup itself is no longer pending — collected, or given up on — there is nothing left in
 // the checkout worth waiting for, so `WrapupCoordinator` tries to clean it up on its own. This is the
@@ -29,7 +35,7 @@ import { join } from "node:path";
 
 import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
-import { worktreePathFor } from "./git.ts";
+import { diffStat, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -51,16 +57,22 @@ const WRAPUP_DEADLINE_MS = 30 * 60 * 1000;
 const WRAPUP_SETTLE_MS = 10_000;
 
 /**
+ * How long a note that sits over a checkout with NOTHING in it is held before we believe it. Long
+ * enough for the commit an agent writes its note ahead of, short enough that a card with genuinely
+ * nothing to show is only reviewed a tick late. Bounded by the deadline above either way.
+ */
+const EMPTY_DIFF_GRACE_MS = 60_000;
+
+/**
  * What the agent is asked for. Deliberately not a handoff note: nobody is picking this up, so "the
  * precise next step" is the wrong question. What the review needs is a claim against the acceptance
  * criteria — including the ones the agent knows it did not meet, which is the part a diff can never
  * show and the part that becomes the next cards. Pure + exported so the wording is reviewable.
  *
- * Commit comes FIRST, ahead of the note. Nothing here polls for a commit — the note file's own
- * existence is already the signal `collect()` waits on, so ordering the ask this way is what
- * guarantees the copilot never reviews, and merge/cleanup never runs, against work still sitting
- * uncommitted. An agent that ignores the order and writes the note first defeats this the same way
- * as skipping the commit outright — there is no enforcement beyond the instruction itself.
+ * Commit comes FIRST, ahead of the note, so the copilot never reviews — and merge/cleanup never
+ * runs — against work still sitting uncommitted. Nothing here polls for a commit, and nothing
+ * enforces the order beyond the instruction itself, which is why `collect()` refuses to believe a
+ * note that measures zero until {@link EMPTY_DIFF_GRACE_MS} has passed.
  */
 export function wrapupPrompt(card: Card): string {
   const parts = [
@@ -68,7 +80,7 @@ export function wrapupPrompt(card: Card): string {
     "",
     "1. Commit everything you changed here. Do NOT push, and do not touch any other checkout.",
     `2. Write a short report of what you actually did, to ${WRAPUP_REL_PATH} (create the directory if`,
-    "   needed) — the report file is read only once it exists, so commit first.",
+    "   needed) — the report is not read until your work is committed, so commit first.",
     "",
     "The task was:",
     "",
@@ -144,10 +156,12 @@ export function fileAsDone(db: BoardDb, herdr: HerdrClient, card: Card): void {
 /**
  * Collects wrapup notes whose agent has gone quiet. Driven by the same snapshot poll as everything
  * else — no new timer (the fork's rule), and the work is one file read per pending wrapup, of which
- * there is normally zero.
+ * there is normally zero (plus one `git diff --numstat`, and only once a note is actually there).
  */
 export class WrapupCoordinator {
   private readonly inFlight = new Set<string>();
+  /** When each session's checkout was FIRST seen holding a note over nothing. See `collect`. */
+  private readonly emptySince = new Map<string, number>();
 
   constructor(
     private readonly db: BoardDb,
@@ -155,6 +169,8 @@ export class WrapupCoordinator {
     private readonly now: () => number = Date.now,
     /** Injectable so a test can watch it get called without a real repo and a real herdr. */
     private readonly cleanup: typeof cleanupCard = cleanupCard,
+    /** Injectable for the same reason — {@link probeCheckout} needs a checkout on disk. */
+    private readonly probe: typeof probeCheckout = probeCheckout,
   ) {}
 
   /** Called on every successful poll. Never throws — a wrapup must not break the loop. */
@@ -169,6 +185,7 @@ export class WrapupCoordinator {
       // something else. Clear the marker rather than letting it fire days from now.
       if (this.now() - session.handoffRequestedAt! > WRAPUP_DEADLINE_MS) {
         this.db.patchSession(session.id, { handoffRequestedAt: null });
+        this.emptySince.delete(session.id);
         this.db.recordEvent(session.cardId, "wrapup.expired", { sessionId: session.id });
         void this.autoCleanup(session.cardId);
         continue;
@@ -193,8 +210,15 @@ export class WrapupCoordinator {
     try {
       // No note yet: leave the marker and try again next tick, until the deadline gives up for us.
       // Pending, so nothing here has settled — no cleanup attempt yet either.
-      const note = await this.readNote(card);
+      const { note, empty } = await this.probe(card);
       if (note === null) return;
+      // A note over a checkout that measures ZERO is, far more often than not, an agent that wrote
+      // its report ahead of the commit the prompt asked for first. Collecting it now releases the
+      // copilot onto a `(no changes)` diff for work that lands a second later. So hold, the same way
+      // "no note yet" holds — and let go once the grace has passed, because a card really can end
+      // with nothing to show and must still be filed.
+      if (empty && !this.graceElapsed(session.id)) return;
+      this.emptySince.delete(session.id);
       this.db.patchSession(session.id, { handoffMd: note, handoffRequestedAt: null });
       this.db.recordEvent(card.id, "wrapup.collected", {
         sessionId: session.id,
@@ -202,6 +226,7 @@ export class WrapupCoordinator {
       });
     } catch (err) {
       this.db.patchSession(session.id, { handoffRequestedAt: null });
+      this.emptySince.delete(session.id);
       this.db.recordEvent(card.id, "wrapup.failed", { error: (err as Error).message });
     }
     // Reached only once the marker is actually cleared above — collected or failed, both mean the
@@ -222,14 +247,32 @@ export class WrapupCoordinator {
     await this.cleanup(this.db, this.herdr, card, {});
   }
 
-  /** The note the agent wrote, or null when it wrote none. */
-  private async readNote(card: Card): Promise<string | null> {
-    if (!card.repoPath || !card.branch) return null;
-    const checkout = await worktreePathFor(card.repoPath, card.branch);
-    if (!checkout) return null;
-    const file = Bun.file(join(checkout, WRAPUP_REL_PATH));
-    if (!(await file.exists())) return null;
-    const text = await file.slice(0, MAX_WRAPUP_BYTES).text();
-    return text.trim() || null;
+  /** Whether an empty checkout has been empty long enough to be believed. Starts the clock. */
+  private graceElapsed(sessionId: string): boolean {
+    const since = this.emptySince.get(sessionId);
+    if (since === undefined) {
+      this.emptySince.set(sessionId, this.now());
+      return false;
+    }
+    return this.now() - since >= EMPTY_DIFF_GRACE_MS;
   }
+}
+
+/**
+ * What the coordinator needs to see in a card's checkout: the note the agent wrote, and whether the
+ * checkout it wrote it in shows any work at all. One function because both answers come from the
+ * same worktree lookup, and the diff is only worth measuring once a note exists — which is normally
+ * never. `.board/` is already filtered out of a {@link diffStat}, so the note never counts as work.
+ */
+export async function probeCheckout(card: Card): Promise<{ note: string | null; empty: boolean }> {
+  const empty = { note: null, empty: true };
+  if (!card.repoPath || !card.branch) return empty;
+  const checkout = await worktreePathFor(card.repoPath, card.branch);
+  if (!checkout) return empty;
+  const file = Bun.file(join(checkout, WRAPUP_REL_PATH));
+  if (!(await file.exists())) return empty;
+  const note = (await file.slice(0, MAX_WRAPUP_BYTES).text()).trim() || null;
+  if (note === null) return empty;
+  const stat = await diffStat(checkout, card.baseRef);
+  return { note, empty: stat.files.length === 0 };
 }

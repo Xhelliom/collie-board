@@ -5,6 +5,7 @@ import { BoardDb, isPendingWrapup } from "./db.ts";
 import type { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
+import type { probeCheckout } from "./wrapup.ts";
 import { WRAPUP_REL_PATH, WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
 
 // The wrapup is the last thing an agent is asked before its card is filed. It runs on a card that has
@@ -47,6 +48,14 @@ function pending(store: BoardDb, ago: number, now: number) {
 // `cleanupCard`, so nothing here ever reaches a real socket.
 const FAKE_HERDR = {} as never;
 
+/** A checkout that always reads back the same note and the same emptiness. No repo on disk. */
+function fakeProbe(note: string | null, empty: boolean): typeof probeCheckout {
+  return async () => ({ note, empty });
+}
+
+/** Let the `void this.collect(...)` the coordinator fires actually run. */
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
 /** A stand-in for `cleanupCard` that records which cards it was asked to clean up, and nothing else. */
 function fakeCleanup(): { calls: Card[]; fn: typeof cleanupCard } {
   const calls: Card[] = [];
@@ -77,7 +86,7 @@ describe("wrapupPrompt", () => {
     expect(prompt).not.toContain("met, partly met, or not met");
   });
 
-  it("asks for the commit BEFORE the note — the note's existence is what gates the review", () => {
+  it("asks for the commit BEFORE the note — the note over an empty checkout is not believed", () => {
     const prompt = wrapupPrompt({ title: "fix the drawer", spec: null, acceptance: [] } as never);
     expect(prompt).toContain("Commit everything you changed here. Do NOT push");
     expect(prompt.indexOf("Commit everything")).toBeLessThan(prompt.indexOf(WRAPUP_REL_PATH));
@@ -175,6 +184,56 @@ describe("WrapupCoordinator", () => {
     new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(cleanup.calls).toEqual([]);
+  });
+
+  // The trap this closes: the agent wrote its report before the commit the prompt asks for first, so
+  // for a tick or two the note sits over a checkout that measures nothing. Collecting it there hands
+  // the copilot "(no changes)" and a verdict about work it never saw.
+  it("holds a note that sits over an EMPTY checkout — the commit has not landed yet", async () => {
+    const now = 10_000_000;
+    const store = db();
+    const { sessionId } = pending(store, 60_000, now);
+    const cleanup = fakeCleanup();
+
+    new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn, fakeProbe("done it", true)).update(
+      snapshot([pane("w1:p1", "idle")]),
+    );
+    await flush();
+
+    expect(store.getSession(sessionId)!.handoffMd).toBeNull();
+    expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - 60_000);
+    expect(cleanup.calls).toEqual([]);
+  });
+
+  it("collects that same note as soon as the commit shows up", async () => {
+    const now = 10_000_000;
+    const store = db();
+    const { sessionId } = pending(store, 60_000, now);
+    const coord = new WrapupCoordinator(store, FAKE_HERDR, () => now, fakeCleanup().fn, fakeProbe("done it", false));
+
+    coord.update(snapshot([pane("w1:p1", "idle")]));
+    await flush();
+
+    expect(store.getSession(sessionId)!.handoffMd).toBe("done it");
+    expect(store.getSession(sessionId)!.handoffRequestedAt).toBeNull();
+  });
+
+  it("gives up holding once the grace passes — a card can genuinely end with nothing to show", async () => {
+    let now = 10_000_000;
+    const store = db();
+    const { sessionId } = pending(store, 60_000, now);
+    const coord = new WrapupCoordinator(store, FAKE_HERDR, () => now, fakeCleanup().fn, fakeProbe("nothing to do", true));
+
+    coord.update(snapshot([pane("w1:p1", "idle")]));
+    await flush();
+    expect(store.getSession(sessionId)!.handoffMd).toBeNull();
+
+    now += 61_000;
+    coord.update(snapshot([pane("w1:p1", "idle")]));
+    await flush();
+
+    expect(store.getSession(sessionId)!.handoffMd).toBe("nothing to do");
+    expect(store.getSession(sessionId)!.handoffRequestedAt).toBeNull();
   });
 
   it("does not clean up a wrapup that is still pending — nothing has settled yet", () => {
