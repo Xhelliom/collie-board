@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.142.0] - 2026-09-08
+
+### Added
+
+- Un bouton « Relancer la review » sur la carte : le copilote relit la worktree telle qu'elle est, donc un `partial` corrigé depuis n'affiche plus le verdict du premier passage (396e9b0)
+
+### Changed
+
+- Les reviews d'une carte s'affichent de la plus récente à la plus ancienne (396e9b0)
+
 ## [0.141.1] - 2026-09-08
 
 ### Fixed
