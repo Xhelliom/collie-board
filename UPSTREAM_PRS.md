@@ -1063,7 +1063,7 @@ reached this way pages as an empty transcript. That is a second, larger brick (a
 
 | | |
 |---|---|
-| Commit | `PENDING` *feat(panes): la liste latérale regroupe les panes par space* |
+| Commit | `1edd875` *feat(panes): la liste latérale regroupe les panes par space* |
 | Files | `web/src/components/space-pane-tree.tsx` (new), `web/src/components/{agent-sidebar,pane-list-column}.tsx`, `web/src/lib/spaces.ts`, `web/src/components/status-badge.tsx`, `web/src/components/agent-chat.tsx` (one prop) |
 | Extraction | **Clean cherry-pick** bar one line: the group header reads `AgentView.branch`, which upstream doesn't have — deleting the ternary leaves the path fallback, which is already the code path for every non-card space. |
 
