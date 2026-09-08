@@ -7,6 +7,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.141.0] - 2026-09-08
+
+### Changed
+
+- La page « spaces » rend le même `<SpacePaneTree>` que la colonne desktop et la feuille de bascule : space → sa branche en style secondaire → ses panes sur le filet, au lieu d'un carton par space avec ses onglets en pastilles (2be764e)
+- Un worktree de carte est rattaché au space du repo dont il a été coupé au lieu de flotter à la racine — les trois listes d'un coup, elles partagent le corps ; un worktree dont le repo n'est pas ouvert reste à la racine (2be764e)
+- Le tri d'un space suit le pire statut de tout son sous-arbre ; les compteurs restent par space (2be764e)
+- `groupPanesBySpace()` accepte la liste des spaces (un space sans pane est listé sur la page « spaces », pas dans la feuille de bascule) ; `StatusDot` accepte un `style` (2be764e)
+
 ## [0.140.0] - 2026-09-08
 
 ### Changed

@@ -1,5 +1,5 @@
 import { blockedCount, groupPanesBySpace, groupPanesByTab, worstSpaceStatus } from "./spaces";
-import type { AgentStatus, AgentView, TabView } from "./types";
+import type { AgentStatus, AgentView, TabView, WorkspaceView } from "./types";
 
 function agent(
   partial: Partial<AgentView> & { paneId: string; workspaceId: string; tabId: string },
@@ -139,5 +139,45 @@ describe("groupPanesBySpace", () => {
 
   it("keeps the space's cwd for the header's fallback line", () => {
     expect(groupPanesBySpace([idle], [])[0]?.cwd).toBe("/home/you/demo");
+  });
+
+  // A card's worktree is a first-class space to herdr — nothing in the snapshot ties it back to the
+  // repo it was cut from except the directory herdr parked it in.
+  const repo = agent({ paneId: "wR:p1", workspaceId: "wR", tabId: "wR:t1", workspaceNumber: 1, workspaceLabel: "collie", cwd: "/home/you/git/collie" });
+  const tree = agent({ paneId: "wT:p1", workspaceId: "wT", tabId: "wT:t1", workspaceNumber: 9, workspaceLabel: "Refondre la page", cwd: "/home/you/.herdr/worktrees/collie/board-refonte", branch: "board/refonte" });
+
+  it("hangs a worktree space under the repo space it was cut from", () => {
+    const groups = groupPanesBySpace([repo, tree], []);
+    expect(groups.map((g) => g.workspaceId)).toEqual(["wR"]);
+    expect(groups[0]?.children.map((c) => c.workspaceId)).toEqual(["wT"]);
+    // The child stays a space in its own right — its own branch, its own panes, its own counters.
+    expect(groups[0]?.children[0]?.branch).toBe("board/refonte");
+    expect(groups[0]?.panes.map((p) => p.paneId)).toEqual(["wR:p1"]);
+  });
+
+  it("leaves a worktree at the top level rather than invent a parent", () => {
+    expect(groupPanesBySpace([tree], []).map((g) => g.workspaceId)).toEqual(["wT"]);
+  });
+
+  it("does not mistake a plain directory that merely shares a repo's name for a worktree", () => {
+    const sibling = agent({ paneId: "wS:p1", workspaceId: "wS", tabId: "wS:t1", workspaceNumber: 2, cwd: "/home/you/backups/collie/2026" });
+    expect(groupPanesBySpace([repo, sibling], []).map((g) => g.workspaceId)).toEqual(["wR", "wS"]);
+  });
+
+  it("pulls a repo to the top when it is a WORKTREE of it that needs you", () => {
+    const other = agent({ paneId: "wO:p1", workspaceId: "wO", tabId: "wO:t1", workspaceNumber: 0, workspaceLabel: "other", status: "working" });
+    const groups = groupPanesBySpace([{ ...repo, status: "done" }, { ...tree, status: "blocked" }, other], []);
+    // "collie" is done and would sort last on its own panes; the blocked worktree inside it wins.
+    expect(groups.map((g) => g.workspaceId)).toEqual(["wR", "wO"]);
+    // …and the count stays where it is true: the parent speaks for its own panes, the child for its.
+    expect(groups[0]?.blocked).toBe(0);
+    expect(groups[0]?.children[0]?.blocked).toBe(1);
+  });
+
+  it("lists a space that has no pane in the snapshot when the space list is passed", () => {
+    const empty: WorkspaceView = { workspaceId: "wE", number: 7, label: "fresh", focused: false, activeTabId: "wE:t1", tabCount: 1, paneCount: 0 };
+    expect(groupPanesBySpace([], [], [empty]).map((g) => g.label)).toEqual(["fresh"]);
+    // …and not when it isn't: the pane switcher lists what you can switch to.
+    expect(groupPanesBySpace([], [])).toEqual([]);
   });
 });

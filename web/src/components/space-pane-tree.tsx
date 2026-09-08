@@ -6,7 +6,7 @@ import { StatusDot } from "@/components/status-badge";
 import { groupPanesBySpace, type SpaceGroup } from "@/lib/spaces";
 import { shortCwd } from "@/lib/format";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
-import type { AgentView, TabView } from "@/lib/types";
+import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
 
 interface SpacePaneTreeProps {
   agents: AgentView[];
@@ -14,6 +14,15 @@ interface SpacePaneTreeProps {
   tabs: TabView[];
   currentPaneId: string;
   onSelect: (paneId: string) => void;
+  /** Every space, so one with no pane in the snapshot still gets a row. The Spaces page passes it —
+   *  it lists spaces; the pane switcher doesn't — it lists what you can switch to. */
+  workspaces?: WorkspaceView[];
+  /** The highlighted space. Defaults to the one holding `currentPaneId` — the Spaces page has no
+   *  open pane and passes herdr's focused space instead. */
+  activeWorkspaceId?: string;
+  /** When given, a space header drills into that space (the Spaces page). Without it the header is
+   *  plain text — the pane switcher has nowhere to drill to. */
+  onOpenSpace?: (workspaceId: string) => void;
   /** The desktop column's tighter type rung (and its pane tag). The sheet runs a phone rung. */
   dense?: boolean;
   /** Ring utility matching the surface this list sits on — it's what makes the rail read as passing
@@ -24,15 +33,30 @@ interface SpacePaneTreeProps {
 }
 
 /**
- * The pane list, grouped by space — the ONE body behind both the desktop pane column and the
- * pane-switcher sheet, so the two can't disagree about what a space contains. Herdr's sidebar shape
- * (space → its branch → its panes), not herdr's rendering: the `└─` connectors become a hairline
- * rail down the group, and each pane's status dot SITS on that rail. The rail is the hierarchy and
- * the dot is the pane's own state — one mark doing both jobs, which is what a browser buys us over
- * a terminal.
+ * Every geometry number in this file hangs off one origin: the LEFT EDGE OF THE LIST, shared by
+ * every depth. A section at depth d draws its rail at `railX(d)`; its own header dot sits at the TOP
+ * of that rail, and every row under it sits its dot on the same rail and starts its text 13px past
+ * it. A nested section steps in by one `RAIL_STEP` and reaches back to its parent's rail with a
+ * short horizontal hairline — the elbow, which is herdr's `└─` drawn instead of typed.
  *
- * Urgency didn't disappear with the triage sections, it moved a level up: `groupPanesBySpace` sorts
- * blocked spaces first and the header carries the space's blocked count.
+ * Nested sections carry no padding of their own, so an absolute `left` means the same thing at
+ * every depth. Change that and every offset below lies.
+ */
+const RAIL_STEP = 14;
+const railX = (depth: number) => 13 + RAIL_STEP * depth;
+
+/**
+ * The pane list, grouped by space — the ONE body behind the desktop pane column, the pane-switcher
+ * sheet AND the Spaces page, so the three can't disagree about what a space contains. Herdr's
+ * sidebar shape (space → its branch → its children), not herdr's rendering: the `└─` connectors
+ * become a hairline rail down the group, and each child's status dot SITS on that rail. The rail is
+ * the hierarchy and the dot is the row's own state — one mark doing both jobs, which is what a
+ * browser buys us over a terminal.
+ *
+ * The tree is two levels deep, both of them herdr's: a space, and the WORKTREE spaces cut from its
+ * repo hanging under it (`groupPanesBySpace`). Urgency didn't disappear with the triage sections, it
+ * moved a level up: spaces sort worst-first across their whole subtree and each header carries its
+ * own blocked count.
  */
 export function SpacePaneTree({
   agents,
@@ -40,14 +64,18 @@ export function SpacePaneTree({
   tabs,
   currentPaneId,
   onSelect,
+  workspaces,
+  activeWorkspaceId,
+  onOpenSpace,
   dense,
   surfaceRing = "ring-background",
   className,
 }: SpacePaneTreeProps) {
-  const groups = groupPanesBySpace(agents, shellPanes);
+  const groups = groupPanesBySpace(agents, shellPanes, workspaces);
   // The space you're reading, not the one Herdr's TUI happens to focus — this list is a phone's.
-  const activeWorkspaceId = [...agents, ...shellPanes].find((p) => p.paneId === currentPaneId)
-    ?.workspaceId;
+  const active =
+    activeWorkspaceId ??
+    [...agents, ...shellPanes].find((p) => p.paneId === currentPaneId)?.workspaceId;
 
   return (
     <div className={cn("flex flex-col gap-2.5 px-2 py-3", className)}>
@@ -55,10 +83,11 @@ export function SpacePaneTree({
         <SpaceSection
           key={g.workspaceId}
           group={g}
-          active={g.workspaceId === activeWorkspaceId}
+          activeWorkspaceId={active}
           tabs={tabs}
           currentPaneId={currentPaneId}
           onSelect={onSelect}
+          onOpenSpace={onOpenSpace}
           dense={dense}
           surfaceRing={surfaceRing}
         />
@@ -69,44 +98,60 @@ export function SpacePaneTree({
 
 function SpaceSection({
   group,
-  active,
+  activeWorkspaceId,
   tabs,
   currentPaneId,
   onSelect,
+  onOpenSpace,
   dense,
   surfaceRing,
+  depth = 0,
 }: {
   group: SpaceGroup;
-  active: boolean;
+  activeWorkspaceId: string | undefined;
   tabs: TabView[];
   currentPaneId: string;
   onSelect: (paneId: string) => void;
+  onOpenSpace?: (workspaceId: string) => void;
   dense?: boolean;
   surfaceRing: string;
+  depth?: number;
 }) {
+  const active = group.workspaceId === activeWorkspaceId;
   const spansTabs = new Set(group.panes.map((p) => p.tabId)).size > 1;
-  return (
-    <section className="flex flex-col">
-      <div
-        className={cn(
-          "flex items-start gap-2 rounded-[10px] px-2 py-1.5",
-          active && "bg-brand/10",
-        )}
-      >
-        {/* The space's worst status. No screen-reader text on it: it only ever summarises rows that
-            each announce their own status, and the blocked count below says the part that matters. */}
-        {group.status ? (
-          <StatusDot status={group.status} className="mt-1" />
-        ) : (
-          <span className="mt-1 size-2.5 shrink-0 rounded-full border border-muted-foreground/40" />
-        )}
+  const rail = railX(depth);
 
-        <div className="min-w-0 flex-1">
-          <h3 className={cn("truncate font-semibold", dense ? "text-[13px]" : "text-sm")}>
-            {group.label}
-          </h3>
-          {/* The space's branch, secondary under its name. No branch known (a space nobody filed a
-              card for) — the path stands in, marked by its own icon rather than dressed up as a ref. */}
+  const header = (
+    <>
+      {/* The elbow: the one horizontal stroke that says "this space was cut from the one above". A
+          drawn hairline, not a `└─` — same job, none of the terminal's typography. */}
+      {depth > 0 && (
+        <span
+          aria-hidden="true"
+          className="absolute h-px rounded-full bg-muted-foreground/40"
+          style={{ left: rail - RAIL_STEP, top: 15, width: RAIL_STEP }}
+        />
+      )}
+
+      {/* The space's worst status, sitting at the head of its own rail. No screen-reader text on it:
+          it only ever summarises rows that each announce their own status, and the blocked count
+          below says the part that matters. */}
+      {group.status ? (
+        <StatusDot status={group.status} className="absolute" style={{ left: rail - 5, top: 10 }} />
+      ) : (
+        <span
+          className="absolute size-2.5 rounded-full border border-muted-foreground/40"
+          style={{ left: rail - 5, top: 10 }}
+        />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <h3 className={cn("truncate font-semibold", dense ? "text-[13px]" : "text-sm")}>
+          {group.label}
+        </h3>
+        {/* The space's branch, secondary under its name. No branch known (a space nobody filed a
+            card for) — the path stands in, marked by its own icon rather than dressed up as a ref. */}
+        {(group.branch || group.cwd) && (
           <p className="flex min-w-0 items-center gap-1">
             {group.branch ? (
               <GitBranch className="size-3 shrink-0 text-muted-foreground/85" />
@@ -125,21 +170,47 @@ function SpaceSection({
               {group.branch ?? shortCwd(group.cwd)}
             </span>
           </p>
-        </div>
-
-        {group.blocked > 0 ? (
-          <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-status-blocked/15 px-1.5 py-px text-[11px] font-semibold tabular-nums text-status-blocked">
-            <span aria-hidden="true" className="size-[5px] rounded-full bg-status-blocked" />
-            {group.blocked}
-            <span className="sr-only">needing you</span>
-          </span>
-        ) : (
-          <span className="mt-1 shrink-0 text-[11px] tabular-nums text-muted-foreground">
-            {group.panes.length}
-            <span className="sr-only"> panes</span>
-          </span>
         )}
       </div>
+
+      {group.blocked > 0 ? (
+        <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-status-blocked/15 px-1.5 py-px text-[11px] font-semibold tabular-nums text-status-blocked">
+          <span aria-hidden="true" className="size-[5px] rounded-full bg-status-blocked" />
+          {group.blocked}
+          <span className="sr-only">needing you</span>
+        </span>
+      ) : (
+        <span className="mt-1 shrink-0 text-[11px] tabular-nums text-muted-foreground">
+          {group.panes.length}
+          <span className="sr-only"> panes</span>
+        </span>
+      )}
+    </>
+  );
+
+  const headerClass = cn(
+    "relative flex w-full items-start gap-2 rounded-[10px] py-1.5 pr-2 text-left",
+    active && "bg-brand/10",
+    onOpenSpace && "transition-colors hover:bg-muted/60 active:bg-muted",
+  );
+  const headerStyle = { paddingLeft: rail + 13 };
+
+  return (
+    <section className="flex flex-col">
+      {onOpenSpace ? (
+        <button
+          type="button"
+          onClick={() => onOpenSpace(group.workspaceId)}
+          className={headerClass}
+          style={headerStyle}
+        >
+          {header}
+        </button>
+      ) : (
+        <div className={headerClass} style={headerStyle}>
+          {header}
+        </div>
+      )}
 
       <div className="relative pt-0.5">
         {/* The hierarchy, drawn: one hairline from the header down through the group, fading out
@@ -147,13 +218,14 @@ function SpaceSection({
         <span
           aria-hidden="true"
           className={cn(
-            "absolute bottom-4 left-[13px] top-0 w-px rounded-full bg-linear-to-b",
+            "absolute bottom-4 top-0 w-px rounded-full bg-linear-to-b",
             // --border sits a hair too close to every surface this list is painted on to read as a
             // line; the muted foreground is the same neutral, far enough off to be a hairline.
             active
               ? "from-brand/70 via-brand/45 to-transparent"
               : "from-muted-foreground/30 via-muted-foreground/16 to-transparent",
           )}
+          style={{ left: rail }}
         />
         {group.panes.map((p) => (
           <PaneRow
@@ -165,6 +237,22 @@ function SpaceSection({
             dense={dense}
             surfaceRing={surfaceRing}
             showTab={spansTabs}
+            rail={rail}
+          />
+        ))}
+        {/* The worktrees of this space's repo — herdr's `└─` children, one level in. */}
+        {group.children.map((child) => (
+          <SpaceSection
+            key={child.workspaceId}
+            group={child}
+            activeWorkspaceId={activeWorkspaceId}
+            tabs={tabs}
+            currentPaneId={currentPaneId}
+            onSelect={onSelect}
+            onOpenSpace={onOpenSpace}
+            dense={dense}
+            surfaceRing={surfaceRing}
+            depth={depth + 1}
           />
         ))}
       </div>
@@ -180,6 +268,7 @@ function PaneRow({
   dense,
   surfaceRing,
   showTab,
+  rail,
 }: {
   pane: AgentView;
   tabLabel: string | undefined;
@@ -188,6 +277,7 @@ function PaneRow({
   dense?: boolean;
   surfaceRing: string;
   showTab: boolean;
+  rail: number;
 }) {
   const isShell = pane.kind === "shell";
   const tag = pane.paneId.split(":").pop();
@@ -199,17 +289,19 @@ function PaneRow({
       aria-label={`${paneDisplayName(pane)}, ${STATUS_LABEL[pane.status]}`}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex w-full min-w-0 items-center gap-2.5 rounded-[10px] py-2 pl-[26px] pr-2.5 text-left transition-colors",
+        "relative flex w-full min-w-0 items-center gap-2.5 rounded-[10px] py-2 pr-2.5 text-left transition-colors",
         // A thumb needs 44px even when the row is down to one line.
         !dense && "min-h-11",
         active ? "bg-brand/16 text-brand" : "text-foreground hover:bg-muted/60 active:bg-muted",
       )}
+      style={{ paddingLeft: rail + 13 }}
     >
       {/* The row's own status, sitting ON the rail: the attachment point IS the indicator. The ring
           is the list's background, so the hairline reads as passing behind the dot. */}
       <StatusDot
         status={pane.status}
-        className={cn("absolute left-[9.5px] top-1/2 size-[7px] -translate-y-1/2 ring-[3px]", surfaceRing)}
+        className={cn("absolute top-1/2 size-[7px] -translate-y-1/2 ring-[3px]", surfaceRing)}
+        style={{ left: rail - 3.5 }}
       />
 
       {isShell ? (
