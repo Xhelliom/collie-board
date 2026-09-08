@@ -1,37 +1,42 @@
-import { FolderPlus, Plus } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { StatusDot } from "@/components/status-badge";
-import { blockedCount, worstSpaceStatus } from "@/lib/spaces";
-import { STATUS_LABEL } from "@/lib/types";
+import { SpacePaneTree } from "@/components/space-pane-tree";
 import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
 
 interface SpaceOverviewProps {
   workspaces: WorkspaceView[];
   tabs: TabView[];
   agents: AgentView[];
+  shellPanes: AgentView[];
   onOpen: (workspaceId: string) => void;
-  onSelectTab: (workspaceId: string, tabId: string) => void;
-  onNewTab: (workspaceId: string) => void;
+  onOpenPane: (paneId: string) => void;
   onNewSpace: () => void;
 }
 
-// The Spaces root tab (redesign §9): one card per space, its status dot in the worst-agent tone, its
-// tabs riding inside the card as their own chips — tap one to land straight on that tab, tap the
-// card's own header (or anywhere else on it) for the usual drill-in. This replaced the compact list
-// row the dashboard used to embed; a space is now its own screen, so it can afford the room.
+/**
+ * The Spaces root tab — the same `SpacePaneTree` the desktop pane column and the pane switcher
+ * render, so the three can't disagree about what a space holds or what hangs under it. Herdr's
+ * shape: a space, its current branch under its name, its panes on a hairline rail, and the WORKTREE
+ * spaces cut from its repo nested one level in (`groupPanesBySpace`) — which is what this screen's
+ * card grid could never show: a card's worktree used to float here as its own top-level card, named
+ * after a truncated card title, with nothing tying it to the repo it came from.
+ *
+ * Tapping a space header drills into it (tabs, tab creation, the pane grid); tapping a row opens
+ * that pane. `workspaces` goes in so a space with no pane in the snapshot still gets a row — this
+ * screen lists spaces, not just what you can switch to.
+ */
 export function SpaceOverview({
   workspaces,
   tabs,
   agents,
+  shellPanes,
   onOpen,
-  onSelectTab,
-  onNewTab,
+  onOpenPane,
   onNewSpace,
 }: SpaceOverviewProps) {
   return (
-    <section className="flex flex-col gap-3 px-4 py-5 lg:px-5 lg:py-6">
-      <div className="flex items-center justify-between">
+    <section className="flex flex-col px-2 py-3 lg:px-3">
+      <div className="flex items-center justify-between px-2">
         <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
           Spaces <span className="opacity-60">({workspaces.length})</span>
         </h2>
@@ -48,64 +53,18 @@ export function SpaceOverview({
       {workspaces.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">No spaces yet.</p>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
-          {workspaces.map((w) => {
-            const status = worstSpaceStatus(w.workspaceId, agents);
-            const blocked = blockedCount(w.workspaceId, agents) > 0;
-            const wsTabs = tabs.filter((t) => t.workspaceId === w.workspaceId);
-            return (
-              <div
-                key={w.workspaceId}
-                className={cn(
-                  "flex flex-col gap-2.5 rounded-2xl border border-border bg-card p-3.5",
-                  blocked && "border-status-blocked/45 bg-status-blocked/8",
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => onOpen(w.workspaceId)}
-                  className="flex items-center gap-2.5 text-left"
-                >
-                  {status ? (
-                    <>
-                      <StatusDot status={status} />
-                      {/* The dot alone is color-only; give SR users the status word. */}
-                      <span className="sr-only">{STATUS_LABEL[status]}</span>
-                    </>
-                  ) : (
-                    <span className="size-2.5 shrink-0 rounded-full border border-muted-foreground/40" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate text-[17px] font-semibold">{w.label}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                    {w.tabCount} tab{w.tabCount === 1 ? "" : "s"} · {w.paneCount} pane
-                    {w.paneCount === 1 ? "" : "s"}
-                  </span>
-                </button>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {wsTabs.map((t) => (
-                    <button
-                      key={t.tabId}
-                      type="button"
-                      onClick={() => onSelectTab(w.workspaceId, t.tabId)}
-                      className="rounded-full bg-muted px-2.5 py-[3px] text-xs font-medium text-foreground transition-colors hover:bg-muted/70 active:scale-95"
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => onNewTab(w.workspaceId)}
-                    aria-label={`New tab in ${w.label}`}
-                    className="flex size-[26px] items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted active:scale-95"
-                  >
-                    <Plus className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <SpacePaneTree
+          agents={agents}
+          shellPanes={shellPanes}
+          tabs={tabs}
+          workspaces={workspaces}
+          // No pane is open on this screen; the space herdr has focused is the one to mark.
+          currentPaneId=""
+          activeWorkspaceId={workspaces.find((w) => w.focused)?.workspaceId}
+          onSelect={onOpenPane}
+          onOpenSpace={onOpen}
+          className="px-0"
+        />
       )}
     </section>
   );
