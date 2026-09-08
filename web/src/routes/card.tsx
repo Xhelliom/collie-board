@@ -77,6 +77,7 @@ import {
   reformulateCard,
   repoName,
   revertCard,
+  reviewCard,
   startCard,
   verdictChip,
   type CardInput,
@@ -134,6 +135,8 @@ export function CardRoute() {
   const [confirmRework, setConfirmRework] = useState(false);
   /** Is the copilot correction box open — see the Rework section. */
   const [refining, setRefining] = useState(false);
+  /** The "Review again" tap, until the bridge answers — past that `copilotBusy` carries it. */
+  const [reviewing, setReviewing] = useState(false);
   // Lifted out of <IntegrationSection> for one reason: "Done" must not be offered on its own while
   // the branch still holds commits. Filing first is the order everybody reaches for and it is the
   // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
@@ -401,6 +404,24 @@ export function CardRoute() {
     setStatus("Correction sent — the card rewrites itself in a minute.", "info");
     setRefining(false);
     revalidator.revalidate();
+  }
+
+  // The third copilot call on this screen, and the only one about the WORK rather than the card's
+  // wording: a `partial` verdict is a to-do list you go and do, and nothing said so afterwards. The
+  // review re-reads the worktree as it stands now (uncommitted work included — bridge/git.ts
+  // `diffStat`), so the new verdict judges what is there, not what was there at the first pass.
+  async function reviewAgain() {
+    if (!card) return;
+    setReviewing(true);
+    try {
+      await reviewCard(card.id);
+      setStatus("Review relancée — le nouveau verdict arrive dans une minute.", "info");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setReviewing(false);
+      revalidator.revalidate();
+    }
   }
 
   async function remove() {
@@ -824,7 +845,29 @@ export function CardRoute() {
                 {detail && detail.reviews.length > 0 && (
                   <Section label="Review">
                     <div className="flex flex-col gap-2">
-                      {detail.reviews.map((r) => (
+                      {/* Reopen a `partial`, do the missing work, and the card still shows the old
+                          verdict — nothing on this screen said "look again". This is that tap. Not
+                          gated on the verdict: a `complete` re-read after more commits is the same
+                          question, and one more agent turn is the operator's call to spend. */}
+                      <div className="flex items-center gap-2">
+                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                          Le travail a bougé depuis ? Le copilote relit la worktree telle qu'elle est.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 shrink-0 gap-2"
+                          disabled={reviewing || card.copilotBusy}
+                          onClick={() => void reviewAgain()}
+                        >
+                          <Sparkles className="size-4" />
+                          {reviewing || card.copilotBusy ? "Review en cours…" : "Relancer la review"}
+                        </Button>
+                      </div>
+                      {/* Newest FIRST, unlike every other history on this screen: a re-review exists
+                          precisely because the old verdict is the stale one, and appending it under
+                          the report it replaces would leave the card saying what it said before. */}
+                      {[...detail.reviews].reverse().map((r) => (
                         <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
                           <div className="flex items-center gap-2 text-sm">
                             <span className={cn(CHIP_SHELL, verdictChip(r.verdict))}>
