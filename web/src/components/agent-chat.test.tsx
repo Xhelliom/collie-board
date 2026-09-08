@@ -102,7 +102,9 @@ describe("AgentChat — header title block", () => {
     // real, unrelated behaviour this test isn't about.
     const banner = within(screen.getByRole("banner"));
     expect(banner.getByText("webapp")).toBeInTheDocument(); // space leads
-    expect(screen.getByText("~/webapp")).toBeInTheDocument(); // directory on the subline
+    // Banner-scoped: the pane list's own header for this space prints the same path (it has no
+    // branch to show for a hand-launched pane), which is that list's business, not this test's.
+    expect(banner.getByText("~/webapp")).toBeInTheDocument(); // directory on the subline
     // The agent is conveyed by its icon (aria-label only) in the HEADER specifically, so its name
     // isn't repeated as text there.
     expect(banner.queryByText(/claude/i)).toBeNull();

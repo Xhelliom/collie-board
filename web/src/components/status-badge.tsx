@@ -20,7 +20,9 @@ const CHIP: Record<AgentStatus, string> = {
 
 export function StatusDot({ status, className }: { status: AgentStatus; className?: string }) {
   return (
-    <span className={cn("relative flex size-2.5 shrink-0", className)}>
+    // The size lives on the WRAPPER (and the fill follows with size-full), so a caller can hand the
+    // dot another size — or a ring — through `className` without the inner disc ignoring it.
+    <span className={cn("relative flex size-2.5 shrink-0 rounded-full", className)}>
       {status === "working" && (
         <span
           className={cn(
@@ -29,7 +31,7 @@ export function StatusDot({ status, className }: { status: AgentStatus; classNam
           )}
         />
       )}
-      <span className={cn("relative inline-flex size-2.5 rounded-full", DOT[status])} />
+      <span className={cn("relative inline-flex size-full rounded-full", DOT[status])} />
     </span>
   );
 }

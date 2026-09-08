@@ -1,4 +1,4 @@
-import { blockedCount, groupPanesByTab, worstSpaceStatus } from "./spaces";
+import { blockedCount, groupPanesBySpace, groupPanesByTab, worstSpaceStatus } from "./spaces";
 import type { AgentStatus, AgentView, TabView } from "./types";
 
 function agent(
@@ -99,5 +99,45 @@ describe("worstSpaceStatus", () => {
   it("ranks unknown between working and idle", () => {
     expect(worstSpaceStatus("w1", [mk("idle"), mk("unknown")])).toBe("unknown");
     expect(worstSpaceStatus("w1", [mk("working"), mk("unknown")])).toBe("working");
+  });
+});
+
+describe("groupPanesBySpace", () => {
+  const blocked = agent({ paneId: "w2:p1", workspaceId: "w2", tabId: "w2:t1", workspaceNumber: 2, workspaceLabel: "two", status: "blocked" });
+  const idle = agent({ paneId: "w1:p1", workspaceId: "w1", tabId: "w1:t1", workspaceLabel: "one" });
+  const shell = agent({ paneId: "w1:p2", workspaceId: "w1", tabId: "w1:t1", workspaceLabel: "one", kind: "shell", status: "unknown" });
+
+  it("collects a space's agents and shells into one group", () => {
+    const [one] = groupPanesBySpace([idle], [shell]);
+    expect(one?.workspaceId).toBe("w1");
+    expect(one?.label).toBe("one");
+    expect(one?.panes.map((p) => p.paneId)).toEqual(["w1:p1", "w1:p2"]);
+  });
+
+  it("sorts the space needing you first, whatever order the snapshot sent", () => {
+    const groups = groupPanesBySpace([idle, blocked], []);
+    expect(groups.map((g) => g.workspaceId)).toEqual(["w2", "w1"]);
+    expect(groups[0]?.blocked).toBe(1);
+    expect(groups[1]?.blocked).toBe(0);
+  });
+
+  it("ranks a space on its worst agent, and a shell-only space last", () => {
+    const shellOnly = groupPanesBySpace([blocked], [shell]);
+    expect(shellOnly.map((g) => g.workspaceId)).toEqual(["w2", "w1"]);
+    expect(shellOnly[1]?.status).toBeNull(); // only a shell in it — no agent status to show
+  });
+
+  it("takes the space's branch from whichever pane in it backs a card", () => {
+    const carded = { ...shell, branch: undefined };
+    const group = groupPanesBySpace([{ ...idle, branch: "board/x" }], [carded])[0];
+    expect(group?.branch).toBe("board/x");
+  });
+
+  it("reports no branch rather than guessing one when no pane carries it", () => {
+    expect(groupPanesBySpace([idle], [])[0]?.branch).toBeNull();
+  });
+
+  it("keeps the space's cwd for the header's fallback line", () => {
+    expect(groupPanesBySpace([idle], [])[0]?.cwd).toBe("/home/you/demo");
   });
 });

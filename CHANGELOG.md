@@ -7,6 +7,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.140.0] - 2026-09-08
+
+### Changed
+
+- La liste latérale de panes (colonne desktop et feuille de bascule) est groupée par SPACE au lieu du triage : un en-tête par space, sa branche (ou son chemin, faute de carte) juste dessous, ses panes rattachés par un filet vertical sur lequel se pose la pastille d'état de chaque ligne ; les spaces sont triés au pire statut d'abord et l'en-tête porte le compte de bloqués (1edd875)
+- Les deux listes de panes ne sont plus qu'un composant, `<SpacePaneTree>` — elles avaient deux copies de la ligne (1edd875)
+- `StatusDot` prend sa taille de son wrapper ; la 2ᵉ ligne d'un pane n'affiche son onglet que si son space en couvre plusieurs (1edd875)
+
 ## [0.139.0] - 2026-09-07
 
 ### Added
