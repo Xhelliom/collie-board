@@ -37,7 +37,7 @@ import type {
   TinyTodo,
 } from "./db.ts";
 import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
-import { cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
+import { cardDiffStat, cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
@@ -866,6 +866,18 @@ async function route(
     if (!db.getCard(id)) return text("card not found", 404);
     if (!ctx.cfg.boardCopilot) {
       return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    }
+    // No worktree, no review. `cardDiffSummary` answers "(no worktree for this card)" rather than
+    // failing, so without this the copilot would dutifully judge that sentence and file a verdict
+    // about nothing — on top of the real one. A `done` card is the case that gets here: wrapup's
+    // `autoCleanup` removes the checkout once the branch has landed. Guarded on the ROUTE, not on
+    // the button, because the card screen's other "review again" (card-diff.tsx) calls the same
+    // thing and a future caller would too.
+    if (!(await cardDiffStat(db, id))) {
+      return ctx.json(
+        { ok: false, error: "this card has no worktree left to review", kind: "no-worktree" },
+        409,
+      );
     }
     // Background, like every other copilot call: it is an agent turn behind a one-at-a-time queue,
     // and the verdict lands in the Review section the card screen already polls.

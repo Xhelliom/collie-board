@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
 import {
   convertible,
+  CardRoute,
   ConvertNowButton,
   CopyPromptButton,
   DangerZone,
@@ -19,7 +21,8 @@ import {
   TinyTodoRow,
   topOfColumn,
 } from "./card.tsx";
-import type { BoardEvent, CardStatus, CardView, Integration } from "@/lib/board";
+import type { BoardEvent, CardDetail, CardStatus, CardView, Integration } from "@/lib/board";
+import type { CardData } from "@/lib/board-loaders";
 
 function card(status: CardStatus): CardView {
   return {
@@ -551,5 +554,59 @@ describe("CopyPromptButton", () => {
 
     render(<CopyPromptButton cardId="aaa-111" />);
     expect(screen.getByRole("button", { name: /aaa-111/ })).toBeDisabled();
+  });
+});
+
+// A `partial` verdict is a to-do list you go and do — and until this button, nothing on the card
+// asked the copilot to look again, so the screen kept showing the verdict of the first pass.
+describe("Review section — asking for the verdict again", () => {
+  function review(id: string, verdict: string, createdAt: number) {
+    return { id, cardId: "c1", sessionId: "s1", verdict, notes: null, todos: [], createdAt };
+  }
+
+  async function mount() {
+    const detail: CardDetail = {
+      card: { ...card("done"), id: "c1", title: "The card", parentId: null },
+      predecessor: null,
+      parent: null,
+      originCard: null,
+      duplicate: null,
+      children: [],
+      sessions: [],
+      // Oldest first, as the bridge returns them (db.listReviews ORDER BY created_at).
+      reviews: [review("r1", "partial", 1), review("r2", "complete", 2)],
+      events: [],
+    };
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/card/:cardId",
+          loader: (): CardData => ({ cardId: "c1", detail, error: false, authError: false }),
+          element: <CardRoute />,
+        },
+      ],
+      { initialEntries: ["/card/c1"] },
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByRole("button", { name: /relancer la review/i });
+  }
+
+  it("shows the newest verdict above the one it replaces", async () => {
+    await mount();
+    const verdicts = screen.getAllByText(/^(complete|partial)$/).map((el) => el.textContent);
+    expect(verdicts).toEqual(["complete", "partial"]);
+  });
+
+  it("asks the bridge to review the card again", async () => {
+    const hits: string[] = [];
+    server.use(
+      http.post("/api/cards/:id/review", ({ params }) => {
+        hits.push(String(params.id));
+        return HttpResponse.json({ ok: true, card: { ...card("done"), id: "c1" } });
+      }),
+    );
+    await mount();
+    await userEvent.click(screen.getByRole("button", { name: /relancer la review/i }));
+    expect(hits).toEqual(["c1"]);
   });
 });
