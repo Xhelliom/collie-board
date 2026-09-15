@@ -25,8 +25,10 @@
 import { isAgentGone, lastSessionOf, promptAndConfirm } from "./cards.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
+  cardDiffStat,
   createPr,
   deleteBranch,
+  formatDiffStat,
   integrationOf,
   mergeIntoBase,
   prStatusOf,
@@ -135,11 +137,24 @@ async function gate(
   return { ok: true, state: state! };
 }
 
+/**
+ * The card's `--stat` at the moment its work lands, spread into that gesture's journal entry. Past a
+ * merge the diff reads zero (the base now contains the branch) and past a cleanup there is no checkout
+ * left, yet a review asked for again still has to judge this work — git.ts `landedStat` reads it back.
+ * Omitted when it measures nothing: an empty stat is the very reading this stands in for.
+ */
+async function landingStat(db: BoardDb, card: Card): Promise<{ stat?: string }> {
+  const stat = await cardDiffStat(db, card.id);
+  return stat?.files.length ? { stat: formatDiffStat(stat) } : {};
+}
+
 /** Merge the card's branch into its base. Local only — the push stays the operator's call. */
 export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base: string; ahead: number }>> {
   const checked = await gate(card, "merge");
   if (!checked.ok) return checked;
   const { state } = checked;
+  // BEFORE the merge: after it, the base contains the branch and the same measure reads zero.
+  const landing = await landingStat(db, card);
 
   const merged = await mergeIntoBase(card.repoPath!, state.branch);
   if (!merged.ok) {
@@ -181,7 +196,7 @@ export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base:
     }
     return { ok: false, error: { kind: "git", message: merged.error } };
   }
-  db.recordEvent(card.id, "card.merged", { branch: state.branch, base: state.base, ahead: state.ahead });
+  db.recordEvent(card.id, "card.merged", { branch: state.branch, base: state.base, ahead: state.ahead, ...landing });
   return { ok: true, value: { base: state.base, ahead: state.ahead } };
 }
 
@@ -340,6 +355,9 @@ export async function cleanupCard(
     return { ok: false, error: { kind: "refused", message: "this card has no branch to discard" } };
   }
   const branch = state!.branch;
+  // While there is still a checkout to measure. Not on a discard: that work is thrown away, and a
+  // review of it is a review of nothing.
+  const landing = opts.discard ? {} : await landingStat(db, card);
 
   const session = db.openSessionFor(card.id);
   if (session?.paneId) {
@@ -390,7 +408,7 @@ export async function cleanupCard(
   }
   db.recordEvent(card.id, opts.discard ? "card.discarded" : "card.cleaned_up", {
     branch,
-    ...(opts.discard ? { commits: state!.ahead, uncommitted: state!.branchDirty } : {}),
+    ...(opts.discard ? { commits: state!.ahead, uncommitted: state!.branchDirty } : landing),
   });
   return { ok: true, value: { branch, discarded: opts.discard ? state!.ahead : 0 } };
 }
