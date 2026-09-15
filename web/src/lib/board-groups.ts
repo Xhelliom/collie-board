@@ -162,6 +162,8 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
 export function prSentence(status: PrStatus | null, openedTs: number): string {
   if (status?.state === "merged") return `PR merged · ${timeAgo(status.mergedAt ?? openedTs)}`;
   if (status?.state === "closed") return `PR closed without merging · opened ${timeAgo(openedTs)}`;
+  // ADR 0014: clean when opened, it can conflict later — after the card was filed and cleaned up.
+  if (status?.conflicting) return `PR conflicts with its base · opened ${timeAgo(openedTs)}`;
   // Open, or unknown: both are honestly described by when it was opened.
   return `PR opened ${timeAgo(openedTs)}`;
 }

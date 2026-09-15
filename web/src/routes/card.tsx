@@ -1437,6 +1437,15 @@ export function IntegrationSection({
                 </a>
               </>
             )}
+            {/* GitHub's own editor: fine for a trivial conflict, no build and no tests (ADR 0014). */}
+            {pr?.conflicting && (
+              <>
+                {" · "}
+                <a href={`${pr.url}/conflicts`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                  resolve on GitHub
+                </a>
+              </>
+            )}
           </span>
         )}
         {/* No claim about WHERE the work went: cleanup takes a branch that is merged OR merely
