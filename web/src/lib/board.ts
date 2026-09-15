@@ -869,6 +869,8 @@ export interface PrStatus {
   url: string;
   /** Epoch ms, null unless it was merged. */
   mergedAt: number | null;
+  /** Open and GitHub says it conflicts with its base. False while GitHub hasn't computed it. */
+  conflicting: boolean;
 }
 
 /**

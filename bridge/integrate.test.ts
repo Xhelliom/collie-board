@@ -90,7 +90,19 @@ describe("parsePrView", () => {
       state: "merged",
       url: "https://github.com/o/r/pull/1",
       mergedAt: Date.parse("2026-08-24T15:37:36Z"),
+      conflicting: false,
     });
+  });
+
+  it("says an open PR conflicts only once GitHub has computed it", () => {
+    const conflicting = (state: string, mergeable: string) =>
+      parsePrView(JSON.stringify({ state, mergeable, mergedAt: null, url: "https://gh/o/r/pull/5" }))?.conflicting;
+    expect(conflicting("OPEN", "CONFLICTING")).toBe(true);
+    expect(conflicting("OPEN", "MERGEABLE")).toBe(false);
+    // UNKNOWN is GitHub still working it out — the seconds after a push, say. No state is guessed.
+    expect(conflicting("OPEN", "UNKNOWN")).toBe(false);
+    // Only an open PR has a conflict left to resolve.
+    expect(conflicting("CLOSED", "CONFLICTING")).toBe(false);
   });
 
   it("keeps a closed PR distinct from an open one", () => {
@@ -100,6 +112,7 @@ describe("parsePrView", () => {
       state: "open",
       url: "https://gh/o/r/pull/3",
       mergedAt: null,
+      conflicting: false,
     });
   });
 
@@ -117,7 +130,7 @@ describe("prStatusOf", () => {
       "pr view": { stdout: '{"state":"MERGED","mergedAt":"2026-08-24T15:37:36Z","url":"https://gh/o/r/pull/1"}' },
     });
     expect((await prStatusOf("/repo", "board/x", git))?.state).toBe("merged");
-    expect(calls[0]).toEqual(["pr", "view", "board/x", "--json", "state,mergedAt,url"]);
+    expect(calls[0]).toEqual(["pr", "view", "board/x", "--json", "state,mergedAt,url,mergeable"]);
   });
 
   it("degrades to null rather than to an error — no gh, no auth, no remote, no PR", async () => {

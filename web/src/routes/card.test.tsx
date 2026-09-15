@@ -444,6 +444,25 @@ describe("IntegrationSection — the PR outlives the branch", () => {
     cleanup();
   });
 
+  // ADR 0014: clean when opened, a PR can conflict later — once the card is filed and its worktree gone.
+  it("says a filed card's open PR now conflicts, with GitHub's resolve page", async () => {
+    server.use(
+      http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })),
+      http.get("*/api/cards/:id/pr", () =>
+        HttpResponse.json({
+          pr: { state: "open", url: "https://github.com/o/r/pull/42", mergedAt: null, conflicting: true },
+        }),
+      ),
+    );
+    render(
+      <IntegrationSection card={card("done")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    await screen.findByText(/conflicts with its base/i);
+    const link = screen.getByRole("link", { name: /resolve on github/i });
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/42/conflicts");
+    cleanup();
+  });
+
   // The other half of the same surface: a card filed with `keepWorktree` on still has a branch, so
   // `integration` answers and the section takes its MAIN return. That path renders the PR through the
   // very same `prLink` — this test is what stops a `filing &&` from creeping back in front of it.
