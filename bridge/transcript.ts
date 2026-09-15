@@ -43,7 +43,7 @@ import { readdir, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 
-import { containedIn, galleryRoot, isImagePath } from "./gallery.ts";
+import { containedIn, galleryRoot, IMAGE_TYPES, isImagePath } from "./gallery.ts";
 
 /** First bytes of a file — enough to find the root entry without reading a multi-megabyte log. */
 async function head(path: string, bytes = 64 * 1024): Promise<string> {
@@ -61,6 +61,12 @@ const MAX_RESULT_CHARS = 2000;
 
 /** Per-text-part cap. Generous — assistant prose is the thing you actually came to read. */
 const MAX_TEXT_CHARS = 20_000;
+
+/**
+ * Per-picture cap on an image a tool returned inline, in base64 chars. It rides inside the page, so
+ * past this the tool line stands alone. Measured 2026-09-15: Chrome screenshots peak near 670 KB.
+ */
+const MAX_IMAGE_CHARS = 1024 * 1024;
 
 /** How many parsed transcripts to keep hot. Each is re-parsed only when the file's size/mtime moves. */
 const CACHE_MAX = 4;
@@ -83,9 +89,10 @@ export type TranscriptPart =
       summary: string;
       result?: { text: string; truncated?: boolean; isError?: boolean };
       /**
-       * Absolute path of the image this call touched, when it touched one the gallery route can
-       * actually serve (see {@link toolImagePath}). The client renders the picture in place of the
-       * tool line — "Read /…/render.png" is the one tool call whose own output is the point.
+       * The picture this call touched. Either the absolute path of an image it NAMED that the gallery
+       * route can serve (see {@link toolImagePath}) — rendered in place of the tool line, "Read
+       * /…/render.png" being the one call whose own output is the point — or a `data:` URL for one it
+       * RETURNED inline, which exists nowhere else (see {@link toolResultImage}).
        */
       image?: string;
     };
@@ -274,6 +281,38 @@ function toolResultText(content: unknown): string {
     .join("\n");
 }
 
+/** What an inline picture may claim to be — the gallery's own list, so still no SVG. */
+const INLINE_IMAGE_TYPES = new Set(Object.values(IMAGE_TYPES));
+
+/**
+ * The picture a tool RETURNED, as a `data:` URL, or null. A Claude in Chrome screenshot is never a
+ * file: it is a base64 `image` block inside the `tool_result` and nothing else (verified against Claude
+ * Code 2.1.272, 2026-09-15), so {@link toolImagePath} has no path to find. The last valid block wins —
+ * a `browser_batch` that screenshots before and after acting ends on the state it left.
+ *
+ * ponytail: one picture per call; a batch's earlier screenshots are dropped. `image` becomes a list
+ * the day someone needs them.
+ */
+export function toolResultImage(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  let found: string | null = null;
+  for (const block of content) {
+    const b = block as { type?: unknown; source?: { type?: unknown; media_type?: unknown; data?: unknown } } | null;
+    const s = b?.type === "image" ? b.source : undefined;
+    if (
+      s?.type === "base64" &&
+      typeof s.media_type === "string" &&
+      INLINE_IMAGE_TYPES.has(s.media_type) &&
+      typeof s.data === "string" &&
+      s.data !== "" &&
+      s.data.length <= MAX_IMAGE_CHARS
+    ) {
+      found = `data:${s.media_type};base64,${s.data}`;
+    }
+  }
+  return found;
+}
+
 interface RawRow {
   type?: unknown;
   uuid?: unknown;
@@ -377,13 +416,17 @@ export function parseTranscript(
           // Tool output routinely carries colour codes (any command run through a shell) — strip
           // them, since this view renders text nodes rather than interpreting escapes.
           const resultText = stripAnsi(toolResultText(b.content));
+          const returned = toolResultImage(b.content);
           if (target) {
             pendingTools.delete(id);
             target.result = {
               ...clamp(resultText, MAX_RESULT_CHARS),
               ...(b.is_error === true ? { isError: true } : {}),
             };
-          } else if (resultText.trim() !== "") {
+            // A file the call NAMED wins: a Read of it returns these same bytes inline, and the path
+            // is served on demand rather than riding in the page.
+            if (returned && !target.image) target.image = returned;
+          } else if (resultText.trim() !== "" || returned) {
             // Orphan result (its call fell outside a tail-read window) — keep it, unattached, so the
             // window never silently drops output.
             parts.push({
@@ -394,6 +437,7 @@ export function parseTranscript(
                 ...clamp(resultText, MAX_RESULT_CHARS),
                 ...(b.is_error === true ? { isError: true } : {}),
               },
+              ...(returned ? { image: returned } : {}),
             });
           }
         }

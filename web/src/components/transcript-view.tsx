@@ -4,7 +4,7 @@ import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 import { AgentIcon } from "@/components/agent-icon";
 import { GalleryImg } from "@/components/gallery-img";
 import { MarkdownText } from "@/components/markdown-text";
-import { collectImages, openLightbox } from "@/lib/lightbox";
+import { collectImages, imageName, openLightbox } from "@/lib/lightbox";
 import { splitHighlight } from "@/lib/transcript-search";
 import type { TranscriptEntry, TranscriptPart } from "@/lib/types";
 
@@ -69,7 +69,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
  * produced eight variants is eight swipes rather than eight taps in and out.
  */
 function ImagePart({ path, images }: { path: string; images: string[] }) {
-  const name = path.split("/").pop() ?? path;
+  const name = imageName(path);
   // Not in the thread's set (a turn rendered outside a TranscriptView) — open it on its own rather
   // than landing on someone else's image.
   const i = images.indexOf(path);
@@ -82,11 +82,13 @@ function ImagePart({ path, images }: { path: string; images: string[] }) {
       >
         {/* GalleryImg, not a bare <img>: an agent still writing the file would otherwise leave a
             permanently broken thumbnail in the thread until a reload. */}
-        <GalleryImg path={path} alt={name} className="max-h-48 w-auto rounded object-contain" />
+        <GalleryImg path={path} className="max-h-48 w-auto rounded object-contain" />
       </button>
-      <figcaption className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
-        {name}
-      </figcaption>
+      {name && (
+        <figcaption className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+          {name}
+        </figcaption>
+      )}
     </figure>
   );
 }
@@ -142,11 +144,18 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
   const images = useContext(ThreadImagesContext);
   // Tool output is COMMAND output, not prose — it stays verbatim in a monospace block (see ToolPart).
   if (part.kind === "tool") {
-    return part.image ? (
-      <ImagePart path={part.image} images={images} />
-    ) : (
-      <ToolPart part={part} query={query} />
-    );
+    if (!part.image) return <ToolPart part={part} query={query} />;
+    // A picture the tool RETURNED (a browser screenshot) sits under its call: the call's own text —
+    // the tab it ran on, a batch's other steps — still matters. One it NAMED replaces the call.
+    if (part.image.startsWith("data:")) {
+      return (
+        <div className="space-y-1.5">
+          <ToolPart part={part} query={query} />
+          <ImagePart path={part.image} images={images} />
+        </div>
+      );
+    }
+    return <ImagePart path={part.image} images={images} />;
   }
   // Prose is Markdown, so it renders formatted. MarkdownText emits React elements only — never
   // markup — so this keeps the same XSS boundary the raw text node had.

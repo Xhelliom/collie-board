@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { galleryImageUrl } from "@/lib/api";
+import { imageName } from "@/lib/lightbox";
 
 // The one <img> every gallery surface uses — the transcript thumbnail, the grid tile, the viewer's
 // pane. It exists for a single behaviour that none of them can have on their own: RETRY.
@@ -24,7 +25,7 @@ export function GalleryImg({
   className,
   alt,
 }: {
-  /** Absolute path of the image, as the gallery route spells it. */
+  /** Absolute path of the image, as the gallery route spells it — or a `data:` URL, used as-is. */
   path: string;
   className?: string;
   /** Defaults to the filename — what the browser shows if every attempt fails. */
@@ -41,16 +42,19 @@ export function GalleryImg({
     };
   }, [path]);
 
-  const url = galleryImageUrl(path);
+  // A `data:` URL (a screenshot a tool returned inline) IS the bytes: no file, no writer to race, so
+  // its failure is final.
+  const inline = path.startsWith("data:");
+  const url = inline ? path : galleryImageUrl(path);
   return (
     <img
       src={attempt === 0 ? url : `${url}&retry=${attempt}`}
-      alt={alt ?? path.split("/").pop() ?? "image"}
+      alt={alt ?? imageName(path) ?? "image"}
       // Only ever loads what's on screen — these are full-size renders over a phone link.
       loading="lazy"
       className={className}
       onError={() => {
-        const delay = RETRY_DELAYS_MS[attempt];
+        const delay = inline ? undefined : RETRY_DELAYS_MS[attempt];
         if (delay === undefined) return; // out of attempts — the alt text is the answer now
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => setAttempt((a) => a + 1), delay);
