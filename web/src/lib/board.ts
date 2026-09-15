@@ -902,10 +902,12 @@ export function integrateCard(
    * finds one. This way a failed integration leaves the card untouched, agent included.
    */
   andDone = false,
+  /** `resolve` only: the gesture that hit the conflict — a PR's is settled against origin's base. */
+  via?: "merge" | "pr",
 ): Promise<{ ok: true; url?: string | null; base?: string; discarded?: number; card: CardView }> {
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
     method: "POST",
-    body: JSON.stringify({ action, andDone }),
+    body: JSON.stringify({ action, andDone, via }),
   });
 }
 

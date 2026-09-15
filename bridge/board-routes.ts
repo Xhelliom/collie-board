@@ -986,6 +986,9 @@ async function route(
       return text("action must be merge, pr, resolve, cleanup or discard", 400);
     }
     const andDone = (body as { andDone?: unknown }).andDone === true;
+    // Which gesture hit the conflict a resolve settles. An enumeration, never a ref: the base it
+    // picks is typed into a terminal.
+    const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
 
     const result =
       what === "merge"
@@ -993,7 +996,7 @@ async function route(
         : what === "pr"
           ? await prForCard(db, card)
           : what === "resolve"
-            ? await resolveConflict(db, ctx.herdr, card)
+            ? await resolveConflict(db, ctx.herdr, card, via)
             : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody

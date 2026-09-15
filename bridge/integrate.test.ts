@@ -401,6 +401,14 @@ describe("resolvePrompt", () => {
     const prompt = resolvePrompt("main", "board/x");
     expect(prompt).toContain("Do NOT merge this branch back into main yourself");
   });
+
+  it("after a PR, merges origin's base and leaves pushing and opening the PR to the operator", () => {
+    const prompt = resolvePrompt("origin/main", "board/x", "pr");
+    expect(prompt).toContain("git merge origin/main");
+    expect(prompt).toContain("Do NOT push");
+    expect(prompt).toContain("Do NOT open the PR yourself");
+    expect(prompt).not.toContain("merge this branch back");
+  });
 });
 
 describe("wrapupGate — cleanup must not race the closing report off the disk it lives on", () => {
