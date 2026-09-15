@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.142.3] - 2026-09-15
+
+### Fixed
+
+- « Relancer la review » marche aussi sur une carte déjà mergée ou nettoyée : le merge et le nettoyage enregistrent le `--stat` final, que la review relit une fois la worktree partie (aad32c3)
+
 ## [0.142.2] - 2026-09-15
 
 ### Fixed
