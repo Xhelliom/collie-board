@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.145.0] - 2026-09-15
+
+### Changed
+
+- Une nouvelle carte part de la base la plus complète : `main` local avancé en fast-forward quand origin/main est devant, gardé quand il est devant ; divergence → démarrage refusé avec les deux comptes (ADR 0015) (194f52a)
+
 ## [0.144.0] - 2026-09-15
 
 ### Added
