@@ -338,14 +338,43 @@ export async function cardDiffStat(
   return diffStat(cwd, card.baseRef);
 }
 
-/** That stat as the copilot's review input. A plain sentence when there is nothing to summarise, so
- *  the prompt never contains an empty section. */
+/**
+ * The card's `--stat` as recorded when its work LANDED — the newest `card.merged` or `card.cleaned_up`
+ * that carries one (integrate.ts `landingStat`). Null when none does.
+ *
+ * Past those two gestures the stat stops being measurable: a merge puts the branch inside its base, so
+ * the diff reads zero, and a cleanup removes the checkout and the branch. Yet that is exactly when a
+ * review gets asked for again — the agent forgot to commit a file, the verdict said `partial`, the file
+ * was committed and the card filed — and this is the only place the work can still be read.
+ */
+// ponytail: reads the card's newest 100 journal entries; a landing is near the end of a card's life.
+export function landedStat(
+  db: { listEvents(cardId: string): { type: string; payload: unknown }[] },
+  cardId: string,
+): string | null {
+  for (const e of db.listEvents(cardId)) {
+    if (e.type !== "card.merged" && e.type !== "card.cleaned_up") continue;
+    const stat = (e.payload as { stat?: unknown } | null)?.stat;
+    if (typeof stat === "string") return stat;
+  }
+  return null;
+}
+
+/**
+ * That stat as the copilot's review input. The worktree first; when it shows nothing — gone, or merged
+ * and so reading zero — the stat recorded when the work landed ({@link landedStat}). A plain sentence
+ * when there is neither, so the prompt never contains an empty section.
+ */
 export async function cardDiffSummary(
-  db: { getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null },
+  db: {
+    getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null;
+    listEvents(cardId: string): { type: string; payload: unknown }[];
+  },
   cardId: string,
 ): Promise<string> {
   const stat = await cardDiffStat(db, cardId);
-  return stat ? formatDiffStat(stat) : "(no worktree for this card)";
+  if (stat?.files.length) return formatDiffStat(stat);
+  return landedStat(db, cardId) ?? (stat ? formatDiffStat(stat) : "(no worktree for this card)");
 }
 
 // ── integration ───────────────────────────────────────────────────────────────

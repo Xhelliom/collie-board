@@ -37,7 +37,15 @@ import type {
   TinyTodo,
 } from "./db.ts";
 import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
-import { cardDiffStat, cardDiffSummary, diffFile, diffStat, readWorktreeFile, worktreePathFor } from "./git.ts";
+import {
+  cardDiffStat,
+  cardDiffSummary,
+  diffFile,
+  diffStat,
+  landedStat,
+  readWorktreeFile,
+  worktreePathFor,
+} from "./git.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
@@ -867,13 +875,15 @@ async function route(
     if (!ctx.cfg.boardCopilot) {
       return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
     }
-    // No worktree, no review. `cardDiffSummary` answers "(no worktree for this card)" rather than
+    // Nothing to read, no review. `cardDiffSummary` answers "(no worktree for this card)" rather than
     // failing, so without this the copilot would dutifully judge that sentence and file a verdict
-    // about nothing — on top of the real one. A `done` card is the case that gets here: wrapup's
-    // `autoCleanup` removes the checkout once the branch has landed. Guarded on the ROUTE, not on
-    // the button, because the card screen's other "review again" (card-diff.tsx) calls the same
-    // thing and a future caller would too.
-    if (!(await cardDiffStat(db, id))) {
+    // about nothing — on top of the real one. A `done` card whose checkout wrapup's `autoCleanup`
+    // removed is NOT that case when its merge or cleanup recorded the stat (`landedStat`): that card —
+    // a `partial` for files the agent forgot to commit, committed since — is the one that most needs
+    // asking again, and refusing it here is what left its first verdict standing. Guarded on the
+    // ROUTE, not on the button, because the card screen's other "review again" (card-diff.tsx) calls
+    // the same thing and a future caller would too.
+    if (!landedStat(db, id) && !(await cardDiffStat(db, id))) {
       return ctx.json(
         { ok: false, error: "this card has no worktree left to review", kind: "no-worktree" },
         409,

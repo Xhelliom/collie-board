@@ -4,10 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  cardDiffSummary,
   deleteBranch,
   ensureBoardExcluded,
   hasRealChanges,
   integrationOf,
+  landedStat,
   mergeIntoBase,
   parseLeftRight,
   parsePrUrl,
@@ -16,11 +18,13 @@ import {
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
+  worktreePathFor,
   type GitRunner,
   type Integration,
 } from "./git.ts";
 import { BoardDb, type CardSession } from "./db.ts";
-import { rebindDependents, resolvePrompt, wrapupGate } from "./integrate.ts";
+import type { HerdrClient } from "./herdr-client.ts";
+import { cleanupCard, mergeCard, rebindDependents, resolvePrompt, wrapupGate } from "./integrate.ts";
 
 // These three writes are the only ones in the bridge that change a git repository, and the operator
 // firing them is on a phone and cannot repair anything. So the tests here are about REFUSING: what
@@ -468,5 +472,60 @@ describe("rebindDependents — a dependent card must not lose its diff when its 
     rebindDependents(store, "board/first", "main");
 
     expect(store.getCard(next.id)!.baseRef).toBe("main");
+  });
+});
+
+// "Relancer la review" answered 409 on exactly the card that needed it: the agent left a file
+// untracked, the review said `partial`, the file got committed, the card merged and was cleaned up —
+// and with the checkout gone there was nothing left to judge. Real git, because the bug IS what git
+// can still read once the branch has landed.
+describe("a landed card keeps the diff its review reads", () => {
+  function git(cwd: string, ...args: string[]): void {
+    const r = Bun.spawnSync(["git", ...args], { cwd });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+  }
+
+  it("reviews the forgotten file as committed, after merge and cleanup", async () => {
+    const repo = join(tmpdir(), `collie-landed-${Math.random().toString(36).slice(2)}`);
+    const checkout = `${repo}-wt`;
+    await mkdir(repo, { recursive: true });
+    git(repo, "init", "-q", "-b", "main");
+    // Repo-local, so the merge the bridge runs itself picks them up too.
+    git(repo, "config", "user.name", "t");
+    git(repo, "config", "user.email", "t@t");
+    git(repo, "config", "commit.gpgsign", "false");
+    await Bun.write(join(repo, "README"), "x\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "init");
+    git(repo, "worktree", "add", "-q", "-b", "board/x", checkout);
+
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "x", repoPath: repo, baseRef: "main" });
+    store.patchCard(card.id, { branch: "board/x" });
+    await Bun.write(join(checkout, "forgotten.ts"), "export {};\n");
+    expect(await cardDiffSummary(store, card.id)).toContain("forgotten.ts | untracked");
+
+    git(checkout, "add", ".");
+    git(checkout, "commit", "-qm", "the file the agent forgot");
+    expect((await mergeCard(store, store.getCard(card.id)!)).ok).toBe(true);
+    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
+    expect(await worktreePathFor(repo, "board/x")).toBeNull();
+
+    // What the route guard and a relaunched review both read — as often as they are asked.
+    expect(landedStat(store, card.id)).toContain("forgotten.ts | +1 -0");
+    const summary = await cardDiffSummary(store, card.id);
+    expect(summary).toContain("forgotten.ts | +1 -0");
+    expect(summary).not.toContain("untracked");
+    expect(await cardDiffSummary(store, card.id)).toBe(summary);
+
+    await rm(repo, { recursive: true, force: true });
+    await rm(checkout, { recursive: true, force: true });
+  });
+
+  it("still has nothing to say for a card that never recorded a landing", async () => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "x" });
+    expect(landedStat(store, card.id)).toBeNull();
+    expect(await cardDiffSummary(store, card.id)).toBe("(no worktree for this card)");
   });
 });
