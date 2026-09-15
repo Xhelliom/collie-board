@@ -131,7 +131,7 @@ POST   /api/cards/:id/explain           {action, error} — ask the copilot what
 POST   /api/cards/:id/revert            {eventId?} — put back text an edit overwrote
 GET    /api/cards/:id/diff              ?mode=stat|file&path=
 GET    /api/cards/:id/integration       where the branch stands (ahead/behind, pushed, refusals)
-POST   /api/cards/:id/integration       {action: merge|pr|resolve|cleanup|discard, andDone?}
+POST   /api/cards/:id/integration       {action: merge|pr|resolve|cleanup|discard, andDone?, via?: merge|pr}
 GET    /api/cards/:id/sessions          the handoff chain
 GET    /api/cards/:id/events            the journal
 GET    /api/repos                       the new-card picker's repo list (derived, see below)

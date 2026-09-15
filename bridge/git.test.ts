@@ -1,6 +1,33 @@
 import { describe, expect, test } from "bun:test";
 
-import { diffStat, diffStatLine, formatDiffStat, type DiffStat, type GitRunner } from "./git.ts";
+import { diffStat, diffStatLine, formatDiffStat, parseMergeTree, type DiffStat, type GitRunner } from "./git.ts";
+
+// Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
+describe("parseMergeTree — does the PR conflict, before anything is pushed", () => {
+  test("clean: exit 0 and the tree oid alone", () => {
+    expect(parseMergeTree(true, "a9c410fff444559b13cca9d385d1ac358b31e06d\n")).toEqual([]);
+  });
+
+  test("conflict: exit 1, the oid, then the conflicted files up to git's messages", () => {
+    const stdout = [
+      "9fb6fe9cd584b8563f51f16f87f1672b0b8d5efc",
+      "f.txt",
+      "g.txt",
+      "",
+      "Auto-merging f.txt",
+      "CONFLICT (content): Merge conflict in f.txt",
+      "Auto-merging g.txt",
+      "CONFLICT (content): Merge conflict in g.txt",
+      "",
+    ].join("\n");
+    expect(parseMergeTree(false, stdout)).toEqual(["f.txt", "g.txt"]);
+  });
+
+  test("an unknown ref also exits 1, with no oid — a failure, not a conflict", () => {
+    expect(parseMergeTree(false, "")).toBeNull();
+    expect(parseMergeTree(false, "merge-tree: origin/nope - not something we can merge\n")).toBeNull();
+  });
+});
 
 // The two renderings of one stat — formatDiffStat for a prompt, diffStatLine for a push body — are
 // pure; diffStat itself is driven through a fake GitRunner, so no real git subprocess or repo on

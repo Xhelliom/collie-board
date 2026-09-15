@@ -7,6 +7,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.143.0] - 2026-09-15
+
+### Fixed
+
+- « Open a PR & done » sur une branche en conflit avec origin/<base> ne pousse rien et laisse la carte ouverte ; le message nomme les fichiers (cdf8180)
+
+### Added
+
+- « Let the agent resolve it » après une PR fait merger origin/<base> (`via: pr` sur la route d'intégration) (cdf8180)
+
 ## [0.142.3] - 2026-09-15
 
 ### Fixed

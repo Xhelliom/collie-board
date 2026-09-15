@@ -637,6 +637,47 @@ export async function pushBranch(
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
 }
 
+/** Bring `origin/<base>` up to date — it is what a PR is compared with, not the local base. */
+export async function fetchBase(
+  repoPath: string,
+  base: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await git(["fetch", "origin", "--", base], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+}
+
+/**
+ * Read `git merge-tree --write-tree --name-only`: `[]` when clean, the conflicted files otherwise,
+ * null when it is not a merge answer at all.
+ *
+ * Clean exits 0 with the tree oid alone. A conflict exits 1 with the oid, one file per line, a blank
+ * line, then git's messages. An unknown ref ALSO exits 1 — with nothing on stdout — so the exit code
+ * alone cannot tell a conflict from a failure; the oid on the first line does.
+ */
+export function parseMergeTree(ok: boolean, stdout: string): string[] | null {
+  const [oid, ...files] = (stdout.split("\n\n")[0] ?? "").trim().split("\n");
+  if (!/^[0-9a-f]{40,64}$/.test(oid ?? "")) return null;
+  if (ok) return [];
+  return files.length ? files : null;
+}
+
+/**
+ * Would merging `branch` onto `onto` conflict? The merge happens in memory — no checkout, no index —
+ * so the PR gesture learns what GitHub will say before anything is pushed (ADR 0014).
+ */
+export async function mergeConflicts(
+  repoPath: string,
+  onto: string,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true; files: string[] } | { ok: false; error: string }> {
+  const r = await git(["merge-tree", "--write-tree", "--name-only", "--", onto, branch], repoPath);
+  const files = parseMergeTree(r.ok, r.stdout);
+  if (files) return { ok: true, files };
+  return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") || "git merge-tree failed" };
+}
+
 /**
  * Delete the card's branch, with `-d` rather than `-D`.
  *

@@ -1406,8 +1406,9 @@ export function IntegrationSection({
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [pr, setPr] = useState<PrStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [awaitingResolve, setAwaitingResolve] = useState(false);
+  /** The gesture that hit a conflict — a PR's is settled against origin, and ends in another PR tap. */
+  const [conflict, setConflict] = useState<"merge" | "pr" | null>(null);
+  const [awaitingResolve, setAwaitingResolve] = useState<"merge" | "pr" | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [unexplained, setUnexplained] = useState<{ action: string; error: string } | null>(null);
   const { confirm, pending } = usePendingConfirm();
@@ -1509,10 +1510,10 @@ export function IntegrationSection({
   // has.
   const sawAgentTurn = useRef(false);
   useEffect(() => {
-    const step = resolveWatchStep(awaitingResolve, sawAgentTurn.current, card.runtime?.agentStatus);
+    const step = resolveWatchStep(awaitingResolve !== null, sawAgentTurn.current, card.runtime?.agentStatus);
     sawAgentTurn.current = step.sawAgentTurn;
     if (step.refresh) {
-      setAwaitingResolve(false);
+      setAwaitingResolve(null);
       void load();
     }
   }, [card.runtime?.agentStatus, awaitingResolve, load]);
@@ -1523,10 +1524,11 @@ export function IntegrationSection({
     andDone = false,
   ) {
     setBusy(action);
+    const via = conflict ?? "merge";
     try {
-      const res = await integrateCard(card.id, action, andDone);
-      setConflict(false);
-      if (action === "resolve") setAwaitingResolve(true);
+      const res = await integrateCard(card.id, action, andDone, action === "resolve" ? via : undefined);
+      setConflict(null);
+      if (action === "resolve") setAwaitingResolve(via);
       setStatus(
         action === "pr" && res.url
           ? `PR opened — ${res.url}`
@@ -1537,9 +1539,12 @@ export function IntegrationSection({
       );
       onDone();
     } catch (e) {
-      // A conflict is the one failure with a next step, so the button for it appears here.
+      // A conflict is the one failure with a next step, so the button for it appears here. A failed
+      // resolve ("no running agent … the conflict") keeps the gesture the conflict came from.
       const message = boardErrorMessage(e);
-      setConflict(/conflict/i.test(message));
+      setConflict((was) =>
+        /conflict/i.test(message) ? (action === "merge" || action === "pr" ? action : was) : null,
+      );
       // Raw git/herdr text is the only kind worth an agent turn: our own refusals are already
       // sentences aimed at a person. `boardErrorMessage` keeps the body, so the kind is in it.
       const raw = e instanceof Error && /"kind":"(git|herdr)"/.test(e.message);
@@ -1722,15 +1727,16 @@ export function IntegrationSection({
         {awaitingResolve && (
           <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
             The agent is resolving the conflict — this refreshes on its own once it's done. Come back
-            and tap merge again.
+            and tap {awaitingResolve === "pr" ? "Open a PR" : "merge"} again.
           </p>
         )}
 
         {conflict && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
             <p className="text-xs text-muted-foreground">
-              Nothing was changed in {state.base}. The agent can settle this on its own branch, then
-              the merge goes through.
+              {conflict === "pr"
+                ? `Nothing was pushed. The agent can merge origin/${state.base} into its own branch, then the PR opens clean.`
+                : `Nothing was changed in ${state.base}. The agent can settle this on its own branch, then the merge goes through.`}
             </p>
             {/* A filed card has no agent any more — its session ended when it was filed. Offering
                 "let the agent resolve it" there is offering a button that answers 409, so the honest

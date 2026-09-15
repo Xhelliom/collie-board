@@ -28,8 +28,10 @@ import {
   cardDiffStat,
   createPr,
   deleteBranch,
+  fetchBase,
   formatDiffStat,
   integrationOf,
+  mergeConflicts,
   mergeIntoBase,
   prStatusOf,
   pushBranch,
@@ -65,11 +67,18 @@ export type IntegrateError =
  * only ever covered the divergence that existed at the time, and a second conflict on the same
  * branch is not a re-ask of the same question.
  *
+ * `via` is the gesture that hit the conflict. After a PR, `base` is `origin/<base>` — what the PR is
+ * compared with — and the step the operator takes back is opening the PR, not merging.
+ *
  * Pure + exported so the wording is reviewable — this prompt drives a real terminal.
  */
-export function resolvePrompt(base: string, branch: string): string {
+export function resolvePrompt(base: string, branch: string, via: "merge" | "pr" = "merge"): string {
+  const attempt =
+    via === "pr" ? `Opening a PR from this branch (${branch}) against ${base}` : `Merging this branch (${branch}) into ${base}`;
+  const notYours =
+    via === "pr" ? "Do NOT open the PR yourself — pushing and opening it is" : `Do NOT merge this branch back into ${base} yourself — that is`;
   return [
-    `Merging this branch (${branch}) into ${base} hit a conflict, so ${base} has moved on since you`,
+    `${attempt} hit a conflict, so ${base} has moved on since you`,
     "branched. Bring it in here and settle it, in THIS checkout:",
     "",
     `1. git log --oneline HEAD..${base} — see what is actually new. Even if you resolved a conflict`,
@@ -82,7 +91,7 @@ export function resolvePrompt(base: string, branch: string): string {
     "5. Commit the merge.",
     "",
     `Do NOT push, do NOT check out ${base}, and do not touch any other checkout of this repository.`,
-    `Do NOT merge this branch back into ${base} yourself — that is the operator's own tap, once your`,
+    `${notYours} the operator's own tap, once your`,
     "commit exists here. Stop when the merge commit exists here; nothing else is yours to do.",
   ].join("\n");
 }
@@ -211,6 +220,37 @@ export async function prForCard(db: BoardDb, card: Card): Promise<Result<{ url: 
   if (!checked.ok) return checked;
   const { state } = checked;
 
+  // BEFORE the push (ADR 0014). `gh pr create` succeeds on a branch that conflicts — GitHub works
+  // mergeability out afterwards — and that success files the card and cleans its checkout away. So
+  // the conflict is looked for here, against what the PR is compared with, while the agent is still
+  // around to settle it. A conflict pushes nothing and leaves the card open, like a merge's does.
+  const fetched = await fetchBase(card.repoPath!, state.base);
+  if (!fetched.ok) {
+    db.recordEvent(card.id, "card.pr_failed", { stage: "fetch", error: fetched.error });
+    return { ok: false, error: { kind: "git", message: fetched.error } };
+  }
+  const remoteBase = `origin/${state.base}`;
+  const clash = await mergeConflicts(card.repoPath!, remoteBase, state.branch);
+  if (!clash.ok) {
+    db.recordEvent(card.id, "card.pr_failed", { stage: "merge-tree", error: clash.error });
+    return { ok: false, error: { kind: "git", message: clash.error } };
+  }
+  if (clash.files.length) {
+    db.recordEvent(card.id, "card.pr_failed", {
+      stage: "conflict",
+      branch: state.branch,
+      base: remoteBase,
+      files: clash.files,
+    });
+    return {
+      ok: false,
+      error: {
+        kind: "conflict",
+        message: `${remoteBase} has moved on and the PR would conflict in ${clash.files.join(", ")}. Nothing was pushed — hand it to the agent to settle on its own branch.`,
+      },
+    };
+  }
+
   const pushed = await pushBranch(card.repoPath!, state.branch);
   if (!pushed.ok) {
     db.recordEvent(card.id, "card.pr_failed", { stage: "push", error: pushed.error });
@@ -254,6 +294,8 @@ export async function resolveConflict(
   db: BoardDb,
   herdr: HerdrClient,
   card: Card,
+  /** The gesture that hit the conflict: a merge settles against the local base, a PR against origin's. */
+  via: "merge" | "pr" = "merge",
 ): Promise<Result<{ paneId: string }>> {
   const state = await integrationFor(card);
   if (!state) return { ok: false, error: { kind: "refused", message: "this card has no branch to integrate" } };
@@ -270,15 +312,23 @@ export async function resolveConflict(
   const session = db.openSessionFor(card.id);
   if (!session?.paneId) return { ok: false, error: { kind: "refused", message: NO_AGENT } };
 
+  // Fetched again rather than trusted from the PR tap: this one can come long after it.
+  let base = state.base;
+  if (via === "pr") {
+    const fetched = await fetchBase(card.repoPath!, state.base);
+    if (!fetched.ok) return { ok: false, error: { kind: "git", message: fetched.error } };
+    base = `origin/${state.base}`;
+  }
+
   try {
-    await promptAndConfirm(herdr, session.paneId, resolvePrompt(state.base, state.branch));
+    await promptAndConfirm(herdr, session.paneId, resolvePrompt(base, state.branch, via));
   } catch (err) {
     // THE SAME SITUATION as the check above, one step later: that one catches a session the board
     // knows is over, this one the pane that outlived its agent — which is what a restart leaves.
     if (isAgentGone(err)) return { ok: false, error: { kind: "refused", message: NO_AGENT } };
     return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
   }
-  db.recordEvent(card.id, "card.resolve_requested", { branch: state.branch, base: state.base, paneId: session.paneId });
+  db.recordEvent(card.id, "card.resolve_requested", { branch: state.branch, base, via, paneId: session.paneId });
   return { ok: true, value: { paneId: session.paneId } };
 }
 
