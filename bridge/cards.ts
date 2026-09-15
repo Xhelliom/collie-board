@@ -16,7 +16,7 @@
 
 import type { Config } from "./config.ts";
 import { isLiveStatus, isPendingWrapup, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
-import { branchExists, ensureBoardExcluded, type GitRunner } from "./git.ts";
+import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -503,6 +503,8 @@ export type StartError =
   | { kind: "container"; message: string }
   /** The card declares a predecessor that hasn't finished. A gate, NOT a queue — see below. */
   | { kind: "blocked-by"; message: string }
+  /** The local base and origin's could not be brought level — see `syncBaseWithOrigin`. */
+  | { kind: "stale-base"; message: string }
   | { kind: "herdr"; message: string };
 
 export interface StartResult {
@@ -703,6 +705,18 @@ export async function startCard(
       : null;
   const base = predecessorBranch ?? card.baseRef;
 
+  // A NEW BRANCH FORKS FROM THE MORE COMPLETE OF THE LOCAL BASE AND ORIGIN'S — see
+  // `syncBaseWithOrigin`. Not for a predecessor's branch: that one IS the handoff, as it stands.
+  let baseSync: string | null = null;
+  if (!predecessorBranch) {
+    const synced = await syncBaseWithOrigin(card.repoPath, card.baseRef, branch, opts.git);
+    if (!synced.ok) {
+      db.recordEvent(cardId, "card.start_failed", { stage: "base", error: synced.error });
+      return { ok: false, error: { kind: "stale-base", message: synced.error } };
+    }
+    baseSync = synced.note;
+  }
+
   // Before the checkout exists, so the notes this bridge is about to write into it are invisible to
   // git from the first `status`. In `.git/info/exclude`, never the project's `.gitignore` — see
   // `ensureBoardExcluded`. Idempotent and best-effort: an unwritable .git is not a reason to refuse
@@ -740,6 +754,7 @@ export async function startCard(
     path: worktree.checkoutPath,
     workspaceId: worktree.workspaceId,
     reused: worktree.alreadyOpen,
+    ...(baseSync ? { baseSync } : {}),
   });
 
   const session = db.openSession({ cardId, paneId: worktree.paneId, agentKind: kind });

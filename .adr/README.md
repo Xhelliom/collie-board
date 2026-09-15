@@ -56,3 +56,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0012](./0012-the-review-is-markdown-the-app-already-renders.md) | The review is Markdown the app already renders | Accepted |
 | [0013](./0013-the-bridge-does-not-know-its-consumers.md) | The bridge does not know its consumers | Accepted |
 | [0014](./0014-a-conflicting-pr-does-not-file-the-card.md) | A PR that conflicts does not file its card; a filed card reopens on demand | Accepted |
+| [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Accepted |

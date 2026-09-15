@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -53,6 +53,7 @@ import {
 } from "./copilot.ts";
 import {
   isSafeDiffPath,
+  mergeConflicts,
   parseNumstat,
   parseUntracked,
   parseWorktreeList,
@@ -810,6 +811,102 @@ describe("startCard", () => {
     const { client } = fakeHerdr(new Set(["createWorktree", "openWorktree"]));
     const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
     expect(res).toMatchObject({ ok: false, error: { kind: "herdr", message: "existe déjà" } });
+  });
+});
+
+// Real git, a real `origin`, and a second clone standing in for GitHub merging PRs: the bug is
+// entirely where the refs stand when the branch is cut.
+describe("startCard — forks from the more complete of the local base and origin's", () => {
+  const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  function sh(cwd: string, ...args: string[]): string {
+    const r = Bun.spawnSync(["git", "-c", "commit.gpgsign=false", ...args], { cwd, env });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+    return r.stdout.toString().trim();
+  }
+  function commit(cwd: string, file: string, text: string, msg: string): string {
+    writeFileSync(join(cwd, file), text);
+    sh(cwd, "add", file);
+    sh(cwd, "commit", "-qm", msg);
+    return sh(cwd, "rev-parse", "HEAD");
+  }
+  function world() {
+    const root = mkdtempSync(join(tmpdir(), "collie-base-"));
+    const [repo, origin, github] = [join(root, "repo"), join(root, "origin.git"), join(root, "github")];
+    sh(root, "init", "-q", "-b", "main", repo);
+    commit(repo, "README", "x\n", "init");
+    sh(root, "clone", "-q", "--bare", repo, origin);
+    sh(repo, "remote", "add", "origin", origin);
+    sh(repo, "fetch", "-q", "origin");
+    sh(root, "clone", "-q", origin, github);
+    return { repo, github };
+  }
+  /** fakeHerdr, except `worktree.create` really cuts the branch, from the base it is handed. */
+  function herdrOn(repo: string) {
+    const { client, calls } = fakeHerdr();
+    const createWorktree = async (opts: { branch: string; base?: string | null }) => {
+      calls.push("createWorktree");
+      const checkoutPath = `${repo}-${opts.branch.replace(/\//g, "-")}`;
+      sh(repo, "worktree", "add", "-q", "-b", opts.branch, checkoutPath, ...(opts.base ? [opts.base] : []));
+      return { checkoutPath, branch: opts.branch, workspaceId: "wZ", workspaceLabel: opts.branch, tabId: "wZ:t1", paneId: "wZ:p1", alreadyOpen: false };
+    };
+    return { client: { ...client, createWorktree }, calls };
+  }
+  const start = (store: BoardDb, repo: string, title: string) => {
+    const card = store.createCard({ title, repoPath: repo, baseRef: "main", status: "ready" });
+    return startCard(store, herdrOn(repo).client as never, startCfg, card.id, { sleep: async () => {} });
+  };
+
+  it("a card started after a PR landed on origin has its merge, and does not conflict with it", async () => {
+    const { repo, github } = world();
+    const store = db();
+    const first = await start(store, repo, "first");
+    expect(first.ok).toBe(true);
+    commit(`${repo}-board-first`, "shared.txt", "first\n", "first card");
+    sh(`${repo}-board-first`, "push", "-q", "origin", "board/first");
+    // GitHub merges the PR. Nobody touches the local main.
+    sh(github, "pull", "-q", "--no-rebase", "--no-ff", "origin", "board/first");
+    sh(github, "push", "-q", "origin", "main");
+    const merged = sh(github, "rev-parse", "HEAD");
+    if (first.ok) store.closeSession(first.value.session.id, "done");
+
+    expect((await start(store, repo, "second")).ok).toBe(true);
+    sh(repo, "merge-base", "--is-ancestor", merged, "board/second");
+    commit(`${repo}-board-second`, "shared.txt", "first\nsecond\n", "second card");
+    // What the PR gesture asks before pushing (ADR 0014). Cut from the stale main, this is add/add.
+    expect(await mergeConflicts(repo, "origin/main", "board/second")).toEqual({ ok: true, files: [] });
+  });
+
+  it("a card started after a local-only integration has it — origin does not win over the local base", async () => {
+    const { repo } = world();
+    const local = commit(repo, "local.txt", "x\n", "merged through the board, never pushed");
+    expect((await start(db(), repo, "next")).ok).toBe(true);
+    sh(repo, "merge-base", "--is-ancestor", local, "board/next");
+  });
+
+  it("moves a base that is checked out nowhere, by its ref alone", async () => {
+    const { repo, github } = world();
+    sh(repo, "switch", "-q", "-c", "side");
+    const remote = commit(github, "remote.txt", "x\n", "landed on origin");
+    sh(github, "push", "-q", "origin", "main");
+    expect((await start(db(), repo, "next")).ok).toBe(true);
+    sh(repo, "merge-base", "--is-ancestor", remote, "board/next");
+    expect(sh(repo, "rev-parse", "main")).toBe(remote);
+  });
+
+  it("refuses when both sides have their own commits, and cuts nothing", async () => {
+    const { repo, github } = world();
+    commit(repo, "local.txt", "x\n", "local only");
+    commit(github, "remote.txt", "x\n", "origin only");
+    sh(github, "push", "-q", "origin", "main");
+    const store = db();
+    const card = store.createCard({ title: "next", repoPath: repo, baseRef: "main", status: "ready" });
+    const { client, calls } = herdrOn(repo);
+    const res = await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} });
+
+    expect(res).toMatchObject({ ok: false, error: { kind: "stale-base" } });
+    expect((res as { error: { message: string } }).error.message).toContain("1 commit(s) only here, 1 only on origin");
+    expect(calls).toEqual([]);
+    expect(store.getCard(card.id)!.status).toBe("ready");
   });
 });
 
