@@ -692,11 +692,13 @@ adds the two views that make them visible, over one read-only route.
 | | |
 |---|---|
 | Commit | _(this change)_ |
-| Files | `bridge/gallery.ts` + `bridge/gallery.test.ts` (new), `bridge/server.ts` (one import + one dispatch block), `bridge/transcript.ts` (`toolImagePath()` + the tool part's `image`), `web/src/{components/image-lightbox,routes/gallery}.tsx` + `web/src/lib/lightbox.ts` (new), `web/src/components/{transcript-view,agent-chat}.tsx`, `web/src/routes/{history,settings}.tsx`, `web/src/lib/{api,loaders,types,nav}.ts`, `web/src/router.tsx`, `web/src/test/setup.ts` |
+| Files | `bridge/gallery.ts` + `bridge/gallery.test.ts` (new), `bridge/server.ts` (one import + one dispatch block), `bridge/transcript.ts` (`toolImagePath()` + `toolResultImage()` + the tool part's `image`), `web/src/{components/image-lightbox,routes/gallery}.tsx` + `web/src/lib/lightbox.ts` (new), `web/src/components/{transcript-view,agent-chat}.tsx`, `web/src/routes/{history,settings}.tsx`, `web/src/lib/{api,loaders,types,nav}.ts`, `web/src/router.tsx`, `web/src/test/setup.ts` |
 | Extraction | **Needs extraction.** The new files lift cleanly, but the wiring is spread over ten upstream files and the gallery row lands in a `settings.tsx` the fork has already edited. No card in sight, though — none of this knows the board exists. |
 
 Two views over the same files. **Inline**: a tool call whose `file_path` is a servable image renders
-the picture instead of the tool line. **A gallery**: every scratchpad image, grouped by session,
+the picture instead of the tool line; a picture the tool *returned* — a browser screenshot, which is a
+base64 block in the `tool_result` and never a file — rides in the page as a `data:` URL (gallery types
+only, 1 MB cap) and renders under its call. **A gallery**: every scratchpad image, grouped by session,
 from Settings. Both open one full-screen viewer that swipes through the set — a session's eight
 variants are eight swipes, not eight taps in and out. The pane's ⋯ sheet reaches the same set
 without going through History — that screen holds no transcript (the mirror is a terminal snapshot),

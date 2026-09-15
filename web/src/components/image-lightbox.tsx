@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 
 import { GalleryImg } from "@/components/gallery-img";
-import { closeLightbox, useLightbox } from "@/lib/lightbox";
+import { closeLightbox, imageName, useLightbox } from "@/lib/lightbox";
 
 // Full-screen image viewer with swipe-through.
 //
@@ -63,7 +63,7 @@ export function ImageLightbox({
     if (el && el.clientWidth > 0) el.scrollLeft = index * el.clientWidth;
   }, [index]);
 
-  const name = (images[current] ?? "").split("/").pop() ?? "";
+  const name = imageName(images[current] ?? "") ?? "";
 
   return (
     <dialog

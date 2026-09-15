@@ -204,7 +204,10 @@ export type TranscriptPart =
       name: string;
       summary: string;
       result?: { text: string; truncated?: boolean; isError?: boolean };
-      /** Absolute path of an image this call touched — rendered in place of the tool line. */
+      /**
+       * An image this call touched: an absolute gallery path (rendered in place of the tool line), or a
+       * `data:` URL for one the tool returned inline, like a browser screenshot (rendered under it).
+       */
       image?: string;
     };
 

@@ -11,7 +11,7 @@ import type { TranscriptEntry } from "./types";
 // One `<ImageLightbox>` is mounted at the root and reads this; anything else just calls openLightbox().
 
 export interface LightboxState {
-  /** Absolute image paths, in display order. */
+  /** Absolute image paths or `data:` URLs, in display order. */
   images: string[];
   /** Which one is showing. */
   index: number;
@@ -63,4 +63,9 @@ export function collectImages(entries: TranscriptEntry[]): string[] {
     }
   }
   return [...seen];
+}
+
+/** The filename shown for an image — none for a `data:` URL, whose tail is base64, not a name. Pure. */
+export function imageName(image: string): string | null {
+  return image.startsWith("data:") ? null : (image.split("/").pop() ?? image);
 }

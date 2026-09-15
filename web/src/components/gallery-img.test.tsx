@@ -56,6 +56,14 @@ describe("GalleryImg", () => {
     expect(screen.getByAltText("render.png")).toBeInTheDocument();
   });
 
+  it("never retries a data: URL — the bytes are already here", () => {
+    const shot = "data:image/png;base64,iVBORw0KGgo=";
+    render(<GalleryImg path={shot} />);
+    fireEvent.error(img());
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(img()).toHaveAttribute("src", shot);
+  });
+
   it("starts a new path's attempts from scratch", () => {
     const { rerender } = render(<GalleryImg path={P} />);
     fireEvent.error(img());

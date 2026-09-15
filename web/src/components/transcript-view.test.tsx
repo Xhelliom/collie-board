@@ -341,4 +341,22 @@ describe("TranscriptView images", () => {
     expect(within(dialog).getAllByRole("img")).toHaveLength(2);
     expect(within(dialog).getByText("2/2")).toBeInTheDocument();
   });
+
+  // A browser screenshot has no file — the bridge sends the bytes as a data: URL. The call stays
+  // (its text names the tab, a batch's other steps) and the picture sits under it.
+  it("renders a returned picture under its tool line, bytes as-is", () => {
+    const shot = "data:image/jpeg;base64,/9j/AAAA";
+    render(
+      <TranscriptView
+        entries={[
+          turn({
+            role: "assistant",
+            parts: [{ kind: "tool", name: "mcp__claude-in-chrome__computer", summary: "screenshot", image: shot }],
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("mcp__claude-in-chrome__computer")).toBeInTheDocument();
+    expect(screen.getByAltText("image")).toHaveAttribute("src", shot);
+  });
 });
