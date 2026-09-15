@@ -7,6 +7,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 `version` in `herdr-plugin.toml`, `package.json`, and `web/package.json` (enforced by
 `scripts/check-version.sh`). See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.144.0] - 2026-09-15
+
+### Added
+
+- L'écran carte dit qu'une PR ouverte est en conflit avec sa base (`mergeable` = CONFLICTING), lien vers l'éditeur de conflits GitHub — même route, même cache (7eb4012)
+
 ## [0.143.0] - 2026-09-15
 
 ### Fixed
