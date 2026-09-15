@@ -29,7 +29,8 @@ export function TagFilter({
 }) {
   if (tags.length === 0) return null;
   return (
-    <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
+    // Wraps from `lg`, like RepoFilter — a mouse can't swipe the phone's scrolling row.
+    <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
       <SectionLabel>Tags</SectionLabel>
       <Chip label="All" active={active === null} onClick={() => onPick(null)} />
       {tags.map((tag) => (
