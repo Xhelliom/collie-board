@@ -648,6 +648,69 @@ export async function fetchBase(
 }
 
 /**
+ * Bring the base a new card forks from level with `origin`, before the branch is cut.
+ *
+ * Cards merge through PRs on the remote, and nothing else moves the LOCAL base — so without this
+ * every card started behind the last one that landed. But the local base is not simply stale either:
+ * the merge path and a hand commit put work there that `origin` lacks. So neither side wins by
+ * default, the more complete one does:
+ *   - origin has everything local has → fast-forward the local base (the card forks from it, and
+ *     its `baseRef` stays a local branch, which every diff and merge here is measured against);
+ *   - local has everything origin has → nothing to do;
+ *   - both have their own commits → refused, naming both counts. Picking either drops the other.
+ *
+ * Nothing to do for a branch that already exists (a relaunch — its base was chosen long ago), for a
+ * base that is not a local branch (a sha, a tag, `origin/x`), or when `origin` cannot be asked:
+ * offline or no remote degrades to forking from the local base, as before, with a note that says so.
+ */
+export async function syncBaseWithOrigin(
+  repoPath: string,
+  baseRef: string | null,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true; note: string | null } | { ok: false; error: string }> {
+  try {
+    const base = baseRef?.trim() || (await currentBranch(repoPath, git));
+    if (!base || base.startsWith("-") || (await branchExists(repoPath, branch, git))) return { ok: true, note: null };
+    const local = `refs/heads/${base}`;
+    const remote = `refs/remotes/origin/${base}`;
+    const localSha = await git(["rev-parse", "--verify", "--quiet", local], repoPath);
+    if (!localSha.ok) return { ok: true, note: null };
+
+    const fetched = await fetchBase(repoPath, base, git);
+    if (!fetched.ok) return { ok: true, note: `not compared with origin/${base}: ${fetched.error}` };
+    const counts = await git(["rev-list", "--count", "--left-right", `${local}...${remote}`], repoPath);
+    const split = counts.ok ? parseLeftRight(counts.stdout) : null;
+    if (!split) return { ok: true, note: null };
+    // Left of the three dots is the local base, right is origin's.
+    const { behind: localOnly, ahead: remoteOnly } = split;
+    if (remoteOnly === 0) return { ok: true, note: null };
+    if (localOnly > 0) {
+      return {
+        ok: false,
+        error: `${base} and origin/${base} have diverged — ${localOnly} commit(s) only here, ${remoteOnly} only on origin. Reconcile ${base} (pull, then push) before starting a card, or it would start without one side.`,
+      };
+    }
+
+    // Checked out somewhere → move it there, so that checkout's files follow; git refuses, before
+    // touching anything, a fast-forward that would overwrite uncommitted work. Checked out nowhere →
+    // move the ref alone, and only if it still points where we measured it.
+    const checkout = await worktreePathFor(repoPath, base, git);
+    const ff = checkout
+      ? await git(["merge", "--ff-only", "--quiet", remote], checkout)
+      : await git(["update-ref", local, remote, localSha.stdout.trim()], repoPath);
+    if (!ff.ok) {
+      const why = (ff.stderr || ff.stdout).trim().split("\n").slice(0, 4).join("\n");
+      return { ok: false, error: `${base} is ${remoteOnly} commit(s) behind origin/${base} and could not be fast-forwarded: ${why}` };
+    }
+    return { ok: true, note: `fast-forwarded ${base} to origin/${base} (+${remoteOnly})` };
+  } catch {
+    // git could not even be spawned (the repo path is gone): the start fails further on, and says why.
+    return { ok: true, note: null };
+  }
+}
+
+/**
  * Read `git merge-tree --write-tree --name-only`: `[]` when clean, the conflicted files otherwise,
  * null when it is not a merge answer at all.
  *
