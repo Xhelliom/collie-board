@@ -1140,7 +1140,7 @@ first's. Upstream has the same rule, and so the same conflict on any two PRs ope
 
 | | |
 |---|---|
-| Commit | *feat(release): la version se coupe sur main, en CI, à partir de fragments* (fill in the hash) |
+| Commit | `4774e73` *feat(release): la version se coupe sur main, en CI, à partir de fragments* |
 | Files | `scripts/release.ts` + test, `scripts/release-notes.sh`, `scripts/git-hooks/pre-commit`, `.github/workflows/release.yml`, `changes/README.md`, `CLAUDE.md` → *Versioning*, `package.json` (test script) |
 | Extraction | **Clean**, but it changes upstream's working agreement — propose it as a question before a PR. Drop the ADR link (the fork's numbering) and the `herdr.collie-board` id in the notes. |
 
