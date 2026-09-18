@@ -58,6 +58,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/components/composer.tsx` | the image upload + clipboard-paste pair extracted verbatim into `web/src/hooks/use-image-upload.ts` and consumed from there — brick 27 in the ledger. Pure upstream material: it leaves this list once merged |
 | `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px, live through `useMediaQuery`; `rawTerminalPref()` for the loader; the `reading` mode flag |
 | `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
+| `CLAUDE.md` → *Versioning* · `CHANGELOG.md` (preamble) · `scripts/git-hooks/pre-commit` · `.github/workflows/release.yml` · `package.json` (test script) | the version is cut on `main` by CI from `changes/` fragments, never on a branch — [ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md), brick 34 in the ledger |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
 | `web/src/components/transcript-view.tsx` · `web/src/App.tsx` · `web/src/lib/nav.ts` | an image-bearing tool part renders as the picture; the viewer host mounted beside the router (unmounted while the idle cover is up); `galleryPath()` — brick 21 in the ledger |
 | `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods |

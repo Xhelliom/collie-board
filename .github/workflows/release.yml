@@ -1,54 +1,83 @@
 name: Release
 
-# Every pushed vX.Y.Z tag becomes a GitHub Release whose notes carry the update commands — the
-# in-app update banner links here, so the page a user lands on tells them exactly how to update.
+# Two ways a version ships (ADR 0016):
+#
+# - `cut`: after a GREEN CI run on a push to main, fold the fragments in changes/ into a release —
+#   CHANGELOG entry, the three version files, the commit, the vX.Y.Z tag, the GitHub Release. No
+#   fragment, nothing to do. Branches never cut a version, so they never conflict over one.
+# - `publish`: a vX.Y.Z tag pushed by hand still becomes a GitHub Release, as before.
+#
+# The GitHub Release is created here and not left to the tag: a tag pushed with GITHUB_TOKEN starts
+# no workflow, so `publish` would never see the ones `cut` pushes. Same notes either way
+# (scripts/release-notes.sh) — the in-app update banner links to that page.
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   push:
     tags: ["v*.*.*"]
 
 permissions:
-  contents: write # create the release
+  contents: write # the release commit, the tag, the release
+
+# One release at a time, never cancelled half-way: a run stopped between the push and the release
+# would leave a tag with no page for the update banner to land on.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release:
+  cut:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # release.ts cites the commit each fragment came in with
+      - uses: oven-sh/setup-bun@v2
 
-      - name: Assemble release notes (CHANGELOG section + update commands)
-        id: notes
+      - name: Fold the fragments into a release
+        id: cut
+        run: echo "version=$(bun scripts/release.ts)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, push
+        if: steps.cut.outputs.version != ''
+        env:
+          VERSION: ${{ steps.cut.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          notes="$RUNNER_TEMP/notes.md"
-          # This version's CHANGELOG block: everything between its `## [x.y.z]` heading and the next.
-          awk -v ver="$version" '
-            $0 ~ ("^## \\[" ver "\\]") { grab = 1; next }
-            grab && /^## \[/ { exit }
-            grab { print }
-          ' CHANGELOG.md > "$RUNNER_TEMP/changelog.md" || true
-          {
-            if [ -s "$RUNNER_TEMP/changelog.md" ]; then
-              cat "$RUNNER_TEMP/changelog.md"
-              echo
-            fi
-            echo "## Update"
-            echo
-            echo "Update the plugin — pulls, rebuilds, restarts, and re-links (runs from any directory):"
-            echo
-            echo '```'
-            echo "herdr plugin action invoke update --plugin herdr.collie-board"
-            echo '```'
-            echo
-            echo "Or just restart the bridge to pick up an already-built change:"
-            echo
-            echo '```'
-            echo "herdr plugin action invoke restart --plugin herdr.collie-board"
-            echo '```'
-          } > "$notes"
-          echo "file=$notes" >> "$GITHUB_OUTPUT"
+          bash scripts/check-version.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add -A CHANGELOG.md herdr-plugin.toml package.json web/package.json changes/
+          git commit -m "chore(release): $VERSION"
+          git tag -a "v$VERSION" -m "Collie $VERSION"
+          # Atomic: the commit and its tag land together or not at all. A main that moved meanwhile
+          # refuses the push, and the next green run releases everything still waiting.
+          git push --atomic origin HEAD:main "v$VERSION"
 
+      - name: Create GitHub release
+        if: steps.cut.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.cut.outputs.version }}
+        run: |
+          bash scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" --title "Collie v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "Collie $GITHUB_REF_NAME" --notes-file "${{ steps.notes.outputs.file }}"
+        run: |
+          bash scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --title "Collie $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
