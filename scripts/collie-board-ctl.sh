@@ -222,7 +222,7 @@ StartLimitIntervalSec=0
 Type=simple
 WorkingDirectory=${PLUGIN_ROOT}
 ExecStart=${BUN} run ${PLUGIN_ROOT}/bridge/index.ts
-Restart=on-failure
+Restart=always
 RestartSec=5
 # Hardening: the bridge is remote shell access, so deny privilege escalation. NO mount-namespace
 # directive belongs here (PrivateTmp, ProtectSystem, PrivateDevices, ReadOnlyPaths…): a --user unit
