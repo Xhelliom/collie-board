@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ListFilter, Plus, X } from "lucide-react";
+import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { ChevronRight, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   matchesFilters,
   patchCard,
   positionFor,
+  prsPath,
   repoName,
   reposOf,
   saveRepoScope,
@@ -454,6 +455,16 @@ export function BoardRoute() {
                     <span className="rounded-full bg-muted px-[7px] py-px text-[11px] font-semibold tabular-nums text-muted-foreground">
                       {total}
                     </span>
+                    {/* Where a filed card's PR is followed up — the PR outlives the card's lane. */}
+                    {lane.label === "Done" && (
+                      <Link
+                        to={prsPath()}
+                        className="ml-auto flex min-h-8 items-center gap-0.5 px-1.5 text-xs font-semibold text-brand"
+                      >
+                        Open PRs
+                        <ChevronRight className="size-3.5" />
+                      </Link>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                     {lane.statuses.map((status) => {

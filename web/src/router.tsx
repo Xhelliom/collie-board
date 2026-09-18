@@ -10,8 +10,9 @@ import { SettingsRoute } from "@/routes/settings";
 import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
+import { PrsRoute } from "@/routes/prs";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
-import { boardLoader, cardLoader } from "@/lib/board-loaders";
+import { boardLoader, cardLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
@@ -54,6 +55,14 @@ export const router = createBrowserRouter([
         loader: boardLoader,
         element: <BoardRoute />,
         errorElement: <RootError />,
+      },
+      {
+        path: "board/prs",
+        loader: prsLoader,
+        element: <PrsRoute />,
+        errorElement: <RootError to={boardPath()} />,
+        // Not polled: GitHub is asked on the Check tap, and the journal only moves on a tap too.
+        shouldRevalidate: () => false,
       },
       {
         path: "card/:cardId",

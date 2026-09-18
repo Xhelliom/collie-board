@@ -481,6 +481,10 @@ export function boardPath(): string {
   return "/board";
 }
 
+export function prsPath(): string {
+  return "/board/prs";
+}
+
 export function cardPath(cardId: string): string {
   return `/card/${encodeURIComponent(cardId)}`;
 }
@@ -885,6 +889,20 @@ export interface PrStatus {
  */
 export function fetchPrStatus(id: string): Promise<{ pr: PrStatus | null }> {
   return apiRequest<{ pr: PrStatus | null }>(`/api/cards/${encodeURIComponent(id)}/pr`);
+}
+
+/** A card whose PR is still open, as far as its journal knows — see bridge/prs.ts. */
+export interface OpenPr {
+  card: Pick<CardView, "id" | "title" | "status" | "repoPath" | "branch">;
+  url: string | null;
+  openedAt: number;
+  /** Only after a check: what GitHub said, null when it could not be asked. */
+  pr?: PrStatus | null;
+}
+
+/** The open PRs, from the journal. `check` asks GitHub about each one — the Check tap, never a poll. */
+export function fetchOpenPrs(check = false): Promise<{ prs: OpenPr[] }> {
+  return apiRequest<{ prs: OpenPr[] }>(`/api/board/prs${check ? "?check=1" : ""}`);
 }
 
 /**

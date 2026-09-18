@@ -17,14 +17,15 @@ bridge/git.ts           worktree resolution + diff
 bridge/context.ts       the context gauge
 bridge/handoff.ts       the handoff sequence
 bridge/wrapup.ts        the closing report a filed card asks its agent for
-bridge/integrate.ts     merge / PR / conflict-resolve / cleanup for a card's branch
+bridge/integrate.ts     merge / PR / conflict-resolve / reopen / cleanup for a card's branch
+bridge/prs.ts           the open-PR list, folded from the journal
 bridge/copilot.ts       the copilot
 bridge/board-notify.ts  the card journal, tailed into the bell
 bridge/adapters.ts      per-agent divergence
 bridge/gallery.ts       the scratchpad image gallery
 web/src/lib/board*.ts   the client half
 web/src/lib/lightbox.ts the viewer's store + a session's image set
-web/src/routes/{board,card,gallery}.tsx
+web/src/routes/{board,card,gallery,prs}.tsx
 web/src/components/{card-tile,card-diff,context-gauge,new-card-sheet,image-lightbox}.tsx
 web/src/components/space-pane-tree.tsx  the pane list grouped by space (generic — brick 32)
 ```
@@ -46,7 +47,7 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `web/src/lib/api.ts` | `apiRequest` re-export; `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20; `fetchGallery()` + `galleryImageUrl()` — brick 21 |
 | `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref; `galleryLoader` — brick 21 in the ledger; `HomeData.notifyCount` — brick 18 |
 | `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` + `notifications.count` — brick 18 in the ledger; the tool part's `image` and `GalleryImage` — brick 21; `AgentView.statusSince` — brick 22; `notifyVerb`/`notifyWhere`/`notifyWhat` deleted, the three surfaces composing through `notify-content.ts` instead — brick 25; `AgentView.cardStatus` + `NotifyLogEntry.cardId`/`cardStatus` — card N4, fork-only; `NotifyLogEntry`'s `paneId`/`agent`/`workspaceLabel` made optional, because a board event has no pane behind it, and its `status` widened with `stalled`, then with `ready` — card N6, fork-only |
-| `web/src/router.tsx` | three routes; a per-leaf `errorElement` |
+| `web/src/router.tsx` | four routes; a per-leaf `errorElement` |
 | `web/src/routes/home.tsx` | a Board row; the screen's `<h1>`; `<UsageGauge>` under the triage — brick 23 in the ledger |
 | `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger; the ⋯ sheet's `Images` row — brick 21; `tabs` handed to the switcher sheet's `<ThreadSidebar>`, which now names each row's tab — brick 32 |
 | `web/src/routes/{root,history,settings}.tsx` · `web/src/components/{status-area,space-view}.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts `<AgentToasts>` (brick 19); `settings.tsx` additionally mounts `<FollowUpsControl>` and `<MaxAgentsControl>` (fork-only, the board's switches) and the Gallery row; `history.tsx` additionally carries the session's image set into `<TranscriptView>` and the header button that opens it — brick 21 in the ledger |
