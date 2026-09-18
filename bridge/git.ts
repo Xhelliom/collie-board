@@ -648,6 +648,24 @@ export async function fetchBase(
 }
 
 /**
+ * Give a cleaned-up card its branch back, from `origin` (ADR 0014). A no-op when the branch is still
+ * here — a card filed with `keepWorktree` never lost it. `--track`, so the branch reads as pushed
+ * again and the cleanup that follows the next PR tap is allowed, exactly as the first time.
+ */
+export async function restoreBranch(
+  repoPath: string,
+  branch: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!branch || branch.startsWith("-")) return { ok: false, error: `not a branch name: ${branch}` };
+  if (await branchExists(repoPath, branch, git)) return { ok: true };
+  const fetched = await fetchBase(repoPath, branch, git);
+  if (!fetched.ok) return fetched;
+  const r = await git(["branch", "--track", "--", branch, `origin/${branch}`], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "branch restore failed" };
+}
+
+/**
  * Bring the base a new card forks from level with `origin`, before the branch is cut.
  *
  * Cards merge through PRs on the remote, and nothing else moves the LOCAL base — so without this
@@ -813,7 +831,7 @@ export async function createPr(
   repoPath: string,
   input: { branch: string; base: string; title: string; body: string },
   gh: GitRunner = runGh,
-): Promise<{ ok: true; url: string | null } | { ok: false; error: string }> {
+): Promise<{ ok: true; url: string | null; existed: boolean } | { ok: false; error: string }> {
   const r = await gh(
     [
       "pr",
@@ -829,11 +847,11 @@ export async function createPr(
     ],
     repoPath,
   );
-  if (r.ok) return { ok: true, url: parsePrUrl(r.stdout) };
+  if (r.ok) return { ok: true, url: parsePrUrl(r.stdout), existed: false };
   const message = (r.stderr || r.stdout).trim();
   if (/already exists/i.test(message)) {
     const existing = await gh(["pr", "view", input.branch, "--json", "url", "--jq", ".url"], repoPath);
-    return { ok: true, url: existing.ok ? existing.stdout.trim() || null : null };
+    return { ok: true, url: existing.ok ? existing.stdout.trim() || null : null, existed: true };
   }
   return { ok: false, error: message.split("\n").slice(0, 4).join("\n") };
 }
@@ -850,6 +868,8 @@ export interface PrStatus {
   mergedAt: number | null;
   /** Open AND GitHub says CONFLICTING. `UNKNOWN` (not computed yet) is false: no guessed state. */
   conflicting: boolean;
+  /** Open AND GitHub says MERGEABLE. Neither this nor `conflicting`: GitHub hasn't worked it out yet. */
+  mergeable: boolean;
 }
 
 /**
@@ -875,6 +895,7 @@ export function parsePrView(stdout: string): PrStatus | null {
     url: raw.url,
     mergedAt: Number.isFinite(merged) ? merged : null,
     conflicting: state === "open" && raw.mergeable === "CONFLICTING",
+    mergeable: state === "open" && raw.mergeable === "MERGEABLE",
   };
 }
 

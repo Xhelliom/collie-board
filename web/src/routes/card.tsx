@@ -1452,6 +1452,7 @@ export function IntegrationSection({
             pushed, so "cleaned up" alone is all this can honestly say. The merge/PR lines above are
             the evidence, when there is any. */}
         {past.cleanedUp && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
+        {past.reopened && <span>Reopened to settle the PR's conflict · {timeAgo(past.reopened)}</span>}
         {past.discarded && (
           <span>
             Discarded {timeAgo(past.discarded.ts)} — {past.discarded.commits} commit
@@ -1477,6 +1478,30 @@ export function IntegrationSection({
       {prLabel(past.pr.url)}
     </a>
   ) : null;
+
+  // ADR 0014, case 2: clean when opened, the PR conflicted after the card was filed and let go of its
+  // agent. A card that still HAS an agent gets the conflict handed to it instead (resolve, below).
+  const reopen =
+    pr?.conflicting && !card.session?.paneId ? (
+      <div className="flex flex-col gap-2.5 rounded-lg border border-dashed border-status-blocked/45 bg-status-blocked/10 px-3 py-3">
+        <p className="text-[13px] font-semibold text-status-blocked">
+          {prLabel(pr.url, "").trim()} no longer merges — its base has moved on.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          A new agent gets the branch back from origin, merges the base into it and commits. Nothing is
+          pushed until you tap Update the PR.
+        </p>
+        <Button
+          variant="outline"
+          className="h-[38px] w-full gap-2 rounded-[10px] bg-background"
+          disabled={busy !== null}
+          onClick={() => void run("reopen", "Reopened")}
+        >
+          <Play className="size-4" />
+          {busy === "reopen" ? "Starting an agent…" : "Reopen with an agent"}
+        </Button>
+      </div>
+    ) : null;
 
   const load = useCallback(async () => {
     let next: Integration | null = null;
@@ -1528,7 +1553,7 @@ export function IntegrationSection({
   }, [card.runtime?.agentStatus, awaitingResolve, load]);
 
   async function run(
-    action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
+    action: "merge" | "pr" | "resolve" | "reopen" | "cleanup" | "discard",
     label: string,
     andDone = false,
   ) {
@@ -1538,10 +1563,12 @@ export function IntegrationSection({
       const res = await integrateCard(card.id, action, andDone, action === "resolve" ? via : undefined);
       setConflict(null);
       if (action === "resolve") setAwaitingResolve(via);
+      // A reopen is a resolve with a new agent: same wait, and it ends in the same PR tap.
+      if (action === "reopen") setAwaitingResolve("pr");
       setStatus(
         action === "pr" && res.url
-          ? `PR opened — ${res.url}`
-          : action === "resolve"
+          ? `${label} — ${res.url}`
+          : action === "resolve" || action === "reopen"
             ? "Sent to the agent — this section refreshes on its own once it's done."
             : `${label} done.`,
         "success",
@@ -1585,6 +1612,7 @@ export function IntegrationSection({
         {history ? (
           <div className="flex flex-col gap-3">
             {history}
+            {reopen}
             {prLink}
           </div>
         ) : (
@@ -1620,6 +1648,7 @@ export function IntegrationSection({
     <Section label="Intégration">
       <div className="flex flex-col gap-3">
         {history}
+        {reopen}
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-1 font-mono text-[11px] text-muted-foreground">
             <span>{state.branch}</span>
@@ -1698,6 +1727,20 @@ export function IntegrationSection({
           {/* Once the journal knows a PR's url, the tap that matters is "take me to it" — tapping
               "Open a PR" again would push and hand back that same url. Same `prLink` the branchless
               return above renders, so the tap doesn't vanish when the branch does. */}
+          {/* …unless the branch has commits the PR doesn't: a reopened card's settled conflict, say.
+              The same PR gesture pushes them, and `gh pr create` answers "already exists" with the
+              PR's own url (ADR 0014). */}
+          {past.pr?.url && !integrated && !state.pushed && (
+            <Button
+              variant="outline"
+              className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
+              disabled={busy !== null || state.branchDirty}
+              onClick={() => void run("pr", "Pull request updated", filing)}
+            >
+              <GitPullRequest className="size-4" />
+              {busy === "pr" ? "Pushing…" : `${prLabel(past.pr.url, "Update")}${filing ? " & done" : ""}`}
+            </Button>
+          )}
           {prLink ?? (
             <Button
               variant="outline"
@@ -1735,8 +1778,8 @@ export function IntegrationSection({
             No button here: the point is exactly that there is nothing left to tap yet. */}
         {awaitingResolve && (
           <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-            The agent is resolving the conflict — this refreshes on its own once it's done. Come back
-            and tap {awaitingResolve === "pr" ? "Open a PR" : "merge"} again.
+            The agent is resolving the conflict — this refreshes on its own once it's done. Then tap{" "}
+            {awaitingResolve === "pr" ? (past.pr?.url ? prLabel(past.pr.url, "Update") : "Open a PR") : "merge"}.
           </p>
         )}
 

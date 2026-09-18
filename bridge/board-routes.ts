@@ -47,9 +47,18 @@ import {
   worktreePathFor,
 } from "./git.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
-import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
+import {
+  cleanupCard,
+  integrationFor,
+  mergeCard,
+  prForCard,
+  prStatusFor,
+  reopenForPr,
+  resolveConflict,
+} from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
+import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
@@ -63,6 +72,9 @@ const BOARD_PREFS_ROUTE = "/api/board/prefs";
 
 /** `/api/board/usage` — how much Claude Code quota is left (see usage.ts). */
 const BOARD_USAGE_ROUTE = "/api/board/usage";
+
+/** `/api/board/prs` — the cards whose PR is still open, `?check=1` to ask GitHub (see prs.ts). */
+const BOARD_PRS_ROUTE = "/api/board/prs";
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
@@ -325,6 +337,16 @@ async function route(
     // null when there is no reading to be had (no `claude` installed, an unrecognised panel): the
     // client then shows nothing rather than a made-up number.
     return ctx.json({ usage: await usageTracker.get(force) });
+  }
+
+  // The open PRs. Read from the journal alone; `?check=1` is the Check tap, the one thing that asks
+  // GitHub about all of them — and journals the ones that are over, which is how they leave the list.
+  if (pathname === BOARD_PRS_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const check = new URL(req.url).searchParams.get("check") === "1";
+    return ctx.json({ prs: await openPrs(ctx.db, check) });
   }
 
   if (pathname === BOARD_PREFS_ROUTE) {
@@ -949,7 +971,9 @@ async function route(
     if (denied) return denied;
     const card = db.getCard(id);
     if (!card) return text("card not found", 404);
-    return json({ pr: await prStatusFor(card) });
+    const pr = await prStatusFor(card);
+    notePrOutcome(db, card.id, pr);
+    return json({ pr });
   }
 
   // ── integration: where the branch stands, and the three taps that end it ──
@@ -981,9 +1005,10 @@ async function route(
       what !== "pr" &&
       what !== "cleanup" &&
       what !== "resolve" &&
+      what !== "reopen" &&
       what !== "discard"
     ) {
-      return text("action must be merge, pr, resolve, cleanup or discard", 400);
+      return text("action must be merge, pr, resolve, reopen, cleanup or discard", 400);
     }
     const andDone = (body as { andDone?: unknown }).andDone === true;
     // Which gesture hit the conflict a resolve settles. An enumeration, never a ref: the base it
@@ -997,7 +1022,9 @@ async function route(
           ? await prForCard(db, card)
           : what === "resolve"
             ? await resolveConflict(db, ctx.herdr, card, via)
-            : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
+            : what === "reopen"
+              ? await reopenForPr(db, ctx.herdr, ctx.cfg, card)
+              : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its

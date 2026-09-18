@@ -24,7 +24,12 @@ describe("integrationHistory", () => {
       cleanedUp: null,
       discarded: null,
       wrapupUnasked: null,
+      reopened: null,
     });
+  });
+
+  it("remembers a card reopened to settle its PR's conflict", () => {
+    expect(integrationHistory([ev("card.pr_opened", { url: "u" }, 1), ev("card.reopened", {}, 5)]).reopened).toBe(5);
   });
 
   it("remembers the merge and what it went into", () => {
@@ -99,28 +104,28 @@ describe("prSentence", () => {
 
   it("says a merged PR is merged, not that it was opened minutes ago", () => {
     // The bug this exists for: a card showed "PR opened 4m ago" about a PR merged hours earlier.
-    const out = prSentence({ state: "merged", url: "https://gh/o/r/pull/1", mergedAt: merged, conflicting: false }, opened);
+    const out = prSentence({ state: "merged", url: "https://gh/o/r/pull/1", mergedAt: merged, conflicting: false, mergeable: false }, opened);
     expect(out).toContain("merged");
     expect(out).not.toContain("opened");
   });
 
   it("distinguishes a PR closed without merging from one still open", () => {
-    const closed = prSentence({ state: "closed", url: "https://gh/o/r/pull/2", mergedAt: null, conflicting: false }, opened);
-    const open = prSentence({ state: "open", url: "https://gh/o/r/pull/3", mergedAt: null, conflicting: false }, opened);
+    const closed = prSentence({ state: "closed", url: "https://gh/o/r/pull/2", mergedAt: null, conflicting: false, mergeable: false }, opened);
+    const open = prSentence({ state: "open", url: "https://gh/o/r/pull/3", mergedAt: null, conflicting: false, mergeable: false }, opened);
     expect(closed).toContain("closed without merging");
     expect(closed).not.toBe(open);
     expect(open).toContain("PR opened");
   });
 
   it("says an open PR now conflicts with its base", () => {
-    const out = prSentence({ state: "open", url: "u", mergedAt: null, conflicting: true }, opened);
+    const out = prSentence({ state: "open", url: "u", mergedAt: null, conflicting: true, mergeable: false }, opened);
     expect(out).toContain("conflicts with its base");
   });
 
   it("falls back to the journal's wording when GitHub cannot be asked", () => {
     // No `gh`, no auth, no GitHub remote, offline — the honest answer is the one thing we can prove.
     expect(prSentence(null, opened)).toBe(
-      prSentence({ state: "open", url: "u", mergedAt: null, conflicting: false }, opened),
+      prSentence({ state: "open", url: "u", mergedAt: null, conflicting: false, mergeable: false }, opened),
     );
     expect(prSentence(null, opened)).toContain("PR opened");
   });

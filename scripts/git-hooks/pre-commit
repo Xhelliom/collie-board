@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Versioning guard. Install with: scripts/install-hooks.sh (sets core.hooksPath).
+# Versioning guard (ADR 0016). Install with: scripts/install-hooks.sh (sets core.hooksPath).
 # 1) versions must be consistent (check-version.sh)
-# 2) if functional code changed, the canonical version must differ from HEAD (i.e. you bumped it)
+# 2) on a branch: a functional change needs a fragment in changes/, and the version is not cut here
+# 3) on main: a functional change needs a fragment (CI cuts the release) or a hand-cut version bump
 # Override a single commit with: SKIP_VERSION_CHECK=1 git commit …
 set -euo pipefail
 
@@ -15,18 +16,52 @@ fi
 # (1) consistency
 "$ROOT/scripts/check-version.sh" >/dev/null
 
-# (2) bump-on-change — any functional path in this set requires a version bump.
 staged="$(git diff --cached --name-only)"
+read_ver() { sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1; }
+cur="$(git show :herdr-plugin.toml 2>/dev/null | read_ver || true)"
+prev="$(git show HEAD:herdr-plugin.toml 2>/dev/null | read_ver || true)"
+branch="$(git symbolic-ref --quiet --short HEAD || true)"
+fragment_staged="$(echo "$staged" | grep -E '^changes/.+\.md$' | grep -v '^changes/README\.md$' || true)"
+
+if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+  # (2a) The version is cut on main, never here: two branches cutting one each is the conflict this
+  # whole scheme exists to remove.
+  if { [ -n "${prev:-}" ] && [ "$cur" != "$prev" ]; } || git diff --cached -- CHANGELOG.md | grep -q '^+## \['; then
+    cat >&2 <<EOF
+✗ pre-commit: this branch cuts a version ($prev → $cur, or a new CHANGELOG heading).
+  Versions are cut on main by CI now — put your change in changes/<slug>.md instead (ADR 0016).
+EOF
+    exit 1
+  fi
+  # (2b) A functional change carries its fragment — staged now, or already on the branch.
+  if echo "$staged" | grep -qE '^(bridge/|web/src/|web/public/|web/vite\.config\.ts|web/index\.html|scripts/|systemd/|herdr-plugin\.toml)'; then
+    base="$(git merge-base HEAD main 2>/dev/null || git merge-base HEAD origin/main 2>/dev/null || true)"
+    on_branch=""
+    if [ -n "$base" ]; then
+      on_branch="$(git diff --name-only "$base" HEAD -- changes/ | grep -v '^changes/README\.md$' || true)"
+    fi
+    if [ -z "$fragment_staged" ] && [ -z "$on_branch" ]; then
+      cat >&2 <<EOF
+✗ pre-commit: functional code changed but this branch has no fragment in changes/.
+  Add changes/<slug>.md — first line "bump: patch|minor|major", then "### Added" / "### Fixed" …
+  and one "- " line per change. CI turns it into the release once it lands on main (ADR 0016).
+EOF
+      exit 1
+    fi
+  fi
+  exit 0
+fi
+
+# (3) On main: a fragment is enough (CI releases it on push). Without one, the old rule — the version
+# is bumped by hand, strictly upward, with its CHANGELOG entry.
 if echo "$staged" | grep -qE '^(bridge/|web/src/|web/public/|web/vite\.config\.ts|web/index\.html|web/package\.json|scripts/|systemd/|package\.json|herdr-plugin\.toml)'; then
-  read_ver() { sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1; }
-  cur="$(read_ver < "$ROOT/herdr-plugin.toml")"
-  prev="$(git show HEAD:herdr-plugin.toml 2>/dev/null | read_ver || true)"
+  [ -n "$fragment_staged" ] && exit 0
   if [ -n "${prev:-}" ]; then
     if [ "$cur" = "$prev" ]; then
       cat >&2 <<EOF
-✗ pre-commit: functional code changed but the version is still $cur.
-  Bump version in herdr-plugin.toml, package.json, web/package.json and add a CHANGELOG entry.
-  (Doc-only changes don't need a bump. Override once with SKIP_VERSION_CHECK=1 git commit.)
+✗ pre-commit: functional code changed but there is no fragment and the version is still $cur.
+  Add changes/<slug>.md (CI releases it) — or bump the three files and add a CHANGELOG entry.
+  (Doc-only changes need neither. Override once with SKIP_VERSION_CHECK=1 git commit.)
 EOF
       exit 1
     fi

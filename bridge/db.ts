@@ -1364,6 +1364,16 @@ export class BoardDb {
     return r ? toEvent(r) : null;
   }
 
+  /** Every PR event on the board, oldest first — what the open-PR list folds (prs.ts). */
+  listPrEvents(): BoardEvent[] {
+    return this.db
+      .query<EventRow, []>(
+        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_merged', 'card.pr_closed') ORDER BY id",
+      )
+      .all()
+      .map(toEvent);
+  }
+
   /** A card's journal, newest first. */
   listEvents(cardId: string, limit = 100): BoardEvent[] {
     return this.db

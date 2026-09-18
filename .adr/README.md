@@ -57,3 +57,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0013](./0013-the-bridge-does-not-know-its-consumers.md) | The bridge does not know its consumers | Accepted |
 | [0014](./0014-a-conflicting-pr-does-not-file-the-card.md) | A PR that conflicts does not file its card; a filed card reopens on demand | Accepted |
 | [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Accepted |
+| [0016](./0016-the-version-is-cut-on-main-by-ci.md) | The version is cut on main by CI; a branch only drops a fragment | Accepted |

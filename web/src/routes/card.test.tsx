@@ -450,7 +450,7 @@ describe("IntegrationSection — the PR outlives the branch", () => {
       http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })),
       http.get("*/api/cards/:id/pr", () =>
         HttpResponse.json({
-          pr: { state: "open", url: "https://github.com/o/r/pull/42", mergedAt: null, conflicting: true },
+          pr: { state: "open", url: "https://github.com/o/r/pull/42", mergedAt: null, conflicting: true, mergeable: false },
         }),
       ),
     );
@@ -460,6 +460,68 @@ describe("IntegrationSection — the PR outlives the branch", () => {
     await screen.findByText(/conflicts with its base/i);
     const link = screen.getByRole("link", { name: /resolve on github/i });
     expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/42/conflicts");
+    cleanup();
+  });
+
+  const conflictingPr = () =>
+    http.get("*/api/cards/:id/pr", () =>
+      HttpResponse.json({
+        pr: { state: "open", url: "https://github.com/o/r/pull/42", mergedAt: null, conflicting: true, mergeable: false },
+      }),
+    );
+
+  // …and the tap that settles it: the agent that wrote the code is gone, so a new one is brought back.
+  it("offers to reopen a filed card whose PR now conflicts", async () => {
+    let sent: unknown = null;
+    server.use(
+      http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })),
+      conflictingPr(),
+      http.post("*/api/cards/:id/integration", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ ok: true, paneId: "w1:p1", card: card("starting") });
+      }),
+    );
+    render(
+      <IntegrationSection card={card("done")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: /reopen with an agent/i }));
+    expect(sent).toMatchObject({ action: "reopen" });
+    cleanup();
+  });
+
+  it("does not offer a reopen to a card that still has its agent", async () => {
+    server.use(http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: null })), conflictingPr());
+    const live = { ...card("done"), session: { id: "s1", paneId: "w1:p1" } } as CardView;
+    render(<IntegrationSection card={live} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />);
+    await screen.findByText(/conflicts with its base/i);
+    expect(screen.queryByRole("button", { name: /reopen with an agent/i })).toBeNull();
+    cleanup();
+  });
+
+  // Once the agent has merged the base in, its commit is on the branch and not on the PR yet.
+  it("offers to update the PR once the branch has commits the PR doesn't", async () => {
+    server.use(
+      http.get("*/api/cards/:id/integration", () =>
+        HttpResponse.json({
+          integration: {
+            branch: "board/x",
+            base: "main",
+            ahead: 3,
+            behind: 0,
+            branchDirty: false,
+            baseDirty: false,
+            baseCheckedOut: true,
+            pushed: false,
+          } satisfies Integration,
+        }),
+      ),
+      http.get("*/api/cards/:id/pr", () => HttpResponse.json({ pr: null })),
+    );
+    render(
+      <IntegrationSection card={card("working")} events={prOpened} onDone={vi.fn()} onState={vi.fn()} />,
+    );
+    expect(await screen.findByRole("button", { name: /update pr #42 & done/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /view pr #42/i })).toBeTruthy();
     cleanup();
   });
 

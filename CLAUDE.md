@@ -1,7 +1,8 @@
 # CLAUDE.md — working agreement for this repo
 
 > **This is Collie Board**, a fork of `AltanS/collie`. Everything below is upstream's working
-> agreement and still applies verbatim — the versioning gate, the build traps, the security posture.
+> agreement and still applies verbatim — the build traps, the security posture — except the
+> versioning gate, which the fork cuts on `main` by CI ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 > The fork's own rules are in [*The board*](#the-board-fork-only-rules) at the bottom, and its
 > posture toward upstream in [`UPSTREAM.md`](./UPSTREAM.md).
 
@@ -25,40 +26,44 @@ mark it superseded and write the next one.
 
 ## Versioning — MANDATORY
 
-This plugin is **SemVer**ed, and the version is **enforced**, so it never silently drifts.
+This plugin is **SemVer**ed, and the version is **enforced**, so it never silently drifts. It is
+**cut on `main` by CI, never on a branch**: two branches that each cut one edited the same four
+files and conflicted every time — [ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md).
 
 **The version lives in three files that must always agree, plus a matching CHANGELOG entry:**
 `herdr-plugin.toml` (canonical — Herdr reads it) · `package.json` · `web/package.json` ·
-newest `## [x.y.z]` heading in `CHANGELOG.md`.
+newest `## [x.y.z]` heading in `CHANGELOG.md`. **On a branch you touch none of them.**
 
 **Before committing any functional change** (anything under `bridge/`, `web/src/`, `scripts/`, or the
-manifest) you MUST:
+manifest) you MUST **add a fragment**, `changes/<branch-slug>.md` (format: [`changes/README.md`](./changes/README.md)),
+**in the feature's own commit**:
 
-1. **Bump** the version in all three files to the same number:
-   - **PATCH** (`0.2.0 → 0.2.1`): bug fix / internal refactor, no behavior change.
-   - **MINOR** (`0.2.0 → 0.3.0`): new backward-compatible capability.
-   - **MAJOR** (`0.2.0 → 1.0.0`): breaking change to config, API, or behavior.
-2. **Add a `CHANGELOG.md` entry** under a new `## [x.y.z] - YYYY-MM-DD` heading (Added / Changed /
-   Fixed). Use the real date. **Style: super crisp and short** — one line per change, no prose
-   paragraphs, and cite the feature's short commit hash at the end of the line (`… (abc1234)`).
-   Land features as their own commits first, then cut the release commit so the entry can cite them.
-3. **Run `scripts/check-version.sh`** — it must print `✓`.
+1. First line, the bump:
+   - `bump: patch` (`0.2.0 → 0.2.1`): bug fix / internal refactor, no behavior change.
+   - `bump: minor` (`0.2.0 → 0.3.0`): new backward-compatible capability.
+   - `bump: major` (`0.2.0 → 1.0.0`): breaking change to config, API, or behavior.
+2. Then `### Added` / `### Changed` / `### Fixed`, **super crisp and short** — one `- ` line per
+   change, no prose paragraphs. No commit hash: the release cites the commit the fragment came in
+   with, which is why it lands with the feature and not after it.
 
-Doc-only changes (`*.md`) don't need a bump. This is enforced two ways, but **you are the first
-line — do it as part of the change, not after**:
+That is all a branch does. After a green CI on `main`, `.github/workflows/release.yml` runs
+`scripts/release.ts`: every waiting fragment becomes one CHANGELOG entry, the biggest bump wins, the
+three files are aligned, and it commits `chore(release): x.y.z`, pushes the annotated `vX.Y.Z` tag
+with it and creates the GitHub Release. **Pull `main` after it** — the release commit exists only on
+`origin` until you do (see ADR 0016 for what a local merge left unpushed does meanwhile).
 
-- `scripts/check-version.sh` runs inside `scripts/collie-board-ctl.sh build` (a release can't build while
-  versions disagree).
+Doc-only changes (`*.md`) need no fragment. This is enforced, **but you are the first line**:
+
+- `scripts/check-version.sh` (the four agree) runs inside `scripts/collie-board-ctl.sh build` and CI.
 - A **git pre-commit hook** (`scripts/git-hooks/pre-commit`, activate once with
-  `scripts/install-hooks.sh`) blocks commits where functional code changed but the version didn't.
-  Escape hatch for a single commit: `SKIP_VERSION_CHECK=1 git commit …`.
+  `scripts/install-hooks.sh`): on a branch it refuses a functional commit when the branch has no
+  fragment, and refuses any version cut; on `main` it takes a fragment, or — the hotfix path — a
+  version bumped by hand with its CHANGELOG entry. Escape hatch for a single commit:
+  `SKIP_VERSION_CHECK=1 git commit …`.
 
-**Tag the release when you push it.** Cutting a release means the three version files + the newest
-`CHANGELOG.md` heading agree on `x.y.z` (steps 1–3). When that release lands on `main` and you push,
-**always push a matching annotated git tag with it** — `git tag -a vX.Y.Z -m "Collie X.Y.Z" && git
-push origin vX.Y.Z` (or `git push --follow-tags` so the tag ships *with* the release). One `v<x.y.z>`
-tag per shipped version on the remote. Not hook-enforced — it's on you. (Adding/adjusting this note is
-a doc-only change and needs no version bump.)
+**A version cut by hand on `main` still needs its tag**: `git tag -a vX.Y.Z -m "Collie X.Y.Z" && git
+push origin vX.Y.Z` — the `publish` job turns a pushed tag into its GitHub Release. CI tags the ones
+it cuts itself. One `v<x.y.z>` tag per shipped version on the remote.
 
 **Update notice (user-facing).** The app's in-app update banner links to the newest release's GitHub
 page and shows the command to run. Pushing a `v*` tag auto-creates that GitHub Release (with the

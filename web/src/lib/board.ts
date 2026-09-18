@@ -481,6 +481,10 @@ export function boardPath(): string {
   return "/board";
 }
 
+export function prsPath(): string {
+  return "/board/prs";
+}
+
 export function cardPath(cardId: string): string {
   return `/card/${encodeURIComponent(cardId)}`;
 }
@@ -871,6 +875,8 @@ export interface PrStatus {
   mergedAt: number | null;
   /** Open and GitHub says it conflicts with its base. False while GitHub hasn't computed it. */
   conflicting: boolean;
+  /** Open and GitHub says it merges. Neither this nor `conflicting`: GitHub hasn't worked it out. */
+  mergeable: boolean;
 }
 
 /**
@@ -885,6 +891,20 @@ export function fetchPrStatus(id: string): Promise<{ pr: PrStatus | null }> {
   return apiRequest<{ pr: PrStatus | null }>(`/api/cards/${encodeURIComponent(id)}/pr`);
 }
 
+/** A card whose PR is still open, as far as its journal knows — see bridge/prs.ts. */
+export interface OpenPr {
+  card: Pick<CardView, "id" | "title" | "status" | "repoPath" | "branch">;
+  url: string | null;
+  openedAt: number;
+  /** Only after a check: what GitHub said, null when it could not be asked. */
+  pr?: PrStatus | null;
+}
+
+/** The open PRs, from the journal. `check` asks GitHub about each one — the Check tap, never a poll. */
+export function fetchOpenPrs(check = false): Promise<{ prs: OpenPr[] }> {
+  return apiRequest<{ prs: OpenPr[] }>(`/api/board/prs${check ? "?check=1" : ""}`);
+}
+
 /**
  * The four gestures that end a branch's life. All refuse before they act, so a rejection arrives as
  * a sentence to show rather than as a repository left in a state nobody asked for.
@@ -895,7 +915,7 @@ export function fetchPrStatus(id: string): Promise<{ pr: PrStatus | null }> {
  */
 export function integrateCard(
   id: string,
-  action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
+  action: "merge" | "pr" | "resolve" | "reopen" | "cleanup" | "discard",
   /**
    * File the card as done in the same breath — only on success, and only for merge/pr.
    *

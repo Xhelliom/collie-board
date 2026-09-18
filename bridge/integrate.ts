@@ -9,6 +9,8 @@
 //   merge    — `git merge --no-ff` into the base, in the main checkout. Nothing is pushed.
 //   pr       — push the branch, then `gh pr create`. The base is never touched.
 //   resolve  — hand a conflict to the card's own agent, to settle on its own branch.
+//   reopen   — the same, for a filed card whose PR conflicted AFTER it was opened: the branch comes
+//              back from origin and a new agent is started on it (ADR 0014).
 //   cleanup  — close the pane, remove the worktree, delete the branch. Refused unless the commits
 //              are somewhere else: merged into the base, or pushed to the branch's upstream.
 //   discard  — the same, on work that will NEVER be integrated. The one destructive gesture.
@@ -22,7 +24,8 @@
 // cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
 // work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
-import { isAgentGone, lastSessionOf, promptAndConfirm } from "./cards.ts";
+import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards.ts";
+import type { Config } from "./config.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   cardDiffStat,
@@ -38,6 +41,7 @@ import {
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
+  restoreBranch,
   worktreePathFor,
   type Integration,
   type PrStatus,
@@ -113,6 +117,7 @@ const PR_TTL_MS = 60_000;
 
 /** ponytail: one entry per card branch, never evicted — bounded by the size of the board. */
 const prCache = new Map<string, { at: number; value: PrStatus | null }>();
+const prKey = (card: Card) => `${card.repoPath}\u0000${card.branch}`;
 
 /**
  * What the card's PR became, cached.
@@ -125,11 +130,16 @@ const prCache = new Map<string, { at: number; value: PrStatus | null }>();
  * A `null` reading is cached like any other: a repo with no `gh`, no auth or no GitHub remote must
  * not spawn a doomed subprocess on every read of the card.
  */
-export async function prStatusFor(card: Card, now: () => number = Date.now): Promise<PrStatus | null> {
+export async function prStatusFor(
+  card: Card,
+  now: () => number = Date.now,
+  /** Skip the cache: the "Check" tap, and a reopen about to spend an agent on the answer. */
+  fresh = false,
+): Promise<PrStatus | null> {
   if (!card.repoPath || !card.branch) return null;
-  const key = `${card.repoPath}\u0000${card.branch}`;
+  const key = prKey(card);
   const hit = prCache.get(key);
-  if (hit && now() - hit.at < PR_TTL_MS) return hit.value;
+  if (!fresh && hit && now() - hit.at < PR_TTL_MS) return hit.value;
   const value = await prStatusOf(card.repoPath, card.branch);
   prCache.set(key, { at: now(), value });
   return value;
@@ -272,7 +282,15 @@ export async function prForCard(db: BoardDb, card: Card): Promise<Result<{ url: 
     db.recordEvent(card.id, "card.pr_failed", { stage: "create", error: pr.error });
     return { ok: false, error: { kind: "git", message: pr.error } };
   }
-  db.recordEvent(card.id, "card.pr_opened", { branch: state.branch, base: state.base, url: pr.url });
+  // The push just changed what GitHub will say — a minute-old "conflicting" must not outlive it.
+  prCache.delete(prKey(card));
+  // A PR that already existed was UPDATED by the push above — a reopened card settling its conflict.
+  // Its own word, so the card keeps saying when the PR was opened, not when it was last pushed to.
+  db.recordEvent(card.id, pr.existed ? "card.pr_updated" : "card.pr_opened", {
+    branch: state.branch,
+    base: state.base,
+    url: pr.url,
+  });
   return { ok: true, value: { url: pr.url } };
 }
 
@@ -330,6 +348,80 @@ export async function resolveConflict(
   }
   db.recordEvent(card.id, "card.resolve_requested", { branch: state.branch, base, via, paneId: session.paneId });
   return { ok: true, value: { paneId: session.paneId } };
+}
+
+/**
+ * What a reopened card's agent is told. The resolve prompt, behind the two things a fresh checkout
+ * cannot tell it: that this PR was clean once, and what the card's closing report said — the agent
+ * that wrote the code is gone, and that report is all that is left of its conversation.
+ *
+ * Pure + exported so the wording is reviewable — this prompt drives a real terminal.
+ */
+export function reopenPrompt(base: string, branch: string, url: string, report: string | null): string {
+  return [
+    [
+      `This card was finished and its pull request (${url}) was opened clean, but ${base} has moved on`,
+      "since and GitHub now reports a conflict. This checkout is that branch, restored from origin.",
+      ...(report?.trim() ? ["", "The closing report written when the card was filed:", report.trim()] : []),
+    ].join("\n"),
+    resolvePrompt(base, branch, "pr"),
+  ].join("\n\n");
+}
+
+const refused = (message: string): { ok: false; error: IntegrateError } => ({
+  ok: false,
+  error: { kind: "refused", message },
+});
+
+/**
+ * Bring a filed card back to settle a conflict its PR met AFTER it was opened — ADR 0014, case 2.
+ * Clean when opened, the card closed completely: pane, worktree, local branch. What survives is the
+ * branch on origin, the PR and the closing report, and that is all this needs.
+ *
+ * The branch comes back from origin, `startCard` does the rest (worktree, agent, prompt — its herdr
+ * races included), and the push that updates the PR stays the operator's tap, through the ordinary
+ * PR gesture. A tap, like every start: it spends quota.
+ *
+ * GitHub is asked FRESH, not from the card screen's cache: a conflict settled on GitHub a minute ago
+ * must not launch an agent onto nothing.
+ */
+export async function reopenForPr(
+  db: BoardDb,
+  herdr: HerdrClient,
+  cfg: Config,
+  card: Card,
+): Promise<Result<{ paneId: string }>> {
+  if (db.openSessionFor(card.id)) return refused("this card already has an agent — hand it the conflict instead");
+  const pr = await prStatusFor(card, Date.now, true);
+  if (!pr) return refused("GitHub could not be asked about this card's PR — nothing was started");
+  if (pr.state !== "open") return refused(`this PR is ${pr.state} — there is nothing left to settle`);
+  if (!pr.conflicting) return refused("GitHub no longer reports a conflict on this PR — nothing was started");
+
+  // `prStatusFor` answered, so the card has both.
+  const restored = await restoreBranch(card.repoPath!, card.branch!);
+  if (!restored.ok) return { ok: false, error: { kind: "git", message: restored.error } };
+  const state = await integrationFor(card);
+  if (!state) return refused("this card has no branch to integrate");
+  const fetched = await fetchBase(card.repoPath!, state.base);
+  if (!fetched.ok) return { ok: false, error: { kind: "git", message: fetched.error } };
+
+  const base = `origin/${state.base}`;
+  const prompt = reopenPrompt(base, state.branch, pr.url, lastSessionOf(db, card.id)?.handoffMd ?? null);
+  const started = await startCard(db, herdr, cfg, card.id, { promptText: prompt });
+  if (!started.ok) {
+    return { ok: false, error: { kind: started.error.kind === "herdr" ? "herdr" : "refused", message: started.error.message } };
+  }
+  const { paneId } = started.value.worktree;
+  // `keepWorktree` left the old agent in its pane: `startCard` adopts it and sends nothing.
+  if (started.value.adopted) {
+    try {
+      await promptAndConfirm(herdr, paneId, prompt);
+    } catch (err) {
+      return { ok: false, error: { kind: "herdr", message: `agent adopted but the prompt failed: ${(err as Error).message}` } };
+    }
+  }
+  db.recordEvent(card.id, "card.reopened", { reason: "pr-conflict", url: pr.url, branch: state.branch, base, paneId });
+  return { ok: true, value: { paneId } };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ListFilter, Plus, X } from "lucide-react";
+import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { ChevronRight, GitPullRequest, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   matchesFilters,
   patchCard,
   positionFor,
+  prsPath,
   repoName,
   reposOf,
   saveRepoScope,
@@ -371,14 +372,26 @@ export function BoardRoute() {
           </>
         }
         rightTrail={
-          <Button
-            variant="brand"
-            className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
-            onClick={() => setNewOpen(true)}
-          >
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">New card</span>
-          </Button>
+          <>
+            {/* The open PRs, one tap away on both breakpoints. The Done lane keeps its own link, but
+                on a phone that lane is stacked last, under every card on the board. */}
+            <Link
+              to={prsPath()}
+              aria-label="Open PRs"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent hover:text-accent-foreground sm:px-3"
+            >
+              <GitPullRequest className="size-4" />
+              <span className="hidden sm:inline">Open PRs</span>
+            </Link>
+            <Button
+              variant="brand"
+              className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
+              onClick={() => setNewOpen(true)}
+            >
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">New card</span>
+            </Button>
+          </>
         }
       />
 
@@ -454,6 +467,16 @@ export function BoardRoute() {
                     <span className="rounded-full bg-muted px-[7px] py-px text-[11px] font-semibold tabular-nums text-muted-foreground">
                       {total}
                     </span>
+                    {/* Where a filed card's PR is followed up — the PR outlives the card's lane. */}
+                    {lane.label === "Done" && (
+                      <Link
+                        to={prsPath()}
+                        className="ml-auto flex min-h-8 items-center gap-0.5 px-1.5 text-xs font-semibold text-brand"
+                      >
+                        Open PRs
+                        <ChevronRight className="size-3.5" />
+                      </Link>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                     {lane.statuses.map((status) => {

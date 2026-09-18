@@ -7,7 +7,7 @@
 // board-specific poll loop.
 
 import { isApiErrorStatus } from "./api";
-import { fetchCard, fetchCards, type CardDetail, type CardView } from "./board";
+import { fetchCard, fetchCards, fetchOpenPrs, type CardDetail, type CardView, type OpenPr } from "./board";
 
 function isAbortError(e: unknown): boolean {
   return (
@@ -71,4 +71,9 @@ export async function cardLoader({
       authError: isAuthError(e),
     };
   }
+}
+
+/** The open PRs, from the journal alone — asking GitHub is the screen's Check tap (routes/prs.tsx). */
+export async function prsLoader(): Promise<OpenPr[]> {
+  return (await fetchOpenPrs()).prs;
 }

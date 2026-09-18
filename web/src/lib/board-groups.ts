@@ -109,6 +109,8 @@ export interface IntegrationHistory {
    *  waiting on, so a request that never landed leaves the checkout behind in silence. Cleared by a
    *  later wrapup that did get through. */
   wrapupUnasked: number | null;
+  /** Brought back from done to settle a conflict its PR met after it was opened (ADR 0014). */
+  reopened: number | null;
 }
 
 /**
@@ -131,6 +133,7 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
     cleanedUp: null,
     discarded: null,
     wrapupUnasked: null,
+    reopened: null,
   };
   // Oldest first in the journal, so a later event simply overwrites — the last merge is the one.
   for (const e of events) {
@@ -138,6 +141,7 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
     if (e.type === "card.merged") out.merged = { base: p.base ?? "the base", ts: e.ts };
     else if (e.type === "card.pr_opened") out.pr = { url: p.url ?? null, ts: e.ts };
     else if (e.type === "card.cleaned_up") out.cleanedUp = e.ts;
+    else if (e.type === "card.reopened") out.reopened = e.ts;
     else if (e.type === "card.discarded") out.discarded = { commits: p.commits ?? 0, ts: e.ts };
     else if (e.type === "wrapup.unasked") out.wrapupUnasked = e.ts;
     // A wrapup that WAS asked for clears it: the coordinator is on the case, so the silent-leftover
@@ -172,9 +176,9 @@ export function prSentence(status: PrStatus | null, openedTs: number): string {
  * Name the PR link's button. Falls back to the generic wording rather than showing a bare url on a
  * phone: the number is nice, the link working is what matters. Pure + exported for the test.
  */
-export function prLabel(url: string): string {
+export function prLabel(url: string, verb = "View"): string {
   const n = /\/pull\/(\d+)/.exec(url)?.[1];
-  return n ? `View PR #${n}` : "View the PR";
+  return n ? `${verb} PR #${n}` : `${verb} the PR`;
 }
 
 /**
