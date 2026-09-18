@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.146.0] - 2026-09-18
+
+### Added
+
+- Carte classée dont la PR est devenue conflictuelle : « Reopen with an agent » restaure la branche depuis origin et relance un agent sur la résolution, « Update PR #N & done » pousse le résultat (ADR 0014) (cee4769)
+- Écran « Open PRs » (bouton dans l'en-tête du board, lien dans la colonne Done) : les PR encore ouvertes, vérifiées à la demande — conflit, mergeable, ou GitHub qui calcule encore (9137a5e)
+
+### Changed
+
+- La version se coupe sur main, en CI, à partir des fragments de `changes/` ; une branche n'en coupe plus (ADR 0016) (4774e73)
+
+### Fixed
+
+- Unit `Restart=always` : le bridge revient même après un arrêt propre venu d'ailleurs (SIGTERM d'un agent, de herdr) (16ac103)
+
 ## [0.145.0] - 2026-09-15
 
 ### Changed
