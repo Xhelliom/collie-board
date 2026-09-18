@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ChevronRight, ListFilter, Plus, X } from "lucide-react";
+import { ChevronRight, GitPullRequest, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -372,14 +372,26 @@ export function BoardRoute() {
           </>
         }
         rightTrail={
-          <Button
-            variant="brand"
-            className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
-            onClick={() => setNewOpen(true)}
-          >
-            <Plus className="size-4" />
-            <span className="hidden sm:inline">New card</span>
-          </Button>
+          <>
+            {/* The open PRs, one tap away on both breakpoints. The Done lane keeps its own link, but
+                on a phone that lane is stacked last, under every card on the board. */}
+            <Link
+              to={prsPath()}
+              aria-label="Open PRs"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent hover:text-accent-foreground sm:px-3"
+            >
+              <GitPullRequest className="size-4" />
+              <span className="hidden sm:inline">Open PRs</span>
+            </Link>
+            <Button
+              variant="brand"
+              className="h-9 gap-1.5 rounded-[10px] px-3 text-sm font-semibold sm:px-3.5"
+              onClick={() => setNewOpen(true)}
+            >
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">New card</span>
+            </Button>
+          </>
         }
       />
 
