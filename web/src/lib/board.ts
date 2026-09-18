@@ -871,6 +871,8 @@ export interface PrStatus {
   mergedAt: number | null;
   /** Open and GitHub says it conflicts with its base. False while GitHub hasn't computed it. */
   conflicting: boolean;
+  /** Open and GitHub says it merges. Neither this nor `conflicting`: GitHub hasn't worked it out. */
+  mergeable: boolean;
 }
 
 /**
@@ -895,7 +897,7 @@ export function fetchPrStatus(id: string): Promise<{ pr: PrStatus | null }> {
  */
 export function integrateCard(
   id: string,
-  action: "merge" | "pr" | "resolve" | "cleanup" | "discard",
+  action: "merge" | "pr" | "resolve" | "reopen" | "cleanup" | "discard",
   /**
    * File the card as done in the same breath — only on success, and only for merge/pr.
    *

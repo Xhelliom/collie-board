@@ -18,13 +18,23 @@ import {
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
+  restoreBranch,
   worktreePathFor,
   type GitRunner,
   type Integration,
 } from "./git.ts";
 import { BoardDb, type CardSession } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { cleanupCard, mergeCard, rebindDependents, resolvePrompt, wrapupGate } from "./integrate.ts";
+import type { Config } from "./config.ts";
+import {
+  cleanupCard,
+  mergeCard,
+  rebindDependents,
+  reopenForPr,
+  reopenPrompt,
+  resolvePrompt,
+  wrapupGate,
+} from "./integrate.ts";
 
 // These three writes are the only ones in the bridge that change a git repository, and the operator
 // firing them is on a phone and cannot repair anything. So the tests here are about REFUSING: what
@@ -91,6 +101,7 @@ describe("parsePrView", () => {
       url: "https://github.com/o/r/pull/1",
       mergedAt: Date.parse("2026-08-24T15:37:36Z"),
       conflicting: false,
+      mergeable: false,
     });
   });
 
@@ -105,6 +116,14 @@ describe("parsePrView", () => {
     expect(conflicting("CLOSED", "CONFLICTING")).toBe(false);
   });
 
+  it("says an open PR merges only when GitHub says so — UNKNOWN is neither", () => {
+    const read = (mergeable: string) =>
+      parsePrView(JSON.stringify({ state: "OPEN", mergeable, mergedAt: null, url: "https://gh/o/r/pull/6" }));
+    expect(read("MERGEABLE")).toMatchObject({ mergeable: true, conflicting: false });
+    expect(read("CONFLICTING")).toMatchObject({ mergeable: false, conflicting: true });
+    expect(read("UNKNOWN")).toMatchObject({ mergeable: false, conflicting: false });
+  });
+
   it("keeps a closed PR distinct from an open one", () => {
     // The whole point: "closed without merging" and "still open" must not read the same on the card.
     expect(parsePrView('{"mergedAt":null,"state":"CLOSED","url":"https://gh/o/r/pull/2"}')?.state).toBe("closed");
@@ -113,6 +132,7 @@ describe("parsePrView", () => {
       url: "https://gh/o/r/pull/3",
       mergedAt: null,
       conflicting: false,
+      mergeable: false,
     });
   });
 
@@ -421,6 +441,47 @@ describe("resolvePrompt", () => {
     expect(prompt).toContain("Do NOT push");
     expect(prompt).toContain("Do NOT open the PR yourself");
     expect(prompt).not.toContain("merge this branch back");
+  });
+});
+
+describe("reopening a filed card whose PR conflicts (ADR 0014, case 2)", () => {
+  it("gets a cleaned-up branch back from origin, tracking it so it reads as pushed", async () => {
+    const { git, calls } = fakeGit({ "rev-parse": { ok: false } });
+    expect(await restoreBranch("/repo", "board/x", git)).toEqual({ ok: true });
+    expect(calls.slice(1)).toEqual([
+      ["fetch", "origin", "--", "board/x"],
+      ["branch", "--track", "--", "board/x", "origin/board/x"],
+    ]);
+  });
+
+  it("leaves a branch that is still here alone — keepWorktree never lost it", async () => {
+    const { git, calls } = fakeGit({});
+    expect(await restoreBranch("/repo", "board/x", git)).toEqual({ ok: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("refuses a branch name a flag parser would read", async () => {
+    const { git, calls } = fakeGit({});
+    expect((await restoreBranch("/repo", "--force", git)).ok).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("tells the new agent the PR was clean once, and hands it the closing report", () => {
+    const prompt = reopenPrompt("origin/main", "board/x", "https://gh/o/r/pull/58", "Added the PR line.");
+    expect(prompt).toContain("https://gh/o/r/pull/58");
+    expect(prompt).toContain("Added the PR line.");
+    expect(prompt).toContain("git merge origin/main");
+    expect(prompt).toContain("Do NOT push");
+    expect(reopenPrompt("origin/main", "board/x", "u", null)).not.toContain("closing report");
+  });
+
+  it("refuses a card that still has an agent — that one gets the conflict handed to it", async () => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    store.patchCard(card.id, { branch: "board/x" });
+    store.openSession({ cardId: card.id, paneId: "w1:p1", agentKind: "claude" });
+    const r = await reopenForPr(store, {} as HerdrClient, {} as Config, store.getCard(card.id)!);
+    expect(r).toEqual({ ok: false, error: { kind: "refused", message: expect.stringContaining("already has an agent") } });
   });
 });
 

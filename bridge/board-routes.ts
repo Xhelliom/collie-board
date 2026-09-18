@@ -47,7 +47,15 @@ import {
   worktreePathFor,
 } from "./git.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
-import { cleanupCard, integrationFor, mergeCard, prForCard, prStatusFor, resolveConflict } from "./integrate.ts";
+import {
+  cleanupCard,
+  integrationFor,
+  mergeCard,
+  prForCard,
+  prStatusFor,
+  reopenForPr,
+  resolveConflict,
+} from "./integrate.ts";
 import { usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
@@ -981,9 +989,10 @@ async function route(
       what !== "pr" &&
       what !== "cleanup" &&
       what !== "resolve" &&
+      what !== "reopen" &&
       what !== "discard"
     ) {
-      return text("action must be merge, pr, resolve, cleanup or discard", 400);
+      return text("action must be merge, pr, resolve, reopen, cleanup or discard", 400);
     }
     const andDone = (body as { andDone?: unknown }).andDone === true;
     // Which gesture hit the conflict a resolve settles. An enumeration, never a ref: the base it
@@ -997,7 +1006,9 @@ async function route(
           ? await prForCard(db, card)
           : what === "resolve"
             ? await resolveConflict(db, ctx.herdr, card, via)
-            : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
+            : what === "reopen"
+              ? await reopenForPr(db, ctx.herdr, ctx.cfg, card)
+              : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its

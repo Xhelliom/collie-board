@@ -511,6 +511,8 @@ export interface StartResult {
   card: Card;
   session: CardSession;
   worktree: CreatedWorktree;
+  /** An agent was already in the pane and kept, so `promptText` was NOT sent — see the adopt branch. */
+  adopted: boolean;
 }
 
 /**
@@ -773,7 +775,7 @@ export async function startCard(
   if (existing) {
     db.recordEvent(cardId, "card.agent_adopted", { paneId: worktree.paneId, agent: existing });
     db.setStatus(cardId, "working", "adopted the agent already in this worktree");
-    return { ok: true, value: { card: db.getCard(cardId)!, session, worktree } };
+    return { ok: true, value: { card: db.getCard(cardId)!, session, worktree, adopted: true } };
   }
 
   try {
@@ -812,7 +814,7 @@ export async function startCard(
     };
   }
 
-  return { ok: true, value: { card: db.getCard(cardId)!, session, worktree } };
+  return { ok: true, value: { card: db.getCard(cardId)!, session, worktree, adopted: false } };
 }
 
 /** Why a suggestion too small for a card could not, in the end, be finished on the spot. */
