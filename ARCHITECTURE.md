@@ -279,7 +279,8 @@ question, and exactly one rule carries the design: **`card` is durable, `session
 
 - **One store, no ORM** — `bun:sqlite` and raw SQL in `bridge/db.ts`. The schema is four tables wide
   and the bridge's dependency story stays "Bun + `node:*`". Additive migrations only.
-- **No new loop.** Reconciliation, the context gauge, handoff completion and the copilot's review
+- **No new loop.** Reconciliation, the context gauge, handoff completion, the automatic handoff
+  taken before an idle session's prompt cache expires and the copilot's review
   trigger are all `engine.onUpdate` hooks on the poll that already runs. There is no second source of
   truth and nothing to resync — the same reasoning as §5.
 - **A DISCONNECTED snapshot is ignored, everywhere.** Its pane list is the last good one, and

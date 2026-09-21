@@ -47,6 +47,10 @@ export interface AgentView {
    *  lib/board.ts's `CardStatus` — board.ts already imports this file, and one literal comparison
    *  does not justify pointing the cycle back. */
   cardStatus?: string;
+  /** A handoff note was written automatically before this card session's prompt cache expired, and
+   *  the cache has since gone cold: the pane screen offers a fresh session from it (auto-handoff.ts).
+   *  Same gating as `cardId`. */
+  handoffReady?: boolean;
   /**
    * Context occupancy, for ANY agent pane — card-backed or launched by hand (bridge
    * `ContextTracker.enrich`, UI_AUDIT.md G3). Absent until the tracker's first successful transcript

@@ -40,6 +40,9 @@ export interface CardSession {
   outcome: "handoff" | "done" | "abandoned" | "lost" | null;
   /** Set while a handoff has been asked for but the agent hasn't written its note yet. */
   handoffRequestedAt: number | null;
+  /** The automatic handoff (bridge/auto-handoff.ts): asked for while `handoffMd` is null, then when
+   *  the stored note landed. Null when nothing is outstanding. */
+  autoHandoffAt: number | null;
   startedAt: number;
   endedAt: number | null;
 }
@@ -153,6 +156,8 @@ export interface CardView {
   wrapupPending: boolean;
   /** Off by default. When on, the worktree is never cleaned up automatically once wrapup settles. */
   keepWorktree: boolean;
+  /** This card's answer to the automatic handoff: forced `on`, refused `off`, or null = the board pref. */
+  autoHandoff: "on" | "off" | null;
 }
 
 /** Just enough of a linked card to name it on screen — the bridge resolves these on the detail. */
@@ -573,6 +578,7 @@ export interface CardInput {
   tag?: string | null;
   position?: number;
   keepWorktree?: boolean;
+  autoHandoff?: "on" | "off" | null;
 }
 
 export function createCard(input: CardInput): Promise<{ ok: true; card: CardView }> {
@@ -733,6 +739,14 @@ export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
   });
 }
 
+/**
+ * Answer the offer of an automatic handoff: `accept` replaces the pane with a fresh agent opened on
+ * the stored note and returns its pane; declining drops the offer and leaves the session as it is.
+ */
+export function answerHandoffOffer(id: string, accept: boolean): Promise<{ ok: true; paneId: string | null }> {
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/resume`, { method: accept ? "POST" : "DELETE" });
+}
+
 // ── repo picker ──────────────────────────────────────────────────────────────
 
 export interface RepoChoice {
@@ -786,6 +800,9 @@ export interface BoardPrefs {
   /** How many cards may run an agent at once. Reads as the effective limit: the number set here,
    *  or the bridge's `COLLIE_BOARD_MAX_AGENTS` default while none has been. */
   maxAgents: number;
+  /** Ask an idle Claude card session for its handoff note just before its prompt cache expires, and
+   *  offer a fresh session from it on return (bridge/auto-handoff.ts). Default off — opt in. */
+  autoHandoff: boolean;
 }
 
 /** The ceiling the bridge enforces on `maxAgents` (mirrors `MAX_AGENTS_CAP`). */

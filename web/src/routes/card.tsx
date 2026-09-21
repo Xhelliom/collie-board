@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
 import { AppHeader } from "@/components/app-header";
+import { AutoHandoffChoice } from "@/components/auto-handoff";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -625,6 +626,7 @@ export function CardRoute() {
                         revalidator.revalidate();
                       }}
                     />
+                    <AutoHandoffChoice card={card} onChanged={() => revalidator.revalidate()} />
                   </>
                 ) : (
                   <>

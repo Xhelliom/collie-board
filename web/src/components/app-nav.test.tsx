@@ -143,6 +143,7 @@ function card(over: Partial<CardView> & { id: string; repoPath: string }): CardV
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
+    autoHandoff: null,
     ...over,
   };
 }

@@ -3,6 +3,7 @@ import { Bell, ChevronRight, Images, Loader2 } from "lucide-react";
 import { Link, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
+import { AutoHandoffControl } from "@/components/auto-handoff";
 import { BackupControl } from "@/components/backup-control";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
@@ -130,6 +131,8 @@ export function SettingsRoute() {
         <MaxAgentsControl />
 
         <FollowUpsControl />
+
+        <AutoHandoffControl />
 
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
         <UpdateCheckControl />
