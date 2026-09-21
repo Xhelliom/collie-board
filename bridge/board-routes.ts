@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 import type { AuditLog } from "./audit.ts";
+import { answerAutoHandoff } from "./auto-handoff.ts";
 import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./backup.ts";
 import {
   cardView,
@@ -94,7 +95,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|to-action|diff|handoff|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -180,6 +181,13 @@ export function parseCardBody(
   if ("keepWorktree" in o) {
     if (typeof o.keepWorktree !== "boolean") return { ok: false, error: "bad keepWorktree" };
     out.keepWorktree = o.keepWorktree;
+  }
+
+  if ("autoHandoff" in o) {
+    if (o.autoHandoff !== null && o.autoHandoff !== "on" && o.autoHandoff !== "off") {
+      return { ok: false, error: "autoHandoff must be on, off or null" };
+    }
+    out.autoHandoff = o.autoHandoff;
   }
 
   return { ok: true, value: out };
@@ -356,6 +364,7 @@ async function route(
       autoFollowUps: ctx.db.autoFollowUps(),
       followUpCategories: ctx.db.followUpCategories(),
       maxAgents: ctx.db.maxAgents() ?? ctx.cfg.boardMaxAgents,
+      autoHandoff: ctx.db.autoHandoff(),
     });
     if (req.method === "GET") {
       const denied = ctx.guard("read");
@@ -371,10 +380,11 @@ async function route(
       } catch {
         return ctx.text("bad body", 400);
       }
-      const { autoFollowUps, followUpCategories, maxAgents } = (body ?? {}) as {
+      const { autoFollowUps, followUpCategories, maxAgents, autoHandoff } = (body ?? {}) as {
         autoFollowUps?: unknown;
         followUpCategories?: unknown;
         maxAgents?: unknown;
+        autoHandoff?: unknown;
       };
       if (autoFollowUps !== undefined) {
         if (typeof autoFollowUps !== "boolean")
@@ -396,11 +406,15 @@ async function route(
           return ctx.text(`maxAgents must be a whole number between 1 and ${MAX_AGENTS_CAP}`, 400);
         ctx.db.setMaxAgents(maxAgents);
       }
+      if (autoHandoff !== undefined) {
+        if (typeof autoHandoff !== "boolean") return ctx.text("autoHandoff must be a boolean", 400);
+        ctx.db.setAutoHandoff(autoHandoff);
+      }
       ctx.audit.record({
         action: "board.prefs",
         session: ctx.session,
         device: ctx.device,
-        detail: { autoFollowUps, followUpCategories, maxAgents },
+        detail: { autoFollowUps, followUpCategories, maxAgents, autoHandoff },
       });
       return ctx.json(prefs());
     }
@@ -1072,6 +1086,29 @@ async function route(
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
     return json({ ok: true, card: view(id) });
+  }
+
+  // ── resume: answer the offer of an automatic handoff (auto-handoff.ts) ────
+  // POST starts a fresh session from the stored note; DELETE declines and leaves the session be.
+  if (action === "resume" && (req.method === "POST" || req.method === "DELETE")) {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    const accept = req.method === "POST";
+    const result = await answerAutoHandoff(db, ctx.herdr, ctx.cfg, id, accept);
+    ctx.audit.record({
+      action: "card.resume",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, accept, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      return ctx.json(
+        { ok: false, error: result.error.message, kind: result.error.kind },
+        result.error.kind === "herdr" ? 502 : 409,
+      );
+    }
+    return json({ ok: true, paneId: result.paneId, card: view(id) });
   }
 
   // ── prompt: a follow-up instruction to the card's running agent ───────────

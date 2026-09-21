@@ -74,6 +74,10 @@ export interface AgentView {
    *  not db.ts's `CardStatus`: the only reader compares it to one literal, and this file has no
    *  business importing the board's database module for it. */
   cardStatus?: string;
+  /** A handoff note was written automatically before this card session's prompt cache expired, and
+   *  the cache has since gone cold: the pane screen offers a fresh session from it (auto-handoff.ts).
+   *  Same gating as `cardId`. */
+  handoffReady?: boolean;
   /**
    * Context occupancy for ANY agent pane, card-backed or launched by hand (see context.ts
    * `ContextTracker.enrich` — UI_AUDIT.md G3). Held in the tracker's memory, never in the database:

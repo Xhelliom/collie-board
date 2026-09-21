@@ -34,6 +34,7 @@ function card(over: Partial<CardView> = {}): CardView {
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
+    autoHandoff: null,
     ...over,
   };
 }
@@ -166,6 +167,7 @@ describe("CardTile — meta row", () => {
             handoffMd: null,
             outcome: null,
             handoffRequestedAt: null,
+            autoHandoffAt: null,
             startedAt: 0,
             endedAt: null,
           },

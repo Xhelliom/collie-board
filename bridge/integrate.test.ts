@@ -498,6 +498,7 @@ describe("wrapupGate — cleanup must not race the closing report off the disk i
       handoffMd: null,
       outcome: "done",
       handoffRequestedAt: null,
+      autoHandoffAt: null,
       startedAt: 0,
       endedAt: 1,
       ...over,

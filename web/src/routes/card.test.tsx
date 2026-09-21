@@ -53,6 +53,7 @@ function card(status: CardStatus): CardView {
     copilotBusy: false,
     wrapupPending: false,
     keepWorktree: false,
+    autoHandoff: null,
   };
 }
 

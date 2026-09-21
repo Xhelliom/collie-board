@@ -42,6 +42,7 @@ import { ContextRailColumn } from "@/components/context-rail-column";
 import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
+import { ResumeOffer } from "@/components/auto-handoff";
 import { ReadingView } from "@/components/reading-view";
 import { StatusArea } from "@/components/status-area";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
@@ -1091,6 +1092,9 @@ export function AgentChat({
               ))}
             </div>
           )}
+
+          {/* Right above the reply box, at every breakpoint: the reply is what would reload the cache. */}
+          {cardId && agent?.handoffReady && <ResumeOffer cardId={cardId} />}
 
           <Composer
             ref={composerRef}

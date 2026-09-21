@@ -203,7 +203,15 @@ export interface Card {
    * at afterwards.
    */
   keepWorktree: boolean;
+  /**
+   * This card's answer to the automatic handoff (auto-handoff.ts): `on` forces it, `off` refuses it,
+   * null follows the board pref. A card whose agent leaves work running in the background wants
+   * `off` — its pane reads idle while that work goes on, and a fresh session would close it.
+   */
+  autoHandoff: AutoHandoffChoice | null;
 }
+
+export type AutoHandoffChoice = "on" | "off";
 
 export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost";
 
@@ -224,6 +232,13 @@ export interface CardSession {
    * to finish writing `.board/handoff.md` first — so this is the marker the poll loop looks for.
    */
   handoffRequestedAt: number | null;
+  /**
+   * The automatic handoff taken before the prompt cache expires (auto-handoff.ts), in two phases.
+   * With `handoffMd` null: asked for at this instant, note not in yet. With `handoffMd` set: the
+   * note is stored and on offer, and this is when it was stored — the last time the conversation
+   * touched the cache. Null: nothing outstanding.
+   */
+  autoHandoffAt: number | null;
   startedAt: number;
   endedAt: number | null;
 }
@@ -238,6 +253,27 @@ export interface CardSession {
  */
 export function isPendingWrapup(session: CardSession): boolean {
   return session.endedAt !== null && session.handoffRequestedAt !== null;
+}
+
+/** Claude Code's prompt cache lifetime: a turn later than this reloads the whole conversation. */
+export const PROMPT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * The board's own handoff prompt is running in this session's pane. While it is, the pane's status
+ * changes are the board speaking, not the agent — reconcile() leaves the column alone and the herd's
+ * notifications skip them.
+ */
+export function isAutoHandoffPending(session: CardSession): boolean {
+  return session.autoHandoffAt !== null && session.handoffMd === null;
+}
+
+/** A stored automatic handoff is on offer, and the cache it was written to save has gone cold. */
+export function isAutoHandoffOffered(session: CardSession, now: number): boolean {
+  return (
+    session.autoHandoffAt !== null &&
+    session.handoffMd !== null &&
+    now - session.autoHandoffAt >= PROMPT_CACHE_TTL_MS
+  );
 }
 
 /** A review-suggested follow-up, and the card it became — `cardId` is null only for data written
@@ -314,6 +350,7 @@ interface CardRow {
   created_at: number;
   updated_at: number;
   keep_worktree: number;
+  auto_handoff: string | null;
 }
 
 interface SessionRow {
@@ -327,6 +364,7 @@ interface SessionRow {
   handoff_md: string | null;
   outcome: string | null;
   handoff_requested_at: number | null;
+  auto_handoff_at: number | null;
   started_at: number;
   ended_at: number | null;
 }
@@ -438,6 +476,7 @@ function toCard(r: CardRow): Card {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     keepWorktree: r.keep_worktree === 1,
+    autoHandoff: r.auto_handoff === "on" || r.auto_handoff === "off" ? r.auto_handoff : null,
   };
 }
 
@@ -453,6 +492,7 @@ function toSession(r: SessionRow): CardSession {
     handoffMd: r.handoff_md,
     outcome: (r.outcome as SessionOutcome | null) ?? null,
     handoffRequestedAt: r.handoff_requested_at ?? null,
+    autoHandoffAt: r.auto_handoff_at ?? null,
     startedAt: r.started_at,
     endedAt: r.ended_at,
   };
@@ -501,7 +541,8 @@ CREATE TABLE IF NOT EXISTS card (
   position     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
-  keep_worktree INTEGER NOT NULL DEFAULT 0
+  keep_worktree INTEGER NOT NULL DEFAULT 0,
+  auto_handoff  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -515,6 +556,7 @@ CREATE TABLE IF NOT EXISTS session (
   handoff_md       TEXT,
   outcome          TEXT,
   handoff_requested_at INTEGER,
+  auto_handoff_at  INTEGER,
   started_at       INTEGER NOT NULL,
   ended_at         INTEGER
 );
@@ -569,6 +611,9 @@ const AUTO_FOLLOW_UPS_KEY = "auto_follow_ups";
 
 /** `board_pref` key for {@link BoardDb.followUpCategories}. */
 const FOLLOW_UP_CATEGORIES_KEY = "follow_up_categories";
+
+/** `board_pref` key for {@link BoardDb.autoHandoff}. */
+const AUTO_HANDOFF_KEY = "auto_handoff";
 
 /** `board_pref` key for {@link BoardDb.maxAgents}. */
 const MAX_AGENTS_KEY = "max_agents";
@@ -643,6 +688,7 @@ export interface CardPatch {
   tag?: string | null;
   position?: number;
   keepWorktree?: boolean;
+  autoHandoff?: AutoHandoffChoice | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -663,6 +709,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   tag: "tag",
   position: "position",
   keepWorktree: "keep_worktree",
+  autoHandoff: "auto_handoff",
 };
 
 export class BoardDb {
@@ -795,6 +842,11 @@ export class BoardDb {
       // the board were written before the copilot was asked to say, and guessing from a title is
       // exactly the unreliable classification this field exists to replace.
       { table: "card", column: "category", ddl: "TEXT" },
+      // 0.147: the handoff taken automatically before the prompt cache expires. No backfill —
+      // nothing was outstanding before it existed.
+      { table: "session", column: "auto_handoff_at", ddl: "INTEGER" },
+      // …and a card's own answer to it, over the board pref. Null follows the pref.
+      { table: "card", column: "auto_handoff", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1123,6 +1175,7 @@ export class BoardDb {
       ctxPct?: number | null;
       handoffMd?: string | null;
       handoffRequestedAt?: number | null;
+      autoHandoffAt?: number | null;
     },
   ): CardSession | null {
     const columns: Record<string, string> = {
@@ -1132,6 +1185,7 @@ export class BoardDb {
       ctxPct: "ctx_pct",
       handoffMd: "handoff_md",
       handoffRequestedAt: "handoff_requested_at",
+      autoHandoffAt: "auto_handoff_at",
     };
     const sets: string[] = [];
     const values: (string | number | null)[] = [];
@@ -1278,6 +1332,22 @@ export class BoardDb {
 
   setAutoFollowUps(on: boolean): void {
     this.setPref(AUTO_FOLLOW_UPS_KEY, on ? "1" : "0");
+  }
+
+  /**
+   * Whether an idle Claude card session is asked for its handoff note just before its prompt cache
+   * expires (auto-handoff.ts). Defaults OFF: it is an agent turn per idle spell, on the user's quota,
+   * with nobody watching — the same reason the copilot is opt-in.
+   */
+  autoHandoff(): boolean {
+    const row = this.db
+      .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
+      .get(AUTO_HANDOFF_KEY);
+    return row ? row.value === "1" : false;
+  }
+
+  setAutoHandoff(on: boolean): void {
+    this.setPref(AUTO_HANDOFF_KEY, on ? "1" : "0");
   }
 
   /**

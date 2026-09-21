@@ -4,12 +4,13 @@ import { join } from "node:path";
 
 import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
+import { AutoHandoff } from "./auto-handoff.ts";
 import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
 import { Copilot, CopilotCoordinator } from "./copilot.ts";
-import { BoardDb } from "./db.ts";
+import { BoardDb, isAutoHandoffPending } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
 import { WrapupCoordinator } from "./wrapup.ts";
@@ -271,6 +272,12 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // label, so COLLIE_BOARD_COPILOT_WORKSPACE can't reopen this hole. Primary-only, same as the
     // copilot itself.
     if (isPrimary && agent.paneId === copilot.paneId) return;
+    // Same for the spell the board's own automatic handoff prompt causes (auto-handoff.ts) — except a
+    // question, which still needs the operator whoever caused it.
+    if (isPrimary && to !== "blocked") {
+      const session = board.openSessionByPane(agent.paneId);
+      if (session && isAutoHandoffPending(session)) return;
+    }
     const withCard = isPrimary
       ? (withCardFields([agent], board.listOpenSessions(), board)[0] ?? agent)
       : agent;
@@ -300,6 +307,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
     const handoffs = new HandoffCoordinator(board, herdr, cfg);
     engine.onUpdate((snap) => handoffs.update(snap));
+    // …and the note taken on its own just before an idle session's prompt cache expires — asked for
+    // only while the board pref is on (off by default), but always carried through once asked.
+    const autoHandoff = new AutoHandoff(board, herdr);
+    engine.onUpdate((snap) => autoHandoff.update(snap));
     // The closing note a card asks for when it is filed as done, collected the same way — it lands
     // before the review below reads it. Costs one file read per pending wrapup, of which there is
     // normally none.

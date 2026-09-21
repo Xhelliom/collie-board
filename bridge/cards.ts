@@ -15,7 +15,16 @@
 // status, cwd and agent all still come from the snapshot on every read.
 
 import type { Config } from "./config.ts";
-import { isLiveStatus, isPendingWrapup, type BoardDb, type Card, type CardSession, type CardStatus } from "./db.ts";
+import {
+  isAutoHandoffOffered,
+  isAutoHandoffPending,
+  isLiveStatus,
+  isPendingWrapup,
+  type BoardDb,
+  type Card,
+  type CardSession,
+  type CardStatus,
+} from "./db.ts";
 import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -176,7 +185,14 @@ export function withCardFields(panes: AgentView[], sessions: CardSession[], db: 
     const session = byPane.get(p.paneId);
     if (!session) return p;
     const card = db.getCard(session.cardId);
-    return { ...p, branch: card?.branch ?? undefined, cardId: card?.id, cardTitle: card?.title, cardStatus: card?.status };
+    return {
+      ...p,
+      branch: card?.branch ?? undefined,
+      cardId: card?.id,
+      cardTitle: card?.title,
+      cardStatus: card?.status,
+      ...(isAutoHandoffOffered(session, Date.now()) ? { handoffReady: true } : {}),
+    };
   });
 }
 
@@ -263,6 +279,10 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
     if (pane?.agentSessionId && pane.agentSessionId !== session.agentSessionId) {
       db.patchSession(session.id, { agentSessionId: pane.agentSessionId });
     }
+
+    // The board's own handoff prompt is running (auto-handoff.ts): that spell is not the pane speaking,
+    // and mirroring it would bounce a card out of `review` and back in. A question still gets through.
+    if (pane && pane.status !== "blocked" && isAutoHandoffPending(session)) continue;
 
     const action = reconcileOne(card, session, pane, now);
     if (!action) continue;

@@ -11,9 +11,10 @@
 // the job when the agent goes idle. The marker is a database column, not a field in memory, because
 // a board whose entire premise is durable memory cannot lose a pending handoff to a restart.
 //
-// WHY IT IS NEVER AUTOMATIC. The context gauge can say "70 %", but only the operator knows whether
-// the agent is three edits into a refactor. A handoff fired there costs more than it saves. The
-// threshold nudges; the tap decides.
+// WHY THE SWAP IS NEVER AUTOMATIC. The context gauge can say "70 %", but only the operator knows
+// whether the agent is three edits into a refactor. A handoff fired there costs more than it saves.
+// The threshold nudges; the tap decides. The NOTE may be asked for on its own — auto-handoff.ts does,
+// just before an idle session's prompt cache expires — but replacing the agent is still a tap.
 
 import { join } from "node:path";
 
@@ -200,37 +201,10 @@ export class HandoffCoordinator {
       // 1. The note on disk is the REAL "the agent has finished writing" signal — an agent status of
       //    idle only says it stopped talking. No note yet: leave the marker and try again next tick,
       //    until the deadline gives up for us.
-      const note = await this.readNote(card);
+      const note = await readHandoffNote(card);
       if (note === null) return;
       db.patchSession(session.id, { handoffMd: note, handoffRequestedAt: null });
-
-      // 2. New pane FIRST, then close the old one. The other order risks taking the workspace down
-      //    with its last pane, which would take the worktree's window with it.
-      const created = await this.herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
-
-      const oldPaneId = session.paneId!;
-      db.closeSession(session.id, "handoff");
-      try {
-        await this.herdr.closePane(oldPaneId);
-      } catch {
-        // A pane that's already gone is the outcome we wanted anyway.
-      }
-
-      // 3. Chain a new session onto the card, then bring its agent up.
-      const kind = card.agentKind ?? this.cfg.boardAgentKind;
-      const next = db.openSession({ cardId: card.id, paneId: created.paneId, agentKind: kind });
-      db.recordEvent(card.id, "handoff.completed", {
-        from: session.id,
-        to: next.id,
-        paneId: created.paneId,
-        noteChars: note?.length ?? 0,
-      });
-
-      await launchAgent(this.herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title));
-      await promptAndConfirm(this.herdr, created.paneId, continuationPrompt(card), undefined, {
-        firstAfterLaunch: true,
-      });
-      db.setStatus(card.id, "working", "handed off to a fresh session");
+      await swapToFreshSession(db, this.herdr, this.cfg, card, session, note);
     } catch (err) {
       // Whatever failed, the marker is cleared and the card keeps whatever session it has — the
       // operator can look at it, and reconciliation will orphan it if the pane really is gone.
@@ -238,19 +212,67 @@ export class HandoffCoordinator {
       db.recordEvent(session.cardId, "handoff.failed", { error: (err as Error).message });
     }
   }
+}
 
-  /** The note the outgoing agent wrote, or null when it wrote none. */
-  private async readNote(card: Card): Promise<string | null> {
-    if (!card.repoPath || !card.branch) return null;
-    const checkout = await worktreePathFor(card.repoPath, card.branch);
-    if (!checkout) return null;
-    try {
-      const file = Bun.file(join(checkout, HANDOFF_REL_PATH));
-      if (!(await file.exists())) return null;
-      const text = await file.slice(0, MAX_HANDOFF_BYTES).text();
-      return text.trim() || null;
-    } catch {
-      return null;
-    }
+/**
+ * The note the outgoing agent wrote, or null when it wrote none. `since` refuses a note older than
+ * the request — the file from a previous handoff is still in the checkout, and an automatic ask must
+ * not mistake it for the answer.
+ */
+export async function readHandoffNote(card: Card, since = 0): Promise<string | null> {
+  if (!card.repoPath || !card.branch) return null;
+  const checkout = await worktreePathFor(card.repoPath, card.branch);
+  if (!checkout) return null;
+  try {
+    const file = Bun.file(join(checkout, HANDOFF_REL_PATH));
+    if (!(await file.exists()) || file.lastModified < since) return null;
+    const text = await file.slice(0, MAX_HANDOFF_BYTES).text();
+    return text.trim() || null;
+  } catch {
+    return null;
   }
+}
+
+/**
+ * Replace the session's pane with a fresh agent opened on the note — the second half of a handoff,
+ * shared with the resume an automatic note offers (auto-handoff.ts). Throws; the caller decides what
+ * a failure means. Returns the new session.
+ */
+export async function swapToFreshSession(
+  db: BoardDb,
+  herdr: HerdrClient,
+  cfg: Config,
+  card: Card,
+  session: CardSession,
+  note: string,
+): Promise<CardSession> {
+  if (!card.workspaceId || !session.paneId) throw new Error("card has no workspace or pane");
+
+  // New pane FIRST, then close the old one. The other order risks taking the workspace down with its
+  // last pane, which would take the worktree's window with it.
+  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
+
+  db.closeSession(session.id, "handoff");
+  try {
+    await herdr.closePane(session.paneId);
+  } catch {
+    // A pane that's already gone is the outcome we wanted anyway.
+  }
+
+  // Chain a new session onto the card, then bring its agent up.
+  const kind = card.agentKind ?? cfg.boardAgentKind;
+  const next = db.openSession({ cardId: card.id, paneId: created.paneId, agentKind: kind });
+  db.recordEvent(card.id, "handoff.completed", {
+    from: session.id,
+    to: next.id,
+    paneId: created.paneId,
+    noteChars: note.length,
+  });
+
+  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title));
+  await promptAndConfirm(herdr, created.paneId, continuationPrompt(card), undefined, {
+    firstAfterLaunch: true,
+  });
+  db.setStatus(card.id, "working", "handed off to a fresh session");
+  return next;
 }
