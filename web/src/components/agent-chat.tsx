@@ -1236,6 +1236,19 @@ export function AgentChat({
               }}
             />
           )}
+          {/* The mobile home of the artifact reader — History/Images live in this sheet, so the
+              worktree files do too. Card-backed panes only (the reader is confined to the CARD's
+              worktree); a hand-launched pane has no root. */}
+          {cardId && (
+            <ActionRow
+              icon={<FileCode2 className="size-4 shrink-0 text-muted-foreground" />}
+              label="Artifacts"
+              onClick={() => {
+                closeDrawer();
+                navigate(paneArtifactsPath(paneId, session));
+              }}
+            />
+          )}
           {agent && (
             <DestructiveActionRow
               icon={<XCircle className="size-4 shrink-0" />}
