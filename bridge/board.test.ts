@@ -820,7 +820,12 @@ describe("startCard", () => {
 // Real git, a real `origin`, and a second clone standing in for GitHub merging PRs: the bug is
 // entirely where the refs stand when the branch is cut.
 describe("startCard — forks from the more complete of the local base and origin's", () => {
-  const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  // Git locates its directory from the ENVIRONMENT before it looks at cwd — and git exports
+  // GIT_DIR to its hooks, so this suite running under `git push` (the pre-push hook runs the
+  // whole backend suite) would otherwise operate every fixture repo on the REAL repository.
+  // Strip the locating vars; identity is still set explicitly below.
+  const { GIT_DIR: _gitDir, GIT_WORK_TREE: _gitWorkTree, GIT_PREFIX: _gitPrefix, GIT_INDEX_FILE: _gitIndex, ...inherited } = process.env;
+  const env = { ...inherited, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
   function sh(cwd: string, ...args: string[]): string {
     const r = Bun.spawnSync(["git", "-c", "commit.gpgsign=false", ...args], { cwd, env });
     if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);

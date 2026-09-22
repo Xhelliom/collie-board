@@ -216,10 +216,12 @@ export interface PaneReadResponse {
  * GET /api/pane/:id/history — real conversation history for a pane, read from the agent's own
  * session log. This is NOT terminal scrollback: a Claude pane runs on the alternate screen, so no
  * scrollback exists to page (see transcript.ts). `available:false` is the normal answer for a pane
- * with no agent session, a non-Claude agent, or a bridge with the feature switched off.
+ * with no agent session (`no-session`), an agent kind whose transcript this bridge cannot read
+ * (`unsupported`), a session with nothing on disk yet (`no-log`), or a bridge with the feature
+ * switched off (`disabled`).
  */
 export type PaneHistoryResponse =
-  | { paneId: string; available: false; reason: "disabled" | "no-session" | "no-log" }
+  | { paneId: string; available: false; reason: "disabled" | "no-session" | "no-log" | "unsupported" }
   | {
       paneId: string;
       available: true;

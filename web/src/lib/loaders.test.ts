@@ -535,7 +535,7 @@ describe("historyLoader", () => {
     expect(seen).toBe(String(HISTORY_PAGE_SIZE));
   });
 
-  it.each([["disabled"], ["no-session"], ["no-log"]])(
+  it.each([["disabled"], ["no-session"], ["no-log"], ["unsupported"]])(
     "passes through the %s reason so the view can explain it",
     async (reason) => {
       unavailable(reason);

@@ -52,6 +52,11 @@ export interface GitRunner {
 
 /** The real runner. Injectable so every parser below is testable without a repo on disk. */
 export const runGit: GitRunner = async (args, cwd) => {
+  // Git locates its directory from the ENVIRONMENT before it looks at the `cwd` below — and git
+  // exports GIT_DIR to its hooks, so a bridge started under one (or any parent leaking these)
+  // would run every card operation on the wrong repository. Drop the locating vars outright.
+  const childEnv: Record<string, string | undefined> = { ...process.env };
+  for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX", "GIT_INDEX_FILE"]) delete childEnv[key];
   const proc = Bun.spawn(["git", ...args], {
     cwd,
     stdout: "pipe",
@@ -64,7 +69,7 @@ export const runGit: GitRunner = async (args, cwd) => {
     // conflict was reported as a generic git failure, with no offer to hand it to the agent. Every
     // parser here now sees the same English git the tests do.
     env: {
-      ...process.env,
+      ...childEnv,
       GIT_TERMINAL_PROMPT: "0",
       GIT_PAGER: "cat",
       PAGER: "cat",

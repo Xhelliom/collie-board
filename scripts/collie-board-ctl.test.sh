@@ -4,6 +4,12 @@
 # throwaway $HOME and config dir, so these run anywhere and touch nothing real.
 set -euo pipefail
 
+# Git locates its directory from the ENVIRONMENT before `-C`: git exports GIT_DIR to its hooks,
+# and this suite runs under the pre-push hook — every `git -C "$CASE_DIR/…"` below would otherwise
+# land on the real repository (`init` "re-initialises" it, `remote add origin` fails "already
+# exists"). Same guard as bridge/git.ts and the bun fixtures.
+unset GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_INDEX_FILE
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CTL="${ROOT}/scripts/collie-board-ctl.sh"
 BASE_PATH="$PATH"

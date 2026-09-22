@@ -415,7 +415,7 @@ export interface HistoryData {
   /** The log was byte-capped, so even the oldest page isn't the true start. */
   fileTruncated: boolean;
   /** Why there's nothing to show; undefined when history IS available. */
-  unavailable?: "disabled" | "no-session" | "no-log" | "error";
+  unavailable?: "disabled" | "no-session" | "no-log" | "unsupported" | "error";
 }
 
 export async function historyLoader({
