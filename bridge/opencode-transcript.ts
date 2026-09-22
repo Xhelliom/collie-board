@@ -52,6 +52,7 @@
 import { existsSync } from "node:fs";
 import { Database } from "bun:sqlite";
 
+import { IMAGE_TYPES } from "./gallery.ts";
 import { OPENCODE_LIVE_MS } from "./opencode-usage.ts";
 import {
   flatten,
@@ -68,6 +69,43 @@ const MAX_TEXT_CHARS = 20_000;
 
 /** Per-tool-result cap — the phone only needs a gist (same value as transcript.ts). */
 const MAX_RESULT_CHARS = 2000;
+
+/**
+ * Per-picture cap on an image a tool returned inline, in base64 chars. Same ceiling as the Claude
+ * reader (transcript.ts MAX_IMAGE_CHARS) — the image rides inside the page, so past this the tool
+ * line stands alone.
+ */
+const MAX_IMAGE_CHARS = 1024 * 1024;
+
+/** What an inline picture may claim to be — the gallery's own list, so still no SVG. */
+const INLINE_IMAGE_TYPES = new Set(Object.values(IMAGE_TYPES));
+
+/**
+ * The picture a tool RETURNED, as a `data:` URL, or null. OpenCode stores images inline as
+ * `{type:"file", uri:"data:image/png;base64,…"}` inside a tool's result content (verified
+ * 2026-09-22) — a `read` of an image file embeds its bytes this way and nothing else. Mirrors
+ * transcript.ts's {@link toolResultImage}: same guard, same `data:` shape, so the phone renders
+ * it identically to a Claude-returned image. Last valid block wins.
+ */
+function toolResultImage(content: unknown): string | null {
+  if (!Array.isArray(content)) return null;
+  let found: string | null = null;
+  for (const block of content) {
+    const b = block as { type?: unknown; uri?: unknown } | null;
+    if (b?.type !== "file" || typeof b.uri !== "string") continue;
+    const m = /^data:(image\/[^;,]+);base64,([\s\S]*)$/.exec(b.uri);
+    if (!m) continue;
+    const media = m[1]!.toLowerCase();
+    const data = m[2]!;
+    if (
+      INLINE_IMAGE_TYPES.has(media) &&
+      data.replace(/\s/g, "").length <= MAX_IMAGE_CHARS
+    ) {
+      found = b.uri;
+    }
+  }
+  return found;
+}
 
 function clamp(text: string, max: number): { text: string; truncated?: boolean } {
   if (text.length <= max) return { text };
@@ -295,6 +333,8 @@ export function parseOpenCodeMessages(rows: MessageRow[]): TranscriptEntry[] {
             ? (block.state as Record<string, unknown>)
             : {};
         const resultText = stripAnsi(toolResultText(state.content));
+        // A picture the call RETURNED inline — the one case where the output IS the point.
+        const returned = toolResultImage(state.content);
         parts.push({
           kind: "tool",
           name: typeof block.name === "string" && block.name !== "" ? block.name : "tool",
@@ -307,6 +347,7 @@ export function parseOpenCodeMessages(rows: MessageRow[]): TranscriptEntry[] {
                 },
               }
             : {}),
+          ...(returned ? { image: returned } : {}),
         });
       }
     }
