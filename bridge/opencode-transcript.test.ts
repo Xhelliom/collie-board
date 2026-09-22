@@ -41,27 +41,34 @@ const toolBlock = (name: string, input: unknown, result: string, status = "compl
 
 /** A minimal opencode.db: sessions plus their messages. Times are ms-epoch like the real store. */
 function fixture(
-  sessions: { id: string; directory: string; updatedAgoMs: number }[],
+  sessions: { id: string; directory: string; updatedAgoMs: number; parentId?: string | null }[],
   messages: Record<string, { id: string; type: string; seq: number; data: string }[]>,
 ): string {
   const path = join(mkdtempSync(join(tmpdir(), "octran-")), "opencode.db");
   const db = new Database(path);
   db.exec(
     `CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT NOT NULL,
-      time_created INTEGER, time_updated INTEGER, model TEXT);
+      parent_id TEXT, time_created INTEGER, time_updated INTEGER, model TEXT);
      CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
       type TEXT NOT NULL, seq INTEGER NOT NULL,
       time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL);`,
   );
   const addSession = db.prepare(
-    `INSERT INTO session_v2 (id, directory, time_created, time_updated, model) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO session_v2 (id, directory, parent_id, time_created, time_updated, model) VALUES (?, ?, ?, ?, ?, ?)`,
   );
   const addMessage = db.prepare(
     `INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
   for (const s of sessions) {
-    addSession.run(s.id, s.directory, NOW - s.updatedAgoMs - 1000, NOW - s.updatedAgoMs, "{}");
+    addSession.run(
+      s.id,
+      s.directory,
+      s.parentId ?? null,
+      NOW - s.updatedAgoMs - 1000,
+      NOW - s.updatedAgoMs,
+      "{}",
+    );
     for (const m of messages[s.id] ?? []) {
       addMessage.run(m.id, s.id, m.type, m.seq, NOW, NOW, m.data);
     }
@@ -220,6 +227,45 @@ describe("resolveOpenCodeSession", () => {
     expect(
       resolveOpenCodeSession(path, "/repo", now, "audit the access logs for intrusions tonight"),
     ).toBe("quiet");
+  });
+
+  it("ignores subagent sessions — only a root ever backs a pane", () => {
+    const path = fixture(
+      [
+        { id: "child", directory: "/repo", updatedAgoMs: 1000, parentId: "root" },
+        { id: "root", directory: "/repo", updatedAgoMs: OPENCODE_LIVE_MS + 60_000 },
+      ],
+      {
+        child: [msg("u1", "user", 1, userData("summarise the quarterly report for finance"))],
+        root: [msg("u2", "user", 1, userData("rewrite the onboarding guide for newcomers"))],
+      },
+    );
+    // The clock path: the only live session is a child, so the stale root is served.
+    expect(resolveOpenCodeSession(path, "/repo", now)).toBe("root");
+  });
+
+  it("never scores children when the mirror must decide between live roots", () => {
+    const path = fixture(
+      [
+        { id: "root1", directory: "/repo", updatedAgoMs: 1000 },
+        { id: "root2", directory: "/repo", updatedAgoMs: 2000 },
+        { id: "child", directory: "/repo", updatedAgoMs: 500, parentId: "root1" },
+      ],
+      {
+        root1: [msg("u1", "user", 1, userData("summarise the quarterly report for finance"))],
+        root2: [msg("u2", "user", 1, userData("rewrite the onboarding guide for newcomers"))],
+        child: [msg("u3", "user", 1, userData("tally the warehouse inventory by friday"))],
+      },
+    );
+    // The mirror names the child — which no pane runs — so the answer stays a refusal
+    // instead of locking onto a thread that dies with its worker.
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "tally the warehouse inventory by friday"),
+    ).toBeNull();
+    // The mirror names a root: served, despite the newer live child.
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
+    ).toBe("root2");
   });
 });
 
