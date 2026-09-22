@@ -7,6 +7,7 @@ import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
 import { fetchCards, normalizeTag, tagsOf, type CardInput, type CardView } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
+import { AgentKindPicker } from "@/components/agent-kind-picker";
 
 // Rework a card by hand.
 //
@@ -34,6 +35,7 @@ export function CardEditor({
   const [spec, setSpec] = useState(card.spec ?? "");
   const [acceptance, setAcceptance] = useState<string[]>(card.acceptance);
   const [baseRef, setBaseRef] = useState(card.baseRef ?? "");
+  const [agentKind, setAgentKind] = useState<string | null>(card.agentKind ?? null);
   const [tag, setTag] = useState(card.tag ?? "");
   const [parentId, setParentId] = useState<string | null>(card.parentId);
   const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
@@ -49,6 +51,7 @@ export function CardEditor({
     setSpec(card.spec ?? "");
     setAcceptance(card.acceptance);
     setBaseRef(card.baseRef ?? "");
+    setAgentKind(card.agentKind ?? null);
     setTag(card.tag ?? "");
     setParentId(card.parentId);
     setDependsOn(card.dependsOn);
@@ -79,6 +82,7 @@ export function CardEditor({
         spec: spec.trim() || null,
         acceptance: acceptance.map((a) => a.trim()).filter(Boolean),
         baseRef: baseRef.trim() || null,
+        agentKind,
         // null clears it — emptying the box is how a card loses its tag.
         tag: normalizeTag(tag),
         parentId,
@@ -166,6 +170,8 @@ export function CardEditor({
             carries has to stay offered — otherwise editing anything else on the card would present
             its own tag as unknown. `others` rides the fetch the link pickers already do. */}
         <TagField value={tag} onChange={setTag} tags={tagsOf([card, ...others])} />
+
+        <AgentKindPicker value={agentKind} onChange={setAgentKind} />
 
         <LinkPicker
           label="Part of"
