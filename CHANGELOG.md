@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.149.0] - 2026-09-22
+
+### Added
+
+- Jauge de contexte par modèle : le dénominateur suit le modèle du pane (transcript `message.model` ou session OpenCode), table statique → models.dev → `COLLIE_BOARD_CTX_WINDOW` en repli. (346e47e)
+- Jauge OpenCode : occupancy lue de la session db (`session_v2` + dernier message assistant), fenêtre via la même résolution. (346e47e)
+
 ## [0.148.0] - 2026-09-22
 
 ### Added
