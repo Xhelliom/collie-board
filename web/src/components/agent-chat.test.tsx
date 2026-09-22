@@ -769,4 +769,11 @@ describe("AgentChat — session artifacts affordance", () => {
     renderChat(); // fixtureAgents[0] has no cardId
     expect(artifactsButton()).not.toBeInTheDocument();
   });
+
+  it("lives in the mobile '⋯' sheet, next to History and Images", async () => {
+    const user = userEvent.setup();
+    renderChat({ agent: cardAgent, agents: [cardAgent] });
+    await user.click(screen.getAllByRole("button", { name: "More" })[0]!);
+    expect(await screen.findByText("Artifacts")).toBeInTheDocument();
+  });
 });
