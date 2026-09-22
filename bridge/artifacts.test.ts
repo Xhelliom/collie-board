@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
   artifactKindOf,
+  expandDirectoryCandidates,
   handleArtifactFile,
   listWorktreeArtifacts,
   mentionedArtifactCandidates,
@@ -228,6 +229,47 @@ describe("mentionedArtifactCandidates", () => {
     ]);
     expect(out).toEqual([]);
   });
+
+  test("a relative single-token servable path is a mention", () => {
+    const out = mentionedArtifactCandidates([
+      entry([{ kind: "tool", name: "Write", summary: "docs/hero-recette/page.html" }]),
+    ]);
+    expect(out).toContain("docs/hero-recette/page.html");
+  });
+
+  test("a bare filename, a phrase, or a non-servable extension is not a mention", () => {
+    const out = mentionedArtifactCandidates([
+      entry([
+        { kind: "tool", name: "Write", summary: "page.html" }, // no "/" — not path-shaped
+        { kind: "tool", name: "Bash", summary: "cat docs/hero-recette/page.html" }, // spaces — a command
+        { kind: "tool", name: "Read", summary: "src/index.tsx" }, // servable-kind only
+      ]),
+    ]);
+    expect(out).toEqual([]);
+  });
+});
+
+describe("expandDirectoryCandidates", () => {
+  test("turns an untracked-directory entry into its servable files, recursively", async () => {
+    await mkdir(join(root, "shots", "deep"), { recursive: true });
+    await writeFile(join(root, "shots", "a.png"), PNG);
+    await writeFile(join(root, "shots", "deep", "b.md"), "# b");
+    await writeFile(join(root, "shots", "skip.txt"), "x");
+    const out = await expandDirectoryCandidates(root, ["shots/"]);
+    expect(out).toContain(join(root, "shots", "a.png"));
+    expect(out).toContain(join(root, "shots", "deep", "b.md"));
+    expect(out.some((p) => p.endsWith("skip.txt"))).toBe(false);
+  });
+
+  test("passes a plain file through unchanged", async () => {
+    const out = await expandDirectoryCandidates(root, ["render.png"]);
+    expect(out).toEqual([join(root, "render.png")]);
+  });
+
+  test("leaves a missing candidate as-is — containment drops it later", async () => {
+    const out = await expandDirectoryCandidates(root, ["ghost.md"]);
+    expect(out).toEqual(["ghost.md"]);
+  });
 });
 
 describe("worktreeForPane — the root is derived from the CARD, never the request", () => {
@@ -389,6 +431,43 @@ describe("paneArtifactsResponse — the listing endpoint", () => {
   test("a pane with no worktree answers an empty list", async () => {
     const res = await paneArtifactsResponse({ worktree: null, acceptEncoding: null });
     expect((await res.json()) as object).toEqual({ artifacts: [] });
+  });
+
+  test("an untracked DIRECTORY is expanded into the files inside", async () => {
+    // git status --porcelain names an untracked folder as one `?? docs/hero-recette/` entry; the
+    // files within must still surface — they are exactly what an unreviewed card produced.
+    await mkdir(join(root, "fresh"), { recursive: true });
+    await writeFile(join(root, "fresh", "shot.png"), PNG);
+    await writeFile(join(root, "fresh", "rapport.md"), "# fait");
+    const git = async (args: string[]): Promise<{ ok: boolean; stdout: string; stderr: string }> => {
+      if (args[0] === "merge-base") return { ok: true, stdout: "abc1234\n", stderr: "" };
+      if (args[0] === "diff") return { ok: true, stdout: "", stderr: "" }; // nothing committed
+      if (args[0] === "status") return { ok: true, stdout: "?? fresh/\n", stderr: "" };
+      return { ok: true, stdout: "", stderr: "" };
+    };
+    const res = await paneArtifactsResponse({ worktree: worktree(), git, acceptEncoding: null });
+    const { artifacts } = (await res.json()) as { artifacts: { name: string; kind: string }[] };
+    const names = artifacts.map((a) => a.name).sort();
+    expect(names).toEqual(["rapport.md", "shot.png"]);
+  });
+
+  test("a relative mention resolves inside the worktree root", async () => {
+    const res = await paneArtifactsResponse({
+      worktree: worktree(),
+      entries: [
+        {
+          uuid: "u",
+          ts: "",
+          role: "assistant",
+          parts: [{ kind: "tool", name: "Write", summary: "docs/hero-recette/page.html" }],
+        },
+      ],
+      // git is down: the mention alone must still serve.
+      git: async () => ({ ok: false, stdout: "", stderr: "boom" }),
+      acceptEncoding: null,
+    });
+    const { artifacts } = (await res.json()) as { artifacts: { name: string; kind: string }[] };
+    expect(artifacts.map((a) => a.name)).toContain("page.html");
   });
 
   test("a git failure degrades to mentions-only, not to an error", async () => {
