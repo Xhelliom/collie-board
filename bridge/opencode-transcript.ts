@@ -23,12 +23,19 @@
 // side), exactly like Claude's empty `thinking` blocks — skipped unless non-blank.
 //
 // PANE → SESSION LINK. herdr reports no `agent_session` for opencode panes, so like
-// the gauge (opencode-usage.ts) this resolves BY DIRECTORY with the same
-// single-live-candidate rule: two sessions updated within LIVE_MS means two live
-// panes in one directory, and serving one pane the other's conversation is worse
-// than serving none — UNLESS the pane's mirror names the session outright (see
-// below). A `sessionId` herdr may report one day (`ses_…`, never a uuid)
-// is honoured directly when it exists in the store.
+// the gauge (opencode-usage.ts) this resolves BY DIRECTORY — but only across ROOT
+// sessions (`parent_id IS NULL`): OpenCode files every subagent run (Task tool) as a
+// CHILD session in the same directory, so a fan-out of parallel workers reads as a
+// dozen live sessions for one pane. Subagents never own a pane — they run in-process
+// inside their parent — so the pane's conversation is always a root, and scoring
+// children can only lock the view onto a thread that dies with its worker (the
+// `after` cursor would follow a finished subagent while the pane keeps working).
+// The parent's conversation already carries each subagent exchange as a tool call
+// with its result, so nothing the user needs is lost.
+//
+// With at most one live root the clock decides; with several, the pane's mirror
+// names the session outright (see below). A `sessionId` herdr may report one day
+// (`ses_…`, never a uuid) is honoured directly when it exists in the store.
 //
 // RESOLUTION BY CONTENT. A fan-out of parallel agents in one directory (a dozen
 // live sessions, one pane each) makes the clock rule refuse every pane — which is
@@ -107,7 +114,8 @@ export function resolveOpenCodeSession(
       const sessions = db
         .query<{ id: string; time_updated: number }, [string, string]>(
           `SELECT id, time_updated FROM session_v2
-           WHERE directory = $a OR directory = $b ORDER BY time_updated DESC`,
+           WHERE (directory = $a OR directory = $b)
+             AND (parent_id IS NULL OR parent_id = '') ORDER BY time_updated DESC`,
         )
         .all(cwd, cwd.endsWith("/") ? cwd.slice(0, -1) : `${cwd}/`);
       if (sessions.length === 0) return null;
