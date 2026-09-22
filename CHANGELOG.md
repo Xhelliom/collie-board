@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.151.0] - 2026-09-22
+
+### Added
+
+- Vue lecture OpenCode en répertoire partagé : quand plusieurs sessions live se partagent un dossier, le pane est rattaché par le contenu de son miroir au lieu de rester sans transcript. (0768d27)
+
+### Fixed
+
+- « No transcript file was found » sur un pane OpenCode entouré de sessions sœurs : le refus par ambiguïté ne s'applique plus quand le miroir désigne un gagnant net ; l'égalité reste un refus. (0768d27)
+
 ## [0.150.0] - 2026-09-22
 
 ### Added
