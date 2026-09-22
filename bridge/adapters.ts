@@ -5,7 +5,7 @@
 // `agent.prompt`, `send_keys`, git, the handoff note, the JSON-to-a-file output contract. Nothing
 // here re-implements any of that.
 //
-// What is left is FOUR points, and they are the only things this file describes:
+// What is left is FIVE points, and they are the only things this file describes:
 //
 //   1. launch — herdr's `kind`, which is what `agent.start` takes.
 //   2. context reset — `/clear` for Claude Code, something else elsewhere, nothing at all for an
@@ -15,6 +15,10 @@
 //      supported outcome, not a failure.
 //   4. native session id — whether the agent reports one to herdr, which is what links a pane to a
 //      transcript that outlives it.
+//   5. opencode session db — whether the gauge can be read from OpenCode's own sqlite session store
+//      (`opencode-usage.ts`) instead of a transcript. Only `opencode` claims it, for the same
+//      reason as (3): claiming it for an agent whose store was never read would produce a
+//      confident, wrong percentage.
 //
 // Shipped defaults live in `adapters/agents.toml`; a user file at
 // `<configDir>/agents.toml` is merged over them, key by key, so overriding one field of one agent
@@ -32,6 +36,11 @@ export interface AgentAdapter {
   context: boolean;
   /** Whether the agent reports a native session id to herdr. */
   sessionId: boolean;
+  /**
+   * Whether the gauge reads OpenCode's sqlite session store for this kind (`opencode-usage.ts`).
+   * Orthogonal to `context`: a kind claims exactly one occupancy source, never both.
+   */
+  opencodeDb: boolean;
 }
 
 /**
@@ -43,18 +52,18 @@ export interface AgentAdapter {
  * the telemetry design refuses.
  */
 export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
-  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true },
+  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false },
   // Codex resets with `/new`, not `/clear` — `/clear` wipes the terminal too. Cursor is the
   // opposite: `/clear` is its reset and it has no `/new`. Both are sourced in adapters/agents.toml.
-  codex: { kind: "codex", clear: "/new", context: false, sessionId: false },
-  cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false },
-  gemini: { kind: "gemini", clear: "", context: false, sessionId: false },
-  opencode: { kind: "opencode", clear: "", context: false, sessionId: false },
+  codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false },
+  cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false, opencodeDb: false },
+  gemini: { kind: "gemini", clear: "", context: false, sessionId: false, opencodeDb: false },
+  opencode: { kind: "opencode", clear: "", context: false, sessionId: false, opencodeDb: true },
 };
 
 /** The fallback for an agent kind nobody described: assume nothing, degrade everywhere. */
 export function unknownAdapter(kind: string): AgentAdapter {
-  return { kind, clear: "", context: false, sessionId: false };
+  return { kind, clear: "", context: false, sessionId: false, opencodeDb: false };
 }
 
 function bool(v: unknown, fallback: boolean): boolean {
@@ -96,6 +105,8 @@ export function mergeAdapters(
       context: bool(o.context, current.context),
       // `session_id` is the TOML spelling; accept the camelCase too rather than silently ignoring it.
       sessionId: bool(o.session_id ?? o.sessionId, current.sessionId),
+      // Same: `opencode_db` in TOML, camelCase tolerated.
+      opencodeDb: bool(o.opencode_db ?? o.opencodeDb, current.opencodeDb),
     };
   }
   return out;

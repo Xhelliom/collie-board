@@ -75,7 +75,7 @@ import {
   scanRootsFor,
 } from "./repos.ts";
 import { parseEtime, parseStartTicks, processStartedAt } from "./proc.ts";
-import { latestUsage } from "./transcript.ts";
+import { latestModel, latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
@@ -1165,6 +1165,33 @@ describe("latestUsage", () => {
   });
 });
 
+describe("latestModel", () => {
+  const row = (o: Record<string, unknown>) => JSON.stringify(o);
+
+  it("reads message.model off the newest non-sidechain assistant turn", () => {
+    const log = [
+      row({ type: "assistant", message: { model: "claude-sonnet-4-5" } }),
+      row({ type: "assistant", message: { model: "claude-opus-5" } }),
+    ].join("\n");
+    expect(latestModel(log)).toBe("claude-opus-5");
+  });
+
+  it("skips sidechains and rows with no model, like latestUsage does", () => {
+    const log = [
+      row({ type: "assistant", message: { model: "claude-opus-5" } }),
+      row({ type: "assistant", isSidechain: true, message: { model: "claude-haiku-4-5" } }),
+      row({ type: "assistant", message: { usage: { input_tokens: 3 } } }),
+      row({ type: "user", message: { content: "hi" } }),
+    ].join("\n");
+    expect(latestModel(log)).toBe("claude-opus-5");
+  });
+
+  it("returns null when no assistant turn names a model", () => {
+    expect(latestModel("")).toBeNull();
+    expect(latestModel(row({ type: "assistant", message: { usage: { input_tokens: 3 } } }))).toBeNull();
+  });
+});
+
 describe("contextPercent", () => {
   it("rounds to a whole percent", () => {
     expect(contextPercent(100_000, 200_000)).toBe(50);
@@ -1625,17 +1652,23 @@ describe("agent adapters", () => {
       clear: "/clear",
       context: true,
       sessionId: true,
+      opencodeDb: false,
     });
     // Everything else is explicitly false rather than guessed — a confident wrong percentage is
     // worse than no gauge (see bridge/context.ts).
     for (const [kind, a] of Object.entries(BUILTIN_ADAPTERS)) {
       if (kind !== "claude") expect(a.context).toBe(false);
     }
+    // …and opencode as the only agent read from its own session db instead.
+    expect(BUILTIN_ADAPTERS.opencode!.opencodeDb).toBe(true);
+    for (const [kind, a] of Object.entries(BUILTIN_ADAPTERS)) {
+      if (kind !== "opencode") expect(a.opencodeDb).toBe(false);
+    }
   });
 
   it("assumes nothing about an agent nobody described", () => {
     const a = adapterFor(BUILTIN_ADAPTERS, "someagent");
-    expect(a).toEqual({ kind: "someagent", clear: "", context: false, sessionId: false });
+    expect(a).toEqual({ kind: "someagent", clear: "", context: false, sessionId: false, opencodeDb: false });
   });
 
   it("merges per FIELD, so overriding one line doesn't silently drop the rest", () => {
@@ -1645,6 +1678,7 @@ describe("agent adapters", () => {
       clear: "/reset",
       context: true,
       sessionId: true,
+      opencodeDb: false,
     });
   });
 
@@ -1652,12 +1686,23 @@ describe("agent adapters", () => {
     const merged = mergeAdapters(BUILTIN_ADAPTERS, {
       agent: { droid: { clear: "/new", session_id: true } },
     });
-    expect(merged.droid).toEqual({ kind: "droid", clear: "/new", context: false, sessionId: true });
+    expect(merged.droid).toEqual({
+      kind: "droid",
+      clear: "/new",
+      context: false,
+      sessionId: true,
+      opencodeDb: false,
+    });
   });
 
   it("accepts either spelling of session_id", () => {
     expect(mergeAdapters({}, { agent: { x: { sessionId: true } } }).x!.sessionId).toBe(true);
     expect(mergeAdapters({}, { agent: { x: { session_id: true } } }).x!.sessionId).toBe(true);
+  });
+
+  it("accepts either spelling of opencode_db", () => {
+    expect(mergeAdapters({}, { agent: { x: { opencodeDb: true } } }).x!.opencodeDb).toBe(true);
+    expect(mergeAdapters({}, { agent: { x: { opencode_db: true } } }).x!.opencodeDb).toBe(true);
   });
 
   it("ignores junk rather than corrupting the table", () => {
@@ -1672,14 +1717,29 @@ describe("agent adapters", () => {
 
   it("parses the shipped table without losing claude's capabilities", () => {
     const shipped = loadAdapters([new URL("../adapters/agents.toml", import.meta.url).pathname]);
-    expect(shipped.claude).toEqual({ kind: "claude", clear: "/clear", context: true, sessionId: true });
+    expect(shipped.claude).toEqual({
+      kind: "claude",
+      clear: "/clear",
+      context: true,
+      sessionId: true,
+      opencodeDb: false,
+    });
     expect(shipped.codex!.context).toBe(false);
     // The reset commands are opposites and were once contradicted by web/src/lib/agent-commands.ts:
     // Codex resets with /new (/clear also wipes the terminal), Cursor has no /new at all.
     expect(shipped.codex!.clear).toBe("/new");
-    expect(shipped.cursor).toEqual({ kind: "cursor", clear: "/clear", context: false, sessionId: false });
+    expect(shipped.cursor).toEqual({
+      kind: "cursor",
+      clear: "/clear",
+      context: false,
+      sessionId: false,
+      opencodeDb: false,
+    });
     // No gauge is promised on a transcript format latestUsage() has never been run against.
     for (const kind of ["codex", "cursor"]) expect(shipped[kind]!.context).toBe(false);
+    // OpenCode's gauge reads its own session db instead of a transcript (opencode-usage.ts).
+    expect(shipped.opencode!.opencodeDb).toBe(true);
+    expect(shipped.opencode!.context).toBe(false);
   });
 
   it("survives a missing file and a broken one", () => {

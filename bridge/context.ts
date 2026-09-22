@@ -17,10 +17,17 @@
 // bridge that stops reporting leaves no stale figure behind rather than a lie that never expires.
 
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
-import type { BoardDb } from "./db.ts";
+import { windowForModel, type WindowResolver } from "./context-window.ts";
+import type { BoardDb, CardSession } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
+import { readOpenCodeUsage } from "./opencode-usage.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { latestUsage, resolveWithoutSession, type TranscriptSource } from "./transcript.ts";
+import {
+  latestModel,
+  latestUsage,
+  resolveWithoutSession,
+  type TranscriptSource,
+} from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
 import type { AgentView } from "./types.ts";
 
@@ -78,7 +85,24 @@ export class ContextTracker {
     /** Per-agent divergence — an agent with no readable transcript is skipped entirely. */
     private readonly adapters: Record<string, AgentAdapter> = {},
     private readonly now: () => number = Date.now,
+    /**
+     * Model → window. Defaults to the static table over the constructor's window (no network —
+     * the unit tests stay hermetic); the server passes a resolver with the models.dev fallback
+     * and a persistent cache (see `createWindowResolver`).
+     */
+    private readonly windows?: WindowResolver | null,
+    /**
+     * OpenCode's session database, read for `opencodeDb` panes. Null/empty disables that source
+     * (level 3 for those panes, as before).
+     */
+    private readonly openCodeDbPath?: string | null,
   ) {}
+
+  private resolver(): WindowResolver {
+    if (this.windows) return this.windows;
+    const fallback = this.windowTokens;
+    return { resolve: async (slug) => windowForModel(slug) ?? fallback };
+  }
 
   /**
    * Refresh whatever is due. Best-effort throughout: a failed transcript read or a failed metadata
@@ -112,38 +136,68 @@ export class ContextTracker {
     // One pass, so the "which session id do we read from" rule is written ONCE and the throttle
     // compares every pane against the same instant.
     const now = this.now();
-    const due = snap.agents.flatMap((pane) => {
-      // Level 3 by construction: an agent whose transcript format we can't read gets no gauge, and
+    interface DuePane {
+      pane: AgentView;
+      session: CardSession | undefined;
+      sessionId: string | null;
+      opencode: boolean;
+    }
+    const due: DuePane[] = snap.agents.flatMap((pane): DuePane[] => {
+      // Level 3 by construction: an agent with no readable occupancy source gets no gauge, and
       // no wasted filesystem scan either.
-      if (!adapterFor(this.adapters, pane.agent).context) return [];
+      const adapter = adapterFor(this.adapters, pane.agent);
+      if (!adapter.context && !adapter.opencodeDb) return [];
       const last = this.lastRead.get(pane.paneId);
       if (last !== undefined && now - last < REFRESH_MS) return [];
       const session = sessionByPane.get(pane.paneId);
+      if (adapter.opencodeDb && !adapter.context) {
+        // OpenCode resolves by directory in its own session store — no session id needed.
+        if (!pane.cwd) return [];
+        return [{ pane, session, sessionId: null, opencode: true }];
+      }
       // The pane's own id first — it's the live one; the card's is the fallback for a session whose
       // id herdr reported once and no longer does. Neither, and no cwd, leaves nothing to resolve from.
       const sessionId = pane.agentSessionId ?? session?.agentSessionId ?? null;
       if (sessionId === null && !pane.cwd) return [];
-      return [{ pane, session, sessionId }];
+      return [{ pane, session, sessionId, opencode: false }];
     });
 
+    const windows = this.resolver();
     await Promise.all(
-      due.map(async ({ pane, session, sessionId }) => {
+      due.map(async ({ pane, session, sessionId, opencode }) => {
         const paneId = pane.paneId;
         this.lastRead.set(paneId, now);
         try {
-          const path = sessionId
-            ? await this.source.resolve(sessionId)
-            : await this.resolveWithoutIntegration(paneId, pane.cwd);
-          if (path === null) return; // level 3: no log for this agent, and that is fine
-          const { text } = await this.source.load(path);
-          const usage = latestUsage(text);
-          if (!usage) return;
-          const pct = contextPercent(usage.tokens, this.windowTokens);
+          // Occupancy + the model behind it — one source per agent kind, never both.
+          let tokens: number;
+          let model: string | null;
+          let provider: string | null = null;
+          if (opencode) {
+            const seen = readOpenCodeUsage(this.openCodeDbPath ?? "", pane.cwd, this.now);
+            if (!seen) return; // level 3: no safe session for this directory, and that is fine
+            tokens = seen.tokens;
+            model = seen.modelId;
+            provider = seen.providerId;
+          } else {
+            const path = sessionId
+              ? await this.source.resolve(sessionId)
+              : await this.resolveWithoutIntegration(paneId, pane.cwd);
+            if (path === null) return; // level 3: no log for this agent, and that is fine
+            const { text } = await this.source.load(path);
+            const usage = latestUsage(text);
+            if (!usage) return;
+            tokens = usage.tokens;
+            model = latestModel(text);
+          }
+          // The denominator follows the model; anything unresolvable falls back to the
+          // operator's configured window — an explicit claim, not a guess.
+          const window = await windows.resolve(model, provider);
+          const pct = contextPercent(tokens, window);
           // Durable ONLY for a pane backing a card — that number is part of the card's record (the
           // card screen and the handoff hint read it). A pane with no card writes nothing.
-          if (session) this.db.patchSession(session.id, { ctxTokens: usage.tokens, ctxPct: pct });
+          if (session) this.db.patchSession(session.id, { ctxTokens: tokens, ctxPct: pct });
           if (pct === null) return; // a token count we can't turn into a percentage is no gauge
-          this.occupancy.set(paneId, { pct, tokens: usage.tokens });
+          this.occupancy.set(paneId, { pct, tokens });
           await this.report(paneId, pct);
         } catch {
           // Level 3. Keep the last known figure rather than blanking a gauge on one bad read.

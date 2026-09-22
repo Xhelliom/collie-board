@@ -9,6 +9,7 @@ import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
+import { createWindowResolver } from "./context-window.ts";
 import { Copilot, CopilotCoordinator } from "./copilot.ts";
 import { BoardDb, isAutoHandoffPending } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
@@ -298,6 +299,19 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       new ClaudeTranscriptSource(cfg.transcriptRoot),
       cfg.boardCtxWindow,
       adapters,
+      Date.now,
+      // Per-model denominators: static table → models.dev (cached under the state dir) →
+      // the configured window. Disabled wholesale with COLLIE_BOARD_MODELS_DEV=off.
+      createWindowResolver({
+        defaultWindow: cfg.boardCtxWindow,
+        cachePath: join(cfg.stateDir, "models-dev-cache.json"),
+        fetchRegistry: cfg.boardModelsDev
+          ? undefined
+          : async () => {
+              throw new Error("models.dev disabled");
+            },
+      }),
+      cfg.boardOpenCodeDb,
     );
     // Published so the server can overlay the figures onto the snapshot it serves — they live in the
     // tracker's memory, not in the database (see ContextTracker.enrich).

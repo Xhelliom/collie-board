@@ -75,7 +75,7 @@ transitions are the board's, not yours.
 | **Tag, and repo scope** | One tag per card, its colour computed from its name and stored nowhere ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). Two strips above the columns filter by tag and by repo; the repo scope is remembered between visits ([ADR 0006](./.adr/0006-the-board-scopes-by-repo-and-remembers-it.md)). |
 | **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is just its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed. |
 | **Merge · PR · resolve · cleanup · discard** | Five taps that end a branch, in `bridge/integrate.ts`. `merge --no-ff` into the base in the main checkout, or push + `gh pr create`; a conflict is handed back to the card's own agent to settle **on its own branch**. Four of the five refuse before they act — you cannot fix a half-merged repo from a phone. `discard` is the one destructive gesture and is a separate word, never a `force` flag. |
-| **Context gauge** | Read from the agent's own transcript, and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. Works without herdr's optional integration: the pane's PID and start time pick the right log even with two agents in one directory. |
+| **Context gauge** | Read from the agent's own session (Claude transcript, OpenCode session db), graded against that model's own window (static table → models.dev → `COLLIE_BOARD_CTX_WINDOW` default), and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. Works without herdr's optional integration: the pane's PID and start time pick the right log even with two agents in one directory. |
 | **Handoff** | Context running out mid-task: the outgoing agent writes `.board/handoff.md`, the pane is replaced in the same worktree, the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
 | **Wrap-up** | Filing a card Done asks its agent for one last note (`.board/wrapup.md`) — what it did, what it dropped — because the diff shows which lines moved, not which acceptance criterion that satisfied. That note is what the copilot's review reads. |
 | **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other — no API key, no SDK, and openable in the TUI when an answer comes out wrong. It turns a dictated brain dump into a card (splitting it into several when the dump names several things, tagging each with the board's existing vocabulary), reviews finished work into follow-up cards, and explains a failed action. Its output contract is a JSON file, never scraped terminal text. |
@@ -87,7 +87,9 @@ transitions are the board's, not yours.
 | `COLLIE_BOARD_AGENT_KIND` | `claude` | Agent kind launched for a card that doesn't name its own. |
 | `COLLIE_BOARD_MAX_AGENTS` | `3` | How many cards may run at once. A **quota** guard, not a performance one. |
 | `COLLIE_BOARD_BRANCH_PREFIX` | `board/` | Prefix for branches the board creates. |
-| `COLLIE_BOARD_CTX_WINDOW` | `200000` | Context window the gauge is a percentage of. Set `1000000` for a 1M-context model. |
+| `COLLIE_BOARD_CTX_WINDOW` | `200000` | Context window the gauge is a percentage of. Now the default: a pane whose model resolves is graded against its own window (1M for Opus 4.6+/Sonnet 4.6+, 200k for older). Set `1000000` for a 1M-context model when the default must cover it. |
+| `COLLIE_BOARD_OPENCODE_DB` | `~/.local/share/opencode/opencode.db` | OpenCode session database, read read-only for the gauge of `opencode` panes. Missing file = no gauge, never an error. |
+| `COLLIE_BOARD_MODELS_DEV` | `on` | Let per-model window resolution consult models.dev for unknown slugs (cached, best-effort). `off` = static table + default only. |
 | `COLLIE_BOARD_HANDOFF_PCT` | `70` | Context percentage past which the Handoff button goes prominent. Advisory only. |
 | `COLLIE_BOARD_COPILOT` | `off` | Enable the copilot. **Off by default** — it is a second agent on the same subscription. |
 | `COLLIE_BOARD_COPILOT_KIND` | *(same as workers)* | Let the copilot run a cheaper agent. |
@@ -96,7 +98,7 @@ transitions are the board's, not yours.
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
 | `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks and links to. Set it to `Xhelliom/collie-board` (or your own fork); left empty the check is off, because pointing it at upstream would nag about versions this tree isn't. |
 
-Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — four fields, merged
+Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — five fields, merged
 per field from `~/.config/collie-board/agents.toml`.
 
 **Picking a repo** is a list, not a text field — typing `/home/you/code/project` on a phone is the
