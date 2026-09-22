@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.147.0] - 2026-09-22
+
+### Added
+
+- Handoff automatique (Settings, off par défaut) : une session Claude inactive depuis ~4 min écrit sa note de handoff avant l'expiration du cache (5 min), stockée sur la session (04dda7d)
+- Réglage par carte, au-dessus du réglage global : Default / Always / Never (04dda7d)
+- Au retour sur le pane, une fois le cache expiré : « Repartir du handoff » (session fraîche sur la note) ou « Continuer ici » (04dda7d)
+
 ## [0.146.0] - 2026-09-18
 
 ### Added
