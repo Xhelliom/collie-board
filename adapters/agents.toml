@@ -1,5 +1,5 @@
 # Per-agent divergence for collie-board. See bridge/adapters.ts for what each field means and why
-# there are only four of them.
+# there are only five of them.
 #
 # Herdr already normalises agent DETECTION and STATE for 22 agents with no configuration, so almost
 # everything the board does is agent-agnostic by construction. This table only describes what herdr
@@ -14,6 +14,10 @@
 #              Only turn this on for an agent whose format bridge/transcript.ts can actually read —
 #              a confident wrong percentage is worse than no gauge (see bridge/context.ts).
 #   session_id does the agent report a native session id to herdr?
+#   opencode_db
+#              does the gauge read this agent's occupancy from OpenCode's sqlite session store
+#              (`bridge/opencode-usage.ts`) instead of a transcript? Only `opencode` claims it —
+#              same rule as `context`: verified against a real session db, never assumed.
 #
 # `clear` and `session_id` carry their evidence in a comment. `context` carries the rule: it stays
 # false until someone has run latestUsage() against a real transcript of that agent.
@@ -61,3 +65,8 @@ session_id = false
 clear      = ""
 context    = false
 session_id = false
+# Read from the live session db (session_v2 + newest assistant message tokens), resolved by
+# directory with a single-live-candidate rule — see bridge/opencode-usage.ts. Verified 2026-09-22
+# against ~/.local/share/opencode/opencode.db: per-message `data.tokens`
+# ({input, cache:{read,write}}) and `session_v2.model` ({id, providerID}).
+opencode_db = true

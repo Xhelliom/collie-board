@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { DialMode } from "./dial.ts";
+import { defaultOpenCodeDbPath } from "./opencode-usage.ts";
 
 // All bridge configuration, resolved once at startup. Env-driven so the systemd unit and the
 // plugin launcher can configure it without code changes. Defaults are safe for a single-user,
@@ -68,6 +69,11 @@ function envBool(name: string, fallback: boolean): boolean {
   if (["on", "1", "true", "yes"].includes(v)) return true;
   console.warn(`[config] ${name}="${raw}" is not a boolean — using default ${fallback}`);
   return fallback;
+}
+
+/** Expand a leading `~/` — what an operator types in a `.env`, resolved against the home dir. */
+function expandHome(p: string): string {
+  return p.startsWith("~/") ? join(homedir(), p.slice(2)) : p;
 }
 
 export interface Config {
@@ -203,8 +209,24 @@ export interface Config {
    * Context-window size the gauge is a percentage OF, in tokens. Herdr doesn't know it and the
    * transcript doesn't state it, so it is config: 200k for a stock Claude Code, 1_000_000 for a
    * 1M-context model. A wrong value only skews the percentage — nothing depends on it being right.
+   *
+   * Since the per-model resolution (`bridge/context-window.ts`) this is the DEFAULT: a pane whose
+   * model resolves (transcript `message.model`, OpenCode session `model`) is graded against its
+   * own window; anything unresolvable falls back here.
    */
   boardCtxWindow: number;
+  /**
+   * Where OpenCode keeps its session database, read (read-only) for the gauge of `opencode`
+   * panes (`bridge/opencode-usage.ts`). Unset or missing file degrades to no gauge, never an
+   * error. `~` is expanded like `boardRepoRoots`.
+   */
+  boardOpenCodeDb: string;
+  /**
+   * Let the per-model window resolution consult models.dev for slugs the static table doesn't
+   * know (`bridge/context-window.ts`). Best-effort and cached — off means static table plus the
+   * `boardCtxWindow` default only. Reads a static public JSON; no session data is ever sent.
+   */
+  boardModelsDev: boolean;
   /**
    * The copilot (reformulation + post-`done` review). OFF by default, deliberately: it is a second
    * agent drawing on the same subscription as the workers, and spending someone's quota in the
@@ -292,6 +314,8 @@ export function loadConfig(): Config {
     boardBranchPrefix: process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/",
     boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
     boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
+    boardOpenCodeDb: expandHome(process.env.COLLIE_BOARD_OPENCODE_DB ?? defaultOpenCodeDbPath()),
+    boardModelsDev: envBool("COLLIE_BOARD_MODELS_DEV", true),
     boardCopilot: envBool("COLLIE_BOARD_COPILOT", false),
     boardCopilotKind: (process.env.COLLIE_BOARD_COPILOT_KIND ?? "").trim(),
     boardCopilotClear: (process.env.COLLIE_BOARD_COPILOT_CLEAR ?? "").trim(),

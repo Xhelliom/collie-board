@@ -61,6 +61,8 @@ function cfg(overrides: Partial<Config> = {}): Config {
     boardBranchPrefix: "board/",
     boardHandoffPct: 70,
     boardCtxWindow: 200_000,
+    boardOpenCodeDb: "/tmp/opencode.db",
+    boardModelsDev: false,
     boardCopilot: false,
     boardCopilotKind: "",
     boardCopilotClear: "",

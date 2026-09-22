@@ -1213,3 +1213,31 @@ export function latestUsage(text: string): ContextUsage | null {
   }
   return found;
 }
+
+/**
+ * The model behind a session log's newest turn (`message.model` on the newest non-sidechain
+ * assistant row — verified on real logs, e.g. `claude-opus-5`), or null when the log names none.
+ * The transcript states the USAGE but never the window, so the gauge resolves the denominator
+ * from this slug (see `context-window.ts`). Same filters as {@link latestUsage}: sidechain turns
+ * belong to another conversation, and the newest row wins because `/compact` genuinely shrinks
+ * the window a max would stay pinned above.
+ */
+export function latestModel(text: string): string | null {
+  let found: string | null = null;
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    let row: { type?: unknown; isSidechain?: unknown; message?: unknown };
+    try {
+      row = JSON.parse(line) as typeof row;
+    } catch {
+      continue; // partial trailing write, or the clipped first line of a tail read
+    }
+    if (row.type !== "assistant" || row.isSidechain === true) continue;
+    const message = row.message;
+    if (message === null || typeof message !== "object") continue;
+    const model = (message as { model?: unknown }).model;
+    if (typeof model !== "string" || model.trim() === "") continue;
+    found = model;
+  }
+  return found;
+}
