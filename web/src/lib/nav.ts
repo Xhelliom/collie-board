@@ -17,6 +17,14 @@ export function historyPath(paneId: string, session?: string): string {
 }
 
 /**
+ * A card session's artifacts — the image/HTML/Markdown files it wrote or mentioned, rendered from
+ * its worktree. A child of the pane, so "back" from the reader lands where you were reading.
+ */
+export function paneArtifactsPath(paneId: string, session?: string): string {
+  return `/pane/${encodeURIComponent(paneId)}/artifacts${sessionSearch(session)}`;
+}
+
+/**
  * A space's detail route (its tabs + panes). Deep-linkable; carries the session like panePath.
  * `tabId`, when given, seeds the route's own tab selection (redesign §9: a tab chip on the Spaces
  * overview goes straight to that tab instead of "All") — read once on landing, not kept in sync

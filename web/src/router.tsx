@@ -6,12 +6,13 @@ import { SpaceRoute } from "@/routes/space";
 import { SpacesRoute } from "@/routes/spaces";
 import { DetailRoute } from "@/routes/detail";
 import { HistoryRoute } from "@/routes/history";
+import { ArtifactsRoute } from "@/routes/artifacts";
 import { SettingsRoute } from "@/routes/settings";
 import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
-import { galleryLoader, historyLoader, rootLoader, paneLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
+import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardLoader, cardLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 
@@ -97,6 +98,15 @@ export const router = createBrowserRouter([
         // hundreds of turns — re-pulling it every 1.5s would be pure waste, and it would fight the
         // view's own "load older" paging by resetting the page under it. History is fetched on
         // navigation; the view pages back through it with direct api calls.
+        shouldRevalidate: () => false,
+      },
+      {
+        path: "pane/:paneId/artifacts",
+        loader: paneArtifactsLoader,
+        element: <ArtifactsRoute />,
+        errorElement: <PaneError />,
+        // Same reasoning as history/gallery: the list walks the card's worktree diff on the bridge,
+        // so re-running it every 1.5 s would burn a git call per tick for a view you open once.
         shouldRevalidate: () => false,
       },
     ],

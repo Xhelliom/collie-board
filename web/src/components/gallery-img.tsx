@@ -24,12 +24,19 @@ export function GalleryImg({
   path,
   className,
   alt,
+  url,
 }: {
   /** Absolute path of the image, as the gallery route spells it — or a `data:` URL, used as-is. */
   path: string;
   className?: string;
   /** Defaults to the filename — what the browser shows if every attempt fails. */
   alt?: string;
+  /**
+   * Overrides the source URL. The gallery's own surfaces leave this off and get the scratchpad
+   * endpoint; the session-artifact reader passes its confined worktree-artifact URL, which the
+   * bridge resolves against the CARD's root instead. A `data:` URL always wins over either.
+   */
+  url?: string;
 }) {
   const [attempt, setAttempt] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,10 +52,10 @@ export function GalleryImg({
   // A `data:` URL (a screenshot a tool returned inline) IS the bytes: no file, no writer to race, so
   // its failure is final.
   const inline = path.startsWith("data:");
-  const url = inline ? path : galleryImageUrl(path);
+  const src = inline ? path : (url ?? galleryImageUrl(path));
   return (
     <img
-      src={attempt === 0 ? url : `${url}&retry=${attempt}`}
+      src={attempt === 0 ? src : `${src}&retry=${attempt}`}
       alt={alt ?? imageName(path) ?? "image"}
       // Only ever loads what's on screen — these are full-size renders over a phone link.
       loading="lazy"

@@ -6,6 +6,7 @@ import type { TranscriptEntry } from "./transcript.ts";
 // Re-exported so the wire surface has ONE import site: a consumer of PaneHistoryResponse gets the
 // entry shape from here too, without reaching into the parser module.
 export type { TranscriptEntry, TranscriptPart } from "./transcript.ts";
+export type { ArtifactInfo, ArtifactKind } from "./artifacts.ts";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
