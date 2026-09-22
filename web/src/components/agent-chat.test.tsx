@@ -746,3 +746,27 @@ describe("AgentChat — session images", () => {
     expect(screen.queryByText("Images")).not.toBeInTheDocument();
   });
 });
+
+// The worktree-artifacts affordance: the reader is confined to the CARD's worktree, so the button
+// only exists on a card-backed pane — a hand-launched agent has no root to read from.
+describe("AgentChat — session artifacts affordance", () => {
+  const cardAgent = { ...fixtureAgents[0]!, cardId: "c1" as const };
+  const artifactsButton = () => screen.queryByRole("button", { name: /session artifacts/i });
+
+  it("shows the button on a card-backed pane, in terminal mode", () => {
+    renderChat({ agent: cardAgent, agents: [cardAgent] });
+    expect(artifactsButton()).toBeInTheDocument();
+  });
+
+  it("shows it in reading mode too — the artwork is a fact of the session, not of a mode", async () => {
+    const user = userEvent.setup();
+    renderChat({ agent: cardAgent, agents: [cardAgent] });
+    await user.click(screen.getByRole("button", { name: /reading view/i }));
+    expect(artifactsButton()).toBeInTheDocument();
+  });
+
+  it("stays hidden on a hand-launched pane, which has no card worktree", () => {
+    renderChat(); // fixtureAgents[0] has no cardId
+    expect(artifactsButton()).not.toBeInTheDocument();
+  });
+});
