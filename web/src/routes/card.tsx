@@ -43,6 +43,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
+import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardStatusChip } from "@/components/card-status-chip";
@@ -630,6 +631,17 @@ export function CardRoute() {
                   </>
                 ) : (
                   <>
+                    <AgentKindPicker
+                      value={card.agentKind}
+                      onChange={async (kind) => {
+                        try {
+                          await patchCard(card.id, { agentKind: kind });
+                        } catch (e) {
+                          setStatus((e as Error).message, "error", null);
+                        }
+                        revalidator.revalidate();
+                      }}
+                    />
                     <StartButton
                       card={card}
                       pending={starting}
