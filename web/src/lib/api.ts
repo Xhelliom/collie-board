@@ -6,6 +6,7 @@ import { markLive } from "./connection-health";
 import { observeServerBuild, SERVER_BUILD_HEADER } from "./server-build";
 import type {
   ActionResponse,
+  ArtifactInfo,
   BridgeConfig,
   CreateResponse,
   GalleryImage,
@@ -450,4 +451,32 @@ export async function fetchGallery(): Promise<GalleryImage[]> {
  */
 export function galleryImageUrl(path: string): string {
   return `/api/gallery/file?p=${encodeURIComponent(path)}`;
+}
+
+/**
+ * A card session's artifacts — the images/HTML/Markdown it wrote or mentioned, readable from its
+ * WORKTREE. Same on-demand posture as the gallery: fetched when the artifacts surface opens, never
+ * polled (the list walks the worktree's git diff on the bridge, and a poll every 1.5 s for a view
+ * you open once is pure waste). An absent listing is `[]` — a pane with no card has no artifacts.
+ */
+export async function fetchPaneArtifacts(
+  paneId: string,
+  session?: string,
+): Promise<ArtifactInfo[]> {
+  const { artifacts } = await req<{ artifacts: ArtifactInfo[] }>(
+    withSession(`/api/pane/${encodeURIComponent(paneId)}/artifacts`, session),
+  );
+  return artifacts;
+}
+
+/**
+ * The URL of one artifact's bytes. The bridge confines the path to the pane's CARD-ownED worktree
+ * root (server-derived), so a refused path is a 404 the renderer degrades on — same contract as
+ * `galleryImageUrl`.
+ */
+export function paneArtifactUrl(paneId: string, path: string, session?: string): string {
+  return withSession(
+    `/api/pane/${encodeURIComponent(paneId)}/artifact?p=${encodeURIComponent(path)}`,
+    session,
+  );
 }

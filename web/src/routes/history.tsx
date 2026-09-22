@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
-import { ArrowUpToLine, ChevronDown, ChevronUp, Images, Loader2, ScrollText, Search, X } from "lucide-react";
+import { ArrowUpToLine, ChevronDown, ChevronUp, FileCode2, Images, Loader2, ScrollText, Search, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
@@ -9,7 +9,7 @@ import { TranscriptView } from "@/components/transcript-view";
 import { fetchHistory } from "@/lib/api";
 import { HISTORY_PAGE_SIZE, ROOT_ROUTE_ID, type HistoryData, type HomeData } from "@/lib/loaders";
 import { collectImages, openLightbox } from "@/lib/lightbox";
-import { panePath } from "@/lib/nav";
+import { paneArtifactsPath, panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { matchingEntries, step, userTurnIndices } from "@/lib/transcript-search";
 import type { TranscriptEntry } from "@/lib/types";
@@ -219,6 +219,20 @@ export function HistoryRoute() {
                 className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
               >
                 <Images className="size-4" />
+              </button>
+            )}
+            {/* The session's worktree artifacts — screenshots, reports and pages the agent WROTE to
+                disk (docs/hero-recette/*.png, *.md, a validation *.html), which the scratchpad
+                gallery can't see. Card-backed panes only: the artifact reader is confined to the
+                CARD's worktree, so a hand-launched pane has no root. */}
+            {agent?.cardId && (
+              <button
+                type="button"
+                onClick={() => navigate(paneArtifactsPath(paneId, session))}
+                aria-label="Session artifacts"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+              >
+                <FileCode2 className="size-4" />
               </button>
             )}
             {/* A PWA has no browser find, so the view has to provide its own. */}

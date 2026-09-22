@@ -14,11 +14,19 @@
 // even while a poll's doomed fetch is still hanging.
 
 import { rawTerminalPref } from "@/hooks/use-display-prefs";
-import { fetchGallery, fetchHistory, fetchPane, fetchSnapshot, isApiErrorStatus } from "@/lib/api";
+import {
+  fetchGallery,
+  fetchHistory,
+  fetchPane,
+  fetchPaneArtifacts,
+  fetchSnapshot,
+  isApiErrorStatus,
+} from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type {
   AgentView,
+  ArtifactInfo,
   BridgeStatus,
   DeviceAuth,
   GalleryImage,
@@ -462,5 +470,33 @@ export async function galleryLoader(): Promise<GalleryImage[]> {
     return await fetchGallery();
   } catch {
     return [];
+  }
+}
+
+export interface PaneArtifactsData {
+  paneId: string;
+  session: string | undefined;
+  /** Newest first. Empty when the pane has no card, or the worktree is gone. */
+  artifacts: ArtifactInfo[];
+}
+
+/**
+ * The session-artifact list's payload — same on-demand posture as the gallery: the artifact list
+ * walks the card's worktree diff on the bridge, so it is fetched on navigation (the route opts out
+ * of revalidation) and never on the 1.5 s poll. A failure is an EMPTY list, not an error screen.
+ */
+export async function paneArtifactsLoader({
+  params,
+  request,
+}: {
+  params: { paneId?: string };
+  request?: Request;
+}): Promise<PaneArtifactsData> {
+  const { paneId = "" } = params;
+  const session = sessionFromRequest(request);
+  try {
+    return { paneId, session, artifacts: await fetchPaneArtifacts(paneId, session) };
+  } catch {
+    return { paneId, session, artifacts: [] };
   }
 }

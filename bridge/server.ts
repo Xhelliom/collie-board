@@ -22,14 +22,17 @@ import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
+import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
 import type {
   ActionResponse,
+  AgentView,
   BridgeConfig,
   CreateResponse,
   DeviceAuth,
   PaneHistoryResponse,
   PaneReadResponse,
   SnapshotResponse,
+  TranscriptEntry,
   UploadResponse,
 } from "./types.ts";
 
@@ -89,6 +92,11 @@ const SECURITY_HEADERS: Record<string, string> = {
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 const PANE_ROUTE = /^\/api\/pane\/([^/]+)(?:\/(reply|keys|upload|close|rename|history))?$/;
+// `/api/pane/:id/artifacts` (the session-artifact LIST) and `/api/pane/:id/artifact` (one file's
+// bytes). Kept out of PANE_ROUTE on purpose: the list carries a trailing `s`, and neither should be
+// reachable as an action a POST could hit.
+const PANE_ARTIFACTS_ROUTE = /^\/api\/pane\/([^/]+)\/artifacts$/;
+const PANE_ARTIFACT_ROUTE = /^\/api\/pane\/([^/]+)\/artifact$/;
 // Turns per history page. "Show entire history" means the WHOLE conversation, so the client asks for
 // everything and this ceiling is a safety net against a pathological log, not the normal path — a
 // 1400-turn session is ~1.4 MB raw / ~400 KB gzipped, which a tailnet link serves fine. The default
@@ -319,6 +327,61 @@ export function startServer(opts: {
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
         if (action === "rename" && req.method === "POST") return renamePane(herdr, paneId, req, audit, device, session);
         return text("method not allowed", 405);
+      }
+
+      // ── Session artifacts (the fork's addition) ──────────────────────────
+      // The images/HTML/Markdown a card's session wrote or mentioned, readable from the phone. Both
+      // are READ-only and both are confined to the CARD's worktree: the root is derived server-side
+      // from the card backing the pane (`worktreeForPane`), never from the request — the client only
+      // ever echoes back absolute paths this module itself offered (see artifacts.ts).
+      if (pathname.startsWith("/api/pane/") && (pathname.endsWith("/artifact") || pathname.endsWith("/artifacts"))) {
+        const artifactsMatch = pathname.match(PANE_ARTIFACTS_ROUTE);
+        const fileMatch = pathname.match(PANE_ARTIFACT_ROUTE);
+        if (artifactsMatch || fileMatch) {
+          if (req.method !== "GET") return text("method not allowed", 405);
+          const denied = guard(req, cfg, "read");
+          if (denied) return denied;
+          const rt = registry.get(sessionName);
+          if (!rt) return unknownSession();
+          const paneId = decodeURIComponent((artifactsMatch ?? fileMatch)![1]!);
+          const worktree = await worktreeForPane(board, paneId);
+          if (fileMatch) return secure(await handleArtifactFile(worktree?.root ?? null, req));
+          // The artifact LIST also scans the conversation for files the agent MENTIONED — the same
+          // conversation the history route serves, via the same resolution, so neither can drift.
+          // Best-effort and on-demand (the artifacts surface opens, never the poll loop): a pane
+          // with no readable transcript simply contributes no mentions.
+          let entries: TranscriptEntry[] | null = null;
+          if (cfg.transcript && transcripts !== null) {
+            const { agents, shellPanes } = rt.engine.current();
+            const pane = [...agents, ...shellPanes].find((a) => a.paneId === paneId);
+            if (pane && pane.kind !== "shell") {
+              // A full-window request: mention scanning wants the whole conversation, not the
+              // reading view's tail. The transcript store's cache makes this one read per open.
+              // Best-effort the whole way down: a transcript that can't be READ (corrupt, locked,
+              // gone mid-request) contributes no mentions — the written-file list still serves.
+              try {
+                const page = await resolvePanePage(
+                  cfg,
+                  transcripts,
+                  rt.herdr,
+                  adapters,
+                  pane,
+                  new URL(`http://artifacts/?limit=${MAX_HISTORY_LIMIT}`),
+                );
+                if (page !== null) entries = page.entries;
+              } catch {
+                /* mentions only — the diff-derived list below stands on its own */
+              }
+            }
+          }
+          return secure(
+            await paneArtifactsResponse({
+              worktree,
+              entries,
+              acceptEncoding: req.headers.get("accept-encoding"),
+            }),
+          );
+        }
       }
 
       // ── Misc API ─────────────────────────────────────────────────────────
@@ -667,72 +730,104 @@ async function paneHistory(
     return unavailable("unsupported");
 
   try {
-    const params = historyParams(url);
-    let page: Omit<PaneHistoryResponse & { available: true }, "paneId" | "available"> | null;
-    if (pane.agentSessionId) {
-      page = await transcripts.page(pane.agentSessionId, params);
-      // A reported id no JSONL log answers to can still be an opencode session (`ses_…`):
-      // herdr names whatever the agent announced, and only the session store knows that shape.
-      if (page === null && adapter.opencodeDb) {
-        page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
-          sessionId: pane.agentSessionId,
-          cwd: pane.cwd,
-          ...params,
-        });
-      }
-    } else if (pane.agentSessionPath) {
-      // herdr named the file itself — no resolution to do, just the containment every read here is
-      // subject to. Null means refused or gone, which is the same answer as "no log".
-      const path = await confinedSessionPath(pane.agentSessionPath);
-      page = path === null ? null : await transcripts.pageAt(path, params);
-    } else if (adapter.opencodeDb) {
-      // OpenCode keeps its conversations in its own session store, not in JSONL logs — resolved
-      // by directory with the single-live-candidate rule, like the gauge (opencode-transcript.ts).
-      page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, { cwd: pane.cwd, ...params });
-      if (page === null) {
-        // Several live sessions may share this directory (a fan-out of parallel agents), and the
-        // clock rule then refuses every pane. The mirror is per-pane ground truth — herdr returns
-        // it by pane id, so it can never name the wrong conversation — and naming the session by
-        // its content is what the Claude path already does (resolveForProcess). Best-effort: an
-        // unreadable mirror costs nothing, the refusal stands.
-        const mirror = await herdr
-          .readPane(paneId, "recent", 200, "ansi")
-          .then((r) => r.text, () => null);
-        if (mirror) {
-          page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
-            cwd: pane.cwd,
-            ...params,
-            mirror,
-          });
-        }
-      }
-    } else {
-      const path = await resolveWithoutSession({
-        source: transcripts.source,
-        paneProcess: (id) => herdr.paneProcess(id),
-        startedAt: processStartedAt,
-        paneId,
-        cwd: pane.cwd,
-        // The mirror is ground truth — herdr returns it per PANE ID, so it can never be the wrong
-        // conversation, which is the one thing the clock-based rules can get wrong. Only consulted
-        // when several agents share a directory; this route is where being wrong is worst, since it
-        // renders the whole thread.
-        //
-        // "ansi", NOT "text", and that is not a style choice: measured against herdr 0.7.5 on an
-        // IDLE pane, `format:"text"` took 6541 ms where `format:"ansi"` took 1 ms — same pane, same
-        // source, same line count (HERDR_API.md). The plain-text conversion appears to degrade
-        // badly once a pane stops producing output. At 6.5 s every history poll blew the client's
-        // 5 s budget, so reading mode sat at "reconnecting" on any agent that had finished. The
-        // escape codes cost nothing here: mirrorFragments strips them before matching anyway.
-        paneText: async (id) => (await herdr.readPane(id, "recent", 200, "ansi")).text,
-      });
-      page = path === null ? null : await transcripts.pageAt(path, params);
-    }
+    const page = await resolvePanePage(cfg, transcripts, herdr, adapters, pane, url);
     if (page === null) return unavailable("no-log");
     return json({ paneId, available: true, ...page } satisfies PaneHistoryResponse, accept);
   } catch (err) {
     return text(`transcript read failed: ${(err as Error).message}`, 502);
   }
+}
+
+/**
+ * The pane-transcript type this route (and the artifact list) serves. Shared so the two can never
+ * disagree about which conversation a pane owns.
+ */
+type PaneTranscriptPage = Omit<PaneHistoryResponse & { available: true }, "paneId" | "available">;
+
+/**
+ * One pane's parsed conversation, windowed by `url`'s `limit`, or null when nothing could be read.
+ *
+ * The resolution body of the history route, extracted because the session-artifact list wants the
+ * SAME conversation (its "mentioned" files) and must not re-implement a four-branch resolution that
+ * could drift. All four branches below are inherited unchanged from the history route, including its
+ * two guards' *spirit* — the caller (paneHistory) has already refused an agent whose kind keeps no
+ * readable source, so a directory-based guess never serves another agent's log.
+ */
+async function resolvePanePage(
+  cfg: Config,
+  transcripts: TranscriptStore,
+  herdr: {
+    paneProcess(paneId: string): Promise<{ pid: number; cwd: string } | null>;
+    /** The pane's terminal, used to identify WHICH log this pane is showing (see below). */
+    readPane(paneId: string, source: "recent", lines: number, format: "ansi"): Promise<{ text: string }>;
+  },
+  adapters: Record<string, AgentAdapter>,
+  pane: AgentView,
+  url: URL,
+): Promise<PaneTranscriptPage | null> {
+  const params = historyParams(url);
+  const adapter = adapterFor(adapters, pane.agent);
+  let page: PaneTranscriptPage | null;
+  if (pane.agentSessionId) {
+    page = await transcripts.page(pane.agentSessionId, params);
+    // A reported id no JSONL log answers to can still be an opencode session (`ses_…`):
+    // herdr names whatever the agent announced, and only the session store knows that shape.
+    if (page === null && adapter.opencodeDb) {
+      page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
+        sessionId: pane.agentSessionId,
+        cwd: pane.cwd,
+        ...params,
+      });
+    }
+  } else if (pane.agentSessionPath) {
+    // herdr named the file itself — no resolution to do, just the containment every read here is
+    // subject to. Null means refused or gone, which is the same answer as "no log".
+    const path = await confinedSessionPath(pane.agentSessionPath);
+    page = path === null ? null : await transcripts.pageAt(path, params);
+  } else if (adapter.opencodeDb) {
+    // OpenCode keeps its conversations in its own session store, not in JSONL logs — resolved
+    // by directory with the single-live-candidate rule, like the gauge (opencode-transcript.ts).
+    page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, { cwd: pane.cwd, ...params });
+    if (page === null) {
+      // Several live sessions may share this directory (a fan-out of parallel agents), and the
+      // clock rule then refuses every pane. The mirror is per-pane ground truth — herdr returns
+      // it by pane id, so it can never name the wrong conversation — and naming the session by
+      // its content is what the Claude path already does (resolveForProcess). Best-effort: an
+      // unreadable mirror costs nothing, the refusal stands.
+      const mirror = await herdr
+        .readPane(pane.paneId, "recent", 200, "ansi")
+        .then((r) => r.text, () => null);
+      if (mirror) {
+        page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
+          cwd: pane.cwd,
+          ...params,
+          mirror,
+        });
+      }
+    }
+  } else {
+    const path = await resolveWithoutSession({
+      source: transcripts.source,
+      paneProcess: (id) => herdr.paneProcess(id),
+      startedAt: processStartedAt,
+      paneId: pane.paneId,
+      cwd: pane.cwd,
+      // The mirror is ground truth — herdr returns it per PANE ID, so it can never be the wrong
+      // conversation, which is the one thing the clock-based rules can get wrong. Only consulted
+      // when several agents share a directory; this route is where being wrong is worst, since it
+      // renders the whole thread.
+      //
+      // "ansi", NOT "text", and that is not a style choice: measured against herdr 0.7.5 on an
+      // IDLE pane, `format:"text"` took 6541 ms where `format:"ansi"` took 1 ms — same pane, same
+      // source, same line count (HERDR_API.md). The plain-text conversion appears to degrade
+      // badly once a pane stops producing output. At 6.5 s every history poll blew the client's
+      // 5 s budget, so reading mode sat at "reconnecting" on any agent that had finished. The
+      // escape codes cost nothing here: mirrorFragments strips them before matching anyway.
+      paneText: async (id) => (await herdr.readPane(id, "recent", 200, "ansi")).text,
+    });
+    page = path === null ? null : await transcripts.pageAt(path, params);
+  }
+  return page;
 }
 
 /** Just the two one-shot RPCs a reply needs — real HerdrClient in the bridge, fake in tests. */

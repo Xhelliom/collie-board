@@ -225,6 +225,24 @@ export interface GalleryImage {
   mtime: number;
 }
 
+/** What a session artifact is, and therefore how the client renders it. Mirrors bridge/artifacts.ts. */
+export type ArtifactKind = "image" | "markdown" | "html";
+
+/**
+ * One session artifact — an image/HTML/Markdown file the card's session wrote or mentioned, served
+ * FROM THE CARD'S WORKTREE (not the gallery's scratchpad). Mirrors `ArtifactInfo` in
+ * bridge/artifacts.ts: `path` is the absolute in-worktree path the client echoes back to the file
+ * endpoint, which the bridge confines to the server-derived worktree root.
+ */
+export interface ArtifactInfo {
+  path: string;
+  name: string;
+  rel: string;
+  kind: ArtifactKind;
+  size: number;
+  mtime: number;
+}
+
 /**
  * One turn. `user`/`assistant` are speech; the other two are not, and render set apart so they can't
  * be mistaken for it — `summary` is Claude's own compaction summary, `note` is machine-injected
