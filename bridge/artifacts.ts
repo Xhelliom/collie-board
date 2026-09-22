@@ -26,7 +26,7 @@
 // a `sandbox` CSP, and the client additionally frames it in a sandboxed iframe. Belt and braces, and
 // each half is independently testable.
 
-import { realpath, stat } from "node:fs/promises";
+import { realpath, readdir, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, normalize, sep } from "node:path";
 
 import { containedIn, IMAGE_TYPES } from "./gallery.ts";
@@ -325,10 +325,14 @@ export function scrubHtml(html: string): string {
 /**
  * The absolute paths a parsed conversation named — the "mentioned" half of discovery.
  *
- * Two unambiguous signals only: a tool call that surfaced an image path (the transcript already
- * decided it is a picture), and a tool summary that IS an absolute path (Read/Write/Edit summarize
- * to exactly that). Anything ambiguous is left for the containment filter to drop downstream, not
- * guessed at here. Pure + exported for the test.
+ * Three unambiguous signals only: a tool call that surfaced an image path (the transcript already
+ * decided it is a picture), a tool summary that IS an absolute path (Read/Write/Edit summarize to
+ * exactly that), or a tool summary that is a RELATIVE single-token path with a servable extension —
+ * the shape a Write/Read/Edit names when it runs with a worktree-relative path
+ * (`{path: "docs/hero-recette/page.html"}` — the transcript holds the path exactly as the call made
+ * it, and {@link listWorktreeArtifacts} joins relatives against the root). A bare name with no "/"
+ * is a pattern or a phrase, not a file here. Anything ambiguous is left for the containment filter
+ * to drop downstream, not guessed at here. Pure + exported for the test.
  */
 export function mentionedArtifactCandidates(entries: TranscriptEntry[]): string[] {
   const out: string[] = [];
@@ -338,7 +342,16 @@ export function mentionedArtifactCandidates(entries: TranscriptEntry[]): string[
       if (part.image !== undefined && !part.image.startsWith("data:")) out.push(part.image);
       const summary = part.summary.trim();
       // A path is absolute and single-token; anything else is a pattern or a phrase, not a file.
-      if (summary.startsWith("/") && !summary.includes(" ") && !summary.includes("\t")) out.push(summary);
+      const isAbsolutePath = summary.startsWith("/") && !summary.includes(" ") && !summary.includes("\t");
+      // Relative, single-token, servable extension, and path-shaped (contains a "/") — the
+      // containment filter is the single gate, exactly as for every other candidate.
+      const isRelativeArtifact =
+        summary.includes("/") &&
+        !summary.startsWith("/") &&
+        !summary.includes(" ") &&
+        !summary.includes("\t") &&
+        artifactKindOf(summary) !== null;
+      if (isAbsolutePath || isRelativeArtifact) out.push(summary);
     }
   }
   return out;
@@ -380,6 +393,73 @@ export async function listWorktreeArtifacts(
     });
   }
   return artifacts.sort((a, b) => b.mtime - a.mtime);
+}
+
+/** How deep an untracked-directory expansion will walk. Deep enough for `docs/hero-recette/`. */
+const MAX_ARTIFACT_DIR_DEPTH = 5;
+/** Cap on files collected from one expansion, so a huge untracked tree can't balloon the walk. */
+const MAX_ARTIFACT_DIR_FILES = 200;
+
+async function walkForArtifacts(
+  dir: string,
+  depth: number,
+  out: string[],
+  remaining: { n: number },
+): Promise<void> {
+  if (depth > MAX_ARTIFACT_DIR_DEPTH || remaining.n <= 0) return;
+  let names;
+  try {
+    names = await readdir(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (remaining.n <= 0) return;
+    const p = join(dir, name);
+    let st;
+    try {
+      st = await stat(p);
+    } catch {
+      continue; // vanished under us — a live worktree
+    }
+    if (st.isDirectory()) {
+      await walkForArtifacts(p, depth + 1, out, remaining);
+    } else if (artifactKindOf(p) !== null) {
+      remaining.n -= 1;
+      out.push(p);
+    }
+  }
+}
+
+/**
+ * Expand untracked-directory entries into their contained servable files.
+ *
+ * `git status --porcelain` collapses an untracked DIRECTORY to a single `?? docs/hero-recette/`
+ * entry (trailing slash): the files inside are invisible to every git command, so a card whose
+ * agent produced an unreviewed folder of screenshots would list no artifacts at all. This walks
+ * such entries (bounded) and returns the servable files inside; every path still has to pass
+ * {@link resolveArtifact}, so the expansion only widens the CANDIDATE set, never what is served.
+ * Non-directory candidates pass through unchanged. Exported for the test.
+ */
+export async function expandDirectoryCandidates(root: string, candidates: string[]): Promise<string[]> {
+  const out: string[] = [];
+  const remaining = { n: MAX_ARTIFACT_DIR_FILES };
+  for (const c of candidates) {
+    const abs = isAbsolute(c) ? normalize(c) : normalize(join(root, c));
+    let st;
+    try {
+      st = await stat(abs);
+    } catch {
+      out.push(c); // missing — resolveArtifact drops it anyway
+      continue;
+    }
+    if (!st.isDirectory()) {
+      out.push(abs);
+      continue;
+    }
+    await walkForArtifacts(abs, 0, out, remaining);
+  }
+  return out;
 }
 
 // ── the pane → worktree link ────────────────────────────────────────────────
@@ -446,7 +526,10 @@ export async function paneArtifactsResponse(opts: {
   const mentioned = opts.entries === null || opts.entries === undefined
     ? []
     : mentionedArtifactCandidates(opts.entries);
-  const artifacts = await listWorktreeArtifacts(opts.worktree.root, [...written, ...mentioned]);
+  // `git status` collapses an untracked DIRECTORY to one `?? docs/…/` entry — expand those before
+  // containment, or a folder of fresh screenshots lists as nothing at all.
+  const candidates = await expandDirectoryCandidates(opts.worktree.root, [...written, ...mentioned]);
+  const artifacts = await listWorktreeArtifacts(opts.worktree.root, candidates);
   return gzipJsonResponse({ artifacts }, opts.acceptEncoding);
 }
 
