@@ -635,8 +635,12 @@ const CONTENT_TAIL_BYTES = 256 * 1024;
 /** Most logs compared. Bounded because a project directory can hold hundreds. */
 const MAX_CONTENT_CANDIDATES = 5;
 
-/** Collapse terminal decoration so a rendered line can be compared to log prose. Pure. */
-function flatten(text: string): string {
+/**
+ * Collapse terminal decoration so a rendered line can be compared to log prose. Pure.
+ * Exported: the OpenCode reader (opencode-transcript.ts) scores sessions against the same
+ * mirror fragments, so both sides of the match must flatten identically.
+ */
+export function flatten(text: string): string {
   return text
     .replace(ANSI_RE, "")
     // Box-drawing and block glyphs are frame, not content — the TUI wraps prose inside them.

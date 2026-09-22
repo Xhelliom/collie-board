@@ -163,6 +163,64 @@ describe("resolveOpenCodeSession", () => {
     );
     expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
   });
+
+  it("names the live session whose prose the mirror is showing", () => {
+    const path = fixture(
+      [
+        { id: "s1", directory: "/repo", updatedAgoMs: 1000 },
+        { id: "s2", directory: "/repo", updatedAgoMs: 2000 },
+      ],
+      {
+        s1: [msg("u1", "user", 1, userData("summarise the quarterly report for finance"))],
+        s2: [msg("u2", "user", 1, userData("rewrite the onboarding guide for newcomers"))],
+      },
+    );
+    // Without the mirror there is nothing to decide on.
+    expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
+    // With it, the outright winner is served — even though both sessions are live.
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "summarise the quarterly report for finance"),
+    ).toBe("s1");
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
+    ).toBe("s2");
+  });
+
+  it("still refuses on a tie — guessing is how the wrong transcript gets served", () => {
+    const path = fixture(
+      [
+        { id: "s1", directory: "/repo", updatedAgoMs: 1000 },
+        { id: "s2", directory: "/repo", updatedAgoMs: 2000 },
+      ],
+      {
+        s1: [msg("u1", "user", 1, userData("hello world, this is a long greeting"))],
+        s2: [msg("u2", "user", 1, userData("hello world, this is a long greeting"))],
+      },
+    );
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "hello world, this is a long greeting"),
+    ).toBeNull();
+  });
+
+  it("names a quiet session when the mirror shows it while siblings keep writing", () => {
+    const path = fixture(
+      [
+        { id: "loud1", directory: "/repo", updatedAgoMs: 1000 },
+        { id: "loud2", directory: "/repo", updatedAgoMs: 2000 },
+        // Quieter than the live window: the clock alone would never serve it.
+        { id: "quiet", directory: "/repo", updatedAgoMs: OPENCODE_LIVE_MS + 60_000 },
+      ],
+      {
+        loud1: [msg("u1", "user", 1, userData("summarise the quarterly report for finance"))],
+        loud2: [msg("u2", "user", 1, userData("rewrite the onboarding guide for newcomers"))],
+        quiet: [msg("u3", "user", 1, userData("audit the access logs for intrusions tonight"))],
+      },
+    );
+    expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
+    expect(
+      resolveOpenCodeSession(path, "/repo", now, "audit the access logs for intrusions tonight"),
+    ).toBe("quiet");
+  });
 });
 
 describe("pageOpenCodeHistory", () => {
