@@ -21,6 +21,7 @@ import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
+import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import type {
   ActionResponse,
   BridgeConfig,
@@ -608,7 +609,7 @@ export function historyParams(url: URL): { limit: number; before?: string; after
 }
 
 /**
- * GET /api/pane/:id/history — the conversation history a Claude pane's terminal cannot provide.
+ * GET /api/pane/:id/history — the conversation history a pane's terminal cannot provide.
  *
  * The session id is resolved HERE, from the live snapshot, keyed by pane id — the client never sends
  * one. That is the whole safety story for a route that reads files: the only client-controlled inputs
@@ -621,13 +622,19 @@ export function historyParams(url: URL): { limit: number; before?: string; after
  * naming the log outright — the only workable form for an agent whose sessions aren't filed by cwd,
  * and the one a Codex integration would report (AGENT_COMPAT.md §5). A reported path still goes
  * through `confinedSessionPath` before a byte is read. Without either we resolve the way the context
- * gauge does: the pane's foreground process, then its directory (see `resolveWithoutSession`).
+ * gauge does: the pane's foreground process, then its directory (see `resolveWithoutSession`) — or,
+ * for an `opencodeDb` agent, the OpenCode session store by directory (opencode-transcript.ts).
  *
  * That LAST resolution is the one that resolves BY DIRECTORY, which is only sound for an agent whose
  * transcript format we can actually read — otherwise a codex pane sitting in a directory Claude once
  * ran in would be served Claude's conversation. Hence the two guards below: never a shell, and never
- * an agent whose adapter doesn't claim `context` — neither guard applies to a session herdr NAMED,
+ * an agent whose adapter claims no readable source — neither guard applies to a session herdr NAMED,
  * which by construction is this pane's own log. A wrong transcript is worse than no transcript.
+ *
+ * `unsupported` vs `no-session` is deliberate: `no-session` means the pane genuinely has no agent in
+ * it (a bare shell, a vanished pane). An agent pane whose kind keeps no readable transcript answers
+ * `unsupported` instead, so the phone can say WHY there is nothing to read rather than claim the
+ * pane has no session.
  */
 async function paneHistory(
   cfg: Config,
@@ -644,29 +651,44 @@ async function paneHistory(
   req: Request,
 ): Promise<Response> {
   const accept = req.headers.get("accept-encoding");
-  const unavailable = (reason: "disabled" | "no-session" | "no-log") =>
+  const unavailable = (reason: "disabled" | "no-session" | "no-log" | "unsupported") =>
     json({ paneId, available: false, reason } satisfies PaneHistoryResponse, accept);
 
   if (!cfg.transcript || transcripts === null) return unavailable("disabled");
 
   const { agents, shellPanes } = engine.current();
   const pane = [...agents, ...shellPanes].find((a) => a.paneId === paneId);
-  // No pane, a bare shell, or an agent whose transcript format this bridge can't read: there is
-  // nothing to serve, and that's an ordinary answer rather than an error.
+  // No pane or a bare shell: there genuinely is no agent session. An AGENT pane whose kind keeps
+  // no transcript this bridge can read is a different answer — `unsupported`, so the phone says
+  // why instead of claiming the pane has no session.
   if (!pane || pane.kind === "shell") return unavailable("no-session");
-  if (!pane.agentSessionId && !pane.agentSessionPath && !adapterFor(adapters, pane.agent).context)
-    return unavailable("no-session");
+  const adapter = adapterFor(adapters, pane.agent);
+  if (!pane.agentSessionId && !pane.agentSessionPath && !adapter.context && !adapter.opencodeDb)
+    return unavailable("unsupported");
 
   try {
     const params = historyParams(url);
     let page: Omit<PaneHistoryResponse & { available: true }, "paneId" | "available"> | null;
     if (pane.agentSessionId) {
       page = await transcripts.page(pane.agentSessionId, params);
+      // A reported id no JSONL log answers to can still be an opencode session (`ses_…`):
+      // herdr names whatever the agent announced, and only the session store knows that shape.
+      if (page === null && adapter.opencodeDb) {
+        page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
+          sessionId: pane.agentSessionId,
+          cwd: pane.cwd,
+          ...params,
+        });
+      }
     } else if (pane.agentSessionPath) {
       // herdr named the file itself — no resolution to do, just the containment every read here is
       // subject to. Null means refused or gone, which is the same answer as "no log".
       const path = await confinedSessionPath(pane.agentSessionPath);
       page = path === null ? null : await transcripts.pageAt(path, params);
+    } else if (adapter.opencodeDb) {
+      // OpenCode keeps its conversations in its own session store, not in JSONL logs — resolved
+      // by directory with the single-live-candidate rule, like the gauge (opencode-transcript.ts).
+      page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, { cwd: pane.cwd, ...params });
     } else {
       const path = await resolveWithoutSession({
         source: transcripts.source,

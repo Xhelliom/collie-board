@@ -63,6 +63,7 @@ const UNAVAILABLE_COPY: Record<string, string> = {
   disabled: "Transcript reading is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
   "no-session": "This pane has no agent session, so there's nothing to read.",
   "no-log": "No transcript file was found for this pane's session yet.",
+  unsupported: "This agent keeps no transcript Collie can read — switch to Terminal for this pane.",
   error: "Couldn't read the transcript. Switch to Terminal, or try again in a moment.",
   empty: "Nothing in the transcript yet.",
 };

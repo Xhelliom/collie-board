@@ -33,6 +33,7 @@ const UNAVAILABLE_COPY: Record<NonNullable<HistoryData["unavailable"]>, string> 
   disabled: "Transcript history is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
   "no-session": "This pane has no agent session, so there's no transcript to read.",
   "no-log": "No transcript file was found for this pane's session yet.",
+  unsupported: "This agent keeps no transcript Collie can read, so there's no history to show.",
   error: "Couldn't read the transcript. Pull back and try again.",
 };
 

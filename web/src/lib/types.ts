@@ -246,7 +246,7 @@ export interface TranscriptEntry {
  * the UI hides the History affordance rather than showing an error.
  */
 export type PaneHistoryResponse =
-  | { paneId: string; available: false; reason: "disabled" | "no-session" | "no-log" }
+  | { paneId: string; available: false; reason: "disabled" | "no-session" | "no-log" | "unsupported" }
   | {
       paneId: string;
       available: true;
