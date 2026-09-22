@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Columns3,
   EllipsisVertical,
+  FileCode2,
   Images,
   Loader2,
   ScrollText,
@@ -53,7 +54,7 @@ import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-sel
 import type { PreviewBlockAction } from "@/components/preview-select-block";
 import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
 import { shortCwd } from "@/lib/format";
-import { historyPath, spacePath } from "@/lib/nav";
+import { historyPath, paneArtifactsPath, spacePath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
 import type { AgentView, BridgeStatus, DeviceAuth, TabView } from "@/lib/types";
 import type {
@@ -856,6 +857,21 @@ export function AgentChat({
                 className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <ScrollText className="size-4" />
+              </button>
+            )}
+            {/* The session's worktree artifacts — screenshots, reports and pages the agent WROTE to
+                disk (docs/hero-recette/*.png, *.md, a validation *.html). Card-backed panes only: the
+                reader is confined to the CARD's worktree, so a hand-launched pane has no root. Visible
+                in both modes, like History — the artwork is a fact of the session, not of a mode. */}
+            {cardId && (
+              <button
+                type="button"
+                onClick={() => navigate(paneArtifactsPath(paneId, session))}
+                aria-label="Session artifacts"
+                title="Artifacts"
+                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+              >
+                <FileCode2 className="size-4" />
               </button>
             )}
             <button
