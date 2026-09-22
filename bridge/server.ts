@@ -689,6 +689,23 @@ async function paneHistory(
       // OpenCode keeps its conversations in its own session store, not in JSONL logs — resolved
       // by directory with the single-live-candidate rule, like the gauge (opencode-transcript.ts).
       page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, { cwd: pane.cwd, ...params });
+      if (page === null) {
+        // Several live sessions may share this directory (a fan-out of parallel agents), and the
+        // clock rule then refuses every pane. The mirror is per-pane ground truth — herdr returns
+        // it by pane id, so it can never name the wrong conversation — and naming the session by
+        // its content is what the Claude path already does (resolveForProcess). Best-effort: an
+        // unreadable mirror costs nothing, the refusal stands.
+        const mirror = await herdr
+          .readPane(paneId, "recent", 200, "ansi")
+          .then((r) => r.text, () => null);
+        if (mirror) {
+          page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
+            cwd: pane.cwd,
+            ...params,
+            mirror,
+          });
+        }
+      }
     } else {
       const path = await resolveWithoutSession({
         source: transcripts.source,
