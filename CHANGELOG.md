@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.151.1] - 2026-09-22
+
+### Fixed
+
+- Seules les sessions OpenCode racines sont candidates en dossier partagé : les sous-agents (sessions filles, même dossier) ne portent jamais un pane — la vue suivait sinon un fil mort à la fin du worker. (a33d969)
+
 ## [0.151.0] - 2026-09-22
 
 ### Added
