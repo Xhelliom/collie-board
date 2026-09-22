@@ -39,6 +39,12 @@ const toolBlock = (name: string, input: unknown, result: string, status = "compl
   state: { status, input, content: [{ type: "text", text: result }] },
 });
 
+const PNG_URI =
+  "data:image/png;base64," + "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42m" +
+  "NUSf8BAAAwD89Y2V5/QAAAABJRU5ErkJggg==";
+
+const imageFileBlock = (uri: string) => ({ type: "file", uri });
+
 /** A minimal opencode.db: sessions plus their messages. Times are ms-epoch like the real store. */
 function fixture(
   sessions: { id: string; directory: string; updatedAgoMs: number; parentId?: string | null }[],
@@ -121,6 +127,54 @@ describe("parseOpenCodeMessages", () => {
         result: { text: "oldString not found", isError: true },
       },
     ]);
+  });
+
+  it("keeps a picture the tool returned inline, as a data: image", () => {
+    const entries = parseOpenCodeMessages([
+      {
+        id: "a1",
+        type: "assistant",
+        time_created: NOW,
+        data: assistantData([
+          textBlock("here is the shot"),
+          {
+            type: "tool",
+            id: "call-read",
+            name: "read",
+            state: {
+              status: "completed",
+              input: { path: "/tmp/opencode/01-accueil.png" },
+              content: [imageFileBlock(PNG_URI)],
+            },
+          },
+        ]),
+      },
+    ]);
+    expect(entries).toHaveLength(1);
+    const part = entries[0]!.parts.find((p) => p.kind === "tool")!;
+    expect(part).toMatchObject({ kind: "tool", name: "read", summary: "/tmp/opencode/01-accueil.png" });
+    expect(part.image).toBe(PNG_URI);
+  });
+
+  it("refuses a non-image data uri — only allowed media ride the page", () => {
+    const entries = parseOpenCodeMessages([
+      {
+        id: "a1",
+        type: "assistant",
+        time_created: NOW,
+        data: assistantData([
+          {
+            type: "tool",
+            id: "call-shell",
+            name: "shell",
+            state: { status: "completed", input: {}, content: [{ type: "file", uri: "data:video/mp4;base64,AAAA" }] },
+          },
+        ]),
+      },
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.parts[0]).toMatchObject({ kind: "tool" });
+    expect((entries[0]!.parts[0] as { image?: string }).image).toBeUndefined();
   });
 
   it("skips empty reasoning, blank text and unknown rows", () => {
