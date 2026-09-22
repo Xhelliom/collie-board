@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.150.0] - 2026-09-22
+
+### Added
+
+- Vue lecture (et Historique) pour les panes OpenCode : conversation lue depuis la session db (`session_message`), même rendu que les transcripts Claude. (949b56e)
+- Raison `unsupported` sur l'historique de pane : un agent sans transcript lisible le dit au lieu d'affirmer que le pane n'a pas de session. (949b56e)
+
+### Fixed
+
+- La vue lecture d'un pane OpenCode répondait « This pane has no agent session » alors que l'agent tournait avec une conversation sur disque. (949b56e)
+- Les opérations git du bridge ignoraient un `GIT_DIR` ambiant (exporté par les hooks git) au lieu du `cwd` demandé ; le runner et les fixtures de tests purgent désormais les variables de localisation. (949b56e)
+
 ## [0.149.0] - 2026-09-22
 
 ### Added
