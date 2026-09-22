@@ -564,7 +564,10 @@ describe("rebindDependents — a dependent card must not lose its diff when its 
 // can still read once the branch has landed.
 describe("a landed card keeps the diff its review reads", () => {
   function git(cwd: string, ...args: string[]): void {
-    const r = Bun.spawnSync(["git", ...args], { cwd });
+    // Same guard as board.test.ts: git exports GIT_DIR to its hooks, and an inherited one would
+    // land every fixture command on the real repository instead of the temp one.
+    const { GIT_DIR: _gitDir, GIT_WORK_TREE: _gitWorkTree, GIT_PREFIX: _gitPrefix, GIT_INDEX_FILE: _gitIndex, ...inherited } = process.env;
+    const r = Bun.spawnSync(["git", ...args], { cwd, env: inherited });
     if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
   }
 
