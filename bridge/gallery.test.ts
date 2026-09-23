@@ -5,9 +5,12 @@ import { join } from "node:path";
 
 import {
   containedIn,
+  galleryDocKindOf,
   handleGalleryRoute,
   isImagePath,
+  listGalleryDocs,
   listImages,
+  resolveGalleryFile,
   resolveImage,
   shortProject,
 } from "./gallery.ts";
@@ -32,14 +35,18 @@ beforeAll(async () => {
   await writeFile(join(scratch("s1"), "a.png"), PNG);
   await writeFile(join(scratch("s1"), "UPPER.PNG"), PNG);
   await writeFile(join(scratch("s1"), "notes.md"), "not an image");
+  await writeFile(join(scratch("s1"), "page.html"), "<h1>preview</h1>");
+  await writeFile(join(scratch("s1"), "data.json"), "{}");
   await writeFile(join(scratch("s1"), "renders", "deep.jpg"), PNG);
   // The escape attempt: an image-named symlink inside a scratchpad pointing out of the root.
   await symlink(join(outside, "secret.png"), join(scratch("s1"), "escape.png"));
 
   await mkdir(scratch("s2"), { recursive: true });
   await writeFile(join(scratch("s2"), "b.webp"), PNG);
+  await writeFile(join(scratch("s2"), "memo.markdown"), "# memo");
   // A file outside any scratchpad — the glob must not pick it up.
   await writeFile(join(root, "-home-me-git-proj", "s2", "sibling.png"), PNG);
+  await writeFile(join(root, "-home-me-git-proj", "s2", "sibling.md"), "# outside");
 });
 
 afterAll(async () => {
@@ -59,6 +66,13 @@ describe("isImagePath", () => {
     expect(isImagePath("/x/a.svg")).toBe(false);
     expect(isImagePath("/x/a.md")).toBe(false);
     expect(isImagePath("/x/png")).toBe(false);
+  });
+
+  test("documents live next to images — the image list still ignores them", async () => {
+    const names = (await listImages(root)).map((i) => i.name);
+    expect(names).not.toContain("notes.md");
+    expect(names).not.toContain("page.html");
+    expect(names).not.toContain("memo.markdown");
   });
 });
 
@@ -118,28 +132,83 @@ describe("listImages", () => {
   });
 });
 
-describe("resolveImage", () => {
-  test("resolves a real image under the root", async () => {
+describe("galleryDocKindOf", () => {
+  test("recognises the two servable document families, case-insensitively", () => {
+    expect(galleryDocKindOf("/x/a.md")).toBe("markdown");
+    expect(galleryDocKindOf("/x/a.MARKDOWN")).toBe("markdown");
+    expect(galleryDocKindOf("/x/a.html")).toBe("html");
+    expect(galleryDocKindOf("/x/a.HTM")).toBe("html");
+  });
+
+  test("rejects images, SVG and anything else", () => {
+    expect(galleryDocKindOf("/x/a.png")).toBeNull();
+    expect(galleryDocKindOf("/x/a.svg")).toBeNull();
+    expect(galleryDocKindOf("/x/a.txt")).toBeNull();
+    expect(galleryDocKindOf("/x/a.json")).toBeNull();
+  });
+});
+
+describe("listGalleryDocs", () => {
+  test("finds markdown and html in every scratchpad, at any depth", async () => {
+    await mkdir(join(scratch("s1"), "renders", "nested"), { recursive: true });
+    await writeFile(join(scratch("s1"), "renders", "nested", "deep.md"), "# deep");
+    const names = (await listGalleryDocs(root)).map((d) => d.name).sort();
+    expect(names).toEqual(["deep.md", "memo.markdown", "notes.md", "page.html"]);
+  });
+
+  test("ignores refused kinds and files outside a scratchpad", async () => {
+    const names = (await listGalleryDocs(root)).map((d) => d.name);
+    expect(names).not.toContain("data.json");
+    expect(names).not.toContain("sibling.md");
+    expect(names).not.toContain("a.png");
+  });
+
+  test("tags each doc with its project, session and kind", async () => {
+    const page = (await listGalleryDocs(root)).find((d) => d.name === "page.html");
+    expect(page?.session).toBe("s1");
+    expect(page?.project).toContain("git-proj");
+    expect(page?.kind).toBe("html");
+    const memo = (await listGalleryDocs(root)).find((d) => d.name === "memo.markdown");
+    expect(memo?.kind).toBe("markdown");
+  });
+
+  test("a missing root is an empty list, not a throw", async () => {
+    expect(await listGalleryDocs(join(root, "does-not-exist"))).toEqual([]);
+  });
+
+  test("sorts newest first", async () => {
+    const times = (await listGalleryDocs(root)).map((d) => d.mtime);
+    expect([...times].sort((x, y) => y - x)).toEqual(times);
+  });
+});
+
+describe("resolveGalleryFile", () => {
+  test("resolves an image, a markdown and an html under the root, with kinds", async () => {
+    expect(await resolveGalleryFile(join(scratch("s1"), "a.png"), root)).toMatchObject({
+      kind: "image",
+    });
+    expect(await resolveGalleryFile(join(scratch("s1"), "notes.md"), root)).toMatchObject({
+      kind: "markdown",
+    });
+    expect(await resolveGalleryFile(join(scratch("s1"), "page.html"), root)).toMatchObject({
+      kind: "html",
+    });
+  });
+
+  test("refuses an escape, an outside path and a refused kind", async () => {
+    expect(await resolveGalleryFile(join(scratch("s1"), "escape.png"), root)).toBeNull();
+    expect(await resolveGalleryFile(join(outside, "secret.png"), root)).toBeNull();
+    expect(await resolveGalleryFile(join(scratch("s1"), "data.json"), root)).toBeNull();
+    expect(await resolveGalleryFile(join(scratch("s1"), "ghost.md"), root)).toBeNull();
+  });
+
+  test("resolveImage stays image-only — a document is not an image", async () => {
     expect(await resolveImage(join(scratch("s1"), "a.png"), root)).toContain("a.png");
-  });
-
-  test("refuses a symlink that escapes the root, even from inside a scratchpad", async () => {
-    // The attack this route exists to survive: the path IS under the root as written, and only
-    // realpath shows it isn't.
-    expect(await resolveImage(join(scratch("s1"), "escape.png"), root)).toBeNull();
-  });
-
-  test("refuses a path outside the root", async () => {
-    expect(await resolveImage(join(outside, "secret.png"), root)).toBeNull();
+    expect(await resolveImage(join(scratch("s1"), "page.html"), root)).toBeNull();
   });
 
   test("refuses traversal written into the path", async () => {
-    expect(await resolveImage(join(scratch("s1"), "..", "..", "..", "..", "x.png"), root)).toBeNull();
-  });
-
-  test("refuses a non-image extension and a missing file", async () => {
-    expect(await resolveImage(join(scratch("s1"), "notes.md"), root)).toBeNull();
-    expect(await resolveImage(join(scratch("s1"), "ghost.png"), root)).toBeNull();
+    expect(await resolveGalleryFile(join(scratch("s1"), "..", "..", "..", "..", "x.png"), root)).toBeNull();
   });
 });
 
@@ -152,6 +221,17 @@ describe("handleGalleryRoute", () => {
     expect(res?.status).toBe(200);
     const body = (await res!.json()) as { images: { name: string }[] };
     expect(body.images.length).toBe(4);
+  });
+
+  test("lists scratchpad documents alongside the images", async () => {
+    const res = await get("http://x/api/gallery");
+    const body = (await res!.json()) as { docs: { name: string; kind: string; session: string }[] };
+    const names = body.docs.map((d) => d.name).sort();
+    expect(names).toEqual(["deep.md", "memo.markdown", "notes.md", "page.html"]);
+    expect(body.docs.find((d) => d.name === "page.html")).toMatchObject({
+      kind: "html",
+      session: "s1",
+    });
   });
 
   test("serves an image with its content type", async () => {
@@ -172,6 +252,37 @@ describe("handleGalleryRoute", () => {
 
   test("404s an escaping path rather than serving it", async () => {
     const p = encodeURIComponent(join(outside, "secret.png"));
+    expect((await get(`http://x/api/gallery/file?p=${p}`))?.status).toBe(404);
+  });
+
+  test("serves markdown raw, as text", async () => {
+    const p = encodeURIComponent(join(scratch("s2"), "memo.markdown"));
+    const res = await get(`http://x/api/gallery/file?p=${p}`);
+    expect(res?.status).toBe(200);
+    expect(res?.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(await res!.text()).toContain("# memo");
+  });
+
+  test("serves html SCRUBBED and under a sandbox CSP", async () => {
+    const page = join(scratch("s1"), "dirty.html");
+    await writeFile(
+      page,
+      "<html><head><link rel='stylesheet' href='x.css'><script>alert(1)</script></head>" +
+        "<body><button onclick='x()'>ok</button></body></html>",
+    );
+    const res = await get(`http://x/api/gallery/file?p=${encodeURIComponent(page)}`);
+    expect(res?.status).toBe(200);
+    expect(res?.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(res?.headers.get("content-security-policy")).toBe("sandbox");
+    const body = await res!.text();
+    expect(body).toContain("ok");
+    expect(body).not.toContain("<script");
+    expect(body).not.toContain("onclick");
+    expect(body).not.toContain("x.css");
+  });
+
+  test("404s a refused kind even inside a scratchpad", async () => {
+    const p = encodeURIComponent(join(scratch("s1"), "data.json"));
     expect((await get(`http://x/api/gallery/file?p=${p}`))?.status).toBe(404);
   });
 

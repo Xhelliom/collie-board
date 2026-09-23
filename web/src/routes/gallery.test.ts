@@ -22,7 +22,7 @@ describe("groupBySession", () => {
       img({ name: "b.png", session: "s2", mtime: 2 }),
       img({ name: "c.png", session: "s1", mtime: 1 }),
     ]);
-    expect(groups.map((g) => g.images.map((i) => i.name))).toEqual([["a.png", "c.png"], ["b.png"]]);
+    expect(groups.map((g) => g.items.map((i) => i.name))).toEqual([["a.png", "c.png"], ["b.png"]]);
   });
 
   it("keeps same-named sessions in different projects apart", () => {

@@ -243,6 +243,23 @@ export interface ArtifactInfo {
   mtime: number;
 }
 
+/** One Markdown/HTML document under a harness scratchpad. Mirrors `GalleryDoc` in bridge/gallery.ts. */
+export interface GalleryDoc {
+  path: string;
+  name: string;
+  project: string;
+  session: string;
+  kind: Exclude<ArtifactKind, "image">;
+  size: number;
+  mtime: number;
+}
+
+/** GET /api/gallery — every scratchpad's images plus its Markdown/HTML documents, newest first. */
+export interface GalleryListing {
+  images: GalleryImage[];
+  docs: GalleryDoc[];
+}
+
 /**
  * One turn. `user`/`assistant` are speech; the other two are not, and render set apart so they can't
  * be mistaken for it — `summary` is Claude's own compaction summary, `note` is machine-injected
