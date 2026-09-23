@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.153.0] - 2026-09-23
+
+### Added
+
+- Galerie : les documents Markdown/HTML du scratchpad (`/tmp/claude-<uid>/…/scratchpad/`) sont listés et lisibles depuis le téléphone — Markdown rendu, HTML frotté (règle partagée `bridge/scrub.ts`) et sandboxé, via le lecteur `DocViewer` commun aux deux surfaces. (b7dabed)
+- Galerie : extraction du scrub HTML en `bridge/scrub.ts` et du lecteur de documents en `web/src/components/artifact-viewer.tsx`, partagés entre artefacts du worktree et galerie du scratchpad. (b7dabed)
+
+### Fixed
+
+- Artefacts de session : les dossiers de dépendances, build et caches (`node_modules/`, `dist/`, `coverage/`, `.venv/`, …) et le scratch `.board/` ne produisent plus de faux artefacts — ni via l'expansion des dossiers non commités, ni via les fichiers seulement lus/mentionnés. (b7dabed)
+
 ## [0.152.2] - 2026-09-22
 
 ### Fixed
