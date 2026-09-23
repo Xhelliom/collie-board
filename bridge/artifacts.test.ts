@@ -7,6 +7,7 @@ import {
   artifactKindOf,
   expandDirectoryCandidates,
   handleArtifactFile,
+  isExcludedArtifactPath,
   listWorktreeArtifacts,
   mentionedArtifactCandidates,
   paneArtifactsResponse,
@@ -172,6 +173,22 @@ describe("scrubHtml — agent HTML made safe for the phone", () => {
   });
 });
 
+describe("isExcludedArtifactPath", () => {
+  test("drops dependency, build-output, cache and board-scratch dirs by segment", () => {
+    expect(isExcludedArtifactPath(join("node_modules", "acme", "page.html"))).toBe(true);
+    expect(isExcludedArtifactPath(join("dist", "bundle.html"))).toBe(true);
+    expect(isExcludedArtifactPath(join("coverage", "index.html"))).toBe(true);
+    expect(isExcludedArtifactPath(join(".board", "handoff.md"))).toBe(true);
+    expect(isExcludedArtifactPath(join(".git", "objects", "x.png"))).toBe(true);
+  });
+
+  test("keeps genuine deliverables, even with lookalike names", () => {
+    expect(isExcludedArtifactPath(join("docs", "hero-recette", "page.html"))).toBe(false);
+    expect(isExcludedArtifactPath("render.png")).toBe(false);
+    expect(isExcludedArtifactPath(join("docs", "node_modules-migration.md"))).toBe(false);
+  });
+});
+
 describe("listWorktreeArtifacts", () => {
   test("lifts only existing, servable, in-root candidates into entries", async () => {
     const artifacts = await listWorktreeArtifacts(root, [
@@ -199,6 +216,24 @@ describe("listWorktreeArtifacts", () => {
     await writeFile(join(root, "fresh.md"), "newer");
     const artifacts = await listWorktreeArtifacts(root, ["render.png", "fresh.md"]);
     expect(artifacts[0]?.name).toBe("fresh.md");
+  });
+
+  test("excludes dependency/build/board files even when the session mentioned them", async () => {
+    // A `Read` that merely OPENED a file promotes it to a candidate via the "mentioned" half —
+    // the listing must still refuse third-party and plumbing paths.
+    await mkdir(join(root, "node_modules", "acme"), { recursive: true });
+    await writeFile(join(root, "node_modules", "acme", "page.html"), "<h1>third party</h1>");
+    await mkdir(join(root, "dist"), { recursive: true });
+    await writeFile(join(root, "dist", "bundle.html"), "<h1>build output</h1>");
+    await mkdir(join(root, ".board"), { recursive: true });
+    await writeFile(join(root, ".board", "handoff.md"), "# plumbing");
+    const artifacts = await listWorktreeArtifacts(root, [
+      "render.png",
+      join("node_modules", "acme", "page.html"),
+      join("dist", "bundle.html"),
+      join(".board", "handoff.md"),
+    ]);
+    expect(artifacts.map((a) => a.name)).toEqual(["render.png"]);
   });
 });
 
@@ -269,6 +304,15 @@ describe("expandDirectoryCandidates", () => {
   test("leaves a missing candidate as-is — containment drops it later", async () => {
     const out = await expandDirectoryCandidates(root, ["ghost.md"]);
     expect(out).toEqual(["ghost.md"]);
+  });
+
+  test("does not descend into excluded dirs of an untracked tree", async () => {
+    await mkdir(join(root, "work", "node_modules", "acme"), { recursive: true });
+    await writeFile(join(root, "work", "node_modules", "acme", "page.html"), "<h1>third party</h1>");
+    await writeFile(join(root, "work", "deliverable.md"), "# mine");
+    const out = await expandDirectoryCandidates(root, ["work/"]);
+    expect(out).toContain(join(root, "work", "deliverable.md"));
+    expect(out.some((p) => p.includes("node_modules"))).toBe(false);
   });
 });
 

@@ -1,15 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
-import { ArrowLeft, FileCode, FileText, Images, Loader2, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { DocViewer, KIND_ICON, KIND_LABEL, byteSize } from "@/components/artifact-viewer";
 import { GalleryImg } from "@/components/gallery-img";
-import { MarkdownText } from "@/components/markdown-text";
 import { paneArtifactUrl } from "@/lib/api";
 import { historyPath, panePath } from "@/lib/nav";
 import { openLightbox } from "@/lib/lightbox";
 import { ROOT_ROUTE_ID, type HomeData, type PaneArtifactsData } from "@/lib/loaders";
-import type { ArtifactInfo, ArtifactKind } from "@/lib/types";
+import type { ArtifactInfo } from "@/lib/types";
+
+// Re-exported so existing importers keep spelling it from here; the caption lives with the
+// shared viewer both file surfaces render through.
+export { byteSize };
 
 // A card session's artifacts — the image/HTML/Markdown files the agent wrote (or touched) while
 // working, served from its WORKTREE rather than the harness scratchpad the gallery shows. This is
@@ -29,39 +33,12 @@ import type { ArtifactInfo, ArtifactKind } from "@/lib/types";
 // SANDBOXED IFRAME: no scripts, no forms, no top navigation, and the bridge has already scrubbed the
 // bytes (script/iframe/external-style subtrees dropped) before they ever leave the host.
 
-/** The lucide mark for each kind — chosen so a list reads at a glance. */
-const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
-  image: Images,
-  markdown: FileText,
-  html: FileCode,
-};
-
-const KIND_LABEL: Record<ArtifactKind, string> = {
-  image: "Image",
-  markdown: "Markdown",
-  html: "HTML",
-};
-
-/** A phone-sized size caption: "12 KB" / "1.2 MB" / "430 B". Pure + exported for the test. */
-export function byteSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB"];
-  let value = bytes;
-  let i = -1;
-  do {
-    value /= 1024;
-    i++;
-  } while (value >= 1024 && i < units.length - 1);
-  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
-  return `${rounded} ${units[i]!}`;
-}
-
 /**
  * The render body of one artifact. Exported so a test can drive it directly with fixtures.
  *
- * The html kind is the one that needs the bridge's scrub + the sandboxed iframe; markdown rides the
- * existing MarkdownText parser; an image is `GalleryImg` over the artifact URL, and tapping it opens
- * the lightbox over EVERY image in the list.
+ * Documents (HTML/Markdown) ride the shared DocViewer both file surfaces use; an image is
+ * `GalleryImg` over the artifact URL, and tapping it opens the lightbox over EVERY image in
+ * the list.
  */
 export function ArtifactViewer({
   paneId,
@@ -78,85 +55,20 @@ export function ArtifactViewer({
   const url = paneArtifactUrl(paneId, artifact.path, session);
   const target = (imagePaths ?? []).indexOf(artifact.path);
 
-  if (artifact.kind === "html") {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        {/* sandbox without allowances: no scripts, no forms, no top navigation, no popups — and the
-            bridge already scrubbed the bytes server-side. The one lock that web security agrees on. */}
-        <iframe
-          title={`${artifact.name} (sandboxed)`}
-          sandbox=""
-          src={url}
-          className="size-full rounded-md border bg-muted/10"
-        />
-        <p className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
-          <ShieldCheck className="size-3.5 shrink-0" />
-          Sandboxed — scripts and external content are disabled.
-        </p>
-      </div>
-    );
+  if (artifact.kind !== "image") {
+    return <DocViewer url={url} name={artifact.name} kind={artifact.kind} fromLabel="from the worktree" />;
   }
 
-  if (artifact.kind === "image") {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center p-3">
-        <button
-          type="button"
-          onClick={() => (target < 0 ? openLightbox([artifact.path]) : openLightbox(imagePaths!, target))}
-          aria-label={`Open ${artifact.name} full-screen`}
-          className="block max-w-full rounded-md border bg-muted/40 p-1"
-        >
-          <GalleryImg path={artifact.path} url={url} alt={artifact.name} className="max-h-full max-w-full object-contain" />
-        </button>
-      </div>
-    );
-  }
-
-  return <MarkdownArtifact textUrl={url} name={artifact.name} />;
-}
-
-/** Fetches and renders a Markdown artifact — the same parser the transcript uses. */
-function MarkdownArtifact({ textUrl, name }: { textUrl: string; name: string }) {
-  const [text, setText] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    setText(null);
-    setFailed(false);
-    fetch(textUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`${res.status}`);
-        return res.text();
-      })
-      .then((body) => {
-        if (alive) setText(body);
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [textUrl]);
-
-  if (failed) {
-    return (
-      <p className="px-3 py-16 text-center text-sm text-muted-foreground">
-        Couldn't load {name} from the worktree.
-      </p>
-    );
-  }
-  if (text === null) {
-    return (
-      <p className="flex items-center gap-2 px-3 py-16 text-sm text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" /> Loading…
-      </p>
-    );
-  }
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-      <MarkdownText text={text} />
+    <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+      <button
+        type="button"
+        onClick={() => (target < 0 ? openLightbox([artifact.path]) : openLightbox(imagePaths!, target))}
+        aria-label={`Open ${artifact.name} full-screen`}
+        className="block max-w-full rounded-md border bg-muted/40 p-1"
+      >
+        <GalleryImg path={artifact.path} url={url} alt={artifact.name} className="max-h-full max-w-full object-contain" />
+      </button>
     </div>
   );
 }
