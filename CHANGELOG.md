@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.156.0] - 2026-09-25
+
+### Added
+
+- `prForCard` accepte `autoMerge` : arme `gh pr merge --auto --squash` après l'ouverture ; un refus de GitHub est journalisé sur la carte sans faire échouer la PR (72b0077)
+- Runs (ADR 0017) : table `run`, colonne `card.run_id`, kinds de journal `run.*` typés dans `db.ts` (b4daefb)
+- `bridge/lead.ts` : le lead, second rôle sur la plomberie du copilote — prompts purs *check*, *triage*, *conflict re-check* et parse strict de leurs réponses (raison obligatoire) (4657d0e)
+
 ## [0.155.2] - 2026-09-25
 
 ### Fixed
