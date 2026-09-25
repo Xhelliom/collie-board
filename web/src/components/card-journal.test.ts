@@ -69,6 +69,21 @@ describe("describe", () => {
     );
   });
 
+  it("gives every lead decision with its reason", () => {
+    const d = (decision: string, extra = {}) =>
+      describeEvent(event("run.decision", { runId: "r1", decision, reason: "tests green", ...extra }));
+    expect(d("finished")).toBe("Lead: done — tests green");
+    expect(d("prompt", { prompt: "add the test" })).toBe("Lead sent a follow-up: “add the test” — tests green");
+    expect(d("accept_drift")).toBe("Lead accepted the drift from the spec — tests green");
+    expect(d("keep")).toBe("Lead kept this follow-up for later — tests green");
+    expect(d("fold")).toBe("Lead folded this follow-up into the run — tests green");
+    expect(d("drop")).toBe("Lead dropped this follow-up — tests green");
+    expect(describeEvent(event("run.halted", { runId: "r1", reason: "merge conflict" }))).toBe(
+      "Run halted, needs you — merge conflict",
+    );
+    expect(describeEvent(event("run.finished", { runId: "r1" }))).toBe("Run finished — every card is filed");
+  });
+
   it("shows the raw type for an event nobody has written a sentence for", () => {
     // A journal with holes in it would be worse than one with a bit of jargon.
     expect(describeEvent(event("card.something_new"))).toBe("card.something_new");

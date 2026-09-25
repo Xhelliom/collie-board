@@ -44,7 +44,13 @@ export function CardJournal({
         e.type === "card.edited" ? (
           <EditEntry key={e.id} event={e} onRestore={() => onRestore(e.id)} />
         ) : (
-          <JournalRow key={e.id} ts={e.ts} icon={<EventIcon type={e.type} />}>
+          <JournalRow
+            key={e.id}
+            ts={e.ts}
+            icon={<EventIcon type={e.type} />}
+            // The lead's reason IS the entry — it's what you read instead of the diff, so it wraps.
+            wrap={e.type.startsWith("run.")}
+          >
             {describeEvent(e)}
           </JournalRow>
         ),
@@ -55,14 +61,31 @@ export function CardJournal({
 
 /** The shared row shape every entry renders as — timestamp, a 12px icon (or an empty spacer of the
  *  same size, so the sentence column still lines up), then the sentence. */
-function JournalRow({ ts, icon, children }: { ts: number; icon: ReactNode; children: ReactNode }) {
+function JournalRow({
+  ts,
+  icon,
+  wrap = false,
+  children,
+}: {
+  ts: number;
+  icon: ReactNode;
+  wrap?: boolean;
+  children: ReactNode;
+}) {
   return (
     <li className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs">
       <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
       <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
         {icon}
       </span>
-      <span className="min-w-0 flex-1 truncate text-foreground">{children}</span>
+      <span
+        className={cn(
+          "min-w-0 flex-1 text-foreground",
+          wrap ? "whitespace-pre-wrap break-words" : "truncate",
+        )}
+      >
+        {children}
+      </span>
     </li>
   );
 }
@@ -191,6 +214,26 @@ export function fieldList(replaced: EditPayload["replaced"] = {}): string {
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
+/** The decision half of a `run.decision` line; an unknown one shows raw rather than vanishing. */
+function leadDecision(p: Record<string, unknown>): string {
+  switch (p.decision) {
+    case "finished":
+      return "Lead: done";
+    case "prompt":
+      return p.prompt ? `Lead sent a follow-up: “${String(p.prompt)}”` : "Lead sent a follow-up";
+    case "accept_drift":
+      return "Lead accepted the drift from the spec";
+    case "keep":
+      return "Lead kept this follow-up for later";
+    case "fold":
+      return "Lead folded this follow-up into the run";
+    case "drop":
+      return "Lead dropped this follow-up";
+    default:
+      return `Lead decided ${String(p.decision)}`;
+  }
+}
+
 /**
  * A one-line English rendering of the other event types. Falls back to the raw type rather than
  * hiding an event nobody has written a sentence for yet — a journal with holes in it is worse than
@@ -260,6 +303,14 @@ export function describeEvent(event: BoardEvent): string {
         .join("\n\n");
     case "copilot.explain_failed":
       return "Copilot couldn't explain that error";
+    // The lead's journal (ADR 0017) — payloads from bridge/db.ts → RunEventPayloads. Every line
+    // carries the reason: a decision without its why is a diff you'd have to go read after all.
+    case "run.decision":
+      return `${leadDecision(p)} — ${String(p.reason ?? "no reason given")}`;
+    case "run.halted":
+      return `Run halted, needs you — ${String(p.reason ?? "no reason given")}`;
+    case "run.finished":
+      return "Run finished — every card is filed";
     case "copilot.split_kept":
       return `Split kept — ${String(p.started ?? "a sub-task")} has already started`;
     default:
