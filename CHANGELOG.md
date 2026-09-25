@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.154.0] - 2026-09-25
+
+### Added
+
+- Review : un suivi « commiter les fichiers non commités » devient une action `tiny` sur la carte relue, jamais une nouvelle carte. (39638ea)
+- Carte : bouton « Demander le commit » (review + intégration) qui demande à l'agent de la carte de commiter (`git add -A` hors `.board/`, sans push). (39638ea)
+
 ## [0.153.0] - 2026-09-23
 
 ### Added
