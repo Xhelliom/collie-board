@@ -14,6 +14,7 @@ import {
   IntegrationSection,
   noteLabel,
   PromptBox,
+  RequestCommitRow,
   resolveWatchStep,
   ReviewPass,
   SubtaskActionsSheet,
@@ -690,5 +691,72 @@ describe("Review section — asking for the verdict again", () => {
     await mount();
     await userEvent.click(screen.getByRole("button", { name: /relancer la review/i }));
     expect(hits).toEqual(["c1"]);
+  });
+});
+
+// The agent stopped before `git commit`: the review saw uncommitted files, and the fix is one tap
+// to the agent still in the branch — never a backlog card. These pin the row that offers it.
+describe("RequestCommitRow", () => {
+  it("offers the commit ask in one tap", async () => {
+    const onAsk = vi.fn();
+    render(<RequestCommitRow pending={false} onAsk={onAsk} />);
+    await userEvent.click(screen.getByRole("button", { name: /demander le commit/i }));
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("holds its pending state while the ask lands", () => {
+    render(<RequestCommitRow pending={true} onAsk={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /envoi/i })).toBeDisabled();
+    cleanup();
+  });
+});
+
+describe("IntegrationSection — uncommitted work asks for a commit, not a pane", () => {
+  function liveCard(): CardView {
+    return {
+      ...card("working"),
+      runtime: {
+        paneId: "p1",
+        agent: "claude",
+        agentStatus: "idle",
+        cwd: "/w",
+        workspaceId: "w1",
+        workspaceLabel: "w",
+      },
+    };
+  }
+
+  async function showDirty(c: CardView) {
+    server.use(
+      http.get("*/api/cards/:id/integration", () =>
+        HttpResponse.json({
+          integration: {
+            branch: "board/x",
+            base: "main",
+            ahead: 0,
+            behind: 0,
+            baseDirty: false,
+            branchDirty: true,
+            baseCheckedOut: true,
+            pushed: false,
+          },
+        }),
+      ),
+    );
+    render(<IntegrationSection card={c} events={[]} onDone={vi.fn()} onState={vi.fn()} />);
+    await screen.findByText("board/x");
+  }
+
+  it("offers the commit tap while the agent is still there", async () => {
+    await showDirty(liveCard());
+    expect(screen.getByRole("button", { name: /demander le commit/i })).toBeTruthy();
+    cleanup();
+  });
+
+  it("says nothing tappable once the agent is gone", async () => {
+    await showDirty(card("working"));
+    expect(screen.queryByRole("button", { name: /demander le commit/i })).toBeNull();
+    cleanup();
   });
 });

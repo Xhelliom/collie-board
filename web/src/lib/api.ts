@@ -9,7 +9,9 @@ import type {
   ArtifactInfo,
   BridgeConfig,
   CreateResponse,
+  GalleryDoc,
   GalleryImage,
+  GalleryListing,
   NotifyLogEntry,
   NotifyPrefs,
   PaneHistoryResponse,
@@ -435,22 +437,32 @@ export function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * Every image sitting in a harness scratchpad, newest first — the /gallery screen's whole payload.
- * Fetched on demand, never polled: agents write these occasionally, and a poll would re-walk the
- * scratchpad tree on the bridge every 1.5 s for nothing.
+ * Every scratchpad's images plus its Markdown/HTML documents, newest first — the /gallery
+ * screen's whole payload. Fetched on demand, never polled: agents write these occasionally, and a
+ * poll would re-walk the scratchpad tree on the bridge every 1.5 s for nothing. `docs` defaults
+ * to `[]` so an older bridge payload still reads as an images-only gallery.
  */
-export async function fetchGallery(): Promise<GalleryImage[]> {
-  const { images } = await req<{ images: GalleryImage[] }>("/api/gallery");
-  return images;
+export async function fetchGallery(): Promise<GalleryListing> {
+  const body = await req<{ images: GalleryImage[]; docs?: GalleryDoc[] }>("/api/gallery");
+  return { images: body.images, docs: body.docs ?? [] };
 }
 
 /**
- * `src` for a gallery image. The bridge decides what is servable (one fixed scratchpad root, symlinks
- * resolved — see bridge/gallery.ts); this only spells the URL. A path the bridge refuses comes back
- * 404, which the `<img>` handles as a broken image rather than anything the caller must pre-check.
+ * `src` for a gallery file — an image or a document. The bridge decides what is servable (one
+ * fixed scratchpad root, symlinks resolved — see bridge/gallery.ts); this only spells the URL. A
+ * path the bridge refuses comes back 404, which the `<img>` handles as a broken image (and the
+ * document viewer as a load error) rather than anything the caller must pre-check.
+ */
+export function galleryFileUrl(path: string): string {
+  return `/api/gallery/file?p=${encodeURIComponent(path)}`;
+}
+
+/**
+ * `src` for a gallery image. Same endpoint as {@link galleryFileUrl} — kept so the image surfaces
+ * keep spelling what they mean.
  */
 export function galleryImageUrl(path: string): string {
-  return `/api/gallery/file?p=${encodeURIComponent(path)}`;
+  return galleryFileUrl(path);
 }
 
 /**

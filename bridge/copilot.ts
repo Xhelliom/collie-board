@@ -30,7 +30,7 @@ import {
   type CardCategory,
   type ReviewTodo,
 } from "./db.ts";
-import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, isCommitFollowUp, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -888,6 +888,29 @@ function filingGatesRule(): string[] {
 }
 
 /**
+ * The "don't file a card to commit" rule, shown to the same prompt {@link categoryRule} is. Pure.
+ *
+ * The agent routinely stops one gesture before the end: the work is done but sits uncommitted in
+ * its checkout (modified or untracked files in the working-tree diff). Filing a backlog card for
+ * that is the most expensive way to ask for the cheapest gesture — a card, a worktree and a new
+ * agent to run `git commit` in the branch the old agent is still sitting in. So a commit ask is
+ * NEVER a card: it is one `tiny` todo on the reviewed card itself, handed to its own agent in one
+ * tap (see `finishNow`, cards.ts). The code half (`isCommitFollowUp`, cards.ts) enforces the same
+ * rule after the answer, so a model that disobeys still lands as an action, never as a card.
+ */
+function commitRule(): string[] {
+  return [
+    "",
+    "COMMIT, NOT A CARD. When the work is done but uncommitted (modified or untracked files left",
+    "in the checkout, the agent stopped before `git commit`): file NO card for committing. Return",
+    "exactly one todo with `category` `chore` and `tiny` true — e.g. title “Commiter les fichiers",
+    "non commités”, spec naming the files and asking for `git add -A` (excluding `.board/`) then",
+    "`git commit`, without pushing. A commit ask is never a backlog card, even when the review",
+    "found nothing else.",
+  ];
+}
+
+/**
  * How the notes are WRITTEN, because of how they are read. Pure.
  *
  * The card renders `notes` through the same Markdown reader the transcript uses
@@ -952,6 +975,7 @@ export function reviewPrompt(input: {
     ...tagRule(input.tags ?? []),
     ...categoryRule(),
     ...tinyRule(),
+    ...commitRule(),
     ...filingGatesRule(),
     ...alreadyFiledRule(input.alreadyFiled ?? []),
     ...notesRule(),
@@ -1605,6 +1629,44 @@ export class CopilotCoordinator {
     // `alreadyFiled` above) — that day came with a review that re-filed a whole PR-conflict
     // feature under "retrouver ou refaire" while its two halves were already on the board.
     const alreadyFiled = new Set(filedTitles.map(normalizeTitle));
+    // A commit ask already sitting unsent on a past review: re-reviewing while the files are still
+    // uncommitted must not stack a second identical row. A commit ask already SENT is the opposite
+    // case — the agent was asked and may not have done it — so only an unsent one suppresses.
+    // Folded like the rest: a re-titled commit ask is the same ask.
+    const pendingCommit = new Set(
+      this.db
+        .listReviews(cardId)
+        .flatMap((r) => r.todos)
+        .filter(
+          (t) =>
+            t.tiny &&
+            t.tiny.doneAt === null &&
+            isCommitFollowUp({ title: t.title, spec: t.tiny.spec, acceptance: t.tiny.acceptance }),
+        )
+        .map((t) => normalizeTitle(t.title)),
+    );
+    // COMMIT ASKS NEVER BECOME CARDS — with or without the operator's opt-in. The agent stopped
+    // before `git commit`; the fix is one prompt to the agent still in the branch, not a backlog
+    // card with a worktree and an agent of its own. So these bypass BOTH switches below
+    // (`autoFollowUps` and the category filter): they land as `tiny` actions on the reviewed card,
+    // where the screen offers them in one tap (see TinyTodo). A review that found ONLY uncommitted
+    // files therefore files nothing and still proposes the commit — which is the whole point.
+    // Extracted FIRST: a commit ask stays an action even when the model disobeys (`tiny: false`),
+    // so it must not pass through the empty-diff / complete gates below, which only ever remove cards.
+    const incoming = result.todos ?? [];
+    const commitTodos: ReviewTodo[] = [];
+    for (const todo of incoming) {
+      if (!isCommitFollowUp(todo)) continue;
+      const key = normalizeTitle(todo.title);
+      if (alreadyFiled.has(key) || pendingCommit.has(key)) continue;
+      alreadyFiled.add(key);
+      pendingCommit.add(key);
+      commitTodos.push({
+        title: todo.title,
+        cardId: null,
+        tiny: { spec: todo.spec ?? null, acceptance: todo.acceptance ?? [], doneAt: null },
+      });
+    }
     const wanted = new Set(this.db.followUpCategories());
     const emptyDiff = isEmptyStat(statSummary);
     const complete = (result.verdict ?? "").trim().toLowerCase() === "complete";
@@ -1612,7 +1674,8 @@ export class CopilotCoordinator {
     // (`copilot.review_filtered`): a silent drop is a review the operator cannot audit, and these
     // three reasons are exactly the ones a future "where did my follow-up go" will ask about.
     const dropped: { title: string; reason: string }[] = [];
-    const suggested = (this.db.autoFollowUps() ? (result.todos ?? []) : [])
+    const suggested = (this.db.autoFollowUps() ? incoming : [])
+      .filter((todo) => isCommitFollowUp(todo) === false)
       .map((todo) => ({ todo, category: pickCategory(todo.category) }))
       .filter(({ category }) => wanted.has(category))
       .filter(({ todo }) => {
@@ -1633,7 +1696,7 @@ export class CopilotCoordinator {
         }
         return true;
       });
-    const todos: ReviewTodo[] = suggested.map(({ todo, category }) => {
+    const mapped: ReviewTodo[] = suggested.map(({ todo, category }) => {
       // TOO SMALL FOR A CARD — and so it does not become one. The suggestion is kept on the review
       // instead, with the spec that would have been the card's, and the card screen offers it as
       // one tap to the agent that is still sitting right there (see TinyTodo). A card for a
@@ -1685,6 +1748,7 @@ export class CopilotCoordinator {
         dropped,
       });
     }
+    const todos: ReviewTodo[] = [...commitTodos, ...mapped];
     this.db.createReview({
       cardId,
       sessionId,

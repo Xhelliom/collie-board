@@ -29,7 +29,7 @@ import type {
   ArtifactInfo,
   BridgeStatus,
   DeviceAuth,
-  GalleryImage,
+  GalleryListing,
   PaneHistoryResponse,
   PaneReadResponse,
   SessionSummary,
@@ -461,15 +461,16 @@ export async function historyLoader({
 }
 
 /**
- * The gallery screen's payload. A failure is an EMPTY gallery, not an error screen: the images are a
- * nice-to-have view over /tmp, and a bridge that can't walk the scratchpad tree shouldn't cost the
- * user a route. The route opts out of revalidation, so this runs on navigation only.
+ * The gallery screen's payload — images plus scratchpad documents. A failure is an EMPTY gallery,
+ * not an error screen: the files are a nice-to-have view over /tmp, and a bridge that can't walk
+ * the scratchpad tree shouldn't cost the user a route. The route opts out of revalidation, so this
+ * runs on navigation only.
  */
-export async function galleryLoader(): Promise<GalleryImage[]> {
+export async function galleryLoader(): Promise<GalleryListing> {
   try {
     return await fetchGallery();
   } catch {
-    return [];
+    return { images: [], docs: [] };
   }
 }
 
