@@ -73,6 +73,7 @@ describe("buildBackup", () => {
       "event",
       "repo_pref",
       "review",
+      "run",
       "session",
     ]);
     expect(backup.db.card).toHaveLength(1);
