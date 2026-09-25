@@ -129,6 +129,13 @@ export function alarm(e: BoardEvent): { status: NotifiableStatus; subtitle: stri
     const error = str(e.payload, "error");
     return { status: "stalled", subtitle: oneLine(error ? `handoff failed: ${error}` : "handoff failed") };
   }
+  // ADR 0017, *How a run ends* — the coordinator gave up on a member and hands it to the operator.
+  // Test 3 holds: a halt is the LEAD's verdict, never a pane's state. A worker gone `blocked` halts
+  // nothing (run.ts leaves a question to the operator, as today) — its pane already says it.
+  if (e.type === "run.halted") {
+    const reason = str(e.payload, "reason");
+    return { status: "blocked", subtitle: oneLine(reason ? `run halted: ${reason}` : "run halted") };
+  }
   return null;
 }
 
@@ -165,6 +172,8 @@ export interface BoardNotifySource {
   /** The card's live session, for {@link fingerprint} — two indexed reads per armed alert per tick,
    *  of which there are normally none. */
   openSessionFor(id: string): { id: string; handoffRequestedAt: number | null } | null;
+  /** A run's cards, for `run.finished` — read on the finish and per tick while its alert is armed. */
+  runMembers(runId: string): { id: string; title: string; status: string; repoPath: string | null }[];
 }
 
 /** The corner of `NotificationCoordinator` this drives: an opaque key, and its two verbs. */
@@ -176,6 +185,8 @@ export interface BoardAlertSink {
 /** The coordinator's key for a card. A herdr pane id never looks like this, which is the whole
  *  reason a prefix is enough to share one map with pane alerts (§6.4). */
 const keyFor = (cardId: string): string => `card:${cardId}`;
+/** A run's key — `run.finished` is about the set, not one card, so it holds its own place in the slot. */
+const runKey = (runId: string): string => `run:${runId}`;
 
 /**
  * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of all four
@@ -201,16 +212,26 @@ function fingerprint(db: BoardNotifySource, cardId: string): string | null {
   return `${card.status}|${session?.id ?? ""}|${session?.handoffRequestedAt ?? ""}`;
 }
 
+/**
+ * `run.finished`'s retraction predicate: every member's column, as one string. The run is finished
+ * while its cards stay exactly as filed; the operator archiving one (they looked), reopening one, or
+ * deleting one retracts it. Null once the run has no card left.
+ */
+function runFingerprint(db: BoardNotifySource, runId: string): string | null {
+  const members = db.runMembers(runId);
+  return members.length ? members.map((c) => `${c.id}:${c.status}`).join(",") : null;
+}
+
 export class BoardNotifier {
   private cursor: number;
-  /** cardId → the fingerprint its alert was armed against. The alert lives exactly as long as the
-   *  card keeps reading that way; {@link sweep} is where that is decided, every tick.
+  /** coordinator key → the fingerprint its alert was armed against, and how to read it again. The
+   *  alert lives exactly as long as it keeps reading that way; {@link sweep} decides, every tick.
    *
    *  ponytail: written even when the coordinator refused the alert (the `board` preference is off),
    *  because `arm` does not report back — so a disabled preference still costs this two indexed
    *  reads per tick per card until that card moves. Bounded and self-clearing; give `arm` a return
    *  value if a board ever sits on dozens of stalled cards with the preference off. */
-  private readonly armed = new Map<string, string>();
+  private readonly armed = new Map<string, { mark: string; read: () => string | null }>();
 
   constructor(
     private readonly db: BoardNotifySource,
@@ -232,6 +253,12 @@ export class BoardNotifier {
       const said = tell(e);
       const alarmed = this.alerts ? alarm(e) : null;
       const freed = this.alerts ? unblocks(e) : false;
+      // The one fact here about no card: the coordinator journals it with a null card id (run.ts).
+      if (this.alerts && e.type === "run.finished") {
+        const runId = str(e.payload, "runId");
+        if (runId) this.finished(runId);
+        continue;
+      }
       // The card is read only for a fact worth something — the other thirty types cost no query.
       if ((!said && !alarmed && !freed) || !e.cardId) continue;
       // The card as it reads NOW, not as the event left it: both surfaces compose their sentence
@@ -266,14 +293,32 @@ export class BoardNotifier {
     this.sweep();
   }
 
+  /** `run.finished`: a `Done` in the herd's slot, keyed on the run, tapping to its first card. */
+  private finished(runId: string): void {
+    const read = () => runFingerprint(this.db, runId);
+    const mark = read();
+    const [first] = this.db.runMembers(runId);
+    if (mark === null || !first) return;
+    this.armed.set(runKey(runId), { mark, read });
+    this.alerts?.arm(runKey(runId), {
+      cwd: first.repoPath ?? "",
+      status: "done",
+      cardId: first.id,
+      cardTitle: first.title,
+      cardStatus: first.status,
+      subtitle: `run finished — all ${mark.split(",").length} cards filed`,
+    });
+  }
+
   private raise(
     card: { id: string; title: string; status: string; repoPath: string | null },
     status: Alert["status"],
     subtitle: string,
   ): void {
-    const mark = fingerprint(this.db, card.id);
+    const read = () => fingerprint(this.db, card.id);
+    const mark = read();
     if (mark === null) return;
-    this.armed.set(card.id, mark);
+    this.armed.set(keyFor(card.id), { mark, read });
     this.alerts?.arm(keyFor(card.id), {
       // No `paneId`: this alert is about a card and there is no terminal behind it, which is what
       // sends every surface's tap to the card (notify-content.ts's `notifyCardId`).
@@ -288,12 +333,12 @@ export class BoardNotifier {
     });
   }
 
-  /** Retract every alert whose card has moved on — see {@link fingerprint}. */
+  /** Retract every alert whose card or run has moved on — see {@link fingerprint}, {@link runFingerprint}. */
   private sweep(): void {
-    for (const [cardId, mark] of [...this.armed]) {
-      if (fingerprint(this.db, cardId) === mark) continue;
-      this.armed.delete(cardId);
-      this.alerts?.retract(keyFor(cardId));
+    for (const [key, { mark, read }] of [...this.armed]) {
+      if (read() === mark) continue;
+      this.armed.delete(key);
+      this.alerts?.retract(key);
     }
   }
 }
