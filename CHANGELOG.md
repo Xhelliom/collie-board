@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.157.0] - 2026-09-25
+
+### Added
+
+- Runs (ADR 0017) : mode sélection sur un board scopé à un repo, feuille « Run » (ordre, parallélisme, plafond de fold-ins, agent du lead) (442e98d)
+- `POST /api/runs` : enregistre le run et pose `run_id` sur les cartes choisies, sans rien démarrer (442e98d)
+- Catégorie `explore` : déclarable à la création (`POST /api/cards`), seule catégorie possible hors copilote ; jamais d'`origin`/`originCardId` déclarés (cb778c3)
+- Le prompt *check* du lead juge la conclusion et les cartes proposées d'une carte `explore`, pas le diff (cb778c3)
+- Journal de carte : les entrées `run.*` affichent la décision du lead et sa raison, sur plusieurs lignes (71e3c9b)
+
 ## [0.156.0] - 2026-09-25
 
 ### Added
