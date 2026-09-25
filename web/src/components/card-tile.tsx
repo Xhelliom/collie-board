@@ -80,6 +80,7 @@ export function CardTile({
   source,
   repo,
   drag,
+  selected,
 }: {
   card: CardView;
   onClick: () => void;
@@ -123,6 +124,8 @@ export function CardTile({
    * the slot it would land in, so the tile itself never needs to look any different.
    */
   drag?: { onStart: () => void; onEnd: () => void };
+  /** Selection mode (a run's set, ADR 0017): true/false makes the tile a toggle; absent = a link. */
+  selected?: boolean;
 }) {
   const loud = LOUD_STATUS[card.status];
   const named = !loud ? NAMED_STATUS[card.status] : undefined;
@@ -149,6 +152,7 @@ export function CardTile({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       draggable={drag ? true : undefined}
       onDragStart={
         drag &&
@@ -165,6 +169,7 @@ export function CardTile({
       className={cn(
         "@container w-full text-left transition-transform active:scale-[0.99]",
         drag && "cursor-grab active:cursor-grabbing",
+        selected && "rounded-2xl ring-2 ring-brand ring-offset-2 ring-offset-background",
       )}
     >
       <Card

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ChevronRight, GitPullRequest, ListFilter, Plus, X } from "lucide-react";
+import { ChevronRight, GitPullRequest, ListChecks, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { TagFilter } from "@/components/tag-filter";
 import { RepoFilter } from "@/components/repo-filter";
 import { OriginFilter } from "@/components/origin-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
+import { RunSheet } from "@/components/run-sheet";
 import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -23,6 +24,8 @@ import {
   canDropCard,
   cardPath,
   createCard,
+  createRun,
+  boardErrorMessage,
   loadRepoScope,
   matchesFilters,
   patchCard,
@@ -146,6 +149,10 @@ export function BoardRoute() {
   // default. Desktop keeps a SECOND, always-visible way to scope by repo (the sidebar list,
   // app-nav.tsx) — the sheet still works there too; the two just write the same `?repo=`.
   const [filterOpen, setFilterOpen] = useState(false);
+  // Selection mode — choosing a run's set (ADR 0017). Offered only under a repo scope (ADR 0006),
+  // which is what bounds the set to one repo: only the scope's own cards can be picked.
+  const [selection, setSelection] = useState<Set<string> | null>(null);
+  const [runOpen, setRunOpen] = useState(false);
   // The card in hand, and the SLOT under the pointer — which column, and at which index inside it.
   // View state, both of it, and both die with the drop; nothing about a drag is worth persisting.
   const [held, setHeld] = useState<{ id: string; from: CardStatus } | null>(null);
@@ -213,7 +220,9 @@ export function BoardRoute() {
   // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
   // into their own columns and the container stays behind as a summary tile — a column is a status,
   // so folding fifteen finished sub-tasks under a working parent left "Done" reading zero.
-  const entries = boardEntries(cards, desktop);
+  // While selecting, sub-tasks scatter as on desktop, so each one is its own tile to pick.
+  const selecting = selection !== null && activeRepo !== null;
+  const entries = boardEntries(cards, desktop || selecting);
   const byStatus = new Map(
     BOARD_COLUMNS.map((s) => [s, entries.filter((e) => entryStatus(e) === s)]),
   );
@@ -221,6 +230,28 @@ export function BoardRoute() {
   // the drop's re-read — all of which are about cards the filter may well be hiding.
   const byId = new Map(data.cards.map((c) => [c.id, c]));
   const empty = cards.length === 0;
+  /** A card can join a run: this repo's, in no run yet, and not yet started. */
+  const selectable = (c: CardView) =>
+    c.repoPath === activeRepo && !c.runId && (c.status === "backlog" || c.status === "ready");
+  const toggle = (c: CardView) =>
+    setSelection((sel) => {
+      if (!sel || !selectable(c)) return sel;
+      const next = new Set(sel);
+      if (!next.delete(c.id)) next.add(c.id);
+      return next;
+    });
+  const chosen = selection ? data.cards.filter((c) => selection.has(c.id) && selectable(c)) : [];
+  async function startRun(input: { foldInCap: number; leadAgent: string | null }) {
+    try {
+      await createRun({ cardIds: chosen.map((c) => c.id), ...input });
+      setRunOpen(false);
+      setSelection(null);
+      setStatus(`Run recorded — ${chosen.length} card${chosen.length === 1 ? "" : "s"}`, "info", 3000);
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+    revalidator.revalidate();
+  }
   async function create(input: CardInput) {
     await createCard(input);
     revalidator.revalidate();
@@ -356,6 +387,20 @@ export function BoardRoute() {
               >
                 auto
                 <X className="size-3" />
+              </button>
+            )}
+            {activeRepo && (
+              <button
+                type="button"
+                onClick={() => setSelection((sel) => (sel ? null : new Set()))}
+                aria-pressed={selecting}
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-full border border-brand/35 px-2.5 py-[5px] text-xs font-semibold",
+                  selecting ? "bg-brand text-brand-foreground" : "bg-brand/16 text-brand",
+                )}
+              >
+                <ListChecks className="size-[13px]" />
+                {selecting ? "Cancel" : "Select"}
               </button>
             )}
             {hasFilters && (
@@ -589,14 +634,22 @@ export function BoardRoute() {
                                     container={entry.container}
                                     subTasks={entry.children}
                                     byId={byId}
-                                    onOpen={(cardId) => navigate(cardPath(cardId))}
-                                    summaryOnly={desktop}
+                                    // A container is not startable, so not a run member.
+                                    onOpen={(cardId) => !selecting && navigate(cardPath(cardId))}
+                                    summaryOnly={desktop || selecting}
                                     showRepo={showRepo}
                                   />
                                 ) : (
                                   <CardTile
                                     card={entry.card}
-                                    onClick={() => navigate(cardPath(entry.card.id))}
+                                    onClick={() =>
+                                      selecting ? toggle(entry.card) : navigate(cardPath(entry.card.id))
+                                    }
+                                    selected={
+                                      selecting && selectable(entry.card)
+                                        ? selection.has(entry.card.id)
+                                        : undefined
+                                    }
                                     dependency={dependencyInfo(entry.card, byId)}
                                     repo={repoLabel(entry.card)}
                                     // Only while scattered — under a container on a phone, the tile
@@ -622,6 +675,7 @@ export function BoardRoute() {
                                     // away is the one move that could send its agent home.
                                     drag={
                                       desktop &&
+                                      !selecting &&
                                       !entry.card.runtime &&
                                       MANUAL_STATUSES.includes(status)
                                         ? {
@@ -663,8 +717,28 @@ export function BoardRoute() {
           that edge below `lg`. New card moved into the toolbar as the primary action — no floating
           FAB any more. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
+        {selecting && (
+          <Button
+            variant="brand"
+            className="pointer-events-auto mb-2 w-full"
+            disabled={chosen.length === 0}
+            onClick={() => setRunOpen(true)}
+          >
+            Run {chosen.length} card{chosen.length === 1 ? "" : "s"}
+          </Button>
+        )}
         <StatusArea />
       </div>
+
+      {activeRepo && (
+        <RunSheet
+          open={runOpen}
+          onClose={() => setRunOpen(false)}
+          cards={chosen}
+          repoPath={activeRepo}
+          onConfirm={startRun}
+        />
+      )}
 
       {/* The filter sheet: repo scope above tag, coarse then fine, same two components the board
           used to show as always-visible strips — just behind one tap now (redesign §2: "this removes

@@ -83,6 +83,12 @@ const BACKUP_ROUTE = "/api/backup";
 /** `/api/backup/restore` — read one back, after exporting the current state as a safety net. */
 const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 
+/** `/api/runs` — the operator's "run these" gesture (ADR 0017). Records the set; starts nothing. */
+const RUNS_ROUTE = "/api/runs";
+
+/** Ceiling on a run's fold-in cap — the cap exists so a run cannot grow without limit. */
+export const MAX_FOLD_IN_CAP = 20;
+
 /**
  * How an agent filing a card says who it is: its herdr pane id, straight out of `HERDR_PANE_ID`.
  *
@@ -487,6 +493,53 @@ async function route(
     // the push subscriptions were loaded into memory at boot and would overwrite the restored files
     // on their next save — hence the restart, which the client relays as a herdr action.
     return ctx.json({ ok: true, ...result, safetyBackup, restartRequired: true });
+  }
+
+  // A run is RECORDED here and nothing more: the row, and `run_id` on exactly the chosen cards.
+  // Starting them is the coordinator's job (Run 4) — this route never calls `startCard`.
+  if (pathname === RUNS_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { cardIds, foldInCap, leadAgent } = (body ?? {}) as {
+      cardIds?: unknown;
+      foldInCap?: unknown;
+      leadAgent?: unknown;
+    };
+    if (!Array.isArray(cardIds) || cardIds.length === 0 || !cardIds.every((c) => typeof c === "string"))
+      return ctx.text("cardIds must be a non-empty list of card ids", 400);
+    if (new Set(cardIds).size !== cardIds.length) return ctx.text("cardIds has a duplicate", 400);
+    if (typeof foldInCap !== "number" || !Number.isInteger(foldInCap) || foldInCap < 0 || foldInCap > MAX_FOLD_IN_CAP)
+      return ctx.text(`foldInCap must be a whole number between 0 and ${MAX_FOLD_IN_CAP}`, 400);
+    if (leadAgent !== undefined && leadAgent !== null && (typeof leadAgent !== "string" || leadAgent.trim() === ""))
+      return ctx.text("leadAgent must be an agent kind or null", 400);
+    const cards = (cardIds as string[]).map((id) => ctx.db.getCard(id));
+    if (cards.some((c) => !c)) return ctx.text("no such card", 404);
+    // The repo is read off the cards, never taken from the body: a run is one repo's (ADR 0017).
+    const repoPath = cards[0]!.repoPath;
+    if (!repoPath) return ctx.text("a card in a run needs a repo", 400);
+    if (cards.some((c) => c!.repoPath !== repoPath)) return ctx.text("a run is one repo's cards", 400);
+    // Joining a second run would silently steal the card from the first.
+    if (cards.some((c) => c!.runId)) return ctx.text("a card is already in a run", 409);
+    const run = ctx.db.createRun({
+      repoPath,
+      cardIds: cardIds as string[],
+      foldInCap,
+      leadAgent: typeof leadAgent === "string" ? leadAgent.trim() : null,
+    });
+    ctx.audit.record({
+      action: "run.create",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent },
+    });
+    return ctx.json({ run, cardIds }, 201);
   }
 
   const match = pathname.match(CARD_ROUTE);
