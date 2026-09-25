@@ -353,6 +353,21 @@ start*able* — it never starts it. An agent that launches itself writes code an
 quota with nobody watching, which is the one thing this board is arranged against, and it is the
 same reasoning that keeps the copilot off by default.
 
+**A run is the one exception, and it is scoped to a set** ([ADR 0017](./.adr/0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md)).
+The operator selects cards of one repo and taps "Run these"; `POST /api/runs` writes a `run` row and
+`run_id` on each member, and starts nothing. From there `RunCoordinator` (`bridge/run.ts`, one more
+`engine.onUpdate` hook) moves the members: it starts the startable ones in `depends_on` order while
+a slot is free, and when a worker lands in `review` and sits idle it hands the **lead**
+(`bridge/lead.ts` — the copilot's pane and file-answer plumbing under its own `lead` label, always
+on) a question: *check* the checkout against spec and acceptance, *triage* the copilot's review and
+follow-ups, or *re-check* after a conflict. It then executes the answer through the routes a tap
+would use — `promptAndConfirm` back to the worker, `prForCard` with auto-merge armed,
+`resolveConflict`, `fileAsDone` — and journals each decision with its reason as `run.*`. The lead
+judges and speaks; it never edits, starts, pushes or merges. The coordinator keeps no state: where
+a member stands (`stepFor`) is read from the card, its journal and its pane on every snapshot, so a
+restart resumes the run. A `blocked` worker is never answered, and a card the lead sent back
+`MAX_ROUNDS` times is `run.halted` to the operator. Cards outside a run see none of this.
+
 **What actually passes between two cards is the branch.** A dependent card forks from its
 predecessor's branch rather than the repo's base, because a serial task needs the previous one's
 code, not a summary of it; its opening prompt says the branch is *not* clean and carries the
