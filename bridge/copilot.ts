@@ -1028,6 +1028,16 @@ export class Copilot {
     return this.cfg.boardCopilot;
   }
 
+  /** The herdr workspace label — and, through agentNameFor, the agent's name. Per role. */
+  protected get label(): string {
+    return this.cfg.boardCopilotWorkspace;
+  }
+
+  /** The log prefix. Per role. */
+  protected get tag(): string {
+    return "copilot";
+  }
+
   /**
    * The pane the copilot currently lives in, or null before its first request (or after it drops a
    * dead one). Public so the notification pipeline can recognise — and silence — its own traffic:
@@ -1080,13 +1090,13 @@ export class Copilot {
       });
       const answer = await this.awaitFile(abs);
       if (answer === null) {
-        console.warn(`[copilot] no answer at ${rel} within the deadline — see pane ${this._paneId}`);
+        console.warn(`[${this.tag}] no answer at ${rel} within the deadline — see pane ${this._paneId}`);
       }
       return answer;
     } catch (err) {
       // Never rethrow — the copilot is optional by design — but never go quiet either. A silent
       // catch here is exactly what made a swallowed first prompt take an hour to find.
-      console.warn(`[copilot] request failed: ${(err as Error).message}`);
+      console.warn(`[${this.tag}] request failed: ${(err as Error).message}`);
       // The pane may be the problem; drop it so the next request rebuilds one.
       this._paneId = null;
       return null;
@@ -1132,13 +1142,13 @@ export class Copilot {
     const running = here.find((p) => mine(p.paneId));
     if (running) {
       this._paneId = running.paneId;
-      console.log(`[copilot] adopted the existing agent in ${running.paneId}`);
+      console.log(`[${this.tag}] adopted the existing agent in ${running.paneId}`);
       return;
     }
 
     // A bare shell left over from a previous life: relaunch into it rather than stacking another
     // workspace next to it.
-    const label = this.cfg.boardCopilotWorkspace;
+    const label = this.label;
     const shell = here[0];
     const paneId =
       shell?.paneId ?? (await this.herdr.createWorkspace({ cwd: this.workDir, label })).paneId;
@@ -1148,7 +1158,7 @@ export class Copilot {
     this._paneId = paneId;
     this.requestsSinceReset = 0;
     this.justLaunched = true;
-    console.log(`[copilot] agent ready in ${paneId} (${this.workDir})`);
+    console.log(`[${this.tag}] agent ready in ${paneId} (${this.workDir})`);
   }
 
   /**
