@@ -453,6 +453,90 @@ export function isTinyFollowUp(task: SplitTask, category: CardCategory): boolean
   return task.tiny === true && TINY_CATEGORIES.includes(category);
 }
 
+/**
+ * Fold a follow-up title into its dedupe key: case, accents and punctuation carry no meaning for
+ * "is this the same work". Pure + exported.
+ *
+ * The review pipeline refuses a suggestion its card already filed (see {@link CopilotCoordinator}),
+ * and an exact match is too easy to walk around — a re-titled suggestion refiles the same work as
+ * a new card. Folding catches the lazy half of that (case, accents, spacing); the genuinely
+ * reworded other half is shown to the model instead (see `alreadyFiled` in {@link reviewPrompt}).
+ */
+export function normalizeTitle(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Whether a `--stat` summary carries no change at all. Pure + exported.
+ *
+ * `formatDiffStat` (git.ts) renders an empty diff as exactly `(no changes)`. Anything else is
+ * either work the review may legitimately follow, or an unknown — `cardDiffSummary` (git.ts)
+ * answers `(no worktree for this card)` when there is nothing to measure, which is NOT empty:
+ * refusing to file on an unknown would lose follow-ups grounded in the handoff, so only a
+ * measured zero closes the gate.
+ */
+export function isEmptyStat(statSummary: string): boolean {
+  const stat = statSummary.trim();
+  return stat === "" || stat === "(no changes)";
+}
+
+/**
+ * BRANCH JANITORING, not a card. Pure + exported.
+ *
+ * The shape: leftover, generated or out-of-scope files to take OUT of the branch that is already
+ * open — "sortir X du périmètre", "retirer Y de la branche", untracked strays, a `.gitignore`
+ * line. A card for that is structurally wrong, not merely heavy: a new card would cut a NEW
+ * worktree, while the cleanup has to happen on the reviewed card's branch, before it merges. So
+ * it never becomes a card — it becomes the same `TinyTodo` action a tiny follow-up does, on the
+ * reviewed card whose agent is still sitting in that branch.
+ *
+ * Deliberately narrower than "mentions a file": the intent (take out) AND the branch scope
+ * (branch, diff, commit, untracked, generated) must both match. "Retirer `paneDisplayName` s'il
+ * n'a plus d'appelant" is dead-code removal across the repo and stays a card. And the category
+ * floor from {@link isTinyFollowUp} still holds: only `docs` and `chore` can be janitoring by
+ * nature — a `bug` or `feature` that merely SOUNDS like cleanup stays an ordinary card, the
+ * harmless direction.
+ */
+export function isBranchCleanupTodo(task: SplitTask, category: CardCategory): boolean {
+  if (!TINY_CATEGORIES.includes(category)) return false;
+  const text = `${task.title}\n${task.spec ?? ""}`;
+  const intent = /sortir|retirer|nettoyer|enlever|supprimer|exclure|\.gitignore/i;
+  const scope = /branche|diff|périmètre|perimetre|commit|non[ -]?suivi|untracked|généré|genere/i;
+  return intent.test(text) && scope.test(text);
+}
+
+/**
+ * Why a suggested follow-up is filed as NEITHER a card NOR an action — null when the suggestion
+ * survives. Pure + exported: the code half of "should this exist at all", beside the prompt rules
+ * in {@link reviewPrompt} that say the same to the model.
+ *
+ * Two gates, both conservative:
+ * - an EMPTY diff filed nothing, so a non-tiny suggestion is the model inventing work from the
+ *   handoff alone — dropped, while tiny actions still reach the agent that is still here;
+ * - a COMPLETE verdict closed the work, so a non-tiny suggestion is a new work item wearing a
+ *   follow-up's clothes — dropped, while tiny polish still reaches that same agent.
+ *
+ * A refused suggestion is dropped, not stored card-less (same rule as the category switches
+ * below): the journal records what went and why (`copilot.review_filtered`), which is where an
+ * operator who misses one goes looking.
+ */
+export function dropReasonFor(
+  task: SplitTask,
+  category: CardCategory,
+  opts: { emptyDiff: boolean; complete: boolean },
+): "empty-diff" | "complete-no-cards" | null {
+  if (isTinyFollowUp(task, category) || isBranchCleanupTodo(task, category)) return null;
+  if (opts.emptyDiff) return "empty-diff";
+  if (opts.complete) return "complete-no-cards";
+  return null;
+}
+
 /** Coerce a parsed answer into a {@link ReviewResult}. Pure. */
 export function toReviewResult(parsed: unknown): ReviewResult | null {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -757,6 +841,53 @@ function tinyRule(): string[] {
 }
 
 /**
+ * The "don't file what is already filed" rule. Pure.
+ *
+ * The bridge ALSO refuses re-filed work in code (folded-title dedupe in the review pipeline), and
+ * the prompt is the half that catches what the code cannot: the same work under a genuinely
+ * different title. Telling the model what is already filed was the documented upgrade path for the
+ * day a near-duplicate cost someone a triage — that day came with a review that re-filed a whole
+ * PR-conflict feature under "retrouver ou refaire" while its two halves were already on the board.
+ * Shown only when there is something to show: an empty section would read as permission.
+ */
+function alreadyFiledRule(alreadyFiled: string[]): string[] {
+  if (!alreadyFiled.length) return [];
+  return [
+    "",
+    "ALREADY FILED. These follow-ups are already on the board from earlier reviews of this card:",
+    ...alreadyFiled.map((t) => `- ${t}`),
+    "Do not file them again under a different title. If the work they describe is already covered,",
+    "leave it out — a reworded duplicate is a second card for the same work, and the operator",
+    "triages both.",
+  ];
+}
+
+/**
+ * The gates that keep a follow-up from becoming a card at all. Pure.
+ *
+ * The SAME dispositions as {@link dropReasonFor}, said to the one reader that can judge intent —
+ * the code half only holds the shape (empty stat, complete verdict). Kept as three named gates
+ * rather than folded into the tiny rule: the tiny rule says whether the work SHOULD be a card,
+ * these say whether the review may FILE one.
+ */
+function filingGatesRule(): string[] {
+  return [
+    "",
+    "WHEN NOTHING SHOULD BECOME A CARD. Three gates, and all three are hard:",
+    "- EMPTY DIFF. If `What changed` says `(no changes)`, the work left nothing behind: leave",
+    "  `todos` empty, unless the handoff names an explicit remainder — and then only as `tiny`",
+    "  actions for the agent still here, never as cards. A research task invented from the handoff",
+    "  alone is not a remainder.",
+    "- COMPLETE MEANS NO NEW CARDS. A `complete` verdict closed the work: leave `todos` empty.",
+    "  A check that changes no code (does a card exist, is a number right) is a sentence for",
+    "  `notes`, not a follow-up.",
+    "- BRANCH CLEANUP IS TINY. Leftover, generated or out-of-scope files to take out of the branch",
+    "  (`sortir`, `retirer`, untracked or `non suivis` files, a `.gitignore` line) are janitoring on",
+    "  the branch already open, not work for a new worktree: answer `tiny: true`, category `chore`.",
+  ];
+}
+
+/**
  * The "don't file a card to commit" rule, shown to the same prompt {@link categoryRule} is. Pure.
  *
  * The agent routinely stops one gesture before the end: the work is done but sits uncommitted in
@@ -822,6 +953,8 @@ export function reviewPrompt(input: {
   outPath: string;
   /** The tag inventory — see {@link tagRule}. */
   tags?: string[];
+  /** Follow-up titles earlier reviews of this card already filed — see {@link alreadyFiledRule}. */
+  alreadyFiled?: string[];
 }): string {
   const parts = [
     "You are reviewing finished work on a kanban card. Do NOT edit anything and do not read the",
@@ -843,6 +976,8 @@ export function reviewPrompt(input: {
     ...categoryRule(),
     ...tinyRule(),
     ...commitRule(),
+    ...filingGatesRule(),
+    ...alreadyFiledRule(input.alreadyFiled ?? []),
     ...notesRule(),
     "",
     `Write ONLY this JSON to ${input.outPath} (create directories as needed) and print nothing else:`,
@@ -1450,6 +1585,11 @@ export class CopilotCoordinator {
     const session = sessionId ? this.db.getSession(sessionId) : null;
     const statSummary = await statFor(cardId);
     const tags = this.db.listTags();
+    // What earlier reviews already filed, oldest first — the model reads the titles (see
+    // `alreadyFiled` in the prompt), the pipeline folds them (see `normalizeTitle`). Capped: this
+    // rides in a prompt, and a long-lived card's whole follow-up history would bury the work being
+    // reviewed. What falls off is the oldest — the work least likely to be suggested again today.
+    const filedTitles = this.db.listReviews(cardId).flatMap((r) => r.todos.map((t) => t.title));
     const parsed = await this.copilot.ask((out) =>
       reviewPrompt({
         title: card.title,
@@ -1459,6 +1599,7 @@ export class CopilotCoordinator {
         handoffMd: session?.handoffMd ?? null,
         outPath: out,
         tags,
+        alreadyFiled: filedTitles.slice(-20),
       }),
     );
     const result = toReviewResult(parsed);
@@ -1483,16 +1624,15 @@ export class CopilotCoordinator {
     // review record that links to it.
     // A re-read of the same card suggests the same undone work again — the prompt sees a `--stat`,
     // which cannot show that three of the four items were since done. Without this, every tap of
-    // "review again" files another copy of every follow-up.
-    // ponytail: exact title match, so a re-worded suggestion still gets through. The upgrade path is
-    // telling the prompt what is already filed; do it the day a near-duplicate actually costs
-    // someone a triage.
-    const alreadyFiled = new Set(
-      this.db.listReviews(cardId).flatMap((r) => r.todos.map((t) => t.title)),
-    );
+    // "review again" files another copy of every follow-up. Folded, not exact: a re-titled
+    // suggestion is the same work, and the reworded other half is shown to the model instead (see
+    // `alreadyFiled` above) — that day came with a review that re-filed a whole PR-conflict
+    // feature under "retrouver ou refaire" while its two halves were already on the board.
+    const alreadyFiled = new Set(filedTitles.map(normalizeTitle));
     // A commit ask already sitting unsent on a past review: re-reviewing while the files are still
     // uncommitted must not stack a second identical row. A commit ask already SENT is the opposite
     // case — the agent was asked and may not have done it — so only an unsent one suppresses.
+    // Folded like the rest: a re-titled commit ask is the same ask.
     const pendingCommit = new Set(
       this.db
         .listReviews(cardId)
@@ -1503,7 +1643,7 @@ export class CopilotCoordinator {
             t.tiny.doneAt === null &&
             isCommitFollowUp({ title: t.title, spec: t.tiny.spec, acceptance: t.tiny.acceptance }),
         )
-        .map((t) => t.title),
+        .map((t) => normalizeTitle(t.title)),
     );
     // COMMIT ASKS NEVER BECOME CARDS — with or without the operator's opt-in. The agent stopped
     // before `git commit`; the fix is one prompt to the agent still in the branch, not a backlog
@@ -1511,12 +1651,16 @@ export class CopilotCoordinator {
     // (`autoFollowUps` and the category filter): they land as `tiny` actions on the reviewed card,
     // where the screen offers them in one tap (see TinyTodo). A review that found ONLY uncommitted
     // files therefore files nothing and still proposes the commit — which is the whole point.
+    // Extracted FIRST: a commit ask stays an action even when the model disobeys (`tiny: false`),
+    // so it must not pass through the empty-diff / complete gates below, which only ever remove cards.
     const incoming = result.todos ?? [];
     const commitTodos: ReviewTodo[] = [];
     for (const todo of incoming) {
       if (!isCommitFollowUp(todo)) continue;
-      if (alreadyFiled.has(todo.title) || pendingCommit.has(todo.title)) continue;
-      pendingCommit.add(todo.title);
+      const key = normalizeTitle(todo.title);
+      if (alreadyFiled.has(key) || pendingCommit.has(key)) continue;
+      alreadyFiled.add(key);
+      pendingCommit.add(key);
       commitTodos.push({
         title: todo.title,
         cardId: null,
@@ -1524,20 +1668,45 @@ export class CopilotCoordinator {
       });
     }
     const wanted = new Set(this.db.followUpCategories());
+    const emptyDiff = isEmptyStat(statSummary);
+    const complete = (result.verdict ?? "").trim().toLowerCase() === "complete";
+    // A suggestion refused below is dropped, not stored card-less — and now JOURNALLED
+    // (`copilot.review_filtered`): a silent drop is a review the operator cannot audit, and these
+    // three reasons are exactly the ones a future "where did my follow-up go" will ask about.
+    const dropped: { title: string; reason: string }[] = [];
     const suggested = (this.db.autoFollowUps() ? incoming : [])
       .filter((todo) => isCommitFollowUp(todo) === false)
-      .filter((todo) => !alreadyFiled.has(todo.title))
       .map((todo) => ({ todo, category: pickCategory(todo.category) }))
-      .filter(({ category }) => wanted.has(category));
-    const todos: ReviewTodo[] = [
-      ...commitTodos,
-      ...suggested.map(({ todo, category }) => {
+      .filter(({ category }) => wanted.has(category))
+      .filter(({ todo }) => {
+        const key = normalizeTitle(todo.title);
+        if (alreadyFiled.has(key)) {
+          dropped.push({ title: todo.title, reason: "already-filed" });
+          return false;
+        }
+        // Two identical suggestions in ONE answer file one card, not two.
+        alreadyFiled.add(key);
+        return true;
+      })
+      .filter(({ todo, category }) => {
+        const reason = dropReasonFor(todo, category, { emptyDiff, complete });
+        if (reason) {
+          dropped.push({ title: todo.title, reason });
+          return false;
+        }
+        return true;
+      });
+    const mapped: ReviewTodo[] = suggested.map(({ todo, category }) => {
       // TOO SMALL FOR A CARD — and so it does not become one. The suggestion is kept on the review
       // instead, with the spec that would have been the card's, and the card screen offers it as
       // one tap to the agent that is still sitting right there (see TinyTodo). A card for a
       // one-line edit is a card you triage, filter, drag and eventually delete: a chore the tool
       // invented, which is exactly the pile this avoids.
-      if (isTinyFollowUp(todo, category)) {
+      //
+      // BRANCH JANITORING rides the same row: leftover, generated or out-of-scope files to take out
+      // of the branch that is already open (see `isBranchCleanupTodo`) are no card either — a new
+      // card would cut a new worktree while the cleanup belongs on this branch, before it merges.
+      if (isTinyFollowUp(todo, category) || isBranchCleanupTodo(todo, category)) {
         return {
           title: todo.title,
           cardId: null,
@@ -1571,8 +1740,15 @@ export class CopilotCoordinator {
         category,
       });
       return { title: todo.title, cardId: created.id };
-      })
-    ];
+    });
+    if (dropped.length) {
+      this.db.recordEvent(cardId, "copilot.review_filtered", {
+        sessionId,
+        verdict: result.verdict ?? null,
+        dropped,
+      });
+    }
+    const todos: ReviewTodo[] = [...commitTodos, ...mapped];
     this.db.createReview({
       cardId,
       sessionId,

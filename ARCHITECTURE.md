@@ -394,6 +394,18 @@ switches exactly like a filed one — a board that asked for no follow-ups gets 
 like `startCard`, nothing here is automatic: the operator taps it, same reasoning as the dependency
 gate above.
 
+**And some follow-ups shouldn't exist at all.** The tiny criterion only answers "too small for a
+card"; four shapes turned out to be parasites, documented with their board examples in ADR 0018.
+An empty diff files no cards (a non-tiny suggestion on `(no changes)` is the model inventing work
+from the handoff alone); a `complete` verdict files no cards (checking that a card exists is a
+sentence for `notes`, not a follow-up); branch janitoring — leftover, generated or out-of-scope
+files to take out of the branch already open — never becomes a card, because a new card would cut
+a new worktree while the cleanup belongs on the reviewed branch, so it rides the same `TinyTodo`
+row instead; and an already-filed suggestion is refused on its folded title (case, accents and
+punctuation carry no meaning), with the filed titles shown to the model to catch a genuine
+rewording. Every refusal is journalled as `copilot.review_filtered` — a silent drop is a review
+the operator cannot audit.
+
 **And the operator makes the same call, by hand.** The arbitrage above is a judgement, not a
 privilege the copilot holds: a card you are looking at can be *converted into an action*
 (`convertToAction`, `bridge/cards.ts`) — its spec and acceptance become a `TinyTodo` on another

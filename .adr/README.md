@@ -59,3 +59,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Accepted |
 | [0016](./0016-the-version-is-cut-on-main-by-ci.md) | The version is cut on main by CI; a branch only drops a fragment | Accepted |
 | [0017](./0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md) | A run is consent given once, over a chosen set of cards | Accepted |
+| [0018](./0018-no-parasite-cards-from-a-review.md) | A review files no parasite cards | Accepted |

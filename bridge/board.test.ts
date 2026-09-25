@@ -39,9 +39,13 @@ import { contextPercent } from "./context.ts";
 import {
   Copilot,
   CopilotCoordinator,
+  dropReasonFor,
   explainPrompt,
   toExplanation,
+  isBranchCleanupTodo,
+  isEmptyStat,
   isTinyFollowUp,
+  normalizeTitle,
   parseJsonish,
   pickCategory,
   pickTag,
@@ -3905,6 +3909,237 @@ describe("the copilot keeps the small one off the board", () => {
       acceptance: ["a"],
       doneAt: null,
     });
+  });
+});
+
+describe("the review files fewer parasites", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  const settle = () => new Promise((r) => setTimeout(r, 10));
+
+  interface Answer {
+    todos: unknown[];
+    verdict?: string;
+    stat?: string;
+    /** Todos of ONE earlier review of the same card — the "already filed" half of the dedupe. */
+    prior?: { title: string; cardId?: string | null }[];
+  }
+
+  /** A done card with a closed session, reviewed once with this answer. */
+  async function reviewAnswer({ todos, verdict = "partial", stat = "stat", prior = [] }: Answer) {
+    const store = db();
+    store.setAutoFollowUps(true);
+    const reviewed = store.createCard({ title: "the bell", status: "done", repoPath: "/repo" });
+    // Two turns: the earlier review filed `prior` on the first session, the answer under test is
+    // reviewed on the second — one review per card per session is the pipeline's own dedupe, and
+    // a second review on the SAME session would never run.
+    const first = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(first.id, "done");
+    for (const p of prior) {
+      const filed = p.cardId
+        ? { id: p.cardId, title: p.title, status: "backlog" as const }
+        : store.createCard({ title: p.title, status: "backlog", repoPath: "/repo" });
+      store.createReview({
+        cardId: reviewed.id,
+        sessionId: first.id,
+        verdict: "partial",
+        todos: [{ title: p.title, cardId: filed.id }],
+      });
+    }
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "here is what I did" });
+    const copilot = {
+      enabled: true,
+      observe() {},
+      async ask() {
+        return { verdict, notes: "ok", todos };
+      },
+    } as unknown as Copilot;
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => stat);
+    await settle();
+    return { store, reviewed };
+  }
+
+  function copilotCards(store: BoardDb) {
+    return store.listCards().filter((c) => c.origin === "copilot");
+  }
+
+  function filtered(store: BoardDb, cardId: string) {
+    return store
+      .listEvents(cardId)
+      .filter((e) => e.type === "copilot.review_filtered")
+      .flatMap((e) => (e.payload as { dropped: { title: string; reason: string }[] }).dropped);
+  }
+
+  it("folds a title to its dedupe key — case, accents and punctuation carry nothing", () => {
+    expect(normalizeTitle("Dire sur l'écran carte que la PR est en conflit")).toBe(
+      normalizeTitle("dire sur l ecran carte que la pr est en conflit"),
+    );
+    expect(normalizeTitle("  Retrouver, ou refaire ! ")).toBe("retrouver ou refaire");
+  });
+
+  it("reads an empty stat as no change, and nothing else as one", () => {
+    expect(isEmptyStat("(no changes)")).toBe(true);
+    expect(isEmptyStat("")).toBe(true);
+    expect(isEmptyStat("3 files changed, 10 insertions(+), 2 deletions(-)")).toBe(false);
+  });
+
+  it("recognises branch janitoring — and nothing that merely removes code", () => {
+    // Sortir AGENTS.md et CLAUDE.md du périmètre de la carte scroll: two untracked strays on the
+    // reviewed branch, decided to commit-or-delete so the card's commit stays scoped.
+    expect(
+      isBranchCleanupTodo(
+        {
+          title: "Sortir AGENTS.md et CLAUDE.md du périmètre de la carte scroll",
+          spec: "Apparus en fichiers non suivis pendant ce travail. Décider commit dédié ou suppression, pour que le commit de la carte reste limité à scroll-area.tsx.",
+        },
+        "docs",
+      ),
+    ).toBe(true);
+    // Retirer scroll-area.tsx, AGENTS.md et CLAUDE.md de la branche STEP: a file from another card
+    // plus two files Next regenerates, to take out of the branch.
+    expect(
+      isBranchCleanupTodo(
+        {
+          title: "Retirer scroll-area.tsx, AGENTS.md et CLAUDE.md de la branche STEP",
+          spec: "Sortir ces trois fichiers de la branche ; AGENTS.md et CLAUDE.md régénérés à chaque next dev, à ajouter au .gitignore.",
+        },
+        "chore",
+      ),
+    ).toBe(true);
+    // Retirer paneDisplayName s'il n'a plus d'appelant: dead-code removal across the repo — a real
+    // card, whatever verb it starts with.
+    expect(
+      isBranchCleanupTodo(
+        {
+          title: "Retirer paneDisplayName s'il n'a plus d'appelant",
+          spec: "Rechercher les appelants restants ; s'il n'en reste aucun, supprimer la fonction et noter le retrait dans NOTIFY_AUDIT.md.",
+        },
+        "chore",
+      ),
+    ).toBe(false);
+    // …and the category floor still holds: janitoring-shaped, but filed as a bug.
+    expect(
+      isBranchCleanupTodo(
+        { title: "Sortir le fichier généré de la branche", spec: "untracked, hors périmètre" },
+        "bug",
+      ),
+    ).toBe(false);
+  });
+
+  it("drops what should never have been a card, and keeps the tiny ones reaching the agent", () => {
+    const small = { title: "note it", tiny: true };
+    const big = { title: "rebuild it" };
+    expect(dropReasonFor(small, "docs", { emptyDiff: true, complete: false })).toBeNull();
+    expect(dropReasonFor(big, "chore", { emptyDiff: true, complete: false })).toBe("empty-diff");
+    expect(dropReasonFor(big, "chore", { emptyDiff: false, complete: true })).toBe(
+      "complete-no-cards",
+    );
+    expect(dropReasonFor(big, "feature", { emptyDiff: false, complete: false })).toBeNull();
+  });
+
+  it("tells the model the three gates and what is already filed", () => {
+    const base = {
+      title: "t",
+      spec: null,
+      acceptance: [],
+      statSummary: "1 file changed",
+      handoffMd: null,
+      outPath: "/tmp/out.json",
+    };
+    const p = reviewPrompt({ ...base, alreadyFiled: ["Dire sur l'écran carte"] });
+    expect(p).toContain("WHEN NOTHING SHOULD BECOME A CARD");
+    expect(p).toContain("EMPTY DIFF");
+    expect(p).toContain("COMPLETE MEANS NO NEW CARDS");
+    expect(p).toContain("BRANCH CLEANUP IS TINY");
+    expect(p).toContain("ALREADY FILED");
+    expect(p).toContain("Dire sur l'écran carte");
+    // …and the filed section is absent when there is nothing filed, not an empty permission.
+    expect(reviewPrompt(base)).not.toContain("ALREADY FILED");
+  });
+
+  it("files no card for a research task invented on an empty diff", async () => {
+    // Retrouver ou refaire l'affichage du conflit de PR: filed by a review that read an empty
+    // diff — a "retrouver" task with no change behind it is the model inventing work.
+    const { store, reviewed } = await reviewAnswer({
+      stat: "(no changes)",
+      todos: [
+        {
+          title: "Retrouver ou refaire l'affichage du conflit de PR sur l'écran carte",
+          spec: "Relue avec un diff vide. Chercher la branche avant d'écrire, sinon faire le travail décrit par l'ADR 0014.",
+          category: "feature",
+        },
+      ],
+    });
+    expect(copilotCards(store)).toHaveLength(0);
+    const [review] = store.listReviews(reviewed.id);
+    expect(review!.todos).toEqual([]);
+    expect(filtered(store, reviewed.id)).toEqual([
+      {
+        title: "Retrouver ou refaire l'affichage du conflit de PR sur l'écran carte",
+        reason: "empty-diff",
+      },
+    ]);
+  });
+
+  it("files no card on a complete verdict, but still offers the tiny polish", async () => {
+    // Vérifier la carte de mise en œuvre promise par §3.5: a board-admin check filed by a review
+    // that judged the work complete — checking a card exists is one glance, not a worktree.
+    const { store, reviewed } = await reviewAnswer({
+      verdict: "complete",
+      todos: [
+        {
+          title: "Vérifier la carte de mise en œuvre promise par §3.5",
+          spec: "Relire la conclusion ; si elle tranche « faire », s'assurer qu'une carte existe au backlog.",
+          category: "chore",
+        },
+        { title: "note it", spec: "one line", acceptance: ["a"], category: "chore", tiny: true },
+      ],
+    });
+    expect(copilotCards(store)).toHaveLength(0);
+    const [review] = store.listReviews(reviewed.id);
+    expect(review!.todos.map((t) => [t.cardId === null, !!t.tiny])).toEqual([[true, true]]);
+    expect(filtered(store, reviewed.id)).toEqual([
+      { title: "Vérifier la carte de mise en œuvre promise par §3.5", reason: "complete-no-cards" },
+    ]);
+  });
+
+  it("does not refile the same work under a folded title", async () => {
+    const { store, reviewed } = await reviewAnswer({
+      prior: [{ title: "Dire sur l'écran carte que la PR est en conflit" }],
+      todos: [{ title: "dire sur l ecran carte que la pr est en conflit", category: "feature" }],
+    });
+    expect(copilotCards(store)).toHaveLength(0);
+    expect(filtered(store, reviewed.id)).toEqual([
+      {
+        title: "dire sur l ecran carte que la pr est en conflit",
+        reason: "already-filed",
+      },
+    ]);
+  });
+
+  it("turns branch janitoring into an action even when the model did not call it tiny", async () => {
+    const { store, reviewed } = await reviewAnswer({
+      todos: [
+        {
+          title: "Sortir AGENTS.md et CLAUDE.md du périmètre de la carte scroll",
+          spec: "Apparus en fichiers non suivis pendant ce travail. Décider commit dédié ou suppression, pour que le commit de la carte reste limité à scroll-area.tsx.",
+          acceptance: ["le commit ne contient que scroll-area.tsx"],
+          category: "docs",
+        },
+      ],
+    });
+    // THE POINT: no card — a new worktree cannot clean the reviewed branch. The action stays on
+    // the review, with the spec the card would have carried.
+    expect(copilotCards(store)).toHaveLength(0);
+    const [review] = store.listReviews(reviewed.id);
+    expect(review!.todos).toHaveLength(1);
+    expect(review!.todos[0]!.tiny).toEqual({
+      spec: expect.stringContaining("non suivis"),
+      acceptance: ["le commit ne contient que scroll-area.tsx"],
+      doneAt: null,
+    });
+    expect(filtered(store, reviewed.id)).toEqual([]);
   });
 });
 
