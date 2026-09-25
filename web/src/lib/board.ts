@@ -640,6 +640,21 @@ export function finishCardNow(id: string, reviewId: string, title: string): Prom
 }
 
 /**
+ * Ask THIS card's own agent to commit what it left uncommitted — the agent stopped before
+ * `git commit`, and the fix is one prompt in the branch it is still sitting in, not a backlog
+ * card with a worktree and an agent of its own.
+ *
+ * The prompt is fixed bridge-side (`git add -A` hors `.board/` puis `git commit`, no push), so
+ * the tap cannot drift into a new assignment. Refuses (409) when that agent is gone — relaunch
+ * the card to commit. Pending commit actions from past reviews are marked sent on success.
+ */
+export function requestCardCommit(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/request-commit`, {
+    method: "POST",
+  });
+}
+
+/**
  * Turn a card into an ACTION on `targetId` — the manual half of the arbitrage the copilot makes on
  * its own follow-ups: work too small to be worth a card, a worktree and an agent of its own.
  *

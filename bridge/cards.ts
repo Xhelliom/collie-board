@@ -927,6 +927,11 @@ export async function finishNow(
  * It is already on the right one.
  */
 export function finishNowPrompt(title: string, todo: { spec: string | null; acceptance: string[] }): string {
+  // A commit ask is not "one more small edit": route it to the commit wording, which names the
+  // exact git gesture — otherwise the agent gets "commit the files" with no command and improvises.
+  if (isCommitFollowUp({ title, spec: todo.spec ?? undefined, acceptance: todo.acceptance })) {
+    return commitRequestPrompt();
+  }
   const parts = [
     [
       "One more small thing on the branch you are already in, before you stop. It came out of the",
@@ -939,6 +944,124 @@ export function finishNowPrompt(title: string, todo: { spec: string | null; acce
     parts.push(["It is done when:", ...todo.acceptance.map((a) => `- ${a}`)].join("\n"));
   }
   return parts.join("\n\n");
+}
+
+/**
+ * A follow-up whose whole job is committing work the agent left uncommitted — and nothing else.
+ *
+ * The agent stopped one gesture before the end: modified and untracked files sit in its checkout,
+ * and the review saw them in the working-tree diff. That is not a task for a new card, a new
+ * worktree and a new agent — it is one prompt to the agent that is still sitting in the right
+ * branch. Pure + exported so both the review filter (copilot.ts) and the commit route below agree
+ * on what counts, instead of each guessing from the title.
+ *
+ * Bilingual on purpose (FR/EN): the copilot writes in either language. Narrow on purpose too: it
+ * takes BOTH a commit word AND an uncommitted word — "commit and push the feature" is real work
+ * with a commit in it, not a commit-only ask, and must stay a card.
+ */
+export function isCommitFollowUp(task: {
+  title: string;
+  spec?: string | null;
+  acceptance?: string[];
+}): boolean {
+  const text = [task.title, task.spec ?? "", ...(task.acceptance ?? [])].join("\n").toLowerCase();
+  const saysCommit =
+    /commit/.test(text) || /\bcommi?t(e|er|ez|ter)\b/.test(text) || /valider? les fichiers/i.test(text);
+  if (!saysCommit) return false;
+  return (
+    /uncommit/.test(text) ||
+    /non[ -]?commit/.test(text) ||
+    /non[ -]?commis/.test(text) ||
+    /non[ -]?valid/.test(text) ||
+    /untrack/.test(text) ||
+    /oubli/.test(text) ||
+    /forgot/.test(text) ||
+    /not (yet )?committed/.test(text) ||
+    /working[ -]?tree/.test(text) ||
+    /modifi[^.]*non[^.]*commit/.test(text) ||
+    /fichier[^.]*non[^.]*commit/.test(text)
+  );
+}
+
+/**
+ * What the card's own agent is asked when it only has to commit. Pure + exported so the exact
+ * words are reviewable in a test rather than only in a terminal.
+ *
+ * Names the gesture (`git add -A` + `git commit`, never push) because "commit your files" alone
+ * leaves the agent to improvise — and an agent that improvises around uncommitted work sometimes
+ * stashes, sometimes opens a new branch, sometimes does nothing. `.board/` is excluded for the
+ * same reason every diff excludes it (git.ts `isBoardPath`): it is the bridge's own notes, not
+ * the card's work. Nothing else: the agent stopped before the end, it does not get a new task.
+ */
+export function commitRequestPrompt(): string {
+  return [
+    "Commit now everything uncommitted on the branch you are already in, and nothing else.",
+    "Run `git add -A` (excluding `.board/`, which is the board's own notes, never the work), then",
+    "`git commit` with a short message describing the work. Do not push, do not start anything new,",
+    "do not modify any file — only commit what is already there.",
+    "Commite maintenant tout ce qui est non commité sur ta branche actuelle, et rien d'autre.",
+  ].join("\n");
+}
+
+/** Why a commit request could not be sent to the card's agent. */
+export type RequestCommitError =
+  | { kind: "not-found"; message: string }
+  | { kind: "no-session"; message: string }
+  | { kind: "herdr"; message: string };
+
+/**
+ * ASK THE CARD'S OWN AGENT TO COMMIT. The counterpart of {@link finishNow} for the one ask that
+ * is never a review suggestion: the agent stopped before `git commit`, and the fix is one prompt
+ * to the pane that is still in the right worktree.
+ *
+ * Creates nothing and starts nothing — same rule as `finishNow`. The prompt is fixed (see
+ * {@link commitRequestPrompt}), so the tap cannot drift into a new assignment. Pending commit
+ * actions from past reviews are marked sent on success: the ask happened, and a second row saying
+ * the same thing would only invite sending it twice.
+ *
+ * NOT AUTOMATIC, like every other prompt here: the operator taps it, and an agent that picks up
+ * work nobody handed it is the one thing this board is arranged against.
+ */
+export async function requestCommit(
+  db: BoardDb,
+  herdr: HerdrClient,
+  cardId: string,
+  wait?: (ms: number) => Promise<void>,
+): Promise<{ ok: true; paneId: string } | { ok: false; error: RequestCommitError }> {
+  const card = db.getCard(cardId);
+  if (!card) {
+    return { ok: false, error: { kind: "not-found", message: "card not found" } };
+  }
+  const session = db.openSessionFor(cardId);
+  if (!session?.paneId) {
+    return {
+      ok: false,
+      error: { kind: "no-session", message: "this card's agent is gone — relaunch it to commit" },
+    };
+  }
+  try {
+    await promptAndConfirm(herdr, session.paneId, commitRequestPrompt(), wait);
+  } catch (err) {
+    if (isAgentGone(err)) {
+      return {
+        ok: false,
+        error: { kind: "no-session", message: "this card's agent is gone — relaunch it to commit" },
+      };
+    }
+    return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
+  }
+  // The ask happened — silence the pending commit rows so they cannot be sent twice. A second
+  // delivery makes the agent commit an empty tree, or worse, commit work that landed since.
+  for (const review of db.listReviews(cardId)) {
+    for (const todo of review.todos) {
+      if (!todo.tiny || todo.tiny.doneAt !== null) continue;
+      if (isCommitFollowUp({ title: todo.title, spec: todo.tiny.spec, acceptance: todo.tiny.acceptance })) {
+        db.markTinyTodoDone(review.id, todo.title);
+      }
+    }
+  }
+  db.recordEvent(cardId, "card.commit_requested", { paneId: session.paneId });
+  return { ok: true, paneId: session.paneId };
 }
 
 /**

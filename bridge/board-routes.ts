@@ -22,6 +22,7 @@ import {
   isAgentGone,
   promptAndConfirm,
   releaseSession,
+  requestCommit,
   startCard,
   wouldCycle,
 } from "./cards.ts";
@@ -95,7 +96,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -705,6 +706,33 @@ async function route(
     });
     if (!result.ok) {
       // Same split `start` makes: 409 for "the board says no", 502 for a herdr failure.
+      const status = result.error.kind === "herdr" ? 502 : 409;
+      return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
+    }
+    return json({ ok: true, card: view(id) });
+  }
+
+  // ── request-commit: the agent stopped before `git commit` — ask it to commit ──
+  //
+  // On the REVIEWED card, to its own agent, in its own worktree. The prompt is fixed
+  // (cards.ts `commitRequestPrompt`): `git add -A` (hors `.board/`) then `git commit`, no push,
+  // nothing else. Pending commit actions from past reviews are marked sent on success, so the
+  // rows that proposed the same ask cannot be sent twice. 404 only for the card in the path —
+  // a card with no running agent is a 409, same as `finish-now` and `prompt`.
+  if (action === "request-commit" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (!db.getCard(id)) return text("card not found", 404);
+    const result = await requestCommit(db, ctx.herdr, id);
+    ctx.audit.record({
+      action: "card.commit_requested",
+      ...(result.ok ? { paneId: result.paneId } : {}),
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { error: result.error.message }) },
+    });
+    if (!result.ok) {
+      if (result.error.kind === "not-found") return text("card not found", 404);
       const status = result.error.kind === "herdr" ? 502 : 409;
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }

@@ -5,7 +5,9 @@ import { join } from "node:path";
 
 import {
   agentNameFor,
+  commitRequestPrompt,
   isAgentGone,
+  isCommitFollowUp,
   isTransientHerdrError,
   promptAndConfirm,
   branchFromTitle,
@@ -19,6 +21,7 @@ import {
   reconcile,
   reconcileOne,
   releaseSession,
+  requestCommit,
   startCard,
   withCardFields,
   wouldCycle,
@@ -4211,5 +4214,252 @@ describe("POST /api/cards/<id>/to-action", () => {
     );
     expect(missing!.status).toBe(404);
     expect(target!.status).toBe(409);
+  });
+});
+
+// A review that sees uncommitted files must not open a card for them: the agent stopped before
+// `git commit`, and the fix is one prompt to the agent still in the branch — an action on the
+// reviewed card, never a backlog card.
+describe("review commit asks — an action on this card, never a new card", () => {
+  const cfg = { boardBranchPrefix: "board/" } as Config;
+  const settle = () => new Promise((r) => setTimeout(r, 10));
+  function fakeCopilot(answer: unknown) {
+    return { enabled: true, observe() {}, async ask() { return answer; } } as unknown as Copilot;
+  }
+  function reviewedCard(store: BoardDb) {
+    const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r" });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    return reviewed;
+  }
+
+  it("isCommitFollowUp spots a commit-only ask, FR or EN — and not real work with a commit in it", () => {
+    expect(isCommitFollowUp({ title: "Commiter les fichiers non commités" })).toBe(true);
+    expect(
+      isCommitFollowUp({ title: "Commit the forgotten untracked files", spec: "left uncommitted" }),
+    ).toBe(true);
+    expect(isCommitFollowUp({ title: "Committer les fichiers oubliés" })).toBe(true);
+    expect(isCommitFollowUp({ title: "Add a test for the parser" })).toBe(false);
+    // Real work that happens to mention a commit stays a card: the commit is inside the job.
+    expect(isCommitFollowUp({ title: "Commit and push the feature" })).toBe(false);
+  });
+
+  it("the commit prompt names the exact gesture — add, commit, no push, nothing else", () => {
+    const text = commitRequestPrompt();
+    expect(text).toContain("git add -A");
+    expect(text).toContain("git commit");
+    expect(text.toLowerCase()).toContain("do not push");
+    expect(text).toContain(".board/");
+  });
+
+  it("tells the copilot a commit ask is never a card", () => {
+    const prompt = reviewPrompt({
+      title: "x",
+      spec: null,
+      acceptance: [],
+      statSummary: "a.ts | +1 -0",
+      handoffMd: null,
+      outPath: "/out.json",
+    });
+    expect(prompt).toContain("COMMIT, NOT A CARD");
+    expect(prompt).toContain("tiny");
+  });
+
+  it("a review that finds ONLY uncommitted files files no card — the commit lands as an action", async () => {
+    const store = db();
+    const reviewed = reviewedCard(store);
+    store.setAutoFollowUps(true);
+    const copilot = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [
+        {
+          title: "Commiter les fichiers non commités",
+          spec: "des fichiers sont restés non commités",
+          category: "chore",
+          tiny: true,
+        },
+      ],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(store.listCards().map((c) => c.title)).toEqual(["shipped"]);
+    const review = store.listReviews(reviewed.id)[0]!;
+    expect(review.todos).toHaveLength(1);
+    expect(review.todos[0]!.cardId).toBeNull();
+    expect(review.todos[0]!.tiny).not.toBeNull();
+  });
+
+  it("proposes the commit action even when automatic follow-ups are off", async () => {
+    const store = db();
+    const reviewed = reviewedCard(store);
+    store.setAutoFollowUps(false);
+    const copilot = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [{ title: "Commit the forgotten untracked files", spec: "left uncommitted" }],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(store.listCards().map((c) => c.title)).toEqual(["shipped"]);
+    const review = store.listReviews(reviewed.id)[0]!;
+    expect(review.todos).toHaveLength(1);
+    expect(review.todos[0]!.tiny).not.toBeNull();
+  });
+
+  it("files the real follow-ups as cards and keeps only the commit as an action", async () => {
+    const store = db();
+    reviewedCard(store);
+    store.setAutoFollowUps(true);
+    const copilot = fakeCopilot({
+      verdict: "partial",
+      notes: "ok",
+      todos: [
+        { title: "Commiter les fichiers non commités", spec: "committez", category: "chore" },
+        { title: "the empty state is missing", category: "feature" },
+      ],
+    });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const titles = store.listCards().map((c) => c.title);
+    expect(titles).toContain("the empty state is missing");
+    expect(titles).not.toContain("Commiter les fichiers non commités");
+  });
+
+  it("does not stack a second commit row while one is still unsent", async () => {
+    const store = db();
+    const reviewed = reviewedCard(store);
+    store.setAutoFollowUps(true);
+    const answer = {
+      verdict: "partial",
+      notes: "ok",
+      todos: [{ title: "Commiter les fichiers non commités", spec: "non commités", category: "chore" }],
+    };
+    const first = new CopilotCoordinator(store, fakeCopilot(answer), cfg);
+    first.update(snapshot([]), async () => "stat");
+    await settle();
+    // Second review of a NEW session — the dedupe that matters here is the pending commit row,
+    // not the per-session review gate.
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p2" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done again" });
+    new CopilotCoordinator(store, fakeCopilot(answer), cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    const commitRows = store
+      .listReviews(reviewed.id)
+      .flatMap((r) => r.todos)
+      .filter((t) => t.tiny && /commit/i.test(t.title));
+    expect(commitRows).toHaveLength(1);
+  });
+
+  it("finish-now on a commit action sends the commit wording, not the generic small-task one", async () => {
+    const store = db();
+    const card = store.createCard({ title: "work", status: "review" });
+    store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    const review = store.createReview({
+      cardId: card.id,
+      verdict: "partial",
+      todos: [
+        {
+          title: "Commiter les fichiers non commités",
+          cardId: null,
+          tiny: { spec: "committez", acceptance: [], doneAt: null },
+        },
+      ],
+    });
+    const texts: string[] = [];
+    const herdr = {
+      async promptAgent({ text }: { text: string }) { texts.push(text); },
+      async getAgent() { return { agent_status: "working", interactive_ready: true }; },
+      async sendPaneKeys() {},
+    };
+
+    const res = await finishNow(store, herdr as never, card.id, { reviewId: review.id, title: review.todos[0]!.title }, async () => {});
+    expect(res.ok).toBe(true);
+    expect(texts[0]).toContain("git commit");
+  });
+});
+
+describe("requestCommit — ask this card's agent to commit", () => {
+  function capturingHerdr(texts: string[]) {
+    return {
+      async promptAgent({ text }: { text: string }) { texts.push(text); },
+      async getAgent() { return { agent_status: "working", interactive_ready: true }; },
+      async sendPaneKeys() {},
+    };
+  }
+
+  it("prompts the open session with the commit wording and marks pending commit rows sent", async () => {
+    const store = db();
+    const card = store.createCard({ title: "work", status: "review" });
+    store.openSession({ cardId: card.id, paneId: "w1:p1" });
+    const review = store.createReview({
+      cardId: card.id,
+      verdict: "partial",
+      todos: [
+        {
+          title: "Commiter les fichiers non commités",
+          cardId: null,
+          tiny: { spec: "committez", acceptance: [], doneAt: null },
+        },
+      ],
+    });
+    const texts: string[] = [];
+
+    const res = await requestCommit(store, capturingHerdr(texts) as never, card.id, async () => {});
+
+    expect(res).toMatchObject({ ok: true, paneId: "w1:p1" });
+    expect(texts).toHaveLength(1);
+    expect(texts[0]).toContain("git commit");
+    expect(store.getReview(review.id)!.todos[0]!.tiny!.doneAt).not.toBeNull();
+    expect(store.listEvents(card.id).some((e) => e.type === "card.commit_requested")).toBe(true);
+  });
+
+  it("refuses when the card's agent is gone — relaunch to commit", async () => {
+    const store = db();
+    const card = store.createCard({ title: "gone", status: "review" });
+    const texts: string[] = [];
+    const res = await requestCommit(store, capturingHerdr(texts) as never, card.id, async () => {});
+    expect(res).toMatchObject({ ok: false, error: { kind: "no-session" } });
+    expect(texts).toHaveLength(0);
+  });
+
+  it("404s an unknown card", async () => {
+    const res = await handleBoardRoute(
+      "/api/cards/nope/request-commit",
+      actionPost("nope", "request-commit"),
+      routeCtx(db()),
+    );
+    expect(res!.status).toBe(404);
+  });
+
+  it("409s when there is no running agent, 200 when the ask lands", async () => {
+    const gone = db();
+    const card = gone.createCard({ title: "gone", status: "review" });
+    const refused = await handleBoardRoute(
+      `/api/cards/${card.id}/request-commit`,
+      actionPost(card.id, "request-commit"),
+      routeCtx(gone, fakeHerdr().client),
+    );
+    expect(refused!.status).toBe(409);
+
+    const store = db();
+    const live = store.createCard({ title: "work", status: "review" });
+    store.openSession({ cardId: live.id, paneId: "wZ:p1" });
+    const { client } = fakeHerdr();
+    const sent = await handleBoardRoute(
+      `/api/cards/${live.id}/request-commit`,
+      actionPost(live.id, "request-commit"),
+      routeCtx(store, client),
+    );
+    expect(sent!.status).toBe(200);
   });
 });
