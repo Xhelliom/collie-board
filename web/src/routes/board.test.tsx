@@ -18,9 +18,12 @@ import type { CardStatus, CardView } from "@/lib/board";
 // is the part that has to hold.
 
 const patchCard = vi.hoisted(() => vi.fn(async () => ({ ok: true as const })));
+const createRun = vi.hoisted(() => vi.fn(async () => ({ run: { id: "r1" }, cardIds: [] as string[] })));
 vi.mock("@/lib/board", async (orig) => ({
   ...(await orig<typeof import("@/lib/board")>()),
   patchCard,
+  createRun,
+  fetchBoardPrefs: async () => ({ autoFollowUps: false, followUpCategories: [], maxAgents: 3, autoHandoff: false }),
   // The remembered repo scope would otherwise navigate the board out from under the test.
   loadRepoScope: () => null,
   saveRepoScope: () => {},
@@ -80,7 +83,7 @@ function viewport(wide: boolean) {
 // jsdom gives a DragEvent no dataTransfer, and the tile writes to it on dragstart.
 const dataTransfer = () => ({ setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "", dropEffect: "" });
 
-async function mount(cards: CardView[]) {
+async function mount(cards: CardView[], url = "/board") {
   const router = createMemoryRouter(
     [
       {
@@ -89,7 +92,7 @@ async function mount(cards: CardView[]) {
         element: <BoardRoute />,
       },
     ],
-    { initialEntries: ["/board"] },
+    { initialEntries: [url] },
   );
   render(<RouterProvider router={router} />);
   await screen.findByRole("heading", { name: "Board", level: 1 });
@@ -176,5 +179,52 @@ describe("board drag and drop — phone", () => {
     viewport(false);
     await mount(two);
     expect(tileOf("Alpha")).not.toHaveAttribute("draggable");
+  });
+});
+
+describe("choosing a run's set (ADR 0017)", () => {
+  const inRepo = (id: string, status: CardStatus, repoPath: string, extra: Partial<CardView> = {}) => ({
+    ...card(id, status, 0),
+    repoPath,
+    ...extra,
+  });
+  const board = [
+    inRepo("Alpha", "backlog", "/repo"),
+    inRepo("Bravo", "ready", "/repo", { dependsOn: "Alpha" }),
+    inRepo("Working", "working", "/repo"),
+    inRepo("Taken", "backlog", "/repo", { runId: "older" }),
+    inRepo("Elsewhere", "backlog", "/other"),
+  ];
+
+  it("offers no selection without a repo scope — a run is one repo's", async () => {
+    await mount(board);
+    expect(screen.queryByRole("button", { name: /select/i })).toBeNull();
+  });
+
+  it("selects only the scoped repo's startable cards, and records exactly those", async () => {
+    viewport(false);
+    await mount(board, "/board?repo=/repo");
+    // The scope is what bounds the set: another repo's card is not even on screen.
+    expect(screen.queryByText("Elsewhere")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+
+    fireEvent.click(tileOf("Alpha"));
+    fireEvent.click(tileOf("Bravo"));
+    fireEvent.click(tileOf("Working"));
+    fireEvent.click(tileOf("Taken"));
+    expect(tileOf("Alpha")).toHaveAttribute("aria-pressed", "true");
+    expect(tileOf("Bravo")).toHaveAttribute("aria-pressed", "true");
+    // Started, or already in a run: not a member to offer.
+    expect(tileOf("Working")).not.toHaveAttribute("aria-pressed");
+    expect(tileOf("Taken")).not.toHaveAttribute("aria-pressed");
+
+    fireEvent.click(tileOf("Bravo"));
+    expect(tileOf("Bravo")).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(tileOf("Bravo"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Run 2 cards" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Lancer le run" }));
+    await act(async () => {});
+    expect(createRun).toHaveBeenCalledWith({ cardIds: ["Alpha", "Bravo"], foldInCap: 2, leadAgent: null });
   });
 });

@@ -219,7 +219,8 @@ export function startServer(opts: {
         pathname.startsWith("/api/cards") ||
         pathname.startsWith("/api/repos") ||
         pathname.startsWith("/api/board") ||
-        pathname.startsWith("/api/backup")
+        pathname.startsWith("/api/backup") ||
+        pathname === "/api/runs"
       ) {
         const rt = registry.get();
         if (!rt) return unknownSession();

@@ -119,6 +119,8 @@ export interface CardView {
   duplicateOf: string | null;
   /** The card that must finish first, or null. A gate on starting, never an auto-trigger. */
   dependsOn: string | null;
+  /** The run this card was handed over in (ADR 0017), or null. Optional: older fixtures omit it. */
+  runId?: string | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -825,6 +827,35 @@ export const MAX_AGENTS_CAP = 32;
 
 export function fetchBoardPrefs(signal?: AbortSignal): Promise<BoardPrefs> {
   return apiRequest<BoardPrefs>("/api/board/prefs", { signal });
+}
+
+/**
+ * A run's start order, as waves: each wave's cards depend on nothing still waiting in the set, so
+ * a wave can run side by side. A `dependsOn` outside the set is not the run's to order — ignored
+ * here; the coordinator's start gate still honours it.
+ */
+export function runWaves(cards: CardView[]): CardView[][] {
+  const waves: CardView[][] = [];
+  let left = cards;
+  while (left.length > 0) {
+    const waiting = new Set(left.map((c) => c.id));
+    const wave = left.filter((c) => !c.dependsOn || !waiting.has(c.dependsOn));
+    // ponytail: the bridge refuses dependency loops, so an empty wave can't happen — the guard only
+    // keeps a corrupt set from spinning forever.
+    if (wave.length === 0) return [...waves, left];
+    waves.push(wave);
+    left = left.filter((c) => !wave.includes(c));
+  }
+  return waves;
+}
+
+/** Record a run (ADR 0017). Starts nothing — the coordinator does. */
+export function createRun(input: {
+  cardIds: string[];
+  foldInCap: number;
+  leadAgent: string | null;
+}): Promise<{ run: { id: string }; cardIds: string[] }> {
+  return apiRequest("/api/runs", { method: "POST", body: JSON.stringify(input) });
 }
 
 /** Only the keys you send change — the bridge treats this POST as a patch. */
