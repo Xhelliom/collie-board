@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.158.0] - 2026-09-25
+
+### Added
+
+- Runs : `RunCoordinator` (`bridge/run.ts`) démarre les membres par slot et dans l'ordre, fait trancher le lead à chaque atterrissage, ouvre la PR puis classe la carte ; halte après 5 tours (c3b30f3)
+- Journal de carte : `run.triaged` (verdict de la revue accepté ou non, avec la raison) ; un follow-up jeté est nommé (c3b30f3)
+
 ## [0.157.0] - 2026-09-25
 
 ### Added
