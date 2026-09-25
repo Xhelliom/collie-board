@@ -49,6 +49,16 @@ describe("lead prompts", () => {
     expect(p).toContain("resolved | prompt | halt");
   });
 
+  it("check on an explore card judges the conclusion, not the diff", () => {
+    const code = checkPrompt({ ...brief, statSummary: "" });
+    const explore = checkPrompt({ ...brief, statSummary: "", category: "explore" });
+    expect(code).toContain("every acceptance criterion holds in the code");
+    expect(explore).not.toContain("every acceptance criterion holds in the code");
+    expect(explore).toContain("the conclusion answers the card's question");
+    expect(explore).toContain("cards it proposed are defensible");
+    expect(checkPrompt({ ...brief, statSummary: "", category: "bug" })).toBe(code);
+  });
+
   it("is pure — same input, same prompt", () => {
     expect(checkPrompt({ ...brief, statSummary: "" })).toBe(checkPrompt({ ...brief, statSummary: "" }));
   });

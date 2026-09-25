@@ -38,7 +38,7 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
 import {
   cardDiffStat,
   cardDiffSummary,
@@ -127,10 +127,10 @@ export interface BoardContext {
 export function parseCardBody(
   v: unknown,
   opts: { requireTitle: boolean },
-): { ok: true; value: CardPatch & { title?: string } } | { ok: false; error: string } {
+): { ok: true; value: CardPatch & { title?: string; category?: typeof DECLARABLE_CATEGORY } } | { ok: false; error: string } {
   if (typeof v !== "object" || v === null) return { ok: false, error: "bad body" };
   const o = v as Record<string, unknown>;
-  const out: CardPatch & { title?: string } = {};
+  const out: CardPatch & { title?: string; category?: typeof DECLARABLE_CATEGORY } = {};
 
   if ("title" in o) {
     if (typeof o.title !== "string" || o.title.trim() === "") return { ok: false, error: "title required" };
@@ -182,6 +182,15 @@ export function parseCardBody(
   if ("keepWorktree" in o) {
     if (typeof o.keepWorktree !== "boolean") return { ok: false, error: "bad keepWorktree" };
     out.keepWorktree = o.keepWorktree;
+  }
+
+  // Create-only, and only `explore`: the one category that says what a card IS rather than why the
+  // review filed it (see `Card.category`). Every other value stays the copilot's to set, and
+  // `origin`/`originCardId` are still read from nowhere in this body (ADR 0010).
+  if ("category" in o) {
+    if (!opts.requireTitle) return { ok: false, error: "category is set at creation" };
+    if (o.category !== DECLARABLE_CATEGORY) return { ok: false, error: `category must be ${DECLARABLE_CATEGORY}` };
+    out.category = DECLARABLE_CATEGORY;
   }
 
   if ("autoHandoff" in o) {

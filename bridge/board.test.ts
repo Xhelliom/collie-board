@@ -482,6 +482,27 @@ describe("parseCardBody", () => {
     });
   });
 
+  it("lets a create declare explore, and only explore, and never on a patch", () => {
+    expect(parseCardBody({ title: "Why?", category: "explore" }, { requireTitle: true })).toEqual({
+      ok: true,
+      value: { title: "Why?", category: "explore" },
+    });
+    expect(parseCardBody({ title: "x", category: "bug" }, { requireTitle: true })).toEqual({
+      ok: false,
+      error: "category must be explore",
+    });
+    expect(parseCardBody({ category: "explore" }, { requireTitle: false })).toEqual({
+      ok: false,
+      error: "category is set at creation",
+    });
+    // Provenance is still not declarable alongside it (ADR 0010).
+    const withOrigin = parseCardBody(
+      { title: "x", category: "explore", origin: "copilot", originCardId: "c1" },
+      { requireTitle: true },
+    );
+    expect(withOrigin).toEqual({ ok: true, value: { title: "x", category: "explore" } });
+  });
+
   it("accepts an empty patch", () => {
     expect(parseCardBody({}, { requireTitle: false })).toEqual({ ok: true, value: {} });
   });
@@ -1618,7 +1639,7 @@ describe("pickTag", () => {
 
 describe("followUpCategories", () => {
   it("defaults to the whole vocabulary — opting into follow-ups opts into all of them", () => {
-    expect(db().followUpCategories()).toEqual(["test", "feature", "bug", "docs", "chore"]);
+    expect(db().followUpCategories()).toEqual(["test", "feature", "bug", "docs", "chore", "explore"]);
   });
 
   it("round-trips a subset in the vocabulary's order, and survives the restart", () => {
@@ -1645,9 +1666,10 @@ describe("pickCategory", () => {
     expect(pickCategory("test")).toBe("test");
     expect(pickCategory(" Feature ")).toBe("feature");
     expect(pickCategory("BUG")).toBe("bug");
+    expect(pickCategory("explore")).toBe("explore");
   });
 
-  it("falls back to chore rather than inventing a sixth category", () => {
+  it("falls back to chore rather than inventing a category", () => {
     // A category no filter knows about is a card that filter can never show — the one outcome the
     // closed vocabulary exists to prevent.
     expect(pickCategory("refactor")).toBe("chore");
@@ -3734,6 +3756,21 @@ describe("POST /api/cards — provenance for a card an agent filed mid-turn (ADR
     await handleBoardRoute("/api/cards", createPost("I typed this"), routeCtx(store));
 
     expect(filed(store, "I typed this").origin).toBeNull();
+  });
+
+  it("lets a person file an explore card, and the body still can't claim a provenance", async () => {
+    const store = db();
+    const req = new Request("http://x/api/cards", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Why is X slow?", category: "explore", origin: "copilot", originCardId: "c1" }),
+    });
+
+    expect((await handleBoardRoute("/api/cards", req, routeCtx(store)))!.status).toBe(200);
+    const card = filed(store, "Why is X slow?");
+    expect(card.category).toBe("explore");
+    expect(card.origin).toBeNull();
+    expect(card.originCardId).toBeNull();
   });
 
   it("refuses a forged origin in the body — provenance is derived, never declared", async () => {

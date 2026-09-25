@@ -111,11 +111,12 @@ const taken = (p: BoardPrefs): Prefs => ({
   followUpCategories: p.followUpCategories,
 });
 
-/** The vocabulary reads as five bare words on the wire; these are what they mean on a settings row. */
+/** The vocabulary reads as bare words on the wire; these are what they mean on a settings row. */
 const CATEGORY_LABEL: Record<CardCategory, string> = {
   test: "Testing to do",
   feature: "Missing feature",
   bug: "Bug found",
   docs: "Docs to write",
   chore: "Chore",
+  explore: "Question to explore",
 };

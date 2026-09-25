@@ -405,8 +405,8 @@ export function pickTag(proposed: string | undefined, inventory: string[]): stri
 /**
  * Snap a copilot-proposed category onto the closed vocabulary. Pure + exported.
  *
- * Unlike {@link pickTag} this invents NOTHING: the vocabulary is the whole point — a sixth category
- * the model made up would be a card that no filter built on these five can see. Anything it doesn't
+ * Unlike {@link pickTag} this invents NOTHING: the vocabulary is the whole point — a category the
+ * model made up would be a card that no filter built on the vocabulary can see. Anything it doesn't
  * recognise, and a missing answer, land on `chore`: the bucket that already means "the rest", and
  * the safe direction — a mis-filed chore is noise, a mis-filed `test` is a card hidden by a filter
  * that was meant to hide the noise.
@@ -813,6 +813,8 @@ function categoryRule(): string[] {
     "- bug: something that looks broken or off-spec in what you just reviewed.",
     "- docs: README, CHANGELOG, an ADR, a comment that no longer matches the code.",
     "- chore: cleanup, refactoring, dependency or tooling work, a TODO left behind.",
+    "- explore: a question to answer by reading before anyone codes — the answer is a conclusion",
+    "  and proposed cards, not a diff.",
     "Pick the one that names why the card exists, not the one that sounds most urgent.",
   ];
 }
@@ -985,7 +987,7 @@ export function reviewPrompt(input: {
     '  "verdict": "complete | partial | drift",',
     '  "notes": "the report, as Markdown — see HOW TO WRITE `notes` above. Escape the newlines.",',
     '  "todos": [',
-    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore", "tiny": true or false }',
+    '    { "title": "one short imperative line", "spec": "what to do and why, from the review above", "acceptance": ["…"], "tag": "…", "category": "test | feature | bug | docs | chore | explore", "tiny": true or false }',
     "  ]",
     "}",
   );
