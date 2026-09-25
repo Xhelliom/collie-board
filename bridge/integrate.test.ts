@@ -27,6 +27,7 @@ import { BoardDb, type CardSession } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { Config } from "./config.ts";
 import {
+  armAutoMerge,
   cleanupCard,
   mergeCard,
   rebindDependents,
@@ -613,5 +614,41 @@ describe("a landed card keeps the diff its review reads", () => {
     const card = store.createCard({ title: "x" });
     expect(landedStat(store, card.id)).toBeNull();
     expect(await cardDiffSummary(store, card.id)).toBe("(no worktree for this card)");
+  });
+});
+
+describe("armAutoMerge — GitHub merges on green, and its refusal is a note, not a failure", () => {
+  it("passes --auto and the strategy as argv, and journals the arming", async () => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    const calls: string[][] = [];
+    const gh: GitRunner = async (args) => (calls.push(args), { ok: true, stdout: "", stderr: "" });
+    await armAutoMerge(store, card.id, "/repo", "board/x", gh);
+    expect(calls[0]).toEqual(["pr", "merge", "board/x", "--auto", "--squash"]);
+    expect(store.listEvents(card.id)[0]?.type).toBe("card.automerge_armed");
+  });
+
+  it("writes GitHub's refusal on the card and resolves — the PR stays opened", async () => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    const gh: GitRunner = async () => ({
+      ok: false,
+      stdout: "",
+      stderr: "GraphQL: Pull request Protected branch rules not configured for this branch (enablePullRequestAutoMerge)\n",
+    });
+    await armAutoMerge(store, card.id, "/repo", "board/x", gh);
+    const [e] = store.listEvents(card.id);
+    expect(e?.type).toBe("card.automerge_refused");
+    expect(JSON.stringify(e?.payload)).toContain("Protected branch rules not configured");
+  });
+
+  it("a gh that is not even there is a refusal too, never a throw", async () => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    const gh: GitRunner = async () => {
+      throw new Error("ENOENT: gh");
+    };
+    await armAutoMerge(store, card.id, "/repo", "board/x", gh);
+    expect(store.listEvents(card.id)[0]?.type).toBe("card.automerge_refused");
   });
 });

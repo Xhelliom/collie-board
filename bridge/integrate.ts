@@ -31,6 +31,7 @@ import {
   cardDiffStat,
   createPr,
   deleteBranch,
+  enableAutoMerge,
   fetchBase,
   formatDiffStat,
   integrationOf,
@@ -42,7 +43,9 @@ import {
   refusalMessage,
   removeWorktreeAt,
   restoreBranch,
+  runGh,
   worktreePathFor,
+  type GitRunner,
   type Integration,
   type PrStatus,
 } from "./git.ts";
@@ -225,7 +228,12 @@ export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base:
  * The body is the card: its spec and acceptance criteria are what the PR is FOR, and re-deriving
  * them from the diff is exactly the work the board exists to avoid.
  */
-export async function prForCard(db: BoardDb, card: Card): Promise<Result<{ url: string | null }>> {
+export async function prForCard(
+  db: BoardDb,
+  card: Card,
+  /** A run sets it (ADR 0017): GitHub merges on green. Off, this is the "Open a PR & done" tap. */
+  opts: { autoMerge?: boolean } = {},
+): Promise<Result<{ url: string | null }>> {
   const checked = await gate(card, "pr");
   if (!checked.ok) return checked;
   const { state } = checked;
@@ -291,7 +299,27 @@ export async function prForCard(db: BoardDb, card: Card): Promise<Result<{ url: 
     base: state.base,
     url: pr.url,
   });
+  if (opts.autoMerge) await armAutoMerge(db, card.id, card.repoPath!, state.branch);
   return { ok: true, value: { url: pr.url } };
+}
+
+/**
+ * Arm GitHub's auto-merge on a just-opened PR, and journal what GitHub said. NEVER fails the PR: a
+ * refusal (no branch protection, auto-merge off on the repo) is written on the card and the card
+ * counts as done with its PR open — ADR 0017, step 7.
+ */
+export async function armAutoMerge(
+  db: BoardDb,
+  cardId: string,
+  repoPath: string,
+  branch: string,
+  gh: GitRunner = runGh,
+): Promise<void> {
+  const r = await enableAutoMerge(repoPath, branch, gh);
+  db.recordEvent(cardId, r.ok ? "card.automerge_armed" : "card.automerge_refused", {
+    branch,
+    ...(r.ok ? {} : { error: r.error }),
+  });
 }
 
 /** Both ways a conflict can find nobody to hand itself to — see `resolveConflict`. */

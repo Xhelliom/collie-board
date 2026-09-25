@@ -861,6 +861,29 @@ export async function createPr(
   return { ok: false, error: message.split("\n").slice(0, 4).join("\n") };
 }
 
+/** How a run's PR merges once GitHub says it may. A constant until something asks to choose. */
+export const AUTO_MERGE_STRATEGY = "--squash";
+
+/**
+ * Ask GitHub to merge the branch's PR itself once its checks pass (ADR 0017, step 7). GitHub is the
+ * watcher: the board never polls for green. A repo without branch protection makes `gh` refuse —
+ * that is an answer, not a crash, so it comes back as `ok: false` for the caller to journal.
+ * Same leading-`-` guard as {@link prStatusOf}: `gh pr merge` takes one positional, no `--`.
+ */
+export async function enableAutoMerge(
+  repoPath: string,
+  branch: string,
+  gh: GitRunner = runGh,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!branch || branch.startsWith("-")) return { ok: false, error: `refusing branch name ${JSON.stringify(branch)}` };
+  try {
+    const r = await gh(["pr", "merge", branch, "--auto", AUTO_MERGE_STRATEGY], repoPath);
+    return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /**
  * What a card's pull request BECAME, as GitHub sees it. `mergedAt` is epoch ms, null unless merged.
  *
