@@ -39,6 +39,10 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       const c = cards[id];
       return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
     },
+    runMembers: (runId: string) =>
+      Object.entries(cards)
+        .filter(([, c]) => c.runId === runId)
+        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
   } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row> };
 }
 
@@ -50,6 +54,7 @@ interface Row {
   handoff: number | null;
   /** The card this one waits on — the successor half is what B4 notifies. */
   dependsOn?: string;
+  runId?: string;
 }
 
 /** The coordinator, reduced to what the board drives it through: an opaque key and its two verbs. */
@@ -446,5 +451,66 @@ describe("BoardNotifier — B4, the one that opens a door", () => {
     notifier.update();
     expect(alerts.log).toEqual([]);
     expect(new NotifyLog(() => 0).recent()).toHaveLength(0);
+  });
+});
+
+describe("BoardNotifier — how a run ends (ADR 0017)", () => {
+  const halted = (id: number) => event(id, "run.halted", { runId: "r1", reason: "5 rounds without the lead finding it finished" });
+  const done = (id: number) => ({ ...event(id, "run.finished", { runId: "r1" }), cardId: null });
+  const run = () =>
+    source([], {
+      c1: { title: "First", status: "done", repoPath: "/src/collie-board", session: null, handoff: null, runId: "r1" },
+      c2: { title: "Second", status: "done", repoPath: "/src/collie-board", session: null, handoff: null, runId: "r1" },
+    });
+
+  test("a halt asks for the operator about the card, and retracts when they act on it", () => {
+    const db = run();
+    db.cards.c1!.status = "review";
+    db.cards.c1!.session = "s1";
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(halted(1));
+    notifier.update();
+    const alert = alerts.armed.get("card:c1")!;
+    expect(notifyMarker(alert)).toBe("Needs you");
+    expect(alert.subtitle).toBe("run halted: 5 rounds without the lead finding it finished");
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1"]);
+
+    // The operator prompts the worker: it goes back to work, the card leaves `review`.
+    db.cards.c1!.status = "working";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  });
+
+  test("a finished run is one `Done` in the herd's slot, retracted once a member moves", () => {
+    const db = run();
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(done(1));
+    notifier.update();
+    const alert = alerts.armed.get("run:r1")!;
+    expect(notifyMarker(alert)).toBe("Done");
+    expect(notifyCardId(alert)).toBe("c1");
+    expect(alert.subtitle).toBe("run finished — all 2 cards filed");
+    notifier.update();
+    expect(alerts.log).toEqual(["arm run:r1"]);
+
+    // Archived — the operator has seen it.
+    db.cards.c2!.status = "archived";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm run:r1", "retract run:r1"]);
+  });
+
+  test("a worker gone blocked raises no run alert — its pane already says it", () => {
+    const db = run();
+    db.cards.c1!.status = "blocked";
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(event(1, "card.status", { to: "blocked", reason: paneReason("blocked") }));
+    notifier.update();
+    expect(alerts.log).toEqual([]);
   });
 });
