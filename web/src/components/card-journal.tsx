@@ -221,14 +221,13 @@ function leadDecision(p: Record<string, unknown>): string {
       return "Lead: done";
     case "prompt":
       return p.prompt ? `Lead sent a follow-up: “${String(p.prompt)}”` : "Lead sent a follow-up";
-    case "accept_drift":
-      return "Lead accepted the drift from the spec";
     case "keep":
       return "Lead kept this follow-up for later";
     case "fold":
       return "Lead folded this follow-up into the run";
     case "drop":
-      return "Lead dropped this follow-up";
+      // Journaled on the reviewed card — the follow-up itself is deleted — so it names it.
+      return p.followUp ? `Lead dropped the follow-up “${String(p.followUp)}”` : "Lead dropped this follow-up";
     default:
       return `Lead decided ${String(p.decision)}`;
   }
@@ -307,6 +306,8 @@ export function describeEvent(event: BoardEvent): string {
     // carries the reason: a decision without its why is a diff you'd have to go read after all.
     case "run.decision":
       return `${leadDecision(p)} — ${String(p.reason ?? "no reason given")}`;
+    case "run.triaged":
+      return `Lead ${p.accept ? "accepted" : "rejected"} the review's verdict${p.verdict ? ` (${String(p.verdict)})` : ""} — ${String(p.reason ?? "no reason given")}`;
     case "run.halted":
       return `Run halted, needs you — ${String(p.reason ?? "no reason given")}`;
     case "run.finished":

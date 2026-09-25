@@ -300,6 +300,11 @@ export class RunCoordinator {
   }
 }
 
+/** What the lead is told of a card. `category` is what makes the check an explore card's (ADR 0017). Pure. */
+export function briefOf(card: Card, worktree: string, base: string): CardBrief {
+  return { title: card.title, spec: card.spec, acceptance: card.acceptance, category: card.category, worktree, base };
+}
+
 // ── wiring ────────────────────────────────────────────────────────────────────
 
 /** The live lead's pane, so the notification hook can silence it as it does the copilot's. */
@@ -331,7 +336,7 @@ export function runHook(
       const worktree = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
       if (!worktree) return null;
       const base = await resolveBase(worktree, card.baseRef);
-      return { title: card.title, spec: card.spec, acceptance: card.acceptance, worktree, base };
+      return briefOf(card, worktree, base);
     },
     stat: (cardId) => cardDiffSummary(db, cardId),
     freeSlots: () => (db.maxAgents() ?? cfg.boardMaxAgents) - runningCards(db),

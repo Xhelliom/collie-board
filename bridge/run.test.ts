@@ -2,7 +2,8 @@ import { describe, expect, it } from "bun:test";
 
 import { BoardDb, type Card } from "./db.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
-import { MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { checkPrompt } from "./lead.ts";
+import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -257,5 +258,15 @@ describe("RunCoordinator (ADR 0017)", () => {
     after.coord.update(snap({ p: "idle" }));
     await flush();
     expect(after.calls).toEqual(["pr a", "done a"]);
+  });
+
+  it("tells the lead an explore card is one, so its check is the explore check", () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "x", repoPath: "/r", category: "explore" });
+    const brief = briefOf(card, "/wt", "main");
+    expect(brief.category).toBe("explore");
+    expect(checkPrompt({ ...brief, statSummary: "", outPath: "o.json" })).not.toBe(
+      checkPrompt({ ...brief, category: null, statSummary: "", outPath: "o.json" }),
+    );
   });
 });
