@@ -78,6 +78,7 @@ import {
   refineCard,
   reformulateCard,
   repoName,
+  requestCardCommit,
   revertCard,
   reviewCard,
   startCard,
@@ -139,6 +140,7 @@ export function CardRoute() {
   const [refining, setRefining] = useState(false);
   /** The "Review again" tap, until the bridge answers — past that `copilotBusy` carries it. */
   const [reviewing, setReviewing] = useState(false);
+  const [committing, setCommitting] = useState(false);
   // Lifted out of <IntegrationSection> for one reason: "Done" must not be offered on its own while
   // the branch still holds commits. Filing first is the order everybody reaches for and it is the
   // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
@@ -190,6 +192,7 @@ export function CardRoute() {
     // This screen is NOT remounted between cards, so a request still in flight on the card you
     // just left would otherwise show its own button as busy on the next one.
     setReviewing(false);
+    setCommitting(false);
   }, [card?.id]);
 
   async function move(status: CardStatus) {
@@ -433,6 +436,26 @@ export function CardRoute() {
       revalidator.revalidate();
     } finally {
       setReviewing(false);
+    }
+  }
+
+  // The agent stopped before `git commit`: one tap asks THIS card's agent to commit what it left
+  // uncommitted, in the branch it is still sitting in. The prompt is fixed bridge-side, so this
+  // cannot drift into a new assignment — and it is what the review's commit actions do too
+  // (`finish-now` on a commit todo sends the same words). Real latency, like `start`: the request
+  // holds while the prompt is delivered and confirmed.
+  async function askCommit() {
+    if (!card || committing) return;
+    setCommitting(true);
+    setStatus("Demande de commit envoyée à l'agent…", "info", null);
+    try {
+      await requestCardCommit(card.id);
+      setStatus("Commit demandé — l'agent commite dans sa branche.", "success");
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setCommitting(false);
+      revalidator.revalidate();
     }
   }
 
@@ -869,6 +892,15 @@ export function CardRoute() {
                 {detail && detail.reviews.length > 0 && (
                   <Section label="Review">
                     <div className="flex flex-col gap-2">
+                      {/* The agent stopped before `git commit`: the review saw the uncommitted files
+                          in the working-tree diff, and filing a card for that would be a worktree
+                          and an agent to run one git command. This asks THIS card's agent instead —
+                          the one still sitting in the branch — in one tap. Shown whenever the agent
+                          is still there, not gated on the verdict: a `complete` with uncommitted
+                          files left behind needs it just as much as a `partial`. */}
+                      {card.runtime && (
+                        <RequestCommitRow pending={committing} onAsk={() => void askCommit()} />
+                      )}
                       {/* Reopen a `partial`, do the missing work, and the card still shows the old
                           verdict — nothing on this screen said "look again". This is that tap. Not
                           gated on the verdict: a `complete` re-read after more commits is the same
@@ -1215,6 +1247,35 @@ export function TinyTodoRow({
 }
 
 /**
+ * The agent stopped before `git commit` — ask it to commit, here, now. The counterpart on screen
+ * of the review's commit actions (`TinyTodo` rows below do the same through `finish-now`): same
+ * fixed prompt bridge-side, same agent, but available without waiting for a review to name the
+ * files. Offered whenever the agent is still there — the caller gates on `card.runtime`.
+ *
+ * Pure UI over `requestCardCommit`: the pending state lives with the caller so the row stays a
+ * dumb row, pinnable by a test without a loader behind it.
+ */
+export function RequestCommitRow({ pending, onAsk }: { pending: boolean; onAsk: () => void }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
+      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        Fichiers non commités ? L&apos;agent s&apos;est juste arrêté avant de commiter.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9 shrink-0 gap-2"
+        disabled={pending}
+        onClick={onAsk}
+      >
+        <GitBranch className="size-4" />
+        {pending ? "Envoi…" : "Demander le commit"}
+      </Button>
+    </div>
+  );
+}
+
+/**
  * Start / relaunch. One tap creates the worktree, opens the workspace, launches the agent and sends
  * the spec — the whole point of Phase 2 is that this needs no keyboard.
  *
@@ -1424,6 +1485,7 @@ export function IntegrationSection({
   const [conflict, setConflict] = useState<"merge" | "pr" | null>(null);
   const [awaitingResolve, setAwaitingResolve] = useState<"merge" | "pr" | null>(null);
   const [restarting, setRestarting] = useState(false);
+  const [askingCommit, setAskingCommit] = useState(false);
   const [unexplained, setUnexplained] = useState<{ action: string; error: string } | null>(null);
   const { confirm, pending } = usePendingConfirm();
 
@@ -1700,12 +1762,35 @@ export function IntegrationSection({
 
         {/* Loudest thing here when true: the card's diff shows this work, but no merge will take it.
             Every foreseeable refusal is stated BEFORE the button, in the same dashed tinted note, and
-            the button it blocks renders faded (see the merge/PR buttons below). */}
+            the button it blocks renders faded (see the merge/PR buttons below). The commit itself is
+            one tap when the agent is still there — same ask as the review's commit actions. */}
         {state.branchDirty && (
-          <p className="rounded-lg border border-dashed border-status-working/45 bg-status-working/10 px-3 py-2 text-xs text-status-working">
-            Uncommitted work in the card's checkout — commit it from the agent's pane, or it will not
-            be integrated.
-          </p>
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-status-working/45 bg-status-working/10 px-3 py-2">
+            <p className="text-xs text-status-working">
+              Uncommitted work in the card&apos;s checkout — commit it, or it will not be integrated.
+            </p>
+            {card.runtime && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-fit gap-2 bg-background"
+                disabled={busy !== null || askingCommit}
+                onClick={() => {
+                  setAskingCommit(true);
+                  requestCardCommit(card.id)
+                    .then(() => setStatus("Commit demandé — l'agent commite dans sa branche.", "success"))
+                    .catch((e) => setStatus(boardErrorMessage(e), "error", null))
+                    .finally(() => {
+                      setAskingCommit(false);
+                      onDone();
+                    });
+                }}
+              >
+                <GitBranch className="size-4" />
+                {askingCommit ? "Envoi…" : "Demander le commit"}
+              </Button>
+            )}
+          </div>
         )}
 
         {/* Both of these are refusals the client can see coming. Saying them here rather than
