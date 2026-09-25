@@ -74,10 +74,16 @@ describe("describe", () => {
       describeEvent(event("run.decision", { runId: "r1", decision, reason: "tests green", ...extra }));
     expect(d("finished")).toBe("Lead: done — tests green");
     expect(d("prompt", { prompt: "add the test" })).toBe("Lead sent a follow-up: “add the test” — tests green");
-    expect(d("accept_drift")).toBe("Lead accepted the drift from the spec — tests green");
     expect(d("keep")).toBe("Lead kept this follow-up for later — tests green");
     expect(d("fold")).toBe("Lead folded this follow-up into the run — tests green");
     expect(d("drop")).toBe("Lead dropped this follow-up — tests green");
+    expect(d("drop", { followUp: "Doc it" })).toBe("Lead dropped the follow-up “Doc it” — tests green");
+    expect(describeEvent(event("run.triaged", { runId: "r1", verdict: "drift", accept: true, reason: "better path" }))).toBe(
+      "Lead accepted the review's verdict (drift) — better path",
+    );
+    expect(describeEvent(event("run.triaged", { runId: "r1", verdict: null, accept: false, reason: "misread" }))).toBe(
+      "Lead rejected the review's verdict — misread",
+    );
     expect(describeEvent(event("run.halted", { runId: "r1", reason: "merge conflict" }))).toBe(
       "Run halted, needs you — merge conflict",
     );

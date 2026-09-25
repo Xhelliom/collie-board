@@ -350,14 +350,25 @@ export interface Run {
 
 /**
  * What the lead may decide about a card, written with its reason. `finished` / `prompt` answer the
- * check; `accept_drift` and `keep` / `fold` / `drop` the triage (a triaged follow-up carries the
- * decision on its OWN journal).
+ * check (and the conflict re-check); `keep` / `fold` / `drop` the triage — a kept or folded
+ * follow-up carries the decision on its OWN journal, a dropped one on the reviewed card's, since it
+ * is deleted.
  */
-export type LeadDecision = "finished" | "prompt" | "accept_drift" | "keep" | "fold" | "drop";
+export type LeadDecision = "finished" | "prompt" | "keep" | "fold" | "drop";
 
 /** The `run.*` journal kinds and their payloads — the single source of both. */
 export interface RunEventPayloads {
-  "run.decision": { runId: string; decision: LeadDecision; reason: string; /** `prompt` only. */ prompt?: string };
+  "run.decision": {
+    runId: string;
+    decision: LeadDecision;
+    reason: string;
+    /** `prompt` only. */
+    prompt?: string;
+    /** `drop` only: the deleted follow-up's title. */
+    followUp?: string;
+  };
+  /** The lead read the review's verdict with the code. Once per card: it is also the triage's marker. */
+  "run.triaged": { runId: string; verdict: string | null; accept: boolean; reason: string };
   /** Every member is filed. Journaled with a null card: it is the run's, not one card's. */
   "run.finished": { runId: string };
   /** On the card that needs the operator. */
@@ -366,7 +377,12 @@ export interface RunEventPayloads {
 
 export type RunEventKind = keyof RunEventPayloads;
 
-export const RUN_EVENT_KINDS: readonly RunEventKind[] = ["run.decision", "run.finished", "run.halted"];
+export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
+  "run.decision",
+  "run.triaged",
+  "run.finished",
+  "run.halted",
+];
 
 export interface BoardEvent {
   id: number;
@@ -411,6 +427,10 @@ interface RunRow {
   created_at: number;
   fold_in_cap: number;
   lead_agent: string | null;
+}
+
+function toRun(r: RunRow): Run {
+  return { id: r.id, repoPath: r.repo_path, createdAt: r.created_at, foldInCap: r.fold_in_cap, leadAgent: r.lead_agent };
 }
 
 interface SessionRow {
@@ -1181,9 +1201,24 @@ export class BoardDb {
 
   getRun(id: string): Run | null {
     const r = this.db.query<RunRow, [string]>("SELECT * FROM run WHERE id = ?").get(id);
-    return r
-      ? { id: r.id, repoPath: r.repo_path, createdAt: r.created_at, foldInCap: r.fold_in_cap, leadAgent: r.lead_agent }
-      : null;
+    return r ? toRun(r) : null;
+  }
+
+  /** The runs not yet journaled `run.finished` — the coordinator's working set. */
+  listOpenRuns(): Run[] {
+    return this.db
+      .query<RunRow, []>(
+        `SELECT * FROM run WHERE id NOT IN (
+           SELECT json_extract(payload, '$.runId') FROM event WHERE type = 'run.finished')
+         ORDER BY created_at`,
+      )
+      .all()
+      .map(toRun);
+  }
+
+  /** A follow-up the lead folded into the run: it becomes a member. */
+  joinRun(cardId: string, runId: string): void {
+    this.db.query("UPDATE card SET run_id = ? WHERE id = ?").run(runId, cardId);
   }
 
   runMembers(runId: string): Card[] {
