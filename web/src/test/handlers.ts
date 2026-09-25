@@ -186,6 +186,13 @@ export const handlers = [
     }),
   ),
   http.get("/api/config", () => HttpResponse.json({ push: false, vapidPublicKey: "" })),
+  // Card diff. Empty by default so rendering a card page never leaks a real-network fetch: with no
+  // handler MSW warns and passes through, and the rejection lands after jsdom teardown as an
+  // unhandled rejection — which fails the whole file even though every test passed. Tests that
+  // exercise the diff register their own exact handler, which wins over this default.
+  http.get(/\/api\/cards\/[^/]+\/diff/, () =>
+    HttpResponse.json({ ok: true, base: "", cwd: "", files: [], added: 0, removed: 0 }),
+  ),
   http.post("/api/notifications/snooze", async ({ request }) => {
     const { snoozedUntil } = (await request.json()) as { snoozedUntil: number | null };
     return HttpResponse.json({ snoozedUntil });
