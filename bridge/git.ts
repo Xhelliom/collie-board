@@ -26,6 +26,12 @@ import { join, resolve, sep } from "node:path";
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
 const GIT_TIMEOUT_MS = 15_000;
 
+/**
+ * A push runs the repo's `pre-push` hook, which may typecheck and run a whole test suite — this
+ * repo's takes about a minute. Under the 15 s cap the bridge killed every push mid-hook.
+ */
+const PUSH_TIMEOUT_MS = 10 * 60_000;
+
 /** Cap on a single file diff handed to the phone. Beyond this you want a laptop anyway. */
 const MAX_DIFF_BYTES = 512 * 1024;
 
@@ -77,7 +83,7 @@ export const runGit: GitRunner = async (args, cwd) => {
       LANG: "C",
     },
   });
-  const timer = setTimeout(() => proc.kill(), GIT_TIMEOUT_MS);
+  const timer = setTimeout(() => proc.kill(), args[0] === "push" ? PUSH_TIMEOUT_MS : GIT_TIMEOUT_MS);
   try {
     const [stdout, stderr, code] = await Promise.all([
       new Response(proc.stdout).text(),
