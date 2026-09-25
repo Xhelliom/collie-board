@@ -255,6 +255,7 @@ describe("reconcileOne", () => {
     updatedAt: 0,
     keepWorktree: false,
     autoHandoff: null,
+    runId: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -596,6 +597,7 @@ describe("initialPrompt", () => {
     updatedAt: 0,
     keepWorktree: false,
     autoHandoff: null,
+    runId: null,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1245,6 +1247,7 @@ describe("handoff prompts", () => {
     updatedAt: 0,
     keepWorktree: false,
     autoHandoff: null,
+    runId: null,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {

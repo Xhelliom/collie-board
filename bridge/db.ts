@@ -209,6 +209,11 @@ export interface Card {
    * `off` — its pane reads idle while that work goes on, and a fresh session would close it.
    */
   autoHandoff: AutoHandoffChoice | null;
+  /**
+   * The run this card was handed over in, or null — ADR 0017. Membership is INTENT, so it is a
+   * column; whether the run is still going is read from the cards' states, never stored.
+   */
+  runId: string | null;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -317,6 +322,41 @@ export interface Review {
   createdAt: number;
 }
 
+/**
+ * A run's durable half — ADR 0017: the set of cards of one repo the operator handed over in one
+ * gesture. Only what the gesture decided lives here; which worker is alive, which card the lead is
+ * on, whether the run is over — all read from the snapshot and the cards, so a restart resumes.
+ */
+export interface Run {
+  id: string;
+  repoPath: string;
+  createdAt: number;
+  /** How many follow-ups the lead may fold into the run. Past it, a follow-up is a card for later. */
+  foldInCap: number;
+  /** The lead's agent kind; null follows the board's default. */
+  leadAgent: string | null;
+}
+
+/**
+ * What the lead may decide about a card, written with its reason. `finished` / `prompt` answer the
+ * check; `accept_drift` and `keep` / `fold` / `drop` the triage (a triaged follow-up carries the
+ * decision on its OWN journal).
+ */
+export type LeadDecision = "finished" | "prompt" | "accept_drift" | "keep" | "fold" | "drop";
+
+/** The `run.*` journal kinds and their payloads — the single source of both. */
+export interface RunEventPayloads {
+  "run.decision": { runId: string; decision: LeadDecision; reason: string; /** `prompt` only. */ prompt?: string };
+  /** Every member is filed. Journaled with a null card: it is the run's, not one card's. */
+  "run.finished": { runId: string };
+  /** On the card that needs the operator. */
+  "run.halted": { runId: string; reason: string };
+}
+
+export type RunEventKind = keyof RunEventPayloads;
+
+export const RUN_EVENT_KINDS: readonly RunEventKind[] = ["run.decision", "run.finished", "run.halted"];
+
 export interface BoardEvent {
   id: number;
   cardId: string | null;
@@ -351,6 +391,15 @@ interface CardRow {
   updated_at: number;
   keep_worktree: number;
   auto_handoff: string | null;
+  run_id: string | null;
+}
+
+interface RunRow {
+  id: string;
+  repo_path: string;
+  created_at: number;
+  fold_in_cap: number;
+  lead_agent: string | null;
 }
 
 interface SessionRow {
@@ -477,6 +526,7 @@ function toCard(r: CardRow): Card {
     updatedAt: r.updated_at,
     keepWorktree: r.keep_worktree === 1,
     autoHandoff: r.auto_handoff === "on" || r.auto_handoff === "off" ? r.auto_handoff : null,
+    runId: r.run_id ?? null,
   };
 }
 
@@ -542,7 +592,18 @@ CREATE TABLE IF NOT EXISTS card (
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   keep_worktree INTEGER NOT NULL DEFAULT 0,
-  auto_handoff  TEXT
+  auto_handoff  TEXT,
+  -- Soft, like parent_id: a card outlives nothing by being in a run. See Card.runId.
+  run_id        TEXT
+);
+
+-- ADR 0017. Intent only — never whether the run is going; that is read from its cards.
+CREATE TABLE IF NOT EXISTS run (
+  id          TEXT PRIMARY KEY,
+  repo_path   TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  fold_in_cap INTEGER NOT NULL,
+  lead_agent  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -847,6 +908,8 @@ export class BoardDb {
       { table: "session", column: "auto_handoff_at", ddl: "INTEGER" },
       // …and a card's own answer to it, over the board pref. Null follows the pref.
       { table: "card", column: "auto_handoff", ddl: "TEXT" },
+      // Runs (ADR 0017). No backfill: no card was ever in a run before the table existed.
+      { table: "card", column: "run_id", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1081,6 +1144,47 @@ export class BoardDb {
     this.db.query("DELETE FROM session WHERE card_id = ?").run(id);
     this.db.query("DELETE FROM event WHERE card_id = ?").run(id);
     this.db.query("DELETE FROM card WHERE id = ?").run(id);
+  }
+
+  // ── runs ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Record the operator's gesture: one run row, and `run_id` on every member, in one transaction.
+   * Refuses — nothing written — a card that is missing or of another repo: a run is one repo's.
+   */
+  createRun(input: { repoPath: string; cardIds: string[]; foldInCap: number; leadAgent?: string | null }): Run {
+    const id = crypto.randomUUID();
+    this.db.transaction(() => {
+      this.db
+        .query("INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent) VALUES (?, ?, ?, ?, ?)")
+        .run(id, input.repoPath, this.now(), input.foldInCap, input.leadAgent ?? null);
+      const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
+      for (const cardId of input.cardIds) {
+        if (join.run(id, cardId, input.repoPath).changes !== 1) {
+          throw new Error(`card ${cardId} is not a card of ${input.repoPath}`);
+        }
+      }
+    })();
+    return this.getRun(id)!;
+  }
+
+  getRun(id: string): Run | null {
+    const r = this.db.query<RunRow, [string]>("SELECT * FROM run WHERE id = ?").get(id);
+    return r
+      ? { id: r.id, repoPath: r.repo_path, createdAt: r.created_at, foldInCap: r.fold_in_cap, leadAgent: r.lead_agent }
+      : null;
+  }
+
+  runMembers(runId: string): Card[] {
+    return this.db
+      .query<CardRow, [string]>("SELECT * FROM card WHERE run_id = ? ORDER BY position, created_at")
+      .all(runId)
+      .map(toCard);
+  }
+
+  /** {@link recordEvent}, typed to the `run.*` kinds so a payload can't drift from its shape. */
+  recordRunEvent<K extends RunEventKind>(cardId: string | null, kind: K, payload: RunEventPayloads[K]): void {
+    this.recordEvent(cardId, kind, payload);
   }
 
   // ── sessions ────────────────────────────────────────────────────────────────
