@@ -26,6 +26,7 @@ import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notif
 import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
+import { isLeadPane, runHook } from "./run.ts";
 import { startServer } from "./server.ts";
 import {
   deriveConfigRoot,
@@ -272,7 +273,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // page the operator exactly like a worker's would. Its pane id, never its (renameable) workspace
     // label, so COLLIE_BOARD_COPILOT_WORKSPACE can't reopen this hole. Primary-only, same as the
     // copilot itself.
-    if (isPrimary && agent.paneId === copilot.paneId) return;
+    if (isPrimary && (agent.paneId === copilot.paneId || isLeadPane(agent.paneId))) return;
     // Same for the spell the board's own automatic handoff prompt causes (auto-handoff.ts) — except a
     // question, which still needs the operator whoever caused it.
     if (isPrimary && to !== "blocked") {
@@ -340,6 +341,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
     const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
     engine.onUpdate(() => boardNotifier.update());
+    // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
+    // silenced like the copilot, above.
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters));
   }
 
   engine.start();
