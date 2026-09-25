@@ -24,7 +24,7 @@ export type CardStatus =
  * A value, not just a type, because the settings screen renders one switch per entry and the board
  * has to agree with the bridge on both the list and its order.
  */
-export const CARD_CATEGORIES = ["test", "feature", "bug", "docs", "chore"] as const;
+export const CARD_CATEGORIES = ["test", "feature", "bug", "docs", "chore", "explore"] as const;
 
 export type CardCategory = (typeof CARD_CATEGORIES)[number];
 

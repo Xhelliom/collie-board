@@ -88,11 +88,20 @@ export const CARD_ORIGINS: readonly CardOrigin[] = ["copilot", "agent"];
  * only `copilot` cards carry one. An `agent`-origin card has no category — the session filing it is
  * not answering a triage question, and the switches that consult this vocabulary
  * ({@link BoardDb.followUpCategories}) exist to throttle the review, not that session.
+ *
+ * ONE EXCEPTION: `explore` (ADR 0017, *Phases before the code*). It is not a triage verdict but what
+ * the card asks for — a question to answer and cards to propose, not a diff — and the lead's check
+ * branches on it. An exploration is usually typed by the operator, so `explore` alone may be
+ * DECLARED at creation (see {@link DECLARABLE_CATEGORY}), by anyone, whatever the origin. Declaring
+ * it says what the card is, never where it came from: `origin`/`originCardId` stay derived (ADR 0010).
  */
-export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore";
+export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore" | "explore";
 
 /** The categories, in the order the prompt lists them. The single source of the vocabulary. */
-export const CARD_CATEGORIES: readonly CardCategory[] = ["test", "feature", "bug", "docs", "chore"];
+export const CARD_CATEGORIES: readonly CardCategory[] = ["test", "feature", "bug", "docs", "chore", "explore"];
+
+/** The one category a create body may carry — see {@link CardCategory}. */
+export const DECLARABLE_CATEGORY = "explore" satisfies CardCategory;
 
 export interface Card {
   id: string;
@@ -168,8 +177,10 @@ export interface Card {
   originCardId: string | null;
   /**
    * What kind of follow-up this is, for a card the copilot filed on its own — see
-   * {@link CardCategory}. Always null when {@link origin} is null: a person's card is not
-   * classified, it is simply a card.
+   * {@link CardCategory}. Null when {@link origin} is null — a person's card is not classified, it
+   * is simply a card — EXCEPT `explore`, which anyone may declare at creation because it says what
+   * the card asks for (a conclusion, not a diff), not why it appeared. Any other value still comes
+   * only from the copilot.
    *
    * Like `origin`, written once at creation and unreachable from any PATCH: it describes why the
    * card appeared, and that doesn't change.
@@ -720,7 +731,7 @@ export interface NewCard {
   origin?: CardOrigin;
   /** Omit for a card that came from nowhere but a person — see {@link Card.originCardId}. */
   originCardId?: string | null;
-  /** Only meaningful alongside {@link NewCard.origin} — see {@link Card.category}. */
+  /** Alongside {@link NewCard.origin}, or `explore` on any card — see {@link Card.category}. */
   category?: CardCategory;
   tag?: string | null;
   /**

@@ -56,6 +56,8 @@ export interface CardBrief {
   worktree: string;
   /** The ref the card forked from; the lead diffs against it. */
   base: string;
+  /** `explore` turns the check from "is the diff complete?" into "is the conclusion sound?". */
+  category?: string | null;
 }
 
 export interface CheckInput extends CardBrief {
@@ -109,16 +111,32 @@ function answer(outPath: string, shape: string[]): string[] {
   ];
 }
 
-/** Step 3: the worker went idle — is the card finished, or does the worker get sent back? Pure. */
+/**
+ * Step 3: the worker went idle — is the card finished, or does the worker get sent back? Pure.
+ *
+ * An `explore` card is read like a diff, but what is judged is its conclusion: does it answer the
+ * question, and are the cards it filed (ADR 0010: `origin: agent`, `originCardId` = this card)
+ * defensible? Sorting those proposals is the triage's job, not this one.
+ */
 export function checkPrompt(input: CheckInput): string {
+  const finished =
+    input.category === "explore"
+      ? [
+          "This is an EXPLORATION: its output is a conclusion and proposed cards, not code. Finished",
+          "means: the conclusion answers the card's question, is grounded in the code it cites, and the",
+          "cards it proposed are defensible — each one real, scoped, and following from the conclusion.",
+        ]
+      : [
+          "Finished means: every acceptance criterion holds in the code, and the work is committed. A drift",
+          "from the spec is fine if it is a better path to the same goal — say so in the reason.",
+        ];
   return [
     ...brief("decide whether the worker on this card is finished.", input),
     "",
     "What changed (git diff --stat):",
     input.statSummary,
     "",
-    "Finished means: every acceptance criterion holds in the code, and the work is committed. A drift",
-    "from the spec is fine if it is a better path to the same goal — say so in the reason.",
+    ...finished,
     "Otherwise write the message the worker will receive: direct, specific, naming the criterion that",
     'is not met and why (e.g. "commit; criterion 2 is not met because …").',
     ...answer(input.outPath, [
