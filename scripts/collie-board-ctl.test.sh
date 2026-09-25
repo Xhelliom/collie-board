@@ -9,6 +9,10 @@ set -euo pipefail
 # land on the real repository (`init` "re-initialises" it, `remote add origin` fails "already
 # exists"). Same guard as bridge/git.ts and the bun fixtures.
 unset GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_INDEX_FILE
+# Same for the service's own config: a push made BY the bridge runs this suite with the unit's
+# environment (its .env included), and an inherited COLLIE_BOARD_TRUSTED_USER masks what `setup`
+# is supposed to derive. The suite sets every variable it means to test.
+for v in $(compgen -e | grep -E '^(COLLIE_BOARD_|HERDR_)'); do unset "$v"; done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CTL="${ROOT}/scripts/collie-board-ctl.sh"
