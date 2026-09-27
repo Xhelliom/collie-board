@@ -7,54 +7,70 @@
 **A phone Kanban for your [Herdr](https://herdr.dev) agent herd, served over Tailscale.** Dictate a
 task into a card. Tap it: the board opens its own git worktree, its own herdr workspace and its own
 agent, and hands it the spec. The card then moves itself as the agent works, blocks or finishes —
-and when the work is done, you merge it or open a PR from the same screen, on the phone.
+and when the work is done you merge it or open a PR from the same screen. Or select five cards, tap
+**Run these**, and let a lead agent drive them to PRs while you're away.
 
-Underneath is the herd mirror it inherited: every pane with a colored terminal, a slash-command
-palette, a special-keys pad, a reading mode over the agent's own transcript, and a history you can
-scroll and search. An agent's terminal dialogs — permission prompts, question menus, plan approvals —
-are up-levelled into native phone buttons by a per-agent *harness adapter*
-([`HARNESS_CONTRIBUTING.md`](./HARNESS_CONTRIBUTING.md)). The reply box is an ordinary text field, so
-your phone's own voice dictation works in it; nothing here ships its own.
+<p align="center">
+  <img src="assets/screens/board.png" alt="The board on a phone: Doing and To review columns, a card that needs you on top" width="240">
+  &nbsp;
+  <img src="assets/screens/card-review.png" alt="A card in review: acceptance criteria, its diff, the copilot's review" width="240">
+  &nbsp;
+  <img src="assets/screens/pane-blocked.png" alt="An agent's permission prompt turned into phone buttons" width="240">
+</p>
+
+Underneath is the herd mirror it inherited from [Collie](https://github.com/AltanS/collie): every
+pane with a colored terminal, a slash-command palette, a special-keys pad, a reading mode over the
+agent's own transcript, and a history you can scroll and search. An agent's terminal dialogs —
+permission prompts, question menus, plan approvals — become native phone buttons through a
+per-agent *harness adapter* ([`HARNESS_CONTRIBUTING.md`](./HARNESS_CONTRIBUTING.md)). The reply box
+is an ordinary text field, so your phone's own voice dictation works in it.
 
 A Herdr plugin (thin launcher) plus a Bun/TypeScript bridge running as a `systemd --user` service,
 serving a Vite + React + shadcn PWA. `bun:sqlite` holds the cards; nothing about the running herd is
 ever persisted.
 
-> 🐑 **This repository is a fork.**
->
-> Collie Board is a fork of **[`AltanS/collie`](https://github.com/AltanS/collie)** by
+> 🐑 **This repository is a fork** of **[`AltanS/collie`](https://github.com/AltanS/collie)** by
 > **[Altan Sarisin (@AltanS)](https://github.com/AltanS)**, MIT — the phone UI this is built on, the
-> hero above included. Go star the original.
->
-> Collie is a *stateless mirror*: open a URL, see which agent is waiting on you, answer it with your
-> thumb, and nothing is remembered between two ticks. All of that is still here and still works as
-> documented. What the fork adds is **memory** — [the board](#the-board) — and it is a change of
-> kind, not a feature: a task that outlives the pane working on it.
->
-> [**A fork of Collie**](#a-fork-of-collie) below has the full before/after and the credits.
-> [`UPSTREAM.md`](./UPSTREAM.md) has the posture toward upstream, and
-> [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) the list of bricks meant to go back.
+> hero above included. Go star the original. Collie is a *stateless mirror*; what the fork adds is
+> **memory** — a task that outlives the pane working on it. [**A fork of Collie**](#a-fork-of-collie)
+> has the before/after and the credits.
 
 ## Contents
 
-- [The board](#the-board) · [Configuration](#board-configuration) · [Endpoints](#board-endpoints)
-- [A fork of Collie](#a-fork-of-collie)
 - [Screens](#screens)
+- [The board](#the-board) · [Runs](#runs) · [Configuration](#board-configuration) · [Endpoints](#board-endpoints)
+- [A fork of Collie](#a-fork-of-collie)
 - [Security — read first](#%EF%B8%8F-security--read-before-you-run-it)
-- [Requirements](#requirements)
-- [Install](#install)
-- [First run — what you'll see](#first-run--what-youll-see)
-- [Configure](#configure)
-- [Commands](#commands) · [Herdr actions](#herdr-actions)
-- [Update](#update-to-a-new-release)
-- [Backup](#back-up-your-data)
-- [Uninstall](#stop-or-uninstall)
-- [Deployment variants](#deployment-variants)
-- [Windows (experimental)](#windows-experimental)
-- [Web Push](#web-push-optional)
-- [Troubleshooting](#troubleshooting)
-- [Architecture](#architecture)
-- [Developing this plugin](#developing-this-plugin)
+- [Requirements](#requirements) · [Install](#install) · [First run](#first-run--what-youll-see)
+- [Configure](#configure) · [Commands](#commands) · [Herdr actions](#herdr-actions)
+- [Update](#update-to-a-new-release) · [Backup](#back-up-your-data) · [Uninstall](#stop-or-uninstall)
+- [Deployment variants](#deployment-variants) · [Windows (experimental)](#windows-experimental)
+- [Web Push](#web-push-optional) · [Troubleshooting](#troubleshooting)
+- [Architecture](#architecture) · [Developing this plugin](#developing-this-plugin)
+
+## Screens
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="assets/screens/board.png" alt="The board on a phone" width="240"><br><sub><b>Board</b> — urgency first: <i>Needs you</i> is never below the fold</sub></td>
+    <td align="center" width="33%"><img src="assets/screens/card-review.png" alt="A card in review" width="240"><br><sub><b>Card</b> — spec, acceptance, diff, review, sessions, journal</sub></td>
+    <td align="center" width="33%"><img src="assets/screens/herd.png" alt="The herd: agents needing you, working, idle" width="240"><br><sub><b>Herd</b> — every agent, the one waiting on you on top</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="33%"><img src="assets/screens/pane-blocked.png" alt="A permission prompt as phone buttons" width="240"><br><sub><b>Pane</b> — a permission prompt, answered with a thumb</sub></td>
+    <td align="center" width="33%"><img src="assets/screens/pane-reading.png" alt="Reading mode over the agent's transcript" width="240"><br><sub><b>Reading mode</b> — the transcript, not the terminal</sub></td>
+    <td align="center" width="33%"><img src="assets/screens/settings.png" alt="Settings: theme, gallery, notifications" width="240"><br><sub><b>Settings</b> — notifications, agents at once, backup</sub></td>
+  </tr>
+</table>
+
+On a laptop the same board folds into four lanes, with the repo scope in a sidebar:
+
+<p align="center">
+  <img src="assets/screens/board-wide.png" alt="The wide-screen board: To do, Doing, To review, Done" width="820">
+</p>
+
+<sub>Every screenshot is taken against a demo bridge with invented repos and cards — nothing here is
+a real project.</sub>
 
 ## The board
 
@@ -64,115 +80,138 @@ happened in the three sessions before this one"** — and that needs memory Coll
 
 A **card** is durable. A **session** is not. That one rule is the whole design.
 
-Eight columns, stacked one under the other on a phone (urgency first, so *Needs you* is never below
-the fold) and folded into four lanes (**To do · Doing · To review · Done**) on a laptop. Most
-transitions are the board's, not yours.
+Eight statuses, stacked one under the other on a phone (urgency first) and folded into four lanes
+(**To do · Doing · To review · Done**) on a laptop. Most transitions are the board's, not yours.
 
 | | |
 |---|---|
-| **Card → branch → workspace** | Starting a card runs `worktree.create`: its own checkout, its own herdr workspace, its own agent. One tap, no keyboard. |
+| **Card → branch → workspace** | Starting a card runs `worktree.create`: its own checkout, its own herdr workspace, its own agent. It forks from whichever of the local and remote base is more complete ([ADR 0015](./.adr/0015-a-card-forks-from-the-more-complete-base.md)). One tap, no keyboard. |
 | **Cards move themselves** | Reconciliation rides the snapshot poll Collie already runs. `working` → In progress, `blocked` → Needs you, `review` → To review. A pane that vanishes makes its card **orphaned** — relaunchable from its last handoff, never an error. |
-| **Tag, and repo scope** | One tag per card, its colour computed from its name and stored nowhere ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). Two strips above the columns filter by tag and by repo; the repo scope is remembered between visits ([ADR 0006](./.adr/0006-the-board-scopes-by-repo-and-remembers-it.md)). |
-| **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is just its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed. |
-| **Merge · PR · resolve · cleanup · discard** | Five taps that end a branch, in `bridge/integrate.ts`. `merge --no-ff` into the base in the main checkout, or push + `gh pr create`; a conflict is handed back to the card's own agent to settle **on its own branch**. Four of the five refuse before they act — you cannot fix a half-merged repo from a phone. `discard` is the one destructive gesture and is a separate word, never a `force` flag. |
-| **Context gauge** | Read from the agent's own session (Claude transcript, OpenCode session db), graded against that model's own window (static table → models.dev → `COLLIE_BOARD_CTX_WINDOW` default), and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. Works without herdr's optional integration: the pane's PID and start time pick the right log even with two agents in one directory. |
-| **Handoff** | Context running out mid-task: the outgoing agent writes `.board/handoff.md`, the pane is replaced in the same worktree, the incoming agent opens on that note plus the original spec. Sessions chain on the card. Always a tap, never automatic. |
-| **Wrap-up** | Filing a card Done asks its agent for one last note (`.board/wrapup.md`) — what it did, what it dropped — because the diff shows which lines moved, not which acceptance criterion that satisfied. That note is what the copilot's review reads. |
-| **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other — no API key, no SDK, and openable in the TUI when an answer comes out wrong. It turns a dictated brain dump into a card (splitting it into several when the dump names several things, tagging each with the board's existing vocabulary), reviews finished work into follow-up cards, and explains a failed action. Its output contract is a JSON file, never scraped terminal text. |
+| **Tag, and repo scope** | One tag per card, its colour computed from its name and stored nowhere ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). Filter by tag and by repo; the repo scope is remembered between visits ([ADR 0006](./.adr/0006-the-board-scopes-by-repo-and-remembers-it.md)). |
+| **Dependencies** | `dependsOn` makes a card start*able* once its predecessor is done — a gate, never a trigger. |
+| **Diff, scoped by construction** | 1 card = 1 branch, so the card's diff is its checkout against its fork point. `--stat` first on a phone; tap a file for the patch. Working tree, not just commits — agents often leave nothing committed, and one button sends the card's agent a fixed instruction to commit it (no push). |
+| **Merge · PR · resolve · cleanup · discard** | Five taps that end a branch, in `bridge/integrate.ts`. `merge --no-ff` into the base in the main checkout, or push + `gh pr create`; a conflict is handed back to the card's own agent to settle **on its own branch** ([ADR 0014](./.adr/0014-a-conflicting-pr-does-not-file-the-card.md)). Four of the five refuse before they act. `discard` is the one destructive gesture and is a separate word, never a `force` flag. **Open PRs** lists every card whose PR is still open, and asks GitHub which ones still merge. |
+| **Context gauge** | Read from the agent's own session (Claude transcript, OpenCode session db), graded against that model's own window (static table → models.dev → `COLLIE_BOARD_CTX_WINDOW`), and pushed back to herdr with `pane.report_metadata`, so it also shows as `$ctx` in the TUI's Agents sidebar. No verified transcript format, no gauge. |
+| **Usage gauge** | How much of your Claude quota is left, from `claude -p "/usage"` — rendered locally, no model turn spent ([ADR 0009](./.adr/0009-the-usage-gauge-shells-out-to-the-cli-not-the-copilot.md)). |
+| **Handoff** | Context running out mid-task: the outgoing agent writes `.board/handoff.md`, the pane is replaced in the same worktree, the incoming agent opens on that note plus the original spec. Sessions chain on the card. With **auto handoff** on, the note is written just before the prompt cache goes cold, and the pane offers a fresh session from it when you come back — replacing the agent is still always a tap. |
+| **Wrap-up** | Filing a card Done asks its agent for one last note (`.board/wrapup.md`) — what it did, what it dropped — because the diff shows which lines moved, not which acceptance criterion that satisfied. That note is what the review reads. |
+| **Copilot** *(off by default)* | One long-lived agent in a `board` workspace, driven like any other — no API key, no SDK. It turns a dictated brain dump into cards (split, tagged with the board's vocabulary), reviews finished work from `--stat` and the wrap-up into a Markdown verdict ([ADR 0012](./.adr/0012-the-review-is-markdown-the-app-already-renders.md)), and explains a failed action. A follow-up too small for a card stays an action on the reviewed card, one tap to hand over ([ADR 0018](./.adr/0018-no-parasite-cards-from-a-review.md)). |
+| **Artifacts** | Images, Markdown and HTML an agent leaves in its worktree open from the pane, confined to the card; the **gallery** in Settings lists what agents left in their scratchpads. HTML is scrubbed and sandboxed. |
+| **Notifications** | The bell keeps a log of what asked for you. The board raises its own alerts in the herd's slot — a card whose agent vanished, a run that halted or finished — and only ones that retract when the fact stops being true ([ADR 0011](./.adr/0011-the-board-may-raise-an-alert-that-can-retract.md)). |
+| **Provenance** | A card an agent files on its own mid-turn is badged **agent** and linked to the card it came from; one the review files is badged **auto**. Derived from who called, never declared ([ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md)). |
+| **Journal** | Every overwrite of a card's written fields (title, spec, acceptance) is journalled with what it replaced and by whom; `revert` reads one back. Append-only, so it already is the history. |
+
+### Runs
+
+A **run** is consent given once, over a chosen set of cards
+([ADR 0017](./.adr/0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md)). On a board
+scoped to one repo, tap **Select**, choose the cards, tap **Run these**, and pick the order (from `dependsOn`), how many
+run at once, the cap on follow-ups it may fold in, and the lead's agent. From then on:
+
+1. the **coordinator** (`bridge/run.ts`, on `engine.onUpdate`, no timer) starts members as slots free up;
+2. each time a worker goes idle, the **lead** — a second agent that reads the worker's checkout —
+   either sends it back ("commit; criterion 2 isn't met because…") or declares the card finished;
+3. the copilot's review lands; the lead keeps, folds in or drops each follow-up, **with its reason**;
+4. the coordinator opens the PR through the same route a tap uses, and arms GitHub's auto-merge.
+
+The lead judges and speaks; it never edits, starts, pushes or merges itself. Every decision is in the
+card's journal. A run **halts** to you after five rounds on a card, on a conflict the worker couldn't
+settle, or on a blocked worker — it never answers a permission prompt — and tells you when it
+**finishes**. An `explore` card (brainstorm, design question) is judged on its written conclusion
+and the cards it proposes, not on a diff. There is no global autopilot switch: consent is per set.
 
 ### Board configuration
 
 | Variable | Default | What it does |
 |---|---|---|
 | `COLLIE_BOARD_AGENT_KIND` | `claude` | Agent kind launched for a card that doesn't name its own. |
-| `COLLIE_BOARD_MAX_AGENTS` | `3` | How many cards may run at once. A **quota** guard, not a performance one. |
+| `COLLIE_BOARD_MAX_AGENTS` | `3` | How many cards may run at once — a **quota** guard, not a performance one. Adjustable in Settings. |
 | `COLLIE_BOARD_BRANCH_PREFIX` | `board/` | Prefix for branches the board creates. |
-| `COLLIE_BOARD_CTX_WINDOW` | `200000` | Context window the gauge is a percentage of. Now the default: a pane whose model resolves is graded against its own window (1M for Opus 4.6+/Sonnet 4.6+, 200k for older). Set `1000000` for a 1M-context model when the default must cover it. |
-| `COLLIE_BOARD_OPENCODE_DB` | `~/.local/share/opencode/opencode.db` | OpenCode session database, read read-only for the gauge of `opencode` panes. Missing file = no gauge, never an error. |
+| `COLLIE_BOARD_CTX_WINDOW` | `200000` | Fallback window for the context gauge, when a pane's model doesn't resolve to its own. |
+| `COLLIE_BOARD_OPENCODE_DB` | `~/.local/share/opencode/opencode.db` | OpenCode session database, read-only, for the gauge and reading mode of `opencode` panes. Missing file = no gauge, never an error. |
 | `COLLIE_BOARD_MODELS_DEV` | `on` | Let per-model window resolution consult models.dev for unknown slugs (cached, best-effort). `off` = static table + default only. |
 | `COLLIE_BOARD_HANDOFF_PCT` | `70` | Context percentage past which the Handoff button goes prominent. Advisory only. |
 | `COLLIE_BOARD_COPILOT` | `off` | Enable the copilot. **Off by default** — it is a second agent on the same subscription. |
 | `COLLIE_BOARD_COPILOT_KIND` | *(same as workers)* | Let the copilot run a cheaper agent. |
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
-| `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace (and its agent). Cosmetic — it is found by directory, not by name. |
+| `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace. Cosmetic — it is found by directory. |
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
-| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks and links to. Set it to `Xhelliom/collie-board` (or your own fork); left empty the check is off, because pointing it at upstream would nag about versions this tree isn't. |
+| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks. Set it to `Xhelliom/collie-board` (or your fork); empty = check off, so it never nags about upstream's versions. |
 
-Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) — five fields, merged
-per field from `~/.config/collie-board/agents.toml`.
+Follow-up cards (on/off and which categories), auto handoff and agents-at-once live in **Settings**,
+not in `.env`. Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) —
+merged per field from `~/.config/collie-board/agents.toml`.
 
 **Picking a repo** is a list, not a text field — typing `/home/you/code/project` on a phone is the
-pain this project exists to remove. The list is **derived**, from three things that are true: every
-repo you have **carded** (`card.repo_path`, newest first), every repo **open in the herd** (each
-pane's `cwd`, one `git rev-parse` away), and a **scan** of `COLLIE_BOARD_REPO_ROOTS` — or, if you
-haven't set that, of the conventional locations (`~/git`, `~/code`, `~/dev`, …). That last one is
-what makes the very first card possible on a fresh install, where there are no cards and possibly no
-open panes. A card's own worktree collapses onto the repo it came from, and the repo's default
-branch pre-fills the base ref, so the common case is dictate, tap, done.
-
-The one thing that IS stored is what can't be derived: **long-press a repo to hide it**. A scan that
-finds all 27 repos you own has no idea which three you actually card, and that is a decision, not a
-fact. Hidden repos come back with the "*N* hidden — show" toggle. Nothing else about a repo is
-persisted: a stored list of repos would go stale the moment you moved one.
+pain this project exists to remove. The list is **derived** from every repo you have carded, every
+repo open in the herd, and a scan of `COLLIE_BOARD_REPO_ROOTS` (or the conventional `~/git`,
+`~/code`, `~/dev`, …) — that last one is what makes the very first card possible on a fresh install.
+The repo's default branch pre-fills the base ref. The one thing stored is what can't be derived:
+**long-press a repo to hide it**.
 
 ### Board endpoints
 
 ```
 GET    /api/cards                       list + live herd state merged in
-POST   /api/cards                       {title|rawInput, repoPath, baseRef, tag, …}
+POST   /api/cards                       {title|rawInput, repoPath, baseRef, tag, category?, …}
 GET    /api/cards/:id                   card + sessions + reviews + journal
 PATCH  /api/cards/:id                   edit / move a column / link (parentId, dependsOn)
 DELETE /api/cards/:id
 POST   /api/cards/:id/start             worktree + workspace + agent + the spec
-POST   /api/cards/:id/finish-now        {reviewId, title} — a review suggestion too small to file,
-                                        done now by this card's agent
-POST   /api/cards/:id/prompt            a follow-up instruction
+POST   /api/cards/:id/prompt            a follow-up instruction to the card's agent
+POST   /api/cards/:id/request-commit    ask the card's agent to commit its work (no push)
+POST   /api/cards/:id/finish-now        {reviewId, title} — a small follow-up, done by this card's agent
+POST   /api/cards/:id/to-action         this card becomes an action on another one
 POST   /api/cards/:id/handoff           ask for the note; the poll loop swaps the session
+POST   /api/cards/:id/resume            accept (POST) / decline (DELETE) an auto-handoff offer
 POST   /api/cards/:id/reformulate       hand the card back to the copilot
+POST   /api/cards/:id/refine            {instruction} — correct the card with the copilot
+POST   /api/cards/:id/review            re-run the copilot's review
 POST   /api/cards/:id/explain           {action, error} — ask the copilot what a failure meant
 POST   /api/cards/:id/revert            {eventId?} — put back text an edit overwrote
-GET    /api/cards/:id/diff              ?mode=stat|file&path=
+GET    /api/cards/:id/diff              ?mode=stat|file|read&path=
 GET    /api/cards/:id/integration       where the branch stands (ahead/behind, pushed, refusals)
-POST   /api/cards/:id/integration       {action: merge|pr|resolve|reopen|cleanup|discard, andDone?, via?: merge|pr}
+POST   /api/cards/:id/integration       {action: merge|pr|resolve|reopen|cleanup|discard, andDone?, via?}
+GET    /api/cards/:id/pr                the card's PR state, from GitHub
 GET    /api/cards/:id/sessions          the handoff chain
-GET    /api/board/prs                   cards whose PR is still open (journal); ?check=1 asks GitHub
 GET    /api/cards/:id/events            the journal
-GET    /api/repos                       the new-card picker's repo list (derived, see below)
+POST   /api/runs                        {cardIds, foldInCap, leadAgent} — record a run and hand it over
+GET    /api/board/prs                   cards whose PR is still open; ?check=1 asks GitHub
+GET    /api/board/prefs                 follow-ups, agents at once, auto handoff (POST to change)
+GET    /api/board/usage                 Claude quota left; ?refresh=1
+GET    /api/repos                       the new-card picker's repo list (derived)
 POST   /api/repos/hide                  hide / unhide one repo from that list
+GET    /api/notifications/log           what asked for you — also the integration point for any consumer
 GET    /api/backup                      everything durable, as one JSON document (see Back up)
-POST   /api/backup/restore               read one back — safety-exports the current state first
+POST   /api/backup/restore              read one back — safety-exports the current state first
 ```
-
-Every overwrite of a card's **written** fields (title, spec, acceptance) is journalled with what it
-replaced, by whom — so a copilot re-run that discards a spec you edited by hand is recoverable, not
-destructive. `revert` reads one entry back. There is no version table and no undo stack: the journal
-is append-only, so it already is the history.
 
 Every write goes through the same `guard()` as typing into a pane, and is audited. The board is
 bound to the **primary** herdr session: a pane id means nothing in another server.
 
 **`POST /api/cards` takes one header: `x-collie-pane`.** An agent filing a card mid-turn sends its
-own `HERDR_PANE_ID` there, and the card comes back marked `origin: "agent"` — badged **agent** on
-the tile — linked to whatever card that pane is working in, and noted in that card's journal. It is
-the only way in: `origin` and `originCardId` are refused in the body, so provenance is derived from
-who the caller says it is, never claimed. Nothing else changes; a request without the header is a
-person's card, as always. See [ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md).
+own `HERDR_PANE_ID` there, and the card comes back marked `origin: "agent"`, linked to whatever card
+that pane is working in. `origin` and `originCardId` are refused in the body, so provenance is
+derived, never claimed ([ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md)).
+
+Anything that wants what the board knows — a voice assistant, a script — integrates by polling
+`/api/notifications/log` and writing back through the card routes. The bridge never calls out to a
+consumer, and there is no MCP server: `curl` is the client
+([ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md)).
 
 ### What is deliberately NOT built
 
-- **No multi-machine.** It would invert the architecture (headless bridge + central server). Not a
-  `TODO` in disguise — a different project.
+- **No multi-machine.** It would invert the architecture (headless bridge + central server). A
+  different project, not a `TODO` in disguise.
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
 - **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
-  miserable. Buttons on the card. Dragging exists on the wide-screen board, native HTML and no
-  library, and only between the columns a human owns anyway — a convenience, not the interface.
-- **No heuristic context gauge** (level 2 of the design). It could only produce a number that looks
-  authoritative and isn't, on exactly the agents we know least about. No gauge is the honest answer;
-  Handoff works regardless.
+  miserable. Dragging exists on the wide-screen board, only between the columns a human owns.
+- **No heuristic context gauge.** It could only produce a number that looks authoritative and isn't.
+  No gauge is the honest answer; Handoff works regardless.
 - **No agent that starts itself.** A finished card makes its dependent start*able*, never started.
-  An agent that launches itself writes code and spends your quota with nobody watching — the same
-  reasoning that keeps the copilot off by default.
-- **No PTY streaming.** Same parking-lot reasoning as upstream — see `ARCHITECTURE.md` §8.
+  The only exception is a run, and a run is a set you chose.
+- **No board merging on green.** GitHub's auto-merge is that watcher.
+- **No PTY streaming.** Same reasoning as upstream — see `ARCHITECTURE.md` §8.
 
 ## A fork of Collie
 
@@ -183,35 +222,23 @@ whole shape and every line of the security posture below are Collie's work. If y
 stateless original, take it upstream — it is smaller, and for "which agent needs me right now" it is
 the better answer.
 
-**What Collie was, and still is here.** A mobile-first PWA plus a Bun bridge that talks to
-[Herdr](https://herdr.dev)'s Unix socket over a `tailscale serve` front door. Open a URL from your
-phone, see which agent is blocked, type into its terminal. Deliberately without memory: every tick
-re-reads the snapshot, nothing is written down, there is nothing to resync.
-
-**What this fork turned it into.** A board. Cards outlive the panes that work on them, which means a
-database, a worktree per card, session chaining and an integration step — and that is a change of
-kind rather than an extension. Upstream would be entirely reasonable to refuse it, so it was never
-offered as one PR.
-
 | | Collie (upstream) | Collie Board (this repo) |
 |---|---|---|
 | **Question it answers** | which agent needs me *now* | where is this *task*, across the sessions it took |
-| **State** | none — snapshot only | `bun:sqlite`: cards, sessions, reviews, journal |
+| **State** | none — snapshot only | `bun:sqlite`: cards, sessions, reviews, runs, journal |
 | **Unit of work** | a pane | a card → its own branch, worktree and workspace |
-| **Starting work** | you open a pane and type | one tap: worktree + agent + spec |
-| **Ending work** | you close the pane | wrap-up note, then merge / PR / cleanup — refusals first |
+| **Starting work** | you open a pane and type | one tap: worktree + agent + spec — or a run over a set |
+| **Ending work** | you close the pane | wrap-up note, review, then merge / PR / cleanup — refusals first |
 | **Writing the task** | — | dictate a dump; the copilot splits, tags and specs it (off by default) |
 | **Layout** | phone | phone, plus a four-lane wide-screen board |
 | **Plugin id** | `herdr.collie` | `herdr.collie-board` — both can be installed side by side |
 
-Everything else the fork touched is **generic** — it works with no card in sight, and belongs
-upstream rather than here: the context gauge and `$ctx` in herdr's own sidebar, finding a pane's
-transcript without herdr's optional Claude integration (which fixes pane History for most users),
-the reading mode over an agent's transcript, three `collie-ctl.sh` install bugs, two herdr launch
-races, a desktop mode, and a handful of accessibility holes. Each is tracked with its commit in
-[`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) so it can be offered as a small, self-contained PR;
-[`UPSTREAM.md`](./UPSTREAM.md) records the rule that keeps the diff against upstream to nineteen
-files.
+Everything the fork touched that works with no card in sight — the context gauge and `$ctx` in
+herdr's sidebar, finding a pane's transcript without herdr's optional integration, the reading mode,
+OpenCode support, install fixes, two herdr launch races, the desktop layout, accessibility fixes —
+belongs upstream. Each is tracked with its commit in [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) so it can
+be offered as a small, self-contained PR; [`UPSTREAM.md`](./UPSTREAM.md) records the rule that keeps
+the diff against upstream narrow.
 
 ## Who is this for
 
@@ -219,52 +246,8 @@ You, if you run [Herdr](https://herdr.dev) agents on a machine and want to run a
 through them from your phone — dictate the task on the way somewhere, start it, answer it when it
 blocks, merge it when it's done. It assumes a **[Tailscale](https://tailscale.com) tailnet**: your
 phone and the host are on the same tailnet, and `tailscale serve` is the only way in. It is
-**single-user** — one operator, one tailnet, no multi-tenant auth. If you need shared or public
-access, this isn't built for it. Read the security note below either way.
-
-The starting point was Collie's: checking on agents from a phone. The usual route is
-[Termux](https://termux.dev) — SSH in, attach to the terminal — but driving a TUI through its
-on-screen controls is miserable, and every reply is a fight with the keyboard. Collie fixed that.
-The board is what came next: once replying from a phone is comfortable, the bottleneck moves to
-*remembering what you asked for three sessions ago*.
-
-## Screens
-
-There are no screenshots of the board yet. Its shape, sketched — a card tile carries its tag chip,
-title, repo, branch and context gauge; a column header carries its count; the two strips above the
-columns scope by repo and by tag:
-
-```
-[ All ] [ collie-board ] [ dotfiles ]          ← repo scope, remembered between visits
-[ All ] [ board ] [ ui ] [ infra ]             ← tag filter, narrowed by the scope above
-
-Needs you (1)
-  ● [board] Wire the tag strip           collie-board · board/tag-strip · 62%
-To review (2)
-  ● [ui]    Reading mode Markdown        collie-board · board/reading-md · merge · PR
-  ● [infra] Bump the systemd unit        dotfiles     · board/unit-bump  · merge · PR
-In progress (1) · Ready (4) · Backlog (11) · Done (37)
-```
-
-The herd side is Collie's, plus what the fork added to it (a context gauge above the composer, a
-reading mode over the agent's transcript, a wide-screen layout). These four screenshots are
-upstream's, and still accurate:
-
-<table>
-  <tr>
-    <td align="center" width="50%"><img src="assets/dashboard.png" alt="Collie dashboard — Needs you, Spaces, Idle · done" width="250"><br><sub><b>Dashboard</b> — agents needing you float to the top</sub></td>
-    <td align="center" width="50%"><img src="assets/space-detail.png" alt="A space's tabs and panes" width="250"><br><sub><b>Space</b> — its tabs and panes, deep-linkable</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="50%"><img src="assets/session-switcher.png" alt="Session switcher" width="250"><br><sub><b>Session switcher</b> — one bridge, every herd</sub></td>
-    <td align="center" width="50%"><img src="assets/settings.png" alt="Settings — notifications and diagnostics" width="250"><br><sub><b>Settings</b> — notifications, DND, diagnostics</sub></td>
-  </tr>
-</table>
-
-Upstream's demo video walks that side end to end — the dashboard floating the blocked agent to the
-top, drilling into a space's tabs and panes, switching herds, picking up a push notification:
-
-https://github.com/user-attachments/assets/6334eab2-d503-4cfe-b770-80c4517e9482
+**single-user** — one operator, one tailnet, no multi-tenant auth. Read the security note below
+either way.
 
 ## ⚠️ Security — read before you run it
 
