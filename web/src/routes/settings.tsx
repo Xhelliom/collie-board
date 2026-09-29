@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, ChevronRight, Images, Loader2 } from "lucide-react";
+import { Bell, ChevronRight, Images, Loader2, SquareTerminal } from "lucide-react";
 import { Link, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
@@ -15,8 +15,10 @@ import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 import { SnoozeControl } from "@/components/snooze-control";
 import { ThemeControl } from "@/components/theme-control";
 import { UpdateCheckControl } from "@/components/update-check-control";
+import { SectionLabel } from "@/components/ui/section-label";
 import { Switch } from "@/components/ui/switch";
 import { fetchConfig } from "@/lib/api";
+import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePushControl } from "@/hooks/use-push";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
@@ -69,7 +71,9 @@ export function SettingsRoute() {
           the ROWS, not on <main>: capping the scroller put its scrollbar 700px in from the right
           edge of the window, which reads as a broken page rather than a narrow column. */}
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
+        <SectionLabel className="mb-2 px-1 pt-2">Display</SectionLabel>
         <ThemeControl />
+        <StatusLineControl />
 
         {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
             the four places the app is about. A row here rather than a fifth item in the nav bar. */}
@@ -86,6 +90,7 @@ export function SettingsRoute() {
           </Link>
         </Card>
 
+        <SectionLabel className="mb-2 px-1 pt-2">Notifications</SectionLabel>
         <Card className="gap-0 py-0">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -128,12 +133,12 @@ export function SettingsRoute() {
           </>
         )}
 
+        <SectionLabel className="mb-2 px-1 pt-2">Agents</SectionLabel>
         <MaxAgentsControl />
-
         <FollowUpsControl />
-
         <AutoHandoffControl />
 
+        <SectionLabel className="mb-2 px-1 pt-2">System</SectionLabel>
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
         <UpdateCheckControl />
 
@@ -148,6 +153,27 @@ export function SettingsRoute() {
         </div>
       </main>
     </div>
+  );
+}
+
+/** Per-device display pref: the agent's statusline strip above the composer on the pane screen. */
+function StatusLineControl() {
+  const { prefs, setStatusLine } = useDisplayPrefs();
+  return (
+    <Card className="gap-0 py-0">
+      <div className="flex items-center justify-between gap-4 p-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <SquareTerminal className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <div className="font-medium">Agent status line</div>
+            <p className="text-sm text-muted-foreground">
+              The agent's status lines above the reply box (mode, hooks…). On this device.
+            </p>
+          </div>
+        </div>
+        <Switch checked={prefs.statusLine} onCheckedChange={setStatusLine} aria-label="Agent status line" />
+      </div>
+    </Card>
   );
 }
 

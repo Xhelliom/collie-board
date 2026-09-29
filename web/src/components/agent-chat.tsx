@@ -1099,7 +1099,7 @@ export function AgentChat({
               vanish with the stripped input box). Sits directly above the composer, as it did in the
               TUI. Verbatim text — a React text node, so no XSS surface. `lg:hidden`: at that
               breakpoint `ContextRailColumn` already carries this same text, under its own heading. */}
-          {statusLines.length > 0 && (
+          {prefs.statusLine && statusLines.length > 0 && (
             <div className="border-t border-border/40 px-3 py-1 font-mono text-xs leading-tight text-muted-foreground/80 lg:hidden">
               {statusLines.map((line, i) => (
                 <div key={i} className="truncate">
