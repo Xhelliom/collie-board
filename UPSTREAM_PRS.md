@@ -448,7 +448,7 @@ bytes before Collie sees them. The agent's own transcript was never cut, and Col
 
 | | |
 |---|---|
-| Commits | `c9a2a32` *feat(transcript): an `after` cursor…* · `73f43f5` *feat(pane): a reading mode…* |
+| Commits | `c9a2a32` *feat(transcript): an `after` cursor…* · `73f43f5` *feat(pane): a reading mode…* · *fix(reading): the queue drains at a turn end; queue, thinking and tool runs fold* |
 | Files | `bridge/transcript.ts` (`pageEntries`), `bridge/server.ts` (`historyParams`), `web/src/lib/{api,markdown}.ts`, `web/src/components/{reading-view,markdown-text,agent-chat}.tsx`, `web/src/hooks/use-display-prefs.ts` (+ their tests) |
 | Extraction | **Clean cherry-pick.** Every file is upstream's or a new one; no card is in sight, and the two commits are already split along the seam (the cursor, then the view that uses it). |
 
@@ -493,6 +493,12 @@ the renderer picks the shape from the column count — a scrollable `<table>` up
 labelled card per row beyond it, because four columns on a 360px screen is a horizontal pan. Cells
 stay `MdSpan[]` rendered as React elements, so **the XSS boundary does not move** and no
 markdown→HTML dependency is added.
+
+**Folded by default**, so the prose is what's on screen: a run of ≥2 tool-only/thinking-only agent
+turns becomes one "N steps" line, thinking and the compaction summary fold, and so does the Queue. A
+find query, or a jump landing inside, unfolds them. The queue itself is replayed from the log's
+`queue-operation` rows, which is **not a faithful FIFO** (a restart drops ops): a completed turn
+(`system/turn_duration`) resets it, and `remove` drops the item it names rather than the front.
 
 ---
 

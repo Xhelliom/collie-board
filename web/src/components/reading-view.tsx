@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Clock, Loader2 } from "lucide-react";
+import { ChevronRight, Clock, Loader2 } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
@@ -247,11 +247,13 @@ export function ReadingView({
               taken and answered) before the next poll. Inside the scroller, below "still writing",
               so it auto-follows to the bottom with everything else. */}
           {queued.length > 0 && (
-            <div className="mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            // Folded: a queue of long messages would otherwise push the conversation off screen.
+            <details className="group mt-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+              <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
                 <Clock className="size-3" />
                 Queue ({queued.length})
-              </div>
+              </summary>
               <div className="mt-1 space-y-1.5">
                 {queued.map((text, i) => (
                   <div
@@ -262,7 +264,7 @@ export function ReadingView({
                   </div>
                 ))}
               </div>
-            </div>
+            </details>
           )}
         </ChatMessageList>
       </div>

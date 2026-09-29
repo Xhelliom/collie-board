@@ -359,4 +359,24 @@ describe("TranscriptView images", () => {
     expect(screen.getByText("mcp__claude-in-chrome__computer")).toBeInTheDocument();
     expect(screen.getByAltText("image")).toHaveAttribute("src", shot);
   });
+
+  it("folds a run of tool-only agent turns into one steps line, and keeps prose outside it", () => {
+    const tool = (uuid: string) =>
+      turn({ uuid, role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: `ls ${uuid}` }] });
+    const { container } = render(
+      <TranscriptView
+        entries={[
+          turn({ uuid: "a0", role: "assistant", parts: [{ kind: "text", text: "Looking." }] }),
+          tool("a1"),
+          tool("a2"),
+          tool("a3"),
+        ]}
+      />,
+    );
+    const steps = container.querySelector("details")!;
+    expect(steps).not.toHaveAttribute("open");
+    expect(within(steps).getByText("3 steps")).toBeInTheDocument();
+    expect(within(steps).getByText("ls a1")).toBeInTheDocument();
+    expect(steps).not.toContainElement(screen.getByText("Looking."));
+  });
 });

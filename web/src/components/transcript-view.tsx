@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 
 import { AgentIcon } from "@/components/agent-icon";
@@ -157,15 +157,25 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
     }
     return <ImagePart path={part.image} images={images} />;
   }
+  // Thinking is folded like a tool's output: it's the agent's scratch work, not the answer you came
+  // to read. A find query unfolds it, so a hit is never hidden.
+  if (part.kind === "thinking") {
+    return (
+      <details open={query.trim() !== ""} className="group">
+        <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1 text-xs text-muted-foreground italic">
+          <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+          Thinking
+        </summary>
+        <MarkdownText text={part.text} query={query} className="italic text-muted-foreground" />
+        {part.truncated && <div className="text-xs text-muted-foreground">… truncated</div>}
+      </details>
+    );
+  }
   // Prose is Markdown, so it renders formatted. MarkdownText emits React elements only — never
   // markup — so this keeps the same XSS boundary the raw text node had.
   return (
     <div>
-      <MarkdownText
-        text={part.text}
-        query={query}
-        className={part.kind === "thinking" ? "italic text-muted-foreground" : undefined}
-      />
+      <MarkdownText text={part.text} query={query} />
       {part.truncated && <div className="text-xs text-muted-foreground">… truncated</div>}
     </div>
   );
@@ -187,12 +197,29 @@ function Turn({
 
   // Neither of these is speech, so both render dashed-and-muted — visibly set apart from the
   // conversation rather than attributed to the user or the agent.
-  if (entry.role === "summary" || entry.role === "note") {
+  if (entry.role === "summary") {
+    // Claude's compaction summary is pages long and restates what's above it — folded.
+    return (
+      <details open={query.trim() !== ""} className="group rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+        <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
+          Context compacted
+          {time && ` · ${time}`}
+        </summary>
+        <div className="mt-1">
+          {entry.parts.map((part, i) => (
+            <Part key={i} part={part} query={query} />
+          ))}
+        </div>
+      </details>
+    );
+  }
+  if (entry.role === "note") {
     return (
       <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <Info className="size-3" />
-          {entry.role === "summary" ? "Context compacted" : "System"}
+          System
           {time && ` · ${time}`}
         </div>
         {entry.parts.map((part, i) => (
@@ -227,6 +254,15 @@ function Turn({
   );
 }
 
+/** An agent turn with nothing to read in it — only tool calls (no picture) and thinking. */
+function isStep(entry: TranscriptEntry): boolean {
+  return (
+    entry.role === "assistant" &&
+    entry.parts.length > 0 &&
+    entry.parts.every((p) => p.kind === "thinking" || (p.kind === "tool" && !p.image))
+  );
+}
+
 export function TranscriptView({
   entries,
   agent,
@@ -256,37 +292,64 @@ export function TranscriptView({
   // scroll length with nothing new in it. A day divider always restarts a run.
   let lastDay = "";
   let lastRole = "";
+  const rows = entries.map((entry) => {
+    const day = dayKey(entry.ts);
+    const newDay = day !== "" && day !== lastDay;
+    if (newDay) lastDay = day;
+    const showHeader = newDay || entry.role !== lastRole;
+    lastRole = entry.role;
+    return { entry, day, newDay, showHeader };
+  });
+  const renderRow = ({ entry, day, newDay, showHeader }: (typeof rows)[number]) => (
+    <div
+      key={entry.uuid}
+      data-turn={entry.uuid}
+      className={`${showHeader ? "space-y-3 pt-1" : "space-y-3"} ${
+        entry.uuid === focusedUuid
+          ? "rounded-lg ring-2 ring-primary/60 ring-offset-2 ring-offset-background"
+          : ""
+      }`}
+    >
+      {newDay && (
+        <div className="flex items-center gap-2 pt-1">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-medium text-muted-foreground">{day}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
+      <Turn entry={entry} agent={agent} showHeader={showHeader} query={query} />
+    </div>
+  );
+  // A run of agent turns that are ONLY tool calls / thinking (no prose, no picture) folds into one
+  // "N steps" line — that run is most of a thread, and the prose between runs is what you read.
+  // Only headerless rows join a run, so the speaker/time line and day dividers stay visible. Unfolded
+  // by a find query, or when it holds the turn a find/jump landed on.
+  const out: ReactNode[] = [];
+  for (let i = 0; i < rows.length; ) {
+    let j = i;
+    while (j < rows.length && !rows[j]!.showHeader && isStep(rows[j]!.entry)) j++;
+    if (j - i >= 2) {
+      const run = rows.slice(i, j);
+      const open = query.trim() !== "" || run.some((r) => r.entry.uuid === focusedUuid);
+      out.push(
+        <details key={`steps-${run[0]!.entry.uuid}`} open={open} className="group px-1">
+          <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1 text-xs text-muted-foreground">
+            <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+            <Wrench className="size-3" />
+            {run.length} steps
+          </summary>
+          <div className="mt-2 space-y-3">{run.map(renderRow)}</div>
+        </details>,
+      );
+      i = j;
+    } else {
+      out.push(renderRow(rows[i]!));
+      i++;
+    }
+  }
   return (
     <ThreadImagesContext.Provider value={threadImages}>
-    <div className="space-y-3">
-      {entries.map((entry) => {
-        const day = dayKey(entry.ts);
-        const newDay = day !== "" && day !== lastDay;
-        if (newDay) lastDay = day;
-        const showHeader = newDay || entry.role !== lastRole;
-        lastRole = entry.role;
-        return (
-          <div
-            key={entry.uuid}
-            data-turn={entry.uuid}
-            className={`${showHeader ? "space-y-3 pt-1" : "space-y-3"} ${
-              entry.uuid === focusedUuid
-                ? "rounded-lg ring-2 ring-primary/60 ring-offset-2 ring-offset-background"
-                : ""
-            }`}
-          >
-            {newDay && (
-              <div className="flex items-center gap-2 pt-1">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-xs font-medium text-muted-foreground">{day}</span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-            )}
-            <Turn entry={entry} agent={agent} showHeader={showHeader} query={query} />
-          </div>
-        );
-      })}
-    </div>
+    <div className="space-y-3">{out}</div>
     </ThreadImagesContext.Provider>
   );
 }

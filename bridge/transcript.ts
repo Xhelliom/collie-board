@@ -197,6 +197,8 @@ export function classifyUserText(
 
   if (isEnvelope("system-reminder", text)) return null;
   if (isEnvelope("local-command-caveat", text)) return null;
+  // A subagent's hand-back (`<agent-message from="…">`) — model output riding the user role, never speech.
+  if (text.trimStart().startsWith("<agent-message")) return null;
 
   if (isEnvelope("command-name", text)) {
     const name = inner("command-name", text) ?? "";
@@ -463,9 +465,15 @@ export function parseTranscript(
  * `{"type":"queue-operation","operation":"enqueue","content":"..."}` is the ONLY place a queued
  * message's text is ever written while it's still pending — the terminal's "❯" line has already
  * swapped it for the "Press up to edit queued messages" placeholder by the time anyone reads the
- * screen, and no `user`/`attachment` row exists for it until it's taken or recalled. FIFO: `enqueue`
- * pushes, `dequeue` (taken) and `remove` (recalled via Up, never sent) both pop the front — `remove`
- * happens to also carry the content, but which one left doesn't matter, only that one did.
+ * screen, and no `user`/`attachment` row exists for it until it's taken or recalled. `enqueue` pushes,
+ * `dequeue` (taken) pops the front, `remove` carries its content and drops THAT item — not the front:
+ * Claude Code removes a later task-notification while a `/compact` typed earlier is still waiting, and
+ * popping the front there left the notification pending and the command gone.
+ *
+ * The log is NOT a faithful FIFO, though: a restart or an interrupt drops ops, and replaying the whole
+ * file then strands a long-gone message at the front for ever (live: a days-old prompt shown "queued").
+ * So a completed turn (`system`/`turn_duration`) resets it — Claude Code drains its queue into the
+ * next turn, so nothing enqueued before a turn end is still waiting.
  *
  * Claude Code's queue isn't only human input — it's also how it hands itself a `<task-notification>`
  * or other plumbing to deliver on the NEXT turn, and a session sitting idle has no next turn to
@@ -480,14 +488,17 @@ export function pendingQueue(text: string): string[] {
   const queue: string[] = [];
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
-    let row: { type?: unknown; operation?: unknown; content?: unknown };
+    let row: { type?: unknown; subtype?: unknown; operation?: unknown; content?: unknown };
     try {
       row = JSON.parse(line) as typeof row;
     } catch {
       continue; // partial trailing write, or the clipped first line of a tail read
     }
+    if (row.type === "system" && row.subtype === "turn_duration") queue.length = 0;
     if (row.type !== "queue-operation") continue;
     if (row.operation === "enqueue" && typeof row.content === "string") queue.push(row.content);
+    else if (row.operation === "remove" && typeof row.content === "string" && queue.includes(row.content))
+      queue.splice(queue.indexOf(row.content), 1);
     else if (row.operation === "dequeue" || row.operation === "remove") queue.shift();
   }
   return queue
