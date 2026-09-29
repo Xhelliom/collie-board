@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.160.0] - 2026-09-29
+
+### Added
+
+- Réglage « Agent status line » : masquer la ligne de statut de l'agent au-dessus du composer (par appareil) (097d830)
+- Settings regroupés par catégorie : Display, Notifications, Agents, System (097d830)
+
+### Changed
+
+- Mode lecture : la Queue, le thinking, le résumé de compaction et chaque série d'appels d'outils sont repliés (dfbf809)
+
+### Fixed
+
+- Queue : un message déjà envoyé (ou un rapport de sous-agent) n'apparaît plus « en attente » pour toujours (dfbf809)
+
 ## [0.159.0] - 2026-09-25
 
 ### Added
