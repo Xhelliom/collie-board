@@ -33,6 +33,7 @@ const DOT: Record<NotifyLogEntry["status"], string> = {
   stalled: "bg-status-unknown",
   ready: "bg-status-idle",
   done: "bg-status-done",
+  note: "bg-status-working",
 };
 
 export function NotificationBell() {

@@ -567,6 +567,37 @@ describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)",
     expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
   });
 
+  test("the agent picks the marker; a note asks nothing by default", () => {
+    const db = source([], {});
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(note(1, null));
+    notifier.update(pane("working"));
+    expect(notifyMarker(alerts.armed.get("note:p1")!)).toBe("Note");
+    db.events.push({ ...note(2, null), payload: { paneId: "p1", message: "Which DB?", kind: "question" } });
+    notifier.update(pane("working"));
+    expect(notifyMarker(alerts.armed.get("note:p1")!)).toBe("Needs you");
+  });
+
+  test("a persistent note outlives the timeout and a status change, and retracts once read in the bell", () => {
+    let now = 0;
+    const log = new NotifyLog(() => now);
+    const alerts = sink();
+    const db = source([], {});
+    const notifier = new BoardNotifier(db, log, alerts, () => now);
+    db.events.push({ ...note(1, null), payload: { paneId: "p1", message: "Deployed: check it", persistent: true } });
+    notifier.update(pane("working"));
+    // What the coordinator's onFire writes, 30 s later.
+    now = 30_000;
+    log.add({ ...alerts.armed.get("note:p1")!, cwd: "/src/app" });
+    now = NOTE_TTL_MS * 3;
+    notifier.update(pane("done"));
+    expect(alerts.log).toEqual(["arm note:p1"]);
+    log.markRead(log.recent()[0]!.id);
+    notifier.update(pane("done"));
+    expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
+  });
+
   test("a vanished pane retracts, a disconnected snapshot does not", () => {
     const alerts = sink();
     const db = source([], {});

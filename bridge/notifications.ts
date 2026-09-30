@@ -29,7 +29,7 @@ import { type AgentStatus, type AgentView } from "./types.ts";
  * is "is this still 'the work stopped'?" and this is its opposite — and because nothing here ever
  * starts it for you (bridge/cards.ts, "THE DEPENDENCY IS A GATE, NOT A TRIGGER").
  */
-export type NotifiableStatus = "blocked" | "done" | "stalled" | "ready";
+export type NotifiableStatus = "blocked" | "done" | "stalled" | "ready" | "note";
 
 /** The timer primitive the coordinator schedules against — real setTimeout in the bridge, fake in tests. */
 export interface NotifyClock<H> {
@@ -157,6 +157,8 @@ const DIGEST_COUNTS: ReadonlyArray<readonly [ReturnType<typeof notifyMarker>, (n
   // Last, and it is the whole point of the state: every marker above reports work that wants
   // something from you, this one only says a door opened. Nothing is late because you ignored it.
   ["Ready", (n) => `${n} ready`],
+  // An agent's own word that asks nothing (board-notify.ts's notes, ADR 0019) — last, like Ready.
+  ["Note", (n) => `${n} note${n > 1 ? "s" : ""}`],
 ];
 
 /**

@@ -100,6 +100,8 @@ export class NotifyPrefsStore {
     if (status === "done") return this.prefs.done;
     if (status === "stalled") return this.prefs.board;
     if (status === "ready") return this.prefs.ready;
+    // ponytail: no switch of its own — an agent asked for it by name; snooze still silences it.
+    if (status === "note") return true;
     return false;
   }
 

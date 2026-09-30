@@ -89,6 +89,8 @@ const RUNS_ROUTE = "/api/runs";
 /** `/api/board/notify` — an agent telling the operator something in its own words. Journaled (on its
  *  card, when it has one), and `board-notify.ts` takes it to the phone from there (ADR 0019). */
 const NOTIFY_ROUTE = "/api/board/notify";
+/** The markers a note may wear — see board-notify.ts's `NOTE_STATUS`. */
+const NOTE_KINDS = new Set(["note", "question", "done"]);
 
 /** Ceiling on a run's fold-in cap — the cap exists so a run cannot grow without limit. */
 export const MAX_FOLD_IN_CAP = 20;
@@ -572,12 +574,20 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const message = (body as { message?: unknown } | null)?.message;
+    const { message, kind = "note", persistent = false } = (body ?? {}) as {
+      message?: unknown;
+      kind?: unknown;
+      persistent?: unknown;
+    };
     if (typeof message !== "string" || !message.trim()) return ctx.text("message is required", 400);
+    if (typeof kind !== "string" || !NOTE_KINDS.has(kind)) return ctx.text("kind must be note, question or done", 400);
+    if (typeof persistent !== "boolean") return ctx.text("persistent must be a boolean", 400);
     ctx.db.recordEvent(session?.cardId ?? null, "agent.notify", {
       paneId: pane,
       sessionId: session?.id ?? null,
       message: message.trim().slice(0, 500),
+      kind,
+      persistent,
     });
     ctx.audit.record({
       action: "agent.notify",

@@ -194,6 +194,8 @@ const keyFor = (cardId: string): string => `card:${cardId}`;
 const runKey = (runId: string): string => `run:${runId}`;
 /** An agent's note — one per pane, so a newer note replaces the older in the slot. */
 const noteKey = (paneId: string): string => `note:${paneId}`;
+/** A note's `kind` → the alert status, hence its marker: `Note`, `Needs you`, `Done`/`Review`. */
+const NOTE_STATUS: Record<string, NotifiableStatus> = { note: "note", question: "blocked", done: "done" };
 
 /**
  * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of all four
@@ -312,8 +314,9 @@ export class BoardNotifier {
   /**
    * An agent's note (`POST /api/board/notify`). Test 3 holds — no pane state says "look at this"
    * while the agent is still working — but the card's fingerprint is not its predicate: an agent
-   * reporting as it goes never moves its card. It holds while the PANE reads as it did when it
-   * spoke, for {@link NOTE_TTL_MS} at most; gone, or a status change, or the timeout retracts it.
+   * reporting as it goes never moves its card (ADR 0019). Either kind retracts once its pane is
+   * gone or its bell entry was read or dismissed. A TEMPORARY note (the default) also retracts when
+   * the pane changes status or after {@link NOTE_TTL_MS}; a PERSISTENT one waits for the first two.
    *
    * PANELESS on purpose, although it comes from a pane: an alert with a `paneId` gets its subtitle
    * rewritten from the transcript before it fires (index.ts's `beforeFire`), and the note IS the
@@ -325,16 +328,33 @@ export class BoardNotifier {
     const pane = paneId ? this.snap?.agents.find((a) => a.paneId === paneId) : undefined;
     if (!paneId || !message || !pane) return;
     const card = e.cardId ? this.db.getCard(e.cardId) : null;
-    const expires = this.now() + NOTE_TTL_MS;
-    const read = () =>
-      this.now() > expires ? null : (this.snap?.agents.find((a) => a.paneId === paneId)?.status ?? null);
-    this.armed.set(noteKey(paneId), { mark: pane.status, read });
+    const persistent = (e.payload as { persistent?: unknown } | null)?.persistent === true;
+    const status = NOTE_STATUS[str(e.payload, "kind") ?? "note"] ?? "note";
+    const cwd = card?.repoPath ?? pane.cwd;
+    const subtitle = oneLine(message);
+    const since = this.now();
+    const expires = since + NOTE_TTL_MS;
+    // The bell entry the fire will write, found by what it says: the note keeps its subtitle, since
+    // it carries no pane for notify-subtitle.ts to rewrite it from. ponytail: matched on content —
+    // two identical notes from two panes of one repo in the same window share an entry.
+    const entry = () => this.log.recent().find((l) => l.ts >= since && l.cwd === cwd && l.subtitle === subtitle);
+    let logged = false;
+    const read = () => {
+      const alive = this.snap?.agents.find((a) => a.paneId === paneId);
+      if (!alive) return null;
+      const found = entry();
+      if (found) logged = true;
+      if (found?.read || (logged && !found)) return null;
+      if (persistent) return "persistent";
+      return this.now() > expires ? null : alive.status;
+    };
+    this.armed.set(noteKey(paneId), { mark: persistent ? "persistent" : pane.status, read });
     this.alerts!.arm(noteKey(paneId), {
-      cwd: card?.repoPath ?? pane.cwd,
+      cwd,
       workspaceLabel: pane.workspaceLabel,
-      status: "blocked",
+      status,
       ...(card ? { cardId: card.id, cardTitle: card.title, cardStatus: card.status } : {}),
-      subtitle: oneLine(message),
+      subtitle,
     });
   }
 

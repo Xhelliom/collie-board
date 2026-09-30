@@ -359,7 +359,7 @@ export interface NotifyLogEntry {
   cwd: string;
   /** `stalled` and `ready` are the board's own (bridge/board-notify.ts): a card whose work stopped
    *  and which nothing will restart, and a card a finished predecessor has just unblocked. */
-  status: "blocked" | "done" | "stalled" | "ready";
+  status: "blocked" | "done" | "stalled" | "ready" | "note";
   /** The pane that pinged — the entry deep-links to it. ABSENT on a board entry, which is what sends
    *  its tap to the card instead. */
   paneId?: string;

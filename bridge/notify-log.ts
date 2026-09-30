@@ -22,7 +22,7 @@ export interface NotifyLogEntry {
   /** `stalled` and `ready` are the board's own (bridge/board-notify.ts): a card whose work stopped
    *  and which nothing will restart, and a card a finished predecessor has just unblocked. Same
    *  words as the push, from the same `notifyMarker`. */
-  status: "blocked" | "done" | "stalled" | "ready";
+  status: "blocked" | "done" | "stalled" | "ready" | "note";
   /** The pane that pinged — the bell deep-links to it. ABSENT on a board entry, which is exactly
    *  what sends its tap to the card instead (notification-bell.tsx). */
   paneId?: string;

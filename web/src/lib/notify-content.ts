@@ -32,7 +32,7 @@
 
 /** Just the corner of an alert the composition reads — a plain shape, so a test passes a literal. */
 export interface NotifySubject {
-  status: "blocked" | "done" | "stalled" | "ready";
+  status: "blocked" | "done" | "stalled" | "ready" | "note";
   cwd: string;
   cardTitle?: string;
   /** The pane behind the alert, when there IS one. Its ABSENCE is a fact: a board alert
@@ -90,7 +90,7 @@ export function notifyContent(a: NotifySubject, subtitle: string | null): { titl
  * NOTIFY_AUDIT.md §3.5, `notifications.ts`). One rule, two renderings: a digest can never disagree
  * with the notifications it collapsed about which state each of them was in.
  */
-export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Review" | "Done" | "Ready" {
+export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Review" | "Done" | "Ready" | "Note" {
   if (a.status === "blocked") return "Needs you";
   // The card's work has STOPPED and nothing will restart it — its pane vanished, or its handoff
   // never landed. One marker for both, because they are one decision (NOTIFY_AUDIT.md §6.4).
@@ -100,6 +100,8 @@ export function notifyMarker(a: NotifySubject): "Needs you" | "Stalled" | "Revie
   // this is the only marker of the set that reports an opened door rather than a demand, and
   // dressing it up as a demand is exactly how a pleasant notification becomes an unwelcome one.
   if (a.status === "ready") return "Ready";
+  // An agent reporting as it goes (ADR 0019): its own word, which asks nothing of you.
+  if (a.status === "note") return "Note";
   return a.cardStatus === "review" ? "Review" : "Done";
 }
 

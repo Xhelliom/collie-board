@@ -33,3 +33,13 @@ when there is one, home otherwise.
 - **"A persistent note channel."** No: second channel.
 - **"Only card sessions may notify."** Shipped that way in 0.161.0 and reversed here: the predicate
   is the pane's, so a hand-launched agent sends too.
+
+## Amendment — 2026-09-30, same day
+
+- **The agent picks the marker**: `kind` = `note` (default, a new `Note` marker, last in the
+  digest — it asks nothing), `question` (`Needs you`) or `done` (`Done`/`Review`). `Note` has no
+  preference of its own: the agent asked for it by name, and snooze still silences it.
+- **The agent picks the lifetime**: temporary (default, as above) or `persistent`, which ignores the
+  timeout and the pane's status changes.
+- **Both also retract once their bell entry is read or dismissed** — reading it is a readable
+  predicate, and the one that makes a persistent note bounded.
