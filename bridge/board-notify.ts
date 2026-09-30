@@ -37,6 +37,11 @@ import { DERIVED_REASON, paneReason } from "./cards.ts";
 import type { BoardEvent } from "./db.ts";
 import type { NotifyLog, NotifyLogEntry } from "./notify-log.ts";
 import type { Alert, NotifiableStatus } from "./notifications.ts";
+import type { EngineSnapshot } from "./state-engine.ts";
+
+/** How long an agent's note stays on the phone at most. ponytail: one fixed value — the bell keeps
+ *  the note after it, so this is only how long it may occupy the herd's slot (ADR 0019). */
+export const NOTE_TTL_MS = 10 * 60_000;
 
 /** A push body has room for one short line, not a stack trace. Same cap as notify-subtitle.ts's. */
 const oneLine = (s: string): string => {
@@ -136,13 +141,6 @@ export function alarm(e: BoardEvent): { status: NotifiableStatus; subtitle: stri
     const reason = str(e.payload, "reason");
     return { status: "blocked", subtitle: oneLine(reason ? `run halted: ${reason}` : "run halted") };
   }
-  // The agent asking for you in its own words (`POST /api/board/notify`). Test 3 holds: no pane state says
-  // "look at this" while the agent is still working. It retracts on the card's fingerprint like the
-  // rest — the column moves, the session changes — and a second note replaces the first in the slot.
-  if (e.type === "agent.notify") {
-    const message = str(e.payload, "message");
-    return message ? { status: "blocked", subtitle: oneLine(message) } : null;
-  }
   return null;
 }
 
@@ -194,6 +192,8 @@ export interface BoardAlertSink {
 const keyFor = (cardId: string): string => `card:${cardId}`;
 /** A run's key — `run.finished` is about the set, not one card, so it holds its own place in the slot. */
 const runKey = (runId: string): string => `run:${runId}`;
+/** An agent's note — one per pane, so a newer note replaces the older in the slot. */
+const noteKey = (paneId: string): string => `note:${paneId}`;
 
 /**
  * How the card reads RIGHT NOW, as one comparable string — and the retraction predicate of all four
@@ -238,6 +238,8 @@ export class BoardNotifier {
    *  because `arm` does not report back — so a disabled preference still costs this two indexed
    *  reads per tick per card until that card moves. Bounded and self-clearing; give `arm` a return
    *  value if a board ever sits on dozens of stalled cards with the preference off. */
+  /** The latest snapshot, for the notes' predicate — {@link update} is its only writer. */
+  private snap: EngineSnapshot | null = null;
   private readonly armed = new Map<string, { mark: string; read: () => string | null }>();
 
   constructor(
@@ -246,17 +248,24 @@ export class BoardNotifier {
     /** The herd's coordinator. Omitted (in a test, or if the push half is ever backed out) leaves
      *  this a bell-only tailer, exactly as it shipped in 0.129.0. */
     private readonly alerts?: BoardAlertSink,
+    private readonly now: () => number = Date.now,
   ) {
     this.cursor = db.lastEventId();
   }
 
-  /** One range scan plus one fingerprint per armed alert. Hung off `engine.onUpdate`; no snapshot is
-   *  read, so a `disconnected` one is not a case here — `onUpdate` only ever fires after a
-   *  successful poll anyway. */
-  update(): void {
+  /** One range scan plus one fingerprint per armed alert. Hung off `engine.onUpdate`; the snapshot
+   *  is read by the notes' predicate alone. */
+  update(snap?: EngineSnapshot): void {
+    // A socket blip is not "every pane vanished": skip the tick, the journal waits for the next one.
+    if (snap?.bridge === "disconnected") return;
+    this.snap = snap ?? null;
     for (const e of this.db.eventsAfter(this.cursor)) {
       // Advanced per row and BEFORE the work, so a fact this can't render is still consumed.
       this.cursor = e.id;
+      if (e.type === "agent.notify") {
+        if (this.alerts) this.note(e);
+        continue;
+      }
       const said = tell(e);
       const alarmed = this.alerts ? alarm(e) : null;
       const freed = this.alerts ? unblocks(e) : false;
@@ -298,6 +307,35 @@ export class BoardNotifier {
       }
     }
     this.sweep();
+  }
+
+  /**
+   * An agent's note (`POST /api/board/notify`). Test 3 holds — no pane state says "look at this"
+   * while the agent is still working — but the card's fingerprint is not its predicate: an agent
+   * reporting as it goes never moves its card. It holds while the PANE reads as it did when it
+   * spoke, for {@link NOTE_TTL_MS} at most; gone, or a status change, or the timeout retracts it.
+   *
+   * PANELESS on purpose, although it comes from a pane: an alert with a `paneId` gets its subtitle
+   * rewritten from the transcript before it fires (index.ts's `beforeFire`), and the note IS the
+   * subtitle. The tap goes to the card when there is one, home otherwise.
+   */
+  private note(e: BoardEvent): void {
+    const paneId = str(e.payload, "paneId");
+    const message = str(e.payload, "message");
+    const pane = paneId ? this.snap?.agents.find((a) => a.paneId === paneId) : undefined;
+    if (!paneId || !message || !pane) return;
+    const card = e.cardId ? this.db.getCard(e.cardId) : null;
+    const expires = this.now() + NOTE_TTL_MS;
+    const read = () =>
+      this.now() > expires ? null : (this.snap?.agents.find((a) => a.paneId === paneId)?.status ?? null);
+    this.armed.set(noteKey(paneId), { mark: pane.status, read });
+    this.alerts!.arm(noteKey(paneId), {
+      cwd: card?.repoPath ?? pane.cwd,
+      workspaceLabel: pane.workspaceLabel,
+      status: "blocked",
+      ...(card ? { cardId: card.id, cardTitle: card.title, cardStatus: card.status } : {}),
+      subtitle: oneLine(message),
+    });
   }
 
   /** `run.finished`: a `Done` in the herd's slot, keyed on the run, tapping to its first card. */

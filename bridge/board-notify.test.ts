@@ -1,11 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
-import { alarm, BoardNotifier, type BoardAlertSink, type BoardNotifySource, tell, unblocks } from "./board-notify.ts";
+import {
+  alarm,
+  BoardNotifier,
+  type BoardAlertSink,
+  type BoardNotifySource,
+  NOTE_TTL_MS,
+  tell,
+  unblocks,
+} from "./board-notify.ts";
 import { DERIVED_REASON, paneReason } from "./cards.ts";
 import type { BoardEvent } from "./db.ts";
 import { NotifyLog } from "./notify-log.ts";
 import { notifyCardId, notifyContent, notifyMarker } from "./notify-content.ts";
 import type { Alert } from "./notifications.ts";
+import type { EngineSnapshot } from "./state-engine.ts";
 
 const event = (id: number, type: string, payload: unknown = null): BoardEvent => ({
   id,
@@ -515,22 +524,58 @@ describe("BoardNotifier — how a run ends (ADR 0017)", () => {
   });
 });
 
-describe("BoardNotifier — an agent asking for you (POST /api/board/notify)", () => {
-  test("the note is a `Needs you` in its own words, retracted once the card moves", () => {
+describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)", () => {
+  const pane = (status: string) =>
+    ({
+      agents: [{ paneId: "p1", status, cwd: "/src/app", workspaceLabel: "app", agent: "claude" }],
+      bridge: "connected",
+    }) as unknown as EngineSnapshot;
+  const note = (id: number, cardId: string | null, message = "Tests pass, starting the migration") => ({
+    ...event(id, "agent.notify", { paneId: "p1", sessionId: null, message }),
+    cardId,
+  });
+
+  test("a card's agent reports as it goes: its words, under the card, the card never moving", () => {
     const db = source([], {
       c1: { title: "Fix login", status: "working", repoPath: "/src/app", session: "s1", handoff: null },
     });
     const alerts = sink();
     const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
-
-    db.events.push(event(1, "agent.notify", { sessionId: "s1", message: "Need the prod\n API key" }));
-    notifier.update();
-    const alert = alerts.armed.get("card:c1")!;
-    expect(notifyMarker(alert)).toBe("Needs you");
+    db.events.push(note(1, "c1", "Need the prod\n API key"));
+    notifier.update(pane("working"));
+    const alert = alerts.armed.get("note:p1")!;
+    expect(alert.paneId).toBeUndefined();
+    expect(alert.cardTitle).toBe("Fix login");
     expect(alert.subtitle).toBe("Need the prod API key");
+    notifier.update(pane("working"));
+    expect(alerts.log).toEqual(["arm note:p1"]);
+    // It goes `done`: the pane's own alert takes over.
+    notifier.update(pane("done"));
+    expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
+  });
 
-    db.cards.c1!.status = "blocked";
-    notifier.update();
-    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  test("a pane with no card sends too, and the note times out while it keeps working", () => {
+    let now = 0;
+    const alerts = sink();
+    const db = source([], {});
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts, () => now);
+    db.events.push(note(1, null));
+    notifier.update(pane("working"));
+    expect(alerts.armed.get("note:p1")!.cwd).toBe("/src/app");
+    now = NOTE_TTL_MS + 1;
+    notifier.update(pane("working"));
+    expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
+  });
+
+  test("a vanished pane retracts, a disconnected snapshot does not", () => {
+    const alerts = sink();
+    const db = source([], {});
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(note(1, null));
+    notifier.update(pane("working"));
+    notifier.update({ agents: [], bridge: "disconnected" } as unknown as EngineSnapshot);
+    expect(alerts.log).toEqual(["arm note:p1"]);
+    notifier.update({ agents: [], bridge: "connected" } as unknown as EngineSnapshot);
+    expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
   });
 });

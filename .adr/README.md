@@ -60,3 +60,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0016](./0016-the-version-is-cut-on-main-by-ci.md) | The version is cut on main by CI; a branch only drops a fragment | Accepted |
 | [0017](./0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md) | A run is consent given once, over a chosen set of cards | Accepted |
 | [0018](./0018-no-parasite-cards-from-a-review.md) | A review files no parasite cards | Accepted |
+| [0019](./0019-an-agents-note-retracts-with-its-pane-or-in-ten-minutes.md) | An agent's note retracts with its pane, or in ten minutes | Accepted |

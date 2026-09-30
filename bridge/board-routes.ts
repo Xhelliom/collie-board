@@ -86,8 +86,8 @@ const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 /** `/api/runs` — the operator's "run these" gesture (ADR 0017). Records the set; starts nothing. */
 const RUNS_ROUTE = "/api/runs";
 
-/** `/api/board/notify` — an agent asking for the operator in its own words. Journaled on its card, and
- *  `board-notify.ts`'s `alarm` takes it to the phone from there. */
+/** `/api/board/notify` — an agent telling the operator something in its own words. Journaled (on its
+ *  card, when it has one), and `board-notify.ts` takes it to the phone from there (ADR 0019). */
 const NOTIFY_ROUTE = "/api/board/notify";
 
 /** Ceiling on a run's fold-in cap — the cap exists so a run cannot grow without limit. */
@@ -555,17 +555,17 @@ async function route(
     return ctx.json({ run, cardIds }, 201);
   }
 
-  // The pane is the only identity: the card is derived from its open session, never named by the
-  // body (ADR 0010's posture). No session, no card — and a note with no card has no predicate for
-  // when it stops being true, so it has nowhere to go (ADR 0011).
+  // The pane is the only identity: a card, when there is one, is derived from its open session and
+  // never named by the body (ADR 0010's posture). A pane with no card sends too — the note's
+  // retraction is the pane's, not the card's (ADR 0019).
   if (pathname === NOTIFY_ROUTE) {
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
     const denied = ctx.guard("write");
     if (denied) return denied;
     const pane = req.headers.get(PANE_HEADER)?.trim();
     if (!pane) return ctx.text(`${PANE_HEADER} is required`, 400);
+    if (!ctx.engine.current().agents.some((a) => a.paneId === pane)) return ctx.text("no agent in this pane", 404);
     const session = ctx.db.openSessionByPane(pane);
-    if (!session) return ctx.text("this pane backs no card", 404);
     let body: unknown;
     try {
       body = await req.json();
@@ -574,12 +574,16 @@ async function route(
     }
     const message = (body as { message?: unknown } | null)?.message;
     if (typeof message !== "string" || !message.trim()) return ctx.text("message is required", 400);
-    ctx.db.recordEvent(session.cardId, "agent.notify", { sessionId: session.id, message: message.trim().slice(0, 500) });
+    ctx.db.recordEvent(session?.cardId ?? null, "agent.notify", {
+      paneId: pane,
+      sessionId: session?.id ?? null,
+      message: message.trim().slice(0, 500),
+    });
     ctx.audit.record({
       action: "agent.notify",
       session: ctx.session,
       device: ctx.device,
-      detail: { cardId: session.cardId, pane },
+      detail: { cardId: session?.cardId ?? null, pane },
     });
     return ctx.json({ ok: true }, 202);
   }

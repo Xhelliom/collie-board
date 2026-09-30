@@ -340,7 +340,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // coordinator — same slot, same digest, same snooze — because each carries the predicate that
     // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
     const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
-    engine.onUpdate(() => boardNotifier.update());
+    engine.onUpdate((snap) => boardNotifier.update(snap));
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
     engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters));
