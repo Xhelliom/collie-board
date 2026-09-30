@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.163.0] - 2026-09-30
+
+### Added
+
+- Note d'agent : `kind` (`note` → nouveau marqueur `Note`, `question`, `done`) et `persistent` ; toute note se retire une fois lue dans la cloche (ADR 0019) (1ae0b1c)
+
 ## [0.162.0] - 2026-09-30
 
 ### Changed
