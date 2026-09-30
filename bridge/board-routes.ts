@@ -86,6 +86,10 @@ const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 /** `/api/runs` — the operator's "run these" gesture (ADR 0017). Records the set; starts nothing. */
 const RUNS_ROUTE = "/api/runs";
 
+/** `/api/notify` — an agent asking for the operator in its own words. Journaled on its card, and
+ *  `board-notify.ts`'s `alarm` takes it to the phone from there. */
+const NOTIFY_ROUTE = "/api/notify";
+
 /** Ceiling on a run's fold-in cap — the cap exists so a run cannot grow without limit. */
 export const MAX_FOLD_IN_CAP = 20;
 
@@ -549,6 +553,35 @@ async function route(
       detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent },
     });
     return ctx.json({ run, cardIds }, 201);
+  }
+
+  // The pane is the only identity: the card is derived from its open session, never named by the
+  // body (ADR 0010's posture). No session, no card — and a note with no card has no predicate for
+  // when it stops being true, so it has nowhere to go (ADR 0011).
+  if (pathname === NOTIFY_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const pane = req.headers.get(PANE_HEADER)?.trim();
+    if (!pane) return ctx.text(`${PANE_HEADER} is required`, 400);
+    const session = ctx.db.openSessionByPane(pane);
+    if (!session) return ctx.text("this pane backs no card", 404);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const message = (body as { message?: unknown } | null)?.message;
+    if (typeof message !== "string" || !message.trim()) return ctx.text("message is required", 400);
+    ctx.db.recordEvent(session.cardId, "agent.notify", { sessionId: session.id, message: message.trim().slice(0, 500) });
+    ctx.audit.record({
+      action: "agent.notify",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: session.cardId, pane },
+    });
+    return ctx.json({ ok: true }, 202);
   }
 
   const match = pathname.match(CARD_ROUTE);

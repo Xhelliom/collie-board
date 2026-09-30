@@ -136,6 +136,13 @@ export function alarm(e: BoardEvent): { status: NotifiableStatus; subtitle: stri
     const reason = str(e.payload, "reason");
     return { status: "blocked", subtitle: oneLine(reason ? `run halted: ${reason}` : "run halted") };
   }
+  // The agent asking for you in its own words (`POST /api/notify`). Test 3 holds: no pane state says
+  // "look at this" while the agent is still working. It retracts on the card's fingerprint like the
+  // rest — the column moves, the session changes — and a second note replaces the first in the slot.
+  if (e.type === "agent.notify") {
+    const message = str(e.payload, "message");
+    return message ? { status: "blocked", subtitle: oneLine(message) } : null;
+  }
   return null;
 }
 

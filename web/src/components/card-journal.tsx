@@ -261,6 +261,8 @@ export function describeEvent(event: BoardEvent): string {
     // the only thing that tells you WHICH of a card's sessions filed it.
     case "card.filed":
       return `Filed a card from this session: “${String(p.title ?? "untitled")}”`;
+    case "agent.notify":
+      return `The agent asked for you: “${String(p.message ?? "")}”`;
     case "session.closed":
       return `Session ended (${String(p.outcome)})`;
     case "review.created":

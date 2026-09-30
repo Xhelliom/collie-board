@@ -514,3 +514,23 @@ describe("BoardNotifier — how a run ends (ADR 0017)", () => {
     expect(alerts.log).toEqual([]);
   });
 });
+
+describe("BoardNotifier — an agent asking for you (POST /api/notify)", () => {
+  test("the note is a `Needs you` in its own words, retracted once the card moves", () => {
+    const db = source([], {
+      c1: { title: "Fix login", status: "working", repoPath: "/src/app", session: "s1", handoff: null },
+    });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+
+    db.events.push(event(1, "agent.notify", { sessionId: "s1", message: "Need the prod\n API key" }));
+    notifier.update();
+    const alert = alerts.armed.get("card:c1")!;
+    expect(notifyMarker(alert)).toBe("Needs you");
+    expect(alert.subtitle).toBe("Need the prod API key");
+
+    db.cards.c1!.status = "blocked";
+    notifier.update();
+    expect(alerts.log).toEqual(["arm card:c1", "retract card:c1"]);
+  });
+});
