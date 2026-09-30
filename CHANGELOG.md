@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.162.0] - 2026-09-30
+
+### Changed
+
+- `POST /api/board/notify` : un pane sans carte peut aussi notifier ; la note se retire au changement de statut du pane, à sa disparition, ou après 10 min (ADR 0019) (0436418)
+
 ## [0.161.0] - 2026-09-30
 
 ### Added
