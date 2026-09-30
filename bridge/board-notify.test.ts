@@ -515,7 +515,7 @@ describe("BoardNotifier — how a run ends (ADR 0017)", () => {
   });
 });
 
-describe("BoardNotifier — an agent asking for you (POST /api/notify)", () => {
+describe("BoardNotifier — an agent asking for you (POST /api/board/notify)", () => {
   test("the note is a `Needs you` in its own words, retracted once the card moves", () => {
     const db = source([], {
       c1: { title: "Fix login", status: "working", repoPath: "/src/app", session: "s1", handoff: null },

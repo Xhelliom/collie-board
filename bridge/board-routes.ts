@@ -86,9 +86,9 @@ const BACKUP_RESTORE_ROUTE = "/api/backup/restore";
 /** `/api/runs` — the operator's "run these" gesture (ADR 0017). Records the set; starts nothing. */
 const RUNS_ROUTE = "/api/runs";
 
-/** `/api/notify` — an agent asking for the operator in its own words. Journaled on its card, and
+/** `/api/board/notify` — an agent asking for the operator in its own words. Journaled on its card, and
  *  `board-notify.ts`'s `alarm` takes it to the phone from there. */
-const NOTIFY_ROUTE = "/api/notify";
+const NOTIFY_ROUTE = "/api/board/notify";
 
 /** Ceiling on a run's fold-in cap — the cap exists so a run cannot grow without limit. */
 export const MAX_FOLD_IN_CAP = 20;
