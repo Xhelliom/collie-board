@@ -170,6 +170,17 @@ describe("ThreadSidebar", () => {
       expect(container.getElementsByClassName(cls).length).toBeGreaterThan(0);
     }
     // …and it reaches a screen reader through the row's name, not through colour alone.
-    expect(screen.getByRole("button", { name: "claude, needs you" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "claude, needs you · webapp" })).toBeInTheDocument();
+  });
+
+  it("folds a space's only pane into its header — one entry, not a session and a stray row", () => {
+    const { container } = render(
+      <ThreadSidebar agents={[{ ...idleAgent, ctxPct: 20 }]} currentPaneId="" onSelect={vi.fn()} />,
+    );
+    const entry = screen.getByRole("button", { name: /^claude, idle · sandbox$/ });
+    expect(entry).toContainElement(screen.getByRole("heading", { name: "sandbox" }));
+    expect(entry).toHaveTextContent("ctx 20%");
+    // One dot: the header's. The pane has no rail dot of its own any more.
+    expect(container.getElementsByClassName("bg-status-idle")).toHaveLength(1);
   });
 });

@@ -120,6 +120,10 @@ function SpaceSection({
   const active = group.workspaceId === activeWorkspaceId;
   const spansTabs = new Set(group.panes.map((p) => p.tabId)).size > 1;
   const rail = railX(depth);
+  // A space with ONE pane is one session: its agent rides the header as a meta line instead of a
+  // row of its own, so it can't read as a second entry. The Spaces page keeps the row — there the
+  // header drills into the space and the row opens the pane, two different taps.
+  const lone = !onOpenSpace && group.panes.length === 1 ? group.panes[0] : undefined;
 
   const header = (
     <>
@@ -171,6 +175,27 @@ function SpaceSection({
             </span>
           </p>
         )}
+        {lone && (
+          <p
+            className={cn(
+              "mt-0.5 flex min-w-0 items-center gap-1 text-muted-foreground",
+              dense ? "text-[11px]" : "text-xs",
+            )}
+          >
+            {lone.kind === "shell" ? (
+              <TerminalSquare className="size-3.5 shrink-0" />
+            ) : (
+              <AgentIcon agent={lone.agent} className="size-3.5 shrink-0" />
+            )}
+            <span className="min-w-0 truncate">{paneDisplayName(lone)}</span>
+            {dense && (
+              <span className="shrink-0 font-mono text-[10px]">· {lone.paneId.split(":").pop()}</span>
+            )}
+            {lone.ctxPct != null && (
+              <span className="shrink-0 tabular-nums">· ctx {Math.round(lone.ctxPct)}%</span>
+            )}
+          </p>
+        )}
       </div>
 
       {group.blocked > 0 ? (
@@ -179,7 +204,7 @@ function SpaceSection({
           {group.blocked}
           <span className="sr-only">needing you</span>
         </span>
-      ) : (
+      ) : lone ? null : (
         <span className="mt-1 shrink-0 text-[11px] tabular-nums text-muted-foreground">
           {group.panes.length}
           <span className="sr-only"> panes</span>
@@ -188,10 +213,11 @@ function SpaceSection({
     </>
   );
 
+  const loneActive = lone?.paneId === currentPaneId;
   const headerClass = cn(
     "relative flex w-full items-start gap-2 rounded-[10px] py-1.5 pr-2 text-left",
-    active && "bg-brand/10",
-    onOpenSpace && "transition-colors hover:bg-muted/60 active:bg-muted",
+    loneActive ? "bg-brand/16" : active && "bg-brand/10",
+    (onOpenSpace || lone) && "transition-colors hover:bg-muted/60 active:bg-muted",
   );
   const headerStyle = { paddingLeft: rail + 13 };
 
@@ -201,6 +227,18 @@ function SpaceSection({
         <button
           type="button"
           onClick={() => onOpenSpace(group.workspaceId)}
+          className={headerClass}
+          style={headerStyle}
+        >
+          {header}
+        </button>
+      ) : lone ? (
+        <button
+          type="button"
+          onClick={() => onSelect(lone.paneId)}
+          // The dot is the only place the pane's status shows, so it rides the accessible name too.
+          aria-label={`${paneDisplayName(lone)}, ${STATUS_LABEL[lone.status]} · ${group.label}`}
+          aria-current={loneActive ? "page" : undefined}
           className={headerClass}
           style={headerStyle}
         >
@@ -227,7 +265,7 @@ function SpaceSection({
           )}
           style={{ left: rail }}
         />
-        {group.panes.map((p) => (
+        {!lone && group.panes.map((p) => (
           <PaneRow
             key={p.paneId}
             pane={p}
