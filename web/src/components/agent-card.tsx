@@ -24,7 +24,7 @@ import type { AgentView } from "@/lib/types";
  * asks nothing for the others), and only when the bridge actually witnessed the switch: an unknown
  * instant renders nothing rather than a made-up duration (see `AgentView.statusSince`).
  */
-function settledFor(agent: AgentView): string | null {
+export function settledFor(agent: AgentView): string | null {
   if (agent.status !== "idle" && agent.status !== "done") return null;
   return agent.statusSince === undefined ? null : timeAgo(agent.statusSince);
 }

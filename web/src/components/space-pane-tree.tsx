@@ -1,7 +1,8 @@
-import { Folder, GitBranch, TerminalSquare } from "lucide-react";
+import { ChevronRight, Folder, GitBranch, TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
+import { settledFor } from "@/components/agent-card";
 import { StatusDot } from "@/components/status-badge";
 import { groupPanesBySpace, type SpaceGroup } from "@/lib/spaces";
 import { shortCwd } from "@/lib/format";
@@ -78,24 +79,51 @@ export function SpacePaneTree({
     activeWorkspaceId ??
     [...agents, ...shellPanes].find((p) => p.paneId === currentPaneId)?.workspaceId;
 
+  const section = (g: SpaceGroup) => (
+    <SpaceSection
+      key={g.workspaceId}
+      group={g}
+      activeWorkspaceId={active}
+      tabs={tabs}
+      currentPaneId={currentPaneId}
+      onSelect={onSelect}
+      onOpenSpace={onOpenSpace}
+      dense={dense}
+      surfaceRing={surfaceRing}
+    />
+  );
+  // Spaces with no agent anywhere in their subtree already sort last; folding them away is what
+  // stops a dozen bare shells from pushing the live sessions off the screen. Open when the space
+  // you're reading is in there, so the fold never hides where you are.
+  const live = groups.filter((g) => !asleep(g));
+  const sleeping = groups.filter(asleep);
+
   return (
     <div className={cn("flex flex-col gap-2.5 px-2 py-3", className)}>
-      {groups.map((g) => (
-        <SpaceSection
-          key={g.workspaceId}
-          group={g}
-          activeWorkspaceId={active}
-          tabs={tabs}
-          currentPaneId={currentPaneId}
-          onSelect={onSelect}
-          onOpenSpace={onOpenSpace}
-          dense={dense}
-          surfaceRing={surfaceRing}
-        />
-      ))}
+      {live.map(section)}
+      {sleeping.length > 0 && (
+        <details
+          open={sleeping.some((g) => g.workspaceId === active) || live.length === 0}
+          className="group/fold flex flex-col"
+        >
+          <summary
+            className={cn(
+              "flex cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-2 py-1.5 text-muted-foreground transition-colors hover:bg-muted/60 [&::-webkit-details-marker]:hidden",
+              dense ? "text-[11px]" : "text-xs",
+            )}
+          >
+            <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/fold:rotate-90" />
+            {sleeping.length} without an agent
+          </summary>
+          <div className="mt-1 flex flex-col gap-2.5">{sleeping.map(section)}</div>
+        </details>
+      )}
     </div>
   );
 }
+
+/** No agent in this space or any worktree under it — only shells, or nothing at all. */
+const asleep = (g: SpaceGroup): boolean => g.status === null && g.children.every(asleep);
 
 function SpaceSection({
   group,
@@ -246,12 +274,17 @@ function SpaceSection({
         <span
           aria-hidden="true"
           className={cn(
-            "absolute bottom-4 top-0 w-px rounded-full bg-linear-to-b",
+            "absolute top-0 w-px rounded-full bg-linear-to-b",
+            // With worktrees hanging off it the rail is what ties them to the repo: it runs solid
+            // down to the last elbow instead of fading out before it.
+            group.children.length > 0 ? "bottom-6" : "bottom-4",
             // --border sits a hair too close to every surface this list is painted on to read as a
             // line; the muted foreground is the same neutral, far enough off to be a hairline.
             active
               ? "from-brand/70 via-brand/45 to-transparent"
-              : "from-muted-foreground/30 via-muted-foreground/16 to-transparent",
+              : group.children.length > 0
+                ? "from-muted-foreground/40 to-muted-foreground/40"
+                : "from-muted-foreground/30 via-muted-foreground/16 to-transparent",
           )}
           style={{ left: rail }}
         />
@@ -363,6 +396,7 @@ function PaneMeta({
   tabLabel?: string;
   className?: string;
 }) {
+  const settled = settledFor(pane);
   return (
     <span
       className={cn(
@@ -387,6 +421,9 @@ function PaneMeta({
       {pane.ctxPct != null && (
         <span className="shrink-0 tabular-nums">· ctx {Math.round(pane.ctxPct)}%</span>
       )}
+      {/* How long it has sat idle / done — the dashboard's footnote, so an afternoon-old session
+          reads differently from one that just finished. */}
+      {settled && <span className="shrink-0 text-muted-foreground">· {settled}</span>}
     </span>
   );
 }

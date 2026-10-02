@@ -17,6 +17,19 @@ const idleAgent: AgentView = {
   focused: false,
 };
 
+const lonelyShell: AgentView = {
+  paneId: "w9:p1",
+  workspaceId: "w9",
+  workspaceLabel: "scratch",
+  workspaceNumber: 9,
+  tabId: "w9:t1",
+  agent: "shell",
+  status: "unknown",
+  cwd: "/home/you/scratch",
+  focused: false,
+  kind: "shell",
+};
+
 describe("ThreadSidebar", () => {
   it("renders an empty state when there are no agents", () => {
     render(<ThreadSidebar agents={[]} currentPaneId="" onSelect={vi.fn()} />);
@@ -58,6 +71,26 @@ describe("ThreadSidebar", () => {
       <ThreadSidebar agents={[{ ...idleAgent, cwd: "/home/you/scratch" }]} currentPaneId="" onSelect={vi.fn()} />,
     );
     expect(screen.getByText("~/scratch")).toBeInTheDocument();
+  });
+
+  it("folds the spaces with no agent away, behind one count, unless you're in one", () => {
+    const { container, rerender } = render(
+      <ThreadSidebar agents={fixtureAgents} shellPanes={[lonelyShell]} currentPaneId="" onSelect={vi.fn()} />,
+    );
+    const fold = container.querySelector("details")!;
+    expect(fold).toHaveTextContent("1 without an agent");
+    expect(fold).toContainElement(screen.getByRole("heading", { name: "scratch" }));
+    expect(fold.open).toBe(false);
+    rerender(
+      <ThreadSidebar agents={fixtureAgents} shellPanes={[lonelyShell]} currentPaneId="w9:p1" onSelect={vi.fn()} />,
+    );
+    expect(container.querySelector("details")!.open).toBe(true);
+  });
+
+  it("says how long a settled pane has sat there", () => {
+    const statusSince = Date.now() - 5 * 60_000;
+    render(<ThreadSidebar agents={[{ ...idleAgent, statusSince }]} currentPaneId="" onSelect={vi.fn()} />);
+    expect(screen.getByText("· 5m ago")).toBeInTheDocument();
   });
 
   it("drops a path that only repeats the space's name", () => {
