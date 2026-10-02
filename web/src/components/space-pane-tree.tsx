@@ -189,7 +189,9 @@ function SpaceSection({
             )}
             <span className="min-w-0 truncate">{paneDisplayName(lone)}</span>
             {dense && (
-              <span className="shrink-0 font-mono text-[10px]">· {lone.paneId.split(":").pop()}</span>
+              <span className="shrink-0">
+                · <span className="font-mono text-[10px]">{lone.paneId.split(":").pop()}</span>
+              </span>
             )}
             {lone.ctxPct != null && (
               <span className="shrink-0 tabular-nums">· ctx {Math.round(lone.ctxPct)}%</span>
@@ -327,7 +329,7 @@ function PaneRow({
       aria-label={`${paneDisplayName(pane)}, ${STATUS_LABEL[pane.status]}`}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex w-full min-w-0 items-center gap-2.5 rounded-[10px] py-2 pr-2.5 text-left transition-colors",
+        "relative flex w-full min-w-0 items-center gap-2 rounded-[10px] py-1.5 pr-2.5 text-left transition-colors",
         // A thumb needs 44px even when the row is down to one line.
         !dense && "min-h-11",
         active ? "bg-brand/16 text-brand" : "text-foreground hover:bg-muted/60 active:bg-muted",
@@ -343,15 +345,15 @@ function PaneRow({
       />
 
       {isShell ? (
-        <TerminalSquare className="size-5 shrink-0 text-muted-foreground" />
+        <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
       ) : (
-        <AgentIcon agent={pane.agent} className="size-5 shrink-0" />
+        <AgentIcon agent={pane.agent} className="size-4 shrink-0" />
       )}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5">
           <span
-            className={cn("min-w-0 flex-1 truncate font-semibold", dense ? "text-sm" : "text-base")}
+            className={cn("min-w-0 flex-1 truncate", dense ? "text-xs" : "text-sm")}
           >
             {paneDisplayName(pane)}
           </span>
