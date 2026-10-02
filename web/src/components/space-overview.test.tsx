@@ -90,7 +90,7 @@ describe("SpaceOverview", () => {
       />,
     );
     // Two spaces, ONE top-level section: the worktree lives inside the repo's.
-    const sections = container.querySelectorAll("section > div.relative > section");
+    const sections = container.querySelectorAll("section section section");
     expect(sections).toHaveLength(1);
     expect(within(sections[0] as HTMLElement).getByRole("heading")).toHaveTextContent(
       "Refondre la page",
@@ -111,7 +111,7 @@ describe("SpaceOverview", () => {
         ]}
       />,
     );
-    expect(container.querySelectorAll("section > div.relative > section")).toHaveLength(0);
+    expect(container.querySelectorAll("section section section")).toHaveLength(0);
     expect(screen.getByRole("heading", { name: /Refondre la page/ })).toBeInTheDocument();
   });
 
@@ -138,7 +138,12 @@ describe("SpaceOverview", () => {
         workspaces={[ws("w1", "anchorgenius", { focused: true }), ws("w2", "tgl")]}
       />,
     );
-    expect(container.getElementsByClassName("from-brand/70")).toHaveLength(1);
+    // Every brand-tinted mark (header, rail stretches) belongs to that one space's section.
+    const tinted = [...container.querySelectorAll('[class*="bg-brand/"]')];
+    expect(tinted.length).toBeGreaterThan(0);
+    expect(new Set(tinted.map((el) => el.closest("section")))).toEqual(
+      new Set([screen.getByRole("heading", { name: "anchorgenius" }).closest("section")]),
+    );
   });
 
   it("drills into a space when its header is tapped", async () => {

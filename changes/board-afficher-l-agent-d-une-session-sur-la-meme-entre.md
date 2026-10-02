@@ -7,3 +7,4 @@ bump: minor
 - Pane list: a settled pane says how long it has sat idle / done (`· 3h ago`).
 - Pane list: spaces with no agent fold behind one "N without an agent" toggle at the bottom.
 - Pane list: a repo space with worktrees keeps a solid rail down to them.
+- Pane list: the tree rail stops exactly on the last dot or worktree elbow instead of running past it.

@@ -120,7 +120,12 @@ describe("ThreadSidebar", () => {
     const { container } = render(
       <ThreadSidebar agents={fixtureAgents} currentPaneId="w2:p1" onSelect={vi.fn()} />,
     );
-    expect(container.getElementsByClassName("from-brand/70")).toHaveLength(1);
+    // Every brand-tinted mark (header, rail stretches) belongs to that one space's section.
+    const tinted = [...container.querySelectorAll('[class*="bg-brand/"]')];
+    expect(tinted.length).toBeGreaterThan(0);
+    expect(new Set(tinted.map((el) => el.closest("section")))).toEqual(
+      new Set([screen.getByRole("heading", { name: "collie" }).closest("section")]),
+    );
   });
 
   it("fires onSelect with the pane id when a thread is tapped", async () => {

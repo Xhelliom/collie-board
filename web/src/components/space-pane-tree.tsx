@@ -135,6 +135,8 @@ function SpaceSection({
   dense,
   surfaceRing,
   depth = 0,
+  last = true,
+  parentTone = "",
 }: {
   group: SpaceGroup;
   activeWorkspaceId: string | undefined;
@@ -145,6 +147,10 @@ function SpaceSection({
   dense?: boolean;
   surfaceRing: string;
   depth?: number;
+  /** Last item under its parent: the parent's rail stops at this section's elbow. */
+  last?: boolean;
+  /** The parent rail's colour, which this section's connector continues. */
+  parentTone?: string;
 }) {
   const active = group.workspaceId === activeWorkspaceId;
   const spansTabs = new Set(group.panes.map((p) => p.tabId)).size > 1;
@@ -153,6 +159,9 @@ function SpaceSection({
   // row of its own, so it can't read as a second entry. The Spaces page keeps the row — there the
   // header drills into the space and the row opens the pane, two different taps.
   const lone = !onOpenSpace && group.panes.length === 1 ? group.panes[0] : undefined;
+  const tone = railTone(active);
+  const rows = lone ? [] : group.panes;
+  const hasItems = rows.length + group.children.length > 0;
   // A path whose last segment IS the space's name only repeats the title. A branch always speaks.
   const where = group.branch ?? (repoName(group.cwd) === group.label ? "" : group.cwd);
   // Nothing but shells (or nothing at all): nothing to watch, so it steps back behind the agents.
@@ -165,10 +174,14 @@ function SpaceSection({
       {depth > 0 && (
         <span
           aria-hidden="true"
-          className="absolute h-px rounded-full bg-muted-foreground/40"
+          className={cn("absolute h-px", parentTone)}
           style={{ left: rail - RAIL_STEP, top: 15, width: RAIL_STEP }}
         />
       )}
+
+      {/* The rail leaves from under the header's own dot (top 10 + size 10) — from its centre it would
+          show through a hollow, shell-only dot. */}
+      {hasItems && <Rail left={rail} top={20} bottom={0} tone={tone} />}
 
       {/* The space's worst status, sitting at the head of its own rail. No screen-reader text on it:
           it only ever summarises rows that each announce their own status, and the blocked count
@@ -240,7 +253,10 @@ function SpaceSection({
   const headerStyle = { paddingLeft: rail + 13 };
 
   return (
-    <section className="flex flex-col">
+    <section className="relative flex flex-col">
+      {depth > 0 && (
+        <Rail left={rail - RAIL_STEP} top={0} {...(last ? { height: 16 } : { bottom: 0 })} tone={parentTone} />
+      )}
       {onOpenSpace ? (
         <button
           type="button"
@@ -268,27 +284,10 @@ function SpaceSection({
         </div>
       )}
 
-      <div className="relative pt-0.5">
-        {/* The hierarchy, drawn: one hairline from the header down through the group, fading out
-            rather than stopping dead at the last row. Brand-tinted for the space you're in. */}
-        <span
-          aria-hidden="true"
-          className={cn(
-            "absolute top-0 w-px rounded-full bg-linear-to-b",
-            // With worktrees hanging off it the rail is what ties them to the repo: it runs solid
-            // down to the last elbow instead of fading out before it.
-            group.children.length > 0 ? "bottom-6" : "bottom-4",
-            // --border sits a hair too close to every surface this list is painted on to read as a
-            // line; the muted foreground is the same neutral, far enough off to be a hairline.
-            active
-              ? "from-brand/70 via-brand/45 to-transparent"
-              : group.children.length > 0
-                ? "from-muted-foreground/40 to-muted-foreground/40"
-                : "from-muted-foreground/30 via-muted-foreground/16 to-transparent",
-          )}
-          style={{ left: rail }}
-        />
-        {!lone && group.panes.map((p) => (
+      <div className="flex flex-col">
+        {/* The hierarchy, drawn piecewise: each row and worktree carries its own stretch of rail, so
+            the line ends exactly on the last dot or elbow instead of running on past it. */}
+        {rows.map((p, i) => (
           <PaneRow
             key={p.paneId}
             pane={p}
@@ -299,10 +298,12 @@ function SpaceSection({
             surfaceRing={surfaceRing}
             showTab={spansTabs}
             rail={rail}
+            last={i === rows.length - 1 && group.children.length === 0}
+            tone={tone}
           />
         ))}
         {/* The worktrees of this space's repo — herdr's `└─` children, one level in. */}
-        {group.children.map((child) => (
+        {group.children.map((child, i) => (
           <SpaceSection
             key={child.workspaceId}
             group={child}
@@ -314,6 +315,8 @@ function SpaceSection({
             dense={dense}
             surfaceRing={surfaceRing}
             depth={depth + 1}
+            last={i === group.children.length - 1}
+            parentTone={tone}
           />
         ))}
       </div>
@@ -330,6 +333,8 @@ function PaneRow({
   surfaceRing,
   showTab,
   rail,
+  last,
+  tone,
 }: {
   pane: AgentView;
   tabLabel: string | undefined;
@@ -339,6 +344,8 @@ function PaneRow({
   surfaceRing: string;
   showTab: boolean;
   rail: number;
+  last: boolean;
+  tone: string;
 }) {
   return (
     <button
@@ -355,6 +362,8 @@ function PaneRow({
       )}
       style={{ paddingLeft: rail + 13 }}
     >
+      {/* The last row's stretch stops at its own dot. */}
+      <Rail left={rail} top={0} {...(last ? { height: "50%" } : { bottom: 0 })} tone={tone} />
       {/* The row's own status, sitting ON the rail: the attachment point IS the indicator. The ring
           is the list's background, so the hairline reads as passing behind the dot. */}
       <StatusDot
@@ -425,5 +434,32 @@ function PaneMeta({
           reads differently from one that just finished. */}
       {settled && <span className="shrink-0 text-muted-foreground">· {settled}</span>}
     </span>
+  );
+}
+
+/** Brand-tinted for the space you're in. --border sits a hair too close to every surface this list
+ *  is painted on to read as a line; the muted foreground is the same neutral, far enough off. */
+const railTone = (active: boolean) => (active ? "bg-brand/55" : "bg-muted-foreground/30");
+
+/** One stretch of the hairline rail, centred on `left` like the dots that sit on it. */
+function Rail({
+  left,
+  top,
+  bottom,
+  height,
+  tone,
+}: {
+  left: number;
+  top: number;
+  bottom?: number;
+  height?: number | string;
+  tone: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn("pointer-events-none absolute w-px", tone)}
+      style={{ left: left - 0.5, top, bottom, height }}
+    />
   );
 }
