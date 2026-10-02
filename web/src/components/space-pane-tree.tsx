@@ -5,6 +5,7 @@ import { AgentIcon } from "@/components/agent-icon";
 import { StatusDot } from "@/components/status-badge";
 import { groupPanesBySpace, type SpaceGroup } from "@/lib/spaces";
 import { shortCwd } from "@/lib/format";
+import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
 import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
 
@@ -124,6 +125,10 @@ function SpaceSection({
   // row of its own, so it can't read as a second entry. The Spaces page keeps the row — there the
   // header drills into the space and the row opens the pane, two different taps.
   const lone = !onOpenSpace && group.panes.length === 1 ? group.panes[0] : undefined;
+  // A path whose last segment IS the space's name only repeats the title. A branch always speaks.
+  const where = group.branch ?? (repoName(group.cwd) === group.label ? "" : group.cwd);
+  // Nothing but shells (or nothing at all): nothing to watch, so it steps back behind the agents.
+  const quiet = group.status === null;
 
   const header = (
     <>
@@ -141,7 +146,11 @@ function SpaceSection({
           it only ever summarises rows that each announce their own status, and the blocked count
           below says the part that matters. */}
       {group.status ? (
-        <StatusDot status={group.status} className="absolute" style={{ left: rail - 5, top: 10 }} />
+        <StatusDot
+          status={group.status}
+          className={cn("absolute", group.status === "idle" && IDLE_DOT)}
+          style={{ left: rail - 5, top: 10 }}
+        />
       ) : (
         <span
           className="absolute size-2.5 rounded-full border border-muted-foreground/40"
@@ -150,12 +159,18 @@ function SpaceSection({
       )}
 
       <div className="min-w-0 flex-1">
-        <h3 className={cn("truncate font-semibold", dense ? "text-[13px]" : "text-sm")}>
+        <h3
+          className={cn(
+            "truncate font-semibold",
+            dense ? "text-[13px]" : "text-sm",
+            quiet && "text-muted-foreground",
+          )}
+        >
           {group.label}
         </h3>
         {/* The space's branch, secondary under its name. No branch known (a space nobody filed a
             card for) — the path stands in, marked by its own icon rather than dressed up as a ref. */}
-        {(group.branch || group.cwd) && (
+        {where && (
           <p className="flex min-w-0 items-center gap-1">
             {group.branch ? (
               <GitBranch className="size-3 shrink-0 text-muted-foreground/85" />
@@ -175,29 +190,7 @@ function SpaceSection({
             </span>
           </p>
         )}
-        {lone && (
-          <p
-            className={cn(
-              "mt-0.5 flex min-w-0 items-center gap-1 text-muted-foreground",
-              dense ? "text-[11px]" : "text-xs",
-            )}
-          >
-            {lone.kind === "shell" ? (
-              <TerminalSquare className="size-3.5 shrink-0" />
-            ) : (
-              <AgentIcon agent={lone.agent} className="size-3.5 shrink-0" />
-            )}
-            <span className="min-w-0 truncate">{paneDisplayName(lone)}</span>
-            {dense && (
-              <span className="shrink-0">
-                · <span className="font-mono text-[10px]">{lone.paneId.split(":").pop()}</span>
-              </span>
-            )}
-            {lone.ctxPct != null && (
-              <span className="shrink-0 tabular-nums">· ctx {Math.round(lone.ctxPct)}%</span>
-            )}
-          </p>
-        )}
+        {lone && <PaneMeta pane={lone} dense={dense} className="mt-0.5" />}
       </div>
 
       {group.blocked > 0 ? (
@@ -206,12 +199,7 @@ function SpaceSection({
           {group.blocked}
           <span className="sr-only">needing you</span>
         </span>
-      ) : lone ? null : (
-        <span className="mt-1 shrink-0 text-[11px] tabular-nums text-muted-foreground">
-          {group.panes.length}
-          <span className="sr-only"> panes</span>
-        </span>
-      )}
+      ) : null}
     </>
   );
 
@@ -319,8 +307,6 @@ function PaneRow({
   showTab: boolean;
   rail: number;
 }) {
-  const isShell = pane.kind === "shell";
-  const tag = pane.paneId.split(":").pop();
   return (
     <button
       type="button"
@@ -332,7 +318,7 @@ function PaneRow({
         "relative flex w-full min-w-0 items-center gap-2 rounded-[10px] py-1.5 pr-2.5 text-left transition-colors",
         // A thumb needs 44px even when the row is down to one line.
         !dense && "min-h-11",
-        active ? "bg-brand/16 text-brand" : "text-foreground hover:bg-muted/60 active:bg-muted",
+        active ? "bg-brand/16" : "hover:bg-muted/60 active:bg-muted",
       )}
       style={{ paddingLeft: rail + 13 }}
     >
@@ -340,51 +326,67 @@ function PaneRow({
           is the list's background, so the hairline reads as passing behind the dot. */}
       <StatusDot
         status={pane.status}
-        className={cn("absolute top-1/2 size-[7px] -translate-y-1/2 ring-[3px]", surfaceRing)}
+        className={cn(
+          "absolute top-1/2 size-[7px] -translate-y-1/2 ring-[3px]",
+          surfaceRing,
+          (pane.status === "idle" || pane.status === "unknown") && IDLE_DOT,
+        )}
         style={{ left: rail - 3.5 }}
       />
 
-      {isShell ? (
-        <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-      ) : (
-        <AgentIcon agent={pane.agent} className="size-4 shrink-0" />
+      <PaneMeta
+        pane={pane}
+        dense={dense}
+        tabLabel={showTab ? tabLabel : undefined}
+        className="flex-1"
+      />
+    </button>
+  );
+}
+
+/** Idle (or a shell, unknown) asks nothing of you: in this list its dot steps back so it can't pass
+ *  for a list bullet. */
+const IDLE_DOT = "opacity-55";
+
+/**
+ * What runs in a pane, on one line — `[icon] claude · p1 · ctx 8%`. The SAME line under a lone
+ * pane's header and in a row of a multi-pane space, so one fact is always written one way.
+ */
+function PaneMeta({
+  pane,
+  dense,
+  tabLabel,
+  className,
+}: {
+  pane: AgentView;
+  dense?: boolean;
+  tabLabel?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex min-w-0 items-center gap-1 text-foreground/70",
+        dense ? "text-[11px]" : "text-xs",
+        className,
       )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5">
-          <span
-            className={cn("min-w-0 flex-1 truncate", dense ? "text-xs" : "text-sm")}
-          >
-            {paneDisplayName(pane)}
-          </span>
-          {dense && (
-            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{tag}</span>
-          )}
-        </div>
-        {/* The space is the header's job now, so the second line is left with the tab — and only
-            when the space has more than one for the row to be in. Otherwise the row is one line. */}
-        {showTab && tabLabel && (
-          <div
-            className={cn(
-              "truncate font-mono text-muted-foreground",
-              dense ? "text-[11px]" : "text-xs",
-            )}
-          >
-            {tabLabel}
-          </div>
-        )}
-      </div>
-
-      {pane.ctxPct != null && (
-        <span
-          className={cn(
-            "shrink-0 tabular-nums text-muted-foreground",
-            dense ? "text-[11px]" : "text-xs",
-          )}
-        >
-          ctx {Math.round(pane.ctxPct)}%
+    >
+      {pane.kind === "shell" ? (
+        <TerminalSquare className="size-3.5 shrink-0" />
+      ) : (
+        <AgentIcon agent={pane.agent} className="size-3.5 shrink-0" />
+      )}
+      <span className="min-w-0 truncate">{paneDisplayName(pane)}</span>
+      {/* Only when the space spreads over several tabs — otherwise it's the only tab there. */}
+      {tabLabel && <span className="min-w-0 truncate font-mono">· {tabLabel}</span>}
+      {dense && (
+        <span className="shrink-0">
+          · <span className="font-mono text-[10px]">{pane.paneId.split(":").pop()}</span>
         </span>
       )}
-    </button>
+      {pane.ctxPct != null && (
+        <span className="shrink-0 tabular-nums">· ctx {Math.round(pane.ctxPct)}%</span>
+      )}
+    </span>
   );
 }

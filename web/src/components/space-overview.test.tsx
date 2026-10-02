@@ -65,12 +65,12 @@ describe("SpaceOverview", () => {
         workspaces={[ws("w1", "anchorgenius"), ws("w2", "tgl")]}
         agents={[
           agent({ paneId: "w1:p1", workspaceId: "w1", branch: "board/x", cwd: "/home/you/ag" }),
-          agent({ paneId: "w2:p1", workspaceId: "w2", cwd: "/home/you/tgl" }),
+          agent({ paneId: "w2:p1", workspaceId: "w2", cwd: "/home/you/src/tgl-app" }),
         ]}
       />,
     );
     expect(screen.getByText("board/x")).toBeInTheDocument();
-    expect(screen.getByText("~/tgl")).toBeInTheDocument();
+    expect(screen.getByText("~/src/tgl-app")).toBeInTheDocument();
   });
 
   it("hangs a worktree space under the repo space it was cut from", () => {

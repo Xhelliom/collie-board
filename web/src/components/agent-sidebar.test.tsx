@@ -54,8 +54,15 @@ describe("ThreadSidebar", () => {
   });
 
   it("falls back to the space's path when no branch is known — never a made-up ref", () => {
+    render(
+      <ThreadSidebar agents={[{ ...idleAgent, cwd: "/home/you/scratch" }]} currentPaneId="" onSelect={vi.fn()} />,
+    );
+    expect(screen.getByText("~/scratch")).toBeInTheDocument();
+  });
+
+  it("drops a path that only repeats the space's name", () => {
     render(<ThreadSidebar agents={[idleAgent]} currentPaneId="" onSelect={vi.fn()} />);
-    expect(screen.getByText("~/sandbox")).toBeInTheDocument();
+    expect(screen.queryByText("~/sandbox")).toBeNull();
   });
 
   it("counts the space's blocked agents in its header", () => {
@@ -140,7 +147,7 @@ describe("ThreadSidebar", () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(screen.getByText("ctx 42%")).toBeInTheDocument();
+    expect(screen.getByText("· ctx 42%")).toBeInTheDocument();
     // The shell pane has no ctxPct — it gets no gauge rather than a made-up 0%.
     expect(screen.getByRole("button", { name: /shell/ })).not.toHaveTextContent(/ctx/);
   });
@@ -149,11 +156,11 @@ describe("ThreadSidebar", () => {
     const props = { tabs: fixtureTabs, currentPaneId: "", onSelect: vi.fn() };
     // "collie" holds w2:p1 (tab "code") and the shell w2:p2 (tab "shell") — the tab tells them apart.
     const two = render(<ThreadSidebar agents={fixtureAgents} shellPanes={fixtureShellPanes} {...props} />);
-    expect(screen.getByText("code")).toBeInTheDocument();
+    expect(screen.getByText("· code")).toBeInTheDocument();
     two.unmount();
     // Alone in its space, the pane's tab is the only tab there — herdr's "1" would be pure noise.
     render(<ThreadSidebar agents={[fixtureAgents[1]!]} {...props} />);
-    expect(screen.queryByText("code")).toBeNull();
+    expect(screen.queryByText("· code")).toBeNull();
   });
 
   it("keeps every row's own status readable after the regrouping", () => {
