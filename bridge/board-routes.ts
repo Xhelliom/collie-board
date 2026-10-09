@@ -39,7 +39,7 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isMaxParallel, MAX_AGENTS_CAP } from "./db.ts";
 import {
   cardDiffStat,
   cardDiffSummary,
@@ -586,7 +586,7 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position } = (body ?? {}) as {
+    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position, maxParallel } = (body ?? {}) as {
       cardIds?: unknown;
       foldInCap?: unknown;
       leadAgent?: unknown;
@@ -594,6 +594,7 @@ async function route(
       phaseId?: unknown;
       name?: unknown;
       position?: unknown;
+      maxParallel?: unknown;
     };
     // Without `planned` this IS the launch (ADR 0017's gesture), so it is the operator's: an agent
     // pane can plan a lot but never start one (ADR 0021).
@@ -604,6 +605,8 @@ async function route(
       return ctx.text("name must be a short string or null", 400);
     if (position !== undefined && (typeof position !== "number" || !Number.isFinite(position)))
       return ctx.text("bad position", 400);
+    if (maxParallel !== undefined && maxParallel !== null && !isMaxParallel(maxParallel))
+      return ctx.text("maxParallel must be a whole number from 1 to 16, or null", 400);
     if (!Array.isArray(cardIds) || cardIds.length === 0 || !cardIds.every((c) => typeof c === "string"))
       return ctx.text("cardIds must be a non-empty list of card ids", 400);
     if (new Set(cardIds).size !== cardIds.length) return ctx.text("cardIds has a duplicate", 400);
@@ -630,6 +633,7 @@ async function route(
       phaseId: (phaseId as string | null | undefined) ?? null,
       name: typeof name === "string" ? name.trim() : null,
       position: position as number | undefined,
+      maxParallel: (maxParallel as number | null | undefined) ?? null,
     });
     ctx.audit.record({
       action: "run.create",

@@ -340,6 +340,10 @@ export interface Review {
  * gesture. Only what the gesture decided lives here; which worker is alive, which card the lead is
  * on, whether the run is over — all read from the snapshot and the cards, so a restart resumes.
  */
+/** A lot's parallelism ceiling: a whole number from 1 (sequential) to this. */
+export const MAX_PARALLEL_CAP = 16;
+export const isMaxParallel = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= MAX_PARALLEL_CAP;
+
 export interface Run {
   id: string;
   repoPath: string;
@@ -350,6 +354,11 @@ export interface Run {
   leadAgent: string | null;
   /** The phase this lot belongs to, or null — ADR 0021. */
   phaseId: string | null;
+  /**
+   * How many of this lot's cards may run at once, or null for the board's own cap only. 1 is
+   * sequential. The planner sets it — it knows which cards touch the same files.
+   */
+  maxParallel: number | null;
   /** The lot's name; null for a run made with the old gesture. */
   name: string | null;
   position: number;
@@ -487,6 +496,7 @@ interface RunRow {
   name: string | null;
   position: number;
   launched_at: number | null;
+  max_parallel: number | null;
 }
 
 function toRun(r: RunRow): Run {
@@ -500,6 +510,7 @@ function toRun(r: RunRow): Run {
     name: r.name ?? null,
     position: r.position ?? 0,
     launchedAt: r.launched_at ?? null,
+    maxParallel: r.max_parallel ?? null,
   };
 }
 
@@ -755,7 +766,8 @@ CREATE TABLE IF NOT EXISTS run (
   phase_id    TEXT,
   name        TEXT,
   position    INTEGER NOT NULL DEFAULT 0,
-  launched_at INTEGER
+  launched_at INTEGER,
+  max_parallel INTEGER
 );
 
 -- ADR 0021. A phase groups a repo's cards; its progress is read from them, never stored.
@@ -1103,6 +1115,7 @@ export class BoardDb {
       { table: "run", column: "name", ddl: "TEXT" },
       { table: "run", column: "position", ddl: "INTEGER NOT NULL DEFAULT 0" },
       { table: "run", column: "launched_at", ddl: "INTEGER" },
+      { table: "run", column: "max_parallel", ddl: "INTEGER" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1358,14 +1371,15 @@ export class BoardDb {
     phaseId?: string | null;
     name?: string | null;
     position?: number;
+    maxParallel?: number | null;
   }): Run {
     const id = crypto.randomUUID();
     this.db.transaction(() => {
       const ts = this.now();
       this.db
         .query(
-          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -1377,6 +1391,7 @@ export class BoardDb {
           input.name ?? null,
           input.position ?? 0,
           input.planned ? null : ts,
+          input.maxParallel ?? null,
         );
       const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
       for (const cardId of input.cardIds) {
@@ -1400,7 +1415,7 @@ export class BoardDb {
    */
   updateLot(
     id: string,
-    patch: { name?: string | null; position?: number; phaseId?: string | null; cardIds?: string[] },
+    patch: { name?: string | null; position?: number; phaseId?: string | null; cardIds?: string[]; maxParallel?: number | null },
   ): Run | null {
     const run = this.getRun(id);
     if (!run || run.launchedAt !== null) return null;
@@ -1408,6 +1423,7 @@ export class BoardDb {
       if (patch.name !== undefined) this.db.query("UPDATE run SET name = ? WHERE id = ?").run(patch.name, id);
       if (patch.position !== undefined) this.db.query("UPDATE run SET position = ? WHERE id = ?").run(patch.position, id);
       if (patch.phaseId !== undefined) this.db.query("UPDATE run SET phase_id = ? WHERE id = ?").run(patch.phaseId, id);
+      if (patch.maxParallel !== undefined) this.db.query("UPDATE run SET max_parallel = ? WHERE id = ?").run(patch.maxParallel, id);
       if (patch.cardIds) {
         const want = new Set(patch.cardIds);
         for (const m of this.runMembers(id)) {

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { BoardDb, type Card } from "./db.ts";
+import { BoardDb, isMaxParallel, type Card } from "./db.ts";
 import type { GateResult } from "./gate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt } from "./lead.ts";
-import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { baseFor, briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -281,6 +281,46 @@ describe("RunCoordinator (ADR 0017)", () => {
   });
 });
 
+describe("a lot's parallelism ceiling", () => {
+  it("maxParallel 1 starts one card, then the next only when the first is filed", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready", position: 0 });
+    const b = db.createCard({ title: "b", repoPath: "/r", status: "ready", position: 1 });
+    db.createRun({ repoPath: "/r", cardIds: [a.id, b.id], foldInCap: 0, maxParallel: 1 });
+    const w = world(db, { slots: 5 });
+    w.coord.update(snap());
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual(["start a"]);
+    w.coord.update(snap({ "p-a": "working" }));
+    await flush();
+    expect(w.calls).toEqual(["start a"]);
+    w.ports.fileAsDone(db.getCard(a.id)!);
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls.at(-1)).toBe("start b");
+  });
+
+  it("no ceiling: the board's own slots decide, as before", async () => {
+    const db = new BoardDb(":memory:");
+    const ids = ["a", "b", "c"].map((t, i) => db.createCard({ title: t, repoPath: "/r", status: "ready", position: i }).id);
+    db.createRun({ repoPath: "/r", cardIds: ids, foldInCap: 0 });
+    const w = world(db, { slots: 5 });
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual(["start a", "start b", "start c"]);
+  });
+
+  it("refuses a ceiling out of range", () => {
+    const db = new BoardDb(":memory:");
+    expect(isMaxParallel(1)).toBe(true);
+    expect(isMaxParallel(0)).toBe(false);
+    expect(isMaxParallel(17)).toBe(false);
+    expect(isMaxParallel(2.5)).toBe(false);
+    db.close();
+  });
+});
+
 describe("the repo's gate (ADR 0020)", () => {
   async function landed(gate: string | null = "tools/ovg gate") {
     const db = new BoardDb(":memory:");
@@ -354,3 +394,12 @@ describe("the repo's gate (ADR 0020)", () => {
   });
 });
 
+
+describe("baseFor", () => {
+  it("falls back to the main checkout's branch when the card has no base, so committed work is seen", () => {
+    expect(baseFor(null, "main")).toBe("main");
+    expect(baseFor("  ", "main")).toBe("main");
+    expect(baseFor("develop", "main")).toBe("develop");
+    expect(baseFor(null, null)).toBeNull();
+  });
+});

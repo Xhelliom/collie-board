@@ -229,3 +229,17 @@ describe("roadmap", () => {
     expect(roadmapMarkdown("x", { vision: "", items: [], revision: 3 })).toContain("# Roadmap — x");
   });
 });
+
+describe("a lot's maxParallel over the routes (ADR 0021)", () => {
+  it("is stored on a planned lot, patched, and refused out of range", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0, planned: true, maxParallel: 1 });
+    expect(db.getRun(run.id)!.maxParallel).toBe(1);
+    db.updateLot(run.id, { maxParallel: 3 });
+    expect(db.getRun(run.id)!.maxParallel).toBe(3);
+    db.updateLot(run.id, { maxParallel: null });
+    expect(db.getRun(run.id)!.maxParallel).toBeNull();
+    db.close();
+  });
+});
