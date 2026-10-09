@@ -97,6 +97,23 @@ describe("ProjectRoute", () => {
     expect(await screen.findByText(/no roadmap yet/i)).toBeTruthy();
   });
 
+  it("draws a lot as a group that holds its steps, and the rest under \"Not in a lot\"", async () => {
+    mount(
+      [
+        card({ id: "in-lot", phaseId: "P1", runId: "L1" }),
+        card({ id: "also-in", phaseId: "P1", runId: "L1" }),
+        card({ id: "free-one", phaseId: "P1" }),
+      ],
+      { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["in-lot", "also-in"] })] },
+    );
+    const group = await screen.findByRole("region", { name: "Lot Lot A" });
+    expect(group).toHaveTextContent("in-lot");
+    expect(group).toHaveTextContent("also-in");
+    expect(group).not.toHaveTextContent("free-one");
+    expect(group).not.toHaveTextContent("in a run");
+    expect(screen.getByText(/not in a lot · 1/i)).toBeInTheDocument();
+  });
+
   it("launches a planned lot only after the sheet lists the cards, then reloads", async () => {
     let launched = "";
     server.use(

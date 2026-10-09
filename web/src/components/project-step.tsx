@@ -62,6 +62,7 @@ export function StepItem({
   flash,
   predecessor,
   facts,
+  inLot = false,
   onToggle,
   phases = [],
   onMove,
@@ -74,6 +75,8 @@ export function StepItem({
   predecessor: CardView | undefined;
   /** What the journal knows of this card; absent while loading or when the bridge cannot say. */
   facts?: CardFacts;
+  /** Drawn inside its lot's group: the group already says "in a run", so the chip is dropped. */
+  inLot?: boolean;
   onToggle: () => void;
   /** The repo's phases; with `onMove`, the step can be filed under another one. */
   phases?: Phase[];
@@ -120,7 +123,7 @@ export function StepItem({
           {line && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{line}</span>}
           <span className="flex flex-wrap items-center gap-1.5">
           {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">next</span>}
-          {card.runId && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">in a run</span>}
+          {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">in a run</span>}
           <CardStatusChip status={card.status} />
           {chips.map((c) => (
             <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", CHIP_TONE[c.tone])}>

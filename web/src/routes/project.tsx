@@ -334,8 +334,7 @@ export function ProjectRoute() {
                   let k = 0;
                   return v.phases.map((p) => {
                     const visible = p.steps.filter(shownIn);
-                    const showLots = filter === "all" && p.lots.length > 0;
-                    if (visible.length === 0 && !showLots && !(filter === "all" && p.phase)) return null;
+                    if (visible.length === 0 && !(filter === "all" && p.phase)) return null;
                     return (
                       <li key={p.key} className="contents">
                         <div id={`phase-${p.key}`} className="flex scroll-mt-16 items-center gap-3 pb-1 pt-4">
@@ -343,9 +342,12 @@ export function ProjectRoute() {
                           <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
-                        {showLots && <PhaseLots lots={p.lots} byId={byId} onLaunched={() => void revalidator.revalidate()} />}
-                        <ul className="flex flex-col gap-2">
-                          {visible.map((s) => (
+                        <PhaseLots
+                          lots={p.lots}
+                          steps={visible}
+                          byId={byId}
+                          onLaunched={() => void revalidator.revalidate()}
+                          renderStep={(s, inLot) => (
                             <StepItem
                               key={s.id}
                               card={s}
@@ -355,12 +357,13 @@ export function ProjectRoute() {
                               flash={flash === s.id}
                               predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
                               facts={data.facts?.[s.id]}
+                              inLot={inLot}
                               onToggle={() => toggle(s.id)}
                               phases={data.phases}
                               onMove={(phaseId) => void move(s.id, phaseId)}
                             />
-                          ))}
-                        </ul>
+                          )}
+                        />
                       </li>
                     );
                   });
