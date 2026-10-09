@@ -48,6 +48,7 @@ import {
   readWorktreeFile,
   worktreePathFor,
 } from "./git.ts";
+import { parseGate } from "./gate.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import {
   cleanupCard,
@@ -68,6 +69,8 @@ import type { StateEngine } from "./state-engine.ts";
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
+/** `/api/repos/gate` — set or clear a repo's gate command (ADR 0020). */
+const REPOS_GATE_ROUTE = "/api/repos/gate";
 
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
@@ -349,6 +352,28 @@ async function route(
       device: ctx.device,
       detail: { path: path.trim(), hidden },
     });
+    return ctx.json({ ok: true });
+  }
+
+  // A repo's gate: a command the bridge will RUN in a run's worker checkout — remote execution by
+  // another name, so it is write-gated, audited, and the only place it can be set (ADR 0020).
+  if (pathname === REPOS_GATE_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path, gate } = (body ?? {}) as { path?: unknown; gate?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (gate !== null && typeof gate !== "string") return ctx.text("gate must be a command or null", 400);
+    const argv = gate === null ? null : parseGate(gate);
+    if (gate !== null && !argv) return ctx.text("gate must be a command or null", 400);
+    ctx.db.setRepoGate(path.trim(), argv ? argv.join(" ") : null);
+    ctx.audit.record({ action: "repo.gate", session: ctx.session, device: ctx.device, detail: { path: path.trim(), gate: argv?.join(" ") ?? null } });
     return ctx.json({ ok: true });
   }
 

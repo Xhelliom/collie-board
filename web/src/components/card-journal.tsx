@@ -310,6 +310,8 @@ export function describeEvent(event: BoardEvent): string {
       return `${leadDecision(p)} — ${String(p.reason ?? "no reason given")}`;
     case "run.triaged":
       return `Lead ${p.accept ? "accepted" : "rejected"} the review's verdict${p.verdict ? ` (${String(p.verdict)})` : ""} — ${String(p.reason ?? "no reason given")}`;
+    case "run.gate":
+      return p.ok ? `Gate green (${String(p.command)})` : `Gate red (${String(p.command)}) — worker sent back`;
     case "run.halted":
       return `Run halted, needs you — ${String(p.reason ?? "no reason given")}`;
     case "run.finished":

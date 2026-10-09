@@ -17,6 +17,7 @@ import type { AgentAdapter } from "./adapters.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isAutoHandoffPending, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
+import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { cardDiffSummary, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { prForCard, resolveConflict } from "./integrate.ts";
@@ -32,7 +33,7 @@ type Outcome = { ok: true } | { ok: false; error: { kind: string; message: strin
 /** Everything the coordinator acts through — the real routes in index.ts, fakes in the tests. */
 export interface RunPorts {
   lead: {
-    check(input: CardBrief & { statSummary: string }): Promise<CheckDecision>;
+    check(input: CardBrief & { statSummary: string; gatePassed?: string }): Promise<CheckDecision>;
     triage(input: CardBrief & { verdict: string | null; notes: string | null; followUps: { title: string; spec?: string | null }[] }): Promise<TriageDecision>;
     recheckConflict(input: CardBrief & { conflicts: string[] }): Promise<ConflictDecision>;
   };
@@ -51,6 +52,10 @@ export interface RunPorts {
   stat(cardId: string): Promise<string>;
   /** How many more agents may start now (`db.maxAgents() ?? cfg.boardMaxAgents` minus running). */
   freeSlots(): number;
+  /** The repo's gate command (ADR 0020), or null. Read per card: the operator may set it mid-run. */
+  gateCommand(card: Card): string | null;
+  /** Run it in the worker's checkout. */
+  runGate(command: string, worktree: string): Promise<GateResult>;
   /** Whether the copilot reviews — off, there is no review to triage and the lead goes straight to the PR. */
   reviewing(): boolean;
 }
@@ -58,6 +63,7 @@ export interface RunPorts {
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
 export type Step =
   | { kind: "start" }
+  | { kind: "gate" }
   | { kind: "check" }
   | { kind: "recheck"; conflicts: string[] }
   | { kind: "triage"; sessionId: string }
@@ -91,6 +97,8 @@ export function stepFor(
     pane: string | undefined;
     /** Its predecessor is filed (or it has none). */
     depsDone: boolean;
+    /** The repo has a gate: a landing is run through it before the lead sees it. */
+    gated: boolean;
     reviewing: boolean;
     /** The copilot's review of the open session: there, failed, or still to come. */
     review: "done" | "failed" | "pending";
@@ -125,6 +133,8 @@ export function stepFor(
       const clash = newest(events, (e) => e.type === "card.pr_failed" && (e.payload as { stage?: string }).stage === "conflict");
       return { kind: "recheck", conflicts: ((clash?.payload as { files?: string[] } | null)?.files) ?? [] };
     }
+    // Machine first (ADR 0020): the lead reads only what the gate passed, on THIS landing.
+    if (ctx.gated && !after(newest(events, (e) => e.type === "run.gate" && isRun(e, run.id)), landed)) return { kind: "gate" };
     return { kind: "check" };
   }
   // The worker was sent back and has not picked it up yet.
@@ -194,6 +204,7 @@ export class RunCoordinator {
           session,
           pane: session?.paneId ? panes.get(session.paneId) : undefined,
           depsDone: !pred || FILED.has(pred.status),
+          gated: this.ports.gateCommand(card) !== null,
           reviewing: this.ports.reviewing(),
           review: reviews.length ? "done" : failed ? "failed" : "pending",
         });
@@ -226,13 +237,16 @@ export class RunCoordinator {
         if (!r.ok && r.error.kind !== "busy" && r.error.kind !== "blocked-by") this.halt(run, card.id, `start failed: ${r.error.message}`);
         return;
       }
+      case "gate":
+        return this.gate(run, card, session!);
       case "check":
       case "recheck": {
         const brief = await this.ports.brief(card);
         if (!brief) return this.halt(run, card.id, "the worker's checkout is gone");
+        const gatePassed = this.ports.gateCommand(card) ?? undefined;
         const d =
           step.kind === "check"
-            ? await this.ports.lead.check({ ...brief, statSummary: await this.ports.stat(card.id) })
+            ? await this.ports.lead.check({ ...brief, statSummary: await this.ports.stat(card.id), gatePassed })
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
         if (d.decision === "prompt") {
@@ -256,6 +270,25 @@ export class RunCoordinator {
       case "file":
         return this.ports.fileAsDone(card);
     }
+  }
+
+  /**
+   * Step 3, machine first: red goes straight back to the worker with the gate's own report — no lead
+   * asked, no quota spent — and counts as a round, so MAX_ROUNDS is the escalation to the operator.
+   * A gate that cannot give a verdict is not the worker's fault: it halts.
+   */
+  private async gate(run: Run, card: Card, session: CardSession): Promise<void> {
+    const command = this.ports.gateCommand(card);
+    const brief = await this.ports.brief(card);
+    if (!command || !brief) return this.halt(run, card.id, command ? "the worker's checkout is gone" : "the gate was removed");
+    const r = await this.ports.runGate(command, brief.worktree);
+    if (r.kind === "error") return this.halt(run, card.id, `gate could not run: ${r.message}`);
+    const ok = r.kind === "pass";
+    this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(ok ? {} : { summary: r.summary }) });
+    if (ok) return;
+    const prompt = gatePrompt(command, r.summary);
+    await this.ports.prompt(session.paneId!, prompt);
+    this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the gate failed (exit ${r.exit})` });
   }
 
   /** Step 5: the lead reads the review with the code; each follow-up card is kept, folded or dropped. */
@@ -339,6 +372,11 @@ export function runHook(
       return briefOf(card, worktree, base);
     },
     stat: (cardId) => cardDiffSummary(db, cardId),
+    gateCommand: (card) => (card.repoPath ? db.repoGate(card.repoPath) : null),
+    runGate: (command, worktree) => {
+      const argv = parseGate(command);
+      return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });
+    },
     freeSlots: () => (db.maxAgents() ?? cfg.boardMaxAgents) - runningCards(db),
     reviewing: () => cfg.boardCopilot,
   });

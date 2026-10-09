@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb, type Card } from "./db.ts";
+import type { GateResult } from "./gate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt } from "./lead.ts";
 import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
@@ -26,6 +27,8 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
   const triages: TriageDecision[] = [];
   const rechecks: ConflictDecision[] = [];
   let pr: Awaited<ReturnType<RunPorts["openPr"]>> = { ok: true };
+  let gate: string | null = null;
+  const gates: GateResult[] = [];
   const ports: RunPorts = {
     lead: {
       check: async () => checks.shift() ?? { decision: "finished", reason: "ok" },
@@ -54,6 +57,11 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
       db.closeSession(db.openSessionFor(c.id)!.id, "done");
       db.setStatus(c.id, "done", "manual");
     },
+    gateCommand: () => gate,
+    runGate: async (cmd) => {
+      calls.push(`gate ${cmd}`);
+      return gates.shift() ?? { kind: "pass" };
+    },
     brief: async (c) => ({ title: c.title, spec: c.spec, acceptance: c.acceptance, worktree: "/wt", base: "main" }),
     stat: async () => "a.ts | 1 +",
     freeSlots: () => (opts.slots ?? 3) - db.listOpenSessions().length,
@@ -65,6 +73,8 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
     triages,
     rechecks,
     setPr: (r: typeof pr) => (pr = r),
+    setGate: (cmd: string | null) => (gate = cmd),
+    gates,
     coord: new RunCoordinator(db, ports),
     ports,
   };
@@ -270,3 +280,77 @@ describe("RunCoordinator (ADR 0017)", () => {
     );
   });
 });
+
+describe("the repo's gate (ADR 0020)", () => {
+  async function landed(gate: string | null = "tools/ovg gate") {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    w.setGate(gate);
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    return { db, a, w };
+  }
+
+  it("red: the worker is sent back with the report, and the lead is never asked", async () => {
+    const { db, a, w } = await landed();
+    w.gates.push({ kind: "fail", exit: 2, summary: "error: x" });
+    w.checks.push({ decision: "finished", reason: "should not be asked" });
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("prompt"))).toHaveLength(1);
+    expect(w.calls.at(-1)).toContain("error: x");
+    expect(events(db, a, "run.gate")[0]!.payload).toMatchObject({ ok: false });
+    expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "prompt", reason: "the gate failed (exit 2)" });
+    // Same landing: nothing more until the worker lands again.
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("gate"))).toHaveLength(1);
+    expect(w.checks).toHaveLength(1);
+  });
+
+  it("green: the lead is asked, once, and the gate is not run twice on the same landing", async () => {
+    const { db, a, w } = await landed();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("gate"))).toHaveLength(1);
+    expect(events(db, a, "run.gate")[0]!.payload).toMatchObject({ ok: true });
+    expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "finished" });
+  });
+
+  it("a gate that cannot run halts the card instead of blaming the worker", async () => {
+    const { db, a, w } = await landed();
+    w.gates.push({ kind: "error", message: "ENOENT" });
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")[0]!.payload).toMatchObject({ reason: "gate could not run: ENOENT" });
+    expect(w.calls.some((c) => c.startsWith("prompt"))).toBe(false);
+  });
+
+  it("red rounds count: the card goes to the operator after MAX_ROUNDS", async () => {
+    const { db, a, w } = await landed();
+    for (let i = 0; i < MAX_ROUNDS; i++) {
+      w.gates.push({ kind: "fail", exit: 1, summary: "no" });
+      w.coord.update(snap({ "p-a": "idle" }));
+      await flush();
+      db.setStatus(a.id, "working", "agent working");
+      land(db, a);
+    }
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(1);
+  });
+
+  it("no gate configured: the lead is asked straight away, as before", async () => {
+    const { a, db, w } = await landed(null);
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.calls.some((c) => c.startsWith("gate"))).toBe(false);
+    expect(events(db, a, "run.decision")).toHaveLength(1);
+  });
+});
+

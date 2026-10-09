@@ -373,6 +373,8 @@ export interface RunEventPayloads {
   "run.finished": { runId: string };
   /** On the card that needs the operator. */
   "run.halted": { runId: string; reason: string };
+  /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
+  "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -382,6 +384,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.triaged",
   "run.finished",
   "run.halted",
+  "run.gate",
 ];
 
 export interface BoardEvent {
@@ -686,6 +689,8 @@ CREATE INDEX IF NOT EXISTS event_card_idx ON event(card_id, ts);
 CREATE TABLE IF NOT EXISTS repo_pref (
   path       TEXT PRIMARY KEY,
   hidden     INTEGER NOT NULL DEFAULT 0,
+  -- The repo's gate command (ADR 0020): the operator's decision too, and equally underivable.
+  gate       TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -941,6 +946,8 @@ export class BoardDb {
       { table: "card", column: "auto_handoff", ddl: "TEXT" },
       // Runs (ADR 0017). No backfill: no card was ever in a run before the table existed.
       { table: "card", column: "run_id", ddl: "TEXT" },
+      // The repo's gate command (ADR 0020). Null: no gate.
+      { table: "repo_pref", column: "gate", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1448,20 +1455,47 @@ export class BoardDb {
   }
 
   /**
-   * Hide or unhide a repo. Un-hiding DELETES the row rather than storing `hidden = 0`: the default
-   * is "visible", so a row that says so is a row that means nothing and would accumulate forever.
+   * Hide or unhide a repo. A row that says "visible, no gate" means nothing and would accumulate
+   * forever, so it is deleted rather than stored — see {@link pruneRepoPref}.
    */
   setRepoHidden(path: string, hidden: boolean): void {
-    if (!hidden) {
-      this.db.query("DELETE FROM repo_pref WHERE path = ?").run(path);
-      return;
-    }
     this.db
       .query(
-        `INSERT INTO repo_pref (path, hidden, updated_at) VALUES (?, 1, ?)
-         ON CONFLICT(path) DO UPDATE SET hidden = 1, updated_at = excluded.updated_at`,
+        `INSERT INTO repo_pref (path, hidden, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET hidden = excluded.hidden, updated_at = excluded.updated_at`,
       )
-      .run(path, this.now());
+      .run(path, hidden ? 1 : 0, this.now());
+    this.pruneRepoPref(path);
+  }
+
+  /** The repo's gate command (ADR 0020), or null. */
+  repoGate(path: string): string | null {
+    return (
+      this.db.query<{ gate: string | null }, [string]>("SELECT gate FROM repo_pref WHERE path = ?").get(path)?.gate ?? null
+    );
+  }
+
+  /** Every repo that has a gate — for the picker, which lists repos and should say which are gated. */
+  repoGates(): Map<string, string> {
+    const rows = this.db
+      .query<{ path: string; gate: string }, []>("SELECT path, gate FROM repo_pref WHERE gate IS NOT NULL")
+      .all();
+    return new Map(rows.map((r) => [r.path, r.gate]));
+  }
+
+  /** Set the gate, or clear it with null. */
+  setRepoGate(path: string, gate: string | null): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, gate, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET gate = excluded.gate, updated_at = excluded.updated_at`,
+      )
+      .run(path, gate, this.now());
+    this.pruneRepoPref(path);
+  }
+
+  private pruneRepoPref(path: string): void {
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL").run(path);
   }
 
   // ── board preferences ───────────────────────────────────────────────────────

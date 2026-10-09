@@ -81,6 +81,8 @@ export interface RepoChoice {
    * stored (see `repo_pref` in db.ts).
    */
   hidden?: boolean;
+  /** The repo's gate command (ADR 0020), when the operator set one. */
+  gate?: string;
 }
 
 /**
@@ -229,8 +231,11 @@ export async function listRepos(
     [...scanned],
   );
 
+  const gates = db.repoGates();
   for (const choice of choices) {
     if (hidden.has(choice.path)) choice.hidden = true;
+    const gate = gates.get(choice.path);
+    if (gate) choice.gate = gate;
   }
 
   // Resolve default branches in parallel — it pre-fills the card's base ref, which is the OTHER
