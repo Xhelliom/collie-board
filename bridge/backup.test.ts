@@ -71,8 +71,10 @@ describe("buildBackup", () => {
       "board_pref",
       "card",
       "event",
+      "phase",
       "repo_pref",
       "review",
+      "roadmap",
       "run",
       "session",
     ]);

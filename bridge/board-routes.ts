@@ -50,6 +50,7 @@ import {
   worktreePathFor,
 } from "./git.ts";
 import { parseGate } from "./gate.ts";
+import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import {
@@ -170,6 +171,7 @@ export function parseCardBody(
     "parentId",
     "dependsOn",
     "duplicateOf",
+    "phaseId",
     // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
     // the copilot's writes get it too — see there.
     "tag",
@@ -291,6 +293,11 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
   // `duplicateOf` gets the existence check but NOT the cycle check: it blocks nothing and is walked
   // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
   if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
+  // A phase groups ONE repo's cards (ADR 0021): it has to exist and be the card's own repo's.
+  if (patch.phaseId) {
+    const repo = patch.repoPath ?? (cardId ? db.getCard(cardId)?.repoPath : null) ?? null;
+    if (db.getPhase(patch.phaseId)?.repoPath !== repo) return "phaseId: no such phase in this card's repo";
+  }
   return null;
 }
 
@@ -319,6 +326,10 @@ async function route(
   req: Request,
   ctx: BoardContext,
 ): Promise<Response | null> {
+  // Phases, lots, roadmap (ADR 0021) — new behaviour lives in its own file.
+  const project = await handleProjectRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
+  if (project) return project;
+
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {
     if (req.method !== "GET") return ctx.text("method not allowed", 405);
@@ -575,11 +586,24 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { cardIds, foldInCap, leadAgent } = (body ?? {}) as {
+    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position } = (body ?? {}) as {
       cardIds?: unknown;
       foldInCap?: unknown;
       leadAgent?: unknown;
+      planned?: unknown;
+      phaseId?: unknown;
+      name?: unknown;
+      position?: unknown;
     };
+    // Without `planned` this IS the launch (ADR 0017's gesture), so it is the operator's: an agent
+    // pane can plan a lot but never start one (ADR 0021).
+    if (planned !== true && req.headers.get(PANE_HEADER)?.trim())
+      return ctx.text("launching is the operator's gesture — an agent pane may only create a planned lot", 403);
+    if (planned !== undefined && typeof planned !== "boolean") return ctx.text("planned must be a boolean", 400);
+    if (name !== undefined && name !== null && (typeof name !== "string" || name.trim() === "" || name.length > 200))
+      return ctx.text("name must be a short string or null", 400);
+    if (position !== undefined && (typeof position !== "number" || !Number.isFinite(position)))
+      return ctx.text("bad position", 400);
     if (!Array.isArray(cardIds) || cardIds.length === 0 || !cardIds.every((c) => typeof c === "string"))
       return ctx.text("cardIds must be a non-empty list of card ids", 400);
     if (new Set(cardIds).size !== cardIds.length) return ctx.text("cardIds has a duplicate", 400);
@@ -595,17 +619,23 @@ async function route(
     if (cards.some((c) => c!.repoPath !== repoPath)) return ctx.text("a run is one repo's cards", 400);
     // Joining a second run would silently steal the card from the first.
     if (cards.some((c) => c!.runId)) return ctx.text("a card is already in a run", 409);
+    if (phaseId !== undefined && phaseId !== null && (typeof phaseId !== "string" || ctx.db.getPhase(phaseId)?.repoPath !== repoPath))
+      return ctx.text("phaseId: no such phase in this repo", 400);
     const run = ctx.db.createRun({
       repoPath,
       cardIds: cardIds as string[],
       foldInCap,
       leadAgent: typeof leadAgent === "string" ? leadAgent.trim() : null,
+      planned: planned === true,
+      phaseId: (phaseId as string | null | undefined) ?? null,
+      name: typeof name === "string" ? name.trim() : null,
+      position: position as number | undefined,
     });
     ctx.audit.record({
       action: "run.create",
       session: ctx.session,
       device: ctx.device,
-      detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent },
+      detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent, planned: planned === true },
     });
     return ctx.json({ run, cardIds }, 201);
   }
