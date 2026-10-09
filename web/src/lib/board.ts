@@ -580,6 +580,8 @@ export interface CardInput {
   /** Card ids. The bridge validates that they exist and that neither closes a loop. */
   parentId?: string | null;
   dependsOn?: string | null;
+  /** The phase this card belongs to (ADR 0021), or `null` to take it out. */
+  phaseId?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */

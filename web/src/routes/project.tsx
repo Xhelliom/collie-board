@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useSearchParams } from "react-router";
+import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
+import { PhaseLots } from "@/components/project-lots";
+import { ProjectRoadmap } from "@/components/project-roadmap";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardPath, repoName, type CardView } from "@/lib/board";
-import type { BoardData } from "@/lib/board-loaders";
+import { boardErrorMessage, boardPath, patchCard, repoName, type CardView } from "@/lib/board";
+import type { ProjectData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
 import { projectOf, stepGroup, type StepGroup } from "@/lib/project";
+import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
 // The project view: one repo's board read as a road map. Derived and read-only (lib/project.ts) —
@@ -123,10 +126,11 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
 
 export function ProjectRoute() {
   const navigate = useNavigate();
-  const data = useLoaderData() as BoardData;
+  const data = useLoaderData() as ProjectData;
+  const revalidator = useRevalidator();
   const repo = useSearchParams()[0].get("repo");
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
-  const v = useMemo(() => projectOf(cards), [cards]);
+  const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
 
   const [filter, setFilter] = useState<Filter>(() => {
@@ -146,6 +150,14 @@ export function ProjectRoute() {
       else next.delete(id);
       return next;
     });
+  const move = async (cardId: string, phaseId: string | null) => {
+    try {
+      await patchCard(cardId, { phaseId });
+      void revalidator.revalidate();
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  };
   const pick = (f: Filter) => {
     setFilter(f);
     store.set(f);
@@ -163,7 +175,7 @@ export function ProjectRoute() {
   const shownIn = (s: CardView) => filter === "all" || stepGroup(s) === filter;
   const allOpen = steps.filter(shownIn).every((s) => openIds.has(s.id));
   const latest = cards.reduce((m, c) => Math.max(m, c.updatedAt), 0);
-  const named = v.phases.filter((p) => p.container).length;
+  const named = v.phases.filter((p) => p.phase || p.container).length;
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
@@ -221,6 +233,8 @@ export function ProjectRoute() {
                 <Kpi label="To start" value={v.todo} note={v.next ? `next: ${v.next.title}` : undefined} tone="bg-muted-foreground" />
               </div>
 
+              {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
+
               {v.awaiting.length > 0 && (
                 <section
                   aria-label="Waiting for you"
@@ -258,18 +272,18 @@ export function ProjectRoute() {
               <nav aria-label="Phases" className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
                 {v.phases.map((p) => (
                   <button
-                    key={p.container?.id ?? "loose"}
+                    key={p.key}
                     type="button"
                     onClick={() => {
                       pick("all");
-                      requestAnimationFrame(() => go(document.getElementById(`phase-${p.container?.id ?? "loose"}`)));
+                      requestAnimationFrame(() => go(document.getElementById(`phase-${p.key}`)));
                     }}
                     className={cn(
                       "flex flex-col gap-2 rounded-xl border bg-card/70 p-3 text-left transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
                       p.steps.some((s) => stepGroup(s) === "flight") && "border-status-working/60",
                     )}
                   >
-                    <span className="text-[13px] font-semibold leading-tight">{p.container?.title ?? "No phase"}</span>
+                    <span className="text-[13px] font-semibold leading-tight">{p.title}</span>
                     <Bar steps={p.steps} />
                     <span className="font-mono text-[11px] text-muted-foreground">
                       {p.done} / {p.steps.length} done
@@ -313,15 +327,16 @@ export function ProjectRoute() {
                   let k = 0;
                   return v.phases.map((p) => {
                     const visible = p.steps.filter(shownIn);
-                    if (visible.length === 0) return null;
+                    const showLots = filter === "all" && p.lots.length > 0;
+                    if (visible.length === 0 && !showLots && !(filter === "all" && p.phase)) return null;
                     return (
-                      <li key={p.container?.id ?? "loose"} className="contents">
-                        <div id={`phase-${p.container?.id ?? "loose"}`} className="flex scroll-mt-16 items-center gap-3 pb-1 pt-4">
-                          <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                            {p.container?.title ?? "No phase"}
-                          </h2>
+                      <li key={p.key} className="contents">
+                        <div id={`phase-${p.key}`} className="flex scroll-mt-16 items-center gap-3 pb-1 pt-4">
+                          <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title}</h2>
                           <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
                         </div>
+                        {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
+                        {showLots && <PhaseLots lots={p.lots} byId={byId} onLaunched={() => void revalidator.revalidate()} />}
                         <ul className="flex flex-col gap-2">
                           {visible.map((s) => (
                             <StepItem
@@ -333,6 +348,8 @@ export function ProjectRoute() {
                               flash={flash === s.id}
                               predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
                               onToggle={() => toggle(s.id)}
+                              phases={data.phases}
+                              onMove={(phaseId) => void move(s.id, phaseId)}
                             />
                           ))}
                         </ul>

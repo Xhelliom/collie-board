@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 
 import { CardStatusChip } from "@/components/card-status-chip";
 import { MarkdownText } from "@/components/markdown-text";
-import { cardPath, type CardView } from "@/lib/board";
+import { cardPath, type CardView, type Phase } from "@/lib/board";
 import { stepGroup } from "@/lib/project";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,8 @@ export function StepItem({
   flash,
   predecessor,
   onToggle,
+  phases = [],
+  onMove,
 }: {
   card: CardView;
   index: number;
@@ -54,6 +56,9 @@ export function StepItem({
   flash: boolean;
   predecessor: CardView | undefined;
   onToggle: () => void;
+  /** The repo's phases; with `onMove`, the step can be filed under another one. */
+  phases?: Phase[];
+  onMove?: (phaseId: string | null) => void;
 }) {
   const group = stepGroup(card);
   const agent = card.runtime?.agent ?? card.session?.agentKind ?? card.agentKind;
@@ -142,6 +147,23 @@ export function StepItem({
                 </Who>
               )}
             </ul>
+            {phases.length > 0 && onMove && (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                Phase
+                <select
+                  value={card.phaseId ?? ""}
+                  onChange={(e) => onMove(e.target.value || null)}
+                  className="rounded-lg border bg-background px-2 py-1 text-sm text-foreground"
+                >
+                  <option value="">No phase</option>
+                  {phases.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <Link to={cardPath(card.id)} className="self-start text-xs font-semibold text-brand">
               Open the card →
             </Link>
