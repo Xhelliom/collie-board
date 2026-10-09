@@ -68,6 +68,9 @@ decide", with the operator's consent given to nobody in particular.
   Existing runs are launched ones (`launched_at` = their creation).
 - The `collie-board` skill gains the phase / lot / roadmap routes; that is how any session — the
   panel's or the operator's own terminal — plans.
+- The orchestrator is one pane per repo, labelled `orchestrator-<repo>`: found again after a bridge
+  restart by that label plus the repo directory (never by a bare cwd, which would take the operator's
+  own session for it), and kept out of the notifications by the label alone.
 - The lead is still one pane for every repo, serialised. A lead per repo is deferred until two repos
   run at once and it hurts.
 - A library for typed model output instead of the lead's JSON answer files is a separate question:

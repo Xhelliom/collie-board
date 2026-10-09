@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
-import { handleBoardRoute } from "./board-routes.ts";
+import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
@@ -216,13 +216,7 @@ export function startServer(opts: {
       // Bound to the PRIMARY herdr session, deliberately: a card's pane id only means anything
       // inside the server that issued it, and the board is a single-machine, single-herd object.
       // Multi-session cards would need a session column on every row for no use case that exists.
-      if (
-        pathname.startsWith("/api/cards") ||
-        pathname.startsWith("/api/repos") ||
-        pathname.startsWith("/api/board") ||
-        pathname.startsWith("/api/backup") ||
-        pathname === "/api/runs"
-      ) {
+      if (isBoardPath(pathname)) {
         const rt = registry.get();
         if (!rt) return unknownSession();
         const boardRes = await handleBoardRoute(pathname, req, {

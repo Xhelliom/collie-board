@@ -36,6 +36,17 @@ describe("ProjectRoute", () => {
     }
   });
 
+  it("docks the orchestrator beside the road map: start button before it exists, its pane after", async () => {
+    mount([card({ id: "a" })], { orchestrator: { paneId: null, running: false } });
+    expect(await screen.findByRole("button", { name: "Démarrer l'orchestrateur" })).toBeInTheDocument();
+  });
+
+  it("shows the running orchestrator's pane, and asks for a repo when there is none", async () => {
+    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true }, orchestratorText: "bonjour" });
+    expect(await screen.findByText("bonjour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message à l'orchestrateur")).toBeInTheDocument();
+  });
+
   it("shows the phases, the progress and what waits for you", async () => {
     mount([
       card({ id: "Phase one" }),

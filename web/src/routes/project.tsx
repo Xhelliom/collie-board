@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
 
+import { MessagesSquare } from "lucide-react";
+
 import { AppHeader } from "@/components/app-header";
+import { BottomSheet } from "@/components/ui/sheet";
+import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { StepItem, STEP_TONE } from "@/components/project-step";
@@ -143,6 +147,8 @@ export function ProjectRoute() {
     () => new Set(v.phases.flatMap((p) => p.steps).filter((s) => ["flight", "waiting"].includes(stepGroup(s))).map((s) => s.id)),
   );
   const [flash, setFlash] = useState<string | null>(null);
+  // The orchestrator is docked on a wide screen and a sheet on a phone (ADR 0021).
+  const [chatOpen, setChatOpen] = useState(false);
   const toggle = (id: string, on?: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -181,7 +187,8 @@ export function ProjectRoute() {
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader title={repo ? repoName(repo) : "Project"} subtitle="Road map" onBack={() => navigate(boardPath())} />
       <h1 className="sr-only">Project</h1>
-      <main className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1">
+      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
@@ -362,6 +369,21 @@ export function ProjectRoute() {
           )}
         </div>
       </main>
+      <aside aria-label="Orchestrateur" className="hidden w-[22rem] shrink-0 flex-col border-l lg:flex xl:w-96">
+        <OrchestratorPanel repo={repo} state={data.orchestrator} text={data.orchestratorText ?? ""} />
+      </aside>
+      </div>
+      <button
+        type="button"
+        onClick={() => setChatOpen(true)}
+        className="fixed bottom-4 right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg lg:hidden"
+      >
+        <MessagesSquare className="size-4" />
+        Discuter avec l'orchestrateur
+      </button>
+      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title="Orchestrateur">
+        <OrchestratorPanel repo={repo} state={data.orchestrator} text={data.orchestratorText ?? ""} />
+      </BottomSheet>
     </div>
   );
 }

@@ -273,6 +273,12 @@ so they don't get re-discovered from scratch or acted on by accident.
 
 ## 9. The board (this fork)
 
+> **Projects.** A repo's road map is the roadmap, its phases, and its lots (planned runs), planned by
+> a per-repo *orchestrator* agent that the operator starts from the project tab
+> (`bridge/orchestrator.ts`) and that never launches — [ADR 0021](./.adr/0021-a-project-is-a-roadmap-phases-and-lots-planned-by-an-agent-that-never-launches.md).
+> Every board route family is listed once in `isBoardPath` (`board-routes.ts`); `server.ts` forwards
+> exactly that list.
+
 Collie is an ephemeral mirror: every tick re-reads the snapshot and nothing is persisted. That is
 right for "which agent needs me now" and useless for "where is this task". The board adds the second
 question, and exactly one rule carries the design: **`card` is durable, `session` is ephemeral.**

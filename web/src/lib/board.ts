@@ -1147,6 +1147,17 @@ export const fetchLots = (repo: string, signal?: AbortSignal): Promise<{ runs: L
 /** Null `roadmap`: nothing written yet for this repo. */
 export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ roadmap: Roadmap | null }> =>
   apiRequest(`/api/roadmap?repo=${encodeURIComponent(repo)}`, { signal });
+/** The repo's planning orchestrator (ADR 0021): `paneId` null until the operator starts it. */
+export interface OrchestratorState {
+  paneId: string | null;
+  running: boolean;
+}
+export const fetchOrchestrator = (repo: string, signal?: AbortSignal): Promise<OrchestratorState> =>
+  apiRequest(`/api/orchestrator?repo=${encodeURIComponent(repo)}`, { signal });
+/** Spends the operator's quota — only ever from their tap. */
+export const startOrchestrator = (repoPath: string): Promise<{ ok: true; paneId: string; started: boolean }> =>
+  apiRequest("/api/orchestrator", { method: "POST", body: JSON.stringify({ repoPath }) });
+
 export const launchLot = (id: string): Promise<{ run: Lot }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
 export const saveRoadmap = (

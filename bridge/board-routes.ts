@@ -51,6 +51,7 @@ import {
 } from "./git.ts";
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
+import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -118,6 +119,15 @@ export const PANE_HEADER = "x-collie-pane";
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
   /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+
+/**
+ * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
+ * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
+ * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
+ */
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator"];
+export const isBoardPath = (pathname: string): boolean =>
+  BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
@@ -330,6 +340,8 @@ async function route(
   // Phases, lots, roadmap (ADR 0021) — new behaviour lives in its own file.
   const project = await handleProjectRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
   if (project) return project;
+  const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
+  if (orchestrator) return orchestrator;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {

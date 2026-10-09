@@ -6,18 +6,20 @@
 // `useRevalidator` tick re-runs every active loader (see hooks/use-polling.ts). There is no
 // board-specific poll loop.
 
-import { isApiErrorStatus } from "./api";
+import { fetchPane, isApiErrorStatus } from "./api";
 import {
   fetchCard,
   fetchCards,
   fetchLots,
   fetchOpenPrs,
+  fetchOrchestrator,
   fetchPhases,
   fetchRoadmap,
   type CardDetail,
   type CardView,
   type Lot,
   type OpenPr,
+  type OrchestratorState,
   type Phase,
   type Roadmap,
 } from "./board";
@@ -91,11 +93,17 @@ export async function prsLoader(): Promise<OpenPr[]> {
   return (await fetchOpenPrs()).prs;
 }
 
+/** How much of the orchestrator's pane the panel shows — the conversation's tail, not its scrollback. */
+const ORCHESTRATOR_LINES = 60;
+
 export interface ProjectData extends BoardData {
   /** Empty without a `?repo=` — phases, lots and the roadmap are per repo (ADR 0021). */
   phases: Phase[];
   lots: Lot[];
   roadmap: Roadmap | null;
+  /** The repo's orchestrator and the tail of its pane, so the panel rides the root poll (no loop of its own). */
+  orchestrator?: OrchestratorState | null;
+  orchestratorText?: string;
 }
 
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
@@ -103,10 +111,14 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const base = await boardLoader({ request });
   const repo = request ? new URL(request.url).searchParams.get("repo") : null;
   if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
-  const [phases, lots, roadmap] = await Promise.all([
+  const [phases, lots, roadmap, orchestrator] = await Promise.all([
     fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
     fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
     fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
+    fetchOrchestrator(repo, request?.signal).catch(() => null),
   ]);
-  return { ...base, phases, lots, roadmap };
+  const orchestratorText = orchestrator?.paneId
+    ? await fetchPane(orchestrator.paneId, ORCHESTRATOR_LINES, undefined, request?.signal).then((r) => r.text, () => "")
+    : "";
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorText };
 }
