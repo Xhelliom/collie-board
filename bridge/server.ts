@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute } from "./board-routes.ts";
+import { recordOperatorSaid } from "./operator-said.ts";
 import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
@@ -322,7 +323,7 @@ export function startServer(opts: {
         if (!action && req.method === "GET") return readPane(herdr, cfg, paneId, url, req);
         if (action === "history" && req.method === "GET")
           return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
-        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session);
+        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt));
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
@@ -895,6 +896,7 @@ async function replyPane(
   audit: AuditLog,
   device: string | null,
   session: string,
+  onDelivered: (text: string) => void,
 ): Promise<Response> {
   let body: { text?: string; submit?: boolean };
   try {
@@ -914,7 +916,10 @@ async function replyPane(
     device,
     detail: { text: txt, submit, submitted: outcome.ok, textDelivered: outcome.textDelivered },
   });
-  if (outcome.ok) return json({ ok: true } satisfies ActionResponse, ae);
+  if (outcome.ok) {
+    onDelivered(txt);
+    return json({ ok: true } satisfies ActionResponse, ae);
+  }
   return json(
     { ok: false, error: outcome.error, textDelivered: outcome.textDelivered } satisfies ActionResponse,
     ae,

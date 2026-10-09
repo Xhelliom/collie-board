@@ -33,7 +33,7 @@ type Outcome = { ok: true } | { ok: false; error: { kind: string; message: strin
 /** Everything the coordinator acts through — the real routes in index.ts, fakes in the tests. */
 export interface RunPorts {
   lead: {
-    check(input: CardBrief & { statSummary: string; gatePassed?: string }): Promise<CheckDecision>;
+    check(input: CardBrief & { statSummary: string; gatePassed?: string; operatorSaid?: string[] }): Promise<CheckDecision>;
     triage(input: CardBrief & { verdict: string | null; notes: string | null; followUps: { title: string; spec?: string | null }[] }): Promise<TriageDecision>;
     recheckConflict(input: CardBrief & { conflicts: string[] }): Promise<ConflictDecision>;
   };
@@ -74,6 +74,16 @@ export type Step =
 
 const STARTABLE = new Set<string>(["backlog", "ready"]);
 const FILED = new Set<string>(["done", "archived"]);
+
+/** What the operator told the worker since the lead's last verdict on this run, oldest first. Pure. */
+export function operatorSince(events: BoardEvent[], runId: string): string[] {
+  const verdict = events.find((e) => e.type === "run.decision" && isRun(e, runId) && isVerdict(e));
+  return events
+    .filter((e) => e.type === "card.operator_said" && (e.id ?? 0) > (verdict?.id ?? 0))
+    .map((e) => String((e.payload as { text?: unknown } | null)?.text ?? ""))
+    .filter(Boolean)
+    .reverse();
+}
 
 const isRun = (e: BoardEvent, runId: string) =>
   e.type.startsWith("run.") && (e.payload as { runId?: string } | null)?.runId === runId;
@@ -256,9 +266,10 @@ export class RunCoordinator {
         const brief = await this.ports.brief(card);
         if (!brief) return this.halt(run, card.id, "the worker's checkout is gone");
         const gatePassed = this.ports.gateCommand(card) ?? undefined;
+        const operatorSaid = operatorSince(this.db.listEvents(card.id, 200), run.id);
         const d =
           step.kind === "check"
-            ? await this.ports.lead.check({ ...brief, statSummary: await this.ports.stat(card.id), gatePassed })
+            ? await this.ports.lead.check({ ...brief, statSummary: await this.ports.stat(card.id), gatePassed, operatorSaid })
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
         if (d.decision === "prompt") {

@@ -50,6 +50,7 @@ import {
   worktreePathFor,
 } from "./git.ts";
 import { parseGate } from "./gate.ts";
+import { recordOperatorSaid } from "./operator-said.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -1365,6 +1366,8 @@ async function route(
     // useless for finding the review pass you launched two hours ago. Free text stays a char count.
     const command = /^\/[\w-]+$/.test(promptText.trim()) ? promptText.trim() : undefined;
     db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, ...(command ? { command } : {}) });
+    // A bare slash command is a gesture, not a direction the lead needs to read.
+    if (!command) recordOperatorSaid(db, session.paneId, promptText);
     ctx.audit.record({
       action: "card.prompt",
       paneId: session.paneId,

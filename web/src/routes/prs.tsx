@@ -155,6 +155,13 @@ export function PrsRoute() {
                       </div>
                       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     </Link>
+                    {row.autoMerge && (
+                      <p className="text-xs text-muted-foreground">
+                        {row.autoMerge === "armed"
+                          ? "Auto-merge armed — GitHub merges it once its checks pass."
+                          : "GitHub would not merge this by itself — turn on “Allow auto-merge” for the repo, or merge it yourself."}
+                      </p>
+                    )}
                     {chip && (
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span

@@ -993,6 +993,7 @@ export interface OpenPr {
   openedAt: number;
   /** Only after a check: what GitHub said, null when it could not be asked. */
   pr?: PrStatus | null;
+  autoMerge?: "armed" | "refused";
 }
 
 /** The open PRs, from the journal. `check` asks GitHub about each one — the Check tap, never a poll. */

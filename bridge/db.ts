@@ -1956,7 +1956,7 @@ export class BoardDb {
   listPrEvents(): BoardEvent[] {
     return this.db
       .query<EventRow, []>(
-        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_merged', 'card.pr_closed') ORDER BY id",
+        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_merged', 'card.pr_closed', 'card.automerge_armed', 'card.automerge_refused') ORDER BY id",
       )
       .all()
       .map(toEvent);
