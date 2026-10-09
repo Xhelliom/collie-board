@@ -1,97 +1,39 @@
 import type { BoardEvent, CardStatus, CardView, PrStatus } from "./board";
 import { timeAgo } from "./format";
 
-// Turning the flat card list into what the board renders.
+// Turning the flat card list into what the board renders — ADR 0022.
 //
-// A dictated note that named three tasks becomes a CONTAINER card plus its children (see
-// ARCHITECTURE.md → "Splitting one dump into several cards"). The board groups by STATUS, and a
-// container's children can sit in different columns from it — so something has to give.
-//
-// WHICH thing gives depends on how many columns are on screen, and it is the same argument as the
-// board layout itself:
-//
-// - ONE column (a phone): the children's individual placement gives. The group is atomic and lands
-//   in the container's derived column, which is exactly what that derivation is for ("does anything
-//   under here need me"). Seventeen children of one dictation, strung out in a single vertical list
-//   between unrelated cards, is the mess grouping exists to prevent.
-// - FOUR columns (a wide screen): the grouping gives. A column IS a status, so folding children into
-//   their parent's column removes them from the only sort the board performs — and it lies: fifteen
-//   finished sub-tasks left "Done" reading zero. The container stays, collapsed to its title and its
-//   per-status chips, as the way back to the dictation it came from.
+// The board is the STATUS axis: one tile per card, in the column its status names, on every screen.
+// A dictation that was split into sub-tasks leaves a CONTAINER card behind; it holds the dictation
+// and no work of its own, so it takes no tile — each sub-task names it instead, and the card page
+// links to it. Grouping the work (phases, lots, progress) is the project view's job, not the
+// board's: folding children under a parent hid them from the only sort this screen performs.
 //
 // Nothing here is stored: the shape is read off the flat list on every render.
 
-export type BoardEntry =
-  | { kind: "card"; card: CardView }
-  | { kind: "group"; container: CardView; children: CardView[] };
-
 /**
- * Group the board's cards into top-level entries, preserving the server's order.
- *
- * A child is folded into its container and does NOT appear at top level — unless its container is
- * missing from the list (archived, or filtered out), in which case it stands alone rather than
- * vanishing. A card that has no children and no visible parent is an ordinary tile, which is the
- * overwhelming majority: grouping is an exception in the layout, not a new default.
- *
- * `scatter` is the wide-screen reading (see the note at the top of this file): children ALSO come
- * back as top-level entries, so each one lands in its own status column. The group entry stays —
- * the caller renders it collapsed, as a summary — so a container never becomes unreachable and its
- * derived status still has somewhere to show.
+ * The ids of cards that are containers: some other card names them as its parent. Read off the FULL
+ * list, so a filter that hides every child doesn't turn the container into a startable-looking tile.
  */
-export function boardEntries(cards: CardView[], scatter = false): BoardEntry[] {
+export function containerIds(cards: CardView[]): Set<string> {
   const present = new Set(cards.map((c) => c.id));
-  const childrenOf = new Map<string, CardView[]>();
-  for (const card of cards) {
-    if (!card.parentId || !present.has(card.parentId)) continue;
-    const list = childrenOf.get(card.parentId);
-    if (list) list.push(card);
-    else childrenOf.set(card.parentId, [card]);
+  return new Set(cards.map((c) => c.parentId).filter((id): id is string => !!id && present.has(id)));
+}
+
+/** One phase's progress for the board's pill: its steps (containers are not steps) and how many are filed. */
+export function phaseProgress(
+  cards: CardView[],
+  phases: { id: string; name: string }[],
+): Map<string, { name: string; done: number; total: number }> {
+  const containers = containerIds(cards);
+  const out = new Map(phases.map((p) => [p.id, { name: p.name, done: 0, total: 0 }]));
+  for (const c of cards) {
+    const p = c.phaseId ? out.get(c.phaseId) : undefined;
+    if (!p || containers.has(c.id) || c.status === "archived") continue;
+    p.total++;
+    if (c.status === "done") p.done++;
   }
-
-  const entries: BoardEntry[] = [];
-  for (const card of cards) {
-    const children = childrenOf.get(card.id);
-    if (children) {
-      entries.push({ kind: "group", container: card, children });
-      continue;
-    }
-    // Folded into its container above — skip it here so it isn't rendered twice. Unless we're
-    // scattering, where the fold is exactly what we don't want.
-    if (!scatter && card.parentId && childrenOf.has(card.parentId)) continue;
-    entries.push({ kind: "card", card });
-  }
-  return entries;
-}
-
-/** The column an entry belongs to: a group follows its container's derived status. */
-export function entryStatus(entry: BoardEntry): CardStatus {
-  return entry.kind === "group" ? entry.container.status : entry.card.status;
-}
-
-/** A stable key for React — the container's id identifies the group. */
-export function entryKey(entry: BoardEntry): string {
-  return entry.kind === "group" ? entry.container.id : entry.card.id;
-}
-
-/**
- * Columns where a group opens by itself.
- *
- * The collapse state follows the COLUMN'S JOB, and that is not a matter of taste. Backlog and Done
- * are for triage and for filing: one row per dictation is what you want, and five rows for one
- * thought is the mess this whole feature exists to clean up. The live columns are for acting, and
- * hiding a blocked sub-task behind a chevron would put an extra tap on the single most urgent thing
- * on the board — the exact opposite of what this app is for.
- */
-const OPEN_BY_DEFAULT: readonly CardStatus[] = [
-  "starting",
-  "working",
-  "blocked",
-  "review",
-  "orphaned",
-];
-
-export function groupOpenByDefault(status: CardStatus): boolean {
-  return OPEN_BY_DEFAULT.includes(status);
+  return out;
 }
 
 /** What the journal remembers about a card's branch, once the branch itself is gone. */

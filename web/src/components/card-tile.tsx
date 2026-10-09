@@ -29,8 +29,8 @@ import type { DependencyInfo } from "@/lib/board-groups";
 // just the hue, is what makes the board scannable from across the room.
 //
 // The tile is a CONTAINER (`@container`), not a viewport reader. The same tile renders full-width on
-// a phone, ~320px wide in a lane of the wide-screen board, and narrower still nested inside a
-// CardGroup there — three different widths at ONE viewport size, which no `lg:` could tell apart.
+// a phone and ~320px wide in a lane of the wide-screen board — its width follows its lane, which no
+// `lg:` could tell apart.
 
 /** Loud: a solid status chip, and the whole card tinted/bordered in the same tone. */
 const LOUD_STATUS: Partial<Record<CardStatus, { chip: string; card: string }>> = {
@@ -77,6 +77,7 @@ export function CardTile({
   onClick,
   dependency,
   parent,
+  phase,
   source,
   repo,
   drag,
@@ -91,15 +92,17 @@ export function CardTile({
    */
   dependency?: DependencyInfo;
   /**
-   * The container this card was split out of, when the board is showing sub-tasks in their own
-   * columns rather than folded under their parent. Without it a scattered sub-task is a title with
-   * no provenance — and a dictation that produced eight of them reads as eight unrelated cards.
+   * The container this card was split out of. The container takes no tile of its own (ADR 0022), so
+   * this caption is where it is named: without it a sub-task is a title with no provenance — and a
+   * dictation that produced eight of them reads as eight unrelated cards.
    *
    * Text, not a link: this tile is already a `<button>`, and a button inside a button is invalid
    * HTML whose inner click also fires the outer one. Opening the card gets you a real link to the
    * parent, at the top of its page.
    */
   parent?: string;
+  /** The phase this card belongs to, with its progress (ADR 0022). Display only: the tile is a `<button>`, so the filter lives in the Filter sheet. */
+  phase?: { name: string; done: number; total: number };
   /**
    * The card this one came out of — the reviewed card a follow-up was filed against, or the card
    * whose session filed it (ADR 0010). Either way its title is written as a note to that card
@@ -267,6 +270,15 @@ export function CardTile({
           )}
         </div>
 
+        {phase && (
+          <div className="flex">
+            <TagChip
+              tag={phase.name}
+              label={`${phase.name} · ${phase.done}/${phase.total}`}
+              className="px-[7px] py-px text-[10px] font-semibold"
+            />
+          </div>
+        )}
         {parent && (
           <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
             <Layers className="size-3 shrink-0" />

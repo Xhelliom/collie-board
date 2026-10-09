@@ -420,9 +420,10 @@ export function tagsOf(cards: readonly CardView[]): string[] {
  */
 export function matchesFilters(
   card: CardView,
-  filters: { tag: string | null; autoOnly: boolean },
+  filters: { tag: string | null; autoOnly: boolean; phase?: string | null },
 ): boolean {
   if (filters.tag && card.tag !== filters.tag) return false;
+  if (filters.phase && card.phaseId !== filters.phase) return false;
   // Any origin, not just the copilot's: the strip asks "what appeared without me?", and a filter
   // that answered it for one of the two writers would be a gauge that is quietly wrong.
   return !filters.autoOnly || card.origin !== null;
@@ -879,6 +880,10 @@ export function createRun(input: {
   cardIds: string[];
   foldInCap: number;
   leadAgent: string | null;
+  /** A PLANNED lot (ADR 0021): holds its cards and drives nothing until launched from the project view. */
+  planned?: boolean;
+  phaseId?: string | null;
+  name?: string;
 }): Promise<{ run: { id: string }; cardIds: string[] }> {
   return apiRequest("/api/runs", { method: "POST", body: JSON.stringify(input) });
 }

@@ -4,7 +4,7 @@ import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { GateSheet } from "@/components/gate-sheet";
-import { fetchBoardPrefs, fetchRepos, repoName, runWaves, type CardView } from "@/lib/board";
+import { fetchBoardPrefs, fetchRepos, repoName, runWaves, type CardView, type Phase } from "@/lib/board";
 
 /** The fold-in cap a run starts with. Small on purpose: past it, a follow-up is a card for later. */
 const DEFAULT_FOLD_IN_CAP = 2;
@@ -17,18 +17,32 @@ export function RunSheet({
   onClose,
   cards,
   repoPath,
+  phases,
+  phaseId: initialPhase,
   onConfirm,
 }: {
   open: boolean;
   onClose: () => void;
   cards: CardView[];
   repoPath: string;
-  onConfirm: (input: { foldInCap: number; leadAgent: string | null }) => Promise<void>;
+  /** The repo's phases, to file a planned lot under one (ADR 0021). */
+  phases: Phase[];
+  /** The phase the board is filtered on, pre-selected. */
+  phaseId: string | null;
+  onConfirm: (input: {
+    foldInCap: number;
+    leadAgent: string | null;
+    planned?: boolean;
+    phaseId?: string | null;
+    name?: string;
+  }) => Promise<void>;
 }) {
   const [maxAgents, setMaxAgents] = useState<number | null>(null);
   const [foldInCap, setFoldInCap] = useState(DEFAULT_FOLD_IN_CAP);
   const [leadAgent, setLeadAgent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lotName, setLotName] = useState("");
+  const [lotPhase, setLotPhase] = useState<string | null>(initialPhase);
   // The repo's gate (ADR 0020): null = none yet, undefined = not known (yet, or the bridge didn't say).
   const [gate, setGate] = useState<string | null | undefined>(undefined);
   const [gateOpen, setGateOpen] = useState(false);
@@ -47,10 +61,14 @@ export function RunSheet({
 
   const waves = runWaves(cards);
 
-  async function confirm() {
+  async function confirm(plan = false) {
     setBusy(true);
     try {
-      await onConfirm({ foldInCap, leadAgent });
+      await onConfirm(
+        plan
+          ? { foldInCap, leadAgent, planned: true, phaseId: lotPhase, name: lotName.trim() }
+          : { foldInCap, leadAgent },
+      );
     } finally {
       setBusy(false);
     }
@@ -63,9 +81,20 @@ export function RunSheet({
       onClose={onClose}
       title={`Run ${cards.length} card${cards.length === 1 ? "" : "s"} · ${repoName(repoPath)}`}
       footer={
-        <Button variant="brand" className="w-full" disabled={busy || cards.length === 0} onClick={confirm}>
-          Lancer le run
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button variant="brand" className="w-full" disabled={busy || cards.length === 0} onClick={() => void confirm()}>
+            Lancer le run
+          </Button>
+          {/* A planned lot holds its cards and drives nothing: it is launched later, from the project view. */}
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={busy || cards.length === 0 || lotName.trim() === ""}
+            onClick={() => void confirm(true)}
+          >
+            Planifier un lot
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col gap-4">
@@ -101,6 +130,33 @@ export function RunSheet({
             </Button>
           </div>
         )}
+
+        <div aria-label="Lot" className="flex flex-col gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Lot (pour planifier au lieu de lancer)</span>
+          <input
+            type="text"
+            value={lotName}
+            onChange={(e) => setLotName(e.target.value)}
+            placeholder="Nom du lot"
+            maxLength={200}
+            className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+          {phases.length > 0 && (
+            <select
+              aria-label="Phase du lot"
+              value={lotPhase ?? ""}
+              onChange={(e) => setLotPhase(e.target.value || null)}
+              className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <option value="">Sans phase</option>
+              {phases.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Plafond de fold-ins</span>
