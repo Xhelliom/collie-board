@@ -39,12 +39,12 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
       "2.Bravo",
       "3.Charlie",
     ]);
-    expect(await screen.findByText("jusqu'à 3 agents à la fois")).toBeInTheDocument();
+    expect(await screen.findByText("le board autorise 3 agents à la fois")).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /codex/i }));
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Lancer le run" })));
-    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 5, leadAgent: "codex" });
+    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 5, leadAgent: "codex", maxParallel: null });
   });
 
   it("says when the repo has no gate and offers to set one; shows it when it has", async () => {
@@ -80,6 +80,14 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
     expect(plan).toBeDisabled();
     fireEvent.change(screen.getByPlaceholderText("Nom du lot"), { target: { value: "Lot A" } });
     await act(async () => void fireEvent.click(plan));
-    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 2, leadAgent: null, planned: true, phaseId: "p1", name: "Lot A" });
+    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 2, leadAgent: null, planned: true, phaseId: "p1", name: "Lot A", maxParallel: null });
+  });
+
+  it("carries the lot's parallelism ceiling", async () => {
+    const onConfirm = vi.fn(async () => {});
+    render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" phases={[]} phaseId={null} onConfirm={onConfirm} />);
+    fireEvent.change(screen.getByLabelText("Cartes à la fois dans ce lot"), { target: { value: "1" } });
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Lancer le run" })));
+    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 2, leadAgent: null, maxParallel: 1 });
   });
 });

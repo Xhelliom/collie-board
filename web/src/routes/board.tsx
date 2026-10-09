@@ -249,6 +249,7 @@ export function BoardRoute() {
     planned?: boolean;
     phaseId?: string | null;
     name?: string;
+    maxParallel?: number | null;
   }) {
     try {
       await createRun({ cardIds: chosen.map((c) => c.id), ...input });

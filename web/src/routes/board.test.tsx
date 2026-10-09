@@ -225,7 +225,7 @@ describe("choosing a run's set (ADR 0017)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run 2 cards" }));
     fireEvent.click(await screen.findByRole("button", { name: "Lancer le run" }));
     await act(async () => {});
-    expect(createRun).toHaveBeenCalledWith({ cardIds: ["Alpha", "Bravo"], foldInCap: 2, leadAgent: null });
+    expect(createRun).toHaveBeenCalledWith({ cardIds: ["Alpha", "Bravo"], foldInCap: 2, leadAgent: null, maxParallel: null });
   });
 });
 
@@ -290,6 +290,7 @@ describe("one rule on every screen (ADR 0022)", () => {
       planned: true,
       phaseId: "p1",
       name: "Lot 1",
+      maxParallel: null,
     });
   });
 });

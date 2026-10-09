@@ -112,6 +112,11 @@ export function PhaseLots({
                 >
                   {planned ? "planned" : pl.done === pl.cards.length && pl.cards.length > 0 ? "finished" : "running"}
                 </span>
+                {pl.lot.maxParallel ? (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {pl.lot.maxParallel === 1 ? "one at a time" : `${pl.lot.maxParallel} at a time`}
+                  </span>
+                ) : null}
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">
                   {pl.done} / {pl.cards.length}
                 </span>

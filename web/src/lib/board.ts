@@ -886,6 +886,8 @@ export function createRun(input: {
   planned?: boolean;
   phaseId?: string | null;
   name?: string;
+  /** Cards of the lot that may run at once; 1 is sequential, null follows the board's cap. */
+  maxParallel?: number | null;
 }): Promise<{ run: { id: string }; cardIds: string[] }> {
   return apiRequest("/api/runs", { method: "POST", body: JSON.stringify(input) });
 }
@@ -1120,6 +1122,7 @@ export interface Lot {
   name: string | null;
   position: number;
   launchedAt: number | null;
+  maxParallel?: number | null;
   cardIds: string[];
 }
 

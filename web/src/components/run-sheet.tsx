@@ -35,6 +35,7 @@ export function RunSheet({
     planned?: boolean;
     phaseId?: string | null;
     name?: string;
+    maxParallel?: number | null;
   }) => Promise<void>;
 }) {
   const [maxAgents, setMaxAgents] = useState<number | null>(null);
@@ -42,6 +43,8 @@ export function RunSheet({
   const [leadAgent, setLeadAgent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [lotName, setLotName] = useState("");
+  // Null follows the board's own cap; 1 is sequential. The planner usually decides (ADR 0021).
+  const [maxParallel, setMaxParallel] = useState<number | null>(null);
   const [lotPhase, setLotPhase] = useState<string | null>(initialPhase);
   // The repo's gate (ADR 0020): null = none yet, undefined = not known (yet, or the bridge didn't say).
   const [gate, setGate] = useState<string | null | undefined>(undefined);
@@ -66,8 +69,8 @@ export function RunSheet({
     try {
       await onConfirm(
         plan
-          ? { foldInCap, leadAgent, planned: true, phaseId: lotPhase, name: lotName.trim() }
-          : { foldInCap, leadAgent },
+          ? { foldInCap, leadAgent, planned: true, phaseId: lotPhase, name: lotName.trim(), maxParallel }
+          : { foldInCap, leadAgent, maxParallel },
       );
     } finally {
       setBusy(false);
@@ -110,10 +113,24 @@ export function RunSheet({
           </ol>
         </section>
 
-        <p aria-label="Parallélisme" className="text-sm">
-          <span className="text-muted-foreground">Parallélisme : </span>
-          {maxAgents === null ? "…" : `jusqu'à ${maxAgents} agent${maxAgents === 1 ? "" : "s"} à la fois`}
-        </p>
+        <label aria-label="Parallélisme" className="flex items-center justify-between gap-3 text-sm">
+          <span className="min-w-0">
+            <span className="text-muted-foreground">Parallélisme : </span>
+            {maxAgents === null ? "…" : `le board autorise ${maxAgents} agent${maxAgents === 1 ? "" : "s"} à la fois`}
+          </span>
+          <select
+            aria-label="Cartes à la fois dans ce lot"
+            value={maxParallel ?? ""}
+            onChange={(e) => setMaxParallel(e.target.value ? Number(e.target.value) : null)}
+            className="h-10 shrink-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <option value="">Selon le board</option>
+            <option value="1">Une à la fois</option>
+            <option value="2">2 à la fois</option>
+            <option value="3">3 à la fois</option>
+            <option value="4">4 à la fois</option>
+          </select>
+        </label>
 
         {gate !== undefined && (
           <div aria-label="Barrière" className="flex items-center justify-between gap-3 text-sm">
