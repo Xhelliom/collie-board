@@ -488,6 +488,10 @@ export function boardPath(): string {
   return "/board";
 }
 
+export function projectPath(repo?: string | null): string {
+  return repo ? `/board/project?repo=${encodeURIComponent(repo)}` : "/board/project";
+}
+
 export function prsPath(): string {
   return "/board/prs";
 }

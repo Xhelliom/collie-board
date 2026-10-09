@@ -12,6 +12,7 @@ import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
+import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardLoader, cardLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
         element: <BoardRoute />,
         errorElement: <RootError />,
       },
+      { path: "board/project", loader: boardLoader, element: <ProjectRoute />, errorElement: <RootError to={boardPath()} /> },
       {
         path: "board/prs",
         loader: prsLoader,

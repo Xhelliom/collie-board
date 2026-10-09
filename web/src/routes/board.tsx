@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ChevronRight, GitPullRequest, ListChecks, ListFilter, Plus, X } from "lucide-react";
+import { ChevronRight, GitPullRequest, ListChecks, Map as MapIcon, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
   matchesFilters,
   patchCard,
   positionFor,
+  projectPath,
   prsPath,
   repoName,
   reposOf,
@@ -420,6 +421,14 @@ export function BoardRoute() {
           <>
             {/* The open PRs, one tap away on both breakpoints. The Done lane keeps its own link, but
                 on a phone that lane is stacked last, under every card on the board. */}
+            <Link
+              to={projectPath(activeRepo)}
+              aria-label="Project"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent hover:text-accent-foreground sm:px-3"
+            >
+              <MapIcon className="size-4" />
+              <span className="hidden sm:inline">Project</span>
+            </Link>
             <Link
               to={prsPath()}
               aria-label="Open PRs"
