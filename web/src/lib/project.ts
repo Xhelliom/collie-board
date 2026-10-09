@@ -13,19 +13,36 @@ export interface ProjectPhase {
   done: number;
 }
 
+/** What a step is doing, in the four words the project view filters by. */
+export type StepGroup = "done" | "flight" | "waiting" | "todo";
+
 export interface ProjectView {
   total: number;
   done: number;
-  /** Steps with an agent on them or a diff waiting: working, starting, review. */
+  /** Steps an agent is on right now: working, starting. */
   active: number;
+  /** Steps that need the operator: blocked, in review, orphaned. */
+  waiting: number;
+  /** Steps not started: ready, backlog. */
+  todo: number;
   phases: ProjectPhase[];
-  /** Steps that need the operator — blocked or waiting for review — most urgent first. */
+  /** Steps that need the operator — blocked, in review or orphaned — most urgent first. */
   awaiting: CardView[];
   /** The first step that could start now: ready, and its predecessor filed. */
   next: CardView | null;
 }
 
-const ACTIVE = new Set(["working", "starting", "review"]);
+const GROUP: Record<string, StepGroup> = {
+  done: "done",
+  working: "flight",
+  starting: "flight",
+  blocked: "waiting",
+  review: "waiting",
+  orphaned: "waiting",
+  ready: "todo",
+  backlog: "todo",
+};
+export const stepGroup = (c: Pick<CardView, "status">): StepGroup => GROUP[c.status] ?? "todo";
 const byPosition = (a: CardView, b: CardView) => a.position - b.position || a.createdAt - b.createdAt;
 
 /** Pure over the cards handed in (already scoped to one repo by the caller). */
@@ -47,9 +64,11 @@ export function projectOf(cards: CardView[]): ProjectView {
   return {
     total: steps.length,
     done: steps.filter((s) => s.status === "done").length,
-    active: steps.filter((s) => ACTIVE.has(s.status)).length,
+    active: steps.filter((s) => stepGroup(s) === "flight").length,
+    waiting: steps.filter((s) => stepGroup(s) === "waiting").length,
+    todo: steps.filter((s) => stepGroup(s) === "todo").length,
     phases,
-    awaiting: ["blocked", "review"].flatMap((st) => ordered.filter((s) => s.status === st)),
+    awaiting: ["blocked", "review", "orphaned"].flatMap((st) => ordered.filter((s) => s.status === st)),
     next: ordered.find((s) => s.status === "ready" && dependencyMet(s.dependsOn ? byId.get(s.dependsOn) : null)) ?? null,
   };
 }

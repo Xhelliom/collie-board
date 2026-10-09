@@ -1,4 +1,4 @@
 bump: minor
 
 ### Added
-- Vue projet `/board/project` : les cartes d'un dépôt lues comme un plan de route (phases = conteneurs, avancement, « en attente de toi », prochaine étape), calculée, en lecture seule
+- Vue projet `/board/project` : plan de route d'un dépôt calculé depuis ses cartes — anneau d'avancement, compteurs, encart « t'attend », rail de phases, filtres mémorisés, étapes dépliables (spec, critères, qui a la main)

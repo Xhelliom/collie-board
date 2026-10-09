@@ -21,6 +21,8 @@ describe("projectOf", () => {
     expect(v.total).toBe(4);
     expect(v.done).toBe(1);
     expect(v.active).toBe(1);
+    expect(v.todo).toBe(2);
+    expect(v.waiting).toBe(0);
     expect(v.phases.map((p) => [p.container?.id ?? null, p.done, p.steps.length])).toEqual([
       ["p1", 1, 2],
       ["p2", 0, 1],
@@ -29,8 +31,9 @@ describe("projectOf", () => {
   });
 
   it("puts what needs the operator first, blocked before review", () => {
-    const v = projectOf([card({ id: "r", status: "review" }), card({ id: "b", status: "blocked" }), card({ id: "w", status: "working" })]);
-    expect(v.awaiting.map((c) => c.id)).toEqual(["b", "r"]);
+    const v = projectOf([card({ id: "o", status: "orphaned" }), card({ id: "r", status: "review" }), card({ id: "b", status: "blocked" }), card({ id: "w", status: "working" })]);
+    expect(v.awaiting.map((c) => c.id)).toEqual(["b", "r", "o"]);
+    expect(v.waiting).toBe(3);
   });
 
   it("the next step is the first ready one whose predecessor is filed", () => {
