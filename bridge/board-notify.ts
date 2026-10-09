@@ -79,6 +79,18 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
     const error = str(e.payload, "error");
     return { status: "blocked", subtitle: oneLine(error ? `${stage} kept: ${error}` : `${stage} kept`) };
   }
+  // B13 — a PR the board opened for a run and GitHub will not merge by itself. Nothing else says so
+  // (the refusal is journaled, never an HTTP answer), the PR sits open, and there is something to
+  // decide: turn the repo setting on, or merge it. A story, not a state — no predicate, so the bell.
+  if (e.type === "card.automerge_refused") {
+    const error = str(e.payload, "error") ?? "";
+    return {
+      status: "blocked",
+      subtitle: /not allowed for this repository/i.test(error)
+        ? "PR open — auto-merge is off for this repo; merge it yourself"
+        : oneLine(`PR open — GitHub refused auto-merge${error ? `: ${error}` : ""}`),
+    };
+  }
   // B10 — a tap that produced nothing. Every copilot request is asynchronous and answers into the
   // card; when it fails there is no answer, and no way to learn that except this.
   if (e.type.startsWith("copilot.") && e.type.endsWith("_failed")) {

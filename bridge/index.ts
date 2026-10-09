@@ -26,6 +26,7 @@ import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notif
 import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
+import { isOrchestratorAgent } from "./orchestrator.ts";
 import { isLeadPane, runHook } from "./run.ts";
 import { startServer } from "./server.ts";
 import {
@@ -273,7 +274,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // page the operator exactly like a worker's would. Its pane id, never its (renameable) workspace
     // label, so COLLIE_BOARD_COPILOT_WORKSPACE can't reopen this hole. Primary-only, same as the
     // copilot itself.
-    if (isPrimary && (agent.paneId === copilot.paneId || isLeadPane(agent.paneId))) return;
+    if (isPrimary && (agent.paneId === copilot.paneId || isLeadPane(agent.paneId) || isOrchestratorAgent(agent))) return;
     // Same for the spell the board's own automatic handoff prompt causes (auto-handoff.ts) — except a
     // question, which still needs the operator whoever caused it.
     if (isPrimary && to !== "blocked") {

@@ -12,14 +12,19 @@ import { prStatusFor } from "./integrate.ts";
 const OVER = new Set(["card.pr_merged", "card.pr_closed"]);
 
 /** card id → the PR it still has open, folded from the journal oldest first. Pure + exported. */
-export function openPrsOf(events: readonly BoardEvent[]): Map<string, { url: string | null; ts: number }> {
-  const open = new Map<string, { url: string | null; ts: number }>();
+export function openPrsOf(
+  events: readonly BoardEvent[],
+): Map<string, { url: string | null; ts: number; autoMerge?: "armed" | "refused" }> {
+  const open = new Map<string, { url: string | null; ts: number; autoMerge?: "armed" | "refused" }>();
   for (const e of events) {
     if (!e.cardId) continue;
     if (e.type === "card.pr_opened") {
       open.set(e.cardId, { url: (e.payload as { url?: string | null } | null)?.url ?? null, ts: e.ts });
     } else if (OVER.has(e.type)) {
       open.delete(e.cardId);
+    } else if (e.type === "card.automerge_armed" || e.type === "card.automerge_refused") {
+      const row = open.get(e.cardId);
+      if (row) row.autoMerge = e.type === "card.automerge_armed" ? "armed" : "refused";
     }
   }
   return open;
@@ -43,16 +48,18 @@ export interface OpenPr {
   openedAt: number;
   /** Only on a check: what GitHub said, null when it could not be asked. */
   pr?: PrStatus | null;
+  /** What GitHub said when the run asked it to merge this PR by itself (ADR 0017). Absent: nobody asked. */
+  autoMerge?: "armed" | "refused";
 }
 
 /** The list, newest PR first. `check` asks GitHub about every row, fresh, and journals what is over. */
 export async function openPrs(db: BoardDb, check = false): Promise<OpenPr[]> {
   const rows: { row: OpenPr; card: Card }[] = [];
-  for (const [id, { url, ts }] of openPrsOf(db.listPrEvents())) {
+  for (const [id, { url, ts, autoMerge }] of openPrsOf(db.listPrEvents())) {
     const card = db.getCard(id);
     if (!card) continue;
     const { title, status, repoPath, branch } = card;
-    rows.push({ card, row: { card: { id, title, status, repoPath, branch }, url, openedAt: ts } });
+    rows.push({ card, row: { card: { id, title, status, repoPath, branch }, url, openedAt: ts, ...(autoMerge ? { autoMerge } : {}) } });
   }
   rows.sort((a, b) => b.row.openedAt - a.row.openedAt);
   if (check) {

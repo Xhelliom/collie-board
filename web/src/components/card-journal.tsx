@@ -214,6 +214,13 @@ export function fieldList(replaced: EditPayload["replaced"] = {}): string {
   return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
+/** What to do about a refused auto-merge, in the operator's words. Exported for the test. */
+export function autoMergeHint(error: string): string {
+  return /not allowed for this repository/i.test(error)
+    ? "turn on “Allow auto-merge” for the repository (gh repo edit --enable-auto-merge), or merge the PR yourself"
+    : error || "merge the PR yourself";
+}
+
 /** The decision half of a `run.decision` line; an unknown one shows raw rather than vanishing. */
 function leadDecision(p: Record<string, unknown>): string {
   switch (p.decision) {
@@ -250,6 +257,12 @@ export function describeEvent(event: BoardEvent): string {
     case "card.prompted":
       if (p.command) return `Ran ${String(p.command)}`;
       return p.followUp ? "Follow-up instruction sent" : "Spec sent to the agent";
+    case "card.operator_said":
+      return `You told the agent: “${String(p.text ?? "").slice(0, 120)}”`;
+    case "card.automerge_armed":
+      return "Auto-merge armed — GitHub merges the PR once its checks pass";
+    case "card.automerge_refused":
+      return `GitHub refused auto-merge — ${autoMergeHint(String(p.error ?? ""))}`;
     case "card.start_failed":
       return `Start failed at ${String(p.stage)}: ${String(p.error)}`;
     case "card.split_from":
@@ -310,6 +323,8 @@ export function describeEvent(event: BoardEvent): string {
       return `${leadDecision(p)} — ${String(p.reason ?? "no reason given")}`;
     case "run.triaged":
       return `Lead ${p.accept ? "accepted" : "rejected"} the review's verdict${p.verdict ? ` (${String(p.verdict)})` : ""} — ${String(p.reason ?? "no reason given")}`;
+    case "run.gate":
+      return p.ok ? `Gate green (${String(p.command)})` : `Gate red (${String(p.command)}) — worker sent back`;
     case "run.halted":
       return `Run halted, needs you — ${String(p.reason ?? "no reason given")}`;
     case "run.finished":

@@ -225,6 +225,8 @@ export interface Card {
    * column; whether the run is still going is read from the cards' states, never stored.
    */
   runId: string | null;
+  /** The phase this card belongs to, or null — ADR 0021. Intent, so a column. */
+  phaseId: string | null;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -338,6 +340,10 @@ export interface Review {
  * gesture. Only what the gesture decided lives here; which worker is alive, which card the lead is
  * on, whether the run is over — all read from the snapshot and the cards, so a restart resumes.
  */
+/** A lot's parallelism ceiling: a whole number from 1 (sequential) to this. */
+export const MAX_PARALLEL_CAP = 16;
+export const isMaxParallel = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 1 && n <= MAX_PARALLEL_CAP;
+
 export interface Run {
   id: string;
   repoPath: string;
@@ -346,6 +352,88 @@ export interface Run {
   foldInCap: number;
   /** The lead's agent kind; null follows the board's default. */
   leadAgent: string | null;
+  /** The phase this lot belongs to, or null — ADR 0021. */
+  phaseId: string | null;
+  /**
+   * How many of this lot's cards may run at once, or null for the board's own cap only. 1 is
+   * sequential. The planner sets it — it knows which cards touch the same files.
+   */
+  maxParallel: number | null;
+  /** The lot's name; null for a run made with the old gesture. */
+  name: string | null;
+  position: number;
+  /**
+   * When the operator launched it. Null is a PLANNED lot: it holds its cards and drives nothing
+   * (the coordinator reads `listOpenRuns`, which skips it). Launching is the operator's gesture.
+   */
+  launchedAt: number | null;
+}
+
+/** A phase — ADR 0021. Not a container: it groups cards, it doesn't split one. Progress is derived. */
+export interface Phase {
+  id: string;
+  repoPath: string;
+  name: string;
+  goal: string;
+  position: number;
+  /** The roadmap item this phase materialised, or null. */
+  roadmapItemId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const ROADMAP_STATUSES = ["planned", "active", "done", "dropped"] as const;
+export type RoadmapStatus = (typeof ROADMAP_STATUSES)[number];
+
+/** An intent, never a card — it becomes a phase when the operator gets to it. */
+export interface RoadmapItem {
+  id: string;
+  name: string;
+  goal: string;
+  status: RoadmapStatus;
+  /** The phase's long form, Markdown: objective, end-of-phase demo, risks, why in this order (ADR 0023). */
+  detail: string;
+}
+
+/** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — Overgate's three statuses (ADR 0023). */
+export const DECISION_STATUSES = ["decided", "leaning", "open"] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+/** One line of the project's decision journal. Written at the moment it is taken, never reconstructed. */
+export interface Decision {
+  id: string;
+  text: string;
+  status: DecisionStatus;
+  /** The roadmap item it concerns, or null for the project as a whole. */
+  itemId: string | null;
+}
+
+/** The ceilings a roadmap document keeps to — an unbounded one would be an unbounded row. */
+export const ROADMAP_MAX_DECISIONS = 300;
+
+/** The orchestrator's own note to its next self (ADR 0023): short, one per repo, last writer wins. */
+export const MEMORY_MAX_CHARS = 4_000;
+export interface OrchestratorMemory {
+  repoPath: string;
+  note: string;
+  updatedAt: number;
+}
+
+/** One repo's roadmap. `revision` is the optimistic lock: a write carries the one it read. */
+export interface Roadmap {
+  repoPath: string;
+  vision: string;
+  items: RoadmapItem[];
+  decisions: Decision[];
+  revision: number;
+  updatedAt: number;
+}
+
+/** A write that carried a revision other than the current one. */
+export class RevisionConflict extends Error {
+  constructor(readonly current: number) {
+    super(`roadmap is at revision ${current}`);
+  }
 }
 
 /**
@@ -373,6 +461,8 @@ export interface RunEventPayloads {
   "run.finished": { runId: string };
   /** On the card that needs the operator. */
   "run.halted": { runId: string; reason: string };
+  /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
+  "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -382,6 +472,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.triaged",
   "run.finished",
   "run.halted",
+  "run.gate",
 ];
 
 export interface BoardEvent {
@@ -419,6 +510,7 @@ interface CardRow {
   keep_worktree: number;
   auto_handoff: string | null;
   run_id: string | null;
+  phase_id: string | null;
 }
 
 interface RunRow {
@@ -427,10 +519,82 @@ interface RunRow {
   created_at: number;
   fold_in_cap: number;
   lead_agent: string | null;
+  phase_id: string | null;
+  name: string | null;
+  position: number;
+  launched_at: number | null;
+  max_parallel: number | null;
 }
 
 function toRun(r: RunRow): Run {
-  return { id: r.id, repoPath: r.repo_path, createdAt: r.created_at, foldInCap: r.fold_in_cap, leadAgent: r.lead_agent };
+  return {
+    id: r.id,
+    repoPath: r.repo_path,
+    createdAt: r.created_at,
+    foldInCap: r.fold_in_cap,
+    leadAgent: r.lead_agent,
+    phaseId: r.phase_id ?? null,
+    name: r.name ?? null,
+    position: r.position ?? 0,
+    launchedAt: r.launched_at ?? null,
+    maxParallel: r.max_parallel ?? null,
+  };
+}
+
+interface PhaseRow {
+  id: string;
+  repo_path: string;
+  name: string;
+  goal: string;
+  position: number;
+  roadmap_item_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+function toPhase(r: PhaseRow): Phase {
+  return {
+    id: r.id,
+    repoPath: r.repo_path,
+    name: r.name,
+    goal: r.goal,
+    position: r.position,
+    roadmapItemId: r.roadmap_item_id ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+interface RoadmapRow {
+  repo_path: string;
+  vision: string;
+  items: string;
+  decisions: string | null;
+  revision: number;
+  updated_at: number;
+}
+
+/** A JSON column we wrote is always valid; an unreadable one reads as an empty list, not a crash. */
+function jsonList<T>(raw: string | null): T[] {
+  try {
+    const parsed: unknown = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function toRoadmap(r: RoadmapRow): Roadmap {
+  // A row from before ADR 0023 has no `detail` on its items: it reads as empty.
+  const items = jsonList<RoadmapItem>(r.items).map((i) => ({ ...i, detail: i.detail ?? "" }));
+  return {
+    repoPath: r.repo_path,
+    vision: r.vision,
+    items,
+    decisions: jsonList<Decision>(r.decisions).map((d) => ({ ...d, itemId: d.itemId ?? null })),
+    revision: r.revision,
+    updatedAt: r.updated_at,
+  };
 }
 
 interface SessionRow {
@@ -558,6 +722,7 @@ function toCard(r: CardRow): Card {
     keepWorktree: r.keep_worktree === 1,
     autoHandoff: r.auto_handoff === "on" || r.auto_handoff === "off" ? r.auto_handoff : null,
     runId: r.run_id ?? null,
+    phaseId: r.phase_id ?? null,
   };
 }
 
@@ -625,7 +790,9 @@ CREATE TABLE IF NOT EXISTS card (
   keep_worktree INTEGER NOT NULL DEFAULT 0,
   auto_handoff  TEXT,
   -- Soft, like parent_id: a card outlives nothing by being in a run. See Card.runId.
-  run_id        TEXT
+  run_id        TEXT,
+  -- ADR 0021. Soft too: deleting a phase clears it rather than taking the cards with it.
+  phase_id      TEXT
 );
 
 -- ADR 0017. Intent only — never whether the run is going; that is read from its cards.
@@ -634,7 +801,42 @@ CREATE TABLE IF NOT EXISTS run (
   repo_path   TEXT NOT NULL,
   created_at  INTEGER NOT NULL,
   fold_in_cap INTEGER NOT NULL,
-  lead_agent  TEXT
+  lead_agent  TEXT,
+  -- ADR 0021: a run is a LOT. launched_at NULL = planned, driving nothing.
+  phase_id    TEXT,
+  name        TEXT,
+  position    INTEGER NOT NULL DEFAULT 0,
+  launched_at INTEGER,
+  max_parallel INTEGER
+);
+
+-- ADR 0021. A phase groups a repo's cards; its progress is read from them, never stored.
+CREATE TABLE IF NOT EXISTS phase (
+  id              TEXT PRIMARY KEY,
+  repo_path       TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  goal            TEXT NOT NULL DEFAULT '',
+  position        INTEGER NOT NULL DEFAULT 0,
+  roadmap_item_id TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+
+-- ADR 0021. One document per repo: intents, not cards. \`revision\` is the optimistic lock.
+CREATE TABLE IF NOT EXISTS roadmap (
+  repo_path  TEXT PRIMARY KEY,
+  vision     TEXT NOT NULL DEFAULT '',
+  items      TEXT NOT NULL DEFAULT '[]',
+  decisions  TEXT NOT NULL DEFAULT '[]',
+  revision   INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+
+-- ADR 0023. The orchestrator's note to its next self: one short text per repo, last writer wins.
+CREATE TABLE IF NOT EXISTS orchestrator_memory (
+  repo_path  TEXT PRIMARY KEY,
+  note       TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -686,6 +888,8 @@ CREATE INDEX IF NOT EXISTS event_card_idx ON event(card_id, ts);
 CREATE TABLE IF NOT EXISTS repo_pref (
   path       TEXT PRIMARY KEY,
   hidden     INTEGER NOT NULL DEFAULT 0,
+  -- The repo's gate command (ADR 0020): the operator's decision too, and equally underivable.
+  gate       TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -760,6 +964,7 @@ export interface NewCard {
    * three cards created in a row reverses them, and a chain read backwards is worse than useless.
    */
   position?: number;
+  phaseId?: string | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -781,6 +986,7 @@ export interface CardPatch {
   position?: number;
   keepWorktree?: boolean;
   autoHandoff?: AutoHandoffChoice | null;
+  phaseId?: string | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -802,6 +1008,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   position: "position",
   keepWorktree: "keep_worktree",
   autoHandoff: "auto_handoff",
+  phaseId: "phase_id",
 };
 
 export class BoardDb {
@@ -907,6 +1114,13 @@ export class BoardDb {
    * kind of machinery this project doesn't buy.
    */
   private migrate(): void {
+    // ADR 0021: a lot is a run with `launched_at`. Every run that existed before the column was
+    // launched by definition — it started on creation — so back-fill ONLY on the migration that adds
+    // the column; any later NULL is a planned lot and must stay one.
+    const hadLaunchedAt = this.db
+      .query<{ name: string }, []>("PRAGMA table_info(run)")
+      .all()
+      .some((c) => c.name === "launched_at");
     const additions: { table: string; column: string; ddl: string }[] = [
       // 0.22: the handoff is asynchronous (the agent has to finish writing the file first), so the
       // request has to survive a bridge restart — a board whose whole point is durable memory can't
@@ -941,12 +1155,24 @@ export class BoardDb {
       { table: "card", column: "auto_handoff", ddl: "TEXT" },
       // Runs (ADR 0017). No backfill: no card was ever in a run before the table existed.
       { table: "card", column: "run_id", ddl: "TEXT" },
+      // The repo's gate command (ADR 0020). Null: no gate.
+      { table: "repo_pref", column: "gate", ddl: "TEXT" },
+      // Phases, lots, roadmap (ADR 0021).
+      { table: "card", column: "phase_id", ddl: "TEXT" },
+      { table: "run", column: "phase_id", ddl: "TEXT" },
+      { table: "run", column: "name", ddl: "TEXT" },
+      { table: "run", column: "position", ddl: "INTEGER NOT NULL DEFAULT 0" },
+      { table: "run", column: "launched_at", ddl: "INTEGER" },
+      { table: "run", column: "max_parallel", ddl: "INTEGER" },
+      // ADR 0023: the roadmap's decision journal.
+      { table: "roadmap", column: "decisions", ddl: "TEXT NOT NULL DEFAULT '[]'" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
       if (cols.some((c) => c.name === column)) continue;
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
+    if (!hadLaunchedAt) this.db.exec("UPDATE run SET launched_at = created_at WHERE launched_at IS NULL");
   }
 
   // ── cards ───────────────────────────────────────────────────────────────────
@@ -988,6 +1214,7 @@ export class BoardDb {
         ts,
         ts,
       );
+    if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1182,13 +1409,40 @@ export class BoardDb {
   /**
    * Record the operator's gesture: one run row, and `run_id` on every member, in one transaction.
    * Refuses — nothing written — a card that is missing or of another repo: a run is one repo's.
+   * `planned` writes a LOT (ADR 0021): the same row, `launched_at` NULL, driving nothing until
+   * {@link launchRun}.
    */
-  createRun(input: { repoPath: string; cardIds: string[]; foldInCap: number; leadAgent?: string | null }): Run {
+  createRun(input: {
+    repoPath: string;
+    cardIds: string[];
+    foldInCap: number;
+    leadAgent?: string | null;
+    planned?: boolean;
+    phaseId?: string | null;
+    name?: string | null;
+    position?: number;
+    maxParallel?: number | null;
+  }): Run {
     const id = crypto.randomUUID();
     this.db.transaction(() => {
+      const ts = this.now();
       this.db
-        .query("INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent) VALUES (?, ?, ?, ?, ?)")
-        .run(id, input.repoPath, this.now(), input.foldInCap, input.leadAgent ?? null);
+        .query(
+          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          input.repoPath,
+          ts,
+          input.foldInCap,
+          input.leadAgent ?? null,
+          input.phaseId ?? null,
+          input.name ?? null,
+          input.position ?? 0,
+          input.planned ? null : ts,
+          input.maxParallel ?? null,
+        );
       const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
       for (const cardId of input.cardIds) {
         if (join.run(id, cardId, input.repoPath).changes !== 1) {
@@ -1199,16 +1453,72 @@ export class BoardDb {
     return this.getRun(id)!;
   }
 
+  /** Launch a planned lot. False when it is missing or already launched — launching is once. */
+  launchRun(id: string): boolean {
+    return this.db.query("UPDATE run SET launched_at = ? WHERE id = ? AND launched_at IS NULL").run(this.now(), id).changes === 1;
+  }
+
+  /**
+   * Edit a PLANNED lot: its name, order, phase and members. A launched run is the coordinator's and
+   * is not edited. `cardIds` replaces the membership: leavers are released, joiners must be cards of
+   * the lot's repo that are in no run — nothing is written otherwise.
+   */
+  updateLot(
+    id: string,
+    patch: { name?: string | null; position?: number; phaseId?: string | null; cardIds?: string[]; maxParallel?: number | null },
+  ): Run | null {
+    const run = this.getRun(id);
+    if (!run || run.launchedAt !== null) return null;
+    this.db.transaction(() => {
+      if (patch.name !== undefined) this.db.query("UPDATE run SET name = ? WHERE id = ?").run(patch.name, id);
+      if (patch.position !== undefined) this.db.query("UPDATE run SET position = ? WHERE id = ?").run(patch.position, id);
+      if (patch.phaseId !== undefined) this.db.query("UPDATE run SET phase_id = ? WHERE id = ?").run(patch.phaseId, id);
+      if (patch.maxParallel !== undefined) this.db.query("UPDATE run SET max_parallel = ? WHERE id = ?").run(patch.maxParallel, id);
+      if (patch.cardIds) {
+        const want = new Set(patch.cardIds);
+        for (const m of this.runMembers(id)) {
+          if (!want.has(m.id)) this.db.query("UPDATE card SET run_id = NULL WHERE id = ?").run(m.id);
+        }
+        const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ? AND (run_id IS NULL OR run_id = ?)");
+        for (const cardId of want) {
+          if (join.run(id, cardId, run.repoPath, id).changes !== 1) {
+            throw new Error(`card ${cardId} is not a free card of ${run.repoPath}`);
+          }
+        }
+      }
+    })();
+    return this.getRun(id);
+  }
+
+  /** Drop a planned lot, releasing its cards. False for a missing or launched one. */
+  deleteLot(id: string): boolean {
+    const run = this.getRun(id);
+    if (!run || run.launchedAt !== null) return false;
+    this.db.transaction(() => {
+      this.db.query("UPDATE card SET run_id = NULL WHERE run_id = ?").run(id);
+      this.db.query("DELETE FROM run WHERE id = ?").run(id);
+    })();
+    return true;
+  }
+
+  /** Every run, planned or launched, in plan order — optionally one repo's. */
+  listRuns(repoPath?: string): Run[] {
+    const rows = repoPath
+      ? this.db.query<RunRow, [string]>("SELECT * FROM run WHERE repo_path = ? ORDER BY position, created_at").all(repoPath)
+      : this.db.query<RunRow, []>("SELECT * FROM run ORDER BY position, created_at").all();
+    return rows.map(toRun);
+  }
+
   getRun(id: string): Run | null {
     const r = this.db.query<RunRow, [string]>("SELECT * FROM run WHERE id = ?").get(id);
     return r ? toRun(r) : null;
   }
 
-  /** The runs not yet journaled `run.finished` — the coordinator's working set. */
+  /** The launched runs not yet journaled `run.finished` — the coordinator's working set. A planned lot is not in it. */
   listOpenRuns(): Run[] {
     return this.db
       .query<RunRow, []>(
-        `SELECT * FROM run WHERE id NOT IN (
+        `SELECT * FROM run WHERE launched_at IS NOT NULL AND id NOT IN (
            SELECT json_extract(payload, '$.runId') FROM event WHERE type = 'run.finished')
          ORDER BY created_at`,
       )
@@ -1437,6 +1747,145 @@ export class BoardDb {
       .map(toReview);
   }
 
+  // ── phases (ADR 0021) ───────────────────────────────────────────────────────
+
+  createPhase(input: { repoPath: string; name: string; goal?: string; position?: number; roadmapItemId?: string | null }): Phase {
+    const id = crypto.randomUUID();
+    const ts = this.now();
+    const next =
+      this.db.query<{ p: number | null }, [string]>("SELECT MAX(position) AS p FROM phase WHERE repo_path = ?").get(input.repoPath)?.p ?? -1;
+    this.db
+      .query(
+        `INSERT INTO phase (id, repo_path, name, goal, position, roadmap_item_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(id, input.repoPath, input.name, input.goal ?? "", input.position ?? next + 1, input.roadmapItemId ?? null, ts, ts);
+    return this.getPhase(id)!;
+  }
+
+  getPhase(id: string): Phase | null {
+    const r = this.db.query<PhaseRow, [string]>("SELECT * FROM phase WHERE id = ?").get(id);
+    return r ? toPhase(r) : null;
+  }
+
+  listPhases(repoPath?: string): Phase[] {
+    const rows = repoPath
+      ? this.db.query<PhaseRow, [string]>("SELECT * FROM phase WHERE repo_path = ? ORDER BY position, created_at").all(repoPath)
+      : this.db.query<PhaseRow, []>("SELECT * FROM phase ORDER BY position, created_at").all();
+    return rows.map(toPhase);
+  }
+
+  updatePhase(
+    id: string,
+    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null },
+  ): Phase | null {
+    if (!this.getPhase(id)) return null;
+    const cols: [string, string | number | null][] = [];
+    if (patch.name !== undefined) cols.push(["name", patch.name]);
+    if (patch.goal !== undefined) cols.push(["goal", patch.goal]);
+    if (patch.position !== undefined) cols.push(["position", patch.position]);
+    if (patch.roadmapItemId !== undefined) cols.push(["roadmap_item_id", patch.roadmapItemId]);
+    cols.push(["updated_at", this.now()]);
+    // Column names come from the literals above, never from the caller.
+    this.db.query(`UPDATE phase SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
+    return this.getPhase(id);
+  }
+
+  /** Delete a phase. Its cards and lots are released, not deleted — a phase is a grouping. */
+  deletePhase(id: string): boolean {
+    if (!this.getPhase(id)) return false;
+    this.db.transaction(() => {
+      this.db.query("UPDATE card SET phase_id = NULL WHERE phase_id = ?").run(id);
+      this.db.query("UPDATE run SET phase_id = NULL WHERE phase_id = ?").run(id);
+      this.db.query("DELETE FROM phase WHERE id = ?").run(id);
+    })();
+    return true;
+  }
+
+  // ── roadmap (ADR 0021) ──────────────────────────────────────────────────────
+
+  getRoadmap(repoPath: string): Roadmap | null {
+    const r = this.db.query<RoadmapRow, [string]>("SELECT * FROM roadmap WHERE repo_path = ?").get(repoPath);
+    return r ? toRoadmap(r) : null;
+  }
+
+  /**
+   * Replace a repo's roadmap. `revision` is the one the caller READ (0 when there was none): any
+   * other value means someone wrote in between, and nothing is written — {@link RevisionConflict}.
+   */
+  putRoadmap(
+    repoPath: string,
+    doc: { vision: string; items: RoadmapItem[]; decisions?: Decision[] },
+    revision: number,
+  ): Roadmap {
+    return this.db.transaction(() => {
+      const before = this.getRoadmap(repoPath);
+      const current = before?.revision ?? 0;
+      if (revision !== current) throw new RevisionConflict(current);
+      // A PUT that says nothing of the decisions leaves the journal as it is: the operator's
+      // editor and the orchestrator's decision writes must not erase each other.
+      this.writeRoadmap(repoPath, doc.vision, doc.items, doc.decisions ?? before?.decisions ?? [], current + 1);
+      return this.getRoadmap(repoPath)!;
+    })();
+  }
+
+  /**
+   * Upsert ONE decision (ADR 0023) — the orchestrator writes them as they are taken, so this asks for
+   * no revision: it reads the current document inside its own transaction and bumps it. An unknown
+   * `id` adds; a known one replaces. Past the ceiling it refuses rather than dropping an old one.
+   */
+  upsertDecision(
+    repoPath: string,
+    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null },
+  ): { roadmap: Roadmap; decision: Decision } {
+    return this.db.transaction(() => {
+      const before = this.getRoadmap(repoPath);
+      const decisions = [...(before?.decisions ?? [])];
+      const decision: Decision = {
+        id: input.id ?? crypto.randomUUID().slice(0, 8),
+        text: input.text,
+        status: input.status,
+        itemId: input.itemId ?? null,
+      };
+      const at = decisions.findIndex((d) => d.id === decision.id);
+      if (at >= 0) decisions[at] = decision;
+      else if (decisions.length >= ROADMAP_MAX_DECISIONS) throw new Error(`a roadmap keeps at most ${ROADMAP_MAX_DECISIONS} decisions`);
+      else decisions.push(decision);
+      this.writeRoadmap(repoPath, before?.vision ?? "", before?.items ?? [], decisions, (before?.revision ?? 0) + 1);
+      return { roadmap: this.getRoadmap(repoPath)!, decision };
+    })();
+  }
+
+  private writeRoadmap(repoPath: string, vision: string, items: RoadmapItem[], decisions: Decision[], revision: number): void {
+    this.db
+      .query(
+        `INSERT INTO roadmap (repo_path, vision, items, decisions, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(repo_path) DO UPDATE SET vision = excluded.vision, items = excluded.items,
+           decisions = excluded.decisions, revision = excluded.revision, updated_at = excluded.updated_at`,
+      )
+      .run(repoPath, vision, JSON.stringify(items), JSON.stringify(decisions), revision, this.now());
+  }
+
+  // ── the orchestrator's memory (ADR 0023) ─────────────────────────────────────
+
+  getMemory(repoPath: string): OrchestratorMemory | null {
+    const r = this.db
+      .query<{ repo_path: string; note: string; updated_at: number }, [string]>("SELECT * FROM orchestrator_memory WHERE repo_path = ?")
+      .get(repoPath);
+    return r ? { repoPath: r.repo_path, note: r.note, updatedAt: r.updated_at } : null;
+  }
+
+  /** Last writer wins — one note, the newest. The caller bounds its length. */
+  putMemory(repoPath: string, note: string): OrchestratorMemory {
+    this.db
+      .query(
+        `INSERT INTO orchestrator_memory (repo_path, note, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(repo_path) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at`,
+      )
+      .run(repoPath, note, this.now());
+    return this.getMemory(repoPath)!;
+  }
+
   // ── repo preferences ────────────────────────────────────────────────────────
 
   /** Paths the operator has hidden from the picker. */
@@ -1448,20 +1897,47 @@ export class BoardDb {
   }
 
   /**
-   * Hide or unhide a repo. Un-hiding DELETES the row rather than storing `hidden = 0`: the default
-   * is "visible", so a row that says so is a row that means nothing and would accumulate forever.
+   * Hide or unhide a repo. A row that says "visible, no gate" means nothing and would accumulate
+   * forever, so it is deleted rather than stored — see {@link pruneRepoPref}.
    */
   setRepoHidden(path: string, hidden: boolean): void {
-    if (!hidden) {
-      this.db.query("DELETE FROM repo_pref WHERE path = ?").run(path);
-      return;
-    }
     this.db
       .query(
-        `INSERT INTO repo_pref (path, hidden, updated_at) VALUES (?, 1, ?)
-         ON CONFLICT(path) DO UPDATE SET hidden = 1, updated_at = excluded.updated_at`,
+        `INSERT INTO repo_pref (path, hidden, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET hidden = excluded.hidden, updated_at = excluded.updated_at`,
       )
-      .run(path, this.now());
+      .run(path, hidden ? 1 : 0, this.now());
+    this.pruneRepoPref(path);
+  }
+
+  /** The repo's gate command (ADR 0020), or null. */
+  repoGate(path: string): string | null {
+    return (
+      this.db.query<{ gate: string | null }, [string]>("SELECT gate FROM repo_pref WHERE path = ?").get(path)?.gate ?? null
+    );
+  }
+
+  /** Every repo that has a gate — for the picker, which lists repos and should say which are gated. */
+  repoGates(): Map<string, string> {
+    const rows = this.db
+      .query<{ path: string; gate: string }, []>("SELECT path, gate FROM repo_pref WHERE gate IS NOT NULL")
+      .all();
+    return new Map(rows.map((r) => [r.path, r.gate]));
+  }
+
+  /** Set the gate, or clear it with null. */
+  setRepoGate(path: string, gate: string | null): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, gate, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET gate = excluded.gate, updated_at = excluded.updated_at`,
+      )
+      .run(path, gate, this.now());
+    this.pruneRepoPref(path);
+  }
+
+  private pruneRepoPref(path: string): void {
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL").run(path);
   }
 
   // ── board preferences ───────────────────────────────────────────────────────
@@ -1588,7 +2064,7 @@ export class BoardDb {
   listPrEvents(): BoardEvent[] {
     return this.db
       .query<EventRow, []>(
-        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_merged', 'card.pr_closed') ORDER BY id",
+        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_merged', 'card.pr_closed', 'card.automerge_armed', 'card.automerge_refused') ORDER BY id",
       )
       .all()
       .map(toEvent);

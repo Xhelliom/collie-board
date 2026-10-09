@@ -6,8 +6,27 @@
 // `useRevalidator` tick re-runs every active loader (see hooks/use-polling.ts). There is no
 // board-specific poll loop.
 
-import { isApiErrorStatus } from "./api";
-import { fetchCard, fetchCards, fetchOpenPrs, type CardDetail, type CardView, type OpenPr } from "./board";
+import { fetchHistory, isApiErrorStatus } from "./api";
+import type { TranscriptEntry } from "./types";
+import { fetchFacts, type CardFacts } from "./project-facts";
+import {
+  fetchCard,
+  fetchCards,
+  fetchLots,
+  fetchOpenPrs,
+  fetchOrchestrator,
+  fetchPhases,
+  fetchOrchestratorMemory,
+  fetchRoadmap,
+  type CardDetail,
+  type CardView,
+  type Lot,
+  type OpenPr,
+  type OrchestratorMemory,
+  type OrchestratorState,
+  type Phase,
+  type Roadmap,
+} from "./board";
 
 function isAbortError(e: unknown): boolean {
   return (
@@ -76,4 +95,48 @@ export async function cardLoader({
 /** The open PRs, from the journal alone — asking GitHub is the screen's Check tap (routes/prs.tsx). */
 export async function prsLoader(): Promise<OpenPr[]> {
   return (await fetchOpenPrs()).prs;
+}
+
+/** How much of the orchestrator's pane the panel shows — the conversation's tail, not its scrollback. */
+/** How many of the newest turns the panel keeps — a planning chat is short, and this rides the root poll. */
+const ORCHESTRATOR_TURNS = 40;
+
+export interface ProjectData extends BoardData {
+  /** Empty without a `?repo=` — phases, lots and the roadmap are per repo (ADR 0021). */
+  phases: Phase[];
+  lots: Lot[];
+  roadmap: Roadmap | null;
+  /** The repo's orchestrator and the tail of its pane, so the panel rides the root poll (no loop of its own). */
+  orchestrator?: OrchestratorState | null;
+  /** The orchestrator's conversation, oldest first — the reading view's turns, not the terminal. */
+  orchestratorEntries?: TranscriptEntry[];
+  /** Its memory note, read-only in the panel. */
+  orchestratorMemory?: OrchestratorMemory | null;
+  /** What the journal knows of each card of the repo, keyed by card id (bridge/project-facts.ts). */
+  facts?: Record<string, CardFacts>;
+}
+
+/** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
+export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
+  const base = await boardLoader({ request });
+  const repo = request ? new URL(request.url).searchParams.get("repo") : null;
+  if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
+  const [phases, lots, roadmap, orchestrator, facts] = await Promise.all([
+    fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
+    fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
+    fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
+    fetchOrchestrator(repo, request?.signal).catch(() => null),
+    // Facts are garnish: without them a step is just its card.
+    fetchFacts(repo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
+  ]);
+  const orchestratorEntries = orchestrator?.paneId
+    ? await fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, request?.signal).then(
+        (r) => (r.available ? r.entries : []),
+        () => [],
+      )
+    : [];
+  const orchestratorMemory = orchestrator?.paneId
+    ? await fetchOrchestratorMemory(repo, request?.signal).then((r) => r.memory, () => null)
+    : null;
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, facts };
 }

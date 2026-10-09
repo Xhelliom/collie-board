@@ -10,6 +10,7 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { isAbsolute, join } from "node:path";
 
 import type { AuditLog } from "./audit.ts";
 import { answerAutoHandoff } from "./auto-handoff.ts";
@@ -38,7 +39,7 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, MAX_AGENTS_CAP } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isMaxParallel, MAX_AGENTS_CAP } from "./db.ts";
 import {
   cardDiffStat,
   cardDiffSummary,
@@ -48,6 +49,12 @@ import {
   readWorktreeFile,
   worktreePathFor,
 } from "./git.ts";
+import { parseGate } from "./gate.ts";
+import { recordOperatorSaid } from "./operator-said.ts";
+import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleFactsRoute } from "./project-facts.ts";
+import { handleProjectRoute } from "./project-routes.ts";
+import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import {
   cleanupCard,
@@ -68,6 +75,10 @@ import type { StateEngine } from "./state-engine.ts";
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
+/** `/api/repos/gate` — set or clear a repo's gate command (ADR 0020). */
+const REPOS_GATE_ROUTE = "/api/repos/gate";
+/** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
+const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
 
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
@@ -110,6 +121,15 @@ export const PANE_HEADER = "x-collie-pane";
 const CARD_ROUTE =
   /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
+/**
+ * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
+ * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
+ * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
+ */
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project"];
+export const isBoardPath = (pathname: string): boolean =>
+  BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
 /** What the board handler needs from the server. Passed in so this module imports no HTTP helpers. */
 export interface BoardContext {
   db: BoardDb;
@@ -126,6 +146,8 @@ export interface BoardContext {
   guard: (level: "read" | "write") => Response | null;
   /** The authorised device id for audit attribution, or null. */
   device: string | null;
+  /** A pane's context occupancy (0-100) from the context tracker, or null when unknown (ADR 0023). */
+  paneContext?: (paneId: string) => number | null;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
@@ -163,6 +185,7 @@ export function parseCardBody(
     "parentId",
     "dependsOn",
     "duplicateOf",
+    "phaseId",
     // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
     // the copilot's writes get it too — see there.
     "tag",
@@ -284,6 +307,11 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
   // `duplicateOf` gets the existence check but NOT the cycle check: it blocks nothing and is walked
   // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
   if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
+  // A phase groups ONE repo's cards (ADR 0021): it has to exist and be the card's own repo's.
+  if (patch.phaseId) {
+    const repo = patch.repoPath ?? (cardId ? db.getCard(cardId)?.repoPath : null) ?? null;
+    if (db.getPhase(patch.phaseId)?.repoPath !== repo) return "phaseId: no such phase in this card's repo";
+  }
   return null;
 }
 
@@ -312,6 +340,14 @@ async function route(
   req: Request,
   ctx: BoardContext,
 ): Promise<Response | null> {
+  // Phases, lots, roadmap (ADR 0021) — new behaviour lives in its own file.
+  const project = await handleProjectRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
+  if (project) return project;
+  const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
+  if (orchestrator) return orchestrator;
+  const facts = handleFactsRoute(pathname, req, ctx);
+  if (facts) return facts;
+
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {
     if (req.method !== "GET") return ctx.text("method not allowed", 405);
@@ -349,6 +385,52 @@ async function route(
       device: ctx.device,
       detail: { path: path.trim(), hidden },
     });
+    return ctx.json({ ok: true });
+  }
+
+  // Ask the copilot what the gate should be. The operator's tap spends the quota (the copilot is off
+  // by default and nothing else calls this); the answer is returned and NOT saved — saving is the
+  // other route, because the gate is a command the bridge will run (ADR 0020).
+  if (pathname === REPOS_GATE_SUGGEST_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path } = (body ?? {}) as { path?: unknown };
+    // The path lands in a prompt the copilot reads files from: a repository's root, nothing looser.
+    if (typeof path !== "string" || !isAbsolute(path) || !existsSync(join(path, ".git")))
+      return ctx.text("path must be the root of a repository", 400);
+    if (!ctx.cfg.boardCopilot)
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    const outcome = await suggestGate((build) => ctx.copilot.ask(build), path);
+    ctx.audit.record({ action: "repo.gate_suggest", session: ctx.session, device: ctx.device, detail: { path, ok: outcome.ok } });
+    return ctx.json(outcome, outcome.ok ? 200 : 502);
+  }
+
+  // A repo's gate: a command the bridge will RUN in a run's worker checkout — remote execution by
+  // another name, so it is write-gated, audited, and the only place it can be set (ADR 0020).
+  if (pathname === REPOS_GATE_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path, gate } = (body ?? {}) as { path?: unknown; gate?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (gate !== null && typeof gate !== "string") return ctx.text("gate must be a command or null", 400);
+    const argv = gate === null ? null : parseGate(gate);
+    if (gate !== null && !argv) return ctx.text("gate must be a command or null", 400);
+    ctx.db.setRepoGate(path.trim(), argv ? argv.join(" ") : null);
+    ctx.audit.record({ action: "repo.gate", session: ctx.session, device: ctx.device, detail: { path: path.trim(), gate: argv?.join(" ") ?? null } });
     return ctx.json({ ok: true });
   }
 
@@ -522,11 +604,27 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { cardIds, foldInCap, leadAgent } = (body ?? {}) as {
+    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position, maxParallel } = (body ?? {}) as {
       cardIds?: unknown;
       foldInCap?: unknown;
       leadAgent?: unknown;
+      planned?: unknown;
+      phaseId?: unknown;
+      name?: unknown;
+      position?: unknown;
+      maxParallel?: unknown;
     };
+    // Without `planned` this IS the launch (ADR 0017's gesture), so it is the operator's: an agent
+    // pane can plan a lot but never start one (ADR 0021).
+    if (planned !== true && req.headers.get(PANE_HEADER)?.trim())
+      return ctx.text("launching is the operator's gesture — an agent pane may only create a planned lot", 403);
+    if (planned !== undefined && typeof planned !== "boolean") return ctx.text("planned must be a boolean", 400);
+    if (name !== undefined && name !== null && (typeof name !== "string" || name.trim() === "" || name.length > 200))
+      return ctx.text("name must be a short string or null", 400);
+    if (position !== undefined && (typeof position !== "number" || !Number.isFinite(position)))
+      return ctx.text("bad position", 400);
+    if (maxParallel !== undefined && maxParallel !== null && !isMaxParallel(maxParallel))
+      return ctx.text("maxParallel must be a whole number from 1 to 16, or null", 400);
     if (!Array.isArray(cardIds) || cardIds.length === 0 || !cardIds.every((c) => typeof c === "string"))
       return ctx.text("cardIds must be a non-empty list of card ids", 400);
     if (new Set(cardIds).size !== cardIds.length) return ctx.text("cardIds has a duplicate", 400);
@@ -542,17 +640,24 @@ async function route(
     if (cards.some((c) => c!.repoPath !== repoPath)) return ctx.text("a run is one repo's cards", 400);
     // Joining a second run would silently steal the card from the first.
     if (cards.some((c) => c!.runId)) return ctx.text("a card is already in a run", 409);
+    if (phaseId !== undefined && phaseId !== null && (typeof phaseId !== "string" || ctx.db.getPhase(phaseId)?.repoPath !== repoPath))
+      return ctx.text("phaseId: no such phase in this repo", 400);
     const run = ctx.db.createRun({
       repoPath,
       cardIds: cardIds as string[],
       foldInCap,
       leadAgent: typeof leadAgent === "string" ? leadAgent.trim() : null,
+      planned: planned === true,
+      phaseId: (phaseId as string | null | undefined) ?? null,
+      name: typeof name === "string" ? name.trim() : null,
+      position: position as number | undefined,
+      maxParallel: (maxParallel as number | null | undefined) ?? null,
     });
     ctx.audit.record({
       action: "run.create",
       session: ctx.session,
       device: ctx.device,
-      detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent },
+      detail: { runId: run.id, repoPath, cardIds, foldInCap, leadAgent: run.leadAgent, planned: planned === true },
     });
     return ctx.json({ run, cardIds }, 201);
   }
@@ -1278,6 +1383,8 @@ async function route(
     // useless for finding the review pass you launched two hours ago. Free text stays a char count.
     const command = /^\/[\w-]+$/.test(promptText.trim()) ? promptText.trim() : undefined;
     db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, ...(command ? { command } : {}) });
+    // A bare slash command is a gesture, not a direction the lead needs to read.
+    if (!command) recordOperatorSaid(db, session.paneId, promptText);
     ctx.audit.record({
       action: "card.prompt",
       paneId: session.paneId,

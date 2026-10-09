@@ -3,7 +3,8 @@ import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
-import { handleBoardRoute } from "./board-routes.ts";
+import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
+import { recordOperatorSaid } from "./operator-said.ts";
 import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
@@ -215,13 +216,7 @@ export function startServer(opts: {
       // Bound to the PRIMARY herdr session, deliberately: a card's pane id only means anything
       // inside the server that issued it, and the board is a single-machine, single-herd object.
       // Multi-session cards would need a session column on every row for no use case that exists.
-      if (
-        pathname.startsWith("/api/cards") ||
-        pathname.startsWith("/api/repos") ||
-        pathname.startsWith("/api/board") ||
-        pathname.startsWith("/api/backup") ||
-        pathname === "/api/runs"
-      ) {
+      if (isBoardPath(pathname)) {
         const rt = registry.get();
         if (!rt) return unknownSession();
         const boardRes = await handleBoardRoute(pathname, req, {
@@ -234,6 +229,8 @@ export function startServer(opts: {
           session: rt.name,
           guard: (level) => guard(req, cfg, level),
           device: deviceAuth(req, cfg).device,
+          paneContext: (id) =>
+            context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0]?.ctxPct ?? null,
           json: (data, status) => {
             if (status !== undefined) {
               return secure(
@@ -322,7 +319,7 @@ export function startServer(opts: {
         if (!action && req.method === "GET") return readPane(herdr, cfg, paneId, url, req);
         if (action === "history" && req.method === "GET")
           return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
-        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session);
+        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt));
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
@@ -895,6 +892,7 @@ async function replyPane(
   audit: AuditLog,
   device: string | null,
   session: string,
+  onDelivered: (text: string) => void,
 ): Promise<Response> {
   let body: { text?: string; submit?: boolean };
   try {
@@ -914,7 +912,10 @@ async function replyPane(
     device,
     detail: { text: txt, submit, submitted: outcome.ok, textDelivered: outcome.textDelivered },
   });
-  if (outcome.ok) return json({ ok: true } satisfies ActionResponse, ae);
+  if (outcome.ok) {
+    onDelivered(txt);
+    return json({ ok: true } satisfies ActionResponse, ae);
+  }
   return json(
     { ok: false, error: outcome.error, textDelivered: outcome.textDelivered } satisfies ActionResponse,
     ae,

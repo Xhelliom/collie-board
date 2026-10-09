@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import { fetchBoardPrefs, repoName, runWaves, type CardView } from "@/lib/board";
+import { GateSheet } from "@/components/gate-sheet";
+import { fetchBoardPrefs, fetchRepos, repoName, runWaves, type CardView, type Phase } from "@/lib/board";
 
 /** The fold-in cap a run starts with. Small on purpose: past it, a follow-up is a card for later. */
 const DEFAULT_FOLD_IN_CAP = 2;
@@ -16,18 +17,38 @@ export function RunSheet({
   onClose,
   cards,
   repoPath,
+  phases,
+  phaseId: initialPhase,
   onConfirm,
 }: {
   open: boolean;
   onClose: () => void;
   cards: CardView[];
   repoPath: string;
-  onConfirm: (input: { foldInCap: number; leadAgent: string | null }) => Promise<void>;
+  /** The repo's phases, to file a planned lot under one (ADR 0021). */
+  phases: Phase[];
+  /** The phase the board is filtered on, pre-selected. */
+  phaseId: string | null;
+  onConfirm: (input: {
+    foldInCap: number;
+    leadAgent: string | null;
+    planned?: boolean;
+    phaseId?: string | null;
+    name?: string;
+    maxParallel?: number | null;
+  }) => Promise<void>;
 }) {
   const [maxAgents, setMaxAgents] = useState<number | null>(null);
   const [foldInCap, setFoldInCap] = useState(DEFAULT_FOLD_IN_CAP);
   const [leadAgent, setLeadAgent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lotName, setLotName] = useState("");
+  // Null follows the board's own cap; 1 is sequential. The planner usually decides (ADR 0021).
+  const [maxParallel, setMaxParallel] = useState<number | null>(null);
+  const [lotPhase, setLotPhase] = useState<string | null>(initialPhase);
+  // The repo's gate (ADR 0020): null = none yet, undefined = not known (yet, or the bridge didn't say).
+  const [gate, setGate] = useState<string | null | undefined>(undefined);
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -35,29 +56,48 @@ export function RunSheet({
     fetchBoardPrefs(ctrl.signal)
       .then((p) => setMaxAgents(p.maxAgents))
       .catch(() => {});
+    fetchRepos({ all: true }, ctrl.signal)
+      .then((r) => setGate(r.repos.find((x) => x.path === repoPath)?.gate ?? null))
+      .catch(() => {});
     return () => ctrl.abort();
-  }, [open]);
+  }, [open, repoPath]);
 
   const waves = runWaves(cards);
 
-  async function confirm() {
+  async function confirm(plan = false) {
     setBusy(true);
     try {
-      await onConfirm({ foldInCap, leadAgent });
+      await onConfirm(
+        plan
+          ? { foldInCap, leadAgent, planned: true, phaseId: lotPhase, name: lotName.trim(), maxParallel }
+          : { foldInCap, leadAgent, maxParallel },
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
+    <>
     <BottomSheet
       open={open}
       onClose={onClose}
       title={`Run ${cards.length} card${cards.length === 1 ? "" : "s"} · ${repoName(repoPath)}`}
       footer={
-        <Button variant="brand" className="w-full" disabled={busy || cards.length === 0} onClick={confirm}>
-          Lancer le run
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button variant="brand" className="w-full" disabled={busy || cards.length === 0} onClick={() => void confirm()}>
+            Lancer le run
+          </Button>
+          {/* A planned lot holds its cards and drives nothing: it is launched later, from the project view. */}
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={busy || cards.length === 0 || lotName.trim() === ""}
+            onClick={() => void confirm(true)}
+          >
+            Planifier un lot
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col gap-4">
@@ -73,10 +113,67 @@ export function RunSheet({
           </ol>
         </section>
 
-        <p aria-label="Parallélisme" className="text-sm">
-          <span className="text-muted-foreground">Parallélisme : </span>
-          {maxAgents === null ? "…" : `jusqu'à ${maxAgents} agent${maxAgents === 1 ? "" : "s"} à la fois`}
-        </p>
+        <label aria-label="Parallélisme" className="flex items-center justify-between gap-3 text-sm">
+          <span className="min-w-0">
+            <span className="text-muted-foreground">Parallélisme : </span>
+            {maxAgents === null ? "…" : `le board autorise ${maxAgents} agent${maxAgents === 1 ? "" : "s"} à la fois`}
+          </span>
+          <select
+            aria-label="Cartes à la fois dans ce lot"
+            value={maxParallel ?? ""}
+            onChange={(e) => setMaxParallel(e.target.value ? Number(e.target.value) : null)}
+            className="h-10 shrink-0 rounded-lg border border-border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <option value="">Selon le board</option>
+            <option value="1">Une à la fois</option>
+            <option value="2">2 à la fois</option>
+            <option value="3">3 à la fois</option>
+            <option value="4">4 à la fois</option>
+          </select>
+        </label>
+
+        {gate !== undefined && (
+          <div aria-label="Barrière" className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">
+              <span className="text-muted-foreground">Barrière : </span>
+              {gate ? (
+                <code className="break-all">{gate}</code>
+              ) : (
+                "aucune — le lead juge sur le diff seul"
+              )}
+            </span>
+            <Button variant="outline" className="h-8 shrink-0 px-3 text-xs" onClick={() => setGateOpen(true)}>
+              {gate ? "Modifier" : "Régler"}
+            </Button>
+          </div>
+        )}
+
+        <div aria-label="Lot" className="flex flex-col gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Lot (pour planifier au lieu de lancer)</span>
+          <input
+            type="text"
+            value={lotName}
+            onChange={(e) => setLotName(e.target.value)}
+            placeholder="Nom du lot"
+            maxLength={200}
+            className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+          {phases.length > 0 && (
+            <select
+              aria-label="Phase du lot"
+              value={lotPhase ?? ""}
+              onChange={(e) => setLotPhase(e.target.value || null)}
+              className="h-10 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <option value="">Sans phase</option>
+              {phases.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Plafond de fold-ins</span>
@@ -96,5 +193,8 @@ export function RunSheet({
         </div>
       </div>
     </BottomSheet>
+    {/* A sibling, not a child: the gate sheet is its own surface and the run's choices stay put under it. */}
+    <GateSheet open={gateOpen} onClose={() => setGateOpen(false)} repoPath={repoPath} gate={gate} onSaved={setGate} />
+    </>
   );
 }

@@ -160,8 +160,10 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
 - **Never call `agent.start` or `agent.prompt` directly.** Use `launchAgent()` and
   `promptAndConfirm()` — they carry three live-verified herdr races (see `ARCHITECTURE.md` §9). A
   direct call is how you get a pane with a shell prompt and no agent in it.
-- **`bridge/git.ts` is the only place we shell out.** argv elements, never a shell; the one
-  client-supplied path is validated and always follows `--`.
+- **`bridge/git.ts` is the only place we shell out — plus `bridge/gate.ts` for the one command the
+  operator set per repo** ([ADR 0020](./.adr/0020-the-gate-is-the-operators-command-run-before-the-lead.md)).
+  argv elements, never a shell; the one client-supplied path is validated and always follows `--`; a
+  gate is never read from the repo.
 - **The copilot spends the user's quota.** It stays off by default, serialised to one request, and
   reviews from `--stat` — never the full diff.
 - **The bridge does not know its consumers.** Anything that wants what the board knows — a voice

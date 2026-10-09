@@ -610,3 +610,11 @@ describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)",
     expect(alerts.log).toEqual(["arm note:p1", "retract note:p1"]);
   });
 });
+
+describe("tell: a refused auto-merge (B13)", () => {
+  test("says what to do, in the bell", () => {
+    const e = { id: 1, cardId: "c", type: "card.automerge_refused", payload: { error: "GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)" }, ts: 1 };
+    expect(tell(e)).toEqual({ status: "blocked", subtitle: "PR open — auto-merge is off for this repo; merge it yourself" });
+    expect(tell({ ...e, payload: { error: "boom" } })!.subtitle).toBe("PR open — GitHub refused auto-merge: boom");
+  });
+});

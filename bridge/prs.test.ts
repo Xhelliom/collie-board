@@ -71,3 +71,13 @@ describe("notePrOutcome", () => {
     expect(await openPrs(db)).toEqual([]);
   });
 });
+
+describe("auto-merge on the open PR list", () => {
+  it("carries what GitHub said, and forgets it when the PR is reopened", () => {
+    const ev = (id: number, type: string) => ({ id, cardId: "c", type, payload: { url: "u" }, ts: id });
+    const m = openPrsOf([ev(1, "card.pr_opened"), ev(2, "card.automerge_refused")]);
+    expect(m.get("c")!.autoMerge).toBe("refused");
+    expect(openPrsOf([ev(1, "card.pr_opened"), ev(2, "card.automerge_refused"), ev(3, "card.pr_opened")]).get("c")!.autoMerge).toBeUndefined();
+    expect(openPrsOf([ev(1, "card.pr_opened"), ev(2, "card.automerge_refused"), ev(3, "card.pr_merged")]).size).toBe(0);
+  });
+});

@@ -1,19 +1,19 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
-import { ChevronRight, GitPullRequest, ListChecks, ListFilter, Plus, X } from "lucide-react";
+import { ChevronRight, GitPullRequest, ListChecks, Map as MapIcon, ListFilter, Plus, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import { CardGroup } from "@/components/card-group";
 import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
 import { RepoFilter } from "@/components/repo-filter";
 import { OriginFilter } from "@/components/origin-filter";
+import { PhaseFilter } from "@/components/phase-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { RunSheet } from "@/components/run-sheet";
-import { boardEntries, dependencyInfo, entryKey, entryStatus } from "@/lib/board-groups";
+import { containerIds, dependencyInfo, phaseProgress } from "@/lib/board-groups";
 import { StatusArea } from "@/components/status-area";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ import {
   matchesFilters,
   patchCard,
   positionFor,
+  projectPath,
   prsPath,
   repoName,
   reposOf,
@@ -39,7 +40,7 @@ import {
   type CardStatus,
   type CardView,
 } from "@/lib/board";
-import type { BoardData } from "@/lib/board-loaders";
+import type { ProjectData } from "@/lib/board-loaders";
 import { setStatus } from "@/lib/status";
 
 // The board: every card, grouped by lane, flow order left to right (or top to bottom on a phone).
@@ -90,7 +91,7 @@ const LANE_PHONE_ORDER: Record<string, string> = {
 };
 
 export function BoardRoute() {
-  const data = useLoaderData() as BoardData;
+  const data = useLoaderData() as ProjectData;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const desktop = useIsDesktop();
@@ -102,6 +103,8 @@ export function BoardRoute() {
   const [params, setParams] = useSearchParams();
   const active = params.get("tag");
   const activeRepo = params.get("repo");
+  // Phases are per repo (ADR 0021/0022): `?phase=` narrows the status board to one phase's cards.
+  const activePhase = params.get("phase");
   // Provenance, the third axis: `?origin=auto` keeps only what got filed without anyone asking —
   // the copilot's follow-ups AND the cards a working session opened mid-turn (ADR 0010), which is
   // one question and so one chip. A separate key rather than a value in `?tag=` because it IS
@@ -110,7 +113,7 @@ export function BoardRoute() {
   const autoOnly = params.get("origin") === "auto";
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
-  const setParam = (key: "tag" | "repo" | "origin", value: string | null) =>
+  const setParam = (key: "tag" | "repo" | "origin" | "phase", value: string | null) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -122,6 +125,7 @@ export function BoardRoute() {
     );
   const pick = (tag: string | null) => setParam("tag", tag);
   const pickAuto = (auto: boolean) => setParam("origin", auto ? "auto" : null);
+  const pickPhase = (id: string | null) => setParam("phase", id);
   // The repo scope is also REMEMBERED (ADR 0006) — a tag is a momentary lens, a repo is where you
   // are working today, and the card page returns to a bare `/board` with no query on it.
   const pickRepo = (repo: string | null) => {
@@ -203,28 +207,26 @@ export function BoardRoute() {
   const inUse = tagsOf(scoped);
   const tags = active && !inUse.includes(active) ? [active, ...inUse] : inUse;
   // The filter is applied HERE, before anything else reads the list, so every count, every column
-  // and the empty state all describe the same board. A child whose container is filtered out stands
-  // alone rather than vanishing — `boardEntries` already handles a missing parent that way.
+  // and the empty state all describe the same board.
   // Offered only when there is something to offer, from the SCOPED list — same rule as the tags
   // above, so the strip never proposes a combination that comes back empty.
   const hasAuto = scoped.some((c) => c.origin !== null);
-  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly }));
+  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase }));
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
   const showRepo = !activeRepo && repos.length > 1;
   // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
   // self-hiding rule, so the chip never opens onto an empty sheet.
-  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly;
+  const progress = phaseProgress(data.cards, data.phases);
+  const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
+  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || phasesOn.length > 0;
 
-  // Cards first become ENTRIES, then get bucketed by column. On a phone a container and its
-  // sub-tasks are ONE entry in the container's derived column; from `lg` up the sub-tasks scatter
-  // into their own columns and the container stays behind as a summary tile — a column is a status,
-  // so folding fifteen finished sub-tasks under a working parent left "Done" reading zero.
-  // While selecting, sub-tasks scatter as on desktop, so each one is its own tile to pick.
+  // One tile per card, in its status column, on every screen (ADR 0022). A container — the card a
+  // dictation was split from — holds no work and takes no tile; its sub-tasks name it instead.
+  const containers = containerIds(data.cards);
   const selecting = selection !== null && activeRepo !== null;
-  const entries = boardEntries(cards, desktop || selecting);
   const byStatus = new Map(
-    BOARD_COLUMNS.map((s) => [s, entries.filter((e) => entryStatus(e) === s)]),
+    BOARD_COLUMNS.map((s) => [s, cards.filter((c) => !containers.has(c.id) && c.status === s)]),
   );
   // Every card, filtered or not: this answers "what is card X" for dependencies, parent names and
   // the drop's re-read — all of which are about cards the filter may well be hiding.
@@ -241,12 +243,21 @@ export function BoardRoute() {
       return next;
     });
   const chosen = selection ? data.cards.filter((c) => selection.has(c.id) && selectable(c)) : [];
-  async function startRun(input: { foldInCap: number; leadAgent: string | null }) {
+  async function startRun(input: {
+    foldInCap: number;
+    leadAgent: string | null;
+    planned?: boolean;
+    phaseId?: string | null;
+    name?: string;
+    maxParallel?: number | null;
+  }) {
     try {
       await createRun({ cardIds: chosen.map((c) => c.id), ...input });
       setRunOpen(false);
       setSelection(null);
-      setStatus(`Run recorded — ${chosen.length} card${chosen.length === 1 ? "" : "s"}`, "info", 3000);
+      const n = `${chosen.length} card${chosen.length === 1 ? "" : "s"}`;
+      // A planned lot drives nothing: say where it is launched from, or it looks like nothing happened.
+      setStatus(input.planned ? `Lot planned — ${n}. Launch it from the project view.` : `Run recorded — ${n}`, "info", 4000);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -311,9 +322,7 @@ export function BoardRoute() {
    * can't see has no correct answer anyway; if it ever matters, drop the filter and reorder.
    */
   function neighbours(status: CardStatus, dragged: string): number[] {
-    return (byStatus.get(status) ?? [])
-      .filter((e) => entryKey(e) !== dragged)
-      .map((e) => (e.kind === "group" ? e.container.position : e.card.position));
+    return (byStatus.get(status) ?? []).filter((c) => c.id !== dragged).map((c) => c.position);
   }
 
   /** Columns a card in hand may land in — its own included, where the landing is a reorder. */
@@ -403,6 +412,15 @@ export function BoardRoute() {
                 {selecting ? "Cancel" : "Select"}
               </button>
             )}
+            {selecting && activePhase && (
+              <button
+                type="button"
+                onClick={() => setSelection(new Set(cards.filter(selectable).map((c) => c.id)))}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
+              >
+                All in phase
+              </button>
+            )}
             {hasFilters && (
               <button
                 type="button"
@@ -420,6 +438,14 @@ export function BoardRoute() {
           <>
             {/* The open PRs, one tap away on both breakpoints. The Done lane keeps its own link, but
                 on a phone that lane is stacked last, under every card on the board. */}
+            <Link
+              to={projectPath(activeRepo)}
+              aria-label="Project"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent hover:text-accent-foreground sm:px-3"
+            >
+              <MapIcon className="size-4" />
+              <span className="hidden sm:inline">Project</span>
+            </Link>
             <Link
               to={prsPath()}
               aria-label="Open PRs"
@@ -540,7 +566,7 @@ export function BoardRoute() {
                       // is still a box the drag's own source loses, which is why `arm` waits a frame
                       // before `held` is set at all — that wait is what keeps the drag alive.
                       const ghostAt = over?.status === status ? over.index : -1;
-                      const heldSlot = held ? column.findIndex((e) => entryKey(e) === held.id) : -1;
+                      const heldSlot = held ? column.findIndex((c) => c.id === held.id) : -1;
                       return (
                         <section
                           key={status}
@@ -603,8 +629,8 @@ export function BoardRoute() {
                           )}
                         >
                           {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
-                          {column.map((entry, slot) => (
-                            <Fragment key={entryKey(entry)}>
+                          {column.map((card, slot) => (
+                            <Fragment key={card.id}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
                               {/* The wrapper exists for one line: which HALF of a tile the pointer
                                   is on decides whether the card lands above it or below it. Without
@@ -613,7 +639,7 @@ export function BoardRoute() {
                                   the event so the section's own handler doesn't overwrite the index
                                   with "at the end" on the way up. */}
                               <div
-                                className={cn(held?.id === entryKey(entry) && "hidden")}
+                                className={cn(held?.id === card.id && "hidden")}
                                 onDragOver={
                                   target
                                     ? (e) => {
@@ -627,46 +653,30 @@ export function BoardRoute() {
                                     : undefined
                                 }
                               >
-                                {entry.kind === "group" ? (
-                                  // A container is not dragged: its column is DERIVED from its
-                                  // sub-tasks, so moving it by hand would be a status nothing keeps.
-                                  <CardGroup
-                                    container={entry.container}
-                                    subTasks={entry.children}
-                                    byId={byId}
-                                    // A container is not startable, so not a run member.
-                                    onOpen={(cardId) => !selecting && navigate(cardPath(cardId))}
-                                    summaryOnly={desktop || selecting}
-                                    showRepo={showRepo}
-                                  />
-                                ) : (
                                   <CardTile
-                                    card={entry.card}
+                                    card={card}
                                     onClick={() =>
-                                      selecting ? toggle(entry.card) : navigate(cardPath(entry.card.id))
+                                      selecting ? toggle(card) : navigate(cardPath(card.id))
                                     }
                                     selected={
-                                      selecting && selectable(entry.card)
-                                        ? selection.has(entry.card.id)
+                                      selecting && selectable(card)
+                                        ? selection.has(card.id)
                                         : undefined
                                     }
-                                    dependency={dependencyInfo(entry.card, byId)}
-                                    repo={repoLabel(entry.card)}
-                                    // Only while scattered — under a container on a phone, the tile
-                                    // is already sitting inside the thing this would name.
-                                    parent={
-                                      desktop && entry.card.parentId
-                                        ? byId.get(entry.card.parentId)?.title
-                                        : undefined
-                                    }
+                                    dependency={dependencyInfo(card, byId)}
+                                    repo={repoLabel(card)}
+                                    // The dictation this was split from, on every screen (ADR 0022):
+                                    // the container takes no tile, so this is where it is named.
+                                    parent={card.parentId ? byId.get(card.parentId)?.title : undefined}
+                                    phase={card.phaseId ? progress.get(card.phaseId) : undefined}
                                     // Unconditional, unlike `parent`: a follow-up is never folded
                                     // under the card it came from (that link is not `parentId` —
                                     // see Card.originCardId), so nothing else on any screen says
                                     // it. A deleted source resolves to nothing and the caption
                                     // simply doesn't render.
                                     source={
-                                      entry.card.originCardId
-                                        ? byId.get(entry.card.originCardId)?.title
+                                      card.originCardId
+                                        ? byId.get(card.originCardId)?.title
                                         : undefined
                                     }
                                     // Desktop only, and only from a column a human owns. `runtime`
@@ -676,14 +686,14 @@ export function BoardRoute() {
                                     drag={
                                       desktop &&
                                       !selecting &&
-                                      !entry.card.runtime &&
+                                      !card.runtime &&
                                       MANUAL_STATUSES.includes(status)
                                         ? {
                                             // Deferred by a frame, and that is load-bearing — see
                                             // `arm`. The ghost starts at the card's own slot, so
                                             // lifting it changes nothing on screen until you
                                             // actually move.
-                                            onStart: () => arm(entry.card.id, status, slot),
+                                            onStart: () => arm(card.id, status, slot),
                                             // Cancels only. A `dragend` that follows a real drop
                                             // must leave the state alone — the drop owns it until
                                             // the new data lands.
@@ -697,7 +707,6 @@ export function BoardRoute() {
                                         : undefined
                                     }
                                   />
-                                )}
                               </div>
                             </Fragment>
                           ))}
@@ -736,6 +745,8 @@ export function BoardRoute() {
           onClose={() => setRunOpen(false)}
           cards={chosen}
           repoPath={activeRepo}
+          phases={phasesOn}
+          phaseId={activePhase}
           onConfirm={startRun}
         />
       )}
@@ -746,6 +757,11 @@ export function BoardRoute() {
       <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
         <div className="-mx-4 flex flex-col">
           <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
+          <PhaseFilter
+            phases={phasesOn.map((p) => ({ id: p.id, name: p.name, ...(progress.get(p.id) ?? { done: 0, total: 0 }) }))}
+            active={activePhase}
+            onPick={pickPhase}
+          />
           <TagFilter tags={tags} active={active} onPick={pick} />
           <OriginFilter has={hasAuto} active={autoOnly} onPick={pickAuto} />
         </div>

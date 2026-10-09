@@ -9,7 +9,8 @@ import { tagHue } from "@/lib/board";
  * carries a hue and `.tag-chip` (index.css) turns it into border/background/text for the theme in
  * force. Nothing here picks a colour; nothing stores one.
  */
-export function TagChip({ tag, className }: { tag: string; className?: string }) {
+/** `label` shows something other than the name the hue is computed from — a phase's pill adds its progress. */
+export function TagChip({ tag, label, className }: { tag: string; label?: string; className?: string }) {
   return (
     <span
       className={cn(
@@ -18,7 +19,7 @@ export function TagChip({ tag, className }: { tag: string; className?: string })
       )}
       style={{ "--tag-hue": tagHue(tag) } as CSSProperties}
     >
-      {tag}
+      {label ?? tag}
     </span>
   );
 }

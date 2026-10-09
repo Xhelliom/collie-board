@@ -121,6 +121,8 @@ export interface CardView {
   dependsOn: string | null;
   /** The run this card was handed over in (ADR 0017), or null. Optional: older fixtures omit it. */
   runId?: string | null;
+  /** The phase this card belongs to (ADR 0021), or null. Optional: older fixtures omit it. */
+  phaseId?: string | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -418,9 +420,10 @@ export function tagsOf(cards: readonly CardView[]): string[] {
  */
 export function matchesFilters(
   card: CardView,
-  filters: { tag: string | null; autoOnly: boolean },
+  filters: { tag: string | null; autoOnly: boolean; phase?: string | null },
 ): boolean {
   if (filters.tag && card.tag !== filters.tag) return false;
+  if (filters.phase && card.phaseId !== filters.phase) return false;
   // Any origin, not just the copilot's: the strip asks "what appeared without me?", and a filter
   // that answered it for one of the two writers would be a gauge that is quietly wrong.
   return !filters.autoOnly || card.origin !== null;
@@ -486,6 +489,10 @@ export function saveRepoScope(path: string | null): void {
 
 export function boardPath(): string {
   return "/board";
+}
+
+export function projectPath(repo?: string | null): string {
+  return repo ? `/board/project?repo=${encodeURIComponent(repo)}` : "/board/project";
 }
 
 export function prsPath(): string {
@@ -574,6 +581,8 @@ export interface CardInput {
   /** Card ids. The bridge validates that they exist and that neither closes a loop. */
   parentId?: string | null;
   dependsOn?: string | null;
+  /** The phase this card belongs to (ADR 0021), or `null` to take it out. */
+  phaseId?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */
@@ -776,6 +785,8 @@ export interface RepoChoice {
   defaultBranch?: string;
   /** The operator hid it. Only ever present when the list was fetched with `all`. */
   hidden?: boolean;
+  /** The repo's gate command (ADR 0020), when the operator set one. */
+  gate?: string;
 }
 
 /**
@@ -804,6 +815,23 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
     method: "POST",
     body: JSON.stringify({ path, hidden }),
   });
+}
+
+/** Set a repo's gate command, or remove it with null (ADR 0020). */
+export function setRepoGate(path: string, gate: string | null): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>("/api/repos/gate", { method: "POST", body: JSON.stringify({ path, gate }) });
+}
+
+/** What the copilot proposes for a repo's gate. Never saved by the bridge — the operator saves it. */
+export interface GateSuggestion {
+  command: string;
+  reason: string;
+  needsScript: boolean;
+  scriptSuggestion: string | null;
+}
+
+export function suggestRepoGate(path: string): Promise<{ ok: true; suggestion: GateSuggestion }> {
+  return apiRequest("/api/repos/gate/suggest", { method: "POST", body: JSON.stringify({ path }) });
 }
 
 /** The board's switches. Bridge-side, so the choice is the board's, not this device's. */
@@ -854,6 +882,12 @@ export function createRun(input: {
   cardIds: string[];
   foldInCap: number;
   leadAgent: string | null;
+  /** A PLANNED lot (ADR 0021): holds its cards and drives nothing until launched from the project view. */
+  planned?: boolean;
+  phaseId?: string | null;
+  name?: string;
+  /** Cards of the lot that may run at once; 1 is sequential, null follows the board's cap. */
+  maxParallel?: number | null;
 }): Promise<{ run: { id: string }; cardIds: string[] }> {
   return apiRequest("/api/runs", { method: "POST", body: JSON.stringify(input) });
 }
@@ -961,6 +995,7 @@ export interface OpenPr {
   openedAt: number;
   /** Only after a check: what GitHub said, null when it could not be asked. */
   pr?: PrStatus | null;
+  autoMerge?: "armed" | "refused";
 }
 
 /** The open PRs, from the journal. `check` asks GitHub about each one — the Check tap, never a poll. */
@@ -1067,3 +1102,89 @@ export function fetchUsage(
     signal: withTimeout(signal, GET_TIMEOUT_MS),
   });
 }
+
+// ── projects: phases, lots, roadmap (ADR 0021) ────────────────────────────────
+
+export interface Phase {
+  id: string;
+  repoPath: string;
+  name: string;
+  goal: string;
+  position: number;
+  roadmapItemId: string | null;
+}
+
+/** A lot is a run: PLANNED while `launchedAt` is null (it drives nothing), launched by the operator's tap. */
+export interface Lot {
+  id: string;
+  repoPath: string;
+  phaseId: string | null;
+  name: string | null;
+  position: number;
+  launchedAt: number | null;
+  maxParallel?: number | null;
+  cardIds: string[];
+}
+
+export type RoadmapStatus = "planned" | "active" | "done" | "dropped";
+export interface RoadmapItem {
+  id: string;
+  name: string;
+  goal: string;
+  status: RoadmapStatus;
+  /** The phase's long form, Markdown: objective, end-of-phase demo, risk, why here (ADR 0023). */
+  detail?: string;
+}
+/** ✅ decided · 🟡 leaning · ❓ open — the three statuses of the decision journal (ADR 0023). */
+export type DecisionStatus = "decided" | "leaning" | "open";
+export interface Decision {
+  id: string;
+  text: string;
+  status: DecisionStatus;
+  itemId: string | null;
+}
+export interface Roadmap {
+  repoPath: string;
+  vision: string;
+  items: RoadmapItem[];
+  decisions?: Decision[];
+  revision: number;
+}
+
+export const fetchPhases = (repo: string, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
+  apiRequest(`/api/phases?repo=${encodeURIComponent(repo)}`, { signal });
+export const fetchLots = (repo: string, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
+  apiRequest(`/api/runs?repo=${encodeURIComponent(repo)}`, { signal });
+/** Null `roadmap`: nothing written yet for this repo. */
+export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ roadmap: Roadmap | null }> =>
+  apiRequest(`/api/roadmap?repo=${encodeURIComponent(repo)}`, { signal });
+/** The repo's planning orchestrator (ADR 0021): `paneId` null until the operator starts it. */
+export interface OrchestratorState {
+  paneId: string | null;
+  running: boolean;
+  /** The pane's context occupancy, 0-100; null when unknown (ADR 0023). */
+  ctxPct?: number | null;
+  /** When it last wrote its memory note, or null. */
+  memoryUpdatedAt?: number | null;
+}
+/** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
+export interface OrchestratorMemory {
+  note: string;
+  updatedAt: number;
+}
+export const fetchOrchestratorMemory = (repo: string, signal?: AbortSignal): Promise<{ memory: OrchestratorMemory | null }> =>
+  apiRequest(`/api/orchestrator/memory?repo=${encodeURIComponent(repo)}`, { signal });
+/** The operator's two taps of a hand-over: ask for the note, then start fresh (ADR 0023). Never automatic. */
+export const renewOrchestrator = (repoPath: string, step: "ask" | "restart"): Promise<{ ok: true; paneId: string }> =>
+  apiRequest("/api/orchestrator/renew", { method: "POST", body: JSON.stringify({ repoPath, step }) });
+export const fetchOrchestrator = (repo: string, signal?: AbortSignal): Promise<OrchestratorState> =>
+  apiRequest(`/api/orchestrator?repo=${encodeURIComponent(repo)}`, { signal });
+/** Spends the operator's quota — only ever from their tap. */
+export const startOrchestrator = (repoPath: string): Promise<{ ok: true; paneId: string; started: boolean }> =>
+  apiRequest("/api/orchestrator", { method: "POST", body: JSON.stringify({ repoPath }) });
+
+export const launchLot = (id: string): Promise<{ run: Lot }> =>
+  apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
+export const saveRoadmap = (
+  r: { repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number },
+): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });

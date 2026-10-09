@@ -56,6 +56,8 @@ export interface CardBrief {
   worktree: string;
   /** The ref the card forked from; the lead diffs against it. */
   base: string;
+  /** What the operator told the worker since the lead's last verdict, oldest first. */
+  operatorSaid?: string[];
   /** `explore` turns the check from "is the diff complete?" into "is the conclusion sound?". */
   category?: string | null;
 }
@@ -63,6 +65,8 @@ export interface CardBrief {
 export interface CheckInput extends CardBrief {
   /** `git diff --stat`, as a starting map — the lead still reads the code. */
   statSummary: string;
+  /** The repo's gate command, when it passed on this checkout (ADR 0020): the lead need not re-check it. */
+  gatePassed?: string;
   outPath: string;
 }
 
@@ -136,6 +140,22 @@ export function checkPrompt(input: CheckInput): string {
     "What changed (git diff --stat):",
     input.statSummary,
     "",
+    ...(input.operatorSaid?.length
+      ? [
+          "The operator spoke to the worker directly since your last verdict:",
+          ...input.operatorSaid.map((m) => `> ${m.replace(/\n/g, "\n> ")}`),
+          "That is the current direction: judge the work against the card AND those words, and never send",
+          "a message that contradicts them. If the worker did what they asked, that is finished.",
+          "",
+        ]
+      : []),
+    ...(input.gatePassed
+      ? [
+          `The repo's gate (\`${input.gatePassed}\`) passed on this checkout: it builds and its checks are`,
+          "green, so do not re-check what it checks — look for what it cannot see.",
+          "",
+        ]
+      : []),
     ...finished,
     "Otherwise write the message the worker will receive: direct, specific, naming the criterion that",
     'is not met and why (e.g. "commit; criterion 2 is not met because …").',
