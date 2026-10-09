@@ -374,7 +374,7 @@ export function ProjectRoute() {
         </div>
       </main>
       <aside aria-label="Orchestrateur" className="hidden w-[22rem] shrink-0 flex-col border-l lg:flex xl:w-96">
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} />
+        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </aside>
       </div>
       <button
@@ -386,7 +386,7 @@ export function ProjectRoute() {
         Discuter avec l'orchestrateur
       </button>
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title="Orchestrateur">
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} />
+        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </BottomSheet>
     </div>
   );

@@ -391,6 +391,32 @@ export interface RoadmapItem {
   name: string;
   goal: string;
   status: RoadmapStatus;
+  /** The phase's long form, Markdown: objective, end-of-phase demo, risks, why in this order (ADR 0023). */
+  detail: string;
+}
+
+/** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — Overgate's three statuses (ADR 0023). */
+export const DECISION_STATUSES = ["decided", "leaning", "open"] as const;
+export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+/** One line of the project's decision journal. Written at the moment it is taken, never reconstructed. */
+export interface Decision {
+  id: string;
+  text: string;
+  status: DecisionStatus;
+  /** The roadmap item it concerns, or null for the project as a whole. */
+  itemId: string | null;
+}
+
+/** The ceilings a roadmap document keeps to — an unbounded one would be an unbounded row. */
+export const ROADMAP_MAX_DECISIONS = 300;
+
+/** The orchestrator's own note to its next self (ADR 0023): short, one per repo, last writer wins. */
+export const MEMORY_MAX_CHARS = 4_000;
+export interface OrchestratorMemory {
+  repoPath: string;
+  note: string;
+  updatedAt: number;
 }
 
 /** One repo's roadmap. `revision` is the optimistic lock: a write carries the one it read. */
@@ -398,6 +424,7 @@ export interface Roadmap {
   repoPath: string;
   vision: string;
   items: RoadmapItem[];
+  decisions: Decision[];
   revision: number;
   updatedAt: number;
 }
@@ -542,19 +569,32 @@ interface RoadmapRow {
   repo_path: string;
   vision: string;
   items: string;
+  decisions: string | null;
   revision: number;
   updated_at: number;
 }
 
-function toRoadmap(r: RoadmapRow): Roadmap {
-  let items: RoadmapItem[] = [];
+/** A JSON column we wrote is always valid; an unreadable one reads as an empty list, not a crash. */
+function jsonList<T>(raw: string | null): T[] {
   try {
-    const parsed: unknown = JSON.parse(r.items);
-    if (Array.isArray(parsed)) items = parsed as RoadmapItem[];
+    const parsed: unknown = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
   } catch {
-    // A row we wrote is always valid JSON; an unreadable one reads as an empty list, not a crash.
+    return [];
   }
-  return { repoPath: r.repo_path, vision: r.vision, items, revision: r.revision, updatedAt: r.updated_at };
+}
+
+function toRoadmap(r: RoadmapRow): Roadmap {
+  // A row from before ADR 0023 has no `detail` on its items: it reads as empty.
+  const items = jsonList<RoadmapItem>(r.items).map((i) => ({ ...i, detail: i.detail ?? "" }));
+  return {
+    repoPath: r.repo_path,
+    vision: r.vision,
+    items,
+    decisions: jsonList<Decision>(r.decisions).map((d) => ({ ...d, itemId: d.itemId ?? null })),
+    revision: r.revision,
+    updatedAt: r.updated_at,
+  };
 }
 
 interface SessionRow {
@@ -787,7 +827,15 @@ CREATE TABLE IF NOT EXISTS roadmap (
   repo_path  TEXT PRIMARY KEY,
   vision     TEXT NOT NULL DEFAULT '',
   items      TEXT NOT NULL DEFAULT '[]',
+  decisions  TEXT NOT NULL DEFAULT '[]',
   revision   INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+
+-- ADR 0023. The orchestrator's note to its next self: one short text per repo, last writer wins.
+CREATE TABLE IF NOT EXISTS orchestrator_memory (
+  repo_path  TEXT PRIMARY KEY,
+  note       TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
 
@@ -1116,6 +1164,8 @@ export class BoardDb {
       { table: "run", column: "position", ddl: "INTEGER NOT NULL DEFAULT 0" },
       { table: "run", column: "launched_at", ddl: "INTEGER" },
       { table: "run", column: "max_parallel", ddl: "INTEGER" },
+      // ADR 0023: the roadmap's decision journal.
+      { table: "roadmap", column: "decisions", ddl: "TEXT NOT NULL DEFAULT '[]'" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1763,19 +1813,77 @@ export class BoardDb {
    * Replace a repo's roadmap. `revision` is the one the caller READ (0 when there was none): any
    * other value means someone wrote in between, and nothing is written — {@link RevisionConflict}.
    */
-  putRoadmap(repoPath: string, doc: { vision: string; items: RoadmapItem[] }, revision: number): Roadmap {
+  putRoadmap(
+    repoPath: string,
+    doc: { vision: string; items: RoadmapItem[]; decisions?: Decision[] },
+    revision: number,
+  ): Roadmap {
     return this.db.transaction(() => {
-      const current = this.getRoadmap(repoPath)?.revision ?? 0;
+      const before = this.getRoadmap(repoPath);
+      const current = before?.revision ?? 0;
       if (revision !== current) throw new RevisionConflict(current);
-      this.db
-        .query(
-          `INSERT INTO roadmap (repo_path, vision, items, revision, updated_at) VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(repo_path) DO UPDATE SET vision = excluded.vision, items = excluded.items,
-             revision = excluded.revision, updated_at = excluded.updated_at`,
-        )
-        .run(repoPath, doc.vision, JSON.stringify(doc.items), current + 1, this.now());
+      // A PUT that says nothing of the decisions leaves the journal as it is: the operator's
+      // editor and the orchestrator's decision writes must not erase each other.
+      this.writeRoadmap(repoPath, doc.vision, doc.items, doc.decisions ?? before?.decisions ?? [], current + 1);
       return this.getRoadmap(repoPath)!;
     })();
+  }
+
+  /**
+   * Upsert ONE decision (ADR 0023) — the orchestrator writes them as they are taken, so this asks for
+   * no revision: it reads the current document inside its own transaction and bumps it. An unknown
+   * `id` adds; a known one replaces. Past the ceiling it refuses rather than dropping an old one.
+   */
+  upsertDecision(
+    repoPath: string,
+    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null },
+  ): { roadmap: Roadmap; decision: Decision } {
+    return this.db.transaction(() => {
+      const before = this.getRoadmap(repoPath);
+      const decisions = [...(before?.decisions ?? [])];
+      const decision: Decision = {
+        id: input.id ?? crypto.randomUUID().slice(0, 8),
+        text: input.text,
+        status: input.status,
+        itemId: input.itemId ?? null,
+      };
+      const at = decisions.findIndex((d) => d.id === decision.id);
+      if (at >= 0) decisions[at] = decision;
+      else if (decisions.length >= ROADMAP_MAX_DECISIONS) throw new Error(`a roadmap keeps at most ${ROADMAP_MAX_DECISIONS} decisions`);
+      else decisions.push(decision);
+      this.writeRoadmap(repoPath, before?.vision ?? "", before?.items ?? [], decisions, (before?.revision ?? 0) + 1);
+      return { roadmap: this.getRoadmap(repoPath)!, decision };
+    })();
+  }
+
+  private writeRoadmap(repoPath: string, vision: string, items: RoadmapItem[], decisions: Decision[], revision: number): void {
+    this.db
+      .query(
+        `INSERT INTO roadmap (repo_path, vision, items, decisions, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(repo_path) DO UPDATE SET vision = excluded.vision, items = excluded.items,
+           decisions = excluded.decisions, revision = excluded.revision, updated_at = excluded.updated_at`,
+      )
+      .run(repoPath, vision, JSON.stringify(items), JSON.stringify(decisions), revision, this.now());
+  }
+
+  // ── the orchestrator's memory (ADR 0023) ─────────────────────────────────────
+
+  getMemory(repoPath: string): OrchestratorMemory | null {
+    const r = this.db
+      .query<{ repo_path: string; note: string; updated_at: number }, [string]>("SELECT * FROM orchestrator_memory WHERE repo_path = ?")
+      .get(repoPath);
+    return r ? { repoPath: r.repo_path, note: r.note, updatedAt: r.updated_at } : null;
+  }
+
+  /** Last writer wins — one note, the newest. The caller bounds its length. */
+  putMemory(repoPath: string, note: string): OrchestratorMemory {
+    this.db
+      .query(
+        `INSERT INTO orchestrator_memory (repo_path, note, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(repo_path) DO UPDATE SET note = excluded.note, updated_at = excluded.updated_at`,
+      )
+      .run(repoPath, note, this.now());
+    return this.getMemory(repoPath)!;
   }
 
   // ── repo preferences ────────────────────────────────────────────────────────

@@ -258,3 +258,94 @@ describe("GET /api/project/facts", () => {
     expect((await call(db, "POST", "/api/project/facts?repo=%2Fr")).status).toBe(405);
   });
 });
+
+describe("the roadmap as a document (ADR 0023)", () => {
+  const repo = "/home/me/game";
+  const q = `repo=${encodeURIComponent(repo)}`;
+
+  it("keeps a phase's long form and the decision journal, and defaults old items to an empty detail", async () => {
+    const db = new BoardDb(":memory:");
+    const { body } = await call(db, "PUT", "/api/roadmap", {
+      repoPath: repo,
+      revision: 0,
+      vision: "A FPS.",
+      items: [{ id: "p0", name: "Cadrage", status: "active", detail: "## Démo\nLa roadmap est validée." }, { id: "p1", name: "Prototype" }],
+    });
+    expect(body.roadmap.items[0].detail).toContain("La roadmap est validée.");
+    expect(body.roadmap.items[1].detail).toBe("");
+    expect(body.roadmap.decisions).toEqual([]);
+    const tooLong = await call(db, "PUT", "/api/roadmap", { repoPath: repo, revision: 1, items: [{ name: "a", detail: "x".repeat(20_001) }] });
+    expect(tooLong.status).toBe(400);
+  });
+
+  it("a decision is upserted without a revision, bumps it, and a PUT that omits decisions keeps them", async () => {
+    const db = new BoardDb(":memory:");
+    await call(db, "PUT", "/api/roadmap", { repoPath: repo, revision: 0, items: [{ id: "p1", name: "Prototype" }] });
+    const a = await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "16v16 teams", status: "open", itemId: "p1" });
+    expect(a.status).toBe(200);
+    expect(a.body.revision).toBe(2);
+    const id = a.body.decision.id as string;
+    const b = await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, id, text: "16v16 teams", status: "decided", itemId: "p1" });
+    expect(b.body.revision).toBe(3);
+    expect(db.getRoadmap(repo)!.decisions).toEqual([{ id, text: "16v16 teams", status: "decided", itemId: "p1" }]);
+    // The operator's editor saves the document without touching the journal.
+    await call(db, "PUT", "/api/roadmap", { repoPath: repo, revision: 3, vision: "v", items: [{ id: "p1", name: "Prototype" }] });
+    expect(db.getRoadmap(repo)!.decisions).toHaveLength(1);
+  });
+
+  it("refuses a bad decision, an unknown item, a body without a repo, and the 301st", async () => {
+    const db = new BoardDb(":memory:");
+    const d = (o: object) => call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", ...o });
+    expect((await d({ status: "maybe" })).status).toBe(400);
+    expect((await d({ text: "  " })).status).toBe(400);
+    expect((await d({ itemId: "ghost" })).status).toBe(400);
+    expect((await call(db, "POST", "/api/roadmap/decision", { text: "t", status: "open" })).status).toBe(400);
+    expect((await call(db, "GET", "/api/roadmap/decision")).status).toBe(405);
+    for (let i = 0; i < 300; i++) db.upsertDecision(repo, { text: `d${i}`, status: "open" });
+    expect((await d({})).status).toBe(409);
+    // …but an existing one can still be rewritten.
+    const first = db.getRoadmap(repo)!.decisions[0]!;
+    expect((await d({ id: first.id, status: "decided" })).status).toBe(200);
+  });
+
+  it("exports the detailed roadmap: phases with their long form, decisions grouped ✅ 🟡 ❓", () => {
+    const md = roadmapMarkdown("game", {
+      vision: "A FPS.",
+      revision: 4,
+      items: [{ id: "p0", name: "Cadrage", goal: "Decide.", status: "done", detail: "Demo: the plan." }],
+      decisions: [
+        { id: "a", text: "Teams of 16", status: "decided", itemId: "p0" },
+        { id: "b", text: "Vehicles?", status: "open", itemId: null },
+        { id: "c", text: "Hitscan first", status: "leaning", itemId: null },
+      ],
+    });
+    expect(md).toContain("## 1. Cadrage — done\n\nDecide.\n\nDemo: the plan.");
+    expect(md).toContain("### ✅ Décidé (1)\n\n- Teams of 16 — _1. Cadrage_");
+    expect(md).toContain("### 🟡 Piste privilégiée (1)");
+    expect(md).toContain("### ❓ Questions ouvertes (1)\n\n- Vehicles?");
+    expect(md.indexOf("✅")).toBeLessThan(md.indexOf("🟡"));
+    expect(md.indexOf("🟡")).toBeLessThan(md.indexOf("❓"));
+  });
+
+  it("exports the step-by-step roadmap from the board itself, phase by phase, leaving out phases with no card", async () => {
+    const db = new BoardDb(":memory:");
+    const p1 = db.createPhase({ repoPath: repo, name: "Prototype", goal: "A portal." });
+    db.createPhase({ repoPath: repo, name: "Later" });
+    const a = db.createCard({ title: "Portal math", repoPath: repo, status: "done", spec: "Compute the plane.", acceptance: ["test passes"], phaseId: p1.id });
+    const b = db.createCard({ title: "Traversal", repoPath: repo, status: "ready", dependsOn: a.id, phaseId: p1.id });
+    db.createCard({ title: "Stray", repoPath: repo, status: "backlog" });
+    db.createRun({ repoPath: repo, cardIds: [a.id, b.id], foldInCap: 0, planned: true, phaseId: p1.id, name: "Lot 1", maxParallel: 1 });
+    const md = (await call(db, "GET", `/api/roadmap?${q}&format=steps`)).body as string;
+    expect(md).toContain("# Étape par étape — game");
+    expect(md).toContain("## Phase 1 — Prototype\n\nA portal.");
+    expect(md).toContain("### Lot — Lot 1 (planned, one at a time)");
+    expect(md).toContain("- **Portal math** — done");
+    expect(md).toContain("  Compute the plane.");
+    expect(md).toContain("  - [x] test passes");
+    expect(md).toContain("  - after: Portal math");
+    expect(md).not.toContain("Later");
+    expect(md).not.toContain("Stray");
+    expect((await call(db, "GET", `/api/roadmap?${q}&format=md`)).body).toContain("# Roadmap — game");
+  });
+});
+

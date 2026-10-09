@@ -16,11 +16,13 @@ import {
   fetchOpenPrs,
   fetchOrchestrator,
   fetchPhases,
+  fetchOrchestratorMemory,
   fetchRoadmap,
   type CardDetail,
   type CardView,
   type Lot,
   type OpenPr,
+  type OrchestratorMemory,
   type OrchestratorState,
   type Phase,
   type Roadmap,
@@ -108,6 +110,8 @@ export interface ProjectData extends BoardData {
   orchestrator?: OrchestratorState | null;
   /** The orchestrator's conversation, oldest first — the reading view's turns, not the terminal. */
   orchestratorEntries?: TranscriptEntry[];
+  /** Its memory note, read-only in the panel. */
+  orchestratorMemory?: OrchestratorMemory | null;
   /** What the journal knows of each card of the repo, keyed by card id (bridge/project-facts.ts). */
   facts?: Record<string, CardFacts>;
 }
@@ -131,5 +135,8 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
         () => [],
       )
     : [];
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, facts };
+  const orchestratorMemory = orchestrator?.paneId
+    ? await fetchOrchestratorMemory(repo, request?.signal).then((r) => r.memory, () => null)
+    : null;
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, facts };
 }

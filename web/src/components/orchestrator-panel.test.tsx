@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { createMemoryRouter, RouterProvider } from "react-router";
+import { createMemoryRouter, RouterProvider, useLoaderData } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
-import type { OrchestratorState } from "@/lib/board";
+import type { OrchestratorMemory, OrchestratorState } from "@/lib/board";
 import type { TranscriptEntry } from "@/lib/types";
 import { server } from "@/test/setup";
 
@@ -16,9 +16,9 @@ const turn = (text: string, role: "user" | "assistant" = "assistant"): Transcrip
   parts: [{ kind: "text", text }],
 });
 
-function mount(repo: string | null, state: OrchestratorState | null, entries: TranscriptEntry[] = []) {
+function mount(repo: string | null, state: OrchestratorState | null, entries: TranscriptEntry[] = [], memory: OrchestratorMemory | null = null) {
   const router = createMemoryRouter(
-    [{ path: "/board/project", loader: () => null, element: <OrchestratorPanel repo={repo} state={state} entries={entries} /> }],
+    [{ path: "/board/project", loader: () => null, element: <OrchestratorPanel repo={repo} state={state} entries={entries} memory={memory} /> }],
     { initialEntries: ["/board/project"] },
   );
   render(<RouterProvider router={router} />);
@@ -84,5 +84,60 @@ describe("OrchestratorPanel", () => {
       { text: "un\ndeux", submit: true },
       { text: "trois", submit: true },
     ]);
+  });
+
+  it("shows its context gauge, and stays quiet about a hand-over below 50 %", async () => {
+    mount("/g/app", { paneId: "w1:p2", running: true, ctxPct: 32 });
+    expect(await screen.findByRole("img", { name: /contexte rempli à 32 %/i })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("from 50 %: alerts, and the hand-over is two taps — ask for the note, then start fresh once it moved", async () => {
+    const calls: unknown[] = [];
+    server.use(
+      http.post("*/api/orchestrator/renew", async ({ request }) => {
+        calls.push(await request.json());
+        return HttpResponse.json({ ok: true, paneId: "w1:p2" });
+      }),
+    );
+    const view = (memoryUpdatedAt: number) => (
+      <OrchestratorPanel repo="/g/app" state={{ paneId: "w1:p2", running: true, ctxPct: 61, memoryUpdatedAt }} entries={[]} memory={null} />
+    );
+    const router = createMemoryRouter([{ path: "/p", loader: () => null, element: view(100) }], { initialEntries: ["/p"] });
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/le contexte se remplit/i);
+    // Restarting is not offered before the note was asked for.
+    expect(screen.queryByRole("button", { name: "Repartir à neuf" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Lui demander de noter" }));
+    expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }]);
+    // …and once asked, it stays closed while the note has not moved.
+    expect(await screen.findByRole("button", { name: "Repartir à neuf" })).toBeDisabled();
+    expect(screen.getByText(/en attente de sa note/i)).toBeInTheDocument();
+  });
+
+  it("opens the second tap once the note's date has advanced past the one at the ask", async () => {
+    const calls: unknown[] = [];
+    server.use(
+      http.post("*/api/orchestrator/renew", async ({ request }) => {
+        calls.push(await request.json());
+        return HttpResponse.json({ ok: true, paneId: "w1:p2" });
+      }),
+    );
+    const state = { current: { paneId: "w1:p2", running: true, ctxPct: 70, memoryUpdatedAt: 100 } as OrchestratorState };
+    const Panel = () => <OrchestratorPanel repo="/g/app" state={useLoaderData() as OrchestratorState} entries={[]} memory={null} />;
+    const router = createMemoryRouter([{ path: "/p", loader: () => state.current, element: <Panel /> }], { initialEntries: ["/p"] });
+    render(<RouterProvider router={router} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Lui demander de noter" }));
+    state.current = { ...state.current, memoryUpdatedAt: 200 };
+    await router.revalidate();
+    const restart = await screen.findByRole("button", { name: "Repartir à neuf" });
+    await waitFor(() => expect(restart).toBeEnabled());
+    await userEvent.click(restart);
+    await waitFor(() => expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }, { repoPath: "/g/app", step: "restart" }]));
+  });
+
+  it("shows the memory note read-only, or says there is none yet", async () => {
+    mount("/g/app", { paneId: "w1:p2", running: true }, [], { note: "écarté : le mode coop", updatedAt: Date.now() });
+    expect(await screen.findByText("écarté : le mode coop")).toBeInTheDocument();
   });
 });

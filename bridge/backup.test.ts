@@ -71,6 +71,7 @@ describe("buildBackup", () => {
       "board_pref",
       "card",
       "event",
+      "orchestrator_memory",
       "phase",
       "repo_pref",
       "review",

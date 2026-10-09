@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -85,11 +85,11 @@ describe("ProjectRoute", () => {
       repoPath: "/r/app",
       vision: "Ship it",
       revision: 2,
-      items: [{ id: "1", name: "Scale", goal: "72 players", status: "active" }],
+      items: [{ id: "1", name: "Scale", goal: "72 players", status: "active", detail: "" }],
     };
     mount([card({ id: "x" })], { roadmap });
     expect(await screen.findByText("Scale")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /copy as markdown/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /copy the detailed roadmap/i })).toBeTruthy();
   });
 
   it("explains an empty roadmap", async () => {
@@ -145,5 +145,56 @@ describe("ProjectRoute", () => {
     await userEvent.selectOptions(await screen.findByRole("combobox"), "P2");
     await screen.findByRole("combobox");
     expect(body).toEqual({ phaseId: "P2" });
+  });
+
+  it("shows each phase's long form on demand and the decision journal grouped ✅ 🟡 ❓", async () => {
+    const roadmap: Roadmap = {
+      repoPath: "/r/app",
+      vision: "A game.",
+      revision: 3,
+      items: [
+        { id: "p0", name: "Cadrage", goal: "Decide", status: "active", detail: "La démo : le plan est validé." },
+        { id: "p1", name: "Prototype", goal: "", status: "planned", detail: "Un portail traversé." },
+      ],
+      decisions: [
+        { id: "d1", text: "Équipes de 16", status: "decided", itemId: "p0" },
+        { id: "d2", text: "Véhicules ?", status: "open", itemId: null },
+        { id: "d3", text: "Hitscan d'abord", status: "leaning", itemId: null },
+      ],
+    };
+    mount([card({ id: "a" })], { roadmap });
+    // The active phase is open by itself; the planned one stays folded.
+    expect(await screen.findByText("La démo : le plan est validé.")).toBeInTheDocument();
+    expect(screen.queryByText("Un portail traversé.")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Prototype/ }));
+    expect(screen.getByText("Un portail traversé.")).toBeInTheDocument();
+    const journal = screen.getByLabelText("Decision journal");
+    expect(journal).toHaveTextContent("✅ 1 decided");
+    expect(journal).toHaveTextContent("🟡 1 leaning");
+    expect(journal).toHaveTextContent("❓ 1 open questions");
+    expect(within(screen.getByLabelText("Open questions")).getByText("Véhicules ?")).toBeInTheDocument();
+  });
+
+  it("copies the detailed roadmap and the step by step from their own exports", async () => {
+    const asked: string[] = [];
+    const written: string[] = [];
+    Object.assign(navigator, { clipboard: { writeText: async (t: string) => void written.push(t) } });
+    server.use(
+      http.get("*/api/roadmap", ({ request }) => {
+        const f = new URL(request.url).searchParams.get("format") ?? "";
+        asked.push(f);
+        return new HttpResponse(f === "steps" ? "# Étape par étape" : "# Roadmap", { headers: { "content-type": "text/markdown" } });
+      }),
+    );
+    mount([card({ id: "a" })], { roadmap: { repoPath: "/r/app", vision: "", revision: 1, items: [], decisions: [] } });
+    await userEvent.click(await screen.findByRole("button", { name: /copy the detailed roadmap/i }));
+    await userEvent.click(screen.getByRole("button", { name: /copy the step by step/i }));
+    await waitFor(() => expect(written).toEqual(["# Roadmap", "# Étape par étape"]));
+    expect(asked).toEqual(["md", "steps"]);
+  });
+
+  it("invites to start the brainstorm when there is no roadmap", async () => {
+    mount([card({ id: "a" })], { roadmap: null });
+    expect(await screen.findByText(/start the brainstorm with the project orchestrator/i)).toBeInTheDocument();
   });
 });

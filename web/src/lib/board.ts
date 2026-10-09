@@ -1132,11 +1132,22 @@ export interface RoadmapItem {
   name: string;
   goal: string;
   status: RoadmapStatus;
+  /** The phase's long form, Markdown: objective, end-of-phase demo, risk, why here (ADR 0023). */
+  detail?: string;
+}
+/** ✅ decided · 🟡 leaning · ❓ open — the three statuses of the decision journal (ADR 0023). */
+export type DecisionStatus = "decided" | "leaning" | "open";
+export interface Decision {
+  id: string;
+  text: string;
+  status: DecisionStatus;
+  itemId: string | null;
 }
 export interface Roadmap {
   repoPath: string;
   vision: string;
   items: RoadmapItem[];
+  decisions?: Decision[];
   revision: number;
 }
 
@@ -1151,7 +1162,21 @@ export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ road
 export interface OrchestratorState {
   paneId: string | null;
   running: boolean;
+  /** The pane's context occupancy, 0-100; null when unknown (ADR 0023). */
+  ctxPct?: number | null;
+  /** When it last wrote its memory note, or null. */
+  memoryUpdatedAt?: number | null;
 }
+/** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
+export interface OrchestratorMemory {
+  note: string;
+  updatedAt: number;
+}
+export const fetchOrchestratorMemory = (repo: string, signal?: AbortSignal): Promise<{ memory: OrchestratorMemory | null }> =>
+  apiRequest(`/api/orchestrator/memory?repo=${encodeURIComponent(repo)}`, { signal });
+/** The operator's two taps of a hand-over: ask for the note, then start fresh (ADR 0023). Never automatic. */
+export const renewOrchestrator = (repoPath: string, step: "ask" | "restart"): Promise<{ ok: true; paneId: string }> =>
+  apiRequest("/api/orchestrator/renew", { method: "POST", body: JSON.stringify({ repoPath, step }) });
 export const fetchOrchestrator = (repo: string, signal?: AbortSignal): Promise<OrchestratorState> =>
   apiRequest(`/api/orchestrator?repo=${encodeURIComponent(repo)}`, { signal });
 /** Spends the operator's quota — only ever from their tap. */
@@ -1161,5 +1186,5 @@ export const startOrchestrator = (repoPath: string): Promise<{ ok: true; paneId:
 export const launchLot = (id: string): Promise<{ run: Lot }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
 export const saveRoadmap = (
-  r: { repoPath: string; vision: string; items: RoadmapItem[]; revision: number },
+  r: { repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number },
 ): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });

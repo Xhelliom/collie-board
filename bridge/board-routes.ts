@@ -146,6 +146,8 @@ export interface BoardContext {
   guard: (level: "read" | "write") => Response | null;
   /** The authorised device id for audit attribution, or null. */
   device: string | null;
+  /** A pane's context occupancy (0-100) from the context tracker, or null when unknown (ADR 0023). */
+  paneContext?: (paneId: string) => number | null;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;

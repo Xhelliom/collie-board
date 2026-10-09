@@ -7,7 +7,7 @@ import { basename } from "node:path";
 
 import { isMaxParallel, RevisionConflict, type Run } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
-import { parseRoadmapBody, roadmapMarkdown } from "./roadmap.ts";
+import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
 
 const MAX_NAME = 200;
 const MAX_GOAL = 2_000;
@@ -17,6 +17,7 @@ const PHASE = /^\/api\/phases\/([^/]+)$/;
 const RUNS = "/api/runs";
 const RUN = /^\/api\/runs\/([^/]+)(?:\/(launch))?$/;
 const ROADMAP = "/api/roadmap";
+const DECISION = "/api/roadmap/decision";
 
 async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
   try {
@@ -197,6 +198,27 @@ export async function handleProjectRoute(
   }
 
   // ── roadmap ────────────────────────────────────────────────────────────────
+  // One decision, upserted as it is taken (ADR 0023): no revision to carry, so the orchestrator can
+  // write mid-conversation without racing the operator's editor.
+  if (pathname === DECISION) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = guard("write");
+    if (denied) return denied;
+    const b = await bodyOf(req);
+    if (!b) return ctx.text("bad body", 400);
+    if (typeof b.repoPath !== "string" || !b.repoPath.startsWith("/")) return ctx.text("repoPath must be an absolute path", 400);
+    const d = parseDecision(b);
+    if (!d.ok) return ctx.text(d.error, 400);
+    if (d.value.itemId && !db.getRoadmap(b.repoPath)?.items.some((i) => i.id === d.value.itemId))
+      return ctx.text("itemId: no such roadmap item", 400);
+    try {
+      const { roadmap, decision } = db.upsertDecision(b.repoPath, d.value);
+      audit("roadmap.decision", { repoPath: b.repoPath, id: decision.id, status: decision.status });
+      return ctx.json({ decision, revision: roadmap.revision });
+    } catch (err) {
+      return ctx.text((err as Error).message, 409);
+    }
+  }
   if (pathname === ROADMAP) {
     if (req.method === "GET") {
       const denied = guard("read");
@@ -204,11 +226,20 @@ export async function handleProjectRoute(
       const q = new URL(req.url).searchParams;
       const repo = q.get("repo");
       if (!repo || !repo.startsWith("/")) return ctx.text("repo must be an absolute path", 400);
-      const roadmap = db.getRoadmap(repo) ?? { repoPath: repo, vision: "", items: [], revision: 0, updatedAt: 0 };
-      if (q.get("format") === "md") {
-        return new Response(roadmapMarkdown(basename(repo), roadmap), {
-          headers: { "content-type": "text/markdown; charset=utf-8" },
-        });
+      const roadmap = db.getRoadmap(repo) ?? { repoPath: repo, vision: "", items: [], decisions: [], revision: 0, updatedAt: 0 };
+      const format = q.get("format");
+      if (format === "md" || format === "steps") {
+        // `md` is the authored, detailed roadmap; `steps` is rendered from the board's own phases,
+        // lots and cards (ADR 0023) — the caller writes either into the repo, the bridge never does.
+        const text =
+          format === "md"
+            ? roadmapMarkdown(basename(repo), roadmap)
+            : stepsMarkdown(basename(repo), {
+                phases: db.listPhases(repo),
+                lots: db.listRuns(repo),
+                cards: db.listCards().filter((c) => c.repoPath === repo),
+              });
+        return new Response(text, { headers: { "content-type": "text/markdown; charset=utf-8" } });
       }
       return ctx.json({ roadmap });
     }
@@ -217,9 +248,9 @@ export async function handleProjectRoute(
     if (denied) return denied;
     const parsed = parseRoadmapBody(await bodyOf(req));
     if (!parsed.ok) return ctx.text(parsed.error, 400);
-    const { repoPath, vision, items, revision } = parsed.value;
+    const { repoPath, vision, items, decisions, revision } = parsed.value;
     try {
-      const roadmap = db.putRoadmap(repoPath, { vision, items }, revision);
+      const roadmap = db.putRoadmap(repoPath, { vision, items, decisions }, revision);
       audit("roadmap.put", { repoPath, revision: roadmap.revision, items: items.length });
       return ctx.json({ roadmap });
     } catch (err) {

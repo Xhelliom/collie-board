@@ -11,6 +11,8 @@ import {
   orchestratorLabel,
   orchestratorName,
   orchestratorPrompt,
+  askOrchestratorNote,
+  restartOrchestrator,
   startOrchestrator,
 } from "./orchestrator.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -104,8 +106,9 @@ describe("startOrchestrator", () => {
 describe("/api/orchestrator", () => {
   const repo = mkdtempSync(join(tmpdir(), "collie-orch-"));
   mkdirSync(join(repo, ".git"));
-  const ctx = (db: BoardDb, o: { guard?: Response | null; agents?: ReturnType<typeof agent>[]; herdr?: unknown } = {}) =>
+  const ctx = (db: BoardDb, o: { guard?: Response | null; agents?: ReturnType<typeof agent>[]; herdr?: unknown; ctx?: number } = {}) =>
     ({
+      paneContext: () => o.ctx ?? null,
       db,
       herdr: o.herdr ?? fakeHerdr().herdr,
       engine: { current: () => snap(o.agents ?? []) },
@@ -125,15 +128,18 @@ describe("/api/orchestrator", () => {
 
   it("GET: no orchestrator yet → paneId null, not running; refuses a path that is not a repo root", async () => {
     const db = new BoardDb(":memory:");
-    expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, ctx(db))).body).toEqual({ paneId: null, running: false });
+    expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, ctx(db))).body).toEqual({ paneId: null, running: false, ctxPct: null, memoryUpdatedAt: null });
     expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(tmpdir())}`, ctx(db))).status).toBe(400);
     expect((await call("GET", "/api/orchestrator", ctx(db))).status).toBe(400);
   });
 
   it("GET: a live one is reported with its pane", async () => {
     const db = new BoardDb(":memory:");
-    const c = ctx(db, { agents: [agent("p1", orchestratorLabel(repo), repo)] });
-    expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, c)).body).toEqual({ paneId: "p1", running: true });
+    const c = ctx(db, { agents: [agent("p1", orchestratorLabel(repo), repo)], ctx: 63 });
+    db.putMemory(repo, "where we stand");
+    const got = (await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, c)).body;
+    expect(got).toMatchObject({ paneId: "p1", running: true, ctxPct: 63 });
+    expect(typeof got.memoryUpdatedAt).toBe("number");
   });
 
   it("POST: write-gated, validates the path, then starts", async () => {
@@ -165,6 +171,104 @@ describe("/api/orchestrator", () => {
     expect((await call("POST", `/api/runs/${lot.id}/launch`, ctx(db), undefined, h)).status).toBe(403);
     expect((await call("POST", "/api/runs", ctx(db), { cardIds: [a.id], foldInCap: 0 }, h)).status).toBe(403);
     expect(db.getRun(lot.id)!.launchedAt).toBeNull();
+  });
+});
+
+describe("the orchestrator's memory (ADR 0023)", () => {
+  it("its start prompt carries the note, bounded, and says to write decisions as they are taken", () => {
+    const p = orchestratorPrompt("/g/app", { note: "écarté : le mode coop\nprochaine question : le public", updatedAt: Date.UTC(2026, 9, 9, 12, 30) });
+    expect(p).toContain("2026-10-09 12:30 UTC");
+    expect(p).toContain("écarté : le mode coop");
+    expect(p).toContain("POST /api/roadmap/decision");
+    expect(p).toContain("UN thème à la fois");
+    expect(orchestratorPrompt("/g/app", { note: "x".repeat(9000), updatedAt: 0 }).length).toBeLessThan(orchestratorPrompt("/g/app").length + 4_200);
+    expect(orchestratorPrompt("/g/app")).not.toContain("<<<");
+  });
+
+  it("a fresh orchestrator is started with the note the last one left", async () => {
+    const f = fakeHerdr();
+    const prompts: string[] = [];
+    (f.herdr as { promptAgent: (o: { text: string }) => Promise<void> }).promptAgent = async (o) => void prompts.push(o.text);
+    await startOrchestrator({ herdr: f.herdr, cfg, snapshot: () => snap(), wait: noWait, memory: () => ({ note: "NOTE-DU-PRÉCÉDENT", updatedAt: 1 }) }, "/g/app");
+    expect(prompts[0]).toContain("NOTE-DU-PRÉCÉDENT");
+  });
+
+  it("renew: ask prompts the running pane for its note; there is nothing to ask when none runs", async () => {
+    const f = fakeHerdr();
+    const deps = { herdr: f.herdr, cfg, snapshot: () => snap([agent("p1", "orchestrator-app", "/g/app")]), wait: noWait };
+    expect(await askOrchestratorNote(deps, "/g/app")).toBe("p1");
+    expect(f.calls).toContain("prompt p1");
+    expect(await askOrchestratorNote({ ...deps, snapshot: () => snap() }, "/g/app")).toBeNull();
+  });
+
+  it("renew: restart closes the old pane, waits for it to leave the snapshot, and starts a fresh one", async () => {
+    const f = fakeHerdr();
+    let gone = false;
+    const closed: string[] = [];
+    (f.herdr as { closePane: (id: string) => Promise<void> }).closePane = async (id) => void closed.push(id);
+    let polls = 0;
+    const snapshot = () => {
+      polls++;
+      if (polls > 2) gone = true; // herdr's snapshot catches up a poll or two after the close
+      return snap(gone ? [] : [agent("p1", "orchestrator-app", "/g/app")]);
+    };
+    const r = await restartOrchestrator({ herdr: f.herdr, cfg, snapshot, wait: noWait }, "/g/app");
+    expect(closed).toEqual(["p1"]);
+    expect(r).toEqual({ paneId: "w9:p1", started: true });
+    expect(f.calls.indexOf("workspace orchestrator-app")).toBeGreaterThan(-1);
+  });
+
+  it("renew: never adopts the pane it just closed, even while the snapshot still lists it", async () => {
+    const f = fakeHerdr();
+    (f.herdr as { closePane: (id: string) => Promise<void> }).closePane = async () => {};
+    const r = await restartOrchestrator({ herdr: f.herdr, cfg, snapshot: () => snap([agent("p1", "orchestrator-app", "/g/app")]), wait: noWait }, "/g/app");
+    expect(r.started).toBe(true);
+    expect(r.paneId).not.toBe("p1");
+  });
+});
+
+describe("/api/orchestrator/memory and /renew", () => {
+  const repo = mkdtempSync(join(tmpdir(), "collie-orch-mem-"));
+  mkdirSync(join(repo, ".git"));
+  const ctx = (db: BoardDb, agents: ReturnType<typeof agent>[] = []) =>
+    ({
+      db,
+      herdr: fakeHerdr().herdr,
+      engine: { current: () => snap(agents) },
+      cfg,
+      audit: { record: () => {} },
+      session: "default",
+      guard: () => null,
+      device: null,
+      json: (data: unknown, status = 200) => new Response(JSON.stringify(data), { status }),
+      text: (body: string, status: number) => new Response(body, { status }),
+    }) as never;
+  const call = async (method: string, path: string, c: never, body?: unknown, headers: Record<string, string> = {}) => {
+    const res = await handleBoardRoute(path.split("?")[0]!, new Request(`http://x${path}`, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }), c);
+    return { status: res!.status, body: (await res!.json().catch(() => null)) as never as Record<string, any> };
+  };
+  const q = `?repo=${encodeURIComponent(repo)}`;
+
+  it("keeps one note per repo, last writer wins, bounded", async () => {
+    const db = new BoardDb(":memory:");
+    expect((await call("GET", `/api/orchestrator/memory${q}`, ctx(db))).body.memory).toBeNull();
+    expect((await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: repo, note: "first" })).status).toBe(200);
+    await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: repo, note: "second" });
+    expect((await call("GET", `/api/orchestrator/memory${q}`, ctx(db))).body.memory.note).toBe("second");
+    expect((await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: repo, note: "x".repeat(4001) })).status).toBe(400);
+    expect((await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: tmpdir(), note: "x" })).status).toBe(400);
+    // The agent itself writes its note: its pane header is fine here.
+    expect((await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: repo, note: "mine" }, { "x-collie-pane": "p1" })).status).toBe(200);
+  });
+
+  it("renew is the operator's gesture: ask needs a running orchestrator, a pane header is refused", async () => {
+    const db = new BoardDb(":memory:");
+    expect((await call("POST", "/api/orchestrator/renew", ctx(db), { repoPath: repo, step: "ask" })).status).toBe(409);
+    const live = ctx(db, [agent("p1", orchestratorLabel(repo), repo)]);
+    expect((await call("POST", "/api/orchestrator/renew", live, { repoPath: repo, step: "ask" })).body).toMatchObject({ ok: true, paneId: "p1" });
+    expect((await call("POST", "/api/orchestrator/renew", live, { repoPath: repo, step: "ask" }, { "x-collie-pane": "p1" })).status).toBe(403);
+    expect((await call("POST", "/api/orchestrator/renew", live, { repoPath: repo, step: "later" })).status).toBe(400);
+    expect((await call("GET", "/api/orchestrator/renew", live)).status).toBe(405);
   });
 });
 
