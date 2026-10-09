@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { MarkdownText } from "@/components/markdown-text";
 import { cardPath, type CardView, type Phase } from "@/lib/board";
+import { duration, factChips, specLine, type CardFacts, type Tone } from "@/lib/project-facts";
 import { stepGroup } from "@/lib/project";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,21 @@ const ASK: Partial<Record<CardView["status"], string>> = {
   orphaned: "Its session ended without the card being filed.",
 };
 
+const CHIP_TONE: Record<Tone, string> = {
+  good: "bg-status-done/15 text-status-done",
+  bad: "bg-status-blocked/15 text-status-blocked",
+  warn: "bg-status-working/15 text-status-working",
+  plain: "bg-muted text-muted-foreground",
+};
+
+/** The three kinds of hand on a step, as the road map names them: an AI, a script, you. */
+export const WHO = {
+  ia: "bg-brand/15 text-brand",
+  script: "bg-status-done/15 text-status-done",
+  human: "bg-status-working/15 text-status-working",
+  muted: "bg-muted text-muted-foreground",
+} as const;
+
 function Who({ label, tone, children }: { label: string; tone: string; children: React.ReactNode }) {
   return (
     <li className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2.5 text-sm">
@@ -45,6 +61,7 @@ export function StepItem({
   open,
   flash,
   predecessor,
+  facts,
   onToggle,
   phases = [],
   onMove,
@@ -55,6 +72,8 @@ export function StepItem({
   open: boolean;
   flash: boolean;
   predecessor: CardView | undefined;
+  /** What the journal knows of this card; absent while loading or when the bridge cannot say. */
+  facts?: CardFacts;
   onToggle: () => void;
   /** The repo's phases; with `onMove`, the step can be filed under another one. */
   phases?: Phase[];
@@ -64,6 +83,8 @@ export function StepItem({
   const agent = card.runtime?.agent ?? card.session?.agentKind ?? card.agentKind;
   const ask = ASK[card.status];
   const body = `step-${card.id}-body`;
+  const chips = factChips(card, facts);
+  const line = specLine(card.spec);
   return (
     <li
       id={`step-${card.id}`}
@@ -95,10 +116,18 @@ export function StepItem({
         <span className="min-w-0 break-words text-[15px] font-semibold leading-snug">{card.title}</span>
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
         <span />
-        <span className="col-span-2 flex flex-wrap items-center gap-1.5">
+        <span className="col-span-2 flex flex-col gap-1.5">
+          {line && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{line}</span>}
+          <span className="flex flex-wrap items-center gap-1.5">
           {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">next</span>}
           {card.runId && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">in a run</span>}
           <CardStatusChip status={card.status} />
+          {chips.map((c) => (
+            <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", CHIP_TONE[c.tone])}>
+              {c.label}
+            </span>
+          ))}
+          </span>
         </span>
       </button>
 
@@ -117,7 +146,10 @@ export function StepItem({
               <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
                 {card.acceptance.map((a, i) => (
                   <li key={i} className="flex gap-2">
-                    <span aria-hidden="true" className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                    <span
+                      aria-hidden="true"
+                      className={cn("mt-[7px] size-1.5 shrink-0 rounded-full", card.status === "done" ? "bg-status-done" : "bg-muted-foreground/50")}
+                    />
                     <span>{a}</span>
                   </li>
                 ))}
@@ -129,21 +161,64 @@ export function StepItem({
                 {predecessor.status === "done" ? "filed" : "not filed yet, so this one waits"}.
               </p>
             )}
-            <ul className="flex flex-col gap-1.5" aria-label="Who has the ball">
+            <ul className="flex flex-col gap-1.5" aria-label="Who did what">
               {agent && (
-                <Who label="Agent" tone="bg-status-working/15 text-status-working">
+                <Who label="Agent" tone={WHO.ia}>
                   {agent}
-                  {card.runtime ? ` — ${card.runtime.agentStatus}` : card.status === "done" ? " — finished" : ""}
+                  {card.runtime
+                    ? ` — ${card.runtime.agentStatus}`
+                    : facts?.startedAt != null && facts.endedAt != null
+                      ? ` — worked ${duration(facts.endedAt - facts.startedAt)}`
+                      : card.status === "done"
+                        ? " — finished"
+                        : ""}
+                  {facts && facts.sentBack > 0 ? `, sent back ${facts.sentBack}×` : ""}
+                </Who>
+              )}
+              {facts?.gate && (
+                <Who label="Gate" tone={WHO.script}>
+                  <code className="text-xs">{facts.gate.command}</code> — {facts.gate.ok ? "green" : "red, the worker was sent back"}
+                </Who>
+              )}
+              {facts?.lead && (
+                <Who label="Lead" tone={WHO.ia}>
+                  <b className="font-semibold text-foreground">{facts.lead.decision === "finished" ? "finished" : "sent it back"}</b>
+                  {facts.lead.reason ? ` — ${facts.lead.reason}` : ""}
+                </Who>
+              )}
+              {facts?.review && (
+                <Who label="Review" tone={WHO.ia}>
+                  copilot: <b className="font-semibold text-foreground">{facts.review}</b>
+                  {facts.triage ? ` — the lead ${facts.triage.accept ? "accepted" : "rejected"} it: ${facts.triage.reason}` : ""}
+                </Who>
+              )}
+              {facts?.pr && (
+                <Who label="PR" tone={WHO.script}>
+                  {facts.pr.url ? (
+                    <a href={facts.pr.url} target="_blank" rel="noreferrer" className="text-brand underline-offset-2 hover:underline">
+                      {facts.pr.url.replace(/^https?:\/\/github\.com\//, "")}
+                    </a>
+                  ) : (
+                    "opened"
+                  )}{" "}
+                  — {facts.pr.state}
+                  {facts.pr.state === "open" && facts.pr.autoMerge === "refused" ? ", GitHub would not merge it by itself" : ""}
+                  {facts.pr.state === "open" && facts.pr.autoMerge === "armed" ? ", auto-merge armed" : ""}
                 </Who>
               )}
               {card.origin && (
-                <Who label={card.origin} tone="bg-muted text-muted-foreground">
+                <Who label={card.origin} tone={WHO.muted}>
                   filed this card on its own
                 </Who>
               )}
               {ask && (
-                <Who label="You" tone="bg-brand/15 text-brand">
+                <Who label="You" tone={WHO.human}>
                   {ask}
+                </Who>
+              )}
+              {facts && facts.operatorSaid > 0 && !ask && (
+                <Who label="You" tone={WHO.human}>
+                  spoke to the agent {facts.operatorSaid}×
                 </Who>
               )}
             </ul>

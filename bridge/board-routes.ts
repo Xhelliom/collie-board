@@ -52,6 +52,7 @@ import {
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleFactsRoute } from "./project-facts.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -125,7 +126,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -342,6 +343,8 @@ async function route(
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
   if (orchestrator) return orchestrator;
+  const facts = handleFactsRoute(pathname, req, ctx);
+  if (facts) return facts;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {

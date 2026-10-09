@@ -354,6 +354,7 @@ export function ProjectRoute() {
                               open={openIds.has(s.id)}
                               flash={flash === s.id}
                               predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
+                              facts={data.facts?.[s.id]}
                               onToggle={() => toggle(s.id)}
                               phases={data.phases}
                               onMove={(phaseId) => void move(s.id, phaseId)}

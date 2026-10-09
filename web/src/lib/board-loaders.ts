@@ -7,6 +7,7 @@
 // board-specific poll loop.
 
 import { fetchPane, isApiErrorStatus } from "./api";
+import { fetchFacts, type CardFacts } from "./project-facts";
 import {
   fetchCard,
   fetchCards,
@@ -104,6 +105,8 @@ export interface ProjectData extends BoardData {
   /** The repo's orchestrator and the tail of its pane, so the panel rides the root poll (no loop of its own). */
   orchestrator?: OrchestratorState | null;
   orchestratorText?: string;
+  /** What the journal knows of each card of the repo, keyed by card id (bridge/project-facts.ts). */
+  facts?: Record<string, CardFacts>;
 }
 
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
@@ -111,14 +114,16 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const base = await boardLoader({ request });
   const repo = request ? new URL(request.url).searchParams.get("repo") : null;
   if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
-  const [phases, lots, roadmap, orchestrator] = await Promise.all([
+  const [phases, lots, roadmap, orchestrator, facts] = await Promise.all([
     fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
     fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
     fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
     fetchOrchestrator(repo, request?.signal).catch(() => null),
+    // Facts are garnish: without them a step is just its card.
+    fetchFacts(repo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
   ]);
   const orchestratorText = orchestrator?.paneId
     ? await fetchPane(orchestrator.paneId, ORCHESTRATOR_LINES, undefined, request?.signal).then((r) => r.text, () => "")
     : "";
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorText };
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorText, facts };
 }
