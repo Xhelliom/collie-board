@@ -51,3 +51,45 @@ describe("projectOf", () => {
     expect(projectOf([card({ id: "x", parentId: "ghost" })]).phases[0]!.container).toBeNull();
   });
 });
+
+describe("projectOf with the phase table (ADR 0021)", () => {
+  const ph = (id: string, position: number) => ({ id, repoPath: "/r", name: id, goal: "", position, roadmapItemId: null });
+  const lt = (id: string, phaseId: string | null, cardIds: string[], position = 0) => ({
+    id,
+    repoPath: "/r",
+    phaseId,
+    name: id,
+    position,
+    launchedAt: null,
+    cardIds,
+  });
+
+  it("orders phases by position, files cards by phaseId and keeps the rest under 'No phase'", () => {
+    const v = projectOf(
+      [card({ id: "a", phaseId: "p2" }), card({ id: "b", phaseId: "p1", status: "done" }), card({ id: "c" }), card({ id: "d", phaseId: "ghost" })],
+      [ph("p2", 1), ph("p1", 0)],
+    );
+    expect(v.phases.map((p) => [p.key, p.steps.map((s) => s.id), p.done])).toEqual([
+      ["p1", ["b"], 1],
+      ["p2", ["a"], 0],
+      ["loose", ["c", "d"], 0],
+    ]);
+  });
+
+  it("a container is no phase once the table has rows, and is never a step", () => {
+    const v = projectOf([card({ id: "box" }), card({ id: "kid", parentId: "box", phaseId: "p1" })], [ph("p1", 0)]);
+    expect(v.total).toBe(1);
+    expect(v.phases.map((p) => p.key)).toEqual(["p1"]);
+  });
+
+  it("puts each lot in its phase with its cards and their progress; a stray lot falls to 'No phase'", () => {
+    const v = projectOf(
+      [card({ id: "a", phaseId: "p1", status: "done" }), card({ id: "b", phaseId: "p1" })],
+      [ph("p1", 0)],
+      [lt("L1", "p1", ["a", "b", "gone"]), lt("L2", null, [])],
+    );
+    expect(v.phases[0]!.lots.map((l) => [l.lot.id, l.cards.length, l.done])).toEqual([["L1", 2, 1]]);
+    expect(v.phases.at(-1)!.key).toBe("loose");
+    expect(v.phases.at(-1)!.lots.map((l) => l.lot.id)).toEqual(["L2"]);
+  });
+});
