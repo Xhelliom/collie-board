@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import { fetchBoardPrefs, repoName, runWaves, type CardView } from "@/lib/board";
+import { GateSheet } from "@/components/gate-sheet";
+import { fetchBoardPrefs, fetchRepos, repoName, runWaves, type CardView } from "@/lib/board";
 
 /** The fold-in cap a run starts with. Small on purpose: past it, a follow-up is a card for later. */
 const DEFAULT_FOLD_IN_CAP = 2;
@@ -28,6 +29,9 @@ export function RunSheet({
   const [foldInCap, setFoldInCap] = useState(DEFAULT_FOLD_IN_CAP);
   const [leadAgent, setLeadAgent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The repo's gate (ADR 0020): null = none yet, undefined = not known (yet, or the bridge didn't say).
+  const [gate, setGate] = useState<string | null | undefined>(undefined);
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -35,8 +39,11 @@ export function RunSheet({
     fetchBoardPrefs(ctrl.signal)
       .then((p) => setMaxAgents(p.maxAgents))
       .catch(() => {});
+    fetchRepos({ all: true }, ctrl.signal)
+      .then((r) => setGate(r.repos.find((x) => x.path === repoPath)?.gate ?? null))
+      .catch(() => {});
     return () => ctrl.abort();
-  }, [open]);
+  }, [open, repoPath]);
 
   const waves = runWaves(cards);
 
@@ -50,6 +57,7 @@ export function RunSheet({
   }
 
   return (
+    <>
     <BottomSheet
       open={open}
       onClose={onClose}
@@ -78,6 +86,22 @@ export function RunSheet({
           {maxAgents === null ? "…" : `jusqu'à ${maxAgents} agent${maxAgents === 1 ? "" : "s"} à la fois`}
         </p>
 
+        {gate !== undefined && (
+          <div aria-label="Barrière" className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0">
+              <span className="text-muted-foreground">Barrière : </span>
+              {gate ? (
+                <code className="break-all">{gate}</code>
+              ) : (
+                "aucune — le lead juge sur le diff seul"
+              )}
+            </span>
+            <Button variant="outline" className="h-8 shrink-0 px-3 text-xs" onClick={() => setGateOpen(true)}>
+              {gate ? "Modifier" : "Régler"}
+            </Button>
+          </div>
+        )}
+
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-muted-foreground">Plafond de fold-ins</span>
           <input
@@ -96,5 +120,8 @@ export function RunSheet({
         </div>
       </div>
     </BottomSheet>
+    {/* A sibling, not a child: the gate sheet is its own surface and the run's choices stay put under it. */}
+    <GateSheet open={gateOpen} onClose={() => setGateOpen(false)} repoPath={repoPath} gate={gate} onSaved={setGate} />
+    </>
   );
 }

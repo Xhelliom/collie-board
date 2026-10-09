@@ -780,6 +780,8 @@ export interface RepoChoice {
   defaultBranch?: string;
   /** The operator hid it. Only ever present when the list was fetched with `all`. */
   hidden?: boolean;
+  /** The repo's gate command (ADR 0020), when the operator set one. */
+  gate?: string;
 }
 
 /**
@@ -808,6 +810,23 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
     method: "POST",
     body: JSON.stringify({ path, hidden }),
   });
+}
+
+/** Set a repo's gate command, or remove it with null (ADR 0020). */
+export function setRepoGate(path: string, gate: string | null): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>("/api/repos/gate", { method: "POST", body: JSON.stringify({ path, gate }) });
+}
+
+/** What the copilot proposes for a repo's gate. Never saved by the bridge — the operator saves it. */
+export interface GateSuggestion {
+  command: string;
+  reason: string;
+  needsScript: boolean;
+  scriptSuggestion: string | null;
+}
+
+export function suggestRepoGate(path: string): Promise<{ ok: true; suggestion: GateSuggestion }> {
+  return apiRequest("/api/repos/gate/suggest", { method: "POST", body: JSON.stringify({ path }) });
 }
 
 /** The board's switches. Bridge-side, so the choice is the board's, not this device's. */

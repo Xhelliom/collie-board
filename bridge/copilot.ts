@@ -1224,6 +1224,11 @@ export class CopilotCoordinator {
     return this.busyCards;
   }
 
+  /** Passthrough to {@link Copilot.ask} for a one-off question whose logic lives elsewhere (gate-suggest.ts). */
+  ask(build: (outPath: string) => string): Promise<unknown | null> {
+    return this.copilot.ask(build);
+  }
+
   /** Passthrough to {@link Copilot.paneId} — the snapshot route only holds this coordinator, not the
    *  raw `Copilot`, so this is how it learns which pane to keep out of the notify pipeline. */
   get paneId(): string | null {

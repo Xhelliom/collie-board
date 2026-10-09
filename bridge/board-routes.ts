@@ -10,6 +10,7 @@
 
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { isAbsolute, join } from "node:path";
 
 import type { AuditLog } from "./audit.ts";
 import { answerAutoHandoff } from "./auto-handoff.ts";
@@ -49,6 +50,7 @@ import {
   worktreePathFor,
 } from "./git.ts";
 import { parseGate } from "./gate.ts";
+import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import {
   cleanupCard,
@@ -71,6 +73,8 @@ const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
 /** `/api/repos/gate` — set or clear a repo's gate command (ADR 0020). */
 const REPOS_GATE_ROUTE = "/api/repos/gate";
+/** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
+const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
 
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
@@ -353,6 +357,30 @@ async function route(
       detail: { path: path.trim(), hidden },
     });
     return ctx.json({ ok: true });
+  }
+
+  // Ask the copilot what the gate should be. The operator's tap spends the quota (the copilot is off
+  // by default and nothing else calls this); the answer is returned and NOT saved — saving is the
+  // other route, because the gate is a command the bridge will run (ADR 0020).
+  if (pathname === REPOS_GATE_SUGGEST_ROUTE) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path } = (body ?? {}) as { path?: unknown };
+    // The path lands in a prompt the copilot reads files from: a repository's root, nothing looser.
+    if (typeof path !== "string" || !isAbsolute(path) || !existsSync(join(path, ".git")))
+      return ctx.text("path must be the root of a repository", 400);
+    if (!ctx.cfg.boardCopilot)
+      return ctx.json({ ok: false, error: "the copilot is off (COLLIE_BOARD_COPILOT)", kind: "disabled" }, 409);
+    const outcome = await suggestGate((build) => ctx.copilot.ask(build), path);
+    ctx.audit.record({ action: "repo.gate_suggest", session: ctx.session, device: ctx.device, detail: { path, ok: outcome.ok } });
+    return ctx.json(outcome, outcome.ok ? 200 : 502);
   }
 
   // A repo's gate: a command the bridge will RUN in a run's worker checkout — remote execution by

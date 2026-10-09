@@ -45,5 +45,9 @@ nothing about the output's content. Judging is still the lead's.
 - `bridge/gate.ts` is the second place the bridge runs a process, after `git.ts`.
 - A run on a gated repo spends no lead quota on a red landing.
 - A long gate holds the card's slot while it runs (30 min cap, then halt).
-- Not yet: a UI to set the gate (the route and `GET /api/repos`'s `gate` field exist), per-lane
-  parallelism, a model per role.
+- The gate is set on a sheet (Settings, and the "Run these" sheet when the repo has none). The
+  copilot can *suggest* one — `POST /api/repos/gate/suggest`, on the operator's tap, from the repo's
+  own files — but the suggestion is only returned: the field is filled and the operator's Enregistrer
+  is what saves it. A suggestion that would need a shell is refused by the parser; the copilot is
+  told to propose a script instead, which the operator creates — the bridge never writes into the repo.
+- Not yet: per-lane parallelism, a model per role.
