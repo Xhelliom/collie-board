@@ -4,9 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import { RunSheet } from "./run-sheet";
 import type { CardView } from "@/lib/board";
 
+let repoGate: string | undefined;
 vi.mock("@/lib/board", async (orig) => ({
   ...(await orig<typeof import("@/lib/board")>()),
   fetchBoardPrefs: async () => ({ autoFollowUps: false, followUpCategories: [], maxAgents: 3, autoHandoff: false }),
+  fetchRepos: async () => ({
+    repos: [{ path: "/home/me/repo", name: "repo", source: "card", gate: repoGate }],
+    hiddenCount: 0,
+  }),
 }));
 
 const card = (id: string, dependsOn: string | null = null) =>
@@ -38,5 +43,21 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
     fireEvent.click(screen.getByRole("button", { name: /codex/i }));
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Lancer le run" })));
     expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 5, leadAgent: "codex" });
+  });
+
+  it("says when the repo has no gate and offers to set one; shows it when it has", async () => {
+    repoGate = undefined;
+    const { unmount } = render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" onConfirm={async () => {}} />);
+    const row = await screen.findByLabelText("Barrière");
+    expect(row).toHaveTextContent("aucune");
+    fireEvent.click(within(row).getByRole("button", { name: "Régler" }));
+    expect(await screen.findByText("Barrière · repo")).toBeInTheDocument();
+    unmount();
+
+    repoGate = "tools/ovg gate";
+    render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" onConfirm={async () => {}} />);
+    const gated = await screen.findByLabelText("Barrière");
+    expect(gated).toHaveTextContent("tools/ovg gate");
+    expect(within(gated).getByRole("button", { name: "Modifier" })).toBeInTheDocument();
   });
 });
