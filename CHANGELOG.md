@@ -9,6 +9,42 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.165.0] - 2026-10-09
+
+### Added
+
+- Pastille de phase avec avancement sur les cartes, filtre `?phase=` dans la feuille Filter (074de90)
+- Sélection « All in phase » et « Planifier un lot » dans la feuille de run (074de90)
+- Feuille « Barrière » par dépôt (Réglages, et feuille « Run these » quand le dépôt n'en a pas) : saisie, enregistrer, retirer (e5fde1e)
+- « Suggérer (copilot) » : propose la commande depuis les fichiers du dépôt (`POST /api/repos/gate/suggest`), sans jamais l'enregistrer ; sans shell, un script à créer si plusieurs étapes (e5fde1e)
+- Feuille « Run these » : choix « cartes à la fois » (une seule, 2, 3, 4), affiché sur le lot dans la vue projet (78ba928)
+- Ce que tu dis au worker est gardé au journal et donné au lead à sa prochaine question, qui ne le contredit plus (4233217)
+- Auto-merge refusé par GitHub : histoire dans la cloche, ligne au journal de la carte, et explication sur l'écran « Open PRs » (4233217)
+- Panneau « orchestrateur » dans la vue projet : un agent par dépôt, démarré sur ton tap, qui planifie phases, lots et roadmap sans jamais lancer (ADR 0021) (a250745)
+- Phases, lots (runs planifiés) et roadmap par dépôt : tables `phase` et `roadmap`, `card.phase_id`, `run.phase_id/name/position/launched_at` (ADR 0021) (03f827d)
+- Routes `/api/phases`, `/api/runs` (GET, PATCH, DELETE, `planned`), `POST /api/runs/:id/launch`, `/api/roadmap` (révision optimiste, export Markdown `format=md`) (03f827d)
+- Vue projet : chaque étape montre ce que le journal sait — barrière, raison du lead, relecture, PR, renvois, durée — en sous-titre, pastilles et lignes « qui a fait quoi » (7cccb81)
+- Vue projet : phases de la table, roadmap en tête (copie en Markdown), lots par phase avec « Lancer ce lot » derrière une confirmation qui liste les cartes, et choix de la phase d'une étape (808ec65)
+- Vue projet `/board/project` : plan de route d'un dépôt calculé depuis ses cartes — anneau d'avancement, compteurs, encart « t'attend », rail de phases, filtres mémorisés, étapes dépliables (spec, critères, qui a la main) (7ad4eab)
+- Barrière par dépôt : une commande de l'opérateur lancée sur chaque retour d'un worker avant le lead ; rouge, le worker est renvoyé sans solliciter le lead (ADR 0020) (c44058b)
+- `POST /api/repos/gate` pour la définir, `gate` dans `GET /api/repos`, ligne `run.gate` dans le journal (c44058b)
+- Roadmap documentaire : détail Markdown par phase, journal de décisions ✅ décidé / 🟡 piste / ❓ ouvert (`POST /api/roadmap/decision`), exports « détaillée » (`format=md`) et « étape par étape » (`format=steps`, rendue depuis phases, lots et cartes) (11079af)
+- Orchestrateur : prompt de brainstorming (un thème à la fois, décisions écrites au fil de l'eau, phase « Cadrage »), note de mémoire par dépôt, jauge de contexte, alerte à 50 % et passage de main en deux taps (`/api/orchestrator/memory`, `/renew`) (11079af)
+- Plafond de parallélisme par lot (`maxParallel`, 1 = séquentiel), fixé par l'orchestrateur à la planification (e1ca28b)
+
+### Changed
+
+- Plateau : plus de groupes ni de tuile conteneur, une carte = une tuile dans sa colonne sur tous les écrans ; chaque sous-tâche nomme sa dictée (ADR 0022) (074de90)
+- Vue projet : un lot est un groupe qui contient ses cartes (rail à gauche), les autres sont sous « Not in a lot » (2e50991)
+- Panneau orchestrateur : sa conversation s'affiche en mode lecture (tours du transcript) au lieu du miroir du terminal (5ca013b)
+- Un lot planifié ne pilote rien tant qu'il n'est pas lancé ; une requête portant `x-collie-pane` ne peut pas lancer un run (403) (03f827d)
+
+### Fixed
+
+- `/api/phases`, `/api/roadmap` et `/api/runs/:id` n'étaient pas transmis au board par le serveur (ils répondaient la page HTML) (a250745)
+- Panneau orchestrateur : Entrée (ou Ctrl/Super+Entrée) envoie le message, Maj+Entrée fait un retour à la ligne (5ca013b)
+- Run : une carte sans `baseRef` se lisait contre `HEAD`, donc le travail commité paraissait vide au lead qui renvoyait le worker pour rien (e1ca28b)
+
 ## [0.164.0] - 2026-10-02
 
 ### Changed
