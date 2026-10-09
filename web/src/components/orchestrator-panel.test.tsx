@@ -63,4 +63,26 @@ describe("OrchestratorPanel", () => {
     expect(sent).toEqual({ text: "Range-les en deux phases", submit: true });
     expect(screen.getByLabelText("Message à l'orchestrateur")).toHaveValue("");
   });
+
+  it("sends on Enter, on Super+Enter, and keeps Shift+Enter for a newline", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      http.post("*/api/pane/w1%3Ap2/reply", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    const box = await screen.findByLabelText("Message à l'orchestrateur");
+    await userEvent.type(box, "un{Shift>}{Enter}{/Shift}deux");
+    expect(sent).toHaveLength(0);
+    expect(box).toHaveValue("un\ndeux");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(box, "trois{Meta>}{Enter}{/Meta}");
+    await screen.findByLabelText("Message à l'orchestrateur");
+    expect(sent).toEqual([
+      { text: "un\ndeux", submit: true },
+      { text: "trois", submit: true },
+    ]);
+  });
 });

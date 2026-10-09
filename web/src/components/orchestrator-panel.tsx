@@ -126,6 +126,12 @@ export function OrchestratorPanel({
           aria-label="Message à l'orchestrateur"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          // Enter sends, and so do Ctrl/Super+Enter; Shift+Enter keeps its newline. Never mid-IME composition.
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            void send();
+          }}
           rows={2}
           placeholder="Dis-lui ce que tu veux planifier…"
           className="min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
