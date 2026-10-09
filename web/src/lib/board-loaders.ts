@@ -7,7 +7,20 @@
 // board-specific poll loop.
 
 import { isApiErrorStatus } from "./api";
-import { fetchCard, fetchCards, fetchOpenPrs, type CardDetail, type CardView, type OpenPr } from "./board";
+import {
+  fetchCard,
+  fetchCards,
+  fetchLots,
+  fetchOpenPrs,
+  fetchPhases,
+  fetchRoadmap,
+  type CardDetail,
+  type CardView,
+  type Lot,
+  type OpenPr,
+  type Phase,
+  type Roadmap,
+} from "./board";
 
 function isAbortError(e: unknown): boolean {
   return (
@@ -76,4 +89,24 @@ export async function cardLoader({
 /** The open PRs, from the journal alone — asking GitHub is the screen's Check tap (routes/prs.tsx). */
 export async function prsLoader(): Promise<OpenPr[]> {
   return (await fetchOpenPrs()).prs;
+}
+
+export interface ProjectData extends BoardData {
+  /** Empty without a `?repo=` — phases, lots and the roadmap are per repo (ADR 0021). */
+  phases: Phase[];
+  lots: Lot[];
+  roadmap: Roadmap | null;
+}
+
+/** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
+export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
+  const base = await boardLoader({ request });
+  const repo = request ? new URL(request.url).searchParams.get("repo") : null;
+  if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
+  const [phases, lots, roadmap] = await Promise.all([
+    fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
+    fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
+    fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
+  ]);
+  return { ...base, phases, lots, roadmap };
 }

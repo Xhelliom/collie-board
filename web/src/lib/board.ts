@@ -121,6 +121,8 @@ export interface CardView {
   dependsOn: string | null;
   /** The run this card was handed over in (ADR 0017), or null. Optional: older fixtures omit it. */
   runId?: string | null;
+  /** The phase this card belongs to (ADR 0021), or null. Optional: older fixtures omit it. */
+  phaseId?: string | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -1090,3 +1092,52 @@ export function fetchUsage(
     signal: withTimeout(signal, GET_TIMEOUT_MS),
   });
 }
+
+// ── projects: phases, lots, roadmap (ADR 0021) ────────────────────────────────
+
+export interface Phase {
+  id: string;
+  repoPath: string;
+  name: string;
+  goal: string;
+  position: number;
+  roadmapItemId: string | null;
+}
+
+/** A lot is a run: PLANNED while `launchedAt` is null (it drives nothing), launched by the operator's tap. */
+export interface Lot {
+  id: string;
+  repoPath: string;
+  phaseId: string | null;
+  name: string | null;
+  position: number;
+  launchedAt: number | null;
+  cardIds: string[];
+}
+
+export type RoadmapStatus = "planned" | "active" | "done" | "dropped";
+export interface RoadmapItem {
+  id: string;
+  name: string;
+  goal: string;
+  status: RoadmapStatus;
+}
+export interface Roadmap {
+  repoPath: string;
+  vision: string;
+  items: RoadmapItem[];
+  revision: number;
+}
+
+export const fetchPhases = (repo: string, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
+  apiRequest(`/api/phases?repo=${encodeURIComponent(repo)}`, { signal });
+export const fetchLots = (repo: string, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
+  apiRequest(`/api/runs?repo=${encodeURIComponent(repo)}`, { signal });
+/** Null `roadmap`: nothing written yet for this repo. */
+export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ roadmap: Roadmap | null }> =>
+  apiRequest(`/api/roadmap?repo=${encodeURIComponent(repo)}`, { signal });
+export const launchLot = (id: string): Promise<{ run: Lot }> =>
+  apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
+export const saveRoadmap = (
+  r: { repoPath: string; vision: string; items: RoadmapItem[]; revision: number },
+): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });
