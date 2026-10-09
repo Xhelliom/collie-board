@@ -6,7 +6,8 @@
 // `useRevalidator` tick re-runs every active loader (see hooks/use-polling.ts). There is no
 // board-specific poll loop.
 
-import { fetchPane, isApiErrorStatus } from "./api";
+import { fetchHistory, isApiErrorStatus } from "./api";
+import type { TranscriptEntry } from "./types";
 import { fetchFacts, type CardFacts } from "./project-facts";
 import {
   fetchCard,
@@ -95,7 +96,8 @@ export async function prsLoader(): Promise<OpenPr[]> {
 }
 
 /** How much of the orchestrator's pane the panel shows — the conversation's tail, not its scrollback. */
-const ORCHESTRATOR_LINES = 60;
+/** How many of the newest turns the panel keeps — a planning chat is short, and this rides the root poll. */
+const ORCHESTRATOR_TURNS = 40;
 
 export interface ProjectData extends BoardData {
   /** Empty without a `?repo=` — phases, lots and the roadmap are per repo (ADR 0021). */
@@ -104,7 +106,8 @@ export interface ProjectData extends BoardData {
   roadmap: Roadmap | null;
   /** The repo's orchestrator and the tail of its pane, so the panel rides the root poll (no loop of its own). */
   orchestrator?: OrchestratorState | null;
-  orchestratorText?: string;
+  /** The orchestrator's conversation, oldest first — the reading view's turns, not the terminal. */
+  orchestratorEntries?: TranscriptEntry[];
   /** What the journal knows of each card of the repo, keyed by card id (bridge/project-facts.ts). */
   facts?: Record<string, CardFacts>;
 }
@@ -122,8 +125,11 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
     // Facts are garnish: without them a step is just its card.
     fetchFacts(repo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
   ]);
-  const orchestratorText = orchestrator?.paneId
-    ? await fetchPane(orchestrator.paneId, ORCHESTRATOR_LINES, undefined, request?.signal).then((r) => r.text, () => "")
-    : "";
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorText, facts };
+  const orchestratorEntries = orchestrator?.paneId
+    ? await fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, request?.signal).then(
+        (r) => (r.available ? r.entries : []),
+        () => [],
+      )
+    : [];
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, facts };
 }

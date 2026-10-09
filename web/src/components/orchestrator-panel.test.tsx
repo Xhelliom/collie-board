@@ -6,11 +6,19 @@ import { describe, expect, it } from "vitest";
 
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import type { OrchestratorState } from "@/lib/board";
+import type { TranscriptEntry } from "@/lib/types";
 import { server } from "@/test/setup";
 
-function mount(repo: string | null, state: OrchestratorState | null, text = "") {
+const turn = (text: string, role: "user" | "assistant" = "assistant"): TranscriptEntry => ({
+  uuid: text,
+  ts: "2026-10-09T10:00:00Z",
+  role,
+  parts: [{ kind: "text", text }],
+});
+
+function mount(repo: string | null, state: OrchestratorState | null, entries: TranscriptEntry[] = []) {
   const router = createMemoryRouter(
-    [{ path: "/board/project", loader: () => null, element: <OrchestratorPanel repo={repo} state={state} text={text} /> }],
+    [{ path: "/board/project", loader: () => null, element: <OrchestratorPanel repo={repo} state={state} entries={entries} /> }],
     { initialEntries: ["/board/project"] },
   );
   render(<RouterProvider router={router} />);
@@ -46,7 +54,7 @@ describe("OrchestratorPanel", () => {
         return HttpResponse.json({ ok: true });
       }),
     );
-    mount("/g/app", { paneId: "w1:p2", running: true }, "J'ai trouvé 3 cartes sans phase.");
+    mount("/g/app", { paneId: "w1:p2", running: true }, [turn("Propose-moi la roadmap", "user"), turn("J'ai trouvé 3 cartes sans phase.")]);
     expect(await screen.findByText(/3 cartes sans phase/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /plein écran/i })).toHaveAttribute("href", "/pane/w1%3Ap2");
     await userEvent.type(screen.getByLabelText("Message à l'orchestrateur"), "Range-les en deux phases");

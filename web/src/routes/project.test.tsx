@@ -42,7 +42,7 @@ describe("ProjectRoute", () => {
   });
 
   it("shows the running orchestrator's pane, and asks for a repo when there is none", async () => {
-    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true }, orchestratorText: "bonjour" });
+    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true }, orchestratorEntries: [{ uuid: "u1", ts: "2026-10-09T10:00:00Z", role: "assistant", parts: [{ kind: "text", text: "bonjour" }] }] });
     expect(await screen.findByText("bonjour")).toBeInTheDocument();
     expect(screen.getByLabelText("Message à l'orchestrateur")).toBeInTheDocument();
   });
