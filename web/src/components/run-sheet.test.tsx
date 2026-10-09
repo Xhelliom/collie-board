@@ -27,6 +27,8 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
         // Charlie waits on Bravo, Bravo on Alpha; Delta waits on a card outside the set, so it runs first.
         cards={[card("Charlie", "Bravo"), card("Alpha"), card("Bravo", "Alpha"), card("Delta", "outside")]}
         repoPath="/home/me/repo"
+        phases={[]}
+        phaseId={null}
         onConfirm={onConfirm}
       />,
     );
@@ -47,7 +49,7 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
 
   it("says when the repo has no gate and offers to set one; shows it when it has", async () => {
     repoGate = undefined;
-    const { unmount } = render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" onConfirm={async () => {}} />);
+    const { unmount } = render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" phases={[]} phaseId={null} onConfirm={async () => {}} />);
     const row = await screen.findByLabelText("Barrière");
     expect(row).toHaveTextContent("aucune");
     fireEvent.click(within(row).getByRole("button", { name: "Régler" }));
@@ -55,9 +57,29 @@ describe("RunSheet — what the gesture consents to, before it is given", () => 
     unmount();
 
     repoGate = "tools/ovg gate";
-    render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" onConfirm={async () => {}} />);
+    render(<RunSheet open onClose={() => {}} cards={[card("A")]} repoPath="/home/me/repo" phases={[]} phaseId={null} onConfirm={async () => {}} />);
     const gated = await screen.findByLabelText("Barrière");
     expect(gated).toHaveTextContent("tools/ovg gate");
     expect(within(gated).getByRole("button", { name: "Modifier" })).toBeInTheDocument();
+  });
+
+  it("plans a lot under a phase instead of launching it, and only once it has a name", async () => {
+    const onConfirm = vi.fn(async () => {});
+    render(
+      <RunSheet
+        open
+        onClose={() => {}}
+        cards={[card("A")]}
+        repoPath="/home/me/repo"
+        phases={[{ id: "p1", repoPath: "/home/me/repo", name: "Phase un", goal: "", position: 0, roadmapItemId: null }]}
+        phaseId="p1"
+        onConfirm={onConfirm}
+      />,
+    );
+    const plan = screen.getByRole("button", { name: "Planifier un lot" });
+    expect(plan).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("Nom du lot"), { target: { value: "Lot A" } });
+    await act(async () => void fireEvent.click(plan));
+    expect(onConfirm).toHaveBeenCalledWith({ foldInCap: 2, leadAgent: null, planned: true, phaseId: "p1", name: "Lot A" });
   });
 });

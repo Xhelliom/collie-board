@@ -14,7 +14,7 @@ import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
 import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
-import { boardLoader, cardLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
+import { cardLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
@@ -54,7 +54,7 @@ export const router = createBrowserRouter([
       {
         id: "board",
         path: "board",
-        loader: boardLoader,
+        loader: projectLoader,
         element: <BoardRoute />,
         errorElement: <RootError />,
       },

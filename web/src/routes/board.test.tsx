@@ -1,10 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BoardRoute } from "./board";
-import type { BoardData } from "@/lib/board-loaders";
-import type { CardStatus, CardView } from "@/lib/board";
+import type { ProjectData } from "@/lib/board-loaders";
+import type { CardStatus, CardView, Phase } from "@/lib/board";
 
 // The board's desktop drag, end to end — and above all the ONE thing about it that no amount of
 // reading the component tells you: a drag dies if the card it started on loses its layout box while
@@ -83,12 +83,12 @@ function viewport(wide: boolean) {
 // jsdom gives a DragEvent no dataTransfer, and the tile writes to it on dragstart.
 const dataTransfer = () => ({ setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "", dropEffect: "" });
 
-async function mount(cards: CardView[], url = "/board") {
+async function mount(cards: CardView[], url = "/board", phases: Phase[] = []) {
   const router = createMemoryRouter(
     [
       {
         path: "/board",
-        loader: (): BoardData => ({ cards, error: false, authError: false }),
+        loader: (): ProjectData => ({ cards, phases, lots: [], roadmap: null, error: false, authError: false }),
         element: <BoardRoute />,
       },
     ],
@@ -226,5 +226,70 @@ describe("choosing a run's set (ADR 0017)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Lancer le run" }));
     await act(async () => {});
     expect(createRun).toHaveBeenCalledWith({ cardIds: ["Alpha", "Bravo"], foldInCap: 2, leadAgent: null });
+  });
+});
+
+describe("one rule on every screen (ADR 0022)", () => {
+  const inRepo = (id: string, status: CardStatus, extra: Partial<CardView> = {}) => ({
+    ...card(id, status, 0),
+    repoPath: "/repo",
+    ...extra,
+  });
+  const phase: Phase = { id: "p1", repoPath: "/repo", name: "Phase un", goal: "", position: 0, roadmapItemId: null };
+
+  for (const wide of [false, true]) {
+    it(`${wide ? "desktop" : "phone"}: a container takes no tile and each sub-task sits in its own column, naming it`, async () => {
+      viewport(wide);
+      await mount([
+        inRepo("Dictation", "working"),
+        inRepo("Kid done", "done", { parentId: "Dictation" }),
+        inRepo("Kid todo", "backlog", { parentId: "Dictation" }),
+      ]);
+      // The container's only appearance is the caption on its sub-tasks, never a tile of its own.
+      expect(screen.getAllByText("Dictation")).toHaveLength(2);
+      expect(columnOf("Kid done")).not.toBe(columnOf("Kid todo"));
+      expect(within(tileOf("Kid todo")).getByText("Dictation")).toBeInTheDocument();
+    });
+  }
+
+  it("a card in a phase carries its pill with the phase's progress, and ?phase= narrows the board", async () => {
+    viewport(true);
+    const cards = [
+      inRepo("In one", "done", { phaseId: "p1" }),
+      inRepo("In one too", "backlog", { phaseId: "p1" }),
+      inRepo("Free", "backlog"),
+    ];
+    await mount(cards, "/board?repo=/repo&phase=p1", [phase]);
+    expect(within(tileOf("In one")).getByText("Phase un · 1/2")).toBeInTheDocument();
+    expect(screen.queryByText("Free")).toBeNull();
+  });
+
+  it("selects every startable card of the filtered phase at once, and plans them as a lot instead of launching", async () => {
+    viewport(false);
+    const cards = [
+      inRepo("A", "backlog", { phaseId: "p1" }),
+      inRepo("B", "ready", { phaseId: "p1" }),
+      inRepo("Started", "working", { phaseId: "p1" }),
+      inRepo("Other phase", "backlog"),
+    ];
+    await mount(cards, "/board?repo=/repo&phase=p1", [phase]);
+    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+    fireEvent.click(screen.getByRole("button", { name: "All in phase" }));
+    expect(tileOf("A")).toHaveAttribute("aria-pressed", "true");
+    expect(tileOf("B")).toHaveAttribute("aria-pressed", "true");
+    expect(tileOf("Started")).not.toHaveAttribute("aria-pressed");
+
+    fireEvent.click(screen.getByRole("button", { name: "Run 2 cards" }));
+    fireEvent.change(await screen.findByPlaceholderText("Nom du lot"), { target: { value: "Lot 1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Planifier un lot" }));
+    await act(async () => {});
+    expect(createRun).toHaveBeenLastCalledWith({
+      cardIds: ["A", "B"],
+      foldInCap: 2,
+      leadAgent: null,
+      planned: true,
+      phaseId: "p1",
+      name: "Lot 1",
+    });
   });
 });

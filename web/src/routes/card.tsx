@@ -110,10 +110,9 @@ import { paneDisplayName, type AgentStatus } from "@/lib/types";
 
 /**
  * The `position` that puts `card` above every other card in its column — the same fractional rank
- * the board's drag computes, with the landing slot fixed at 0. Sub-tasks are excluded: from `lg` up
- * they scatter into their own columns, but on a phone they are folded into their container's tile,
- * so they are not what "top of the column" is about (their order is the sub-task list's, and the
- * container's page reorders it).
+ * the board's drag computes, with the landing slot fixed at 0. Sub-tasks are excluded: they keep the
+ * order of their dictation's sub-task list (ADR 0022), which the container's page reorders, so they
+ * are not what "top of the column" is about.
  */
 export function topOfColumn(cards: CardView[], card: CardView): number {
   const column = cards

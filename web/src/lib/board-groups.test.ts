@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { boardEntries, dependencyMet, entryStatus, groupOpenByDefault } from "./board-groups";
+import { containerIds, dependencyMet, phaseProgress } from "./board-groups";
 import type { CardStatus, CardView } from "./board";
 
 function card(id: string, over: Partial<CardView> = {}): CardView {
@@ -17,6 +17,7 @@ function card(id: string, over: Partial<CardView> = {}): CardView {
     workspaceId: null,
     agentKind: null,
     parentId: null,
+    phaseId: null,
     duplicateOf: null,
     dependsOn: null,
     origin: null,
@@ -37,70 +38,43 @@ function card(id: string, over: Partial<CardView> = {}): CardView {
   };
 }
 
-describe("boardEntries", () => {
-  it("leaves an ordinary card alone — grouping is the exception, not the new default", () => {
-    const entries = boardEntries([card("a"), card("b")]);
-    expect(entries).toHaveLength(2);
-    expect(entries.every((e) => e.kind === "card")).toBe(true);
+describe("containerIds (ADR 0022)", () => {
+  const cards = [
+    card("parent", { status: "working" }),
+    card("kid-done", { parentId: "parent", status: "done" }),
+    card("kid-todo", { parentId: "parent" }),
+    card("orphan", { parentId: "gone" }),
+    card("loose"),
+  ];
+
+  it("names the cards some other card is a sub-task of — and only those", () => {
+    expect([...containerIds(cards)]).toEqual(["parent"]);
   });
 
-  it("folds sub-tasks into their container and does not render them twice", () => {
-    const entries = boardEntries([
-      card("parent"),
-      card("kid1", { parentId: "parent" }),
-      card("kid2", { parentId: "parent" }),
-      card("loose"),
-    ]);
-
-    expect(entries.map((e) => (e.kind === "group" ? e.container.id : e.card.id))).toEqual([
-      "parent",
-      "loose",
-    ]);
-    const group = entries[0]!;
-    expect(group.kind === "group" && group.children.map((c) => c.id)).toEqual(["kid1", "kid2"]);
+  it("a sub-task whose container is missing stands alone rather than vanishing", () => {
+    expect(containerIds(cards).has("orphan")).toBe(false);
   });
 
-  it("keeps the server's order inside a group — a chain read backwards is worse than useless", () => {
-    const entries = boardEntries([
-      card("p"),
-      card("first", { parentId: "p" }),
-      card("second", { parentId: "p", dependsOn: "first" }),
-      card("third", { parentId: "p", dependsOn: "second" }),
-    ]);
-    const group = entries[0]!;
-    expect(group.kind === "group" && group.children.map((c) => c.id)).toEqual([
-      "first",
-      "second",
-      "third",
-    ]);
-  });
-
-  it("stands an orphaned sub-task alone rather than losing it", () => {
-    // Its container was archived, so it is absent from the list the board renders.
-    const entries = boardEntries([card("kid", { parentId: "gone" })]);
-    expect(entries).toEqual([{ kind: "card", card: expect.objectContaining({ id: "kid" }) }]);
-  });
-
-  it("places a group by its CONTAINER's column, not by its children's", () => {
-    // This is what the derived status is for: the group lands where attention is needed.
-    const entries = boardEntries([
-      card("p", { status: "blocked" }),
-      card("kid", { parentId: "p", status: "done" }),
-    ]);
-    expect(entryStatus(entries[0]!)).toBe("blocked");
+  it("is read off the FULL list: hiding every child by filter must not make the container a tile", () => {
+    expect(containerIds(cards).has("parent")).toBe(true);
+    expect(containerIds(cards.filter((c) => c.id === "parent")).has("parent")).toBe(false);
   });
 });
 
-describe("groupOpenByDefault", () => {
-  it("opens in the columns where you act, closes in the ones where you triage", () => {
-    // Hiding a blocked sub-task behind a chevron puts a tap on the most urgent thing on the board.
-    for (const s of ["blocked", "review", "working", "starting", "orphaned"] as CardStatus[]) {
-      expect(groupOpenByDefault(s)).toBe(true);
-    }
-    // Five rows for one dictation is the mess this feature exists to clean up.
-    for (const s of ["backlog", "ready", "done"] as CardStatus[]) {
-      expect(groupOpenByDefault(s)).toBe(false);
-    }
+describe("phaseProgress", () => {
+  it("counts a phase's steps and the filed ones, skipping containers and archived cards", () => {
+    const cards = [
+      card("box"),
+      card("a", { phaseId: "p1", status: "done" }),
+      card("b", { phaseId: "p1", parentId: "box", status: "working" }),
+      card("c", { phaseId: "p1", status: "archived" }),
+      card("d", { phaseId: "p2" }),
+      card("box-in-phase", { phaseId: "p1" }),
+      card("kid-of-box", { parentId: "box-in-phase" }),
+    ];
+    const p = phaseProgress(cards, [{ id: "p1", name: "One" }, { id: "p2", name: "Two" }]);
+    expect(p.get("p1")).toEqual({ name: "One", done: 1, total: 2 });
+    expect(p.get("p2")).toEqual({ name: "Two", done: 0, total: 1 });
   });
 });
 
@@ -118,47 +92,5 @@ describe("dependencyMet", () => {
   it("treats a predecessor that isn't on the board as no longer blocking", () => {
     // The bridge clears depends_on when a predecessor is deleted, so nothing waits on a ghost.
     expect(dependencyMet(undefined)).toBe(true);
-  });
-});
-
-// The wide board scatters sub-tasks into their own columns (see the note at the top of
-// board-groups.ts). The failure this pins is the one that motivated it: fifteen finished sub-tasks
-// folded under a working parent left the "Done" column reading zero.
-describe("boardEntries — scattered", () => {
-  const cards = [
-    card("parent", { status: "working" }),
-    card("kid-done", { parentId: "parent", status: "done" }),
-    card("kid-todo", { parentId: "parent", status: "backlog" }),
-    card("loose"),
-  ];
-
-  it("returns each sub-task at top level, in its OWN status", () => {
-    const entries = boardEntries(cards, true);
-    const done = entries.filter((e) => entryStatus(e) === "done");
-    expect(done).toHaveLength(1);
-    expect(done[0].kind).toBe("card");
-    // …and folded, that same card is nowhere near the done column.
-    expect(boardEntries(cards).filter((e) => entryStatus(e) === "done")).toHaveLength(0);
-  });
-
-  it("keeps the container as a group entry, so it stays reachable and keeps its chips", () => {
-    const group = boardEntries(cards, true).find((e) => e.kind === "group");
-    expect(group).toBeDefined();
-    expect(group!.kind === "group" && group!.children.map((c) => c.id)).toEqual([
-      "kid-done",
-      "kid-todo",
-    ]);
-  });
-
-  it("renders every sub-task exactly once — the group entry no longer expands them", () => {
-    const ids = boardEntries(cards, true).flatMap((e) =>
-      e.kind === "card" ? [e.card.id] : [e.container.id],
-    );
-    expect(ids).toEqual(["parent", "kid-done", "kid-todo", "loose"]);
-  });
-
-  it("changes nothing when there is no container in sight", () => {
-    const plain = [card("a"), card("b")];
-    expect(boardEntries(plain, true)).toEqual(boardEntries(plain));
   });
 });
