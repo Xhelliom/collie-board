@@ -21,7 +21,7 @@ import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { cardDiffSummary, currentBranch, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { prForCard, resolveConflict } from "./integrate.ts";
-import { Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
+import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
 
@@ -33,7 +33,7 @@ type Outcome = { ok: true } | { ok: false; error: { kind: string; message: strin
 /** Everything the coordinator acts through — the real routes in index.ts, fakes in the tests. */
 export interface RunPorts {
   lead: {
-    check(input: CardBrief & { statSummary: string; gatePassed?: string; operatorSaid?: string[] }): Promise<CheckDecision>;
+    check(input: CardBrief & { statSummary: string; gatePassed?: string; operatorSaid?: string[]; workerReport?: string | null }): Promise<CheckDecision>;
     triage(input: CardBrief & { verdict: string | null; notes: string | null; followUps: { title: string; spec?: string | null }[] }): Promise<TriageDecision>;
     recheckConflict(input: CardBrief & { conflicts: string[] }): Promise<ConflictDecision>;
   };
@@ -50,6 +50,8 @@ export interface RunPorts {
   /** What the lead reads: the worker's checkout and its base. Null when there is no checkout. */
   brief(card: Card): Promise<CardBrief | null>;
   stat(cardId: string): Promise<string>;
+  /** The worker's closing bilan from its checkout, or null when it left none. */
+  report(worktree: string): Promise<string | null>;
   /** How many more agents may start now (`db.maxAgents() ?? cfg.boardMaxAgents` minus running). */
   freeSlots(): number;
   /** The repo's gate command (ADR 0020), or null. Read per card: the operator may set it mid-run. */
@@ -267,9 +269,17 @@ export class RunCoordinator {
         if (!brief) return this.halt(run, card.id, "the worker's checkout is gone");
         const gatePassed = this.ports.gateCommand(card) ?? undefined;
         const operatorSaid = operatorSince(this.db.listEvents(card.id, 200), run.id);
+        const statSummary = step.kind === "check" ? await this.ports.stat(card.id) : "";
+        const workerReport = step.kind === "check" ? await this.ports.report(brief.worktree) : null;
+        // Nothing to judge and nothing said: the lead would only send it back (ADR 0014's loop), so ask for the bilan.
+        if (step.kind === "check" && statSummary.trim() === "(no changes)" && !workerReport) {
+          await this.ports.prompt(session!.paneId!, `Your branch has no changes. ${bilanPrompt()}`);
+          this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "prompt", prompt: "bilan", reason: "empty diff and no bilan from the worker" });
+          return;
+        }
         const d =
           step.kind === "check"
-            ? await this.ports.lead.check({ ...brief, statSummary: await this.ports.stat(card.id), gatePassed, operatorSaid })
+            ? await this.ports.lead.check({ ...brief, statSummary, gatePassed, operatorSaid, workerReport })
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
         if (d.decision === "prompt") {
@@ -406,6 +416,10 @@ export function runHook(
       const c = db.getCard(cardId);
       const baseRef = c?.repoPath ? baseFor(c.baseRef, await currentBranch(c.repoPath)) : null;
       return cardDiffSummary({ getCard: (id) => (c && id === cardId ? { ...c, baseRef } : null), listEvents: (id) => db.listEvents(id) }, cardId);
+    },
+    report: async (worktree) => {
+      const text = await Bun.file(join(worktree, BILAN_REL_PATH)).text().catch(() => "");
+      return text.trim().slice(0, 8000) || null;
     },
     gateCommand: (card) => (card.repoPath ? db.repoGate(card.repoPath) : null),
     runGate: (command, worktree) => {

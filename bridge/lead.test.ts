@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  BILAN_REL_PATH,
+  bilanPrompt,
   checkPrompt,
   conflictPrompt,
   toCheckDecision,
@@ -27,6 +29,18 @@ describe("lead prompts", () => {
     expect(p).toContain("do not commit");
     expect(p).toContain(".board/out/x.json");
     expect(p).toContain('"decision": "finished | prompt"');
+  });
+
+  it("check carries the worker's bilan and judges an empty diff with it", () => {
+    const p = checkPrompt({ ...brief, statSummary: "(no changes)", workerReport: "Déjà livré : commit abc123 sur main." });
+    expect(p).toContain("Déjà livré : commit abc123 sur main.");
+    expect(p).toContain("verify");
+    expect(p).toContain("git -C /wt/card log main");
+    expect(checkPrompt({ ...brief, statSummary: "" })).not.toContain("worker's own bilan");
+  });
+
+  it("the worker is told where to write its bilan", () => {
+    expect(bilanPrompt()).toContain(BILAN_REL_PATH);
   });
 
   it("triage lists follow-ups by index, with the review's verdict and notes", () => {
