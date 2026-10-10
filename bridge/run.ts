@@ -20,13 +20,18 @@ import { isAutoHandoffPending, type BoardDb, type BoardEvent, type Card, type Ca
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { cardDiffSummary, currentBranch, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
+import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
 
 /** How many times the lead may send a worker back before the card goes to the operator. */
 export const MAX_ROUNDS = 5;
+const LAND_EVERY_MS = 30_000;
+
+/** The worker's brief when a GitHub check fails on its PR — the counterpart of `gatePrompt`. */
+export const ciPrompt = (name: string, log: string): string =>
+  [`The GitHub check \`${name}\` failed on your PR. Fix what it reports, commit, and tell me when it should be green.`, "End of its log:", "", log || "(no log available)"].join("\n");
 
 type Outcome = { ok: true } | { ok: false; error: { kind: string; message: string } };
 
@@ -43,6 +48,8 @@ export interface RunPorts {
   prompt(paneId: string, text: string): Promise<void>;
   /** `prForCard` with auto-merge armed. */
   openPr(card: Card, gate: MergeGate): Promise<Outcome>;
+  /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). */
+  land(card: Card, gate: MergeGate): Promise<void>;
   /** `resolveConflict` against origin's base, to the card's own agent. */
   resolveConflict(card: Card): Promise<Outcome>;
   /** `fileAsDone`: close the session, file the card, ask for the wrapup. */
@@ -74,6 +81,7 @@ export type Step =
   | { kind: "recheck"; conflicts: string[] }
   | { kind: "triage"; sessionId: string }
   | { kind: "pr" }
+  | { kind: "land" }
   | { kind: "file" }
   | { kind: "halt"; reason: string; limit?: true }
   | null;
@@ -164,7 +172,10 @@ export function stepFor(
   }
   const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   // INTEGRATE FIRST, FILE SECOND — as the route does: filing ends the session that could settle a conflict.
-  return after(pr, decision) ? { kind: "file" } : { kind: "pr" };
+  if (!after(pr, decision)) return { kind: "pr" };
+  // ADR 0029: the PR's checks were still running when it opened — ask again, file when answered.
+  const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
+  return after(merge, pr) && (merge!.payload as { wait?: boolean }).wait ? { kind: "land" } : { kind: "file" };
 }
 
 /** A check or re-check answer — the ones that move the card, not a triaged follow-up's. */
@@ -189,6 +200,8 @@ export function runState(run: Run, members: { card: Card; events: BoardEvent[] }
 export class RunCoordinator {
   /** Cards with an action in flight, so a 1.5 s tick doesn't ask twice. Memory a restart may lose. */
   private readonly busy = new Set<string>();
+  /** When each card's PR checks were last asked about (ADR 0029). */
+  private readonly landAsked = new Map<string, number>();
   /** Starts in flight: they hold a slot before their session exists. */
   private starting = 0;
   /** …and per run, for a lot's own parallelism ceiling. */
@@ -298,24 +311,54 @@ export class RunCoordinator {
       case "triage":
         return this.triage(run, card, step.sessionId);
       case "pr": {
-        // ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone.
-        const command = this.ports.gateCommand(card);
-        const verdict = newest(this.db.listEvents(card.id), (e) => e.type === "run.gate" && isRun(e, run.id));
-        const ok = !command || (verdict?.payload as { ok?: boolean } | undefined)?.ok === true;
-        const r = await this.ports.openPr(card, {
-          runId: run.id,
-          ok,
-          why: !command ? "no gate set" : ok ? "gate green" : verdict ? "the gate is red — not merging" : "the gate never ran — not merging",
-        });
-        if (r.ok) return this.ports.fileAsDone(this.db.getCard(card.id)!);
+        const r = await this.ports.openPr(card, this.mergeGate(run, card));
+        if (r.ok) return this.landed(run, card, session!);
         if (r.error.kind !== "conflict") return this.halt(run, card.id, `PR: ${r.error.message}`);
         const settled = await this.ports.resolveConflict(card);
         if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
         return;
       }
+      case "land": {
+        // Throttled in memory: the tick is 1.5 s, GitHub's checks take minutes.
+        if (Date.now() - (this.landAsked.get(card.id) ?? 0) < LAND_EVERY_MS) return;
+        this.landAsked.set(card.id, Date.now());
+        await this.ports.land(card, this.mergeGate(run, card));
+        return this.landed(run, card, session!);
+      }
       case "file":
         return this.ports.fileAsDone(card);
     }
+  }
+
+  /** ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone. */
+  private mergeGate(run: Run, card: Card): MergeGate {
+    const command = this.ports.gateCommand(card);
+    const verdict = newest(this.db.listEvents(card.id), (e) => e.type === "run.gate" && isRun(e, run.id));
+    const ok = !command || (verdict?.payload as { ok?: boolean } | undefined)?.ok === true;
+    return {
+      runId: run.id,
+      ok,
+      why: !command ? "no gate set" : ok ? "gate green" : verdict ? "the gate is red — not merging" : "the gate never ran — not merging",
+    };
+  }
+
+  /**
+   * What the PR just did (ADR 0029): checks running — wait, the next tick asks again; a check red —
+   * back to the worker with its log, a round like a red gate; otherwise the card is filed.
+   */
+  private async landed(run: Run, card: Card, session: CardSession): Promise<void> {
+    const events = this.db.listEvents(card.id, 200);
+    const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+    const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
+    const p = after(merge, pr) ? (merge!.payload as { wait?: boolean; ci?: { name: string; log: string } }) : {};
+    if (p.wait) return;
+    if (p.ci) {
+      const prompt = ciPrompt(p.ci.name, p.ci.log);
+      await this.ports.prompt(session.paneId!, prompt);
+      this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the check ${p.ci.name} failed on GitHub` });
+      return;
+    }
+    this.ports.fileAsDone(this.db.getCard(card.id)!);
   }
 
   /**
@@ -440,6 +483,7 @@ export function runHook(
     start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     openPr: (card, gate) => prForCard(db, card, { autoMerge: true, gate }),
+    land: (card, gate) => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate),
     resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
     brief: async (card) => {

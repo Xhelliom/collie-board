@@ -29,9 +29,11 @@ import type { Config } from "./config.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   cardDiffStat,
+  checksOf,
   createPr,
   deleteBranch,
   enableAutoMerge,
+  failedLog,
   fetchBase,
   formatDiffStat,
   integrationOf,
@@ -324,19 +326,47 @@ export async function landPr(
   gh: GitRunner = runGh,
 ): Promise<void> {
   if (await armAutoMerge(db, cardId, repoPath, branch, gh)) return;
+  await mergeWhenReady(db, cardId, repoPath, branch, gate, gh);
+}
+
+/**
+ * The merge half of {@link landPr}, and what the coordinator re-asks while checks run (ADR 0029).
+ * Beyond the gate and MERGEABLE, the PR's own GitHub checks must be green or absent: red journals
+ * `run.merge { ci }` for the coordinator to send back to the worker, pending journals `{ wait }`
+ * once — no merge, no loop here; the next tick asks again.
+ */
+export async function mergeWhenReady(
+  db: BoardDb,
+  cardId: string,
+  repoPath: string,
+  branch: string,
+  gate: MergeGate | undefined,
+  gh: GitRunner = runGh,
+): Promise<void> {
   const runId = gate?.runId ?? "";
-  const skip = (reason: string) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason });
+  const skip = (reason: string, extra: object = {}) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason, ...extra });
   if (!gate?.ok) return skip(gate ? gate.why : "no gate verdict — not merging");
   const pr = await prStatusOf(repoPath, branch, gh);
   if (!pr) return skip("could not read the PR's state from GitHub — not merging");
   if (pr.state !== "open") return skip(`the PR is already ${pr.state}`);
   if (pr.conflicting) return skip("the PR has a conflict — not merging");
+  const checks = await checksOf(repoPath, branch, gh);
+  if (!checks) return skip("could not read the PR's checks from GitHub — not merging");
+  if (checks.state === "red") {
+    const log = await failedLog(repoPath, checks.detailsUrl, gh);
+    return skip(`the check ${checks.name} failed — not merging`, { ci: { name: checks.name, log } });
+  }
+  if (checks.state === "pending") {
+    const last = db.listEvents(cardId, 50).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
+    if (!(last?.payload as { wait?: boolean } | undefined)?.wait) skip("the PR's checks are still running — waiting", { wait: true });
+    return;
+  }
   if (!pr.mergeable) return skip("GitHub has not worked out mergeability yet — not merging");
   const r = await enableAutoMerge(repoPath, branch, gh, []);
   db.recordRunEvent(cardId, "run.merge", {
     runId,
     merged: r.ok,
-    reason: r.ok ? `lead validated, ${gate.why}, no conflict; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
+    reason: r.ok ? `lead validated, ${gate.why}, no conflict, ${checks.state === "green" ? "checks green" : "no checks"}; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
   });
   // The board knows it merged: take the PR off Open PRs now, instead of waiting for a Check tap.
   if (r.ok) db.recordEvent(cardId, "card.pr_merged", { url: pr.url });
