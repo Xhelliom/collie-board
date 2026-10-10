@@ -351,7 +351,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // silenced like the copilot, above.
     engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters));
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
-    const nudger = new OrchestratorNudger(board, herdr);
+    const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap));
   }
 

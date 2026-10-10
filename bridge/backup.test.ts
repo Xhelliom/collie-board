@@ -74,6 +74,7 @@ describe("buildBackup", () => {
       "event",
       "orchestrator_memory",
       "phase",
+      "repo_autonomy",
       "repo_pref",
       "review",
       "roadmap",

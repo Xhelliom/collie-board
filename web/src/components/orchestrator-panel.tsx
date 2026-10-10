@@ -4,6 +4,7 @@ import { Maximize2, Send } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
+import { AutonomySettings } from "@/components/autonomy-settings";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
@@ -121,6 +122,7 @@ export function OrchestratorPanel({
         <Button variant="brand" className="self-start" disabled={busy} onClick={() => void start()}>
           {busy ? t("orch.starting") : t("orch.start")}
         </Button>
+        <AutonomySettings repo={repo} />
       </div>
     );
   }
@@ -189,6 +191,7 @@ export function OrchestratorPanel({
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
         )}
       </div>
+      <AutonomySettings repo={repo} />
       <details className="rounded-lg border bg-card/40 px-2.5 py-1.5 text-sm">
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
           {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}

@@ -8,12 +8,14 @@ import type { HerdrClient } from "./herdr-client.ts";
 import { findOrchestrator } from "./orchestrator.ts";
 import { promptAndConfirm } from "./cards.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { endOfLot } from "./autonomy.ts";
+import type { NotifyLog } from "./notify-log.ts";
 
 const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
 /** The message for a lot that ended: its cards, merged ones apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string): string {
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null): string {
   const ok = cards.filter((c) => FILED.has(c.status) && !blocked.has(c.id));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
@@ -26,7 +28,13 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
           `C'est aussi la fin de la phase « ${phase.name} » : propose à l'opérateur de la valider (c'est à lui de le faire, pas à toi) et dis où vont les étapes encore ouvertes${phase.open.length ? ` (${phase.open.map((c) => `« ${c.title} »`).join(", ")})` : ""} : phase suivante, backlog ou abandon.`,
         ]
       : []),
-    "Ne lance rien et ne valide rien toi-même.",
+    ...(auto?.go
+      ? [
+          `L'opérateur t'a accordé l'autonomie : tu peux lancer UN lot, le prochain planifié « ${auto.next.name ?? "sans nom"} » (POST /api/runs/${auto.next.id}/launch, avec ton x-collie-pane) — si tu juges le bilan ci-dessus assez bon. Ne valide jamais une phase toi-même.`,
+        ]
+      : auto
+        ? [`Autonomie arrêtée : ${auto.why}. Ne lance rien ; l'opérateur a été prévenu et reprend la main.`, "Ne valide rien toi-même."]
+        : ["Ne lance rien et ne valide rien toi-même."]),
   ].join("\n");
 }
 
@@ -43,6 +51,7 @@ export class OrchestratorNudger {
   constructor(
     private readonly db: BoardDb,
     private readonly herdr: HerdrClient,
+    private readonly log?: NotifyLog,
   ) {
     this.cursor = db.lastEventId();
   }
@@ -55,6 +64,7 @@ export class OrchestratorNudger {
       if (!msg) continue;
       const paneId = findOrchestrator(snap, msg.repoPath);
       // No living orchestrator: nothing to say to, and nothing to complain about.
+      if (!paneId) this.db.armAutonomy(msg.repoPath, false); // no orchestrator to be woken: nobody holds the grant
       if (paneId) void promptAndConfirm(this.herdr, paneId, msg.text).catch((err) => console.warn(`[orchestrator] nudge failed: ${(err as Error).message}`));
     }
   }
@@ -70,7 +80,13 @@ export class OrchestratorNudger {
       const phase = run.phaseId ? this.db.getPhase(run.phaseId) : null;
       const inPhase = phase ? this.db.listCards().filter((c) => c.phaseId === phase.id) : [];
       const ends = phase && phase.closedAt === null && inPhase.every((c) => FILED.has(c.status) || cards.some((m) => m.id === c.id));
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath) };
+      // Autonomy (ADR 0030): decided here, once, at the wake — the only place a launch is armed. A bound
+      // reached disarms, and the operator hears it on the bell (nothing to retract: it states a stop).
+      const v = endOfLot(this.db, run);
+      this.db.armAutonomy(run.repoPath, v.go);
+      if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}` });
+      const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
+      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
     }
     const unmerged = e.type === "run.merge" && p.merged === false;
     if ((!unmerged && e.type !== "run.halted") || !e.cardId) return null;

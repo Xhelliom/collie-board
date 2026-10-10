@@ -1189,6 +1189,18 @@ export interface OrchestratorState {
   /** When it last wrote its memory note, or null. */
   memoryUpdatedAt?: number | null;
 }
+/** How far the orchestrator may go without the operator (ADR 0030). `maxChain` null: unlimited. */
+export interface Autonomy {
+  enabled: boolean;
+  maxChain: number | null;
+  stopOnRed: boolean;
+  chained: number;
+  armed: boolean;
+}
+export const fetchAutonomy = (repo: string, signal?: AbortSignal): Promise<{ autonomy: Autonomy }> =>
+  apiRequest(`/api/orchestrator/autonomy?repo=${encodeURIComponent(repo)}`, { signal });
+export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed">>): Promise<{ autonomy: Autonomy }> =>
+  apiRequest("/api/orchestrator/autonomy", { method: "PUT", body: JSON.stringify({ repoPath, ...patch }) });
 /** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
 export interface OrchestratorMemory {
   note: string;
