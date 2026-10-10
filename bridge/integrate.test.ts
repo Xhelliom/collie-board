@@ -683,7 +683,7 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
 
   it("journals no pr_merged when the direct merge is refused", async () => {
     const t = setup("MERGEABLE");
-    const gh: GitRunner = async (a) => (a[1] === "merge" && !a.includes("--auto") ? { ok: false, stdout: "", stderr: "nope" } : t.gh(a));
+    const gh: GitRunner = async (a, cwd) => (a[1] === "merge" && !a.includes("--auto") ? { ok: false, stdout: "", stderr: "nope" } : t.gh(a, cwd));
     await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh);
     expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("refused") });
     expect(merged(t)).toBe(0);
