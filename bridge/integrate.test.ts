@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -763,6 +764,19 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
       const t = withChecks([]);
       await run(t);
       expect(direct(t.calls)).toBe(true);
+    });
+    it("waits on an empty rollup when the repo has a PR workflow, merges when it has none", async () => {
+      const repo = mkdtempSync(join(tmpdir(), "wf-"));
+      const gate = { runId: "r1", ok: true, why: "gate green" };
+      const t = withChecks([]);
+      await landPr(t.store, t.card.id, repo, "board/x", gate, t.gh);
+      expect(direct(t.calls)).toBe(true);
+      mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
+      writeFileSync(join(repo, ".github", "workflows", "ci.yml"), "on:\n  pull_request:\n");
+      const w = withChecks([]);
+      await landPr(w.store, w.card.id, repo, "board/x", gate, w.gh);
+      expect(direct(w.calls)).toBe(false);
+      expect(w.merges()[0]).toMatchObject({ merged: false, wait: true });
     });
     it("never merges a red check, and hands the worker its name and log", async () => {
       const t = withChecks([{ ...done, name: "typecheck", conclusion: "FAILURE", detailsUrl: "https://github.com/o/r/actions/runs/42/job/7" }]);
