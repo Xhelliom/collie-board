@@ -2,9 +2,13 @@
 # Pre-push guard: typecheck both sides, then run the test suites (backend Bun + web Vitest) before
 # anything leaves the machine. Install with: scripts/install-hooks.sh (sets core.hooksPath).
 # Override once: SKIP_TYPECHECK=1 git push (skip typecheck) · SKIP_TESTS=1 git push (skip tests).
+# Untracked files block the push (scripts/check-untracked.sh): SKIP_UNTRACKED_CHECK=1 to override.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
+
+# ── Untracked files (a diff importing a file never `git add`ed fails only for the reviewer) ──
+"$ROOT/scripts/check-untracked.sh"
 
 # ── Typecheck (the Vite build does NOT typecheck; catch it before it ships) ──
 if [ "${SKIP_TYPECHECK:-}" = "1" ]; then
