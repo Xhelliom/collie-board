@@ -74,6 +74,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
       case "card.pr_merged":
       case "card.pr_closed":
         if (f.pr) f.pr.state = e.type === "card.pr_merged" ? "merged" : "closed";
+        if (f.pr && e.type === "card.pr_merged") delete f.pr.autoMerge; // « refusé » is moot once merged
         break;
       case "card.automerge_armed":
       case "card.automerge_refused":

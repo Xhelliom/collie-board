@@ -670,6 +670,7 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
     const merges = () => store.listEvents(card.id).filter((e) => e.type === "run.merge").map((e) => e.payload as { runId: string; merged: boolean; reason: string });
     return { store, card, gh, calls, merges };
   };
+  const merged = (t: { store: BoardDb; card: { id: string } }) => t.store.listEvents(t.card.id).filter((e) => e.type === "card.pr_merged").length;
   const direct = (calls: string[][]) => calls.some((a) => a[0] === "pr" && a[1] === "merge" && !a.includes("--auto"));
 
   it("merges directly once auto-merge is refused, gate green, no conflict", async () => {
@@ -677,6 +678,15 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
     await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
     expect(t.calls.find((a) => a[1] === "merge" && !a.includes("--auto"))).toEqual(["pr", "merge", "board/x", "--squash"]);
     expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("auto-merge unavailable") }]);
+    expect(merged(t)).toBe(1);
+  });
+
+  it("journals no pr_merged when the direct merge is refused", async () => {
+    const t = setup("MERGEABLE");
+    const gh: GitRunner = async (a) => (a[1] === "merge" && !a.includes("--auto") ? { ok: false, stdout: "", stderr: "nope" } : t.gh(a));
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh);
+    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("refused") });
+    expect(merged(t)).toBe(0);
   });
 
   it("leaves a GitHub-armed auto-merge alone", async () => {
@@ -691,6 +701,7 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
     await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: false, why: "gate red" }, t.gh);
     expect(direct(t.calls)).toBe(false);
     expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("gate red") });
+    expect(merged(t)).toBe(0);
   });
 
   it("never merges a conflicting PR", async () => {
