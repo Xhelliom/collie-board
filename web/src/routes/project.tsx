@@ -188,7 +188,26 @@ export function ProjectRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={repo ? repoName(repo) : t("project.title")} subtitle={t("project.subtitle")} />
+      <AppHeader
+        title={repo ? repoName(repo) : t("project.title")}
+        subtitle={t("project.subtitle")}
+        // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
+        // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
+        rightTrail={
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            aria-label={t("project.chatOpen")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
+          >
+            <MessagesSquare className="size-4" />
+            {t("orch.title")}
+            {data.orchestrator?.running && (
+              <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />
+            )}
+          </button>
+        }
+      />
       <BoardTabs repos={reposOf(data.cards)} />
       <h1 className="sr-only">{t("project.title")}</h1>
       <div className="flex min-h-0 flex-1">
@@ -368,16 +387,13 @@ export function ProjectRoute() {
         <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </aside>
       </div>
-      <button
-        type="button"
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-4 right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg lg:hidden"
-      >
-        <MessagesSquare className="size-4" />
-        {t("project.chat")}
-      </button>
-      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")}>
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+      {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
+          the height left to the content the sheet was half-empty on a short thread and, on a long one,
+          scrolled as a whole with the composer below the fold. */}
+      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[82dvh]">
+        <div className="flex h-full min-h-0 flex-col">
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+        </div>
       </BottomSheet>
     </div>
   );

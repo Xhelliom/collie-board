@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
 import { Maximize2, Send } from "lucide-react";
 
@@ -47,9 +47,15 @@ export function OrchestratorPanel({
   const scroller = useRef<HTMLDivElement>(null);
   // Follow the conversation as it grows — unless the reader scrolled up to read: then leave them there.
   const stuck = useRef(true);
-  useEffect(() => {
+  // Layout effect, and once more a frame later: the sheet is still sliding in when this first runs.
+  useLayoutEffect(() => {
     const el = scroller.current;
-    if (el && stuck.current) el.scrollTop = el.scrollHeight;
+    if (!el || !stuck.current) return;
+    el.scrollTop = el.scrollHeight;
+    const id = requestAnimationFrame(() => {
+      if (stuck.current) el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(id);
   }, [entries]);
 
   if (!repo) {
@@ -175,7 +181,10 @@ export function OrchestratorPanel({
         aria-label={t("orch.thread")}
       >
         {entries.length > 0 ? (
-          <TranscriptView entries={entries} />
+          // justify-end: a short conversation sits against the composer, not at the top of an empty box.
+          <div className="flex min-h-full flex-col justify-end">
+            <TranscriptView entries={entries} />
+          </div>
         ) : (
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
         )}

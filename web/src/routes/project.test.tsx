@@ -52,12 +52,19 @@ describe("ProjectRoute", () => {
     expect(screen.getByLabelText("Message to the orchestrator")).toBeInTheDocument();
   });
 
+  it("keeps the way into the chat in the header, with a dot while the orchestrator runs", async () => {
+    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
+    const open = await screen.findByRole("button", { name: "Open the orchestrator chat" });
+    expect(open.closest("header")).not.toBeNull();
+    expect(open.querySelector('[title="running"]')).not.toBeNull();
+  });
+
   it("speaks French when asked to", async () => {
     setPreference("fr");
     mount([card({ id: "a", status: "done" }), card({ id: "b", status: "blocked" })]);
     expect(await screen.findByText(/étapes terminées sur 2/)).toBeInTheDocument();
     expect(screen.getAllByText(/t'attend/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Discuter avec l'orchestrateur/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ouvrir le chat de l'orchestrateur/ })).toBeInTheDocument();
   });
 
   it("shows the phases, the progress and what waits for you", async () => {

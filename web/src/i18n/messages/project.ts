@@ -62,7 +62,8 @@ export const project = defineMessages({
   "project.waiting.see": { en: "see →", fr: "voir →" },
   "project.phases.aria": { en: "Phases", fr: "Phases" },
   "project.phases.done": { en: "{done} / {total} done", fr: "{done} / {total} terminées" },
-  "project.chat": { en: "Talk to the orchestrator", fr: "Discuter avec l'orchestrateur" },
+  "project.chatOpen": { en: "Open the orchestrator chat", fr: "Ouvrir le chat de l'orchestrateur" },
+  "project.chatRunning": { en: "running", fr: "actif" },
 
   // A step
   "step.next": { en: "next", fr: "prochaine" },
