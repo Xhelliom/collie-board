@@ -24,6 +24,8 @@
 // cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
 // work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
@@ -333,6 +335,16 @@ export async function landPr(
   await mergeWhenReady(db, cardId, repoPath, branch, gate, gh, recheckMs);
 }
 
+/** Does the repo declare a workflow triggered by `pull_request`? Then an empty rollup is "not registered yet". */
+export function hasPrWorkflow(repoPath: string): boolean {
+  try {
+    const dir = join(repoPath, ".github", "workflows");
+    return readdirSync(dir).some((f) => /\.ya?ml$/.test(f) && /\bpull_request(_target)?\b/.test(readFileSync(join(dir, f), "utf8")));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The merge half of {@link landPr}, and what the coordinator re-asks while checks run (ADR 0029).
  * Beyond the gate and MERGEABLE, the PR's own GitHub checks must be green or absent: red journals
@@ -362,6 +374,8 @@ export async function mergeWhenReady(
   if (pr.conflicting) return skip("the PR has a conflict — not merging");
   const checks = await checksOf(repoPath, branch, gh);
   if (!checks) return skip("could not read the PR's checks from GitHub — not merging");
+  // Right after `pr create` the rollup is empty before GitHub registers the checks: with a PR workflow, that is pending, not "no CI".
+  if (checks.state === "none" && hasPrWorkflow(repoPath)) checks.state = "pending";
   if (checks.state === "red") {
     const log = await failedLog(repoPath, checks.detailsUrl, gh);
     return skip(`the check ${checks.name} failed — not merging`, { ci: { name: checks.name, log } });
