@@ -7,6 +7,7 @@ import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { AutoHandoff } from "./auto-handoff.ts";
 import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
+import { ReviewGuard } from "./review-guard.ts";
 import { loadConfig } from "./config.ts";
 import { ContextTracker } from "./context.ts";
 import { createWindowResolver } from "./context-window.ts";
@@ -293,6 +294,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   if (isPrimary) {
     snapshotRef = () => engine.current();
     engine.onUpdate((snap) => reconcile(board, snap));
+    // A card landing in review with an empty branch goes back, said on the card (review-guard.ts).
+    const reviewGuard = new ReviewGuard(board);
+    engine.onUpdate((snap) => void reviewGuard.onUpdate(snap).catch(() => {}));
     // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
     // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.
     const context = new ContextTracker(
