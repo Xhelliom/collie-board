@@ -31,6 +31,8 @@ export function GrabHandle({ className }: { className?: string }) {
   return <span className={cn("h-1.5 w-12 rounded-full bg-muted-foreground/50", className)} />;
 }
 
+const IOS = typeof navigator !== "undefined" && /iP(hone|ad|od)/.test(navigator.userAgent);
+
 interface SheetShellProps {
   open: boolean;
   onClose: () => void;
@@ -71,6 +73,10 @@ function SheetShell({
     <Drawer.Root
       open={open}
       direction={direction}
+      // Chrome already resizes the layout for the keyboard (`interactive-widget=resizes-content`), so
+      // Vaul's own repositioning double-shrinks the panel and never gives the height back when the
+      // keyboard closes. Only iOS Safari, which ignores that hint, needs it.
+      repositionInputs={IOS}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
