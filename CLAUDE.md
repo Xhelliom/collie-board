@@ -85,7 +85,7 @@ the unit name; the Herdr action runs from anywhere.
 - **Tests:** frontend `cd web && bun run test` (Vitest + jsdom + Testing Library + MSW; no headless
   browser); backend pure-logic `bun run test` at the root (Bun's own runner — covers `checkAccess`,
   `StateEngine`, `loadConfig`). A **pre-push hook** (`scripts/git-hooks/pre-push`) runs **both** before
-  every push — override once with `SKIP_TESTS=1 git push`. The bits that genuinely need `Bun.serve` /
+  every push — override once with `SKIP_TESTS=1 git push`. The same hook refuses a push while a file sits untracked (`scripts/check-untracked.sh`) — a diff importing a never-`git add`ed file only breaks for the reviewer; `git add` it or `.gitignore` it. The bits that genuinely need `Bun.serve` /
   `Bun.connect` (HTTP handlers, the socket client) stay unit-untested — Vitest-on-Node can't run them,
   so keep new backend logic pure/injectable enough for `bun test`, or exercise it through `web/`.
 - Service: `systemd --user` unit `collie` on the deployment host; logs `journalctl --user -u collie-board -f`.
