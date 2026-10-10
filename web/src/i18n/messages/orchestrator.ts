@@ -39,4 +39,14 @@ export const orchestrator = defineMessages({
   "orch.message": { en: "Message to the orchestrator", fr: "Message à l'orchestrateur" },
   "orch.placeholder": { en: "Tell it what you want to plan…", fr: "Dis-lui ce que tu veux planifier…" },
   "orch.send": { en: "Send", fr: "Envoyer" },
+  "orch.auto": { en: "Autonomy", fr: "Autonomie" },
+  "orch.autoOn": { en: "Let it launch the next planned lot", fr: "Lui laisser lancer le lot planifié suivant" },
+  "orch.autoHint": {
+    en: "At the end of a lot only, never on a timer. Validating a phase stays yours.",
+    fr: "À la fin d'un lot seulement, jamais sur un minuteur. Valider une phase reste à toi.",
+  },
+  "orch.autoChain": { en: "Lots chained without you", fr: "Lots enchaînés sans toi" },
+  "orch.autoUnlimited": { en: "Unlimited", fr: "Illimité" },
+  "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
+  "orch.autoSaved": { en: "Autonomy saved.", fr: "Autonomie enregistrée." },
 });

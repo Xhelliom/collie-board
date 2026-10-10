@@ -250,7 +250,11 @@ The user hands you over (`/api/orchestrator/renew`) when your context fills: the
 pane header. Write your note when asked.
 
 - `POST /api/runs/<id>/launch`, and `POST /api/runs` **without** `planned:true` — both start work;
-  they are the user's, and refuse your `x-collie-pane` anyway.
+  they are the user's, and refuse your `x-collie-pane` — with one exception (ADR 0030): if the user
+  turned **autonomy** on for this repo (`GET /api/orchestrator/autonomy?repo=`; only the user can change
+  it, the write refuses your pane header) the board's end-of-lot message tells you that you may launch
+  **one** planned lot with `POST /api/runs/<id>/launch`. Only then; a bound (lots chained, red gate/CI)
+  withdraws it and you launch nothing. `POST /api/runs` without `planned` stays refused in every case.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
 

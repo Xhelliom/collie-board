@@ -201,11 +201,16 @@ export async function handleProjectRoute(
       if (denied) return denied;
       // The planner prepares; the operator launches. A caller that names itself an agent pane is
       // refused whatever else it says — consent is not something an agent can give itself.
-      if (pane) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       const run = db.getRun(id);
+      // Unless the operator turned autonomy on for this repo and the end-of-lot wake armed one launch (ADR 0030).
+      if (pane && !(run && db.autonomyOf(run.repoPath).armed && db.autonomyOf(run.repoPath).enabled))
+        return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!run) return ctx.text("run not found", 404);
+      if (run.launchedAt !== null) return ctx.text("already launched", 409);
+      if (pane && !db.spendAutonomy(run.repoPath)) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
-      audit("run.launch", { runId: id });
+      if (!pane) db.resetChain(run.repoPath);
+      audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}) });
       return ctx.json({ run: db.getRun(id) });
     }
     if (req.method === "PATCH") {

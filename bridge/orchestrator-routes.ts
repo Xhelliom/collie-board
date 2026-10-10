@@ -9,10 +9,12 @@ import type { BoardContext } from "./board-routes.ts";
 import { MEMORY_MAX_CHARS } from "./db.ts";
 import { askOrchestratorNote, findOrchestrator, restartOrchestrator, startOrchestrator, type OrchestratorDeps } from "./orchestrator.ts";
 import { PANE_HEADER } from "./board-routes.ts";
+import { isMaxChain } from "./autonomy.ts";
 
 export const ORCHESTRATOR_ROUTE = "/api/orchestrator";
 const MEMORY_ROUTE = `${ORCHESTRATOR_ROUTE}/memory`;
 const RENEW_ROUTE = `${ORCHESTRATOR_ROUTE}/renew`;
+const AUTONOMY_ROUTE = `${ORCHESTRATOR_ROUTE}/autonomy`;
 
 /** The root of a repository — the same bar as `/api/repos/gate/suggest`: the path lands in a prompt. */
 const isRepoRoot = (p: unknown): p is string => typeof p === "string" && isAbsolute(p) && existsSync(join(p, ".git"));
@@ -34,6 +36,33 @@ async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 export async function handleOrchestratorRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
+  // ── how far it may go without the operator (ADR 0030) ───────────────────────
+  if (pathname === AUTONOMY_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      const repo = new URL(req.url).searchParams.get("repo");
+      if (!isRepoRoot(repo)) return ctx.text("repo must be the root of a repository", 400);
+      return ctx.json({ autonomy: ctx.db.autonomyOf(repo) });
+    }
+    if (req.method !== "PUT") return ctx.text("method not allowed", 405);
+    // An orchestrator that could write this would grant itself the autonomy: the operator's screen only.
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("autonomy is the operator's setting — an agent pane may not change it", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const b = await bodyOf(req);
+    if (!b || !isRepoRoot(b.repoPath)) return ctx.text("repoPath must be the root of a repository", 400);
+    const cur = ctx.db.autonomyOf(b.repoPath);
+    const enabled = b.enabled ?? cur.enabled;
+    const stopOnRed = b.stopOnRed ?? cur.stopOnRed;
+    const maxChain = b.maxChain === undefined ? cur.maxChain : b.maxChain;
+    if (typeof enabled !== "boolean" || typeof stopOnRed !== "boolean") return ctx.text("enabled and stopOnRed must be booleans", 400);
+    if (!isMaxChain(maxChain)) return ctx.text("maxChain must be a whole number from 1, or null for unlimited", 400);
+    const autonomy = ctx.db.setAutonomy(b.repoPath, { enabled, maxChain, stopOnRed });
+    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath, enabled, maxChain, stopOnRed } });
+    return ctx.json({ autonomy });
+  }
+
   // ── the note it leaves its next self (ADR 0023) ──────────────────────────────
   if (pathname === MEMORY_ROUTE) {
     if (req.method === "GET") {

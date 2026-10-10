@@ -532,6 +532,15 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.merge",
 ];
 
+/** The orchestrator's per-repo autonomy (ADR 0030). `maxChain` null: unlimited. */
+export interface RepoAutonomy {
+  enabled: boolean;
+  maxChain: number | null;
+  stopOnRed: boolean;
+  chained: number;
+  armed: boolean;
+}
+
 export interface BoardEvent {
   id: number;
   cardId: string | null;
@@ -975,6 +984,17 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   -- The repo's gate command (ADR 0020): the operator's decision too, and equally underivable.
   gate       TEXT,
   updated_at INTEGER NOT NULL
+);
+
+-- Per-repo autonomy of the orchestrator (ADR 0030): the operator's setting and its bounds, plus the
+-- two counters the bounds read. Default row = off, so no row is stored until the operator touches it.
+CREATE TABLE IF NOT EXISTS repo_autonomy (
+  path        TEXT PRIMARY KEY,
+  enabled     INTEGER NOT NULL DEFAULT 0,
+  max_chain   INTEGER DEFAULT 1,           -- NULL = unlimited
+  stop_on_red INTEGER NOT NULL DEFAULT 1,
+  chained     INTEGER NOT NULL DEFAULT 0,  -- lots launched by the orchestrator since the operator last did
+  armed       INTEGER NOT NULL DEFAULT 0   -- the end-of-lot wake granted one launch
 );
 
 -- Board-wide operator preferences that aren't about one card or one repo. Key/value because a column
@@ -2158,6 +2178,46 @@ export class BoardDb {
       )
       .run(repoPath, note, this.now());
     return this.getMemory(repoPath)!;
+  }
+
+  // ── the orchestrator's autonomy (ADR 0030) ───────────────────────────────────
+
+  autonomyOf(path: string): RepoAutonomy {
+    const r = this.db
+      .query<{ enabled: number; max_chain: number | null; stop_on_red: number; chained: number; armed: number }, [string]>("SELECT * FROM repo_autonomy WHERE path = ?")
+      .get(path);
+    return r
+      ? { enabled: r.enabled === 1, maxChain: r.max_chain, stopOnRed: r.stop_on_red === 1, chained: r.chained, armed: r.armed === 1 }
+      : { enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false };
+  }
+
+  /** The operator's settings. Turning it off disarms; turning it on starts a fresh chain. */
+  setAutonomy(path: string, s: Pick<RepoAutonomy, "enabled" | "maxChain" | "stopOnRed">): RepoAutonomy {
+    const was = this.autonomyOf(path);
+    const fresh = s.enabled && !was.enabled;
+    this.db
+      .query(
+        `INSERT INTO repo_autonomy (path, enabled, max_chain, stop_on_red, chained, armed) VALUES (?, ?, ?, ?, 0, 0)
+         ON CONFLICT(path) DO UPDATE SET enabled = excluded.enabled, max_chain = excluded.max_chain, stop_on_red = excluded.stop_on_red,
+           chained = CASE WHEN ? THEN 0 ELSE chained END, armed = CASE WHEN excluded.enabled = 1 THEN armed ELSE 0 END`,
+      )
+      .run(path, s.enabled ? 1 : 0, s.maxChain, s.stopOnRed ? 1 : 0, fresh ? 1 : 0);
+    return this.autonomyOf(path);
+  }
+
+  /** The end-of-lot wake grants (or withdraws) the one launch the orchestrator may make. */
+  armAutonomy(path: string, armed: boolean): void {
+    this.db.query("UPDATE repo_autonomy SET armed = ? WHERE path = ?").run(armed ? 1 : 0, path);
+  }
+
+  /** The orchestrator launches: spends the grant, counts one more lot chained. False when not armed. */
+  spendAutonomy(path: string): boolean {
+    return this.db.query("UPDATE repo_autonomy SET armed = 0, chained = chained + 1 WHERE path = ? AND enabled = 1 AND armed = 1").run(path).changes === 1;
+  }
+
+  /** The operator launched: the chain starts again. */
+  resetChain(path: string): void {
+    this.db.query("UPDATE repo_autonomy SET chained = 0, armed = 0 WHERE path = ?").run(path);
   }
 
   // ── repo preferences ────────────────────────────────────────────────────────
