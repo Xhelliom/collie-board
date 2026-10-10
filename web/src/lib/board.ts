@@ -1105,11 +1105,17 @@ export interface ClaudeUsage {
  * The bridge caches it for 15 minutes, so calling this on every visit to the dashboard is cheap;
  * `refresh` skips that cache and is what the gauge's refresh button sends.
  */
+/** One provider's quota reading — Claude today, any other once the bridge can read it. */
+export interface ProviderUsage extends ClaudeUsage {
+  id: string;
+  label: string;
+}
+
 export function fetchUsage(
   refresh = false,
   signal?: AbortSignal,
-): Promise<{ usage: ClaudeUsage | null }> {
-  return apiRequest<{ usage: ClaudeUsage | null }>(`/api/board/usage${refresh ? "?refresh=1" : ""}`, {
+): Promise<{ usage: ClaudeUsage | null; providers?: ProviderUsage[] }> {
+  return apiRequest<{ usage: ClaudeUsage | null; providers?: ProviderUsage[] }>(`/api/board/usage${refresh ? "?refresh=1" : ""}`, {
     signal: withTimeout(signal, GET_TIMEOUT_MS),
   });
 }

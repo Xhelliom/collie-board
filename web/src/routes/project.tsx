@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
 import { MessagesSquare } from "lucide-react";
@@ -12,6 +12,7 @@ import { templateFor, templateName } from "@/lib/templates";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
+import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
 import { boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
@@ -35,7 +36,6 @@ const FILTERS: { id: Filter; label: MessageKey; dot: string }[] = [
 ];
 const FILTER_KEY = "collie-project-filter";
 
-const calm = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const store = {
   get: () => {
     try {
@@ -52,26 +52,6 @@ const store = {
     }
   },
 };
-
-/** Counts up to `to` once on mount, then follows it; still for people who asked for less motion. */
-function useCountUp(to: number): number {
-  const [v, setV] = useState(calm() ? to : 0);
-  const from = useRef(v);
-  useEffect(() => {
-    if (calm()) return setV(to);
-    const t0 = performance.now();
-    const start = from.current;
-    let raf = requestAnimationFrame(function tick(t) {
-      const x = Math.min(1, (t - t0) / 900);
-      const val = Math.round(start + (to - start) * (1 - Math.pow(1 - x, 3)));
-      from.current = val;
-      setV(val);
-      if (x < 1) raf = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [to]);
-  return v;
-}
 
 const R = 66;
 const C = 2 * Math.PI * R;
@@ -108,18 +88,6 @@ function Ring({ done, active, total }: { done: number; active: number; total: nu
           {t("project.ring.flight", { active })}
         </span>
       </div>
-    </div>
-  );
-}
-
-function Kpi({ label, value, note, tone }: { label: string; value: number; note?: string; tone: string }) {
-  const shown = useCountUp(value);
-  return (
-    <div className="relative overflow-hidden rounded-xl border bg-card/70 p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25">
-      <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
-      <div className="mt-1.5 text-3xl font-semibold leading-none tabular-nums">{shown}</div>
-      {note && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
     </div>
   );
 }

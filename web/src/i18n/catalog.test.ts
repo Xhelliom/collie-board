@@ -10,13 +10,14 @@ import { project } from "./messages/project";
 import { prs } from "./messages/prs";
 import { sheets } from "./messages/sheets";
 import { templates } from "./messages/templates";
+import { home } from "./messages/home";
 
 const forms = (v: string | { one: string; other: string }) => (typeof v === "string" ? [v] : [v.one, v.other]);
 const params = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
 
 describe("the message catalog", () => {
   it("has no key defined in two areas — the spread would let the last one win silently", () => {
-    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates].flatMap((a) => Object.keys(a));
+    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates, home].flatMap((a) => Object.keys(a));
     expect(all.filter((k, i) => all.indexOf(k) !== i)).toEqual([]);
     expect(Object.keys(CATALOG).length).toBe(all.length);
   });

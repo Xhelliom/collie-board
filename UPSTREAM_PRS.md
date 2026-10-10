@@ -764,7 +764,7 @@ is one terminal away — which is the one place a phone is not.
 | | |
 |---|---|
 | Commits | `9cb5d0b` (the gauge) · `0d6816f` (resolve the CLI, PATH is not enough) · `dbf1ba9` (count up, not down) · `e56e817` (one line, then the detail) |
-| Files | `bridge/usage.ts` (+ test), `web/src/components/usage-gauge.tsx` (+ test), one route, one line on the dashboard |
+| Files | `bridge/usage.ts` (+ test), `web/src/components/usage-gauge.tsx` (+ test), one route, one line on the dashboard. **In the fork `usage-gauge.tsx` is gone**: the dashboard shows the quota as rings (`home-dashboard.tsx`, fork-only), so cherry-pick the gauge from `e56e817`, not from `main`. |
 | Extraction | **Clean cherry-pick.** No card in sight: a subprocess, a regex and a gauge. Only the route's home moves — the fork hangs it off `/api/board/usage` because that prefix is already dispatched; upstream would give it `/api/usage` in `server.ts`. |
 
 **`claude -p "/usage"` prints the panel as plain text in ~1.5 s and spends no model turn** — the

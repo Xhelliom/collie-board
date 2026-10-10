@@ -67,7 +67,7 @@ import {
   reopenForPr,
   resolveConflict,
 } from "./integrate.ts";
-import { usageTracker } from "./usage.ts";
+import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
@@ -456,7 +456,9 @@ async function route(
     const force = new URL(req.url).searchParams.get("refresh") === "1";
     // null when there is no reading to be had (no `claude` installed, an unrecognised panel): the
     // client then shows nothing rather than a made-up number.
-    return ctx.json({ usage: await usageTracker.get(force) });
+    // `usage` stays Claude's, for clients that predate `providers` (one entry per provider with a reading).
+    const providers = await providersUsage(force);
+    return ctx.json({ usage: providers.length ? await usageTracker.get(false) : null, providers });
   }
 
   // The open PRs. Read from the journal alone; `?check=1` is the Check tap, the one thing that asks

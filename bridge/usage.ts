@@ -128,6 +128,7 @@ export class UsageTracker {
   constructor(
     private readonly now: () => number = Date.now,
     private readonly read: () => Promise<string | null> = readUsage,
+    private readonly parse: (out: string) => UsageLimit[] = parseUsage,
   ) {}
 
   /** The current reading, refreshing it when it's older than the TTL or `force` is set. */
@@ -143,7 +144,7 @@ export class UsageTracker {
 
   private async refresh(): Promise<ClaudeUsage | null> {
     const out = await this.read();
-    const limits = out === null ? [] : parseUsage(out);
+    const limits = out === null ? [] : this.parse(out);
     // A run that produced no limit lines keeps the previous reading rather than blanking the gauge:
     // one hiccup shouldn't erase a number that was true fifteen minutes ago.
     if (limits.length === 0) return this.cached;
@@ -157,3 +158,25 @@ export class UsageTracker {
  * so threading a field through server.ts's BoardContext would widen the upstream diff for nothing.
  */
 export const usageTracker = new UsageTracker();
+
+/** One provider's reading, as the dashboard's rings consume it. */
+export interface ProviderUsage extends ClaudeUsage {
+  id: string;
+  label: string;
+}
+
+/**
+ * The providers whose quota the board can read. A provider joins this list only once its reading has
+ * been checked against a real one on a real install (the rule of the context gauge and of `agents.toml`'s
+ * `context`): a ring that might be wrong is worse than no ring. To add one: a `UsageTracker` built with
+ * its own `read` + `parse`, and one line here. ponytail: Claude is the only one verified so far.
+ */
+const PROVIDERS: { id: string; label: string; tracker: UsageTracker }[] = [
+  { id: "claude", label: "Claude Code", tracker: usageTracker },
+];
+
+/** Every provider that has a reading right now; one with none is simply absent, never a placeholder. */
+export async function providersUsage(force = false): Promise<ProviderUsage[]> {
+  const all = await Promise.all(PROVIDERS.map(async (p) => ({ p, u: await p.tracker.get(force) })));
+  return all.flatMap(({ p, u }) => (u ? [{ id: p.id, label: p.label, ...u }] : []));
+}

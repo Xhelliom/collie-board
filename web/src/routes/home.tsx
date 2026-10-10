@@ -1,4 +1,5 @@
-import { useNavigate, useRouteLoaderData } from "react-router";
+import { useLoaderData, useNavigate, useRouteLoaderData } from "react-router";
+import { useMemo } from "react";
 
 import { AppHeader } from "@/components/app-header";
 import { NavMark } from "@/components/app-nav";
@@ -7,7 +8,10 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { AgentList } from "@/components/agent-list";
 import { StatusArea } from "@/components/status-area";
 import { UpdateBanner } from "@/components/update-banner";
-import { UsageGauge } from "@/components/usage-gauge";
+import { HomeActivity, HomeHero, HomeKpis, ProjectTiles, UsageRings, useRepoPhases } from "@/components/home-dashboard";
+import type { BoardData } from "@/lib/board-loaders";
+import { reposOf } from "@/lib/board";
+import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 
@@ -18,6 +22,9 @@ import { panePath } from "@/lib/nav";
 // the ranking itself is the design.
 export function HomeRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
+  const board = useLoaderData() as BoardData;
+  const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
+  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), phases), [board.cards, phases]);
   const navigate = useNavigate();
 
   const open = (id: string) => navigate(panePath(id, data.session));
@@ -46,12 +53,21 @@ export function HomeRoute() {
         <ReadOnlyBanner device={data.device} />
 
         <main className="flex-1 px-4 py-5 lg:px-5 lg:py-6">
-          <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} />
+          <div className="mx-auto flex max-w-6xl flex-col gap-6">
+            <HomeHero agents={data.agents} dash={dash} />
+            <HomeKpis dash={dash} />
+            {/* The triage stays the heart of the screen; the board's context sits beside it on a wide
+                screen and under it on a phone (ponytail: idle·done therefore sits above the tiles there). */}
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} />
+              <aside className="flex flex-col gap-6">
+                <ProjectTiles repos={dash.repos} />
+                <UsageRings />
+                <HomeActivity session={data.session} />
+              </aside>
+            </div>
+          </div>
         </main>
-
-        {/* How much Claude Code quota is left. Below the triage, not above it: this screen answers
-            "which agent needs me" first, and a quota reading is context for that, not the answer. */}
-        <UsageGauge className="px-4 pb-1 lg:px-5" />
 
         {/* An available update / needed restart. The build stamp moved to Settings + the sidebar
             footer (app-nav.tsx) — it no longer needs a home of its own here too. */}
