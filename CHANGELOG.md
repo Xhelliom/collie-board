@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.168.0] - 2026-10-10
+
+### Added
+
+- Templates d'agent (ADR 0026) : un rôle = brief + agent + modèle, appliqué au démarrage d'une carte (celui de la carte, sinon de sa phase) ; cinq fournis (implémenteur, relecteur, doc, exploration, correctif), réinitialisables (9da0191)
+- Créer un template dans l'app, avec le copilote qui rédige le brief à partir d'une description ; importer les `.claude/agents/*.md` d'un dépôt sur confirmation, jamais automatiquement (9da0191)
+- Le modèle d'un template passe en option du CLI pour `claude` seulement (`model_flag` dans `agents.toml`) ; les autres agents l'ignorent et l'écran le dit (9da0191)
+- Sélecteur de template sur la carte et dans « Nouvelle carte » ; `templateId` sur une carte et sur une phase ; le journal note le template utilisé (9da0191)
+
 ## [0.167.0] - 2026-10-10
 
 ### Added
