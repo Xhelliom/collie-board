@@ -9,6 +9,27 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.166.0] - 2026-10-10
+
+### Added
+
+- Board, Project et Open PRs sont trois vues d'une même chose : une rangée d'onglets commune, qui garde le dépôt choisi (f2fed3c)
+- Multilingue (français / anglais) : dictionnaire typé, une entrée = les deux langues ; réglage « Langue » dans Settings (automatique = navigateur) (7ee12d7)
+- Sélecteur de dépôt commun à Board, Projet et PR ouvertes : un seul filtre, mémorisé, qui garde la vue courante (7ee12d7)
+
+### Changed
+
+- La barre de navigation reste visible (Board allumé) sur Project et Open PRs (f2fed3c)
+- « Retour » revient d'où l'on vient (carte ouverte depuis le projet → projet), au lieu d'un parent fixe (f2fed3c)
+- Les boutons « Project » / « Open PRs » de l'en-tête du board laissent place à la rangée d'onglets (f2fed3c)
+- Plateau, carte (page, éditeur, diff, journal), nouvelle carte, filtres et pastilles : toutes les chaînes passent par le dictionnaire fr/en (la langue se règle dans Settings) (4977cb3)
+- Vue projet, PR ouvertes, feuilles « Run » et « Barrière », panneau orchestrateur : tous les textes passent par le dictionnaire fr/en (changent avec le réglage « Langue ») (976b2fb)
+
+### Fixed
+
+- Tiroir de l'orchestrateur : hauteur fixe (plus à moitié vide), conversation qui défile à l'intérieur et reste ancrée en bas, champ de saisie toujours visible (c4263b4)
+- Le bouton pour rouvrir le chat passe dans l'en-tête de la page projet (le bouton flottant se cachait derrière la barre de navigation) (c4263b4)
+
 ## [0.165.1] - 2026-10-10
 
 ### Fixed
