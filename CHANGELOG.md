@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.169.0] - 2026-10-10
+
+### Added
+
+- Template par défaut d'une phase (sélecteur sous l'objectif dans la vue projet), appliqué aux cartes qui n'ont pas le leur (ae32307)
+- Pastille du template sur les tuiles du board et les étapes du projet (atténuée quand il est hérité de la phase), et le modèle réellement lancé dans la ligne Agent (ae32307)
+- « Gérer les templates… » depuis le sélecteur d'une carte, de « Nouvelle carte » et d'une phase : la même feuille qu'en Settings, sans quitter l'écran (ae32307)
+
+### Changed
+
+- Exemples neutres (plus de référence à Overgate) dans le prompt de suggestion de barrière et les commentaires (ae32307)
+
 ## [0.168.0] - 2026-10-10
 
 ### Added
