@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.178.0] - 2026-10-10
+
+### Added
+
+- Réglage par projet : l'orchestrateur peut lancer le lot planifié suivant à la fin d'un lot (défaut : off, ADR 0030) (7915a8a)
+- Bornes par projet : lots enchaînés sans l'opérateur (1 à illimité, défaut 1) et arrêt sur gate/CI rouge (défaut on) (7915a8a)
+- `PUT /api/orchestrator/autonomy` : réservé à l'opérateur (403 avec `x-collie-pane`) (7915a8a)
+
 ## [0.177.4] - 2026-10-10
 
 ### Fixed
