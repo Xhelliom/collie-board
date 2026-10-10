@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
 import { Maximize2, Send } from "lucide-react";
 
+import { useT } from "@/i18n";
+import { ago } from "@/lib/project-facts";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
-import { timeAgo } from "@/lib/format";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
@@ -37,6 +38,7 @@ export function OrchestratorPanel({
   /** The note it left its next self (ADR 0023), read-only here. */
   memory?: OrchestratorMemory | null;
 }) {
+  const t = useT();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
@@ -53,7 +55,7 @@ export function OrchestratorPanel({
   if (!repo) {
     return (
       <p data-vaul-no-drag className="p-4 text-sm text-muted-foreground">
-        Choisis un dépôt (filtre « repo » du board) pour discuter avec l'orchestrateur de son projet.
+        {t("orch.pickRepo")}
       </p>
     );
   }
@@ -62,7 +64,7 @@ export function OrchestratorPanel({
     setBusy(true);
     try {
       await startOrchestrator(repo!);
-      setStatus("Orchestrateur démarré.", "success");
+      setStatus(t("orch.started"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     } finally {
@@ -77,10 +79,10 @@ export function OrchestratorPanel({
       await renewOrchestrator(repo!, step);
       if (step === "ask") {
         setAsked({ base: state?.memoryUpdatedAt ?? 0 });
-        setStatus("Il met sa note à jour…", "info", 4000);
+        setStatus(t("orch.noting"), "info", 4000);
       } else {
         setAsked(null);
-        setStatus("Orchestrateur renouvelé.", "success");
+        setStatus(t("orch.renewed"), "success");
       }
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
@@ -109,12 +111,9 @@ export function OrchestratorPanel({
   if (!state?.paneId) {
     return (
       <div data-vaul-no-drag className="flex flex-col gap-3 p-4">
-        <p className="text-sm text-muted-foreground">
-          Un agent dédié à ce projet : il lit le board, propose des phases, des lots et une roadmap, et prépare le tout sans
-          jamais rien lancer. Il consomme ton quota tant qu'il travaille.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("orch.intro")}</p>
         <Button variant="brand" className="self-start" disabled={busy} onClick={() => void start()}>
-          {busy ? "Démarrage…" : "Démarrer l'orchestrateur"}
+          {busy ? t("orch.starting") : t("orch.start")}
         </Button>
       </div>
     );
@@ -124,11 +123,11 @@ export function OrchestratorPanel({
     <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-          Orchestrateur
+          {t("orch.title")}
           {typeof state.ctxPct === "number" && (
             <span
               role="img"
-              aria-label={`Contexte rempli à ${Math.round(state.ctxPct)} %`}
+              aria-label={t("orch.ctxFull", { pct: Math.round(state.ctxPct) })}
               className="inline-flex items-center gap-1.5 font-mono text-[11px] normal-case tracking-normal"
             >
               <span aria-hidden="true" className="h-1 w-12 overflow-hidden rounded-full bg-border">
@@ -140,15 +139,15 @@ export function OrchestratorPanel({
         </span>
         <Link to={panePath(state.paneId)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
           <Maximize2 className="size-3" />
-          Ouvrir en plein écran
+          {t("orch.fullscreen")}
         </Link>
       </div>
       {typeof state.ctxPct === "number" && state.ctxPct >= HANDOVER_PCT && (
         <div role="alert" className="flex flex-col gap-2 rounded-lg border border-status-working/50 bg-status-working/10 p-2.5 text-sm">
-          <span>Le contexte se remplit — renouvelle l'orchestrateur. Il écrit sa note, puis un nouveau repart de cette note.</span>
+          <span>{t("orch.handover")}</span>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" className="h-8 px-3 text-xs" disabled={busy || asked !== null} onClick={() => void renew("ask")}>
-              Lui demander de noter
+              {t("orch.askNote")}
             </Button>
             {asked !== null && (
               <Button
@@ -157,11 +156,11 @@ export function OrchestratorPanel({
                 disabled={busy || (state.memoryUpdatedAt ?? 0) <= asked.base}
                 onClick={() => void renew("restart")}
               >
-                Repartir à neuf
+                {t("orch.restart")}
               </Button>
             )}
             {asked !== null && (state.memoryUpdatedAt ?? 0) <= asked.base && (
-              <span className="text-xs text-muted-foreground">En attente de sa note…</span>
+              <span className="text-xs text-muted-foreground">{t("orch.waitingNote")}</span>
             )}
           </div>
         </div>
@@ -173,22 +172,22 @@ export function OrchestratorPanel({
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
         }}
         className="min-h-32 flex-1 overflow-y-auto rounded-lg border bg-card/40 p-2"
-        aria-label="Fil de l'orchestrateur"
+        aria-label={t("orch.thread")}
       >
         {entries.length > 0 ? (
           <TranscriptView entries={entries} />
         ) : (
-          <p className="p-2 text-sm text-muted-foreground">Il démarre… sa première réponse apparaît ici.</p>
+          <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
         )}
       </div>
       <details className="rounded-lg border bg-card/40 px-2.5 py-1.5 text-sm">
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
-          Mémoire{memory ? ` · notée ${timeAgo(memory.updatedAt)}` : ""}
+          {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
         </summary>
         {memory ? (
           <p className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{memory.note}</p>
         ) : (
-          <p className="mt-1.5 text-muted-foreground">Pas encore de note : il l'écrit à chaque jalon, et c'est elle que lira son successeur.</p>
+          <p className="mt-1.5 text-muted-foreground">{t("orch.memoryEmpty")}</p>
         )}
       </details>
       <form
@@ -199,7 +198,7 @@ export function OrchestratorPanel({
         }}
       >
         <textarea
-          aria-label="Message à l'orchestrateur"
+          aria-label={t("orch.message")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           // Enter sends, and so do Ctrl/Super+Enter; Shift+Enter keeps its newline. Never mid-IME composition.
@@ -209,10 +208,10 @@ export function OrchestratorPanel({
             void send();
           }}
           rows={2}
-          placeholder="Dis-lui ce que tu veux planifier…"
+          placeholder={t("orch.placeholder")}
           className="min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         />
-        <Button type="submit" variant="brand" className="h-10 shrink-0 px-3" disabled={busy || draft.trim() === ""} aria-label="Envoyer">
+        <Button type="submit" variant="brand" className="h-10 shrink-0 px-3" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
           <Send className="size-4" />
         </Button>
       </form>

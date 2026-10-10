@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setPreference } from "@/i18n";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GateSheet } from "./gate-sheet";
 import type { GateSuggestion } from "@/lib/board";
@@ -20,6 +21,10 @@ beforeEach(() => {
   setRepoGate.mockClear();
   suggestRepoGate.mockReset();
 });
+
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("fr"));
+afterEach(() => setPreference("en"));
 
 describe("GateSheet (ADR 0020)", () => {
   it("saves what is typed, whitespace normalised, then closes and tells the caller", async () => {

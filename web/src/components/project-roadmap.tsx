@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ChevronDown, Copy } from "lucide-react";
 
 import { MarkdownText } from "@/components/markdown-text";
+import { useT, type MessageKey } from "@/i18n";
 import { boardErrorMessage, type Decision, type DecisionStatus, type Roadmap, type RoadmapItem, type RoadmapStatus } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -19,14 +20,15 @@ const DOT: Record<RoadmapStatus, string> = {
   dropped: "bg-muted-foreground/30",
 };
 
-const DECISION: Record<DecisionStatus, { mark: string; label: string }> = {
-  decided: { mark: "✅", label: "Decided" },
-  leaning: { mark: "🟡", label: "Leaning" },
-  open: { mark: "❓", label: "Open questions" },
+const DECISION: Record<DecisionStatus, { mark: string; label: MessageKey; count: MessageKey }> = {
+  decided: { mark: "✅", label: "roadmap.decision.decided", count: "roadmap.count.decided" },
+  leaning: { mark: "🟡", label: "roadmap.decision.leaning", count: "roadmap.count.leaning" },
+  open: { mark: "❓", label: "roadmap.decision.open", count: "roadmap.count.open" },
 };
 const ORDER: DecisionStatus[] = ["decided", "leaning", "open"];
 
 function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; index: number; decisions: Decision[]; open: boolean; onToggle: () => void }) {
+  const t = useT();
   const body = `roadmap-${item.id}`;
   return (
     <li className="rounded-xl border bg-background/40">
@@ -44,7 +46,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
         </span>
         <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
           <span className={cn("size-2 rounded-full", DOT[item.status])} />
-          {item.status}
+          {t(`roadmap.status.${item.status}`)}
         </span>
         <ChevronDown className={cn("size-4 self-center text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
       </button>
@@ -55,10 +57,10 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
               <MarkdownText text={item.detail} className="text-sm" />
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No detail yet — the orchestrator writes the objective, the end-of-phase demo, the risk and the why here.</p>
+            <p className="text-sm text-muted-foreground">{t("roadmap.noDetail")}</p>
           )}
           {decisions.length > 0 && (
-            <ul className="flex flex-col gap-1 text-sm text-muted-foreground" aria-label="Decisions of this phase">
+            <ul className="flex flex-col gap-1 text-sm text-muted-foreground" aria-label={t("roadmap.phaseDecisions")}>
               {decisions.map((d) => (
                 <li key={d.id}>
                   <span aria-hidden="true">{DECISION[d.status].mark} </span>
@@ -74,6 +76,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
 }
 
 export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadmap | null }) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   // The active phase opens by itself — that is where the brainstorm is; the rest stay folded.
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set((roadmap?.items ?? []).filter((i) => i.status === "active").map((i) => i.id)));
@@ -91,7 +94,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
       const res = await fetch(`/api/roadmap?repo=${encodeURIComponent(repo)}&format=${format}`);
       if (!res.ok) throw new Error(`${res.status}`);
       await navigator.clipboard.writeText(await res.text());
-      setStatus(format === "md" ? "Detailed roadmap copied as Markdown." : "Step-by-step roadmap copied as Markdown.", "success");
+      setStatus(t(format === "md" ? "roadmap.copiedDetailed" : "roadmap.copiedSteps"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -99,10 +102,10 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
 
   const copyButton = "inline-flex items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25";
   return (
-    <section aria-label="Roadmap" className="flex flex-col gap-2 rounded-2xl border bg-card/70 p-4">
+    <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-2xl border bg-card/70 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex flex-1 items-center gap-2 text-left">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Roadmap</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.aria")}</span>
           {items.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>}
           <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
         </button>
@@ -110,11 +113,11 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
           <>
             <button type="button" onClick={() => void copy("md")} className={copyButton}>
               <Copy className="size-3.5" />
-              Copy the detailed roadmap
+              {t("roadmap.copyDetailed")}
             </button>
             <button type="button" onClick={() => void copy("steps")} className={copyButton}>
               <Copy className="size-3.5" />
-              Copy the step by step
+              {t("roadmap.copySteps")}
             </button>
           </>
         )}
@@ -136,12 +139,12 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
               ))}
             </ol>
             {decisions.length > 0 && (
-              <div aria-label="Decision journal" className="flex flex-col gap-2 border-t pt-3">
+              <div aria-label={t("roadmap.journal")} className="flex flex-col gap-2 border-t pt-3">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Decisions</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.decisions")}</span>
                   {ORDER.map((s) => (
                     <span key={s} className="tabular-nums text-muted-foreground">
-                      {DECISION[s].mark} {decisions.filter((d) => d.status === s).length} {DECISION[s].label.toLowerCase()}
+                      {DECISION[s].mark} {t(DECISION[s].count, { count: decisions.filter((d) => d.status === s).length })}
                     </span>
                   ))}
                 </div>
@@ -149,7 +152,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
                   const group = decisions.filter((d) => d.status === s);
                   if (!group.length) return null;
                   return (
-                    <ul key={s} aria-label={DECISION[s].label} className="flex flex-col gap-1 text-sm">
+                    <ul key={s} aria-label={t(DECISION[s].label)} className="flex flex-col gap-1 text-sm">
                       {group.map((d) => {
                         const phase = items.find((i) => i.id === d.itemId);
                         return (
@@ -169,10 +172,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
             )}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            No roadmap yet. Start the brainstorm with the project orchestrator: it asks one theme at a time and writes the
-            vision, each phase and every decision here as you settle them.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("roadmap.empty")}</p>
         ))}
     </section>
   );

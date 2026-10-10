@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { checkSummary, prVerdict, PrsRoute } from "./prs";
 import type { OpenPr, PrStatus } from "@/lib/board";
@@ -24,11 +25,21 @@ const row = (id: string, pr?: PrStatus | null): OpenPr => ({
   ...(pr === undefined ? {} : { pr }),
 });
 
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
+
 describe("prVerdict — only what GitHub actually said", () => {
   it("never reads UNKNOWN as mergeable", () => {
     expect(prVerdict(status({ mergeable: true }))).toBe("mergeable");
     expect(prVerdict(status({ conflicting: true }))).toBe("conflict");
     expect(prVerdict(status({}))).toBe("pending");
+  });
+
+  it("speaks French when asked to", () => {
+    setPreference("fr");
+    expect(checkSummary(["conflict", "mergeable", "mergeable"])).toBe("1 conflit · 2 fusionnables.");
+    expect(checkSummary(["pending"])).toContain("revérifie dans quelques secondes");
   });
 
   it("tells an unchecked row from one GitHub could not be asked about", () => {

@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider, useLoaderData } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import type { OrchestratorMemory, OrchestratorState } from "@/lib/board";
@@ -23,6 +24,10 @@ function mount(repo: string | null, state: OrchestratorState | null, entries: Tr
   );
   render(<RouterProvider router={router} />);
 }
+
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("fr"));
+afterEach(() => setPreference("en"));
 
 describe("OrchestratorPanel", () => {
   it("asks for a repo when none is chosen", async () => {

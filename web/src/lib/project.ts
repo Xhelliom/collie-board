@@ -16,6 +16,7 @@ export interface ProjectLot {
 export interface ProjectPhase {
   /** Stable React / anchor key: the phase id, the container id, or "loose". */
   key: string;
+  /** Empty for the "no phase" section: its name is the viewer's language, the view supplies it. */
   title: string;
   goal: string;
   /** The table row, when this section is one. */
@@ -84,14 +85,14 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
       .sort((a, b) => a.position - b.position)
       .map((p) => section(p.id, p.name, p.goal, p, null, steps.filter((s) => s.phaseId === p.id)));
     const loose = steps.filter((s) => !s.phaseId || !known.has(s.phaseId));
-    if (loose.length || lotRows.some((l) => !l.phaseId || !known.has(l.phaseId))) phases.push(section("loose", "No phase", "", null, null, loose));
+    if (loose.length || lotRows.some((l) => !l.phaseId || !known.has(l.phaseId))) phases.push(section("loose", "", "", null, null, loose));
   } else {
     phases = live
       .filter((c) => parents.has(c.id))
       .sort(byPosition)
       .map((c) => section(c.id, c.title, "", null, c, steps.filter((s) => s.parentId === c.id)));
     const loose = steps.filter((s) => !s.parentId || !parents.has(s.parentId));
-    if (loose.length) phases.push(section("loose", "No phase", "", null, null, loose));
+    if (loose.length) phases.push(section("loose", "", "", null, null, loose));
   }
 
   const ordered = phases.flatMap((p) => p.steps);
