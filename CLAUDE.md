@@ -164,6 +164,10 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   operator set per repo** ([ADR 0020](./.adr/0020-the-gate-is-the-operators-command-run-before-the-lead.md)).
   argv elements, never a shell; the one client-supplied path is validated and always follows `--`; a
   gate is never read from the repo.
+- **The skill that documents the API lives here: `skills/collie-board/SKILL.md`**, linked into
+  `~/.claude/skills` by `scripts/install-skill.sh`. Edit it in the repo, never the copy under `~/.claude`.
+  `bridge/skill.test.ts` fails when a route is added without being documented in it or listed there as
+  the operator's own, and when it documents a route that is gone.
 - **The copilot spends the user's quota.** It stays off by default, serialised to one request, and
   reviews from `--stat` — never the full diff.
 - **The bridge does not know its consumers.** Anything that wants what the board knows — a voice
