@@ -713,8 +713,29 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
 
   it("never merges while GitHub has not worked mergeability out", async () => {
     const t = setup("UNKNOWN");
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh, 0);
     expect(direct(t.calls)).toBe(false);
-    expect(t.merges()[0]).toMatchObject({ merged: false });
+    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("re-check") });
+  });
+
+  it("merges when the single re-check finds an UNKNOWN PR MERGEABLE", async () => {
+    const t = setup("UNKNOWN");
+    let views = 0;
+    const gh: GitRunner = async (a) =>
+      a[1] === "view" ? { ok: true, stdout: view(++views > 1 ? "MERGEABLE" : "UNKNOWN"), stderr: "" } : t.gh(a);
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh, 0);
+    expect(views).toBe(2);
+    expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("the board merged it") }]);
+    expect(merged(t)).toBe(1);
+  });
+
+  it("does not merge when the re-check turns UNKNOWN into CONFLICTING", async () => {
+    const t = setup("UNKNOWN");
+    let views = 0;
+    const gh: GitRunner = async (a) =>
+      a[1] === "view" ? { ok: true, stdout: view(++views > 1 ? "CONFLICTING" : "UNKNOWN"), stderr: "" } : t.gh(a);
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh, 0);
+    expect(direct(t.calls)).toBe(false);
+    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("conflict") });
   });
 });

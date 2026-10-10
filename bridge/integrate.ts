@@ -303,6 +303,9 @@ export async function prForCard(
   return { ok: true, value: { url: pr.url } };
 }
 
+/** Wait before the single mergeability re-check — a guess at GitHub's lag, to be validated by the owner. */
+const MERGEABLE_RECHECK_MS = 5000;
+
 /** What a run knows about the gate when its PR opens: the board merges itself only on `ok`. */
 export interface MergeGate {
   runId: string;
@@ -322,16 +325,22 @@ export async function landPr(
   branch: string,
   gate: MergeGate | undefined,
   gh: GitRunner = runGh,
+  recheckMs = MERGEABLE_RECHECK_MS,
 ): Promise<void> {
   if (await armAutoMerge(db, cardId, repoPath, branch, gh)) return;
   const runId = gate?.runId ?? "";
   const skip = (reason: string) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason });
   if (!gate?.ok) return skip(gate ? gate.why : "no gate verdict — not merging");
-  const pr = await prStatusOf(repoPath, branch, gh);
+  let pr = await prStatusOf(repoPath, branch, gh);
+  // GitHub computes mergeability lazily after `pr create`: one deferred re-check, never a poll loop.
+  if (pr?.state === "open" && !pr.mergeable && !pr.conflicting) {
+    await new Promise((r) => setTimeout(r, recheckMs));
+    pr = await prStatusOf(repoPath, branch, gh);
+  }
   if (!pr) return skip("could not read the PR's state from GitHub — not merging");
   if (pr.state !== "open") return skip(`the PR is already ${pr.state}`);
   if (pr.conflicting) return skip("the PR has a conflict — not merging");
-  if (!pr.mergeable) return skip("GitHub has not worked out mergeability yet — not merging");
+  if (!pr.mergeable) return skip("GitHub still has not worked out mergeability after a re-check — not merging");
   const r = await enableAutoMerge(repoPath, branch, gh, []);
   db.recordRunEvent(cardId, "run.merge", {
     runId,
