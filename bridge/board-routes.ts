@@ -70,7 +70,7 @@ import {
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
-import { listRepos, scanRootsFor } from "./repos.ts";
+import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
@@ -753,7 +753,7 @@ async function route(
       const pane = req.headers.get(PANE_HEADER)?.trim();
       const filer = pane ? db.openSessionByPane(pane) : null;
       const card = db.createCard({
-        ...parsed.value,
+        ...(await withDefaultBaseRef(parsed.value)),
         title: parsed.value.title!,
         ...(pane ? { origin: "agent" as const, originCardId: filer?.cardId ?? null } : {}),
       });

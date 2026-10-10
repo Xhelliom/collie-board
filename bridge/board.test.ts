@@ -76,6 +76,7 @@ import {
 import {
   basename,
   defaultBranchOf,
+  withDefaultBaseRef,
   listRepos,
   mergeRepoChoices,
   repoRootOf,
@@ -1852,6 +1853,13 @@ describe("repo picker", () => {
   it("returns null for a directory that isn't in a repo", async () => {
     const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: "not a git repository" });
     expect(await repoRootOf("/tmp", git)).toBeNull();
+  });
+
+  it("withDefaultBaseRef: fills an absent baseRef, respects a given one and a dependent card", async () => {
+    const git: GitRunner = async () => ({ ok: true, stdout: "origin/main\n", stderr: "" });
+    expect((await withDefaultBaseRef({ repoPath: "/repo" }, git)).baseRef).toBe("main");
+    expect((await withDefaultBaseRef({ repoPath: "/repo", baseRef: "dev" }, git)).baseRef).toBe("dev");
+    expect((await withDefaultBaseRef({ repoPath: "/repo", dependsOn: "abc" }, git)).baseRef).toBeUndefined();
   });
 
   it("prefers origin/HEAD for the default branch, not whatever is checked out", async () => {
