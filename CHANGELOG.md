@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.173.0] - 2026-10-10
+
+### Added
+
+- Le worker écrit un bilan (`.board/bilan.md`) en s'arrêtant ; le lead le reçoit et le juge avec le diff (10f3d0e)
+
+### Fixed
+
+- Diff vide + bilan « déjà livré » vérifiable dans main : terminé sans renvoi ; diff vide sans bilan : renvoi qui le réclame (journalisé `run.decision`) (10f3d0e)
+
 ## [0.172.3] - 2026-10-10
 
 ### Fixed
