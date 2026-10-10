@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.172.0] - 2026-10-10
+
+### Added
+
+- Une carte qui arrive en revue sans rien sur sa branche (ni commit, ni fichier) repart en `working`, avec le motif (branche, base) au journal ; « travail non commité » et « rien fait » sont distingués ; les explorations et cartes sans branche passent (3a695c1)
+
 ## [0.171.0] - 2026-10-10
 
 ### Added
