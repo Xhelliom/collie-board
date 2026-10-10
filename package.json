@@ -13,7 +13,8 @@
     "web:dev": "cd web && bun run dev",
     "test": "bun test ./bridge ./scripts && bash scripts/collie-board-ctl.test.sh",
     "test:ctl": "bash scripts/collie-board-ctl.test.sh",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "check": "bun run typecheck && bun run test && cd web && bun run typecheck && bun run test"
   },
   "devDependencies": {
     "@types/bun": "latest",
