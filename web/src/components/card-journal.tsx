@@ -264,6 +264,8 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.automerge.armed");
     case "card.automerge_refused":
       return t("journal.automerge.refused", { hint: autoMergeHint(String(p.error ?? "")) });
+    case "card.template":
+      return t("journal.template", { name: String(p.name ?? "") });
     case "card.start_failed":
       return t("journal.startFailed", { stage: String(p.stage), error: String(p.error) });
     case "card.split_from":

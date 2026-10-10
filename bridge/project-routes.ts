@@ -68,7 +68,9 @@ export async function handleProjectRoute(
     if (g === null) return ctx.text("bad goal", 400);
     if (b.position !== undefined && num(b.position) === null) return ctx.text("bad position", 400);
     if (b.roadmapItemId !== undefined && b.roadmapItemId !== null && typeof b.roadmapItemId !== "string") return ctx.text("bad roadmapItemId", 400);
+    if (b.templateId !== undefined && b.templateId !== null && (typeof b.templateId !== "string" || !db.getTemplate(b.templateId))) return ctx.text("templateId: no such template", 400);
     const phase = db.createPhase({
+      templateId: (b.templateId as string | null | undefined) ?? null,
       repoPath: b.repoPath,
       name: n,
       goal: g,
@@ -160,6 +162,10 @@ export async function handleProjectRoute(
       if ("roadmapItemId" in b) {
         if (b.roadmapItemId !== null && typeof b.roadmapItemId !== "string") return ctx.text("bad roadmapItemId", 400);
         patch.roadmapItemId = b.roadmapItemId as string | null;
+      }
+      if ("templateId" in b) {
+        if (b.templateId !== null && (typeof b.templateId !== "string" || !db.getTemplate(b.templateId))) return ctx.text("templateId: no such template", 400);
+        patch.templateId = b.templateId as string | null;
       }
       const phase = db.updatePhase(id, patch);
       audit("phase.patch", { phaseId: id, ...patch });

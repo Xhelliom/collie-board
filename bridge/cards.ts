@@ -14,6 +14,7 @@
 // Nothing here writes runtime state INTO the database beyond those three facts: a card's live
 // status, cwd and agent all still come from the snapshot on every read.
 
+import type { AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
 import {
   isAutoHandoffOffered,
@@ -28,6 +29,7 @@ import {
 import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { composePrompt, modelArgs, resolveTemplate } from "./templates.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
 /**
@@ -609,8 +611,10 @@ export async function launchAgent(
   kind: string,
   name: string,
   wait: (ms: number) => Promise<void> = sleep,
+  /** Extra CLI arguments for the agent — a template's model flag (ADR 0026). */
+  args: string[] = [],
 ): Promise<void> {
-  await retryWhileNotReady(() => herdr.startAgent({ paneId, kind, name }), wait);
+  await retryWhileNotReady(() => herdr.startAgent({ paneId, kind, name, ...(args.length ? { args } : {}) }), wait);
   await waitForAgentReady(herdr, paneId, wait);
 }
 
@@ -656,7 +660,13 @@ export async function startCard(
   herdr: HerdrClient,
   cfg: Config,
   cardId: string,
-  opts: { promptText?: string; sleep?: (ms: number) => Promise<void>; git?: GitRunner } = {},
+  opts: {
+    promptText?: string;
+    sleep?: (ms: number) => Promise<void>;
+    git?: GitRunner;
+    /** For a template's model flag; the shipped table when absent (ADR 0026). */
+    adapters?: Record<string, AgentAdapter>;
+  } = {},
 ): Promise<{ ok: true; value: StartResult } | { ok: false; error: StartError }> {
   const card = db.getCard(cardId);
   if (!card) return { ok: false, error: { kind: "herdr", message: "card not found" } };
@@ -713,7 +723,9 @@ export async function startCard(
   }
 
   const branch = card.branch ?? branchFromTitle(card.title, cfg.boardBranchPrefix);
-  const kind = card.agentKind ?? cfg.boardAgentKind;
+  // The card's own template, else its phase's (ADR 0026). Its kind yields to one the card names.
+  const template = resolveTemplate(card, card.phaseId ? db.getPhase(card.phaseId) : null, db.listTemplates());
+  const kind = card.agentKind ?? template?.agentKind ?? cfg.boardAgentKind;
 
   // THE REAL HANDOFF BETWEEN TWO CARDS IS THE BRANCH. A task that follows another needs the code
   // the first one wrote, not a summary of it — so a dependent card forks from its predecessor's
@@ -800,7 +812,9 @@ export async function startCard(
 
   try {
     const wait = opts.sleep ?? sleep;
-    await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait);
+    const args = modelArgs(kind, template?.model, opts.adapters);
+    if (template) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args } : {}) });
+    await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
   } catch (err) {
     // The agent never came up, so this session never existed in any meaningful sense — close it and
     // put the card back where it can be retried. Leaving it open would wedge the card: its pane is a
@@ -819,7 +833,9 @@ export async function startCard(
   const after = predecessor
     ? { title: predecessor.title, notes: db.listReviews(predecessor.id).at(-1)?.notes ?? null }
     : undefined;
-  const text = opts.promptText ?? initialPrompt(card, after);
+  // The brief goes in front of the card's first prompt — never in front of a special one (a conflict
+  // to settle, say), which is a message to an agent that already has its role.
+  const text = opts.promptText ?? composePrompt(template?.brief ?? "", initialPrompt(card, after));
   try {
     // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });

@@ -257,6 +257,7 @@ describe("reconcileOne", () => {
     autoHandoff: null,
     runId: null,
     phaseId: null,
+    templateId: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -621,6 +622,7 @@ describe("initialPrompt", () => {
     autoHandoff: null,
     runId: null,
     phaseId: null,
+    templateId: null,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1272,6 +1274,7 @@ describe("handoff prompts", () => {
     autoHandoff: null,
     runId: null,
     phaseId: null,
+    templateId: null,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
@@ -1693,6 +1696,7 @@ describe("agent adapters", () => {
       context: true,
       sessionId: true,
       opencodeDb: false,
+      modelFlag: "--model",
     });
     // Everything else is explicitly false rather than guessed — a confident wrong percentage is
     // worse than no gauge (see bridge/context.ts).
@@ -1708,7 +1712,7 @@ describe("agent adapters", () => {
 
   it("assumes nothing about an agent nobody described", () => {
     const a = adapterFor(BUILTIN_ADAPTERS, "someagent");
-    expect(a).toEqual({ kind: "someagent", clear: "", context: false, sessionId: false, opencodeDb: false });
+    expect(a).toEqual({ kind: "someagent", clear: "", context: false, sessionId: false, opencodeDb: false, modelFlag: "" });
   });
 
   it("merges per FIELD, so overriding one line doesn't silently drop the rest", () => {
@@ -1719,6 +1723,7 @@ describe("agent adapters", () => {
       context: true,
       sessionId: true,
       opencodeDb: false,
+      modelFlag: "--model",
     });
   });
 
@@ -1732,6 +1737,7 @@ describe("agent adapters", () => {
       context: false,
       sessionId: true,
       opencodeDb: false,
+      modelFlag: "",
     });
   });
 
@@ -1763,6 +1769,7 @@ describe("agent adapters", () => {
       context: true,
       sessionId: true,
       opencodeDb: false,
+      modelFlag: "--model",
     });
     expect(shipped.codex!.context).toBe(false);
     // The reset commands are opposites and were once contradicted by web/src/lib/agent-commands.ts:
@@ -1774,6 +1781,7 @@ describe("agent adapters", () => {
       context: false,
       sessionId: false,
       opencodeDb: false,
+      modelFlag: "",
     });
     // No gauge is promised on a transcript format latestUsage() has never been run against.
     for (const kind of ["codex", "cursor"]) expect(shipped[kind]!.context).toBe(false);

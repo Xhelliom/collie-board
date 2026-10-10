@@ -5,7 +5,7 @@
 // `agent.prompt`, `send_keys`, git, the handoff note, the JSON-to-a-file output contract. Nothing
 // here re-implements any of that.
 //
-// What is left is FIVE points, and they are the only things this file describes:
+// What is left is FIVE points (plus the model flag, ADR 0026), and they are the only things this file describes:
 //
 //   1. launch — herdr's `kind`, which is what `agent.start` takes.
 //   2. context reset — `/clear` for Claude Code, something else elsewhere, nothing at all for an
@@ -41,6 +41,11 @@ export interface AgentAdapter {
    * Orthogonal to `context`: a kind claims exactly one occupancy source, never both.
    */
   opencodeDb: boolean;
+  /**
+   * The CLI option that picks the model (`--model`), or empty when this kind is not VERIFIED to take
+   * one. A template's model is passed only through this (ADR 0026): never a flag the operator typed.
+   */
+  modelFlag: string;
 }
 
 /**
@@ -52,18 +57,18 @@ export interface AgentAdapter {
  * the telemetry design refuses.
  */
 export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
-  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false },
+  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false, modelFlag: "--model" },
   // Codex resets with `/new`, not `/clear` — `/clear` wipes the terminal too. Cursor is the
   // opposite: `/clear` is its reset and it has no `/new`. Both are sourced in adapters/agents.toml.
-  codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false },
-  cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false, opencodeDb: false },
-  gemini: { kind: "gemini", clear: "", context: false, sessionId: false, opencodeDb: false },
-  opencode: { kind: "opencode", clear: "", context: false, sessionId: false, opencodeDb: true },
+  codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
+  cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
+  gemini: { kind: "gemini", clear: "", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
+  opencode: { kind: "opencode", clear: "", context: false, sessionId: false, opencodeDb: true, modelFlag: "" },
 };
 
 /** The fallback for an agent kind nobody described: assume nothing, degrade everywhere. */
 export function unknownAdapter(kind: string): AgentAdapter {
-  return { kind, clear: "", context: false, sessionId: false, opencodeDb: false };
+  return { kind, clear: "", context: false, sessionId: false, opencodeDb: false, modelFlag: "" };
 }
 
 function bool(v: unknown, fallback: boolean): boolean {
@@ -107,6 +112,8 @@ export function mergeAdapters(
       sessionId: bool(o.session_id ?? o.sessionId, current.sessionId),
       // Same: `opencode_db` in TOML, camelCase tolerated.
       opencodeDb: bool(o.opencode_db ?? o.opencodeDb, current.opencodeDb),
+      // Same: `model_flag` in TOML, camelCase tolerated.
+      modelFlag: text(o.model_flag ?? o.modelFlag, current.modelFlag),
     };
   }
   return out;

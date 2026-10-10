@@ -124,6 +124,8 @@ export interface CardView {
   runId?: string | null;
   /** The phase this card belongs to (ADR 0021), or null. Optional: older fixtures omit it. */
   phaseId?: string | null;
+  /** The agent template it starts with (ADR 0026), or null. Optional: older fixtures omit it. */
+  templateId?: string | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -590,6 +592,8 @@ export interface CardInput {
   dependsOn?: string | null;
   /** The phase this card belongs to (ADR 0021), or `null` to take it out. */
   phaseId?: string | null;
+  /** The agent template it starts with (ADR 0026), or `null` for none. */
+  templateId?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */
