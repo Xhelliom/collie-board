@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.167.0] - 2026-10-10
+
+### Added
+
+- Jalons : valider une phase fige ses étapes terminées, déplace les ouvertes vers une autre phase et clôt l'item de roadmap lié ; réouvrable (9ae6ec7)
+- « Valider les étapes terminées comme un jalon » pour un vieux projet sans phases (9ae6ec7)
+- Vue projet : anneau, compteurs et pourcentage lisent le jalon en cours ; « N étapes livrées dans M phases validées » et section « Phases validées » (9ae6ec7)
+
+### Changed
+
+- Valider une phase est le geste de l'opérateur : refusé à tout header `x-collie-pane` (l'orchestrateur propose, ne valide pas) (9ae6ec7)
+
 ## [0.166.0] - 2026-10-10
 
 ### Added
