@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.171.0] - 2026-10-10
+
+### Added
+
+- Accueil : phrase de synthèse, anneau du troupeau (à toi / en cours / repos), 4 KPI du board (d663719)
+- Accueil : une tuile par repo (progression par étape, lien vers le projet), PR ouvertes, fil d'activité (d663719)
+- Quota en anneaux, un par provider (`/api/board/usage` renvoie `providers` ; Claude pour l'instant) (d663719)
+
+### Changed
+
+- La jauge de quota de l'accueil devient un anneau dans la colonne de droite (d663719)
+
 ## [0.170.2] - 2026-10-10
 
 ### Fixed
