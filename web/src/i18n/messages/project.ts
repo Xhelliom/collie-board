@@ -190,6 +190,18 @@ export const project = defineMessages({
   "project.validate.note": { en: "Note (optional)", fr: "Note (facultative)" },
   "project.validate.confirm": { en: "Validate", fr: "Valider" },
   "project.validate.done": { en: "Phase “{name}” validated.", fr: "Phase « {name} » validée." },
+  "project.unfiled.aria": { en: "Finished steps in no validated phase", fr: "Étapes terminées hors phase validée" },
+  "project.unfiled": {
+    en: {
+      one: "{count} finished step is in no validated phase, so it still counts in the figures.",
+      other: "{count} finished steps are in no validated phase, so they still count in the figures.",
+    },
+    fr: {
+      one: "{count} étape terminée n'est dans aucune phase validée : elle compte encore dans les chiffres.",
+      other: "{count} étapes terminées ne sont dans aucune phase validée : elles comptent encore dans les chiffres.",
+    },
+  },
+  "project.sealAll": { en: "Validate everything finished…", fr: "Valider tout ce qui est terminé…" },
   "project.seal": { en: "Validate the finished steps as a milestone…", fr: "Valider les étapes terminées comme un jalon…" },
   "project.seal.title": { en: "Validate the finished steps", fr: "Valider les étapes terminées" },
   "project.seal.explain": {

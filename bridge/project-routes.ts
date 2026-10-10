@@ -111,7 +111,9 @@ export async function handleProjectRoute(
       if (g === null) return ctx.text("bad goal", 400);
       const to = target(b.repoPath, null);
       if (!to.ok) return ctx.text(to.why, 400);
-      const sealed = db.sealPhase({ repoPath: b.repoPath, name: n, goal: g, note, moveOpenTo: to.id });
+      if (b.cardIds !== undefined && (!Array.isArray(b.cardIds) || b.cardIds.length > 1000 || !b.cardIds.every((c) => typeof c === "string")))
+        return ctx.text("cardIds must be a list of card ids", 400);
+      const sealed = db.sealPhase({ repoPath: b.repoPath, name: n, goal: g, note, moveOpenTo: to.id, cardIds: b.cardIds as string[] | undefined });
       if (!sealed.phase) return ctx.text("no finished card without a phase to file", 400);
       audit("phase.seal", { phaseId: sealed.phase.id, name: n, moved: sealed.moved });
       return ctx.json({ phase: sealed.phase, moved: sealed.moved }, 201);

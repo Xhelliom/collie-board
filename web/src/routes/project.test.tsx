@@ -293,7 +293,50 @@ describe("ProjectRoute", () => {
       expect(confirm).toBeDisabled();
       await userEvent.type(screen.getByLabelText("Name of the milestone"), "v1");
       await userEvent.click(confirm);
-      await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "v1" }));
+      await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "v1", cardIds: ["a", "b"] }));
+    });
+
+    it("tidies an old project from the page: a banner counts every finished step outside a validated phase and seals them all", async () => {
+      let body: unknown = null;
+      server.use(
+        http.post("*/api/phases/seal", async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ phase: closed("Historique", 0, 1), moved: 3 }, { status: 201 });
+        }),
+      );
+      mount([
+        card({ id: "Dictation" }),
+        card({ id: "in-1", parentId: "Dictation", status: "done" }),
+        card({ id: "in-2", parentId: "Dictation", status: "done" }),
+        card({ id: "free", status: "done" }),
+        card({ id: "todo", status: "backlog" }),
+      ]);
+      expect(await screen.findByText(/3 finished steps are in no validated phase/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Validate everything finished…" }));
+      await userEvent.type(screen.getByLabelText("Name of the milestone"), "Historique");
+      await userEvent.click(screen.getByRole("button", { name: "Validate" }));
+      await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "Historique" }));
+    });
+
+    it("validates ONE old dictation as its own phase, named after it", async () => {
+      let body: unknown = null;
+      server.use(
+        http.post("*/api/phases/seal", async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ phase: closed("Dictation", 0, 1), moved: 2 }, { status: 201 });
+        }),
+      );
+      mount([
+        card({ id: "Dictation" }),
+        card({ id: "in-1", parentId: "Dictation", status: "done" }),
+        card({ id: "in-2", parentId: "Dictation", status: "done" }),
+        card({ id: "free", status: "done" }),
+      ]);
+      const section = (await screen.findByText("Dictation", { selector: "h2" })).closest("li")!;
+      await userEvent.click(within(section).getByRole("button", { name: "Validate this phase" }));
+      expect(screen.getByLabelText("Name of the milestone")).toHaveValue("Dictation");
+      await userEvent.click(screen.getByRole("button", { name: "Validate" }));
+      await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "Dictation", cardIds: ["in-1", "in-2"] }));
     });
 
     it("reopens a validated phase", async () => {
