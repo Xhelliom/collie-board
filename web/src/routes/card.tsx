@@ -1,3 +1,5 @@
+import { t, useT } from "@/i18n";
+import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
@@ -123,9 +125,11 @@ export function topOfColumn(cards: CardView[], card: CardView): number {
 }
 
 export function CardRoute() {
+  const t = useT();
   const data = useLoaderData() as CardData;
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const navigate = useNavigate();
+  const back = useBack(boardPath());
   const revalidator = useRevalidator();
   const [starting, setStarting] = useState(false);
   /** Which suggestion is being sent, so only ITS button says "Sending…". A title alone is not a key:
@@ -292,7 +296,7 @@ export function CardRoute() {
     if (!card) return;
     try {
       await convertCardToAction(childId, card.id);
-      setStatus("Convertie en action sur cette carte.", "success");
+      setStatus(t("card.toast.convertedHere"), "success");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     }
@@ -310,11 +314,11 @@ export function CardRoute() {
   async function convertAndFinish(childId: string) {
     if (!card || finishing) return;
     setFinishing(childId);
-    setStatus("Handing it to the agent…", "info", null);
+    setStatus(t("card.toast.handing"), "info", null);
     try {
       const { reviewId, todoTitle } = await convertCardToAction(childId, card.id);
       await finishCardNow(card.id, reviewId, todoTitle);
-      setStatus("Sent to the agent.", "success");
+      setStatus(t("card.toast.sentAgent"), "success");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     } finally {
@@ -330,7 +334,7 @@ export function CardRoute() {
     if (!card) return;
     try {
       await convertCardToAction(card.id, target.id);
-      setStatus(`Convertie en action sur « ${target.title} ».`, "success");
+      setStatus(t("card.toast.convertedTo", { title: target.title }), "success");
       navigate(cardPath(target.id));
     } catch (e) {
       setStatus((e as Error).message, "error", null);
@@ -344,10 +348,10 @@ export function CardRoute() {
   async function start() {
     if (!card || starting) return;
     setStarting(true);
-    setStatus("Creating the worktree and starting the agent…", "info", null);
+    setStatus(t("card.toast.starting"), "info", null);
     try {
       await startCard(card.id);
-      setStatus("Agent started", "success");
+      setStatus(t("card.toast.started"), "success");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     } finally {
@@ -363,10 +367,10 @@ export function CardRoute() {
   async function finishNow(reviewId: string, title: string) {
     if (!card || finishing) return;
     setFinishing(busyKey(reviewId, title));
-    setStatus("Handing it to the agent…", "info", null);
+    setStatus(t("card.toast.handing"), "info", null);
     try {
       await finishCardNow(card.id, reviewId, title);
-      setStatus("Sent to the agent.", "success");
+      setStatus(t("card.toast.sentAgent"), "success");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     } finally {
@@ -396,7 +400,7 @@ export function CardRoute() {
     if (!card) return;
     try {
       await reformulateCard(card.id);
-      setStatus("Sent to the copilot — the card rewrites itself in a minute.", "info");
+      setStatus(t("card.toast.sentCopilot"), "info");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     }
@@ -408,7 +412,7 @@ export function CardRoute() {
   async function refine(instruction: string) {
     if (!card) return;
     await refineCard(card.id, instruction);
-    setStatus("Correction sent — the card rewrites itself in a minute.", "info");
+    setStatus(t("card.toast.correctionSent"), "info");
     setRefining(false);
     revalidator.revalidate();
   }
@@ -424,7 +428,7 @@ export function CardRoute() {
     setReviewing(true);
     try {
       await reviewCard(card.id);
-      setStatus("Review relancée — le nouveau verdict arrive dans une minute.", "info");
+      setStatus(t("card.toast.reviewAgain"), "info");
       // The POST returns the moment the queue accepts it, so clearing here would re-enable the
       // button for the whole poll interval — and the second tap `reviewNow` silently drops still
       // answers `{ok:true}`, telling you a review restarted when none did. Held until the loader
@@ -446,10 +450,10 @@ export function CardRoute() {
   async function askCommit() {
     if (!card || committing) return;
     setCommitting(true);
-    setStatus("Demande de commit envoyée à l'agent…", "info", null);
+    setStatus(t("card.toast.commitAsking"), "info", null);
     try {
       await requestCardCommit(card.id);
-      setStatus("Commit demandé — l'agent commite dans sa branche.", "success");
+      setStatus(t("card.toast.commitAsked"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     } finally {
@@ -474,7 +478,7 @@ export function CardRoute() {
           treatment. The breadcrumb (children) carries "Board › title"; Éditer + the "⋯" menu (which
           holds Danger zone — see the sheet below) are the toolbar's own controls. */}
       <AppHeader
-        onBack={() => navigate(boardPath())}
+        onBack={back}
         rightTrail={
           card && (
             <>
@@ -494,16 +498,16 @@ export function CardRoute() {
                 }}
               >
                 <Sparkles className="size-4" />
-                {confirmRework ? "Replace my edits?" : "Reformuler"}
+                {confirmRework ? t("card.replaceEdits") : t("card.reformulate")}
               </Button>
               <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
                 <Pencil className="size-4" />
-                Éditer
+                {t("card.edit")}
               </Button>
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
-                aria-label="More"
+                aria-label={t("card.more")}
                 className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <EllipsisVertical className="size-5" />
@@ -517,7 +521,7 @@ export function CardRoute() {
           onClick={() => navigate(boardPath())}
           className="flex min-w-0 flex-1 items-center gap-1 text-left"
         >
-          <span className="shrink-0 text-sm text-muted-foreground">Board</span>
+          <span className="shrink-0 text-sm text-muted-foreground">{t("board.title")}</span>
           <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
             {card?.title ?? ""}
@@ -528,7 +532,7 @@ export function CardRoute() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-24 pt-3 lg:px-6 lg:pt-6">
         {!card ? (
           <p className="px-1 py-12 text-center text-sm text-muted-foreground">
-            {data.error ? "Can't reach the board right now." : "Card not found."}
+            {data.error ? t("card.unreachable") : t("card.notFound")}
           </p>
         ) : (
           <>
@@ -555,7 +559,7 @@ export function CardRoute() {
                   className="flex min-w-0 items-center gap-1 self-start text-xs text-muted-foreground"
                 >
                   <CornerLeftUp className="size-3 shrink-0" />
-                  <span className="truncate">from “{detail.originCard.title}”</span>
+                  <span className="truncate">{t("tile.from", { source: detail.originCard.title })}</span>
                 </button>
               )}
               <div className="flex flex-wrap items-center gap-2">
@@ -603,7 +607,7 @@ export function CardRoute() {
                   ) : (
                     <CornerDownRight className="size-3 shrink-0" />
                   )}
-                  <span className="truncate">after “{detail.predecessor.title}”</span>
+                  <span className="truncate">{t("tile.after", { title: detail.predecessor.title })}</span>
                 </button>
               )}
             </header>
@@ -633,7 +637,7 @@ export function CardRoute() {
                     <PromptBox
                       onSend={async (text) => {
                         await promptCard(card.id, text);
-                        setStatus("Sent", "success");
+                        setStatus(t("card.toast.sent"), "success");
                         revalidator.revalidate();
                       }}
                     />
@@ -642,7 +646,7 @@ export function CardRoute() {
                       onHandoff={async () => {
                         try {
                           await handoffCard(card.id);
-                          setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+                          setStatus(t("card.toast.handoff"), "info");
                         } catch (e) {
                           setStatus((e as Error).message, "error", null);
                         }
@@ -679,14 +683,12 @@ export function CardRoute() {
                       <div className="flex flex-col gap-1">
                         <ConvertNowButton
                           id={card.id}
-                          label="Convertir en action"
-                          confirmLabel="Supprimer la carte et poser l'action ?"
+                          label={t("card.convert")}
+                          confirmLabel={t("card.convertConfirm")}
                           onConfirm={() => void convertToParent(actionTarget)}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Trop petit pour une carte : le spec part comme action sur «{" "}
-                          {actionTarget.title} », à donner d&apos;un tap à son agent. Cette carte-ci
-                          disparaît du board.
+                          {t("card.convertHint", { title: actionTarget.title })}
                         </p>
                       </div>
                     )}
@@ -705,7 +707,7 @@ export function CardRoute() {
                   />
                 )}
 
-                <Section label="Classer">
+                <Section label={t("card.section.moveTo")}>
                   <div className="flex flex-wrap gap-2">
                     {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
                       <Button
@@ -729,7 +731,7 @@ export function CardRoute() {
                         onClick={() => void toTop()}
                       >
                         <ArrowUp className="size-3.5" />
-                        En tête de colonne
+                        {t("card.toTop")}
                       </Button>
                     )}
                   </div>
@@ -740,12 +742,10 @@ export function CardRoute() {
                       only the operator knows whether the work is in. */}
                   {integration && integration.ahead > 0 && (
                     <p className="pt-2 text-xs text-muted-foreground">
-                      Done also files the card, and filing sends away the agent who would settle a
-                      merge conflict. {integration.ahead} commit
-                      {integration.ahead === 1 ? " is" : "s are"}{" "}
-                      {integration.pushed
-                        ? `on the branch's remote but not in ${integration.base} yet — the PR still has to land.`
-                        : `not in ${integration.base} yet, and nowhere else either — merge below instead, unless the work already landed some other way.`}
+                      {t(integration.pushed ? "card.doneWarnPushed" : "card.doneWarnLocal", {
+                        count: integration.ahead,
+                        base: integration.base,
+                      })}
                     </p>
                   )}
                 </Section>
@@ -753,7 +753,7 @@ export function CardRoute() {
 
               <div className="flex min-w-0 flex-col gap-[22px] order-1">
                 {detail && detail.children.length > 0 && (
-                  <Section label="Sub-tasks">
+                  <Section label={t("card.section.subtasks")}>
                     <SubtaskList
                       container={card}
                       childCards={childCards}
@@ -780,7 +780,7 @@ export function CardRoute() {
                 {detail?.duplicate && (
                   <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
                     <p className="text-xs text-muted-foreground">
-                      The copilot thinks this repeats a card you already have:
+                      {t("card.dup.hint")}
                     </p>
                     <button
                       type="button"
@@ -796,7 +796,7 @@ export function CardRoute() {
                       className="h-9 w-fit"
                       onClick={() => void save({ duplicateOf: null })}
                     >
-                      Not a duplicate
+                      {t("card.dup.not")}
                     </Button>
                   </div>
                 )}
@@ -806,18 +806,18 @@ export function CardRoute() {
                 {card.copilotBusy && (
                   <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
                     <Sparkles className="size-3.5 shrink-0" />
-                    <span>The copilot has this card — it rewrites itself in a minute.</span>
+                    <span>{t("card.copilotBusy")}</span>
                   </div>
                 )}
 
                 {card.spec && (
-                  <Section label="Spec">
+                  <Section label={t("card.section.spec")}>
                     <MarkdownText text={card.spec} className="max-w-[70ch] text-sm leading-[1.6]" />
                   </Section>
                 )}
 
                 {card.acceptance.length > 0 && (
-                  <Section label="Acceptance">
+                  <Section label={t("card.section.acceptance")}>
                     <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
                       {card.acceptance.map((a, i) => (
                         <li key={i}>{a}</li>
@@ -828,7 +828,7 @@ export function CardRoute() {
 
                 <CardDiff cardId={card.id} statusKey={card.status} />
 
-                <Section label="Rework">
+                <Section label={t("card.section.rework")}>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -847,7 +847,7 @@ export function CardRoute() {
                       }}
                     >
                       <Sparkles className="size-4" />
-                      {confirmRework ? "Replace my edits?" : "Reformulate"}
+                      {confirmRework ? t("card.replaceEdits") : t("card.reformulate")}
                     </Button>
                     {/* No confirmation on this one, unlike its neighbour: it starts from the card as
                         it stands, so a hand edit is what it corrects rather than what it discards. */}
@@ -858,30 +858,29 @@ export function CardRoute() {
                       onClick={() => setRefining((v) => !v)}
                     >
                       <Sparkles className="size-4" />
-                      {refining ? "Cancel correction" : "Correct with the copilot"}
+                      {refining ? t("card.correctCancel") : t("card.correct")}
                     </Button>
                     {confirmRework && (
                       <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
-                        Cancel
+                        {t("board.cancel")}
                       </Button>
                     )}
                   </div>
                   {confirmRework && (
                     <p className="pt-2 text-xs text-muted-foreground">
                       {detail.children.length > 0
-                        ? "It works from the original dictation, not from the current sub-tasks — reformulating can reshuffle or replace them."
-                        : "It works from what you originally dictated, not from your edit. The current text goes to the journal, so you can put it back."}
+                        ? t("card.rework.warnChildren")
+                        : t("card.rework.warnText")}
                     </p>
                   )}
                   {refining && (
                     <div className="flex flex-col gap-2 pt-2">
                       <p className="text-xs text-muted-foreground">
-                        Say what the copilot got wrong. It rewrites this card from what it says now,
-                        keeping everything your correction doesn't touch.
+                        {t("card.refine.hint")}
                       </p>
                       <PromptBox
-                        placeholder="e.g. you said the format isn't specified — say it will be JSON"
-                        sendLabel="Send to the copilot"
+                        placeholder={t("card.refine.placeholder")}
+                        sendLabel={t("card.refine.send")}
                         onSend={refine}
                       />
                     </div>
@@ -889,7 +888,7 @@ export function CardRoute() {
                 </Section>
 
                 {detail && detail.reviews.length > 0 && (
-                  <Section label="Review">
+                  <Section label={t("card.section.review")}>
                     <div className="flex flex-col gap-2">
                       {/* The agent stopped before `git commit`: the review saw the uncommitted files
                           in the working-tree diff, and filing a card for that would be a worktree
@@ -906,7 +905,7 @@ export function CardRoute() {
                           question, and one more agent turn is the operator's call to spend. */}
                       <div className="flex items-center gap-2">
                         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                          Le travail a bougé depuis ? Le copilote rejuge sur le diff actuel de la branche.
+                          {t("card.review.moved")}
                         </p>
                         <Button
                           variant="outline"
@@ -920,7 +919,7 @@ export function CardRoute() {
                               shared with reformulate/refine, and a correction running elsewhere on
                               this card would make this button claim a review nobody asked for. It
                               still DISABLES on it: `reviewNow` would drop the tap anyway. */}
-                          {reviewing ? "Review en cours…" : "Relancer la review"}
+                          {reviewing ? t("card.review.running") : t("card.review.again")}
                         </Button>
                       </div>
                       {/* Newest FIRST, unlike every other history on this screen: a re-review exists
@@ -930,7 +929,7 @@ export function CardRoute() {
                         <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
                           <div className="flex items-center gap-2 text-sm">
                             <span className={cn(CHIP_SHELL, verdictChip(r.verdict))}>
-                              {r.verdict ?? "reviewed"}
+                              {r.verdict ?? t("card.review.reviewed")}
                             </span>
                             <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
                           </div>
@@ -973,12 +972,12 @@ export function CardRoute() {
                                         {/* The question the button answers. Without it "instead" has
                                             no antecedent, and the row it shares reads as padding. */}
                                         <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                                          Too small for a card? This card&apos;s agent is still here.
+                                          {t("card.tooSmall")}
                                         </p>
                                         <ConvertNowButton
                                           id={todo.card.id}
-                                          label="Finish it instead"
-                                          confirmLabel="Delete the card and send?"
+                                          label={t("card.finishInstead")}
+                                          confirmLabel={t("card.finishConfirm")}
                                           busy={finishing === todo.card.id}
                                           compact
                                           onConfirm={() => void convertAndFinish(todo.card!.id)}
@@ -1015,12 +1014,12 @@ export function CardRoute() {
                 )}
 
                 {card.status === "review" && (
-                  <Section label="Review pass">
+                  <Section label={t("card.section.reviewPass")}>
                     <ReviewPass
                       card={card}
                       onRun={async (command) => {
                         await promptCard(card.id, command);
-                        setStatus(`${command} sent — it runs in this card's agent.`, "success");
+                        setStatus(t("card.toast.passSent", { command }), "success");
                         revalidator.revalidate();
                       }}
                     />
@@ -1028,7 +1027,7 @@ export function CardRoute() {
                 )}
 
                 {detail && detail.sessions.length > 0 && (
-                  <Section label="Chaîne de sessions">
+                  <Section label={t("card.section.sessions")}>
                     <div className="flex flex-col">
                       {detail.sessions.map((s, i) => (
                         <SessionRow
@@ -1043,13 +1042,13 @@ export function CardRoute() {
                 )}
 
                 {detail && detail.events.length > 0 && (
-                  <Section label="Journal">
+                  <Section label={t("card.section.journal")}>
                     <CardJournal
                       events={detail.events}
                       onRestore={async (eventId) => {
                         try {
                           await revertCard(card.id, eventId);
-                          setStatus("Restored", "success");
+                          setStatus(t("card.toast.restored"), "success");
                         } catch (e) {
                           setStatus((e as Error).message, "error", null);
                         }
@@ -1067,20 +1066,19 @@ export function CardRoute() {
       {/* The toolbar's "⋯" — one destructive action doesn't need its own always-visible section
           taking up the bottom of the document; a menu is where a rare, dangerous action belongs. */}
       {card && (
-        <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Card">
+        <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={t("card.sheetTitle")}>
           {actionTarget && (
             <div className="flex flex-col pb-2">
               <ActionRow
                 icon={<Zap className="size-4 shrink-0 text-muted-foreground" />}
-                label={`Convertir en action sur « ${actionTarget.title} »`}
+                label={t("card.convertOn", { title: actionTarget.title })}
                 onClick={() => {
                   setMenuOpen(false);
                   void convertToParent(actionTarget);
                 }}
               />
               <p className="px-3 pb-1 text-xs text-muted-foreground">
-                Trop petit pour une carte : le spec part comme action sur « {actionTarget.title} », à
-                donner d&apos;un tap à son agent. Cette carte-ci disparaît du board.
+                {t("card.convertHint", { title: actionTarget.title })}
               </p>
             </div>
           )}
@@ -1106,6 +1104,7 @@ export function CardRoute() {
  * hand every time. The full line is the `title`, so what lands in the clipboard is never a guess.
  */
 export function CopyPromptButton({ cardId }: { cardId: string }) {
+  const t = useT();
   const { canCopy, copied, copy } = useCopy();
   const prompt = cardPrompt(cardId);
   return (
@@ -1113,12 +1112,12 @@ export function CopyPromptButton({ cardId }: { cardId: string }) {
       type="button"
       disabled={!canCopy}
       onClick={() => void copy(prompt)}
-      aria-label={`Copy agent prompt: ${prompt}`}
+      aria-label={t("card.copyPrompt", { prompt })}
       title={canCopy ? prompt : COPY_UNAVAILABLE_TITLE}
       className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
     >
       {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
-      {copied ? "Copié" : "Prompt"}
+      {copied ? t("card.copied") : t("card.prompt")}
     </button>
   );
 }
@@ -1167,6 +1166,7 @@ export function ConvertNowButton({
   compact?: boolean;
   onConfirm: () => void;
 }) {
+  const t = useT();
   const { confirm, pending } = usePendingConfirm();
   return (
     <Button
@@ -1179,7 +1179,7 @@ export function ConvertNowButton({
       }}
     >
       <Zap className="size-4" />
-      {busy ? "Sending…" : pending === id ? confirmLabel : label}
+      {busy ? t("card.sending") : pending === id ? confirmLabel : label}
     </Button>
   );
 }
@@ -1209,6 +1209,7 @@ export function TinyTodoRow({
   pending: boolean;
   onFinish: () => void;
 }) {
+  const t = useT();
   const sent = todo.doneAt !== null;
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
@@ -1221,22 +1222,21 @@ export function TinyTodoRow({
         <span className={cn("min-w-0 flex-1 text-sm", sent && "text-muted-foreground")}>{title}</span>
       </div>
       {sent ? (
-        <p className="text-xs text-muted-foreground">Sent to the agent {timeAgo(todo.doneAt!)}.</p>
+        <p className="text-xs text-muted-foreground">{t("card.tiny.sent", { ago: timeAgo(todo.doneAt!) })}</p>
       ) : live ? (
         <>
           <p className="text-xs text-muted-foreground">
-            One edit, nothing to run — too small for a card. This card&apos;s agent can do it before
-            it stops.
+            {t("card.tiny.live")}
           </p>
           <Button variant="secondary" onClick={onFinish} disabled={pending} className="h-10 w-full gap-2">
             <Zap className="size-4" />
-            {pending ? "Sending…" : "Finish it now"}
+            {pending ? t("card.sending") : t("card.tiny.finish")}
           </Button>
         </>
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
-            Too small for a card, and this card&apos;s agent is gone — here is what it said to do:
+            {t("card.tiny.gone")}
           </p>
           {todo.spec && <MarkdownText text={todo.spec} className="text-xs" />}
         </>
@@ -1255,10 +1255,11 @@ export function TinyTodoRow({
  * dumb row, pinnable by a test without a loader behind it.
  */
 export function RequestCommitRow({ pending, onAsk }: { pending: boolean; onAsk: () => void }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
       <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-        Fichiers non commités ? L&apos;agent s&apos;est juste arrêté avant de commiter.
+        {t("card.commit.hint")}
       </p>
       <Button
         variant="outline"
@@ -1268,7 +1269,7 @@ export function RequestCommitRow({ pending, onAsk }: { pending: boolean; onAsk: 
         onClick={onAsk}
       >
         <GitBranch className="size-4" />
-        {pending ? "Envoi…" : "Demander le commit"}
+        {pending ? t("card.sending") : t("card.commit.ask")}
       </Button>
     </div>
   );
@@ -1296,6 +1297,7 @@ function StartButton({
   /** How many sub-tasks this card holds — non-zero makes it a container. */
   childCount?: number;
 }) {
+  const t = useT();
   if (card.status === "done" || card.status === "archived") return null;
   const relaunch = card.sessionCount > 0;
 
@@ -1305,8 +1307,7 @@ function StartButton({
   if (childCount) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
-        This card holds {childCount} sub-task{childCount === 1 ? "" : "s"} — the work is in those.
-        Start one of them.
+        {t("card.start.holds", { count: childCount })}
       </p>
     );
   }
@@ -1315,8 +1316,7 @@ function StartButton({
       <p className="flex items-center gap-2 rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
         <Lock className="size-3.5 shrink-0" />
         <span>
-          Waiting on <span className="text-foreground">“{predecessor.title}”</span> to finish. It
-          starts on that branch, so it needs the work first.
+          {t("card.start.waiting", { title: predecessor.title })}
         </span>
       </p>
     );
@@ -1324,14 +1324,14 @@ function StartButton({
   if (!card.repoPath) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
-        Set a repo path on this card to start an agent on it.
+        {t("card.start.noRepo")}
       </p>
     );
   }
   return (
     <Button onClick={onStart} disabled={pending} className="h-12 w-full gap-2">
       <Play className="size-4" />
-      {pending ? "Starting…" : relaunch ? "Relaunch on this branch" : "Start agent"}
+      {pending ? t("card.start.starting") : relaunch ? t("card.start.relaunch") : t("card.start.start")}
     </Button>
   );
 }
@@ -1346,13 +1346,14 @@ function StartButton({
  */
 export function PromptBox({
   onSend,
-  placeholder = "Extra instruction for this agent…",
-  sendLabel = "Send",
+  placeholder,
+  sendLabel,
 }: {
   onSend: (text: string) => Promise<void>;
   placeholder?: string;
   sendLabel?: string;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -1376,12 +1377,12 @@ export function PromptBox({
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("card.prompt.placeholder")}
         className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <Button onClick={send} disabled={!text.trim() || sending} className="h-11 gap-2 self-end px-5">
         <Send className="size-4" />
-        {sending ? "Sending…" : sendLabel}
+        {sending ? t("card.sending") : (sendLabel ?? t("card.prompt.send"))}
       </Button>
     </div>
   );
@@ -1398,12 +1399,12 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 
 /** The card's live pane, when one is backing it. Tapping through is how you unblock the agent. */
 function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) => void }) {
+  const t = useT();
   if (!card.runtime) {
     if (card.status === "orphaned") {
       return (
-        <NonNominalPanel tone="unknown" title="Carte orpheline">
-          Le pane a disparu. La worktree et le dernier handoff sont toujours là — la carte peut être
-          reprise.
+        <NonNominalPanel tone="unknown" title={t("card.orphan.title")}>
+          {t("card.orphan.text")}
         </NonNominalPanel>
       );
     }
@@ -1477,6 +1478,7 @@ export function IntegrationSection({
   onDone: () => void;
   onState: (state: Integration | null | undefined) => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [pr, setPr] = useState<PrStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -1498,7 +1500,7 @@ export function IntegrationSection({
       <div className="flex flex-col gap-1 text-xs text-muted-foreground">
         {past.merged && (
           <span>
-            Merged into {past.merged.base} · {timeAgo(past.merged.ts)}
+            {t("int.mergedInto", { base: past.merged.base, ago: timeAgo(past.merged.ts) })}
           </span>
         )}
         {past.pr && (
@@ -1508,7 +1510,7 @@ export function IntegrationSection({
               <>
                 {" — "}
                 <a href={past.pr.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
-                  view on GitHub
+                  {t("int.viewGh")}
                 </a>
               </>
             )}
@@ -1517,7 +1519,7 @@ export function IntegrationSection({
               <>
                 {" · "}
                 <a href={`${pr.url}/conflicts`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
-                  resolve on GitHub
+                  {t("int.resolveGh")}
                 </a>
               </>
             )}
@@ -1526,12 +1528,11 @@ export function IntegrationSection({
         {/* No claim about WHERE the work went: cleanup takes a branch that is merged OR merely
             pushed, so "cleaned up" alone is all this can honestly say. The merge/PR lines above are
             the evidence, when there is any. */}
-        {past.cleanedUp && <span>Worktree cleaned up · {timeAgo(past.cleanedUp)}</span>}
-        {past.reopened && <span>Reopened to settle the PR's conflict · {timeAgo(past.reopened)}</span>}
+        {past.cleanedUp && <span>{t("int.cleaned", { ago: timeAgo(past.cleanedUp) })}</span>}
+        {past.reopened && <span>{t("int.reopened", { ago: timeAgo(past.reopened) })}</span>}
         {past.discarded && (
           <span>
-            Discarded {timeAgo(past.discarded.ts)} — {past.discarded.commits} commit
-            {past.discarded.commits === 1 ? "" : "s"} thrown away.
+            {t("int.discarded", { ago: timeAgo(past.discarded.ts), count: past.discarded.commits })}
           </span>
         )}
       </div>
@@ -1560,20 +1561,19 @@ export function IntegrationSection({
     pr?.conflicting && !card.session?.paneId ? (
       <div className="flex flex-col gap-2.5 rounded-lg border border-dashed border-status-blocked/45 bg-status-blocked/10 px-3 py-3">
         <p className="text-[13px] font-semibold text-status-blocked">
-          {prLabel(pr.url, "").trim()} no longer merges — its base has moved on.
+          {t("int.noLongerMerges", { label: prLabel(pr.url, "").trim() })}
         </p>
         <p className="text-xs text-muted-foreground">
-          A new agent gets the branch back from origin, merges the base into it and commits. Nothing is
-          pushed until you tap Update the PR.
+          {t("int.reopenHint")}
         </p>
         <Button
           variant="outline"
           className="h-[38px] w-full gap-2 rounded-[10px] bg-background"
           disabled={busy !== null}
-          onClick={() => void run("reopen", "Reopened")}
+          onClick={() => void run("reopen", t("int.lbl.reopened"))}
         >
           <Play className="size-4" />
-          {busy === "reopen" ? "Starting an agent…" : "Reopen with an agent"}
+          {busy === "reopen" ? t("int.startingAgent") : t("int.reopenWith")}
         </Button>
       </div>
     ) : null;
@@ -1644,8 +1644,8 @@ export function IntegrationSection({
         action === "pr" && res.url
           ? `${label} — ${res.url}`
           : action === "resolve" || action === "reopen"
-            ? "Sent to the agent — this section refreshes on its own once it's done."
-            : `${label} done.`,
+            ? t("int.sentRefresh")
+            : t("int.done", { label }),
         "success",
       );
       onDone();
@@ -1683,7 +1683,7 @@ export function IntegrationSection({
   if (state === undefined) return null;
   if (state === null) {
     return (
-      <Section label="Intégration">
+      <Section label={t("int.section")}>
         {history ? (
           <div className="flex flex-col gap-3">
             {history}
@@ -1691,7 +1691,7 @@ export function IntegrationSection({
             {prLink}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">No branch to integrate.</p>
+          <p className="text-xs text-muted-foreground">{t("int.noBranch")}</p>
         )}
       </Section>
     );
@@ -1708,19 +1708,19 @@ export function IntegrationSection({
   // outlive the branch, and saying otherwise was this button's one lie.
   const discardLoss =
     [
-      state.pushed ? null : `${state.ahead} commit${state.ahead === 1 ? "" : "s"}`,
-      state.branchDirty ? "uncommitted work" : null,
+      state.pushed ? null : t("int.lossCommits", { count: state.ahead }),
+      state.branchDirty ? t("int.lossDirty") : null,
     ]
       .filter(Boolean)
-      .join(" and ") || null;
+      .join(t("int.lossJoin")) || null;
   // Only what genuinely stops a merge. `baseDirty` deliberately isn't here: git merges over
   // uncommitted changes it doesn't touch, and refuses by itself when it would — see refusalFor.
-  const mergeBlocker = !state.baseCheckedOut ? `the repository is not on ${state.base}` : null;
+  const mergeBlocker = !state.baseCheckedOut ? t("int.blocker", { base: state.base }) : null;
   // A card that is not filed yet gets the combined gesture. Once it IS done, the same buttons stay
   // for the case this exists to make rare: filed first, integrated afterwards.
   const filing = card.status !== "done" && card.status !== "archived";
   return (
-    <Section label="Intégration">
+    <Section label={t("int.section")}>
       <div className="flex flex-col gap-3">
         {history}
         {reopen}
@@ -1732,30 +1732,26 @@ export function IntegrationSection({
           </div>
           <div className="text-[13px] text-muted-foreground">
             {integrated ? (
-              `already in ${state.base}`
+              t("int.alreadyIn", { base: state.base })
             ) : (
-              <>
-                <span className="font-semibold tabular-nums">{state.ahead}</span> commit
-                {state.ahead === 1 ? "" : "s"} not in {state.base}
-              </>
+              t("int.notIn", { count: state.ahead, base: state.base })
             )}
-            {state.behind > 0 && ` · ${state.behind} behind`}
+            {state.behind > 0 && t("int.behind", { count: state.behind })}
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2">
           <div className="min-w-0">
-            <div className="text-xs font-medium">Keep this worktree</div>
+            <div className="text-xs font-medium">{t("int.keep")}</div>
             <p className="text-xs text-muted-foreground">
-              Off by default — once this card is done, the worktree and branch are removed
-              automatically as soon as the closing report is collected.
+              {t("int.keepHint")}
             </p>
           </div>
           <Switch
             checked={card.keepWorktree}
             disabled={busy !== null}
             onCheckedChange={(checked) => void toggleKeepWorktree(checked)}
-            aria-label="Keep this worktree"
+            aria-label={t("int.keep")}
           />
         </div>
 
@@ -1766,7 +1762,7 @@ export function IntegrationSection({
         {state.branchDirty && (
           <div className="flex flex-col gap-2 rounded-lg border border-dashed border-status-working/45 bg-status-working/10 px-3 py-2">
             <p className="text-xs text-status-working">
-              Uncommitted work in the card&apos;s checkout — commit it, or it will not be integrated.
+              {t("int.dirty")}
             </p>
             {card.runtime && (
               <Button
@@ -1777,7 +1773,7 @@ export function IntegrationSection({
                 onClick={() => {
                   setAskingCommit(true);
                   requestCardCommit(card.id)
-                    .then(() => setStatus("Commit demandé — l'agent commite dans sa branche.", "success"))
+                    .then(() => setStatus(t("card.toast.commitAsked"), "success"))
                     .catch((e) => setStatus(boardErrorMessage(e), "error", null))
                     .finally(() => {
                       setAskingCommit(false);
@@ -1786,7 +1782,7 @@ export function IntegrationSection({
                 }}
               >
                 <GitBranch className="size-4" />
-                {askingCommit ? "Envoi…" : "Demander le commit"}
+                {askingCommit ? t("card.sending") : t("card.commit.ask")}
               </Button>
             )}
           </div>
@@ -1796,7 +1792,7 @@ export function IntegrationSection({
             letting the button fail is the difference between "not yet, because X" and an error. */}
         {!integrated && !state.branchDirty && mergeBlocker && (
           <p className="rounded-lg border border-dashed border-status-working/45 bg-status-working/10 px-3 py-2 text-xs text-status-working">
-            {mergeBlocker} — a PR still works.
+            {t("int.blockerPr", { blocker: mergeBlocker })}
           </p>
         )}
 
@@ -1807,8 +1803,7 @@ export function IntegrationSection({
             (mergeBlocker already explains that case). */}
         {!integrated && state.baseCheckedOut && state.baseDirty && (
           <p className="text-xs text-muted-foreground">
-            {state.base} has uncommitted changes. The merge goes through unless it touches the same
-            files — git checks before changing anything.
+            {t("int.baseDirty", { base: state.base })}
           </p>
         )}
 
@@ -1817,10 +1812,10 @@ export function IntegrationSection({
             variant="outline"
             className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
             disabled={busy !== null || integrated || state.branchDirty || mergeBlocker !== null}
-            onClick={() => void run("merge", `Merged into ${state.base}`, filing)}
+            onClick={() => void run("merge", t("int.merged", { base: state.base }), filing)}
           >
             <GitMerge className="size-4" />
-            {busy === "merge" ? "Merging…" : filing ? `Merge into ${state.base} & done` : `Merge into ${state.base}`}
+            {busy === "merge" ? t("int.merging") : filing ? t("int.mergeDone", { base: state.base }) : t("int.merge", { base: state.base })}
           </Button>
           {/* Once the journal knows a PR's url, the tap that matters is "take me to it" — tapping
               "Open a PR" again would push and hand back that same url. Same `prLink` the branchless
@@ -1833,10 +1828,10 @@ export function IntegrationSection({
               variant="outline"
               className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
               disabled={busy !== null || state.branchDirty}
-              onClick={() => void run("pr", "Pull request updated", filing)}
+              onClick={() => void run("pr", t("int.prUpdated"), filing)}
             >
               <GitPullRequest className="size-4" />
-              {busy === "pr" ? "Pushing…" : `${prLabel(past.pr.url, "Update")}${filing ? " & done" : ""}`}
+              {busy === "pr" ? t("int.pushing") : `${prLabel(past.pr.url, t("int.update"))}${filing ? t("int.andDone") : ""}`}
             </Button>
           )}
           {prLink ?? (
@@ -1844,10 +1839,10 @@ export function IntegrationSection({
               variant="outline"
               className="h-[38px] w-full gap-2 rounded-[10px] disabled:opacity-45"
               disabled={busy !== null || integrated || state.branchDirty}
-              onClick={() => void run("pr", "Pull request opened", filing)}
+              onClick={() => void run("pr", t("int.prOpened"), filing)}
             >
               <GitPullRequest className="size-4" />
-              {busy === "pr" ? "Opening…" : filing ? "Open a PR & done" : "Open a PR"}
+              {busy === "pr" ? t("int.opening") : filing ? t("int.openPrDone") : t("int.openPr")}
             </Button>
           )}
         </div>
@@ -1863,12 +1858,12 @@ export function IntegrationSection({
               const asked = unexplained;
               setUnexplained(null);
               explainError(card.id, asked)
-                .then(() => setStatus("Asked the copilot — the answer lands in the journal.", "info"))
+                .then(() => setStatus(t("int.askedCopilot"), "info"))
                 .catch((e) => setStatus(boardErrorMessage(e), "error", null));
             }}
           >
             <Sparkles className="size-4" />
-            What does this mean?
+            {t("int.whatMean")}
           </Button>
         )}
 
@@ -1876,8 +1871,9 @@ export function IntegrationSection({
             No button here: the point is exactly that there is nothing left to tap yet. */}
         {awaitingResolve && (
           <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-            The agent is resolving the conflict — this refreshes on its own once it's done. Then tap{" "}
-            {awaitingResolve === "pr" ? (past.pr?.url ? prLabel(past.pr.url, "Update") : "Open a PR") : "merge"}.
+            {t("int.resolving", {
+              action: awaitingResolve === "pr" ? (past.pr?.url ? prLabel(past.pr.url, t("int.update")) : t("int.openPr")) : t("int.mergeWord"),
+            })}
           </p>
         )}
 
@@ -1885,8 +1881,8 @@ export function IntegrationSection({
           <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
             <p className="text-xs text-muted-foreground">
               {conflict === "pr"
-                ? `Nothing was pushed. The agent can merge origin/${state.base} into its own branch, then the PR opens clean.`
-                : `Nothing was changed in ${state.base}. The agent can settle this on its own branch, then the merge goes through.`}
+                ? t("int.conflictPr", { base: state.base })
+                : t("int.conflictMerge", { base: state.base })}
             </p>
             {/* A filed card has no agent any more — its session ended when it was filed. Offering
                 "let the agent resolve it" there is offering a button that answers 409, so the honest
@@ -1897,16 +1893,15 @@ export function IntegrationSection({
                 size="sm"
                 className="h-9 w-fit gap-2"
                 disabled={busy !== null}
-                onClick={() => void run("resolve", "Sent to the agent")}
+                onClick={() => void run("resolve", t("int.lbl.sent"))}
               >
                 <Sparkles className="size-4" />
-                {busy === "resolve" ? "Sending…" : "Let the agent resolve it"}
+                {busy === "resolve" ? t("card.sending") : t("int.letResolve")}
               </Button>
             ) : (
               <>
                 <p className="text-xs text-muted-foreground">
-                  This card has no running agent — start it again and it will pick the task up from
-                  its handoff, conflict included.
+                  {t("int.noAgent")}
                 </p>
                 <Button
                   variant="outline"
@@ -1916,7 +1911,7 @@ export function IntegrationSection({
                   onClick={() => {
                     setRestarting(true);
                     startCard(card.id)
-                      .then(() => setStatus("Agent started — hand it the conflict once it is up.", "success"))
+                      .then(() => setStatus(t("int.agentStarted"), "success"))
                       .catch((e) => setStatus(boardErrorMessage(e), "error", null))
                       .finally(() => {
                         setRestarting(false);
@@ -1925,7 +1920,7 @@ export function IntegrationSection({
                   }}
                 >
                   <Play className="size-4" />
-                  {restarting ? "Starting…" : "Start the agent again"}
+                  {restarting ? t("card.start.starting") : t("int.startAgain")}
                 </Button>
               </>
             )}
@@ -1946,8 +1941,7 @@ export function IntegrationSection({
                   checkout this button is about to delete. */}
               {card.wrapupPending && (
                 <p className="text-xs text-muted-foreground">
-                  The agent is still writing its closing report — cleaning up now would lose it. Wait
-                  for it to finish.
+                  {t("int.wrapupPending")}
                 </p>
               )}
               {/* The mirror case, and the one that used to say nothing at all: the agent was already
@@ -1957,8 +1951,7 @@ export function IntegrationSection({
                   what is missing is the sentence, not the gesture. */}
               {!card.wrapupPending && past.wrapupUnasked !== null && (
                 <p className="text-xs text-muted-foreground">
-                  Its agent was already gone, so no closing report was asked for and the worktree was
-                  left in place. The work itself landed — finish up here.
+                  {t("int.wrapupUnasked")}
                 </p>
               )}
               <Button
@@ -1967,11 +1960,11 @@ export function IntegrationSection({
                 disabled={busy !== null || card.wrapupPending}
                 onClick={() => {
                   if (!confirm("cleanup")) return;
-                  void run("cleanup", "Worktree removed");
+                  void run("cleanup", t("int.lbl.removed"));
                 }}
               >
                 <Trash2 className="size-4" />
-                {pending === "cleanup" ? "Remove the worktree and branch?" : "Clean up worktree"}
+                {pending === "cleanup" ? t("int.cleanConfirm") : t("int.clean")}
               </Button>
             </>
           )}
@@ -1989,15 +1982,15 @@ export function IntegrationSection({
               disabled={busy !== null}
               onClick={() => {
                 if (!confirm("discard")) return;
-                void run("discard", "Discarded");
+                void run("discard", t("int.lbl.discarded"));
               }}
             >
               <Trash2 className="size-4" />
               {pending === "discard"
                 ? discardLoss
-                  ? `Throw away ${discardLoss}?`
-                  : "Drop the branch and archive the card?"
-                : "Discard this work"}
+                  ? t("int.throwAway", { loss: discardLoss })
+                  : t("int.dropArchive")
+                : t("int.discard")}
             </Button>
           )}
         </div>
@@ -2015,9 +2008,10 @@ export function IntegrationSection({
  * confirm carried over would fire on the next card's first tap — the opposite of a guard.
  */
 export function DangerZone({ cardId, onDelete }: { cardId: string; onDelete: () => void }) {
+  const t = useT();
   const { confirm, pending } = usePendingConfirm();
   return (
-    <Section label="Danger zone">
+    <Section label={t("card.danger.title")}>
       <Button
         variant="outline"
         size="sm"
@@ -2028,7 +2022,7 @@ export function DangerZone({ cardId, onDelete }: { cardId: string; onDelete: () 
         }}
       >
         <Trash2 className="size-4" />
-        {pending === cardId ? "Delete for good — no undo?" : "Delete card"}
+        {pending === cardId ? t("card.danger.confirm") : t("card.danger.delete")}
       </Button>
     </Section>
   );
@@ -2036,8 +2030,8 @@ export function DangerZone({ cardId, onDelete }: { cardId: string; onDelete: () 
 
 /** The disclosure label for a session's note. Pure, so the wording is pinned by a test. */
 export function noteLabel(open: boolean, closing: boolean): string {
-  const what = closing ? "closing report" : "handoff note";
-  return open ? `Hide ${what}` : what.charAt(0).toUpperCase() + what.slice(1);
+  if (open) return closing ? t("card.note.hideClosing") : t("card.note.hideHandoff");
+  return closing ? t("card.note.closing") : t("card.note.handoff");
 }
 
 /**
@@ -2056,8 +2050,9 @@ function SessionRow({
   /** The most recent session — its line stops here instead of running into empty space below. */
   last: boolean;
 }) {
+  const t = useT();
   const running = session.endedAt === null;
-  const outcome = running ? "running" : (session.outcome ?? "ended");
+  const outcome = t(`card.outcome.${running ? "running" : (session.outcome ?? "ended")}`);
   return (
     <div className="flex gap-3">
       <div className="flex w-[26px] shrink-0 flex-col items-center">
@@ -2070,7 +2065,7 @@ function SessionRow({
       </div>
       <div className={cn("min-w-0 flex-1", !last && "pb-4")}>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-[13px] font-semibold">Session {index + 1}</span>
+          <span className="text-[13px] font-semibold">{t("card.session", { n: index + 1 })}</span>
           <span
             className={cn(
               "text-[11px] font-semibold uppercase tracking-[0.06em]",
@@ -2089,7 +2084,7 @@ function SessionRow({
           )}
           <span>{timeAgo(session.startedAt)}</span>
           {session.handoffRequestedAt != null && (
-            <span>{session.endedAt === null ? "handoff pending" : "closing report pending"}</span>
+            <span>{session.endedAt === null ? t("card.pending.handoff") : t("card.pending.closing")}</span>
           )}
         </div>
         {session.handoffMd && (
@@ -2118,8 +2113,8 @@ function SessionRow({
  * worktree with no path for the UI to get wrong, and why the output is readable in that pane.
  */
 const REVIEW_PASSES = [
-  { command: "/simplify", label: "Simplify", Icon: Sparkles },
-  { command: "/code-review", label: "Find bugs", Icon: Bug },
+  { command: "/simplify", label: "card.pass.simplify", Icon: Sparkles },
+  { command: "/code-review", label: "card.pass.bugs", Icon: Bug },
 ] as const;
 
 /**
@@ -2131,12 +2126,13 @@ const REVIEW_PASSES = [
  * says what to do about it.
  */
 export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: string) => Promise<void> }) {
+  const t = useT();
   const [pending, setPending] = useState<string | null>(null);
 
   if (!card.runtime) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
-        This card's agent is gone — relaunch it on the branch to run a pass over its code.
+        {t("card.pass.gone")}
       </p>
     );
   }
@@ -2145,7 +2141,7 @@ export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: s
   if (passes.length === 0) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
-        {card.runtime.agent} has no review pass to run — these are Claude Code's.
+        {t("card.pass.none", { agent: card.runtime.agent })}
       </p>
     );
   }
@@ -2172,19 +2168,19 @@ export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: s
             }}
           >
             <Icon className="size-4" />
-            {pending === command ? "Sending…" : label}
+            {pending === command ? t("card.sending") : t(label)}
           </Button>
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Runs in this card's agent, on its branch. Follow it in the pane above — the journal records
-        which pass you asked for.
+        {t("card.pass.hint")}
       </p>
     </div>
   );
 }
 
 function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => Promise<void> }) {
+  const t = useT();
   const [pending, setPending] = useState(false);
   const requested = card.session?.handoffRequestedAt != null;
   const worthIt = (card.session?.ctxPct ?? 0) >= 70;
@@ -2192,7 +2188,7 @@ function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => P
   if (requested) {
     return (
       <p className="rounded-xl border border-dashed px-3.5 py-3 text-xs text-muted-foreground">
-        Handoff asked for. The card swaps to a fresh session once the agent has written its note.
+        {t("card.handoff.asked")}
       </p>
     );
   }
@@ -2211,7 +2207,7 @@ function HandoffButton({ card, onHandoff }: { card: CardView; onHandoff: () => P
       className="h-11 w-full gap-2"
     >
       <Shuffle className="size-4" />
-      {pending ? "Asking…" : "Hand off to a fresh session"}
+      {pending ? t("card.handoff.asking") : t("card.handoff.do")}
     </Button>
   );
 }
@@ -2278,6 +2274,7 @@ const PROGRESS_TONE: Record<CardStatus, string> = {
  *  child is blocked — a right-aligned "1 attend une réponse" (the copy is the whole point: a bar
  *  alone doesn't say WHO needs you, it says how much is left). */
 export function SubtaskProgress({ cards }: { cards: CardView[] }) {
+  const t = useT();
   const total = cards.length;
   if (total === 0) return null;
   const done = cards.filter((c) => c.status === "done").length;
@@ -2289,11 +2286,11 @@ export function SubtaskProgress({ cards }: { cards: CardView[] }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
         <span>
-          <span className="font-semibold tabular-nums text-foreground">{done}</span> / {total} terminées
+          <span className="font-semibold tabular-nums text-foreground">{done}</span> {t("card.progress.of", { total })}
         </span>
         {blocked > 0 && (
           <span className="font-semibold text-status-blocked">
-            {blocked} attend{blocked === 1 ? "" : "ent"} une réponse
+            {t("card.progress.waiting", { count: blocked })}
           </span>
         )}
       </div>
@@ -2327,6 +2324,7 @@ function ContainerSidebar({
   rawInput: string | null | undefined;
   onOpenPane: (paneId: string) => void;
 }) {
+  const t = useT();
   if (childCards.length === 0) return null;
   const total = childCards.length;
   const done = childCards.filter((c) => c.status === "done").length;
@@ -2338,11 +2336,11 @@ function ContainerSidebar({
     <>
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-          Avancement
+          {t("card.progress.title")}
         </div>
         <div className="mt-3 flex items-baseline gap-1.5">
           <span className="text-[28px] font-semibold tabular-nums tracking-[-0.02em]">{done}</span>
-          <span className="text-[15px] text-muted-foreground">/ {total} terminées</span>
+          <span className="text-[15px] text-muted-foreground">{t("card.progress.of", { total })}</span>
         </div>
         <div className="mt-3 flex h-1.5 gap-0.5">
           {PROGRESS_STATUSES.filter((s) => counts.has(s)).map((s) => (
@@ -2378,8 +2376,8 @@ function ContainerSidebar({
           </button>
           <p className="mt-2 text-xs leading-[1.5] text-muted-foreground">
             {blockedChildren.length === 1
-              ? "La seule sous-tâche qui attend quelque chose de toi. Ouvre son pane pour répondre."
-              : "Une des sous-tâches qui attend quelque chose de toi. Ouvre son pane pour répondre."}
+              ? t("card.sidebar.blockedOne")
+              : t("card.sidebar.blockedMany")}
           </p>
         </div>
       ))}
@@ -2387,13 +2385,13 @@ function ContainerSidebar({
       {rawInput && (
         <div className="rounded-2xl border border-dashed border-border p-4">
           <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-            Dictée d'origine
+            {t("card.sidebar.dictation")}
           </div>
           <p className="mt-2.5 whitespace-pre-wrap text-[13px] leading-[1.55] text-foreground/85">
-            « {rawInput} »
+            {t("card.sidebar.quote", { text: rawInput })}
           </p>
           <p className="mt-2.5 text-[11px] leading-[1.5] text-muted-foreground">
-            Reformuler repart de ce texte, pas des sous-tâches actuelles.
+            {t("card.sidebar.reformNote")}
           </p>
         </div>
       )}
@@ -2438,6 +2436,7 @@ function SubtaskList({
   linkable,
   dependsOnCandidates,
 }: SubtaskListProps) {
+  const t = useT();
   const navigate = useNavigate();
   const desktop = useIsDesktop();
   const [adding, setAdding] = useState(false);
@@ -2447,11 +2446,11 @@ function SubtaskList({
   const [held, setHeld] = useState<string | null>(null);
 
   async function submitNew() {
-    const t = title.trim();
-    if (!t) return;
+    const trimmed = title.trim();
+    if (!trimmed) return;
     setTitle("");
     setAdding(false);
-    await onNewSubtask(t);
+    await onNewSubtask(trimmed);
   }
 
   // Index, not just the card: the "⋯" menu's Monter/Descendre write `position` through the SAME
@@ -2548,7 +2547,7 @@ function SubtaskList({
                     )}
                   >
                     <Lock className="size-[11px] shrink-0" />
-                    <span className="truncate">après « {dep.title} »</span>
+                    <span className="truncate">{t("tile.after", { title: dep.title })}</span>
                   </div>
                 )}
                 {(child.runtime || child.branch) && (
@@ -2569,7 +2568,7 @@ function SubtaskList({
               <button
                 type="button"
                 onClick={() => setMenuFor(child.id)}
-                aria-label="More"
+                aria-label={t("card.more")}
                 className="flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <EllipsisVertical className="size-4" />
@@ -2594,11 +2593,11 @@ function SubtaskList({
                 autoFocus
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Titre de la sous-tâche"
+                placeholder={t("card.sub.titlePh")}
                 className="h-10 min-w-0 flex-1 rounded-[10px] border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <Button type="submit" size="sm" className="h-10" disabled={!title.trim()}>
-                Ajouter
+                {t("card.sub.add")}
               </Button>
               <Button
                 type="button"
@@ -2610,7 +2609,7 @@ function SubtaskList({
                   setTitle("");
                 }}
               >
-                Annuler
+                {t("board.cancel")}
               </Button>
             </form>
           ) : (
@@ -2621,7 +2620,7 @@ function SubtaskList({
                 className="flex min-h-10 items-center gap-1.5 rounded-[10px] bg-brand/16 px-3.5 text-sm font-semibold text-brand"
               >
                 <Plus className="size-4" />
-                Nouvelle sous-tâche
+                {t("card.sub.new")}
               </button>
               <Button
                 variant="outline"
@@ -2630,17 +2629,17 @@ function SubtaskList({
                 onClick={() => setLinking(true)}
               >
                 <Link2 className="size-4" />
-                Lier une carte existante
+                {t("card.sub.link")}
               </Button>
             </>
           )}
         </div>
       </div>
 
-      <BottomSheet open={linking} onClose={() => setLinking(false)} title="Lier une carte existante">
+      <BottomSheet open={linking} onClose={() => setLinking(false)} title={t("card.sub.link")}>
         <LinkPicker
-          label="Carte à lier"
-          hint="La carte rejoint ce conteneur comme sous-tâche."
+          label={t("card.sub.linkLabel")}
+          hint={t("card.sub.linkHint")}
           value={null}
           cards={linkable}
           onChange={(id) => {
@@ -2705,6 +2704,7 @@ export function SubtaskActionsSheet({
   onConvert,
   candidates,
 }: SubtaskActionsSheetProps) {
+  const t = useT();
   const [mode, setMode] = useState<"actions" | "depends">("actions");
   const [handingOff, setHandingOff] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -2721,7 +2721,7 @@ export function SubtaskActionsSheet({
     setHandingOff(true);
     try {
       await handoffCard(child.id);
-      setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+      setStatus(t("card.toast.handoff"), "info");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     } finally {
@@ -2733,7 +2733,7 @@ export function SubtaskActionsSheet({
   const confirming = !!child && pending === child.id;
 
   return (
-    <BottomSheet open={child !== null} onClose={onClose} title={child?.title ?? "Sub-task"}>
+    <BottomSheet open={child !== null} onClose={onClose} title={child?.title ?? t("card.sub.title")}>
       {!child ? null : mode === "depends" ? (
         <div className="flex flex-col gap-3">
           <button
@@ -2742,11 +2742,11 @@ export function SubtaskActionsSheet({
             className="flex items-center gap-1 self-start text-xs font-medium text-muted-foreground"
           >
             <ChevronLeft className="size-3.5" />
-            Retour
+            {t("card.sub.back")}
           </button>
           <LinkPicker
-            label="Dépend de"
-            hint="La carte ne démarre pas tant que celle-ci n'est pas terminée."
+            label={t("card.sub.dependsOn")}
+            hint={t("card.sub.dependsHint")}
             value={child.dependsOn}
             cards={candidates}
             onChange={(id) => {
@@ -2760,7 +2760,7 @@ export function SubtaskActionsSheet({
           {child.runtime && (
             <ActionRow
               icon={<TerminalSquare className="size-4 shrink-0 text-muted-foreground" />}
-              label="Ouvrir le pane"
+              label={t("card.sub.openPane")}
               onClick={() => {
                 onOpenPane(child.runtime!.paneId);
                 onClose();
@@ -2772,7 +2772,7 @@ export function SubtaskActionsSheet({
               icon={<Shuffle className="size-4 shrink-0 text-muted-foreground" />}
               label={
                 handingOff
-                  ? "Envoi…"
+                  ? t("card.sending")
                   : `Handoff${child.session?.ctxPct != null ? ` · ctx ${Math.round(child.session.ctxPct)}%` : ""}`
               }
               onClick={() => void handoff()}
@@ -2782,55 +2782,54 @@ export function SubtaskActionsSheet({
             {index > 0 && (
               <ActionRow
                 icon={<ArrowUp className="size-4 shrink-0 text-muted-foreground" />}
-                label="Monter"
+                label={t("card.sub.up")}
                 onClick={() => onReorder(child.id, index - 1)}
               />
             )}
             {index < count - 1 && (
               <ActionRow
                 icon={<ArrowDown className="size-4 shrink-0 text-muted-foreground" />}
-                label="Descendre"
+                label={t("card.sub.down")}
                 onClick={() => onReorder(child.id, index + 1)}
               />
             )}
           </div>
           <ActionRow
             icon={<Link2 className="size-4 shrink-0 text-muted-foreground" />}
-            label="Dépend de…"
+            label={t("card.sub.dependsMenu")}
             onClick={() => setMode("depends")}
           />
           <div className="flex flex-col">
             <ActionRow
               icon={<Zap className="size-4 shrink-0 text-muted-foreground" />}
-              label="Convertir en action"
+              label={t("card.convert")}
               onClick={() => {
                 void onConvert(child.id);
                 onClose();
               }}
             />
             <p className="px-3 pb-1 text-xs text-muted-foreground">
-              Trop petit pour une carte : le spec devient une action sur « {parentTitle} », à donner
-              d&apos;un tap à son agent. La carte disparaît du board.
+              {t("card.sub.convertHint", { parent: parentTitle })}
             </p>
           </div>
           <div className="flex flex-col">
             <ActionRow
               icon={<Unlink className="size-4 shrink-0 text-muted-foreground" />}
-              label="Détacher du conteneur"
+              label={t("card.sub.detach")}
               onClick={() => {
                 void onDetach(child.id);
                 onClose();
               }}
             />
             <p className="px-3 pb-1 text-xs text-muted-foreground">
-              La carte reste sur le board, seule — « {parentTitle} » ne la tient plus. Rien n'est supprimé.
+              {t("card.sub.detachHint", { parent: parentTitle })}
             </p>
           </div>
           <DestructiveActionRow
             icon={<Trash2 className="size-4 shrink-0" />}
-            label="Supprimer la carte"
-            confirmLabel="Confirmer la suppression ?"
-            closingLabel="Suppression…"
+            label={t("card.sub.delete")}
+            confirmLabel={t("card.sub.deleteConfirm")}
+            closingLabel={t("card.sub.deleting")}
             armed={confirming}
             closing={deleting}
             onClick={() => {

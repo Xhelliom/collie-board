@@ -1,3 +1,4 @@
+import { useBack } from "@/hooks/use-back";
 import { useEffect, useRef } from "react";
 import { useLoaderData, useLocation, useNavigate, useParams, useRouteLoaderData } from "react-router";
 
@@ -27,6 +28,7 @@ export function DetailRoute() {
   // navigation and write below stays scoped to it.
   const session = pane.session;
   const navigate = useNavigate();
+  const back = useBack(homePath(session));
   const location = useLocation();
   const stalled = useLoadingStalled();
 
@@ -81,7 +83,7 @@ export function DetailRoute() {
       bridge={root.bridge}
       error={root.error}
       stalled={stalled}
-      onBack={() => navigate(homePath(session))}
+      onBack={back}
       onSelect={(id) => navigate(panePath(id, session))}
     />
   );

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { setPreference } from "@/i18n";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RunSheet } from "./run-sheet";
 import type { CardView } from "@/lib/board";
@@ -16,6 +17,10 @@ vi.mock("@/lib/board", async (orig) => ({
 
 const card = (id: string, dependsOn: string | null = null) =>
   ({ id, title: id, dependsOn, repoPath: "/repo", status: "backlog" }) as CardView;
+
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("fr"));
+afterEach(() => setPreference("en"));
 
 describe("RunSheet — what the gesture consents to, before it is given", () => {
   it("shows the order, the parallelism, the fold-in cap and the lead's agent, then confirms them", async () => {

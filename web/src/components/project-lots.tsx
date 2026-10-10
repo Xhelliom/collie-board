@@ -3,6 +3,7 @@ import { Rocket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { useT } from "@/i18n";
 import { boardErrorMessage, launchLot, type CardView } from "@/lib/board";
 import type { ProjectLot } from "@/lib/project";
 import { setStatus } from "@/lib/status";
@@ -24,13 +25,15 @@ function LaunchSheet({
   onClose: () => void;
   onLaunched: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
+  const name = lot.lot.name ?? t("lot.fallbackName");
 
   async function go() {
     setBusy(true);
     try {
       await launchLot(lot.lot.id);
-      setStatus(`Lot “${lot.lot.name ?? "lot"}” launched.`, "success");
+      setStatus(t("lot.launched", { name }), "success");
       onLaunched();
       onClose();
     } catch (e) {
@@ -44,23 +47,20 @@ function LaunchSheet({
     <BottomSheet
       open
       onClose={onClose}
-      title={`Launch “${lot.lot.name ?? "lot"}”`}
+      title={t("lot.sheetTitle", { name })}
       footer={
         <div className="flex w-full gap-2">
           <Button variant="outline" disabled={busy} onClick={onClose}>
-            Cancel
+            {t("lot.cancel")}
           </Button>
           <Button variant="brand" className="flex-1" disabled={busy || lot.cards.length === 0} onClick={() => void go()}>
-            {busy ? "Launching…" : `Launch ${lot.cards.length} card${lot.cards.length === 1 ? "" : "s"}`}
+            {busy ? t("lot.launching") : t("lot.launchN", { count: lot.cards.length })}
           </Button>
         </div>
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          The board starts exactly these cards, by itself, until the lot ends or a card needs you. Workers, the lead
-          and the reviews spend quota meanwhile. Nothing outside this list moves.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("lot.consent")}</p>
         <ol className="flex flex-col gap-1.5">
           {lot.cards.map((c, i) => {
             const after = c.dependsOn ? byId.get(c.dependsOn) : undefined;
@@ -69,7 +69,7 @@ function LaunchSheet({
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">{i + 1}.</span>
                 <span className="min-w-0">
                   <b className="font-semibold">{c.title}</b>
-                  {after && <span className="text-muted-foreground"> — after {after.title}</span>}
+                  {after && <span className="text-muted-foreground">{t("lot.after", { title: after.title })}</span>}
                 </span>
               </li>
             );
@@ -98,6 +98,7 @@ export function PhaseLots({
   onLaunched: () => void;
   renderStep: (card: CardView, inLot: boolean) => React.ReactNode;
 }) {
+  const t = useT();
   const [launching, setLaunching] = useState<ProjectLot | null>(null);
   const shown = new Set(steps.map((s) => s.id));
   const taken = new Set(lots.flatMap((pl) => pl.lot.cardIds));
@@ -115,22 +116,22 @@ export function PhaseLots({
           return (
             <section
               key={pl.lot.id}
-              aria-label={`Lot ${pl.lot.name ?? ""}`}
+              aria-label={t("lot.aria", { name: pl.lot.name ?? "" })}
               className={cn("flex flex-col gap-2 rounded-2xl border p-2.5", planned ? "border-dashed" : "bg-card/30")}
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-1">
-                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? "Lot"}</span>
+                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? t("run.lot")}</span>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-[11px] font-semibold",
                     planned ? "bg-muted text-muted-foreground" : finished ? "bg-status-done/15 text-status-done" : "bg-status-working/15 text-status-working",
                   )}
                 >
-                  {planned ? "planned" : finished ? "finished" : "running"}
+                  {planned ? t("lot.planned") : finished ? t("lot.finished") : t("lot.running")}
                 </span>
                 {pl.lot.maxParallel ? (
                   <span className="font-mono text-[11px] text-muted-foreground">
-                    {pl.lot.maxParallel === 1 ? "one at a time" : `${pl.lot.maxParallel} at a time`}
+                    {pl.lot.maxParallel === 1 ? t("lot.oneAtATime") : t("lot.nAtATime", { count: pl.lot.maxParallel })}
                   </span>
                 ) : null}
                 <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -144,7 +145,7 @@ export function PhaseLots({
                     onClick={() => setLaunching(pl)}
                   >
                     <Rocket className="size-4" />
-                    Launch this lot
+                    {t("lot.launch")}
                   </Button>
                 )}
               </div>
@@ -161,7 +162,7 @@ export function PhaseLots({
           <div className="flex flex-col gap-2">
             {visible.length > 0 && (
               <span className="px-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Not in a lot · {loose.length}
+                {t("lot.notIn", { count: loose.length })}
               </span>
             )}
             <ul className="flex flex-col gap-2">{loose.map((c) => renderStep(c, false))}</ul>

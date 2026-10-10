@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -27,12 +28,13 @@ export function TagFilter({
   active: string | null;
   onPick: (tag: string | null) => void;
 }) {
+  const t = useT();
   if (tags.length === 0) return null;
   return (
     // Wraps from `lg`, like RepoFilter — a mouse can't swipe the phone's scrolling row.
     <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
-      <SectionLabel>Tags</SectionLabel>
-      <Chip label="All" active={active === null} onClick={() => onPick(null)} />
+      <SectionLabel>{t("filter.tags")}</SectionLabel>
+      <Chip label={t("filter.all")} active={active === null} onClick={() => onPick(null)} />
       {tags.map((tag) => (
         <button
           key={tag}

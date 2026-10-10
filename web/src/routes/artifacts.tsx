@@ -1,3 +1,4 @@
+import { useBack } from "@/hooks/use-back";
 import { useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
 import { ArrowLeft, X } from "lucide-react";
@@ -79,6 +80,7 @@ export function ArtifactsRoute() {
   const { paneId = "" } = useParams();
   const navigate = useNavigate();
   const session = data.session;
+  const back = useBack(panePath(paneId, session));
 
   const agent =
     root.agents.find((a) => a.paneId === paneId) ??
@@ -125,7 +127,7 @@ export function ArtifactsRoute() {
         </AppHeader>
       ) : (
         <AppHeader
-          onBack={() => navigate(panePath(paneId, session))}
+          onBack={back}
           title="Artifacts"
           subtitle={`${data.artifacts.length} file${data.artifacts.length === 1 ? "" : "s"} in the worktree · ${paneTitle}`}
         />

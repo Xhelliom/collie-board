@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setPreference } from "@/i18n";
 
 import { describeEvent, editedByHandSince, fieldList } from "./card-journal";
 import type { BoardEvent } from "@/lib/board";
@@ -123,5 +124,18 @@ describe("editedByHandSince", () => {
 
   it("counts a restore as a hand edit — it is one, and it must not be silently undone", () => {
     expect(editedByHandSince([event("card.edited", { reason: "revert" })])).toBe(true);
+  });
+});
+
+describe("describeEvent in French", () => {
+  afterEach(() => setPreference("en"));
+  it("speaks the operator's language, with the same payload", () => {
+    setPreference("fr");
+    const ev = (type: string, payload: unknown) => ({ id: 1, cardId: "c", type, payload, ts: 1 });
+    expect(describeEvent(ev("card.created", {}))).toBe("Carte créée");
+    expect(describeEvent(ev("card.status", { from: "ready", to: "working" }))).toBe("Passée de ready à working");
+    expect(describeEvent(ev("run.gate", { ok: true, command: "make" }))).toBe("Barrière verte (make)");
+    expect(describeEvent(ev("copilot.refined", { instruction: "x", subtasks: 2 }))).toBe("Corrigée sur ta consigne : “x” — et 2 sous-tâches");
+    expect(fieldList({ title: "t", spec: "s" })).toBe("le titre et la spec");
   });
 });

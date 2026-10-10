@@ -1,3 +1,4 @@
+import { setPreference } from "@/i18n";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -45,11 +46,16 @@ describe("BOARD_LANES", () => {
     // matched its SECOND column would open with unlabelled tiles belonging to the first one.
     // A lane whose name matches none of them (e.g. "To do" over ready + backlog) keeps every
     // sub-heading, which is the honest outcome and what that lane's count depends on.
-    for (const lane of BOARD_LANES) {
-      const repeated = lane.statuses.filter((s) => CARD_STATUS_LABEL[s] === lane.label);
-      if (repeated.length === 0) continue;
-      expect(repeated).toEqual([lane.statuses[0]]);
+    // …in every language: a translation that lines a lane up with a second column breaks the heading.
+    for (const lang of ["en", "fr"] as const) {
+      setPreference(lang);
+      for (const lane of BOARD_LANES) {
+        const repeated = lane.statuses.filter((s) => CARD_STATUS_LABEL[s] === lane.label);
+        if (repeated.length === 0) continue;
+        expect(repeated).toEqual([lane.statuses[0]]);
+      }
     }
+    setPreference("en");
   });
 });
 

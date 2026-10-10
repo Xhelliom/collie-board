@@ -79,6 +79,15 @@ describe("AppNav — mobile tab bar", () => {
     expect(renderAt("/pane/w1%3Ap1").tabBar).toBeUndefined();
   });
 
+  it("stays visible, with Board lit, on the board's own views (Project, Open PRs)", () => {
+    for (const path of ["/board/project", "/board/prs"]) {
+      const { tabBar, sidebar } = renderAt(path);
+      expect(tabBar).toBeDefined();
+      expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+      expect(within(sidebar).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+    }
+  });
+
   it("marks the current root screen active", () => {
     const { tabBar } = renderAt("/board");
     expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute(

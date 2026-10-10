@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 
@@ -29,12 +30,13 @@ export function OriginFilter({
   active: boolean;
   onPick: (auto: boolean) => void;
 }) {
+  const t = useT();
   if (!has && !active) return null;
   return (
     <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
-      <SectionLabel>Source</SectionLabel>
-      <Chip label="All" active={!active} onClick={() => onPick(false)} />
-      <Chip label="Auto" active={active} onClick={() => onPick(!active)} />
+      <SectionLabel>{t("filter.source")}</SectionLabel>
+      <Chip label={t("filter.all")} active={!active} onClick={() => onPick(false)} />
+      <Chip label={t("filter.auto")} active={active} onClick={() => onPick(!active)} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
 import { ArrowUpToLine, ChevronDown, ChevronUp, FileCode2, Images, Loader2, ScrollText, Search, X } from "lucide-react";
@@ -50,6 +51,7 @@ export function HistoryRoute() {
   const { paneId = "" } = useParams();
   const navigate = useNavigate();
   const session = data.session;
+  const back = useBack(panePath(paneId, session));
 
   const agent =
     root.agents.find((a) => a.paneId === paneId) ??
@@ -192,7 +194,7 @@ export function HistoryRoute() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <AppHeader
-        onBack={() => navigate(panePath(paneId, session))}
+        onBack={back}
         override={
           findOpen ? (
             <FindBar

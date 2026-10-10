@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Check, Eye, EyeOff, FolderGit2, ImagePlus, Loader2, Pencil } from "lucide-react";
@@ -35,6 +36,7 @@ interface NewCardSheetProps {
 // scoped to the card's branch, must render --stat first" should produce a usable card with no extra
 // taps. A real reformulation (title + spec + acceptance + branch name) is the copilot's job.
 export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }: NewCardSheetProps) {
+  const t = useT();
   const [text, setText] = useState("");
   const [tag, setTag] = useState("");
   const [repos, setRepos] = useState<RepoChoice[]>([]);
@@ -174,12 +176,12 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     <BottomSheet
       open={open}
       onClose={onClose}
-      title="New card"
+      title={t("board.newCard")}
       footer={
         <div className="flex flex-col gap-1">
           {title && (
             <p className="truncate px-1 text-xs text-muted-foreground">
-              Titre déduit : <span className="text-foreground">{title}</span>
+              {t("newcard.derivedTitle")} <span className="text-foreground">{title}</span>
             </p>
           )}
           <Button
@@ -188,7 +190,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             disabled={!title}
             className="h-12 w-full rounded-xl text-sm font-semibold"
           >
-            Ajouter au backlog
+            {t("newcard.add")}
           </Button>
         </div>
       }
@@ -196,14 +198,14 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
-            What needs doing (dictate away)
+            {t("newcard.what")}
           </span>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onPaste={onPaste}
             rows={5}
-            placeholder="Add a diff view scoped to the card&apos;s branch…"
+            placeholder={t("newcard.placeholder")}
             className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           {/* The shared status line lives in the header, behind this sheet, so the button carries the
@@ -220,7 +222,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
               onClick={() => fileRef.current?.click()}
             >
               {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-              {uploading ? "Téléversement de l'image…" : "Joindre une capture"}
+              {uploading ? t("newcard.uploading") : t("newcard.attach")}
             </Button>
           </div>
         </label>
@@ -230,13 +232,14 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             control that matters, because creating a card is the ONLY moment the copilot rewrites
             anything without being asked. Every later run is a button, and now a confirmed one. */}
         <div className="flex items-center justify-between gap-3 px-1 py-1">
-          <span className="text-xs text-muted-foreground">Le copilote va réécrire ce texte</span>
-          <Switch checked={rewrite} onCheckedChange={setRewrite} aria-label="Rewrite with the copilot" />
+          <span className="text-xs text-muted-foreground">{t("newcard.rewriteNote")}</span>
+          <Switch checked={rewrite} onCheckedChange={setRewrite} aria-label={t("newcard.rewriteAria")} />
         </div>
 
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
-            Repo{repos.length > 4 && " · long-press to hide one"}
+            {t("newcard.repo")}
+            {repos.length > 4 && t("newcard.repoHint")}
           </span>
           {repos.length > 0 && (
             <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
@@ -259,7 +262,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
               className="flex items-center gap-1.5 self-start px-1 py-1 text-xs text-muted-foreground underline underline-offset-4"
             >
               {showHidden ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-              {showHidden ? "Hide them again" : `${hiddenCount} hidden — show`}
+              {showHidden ? t("newcard.hideAgain") : t("newcard.hiddenShow", { count: hiddenCount })}
             </button>
           )}
 
@@ -267,8 +270,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             <>
               {repos.length === 0 && (
                 <p className="pb-1 text-xs text-muted-foreground">
-                  No repos found yet — none carded, none open in the herd. Type a path; the next card
-                  will offer it back.
+                  {t("newcard.noRepos")}
                 </p>
               )}
             <input
@@ -288,14 +290,15 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
               className="flex items-center gap-1.5 self-start px-1 py-1 text-xs text-muted-foreground underline underline-offset-4"
             >
               <Pencil className="size-3" />
-              Type a path instead
+              {t("newcard.typePath")}
             </button>
           )}
         </div>
 
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
-            Base ref{selected?.defaultBranch && " (from the repo)"}
+            {t("newcard.baseRef")}
+            {selected?.defaultBranch && t("newcard.fromRepo")}
           </span>
           <input
             value={baseRef}
@@ -335,6 +338,7 @@ function RepoRow({
   onPick: () => void;
   onToggleHidden: () => void;
 }) {
+  const t = useT();
   const longPress = useLongPress(onToggleHidden);
   return (
     <button
@@ -357,7 +361,7 @@ function RepoRow({
       ) : (
         repo.source === "herd" && (
           <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
-            open
+            {t("newcard.open")}
           </span>
         )
       )}

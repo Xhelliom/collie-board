@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { setPreference } from "@/i18n";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -23,11 +24,15 @@ function rewriteSwitch() {
   return screen.getByRole("switch", { name: /rewrite with the copilot/i });
 }
 
+// The language is set, never inherited from the browser jsdom pretends to be.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
+
 describe("NewCardSheet — the no-rewrite toggle", () => {
   it("sends the dump as rawInput by default, which is what asks for a rewrite", async () => {
     const onCreate = await fill("dicte moi ca");
     expect(rewriteSwitch()).toHaveAttribute("aria-checked", "true"); // on by default
-    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
+    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ rawInput: "dicte moi ca", spec: "dicte moi ca" }),
@@ -38,7 +43,7 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
     const onCreate = await fill("une formulation deja exacte");
     await userEvent.click(rewriteSwitch());
     expect(rewriteSwitch()).toHaveAttribute("aria-checked", "false");
-    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
+    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
 
     expect(onCreate).toHaveBeenCalledWith(
       expect.objectContaining({ rawInput: null, spec: "une formulation deja exacte" }),
@@ -48,7 +53,7 @@ describe("NewCardSheet — the no-rewrite toggle", () => {
   it("still keeps the text as the spec, so the card is never left empty", async () => {
     const onCreate = await fill("le texte");
     await userEvent.click(rewriteSwitch());
-    await userEvent.click(screen.getByRole("button", { name: /ajouter au backlog/i }));
+    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
 
     expect(onCreate.mock.calls[0]![0].spec).toBe("le texte");
     expect(onCreate.mock.calls[0]![0].title).toBe("le texte");
@@ -76,7 +81,7 @@ describe("NewCardSheet — the confirm action stays reachable", () => {
     const scroller = screen
       .getByRole("textbox", { name: /what needs doing/i })
       .closest(".overflow-y-auto")!;
-    const confirm = screen.getByRole("button", { name: /ajouter au backlog/i });
+    const confirm = screen.getByRole("button", { name: /add to backlog/i });
 
     expect(scroller).not.toBeNull();
     expect(scroller.contains(confirm)).toBe(false);

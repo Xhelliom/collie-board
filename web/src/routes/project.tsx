@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
 import { MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { BoardTabs } from "@/components/board-tabs";
 import { BottomSheet } from "@/components/ui/sheet";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardErrorMessage, boardPath, patchCard, repoName, type CardView } from "@/lib/board";
+import { boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
-import { timeAgo } from "@/lib/format";
+import { useT, type MessageKey } from "@/i18n";
+import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type StepGroup } from "@/lib/project";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -21,12 +23,12 @@ import { cn } from "@/lib/utils";
 // orphaned. Polling is the root's, like every board route.
 
 type Filter = "all" | StepGroup;
-const FILTERS: { id: Filter; label: string; dot: string }[] = [
-  { id: "all", label: "all", dot: "bg-foreground" },
-  { id: "done", label: "done", dot: "bg-status-done" },
-  { id: "flight", label: "in flight", dot: "bg-status-working" },
-  { id: "waiting", label: "waiting for you", dot: "bg-brand" },
-  { id: "todo", label: "to start", dot: "bg-muted-foreground" },
+const FILTERS: { id: Filter; label: MessageKey; dot: string }[] = [
+  { id: "all", label: "project.filter.all", dot: "bg-foreground" },
+  { id: "done", label: "project.filter.done", dot: "bg-status-done" },
+  { id: "flight", label: "project.filter.flight", dot: "bg-status-working" },
+  { id: "waiting", label: "project.filter.waiting", dot: "bg-brand" },
+  { id: "todo", label: "project.filter.todo", dot: "bg-muted-foreground" },
 ];
 const FILTER_KEY = "collie-project-filter";
 
@@ -72,6 +74,7 @@ const R = 66;
 const C = 2 * Math.PI * R;
 
 function Ring({ done, active, total }: { done: number; active: number; total: number }) {
+  const t = useT();
   const [armed, setArmed] = useState(calm());
   useEffect(() => {
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setArmed(true)));
@@ -81,7 +84,7 @@ function Ring({ done, active, total }: { done: number; active: number; total: nu
   const off = (n: number) => (armed && total ? C * (1 - n / total) : C);
   const arc = "fill-none stroke-[9] [stroke-linecap:round] transition-[stroke-dashoffset] duration-[1400ms] ease-out motion-reduce:transition-none";
   return (
-    <div className="relative grid size-36 shrink-0 place-items-center sm:size-40" role="img" aria-label={`${done} of ${total} steps done`}>
+    <div className="relative grid size-36 shrink-0 place-items-center sm:size-40" role="img" aria-label={t("project.ring.aria", { done, total })}>
       <svg viewBox="0 0 156 156" className="absolute inset-0 -rotate-90">
         <circle cx="78" cy="78" r={R} className="fill-none stroke-border stroke-[9]" />
         <circle cx="78" cy="78" r={R} strokeDasharray={C} strokeDashoffset={off(done + active)} className={cn(arc, "stroke-status-working")} />
@@ -97,9 +100,9 @@ function Ring({ done, active, total }: { done: number; active: number; total: nu
       <div className="grid gap-0.5 text-center">
         <span className="text-4xl font-bold leading-none tabular-nums">{pct}%</span>
         <span className="text-[11px] leading-snug text-muted-foreground">
-          {done} / {total} done
+          {t("project.ring.done", { done, total })}
           <br />
-          {active} in flight
+          {t("project.ring.flight", { active })}
         </span>
       </div>
     </div>
@@ -129,10 +132,10 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
 }
 
 export function ProjectRoute() {
-  const navigate = useNavigate();
+  const t = useT();
   const data = useLoaderData() as ProjectData;
   const revalidator = useRevalidator();
-  const repo = useSearchParams()[0].get("repo");
+  const repo = useSearchParams()[0].get("repo") ?? loadRepoScope();
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
@@ -185,8 +188,28 @@ export function ProjectRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={repo ? repoName(repo) : "Project"} subtitle="Road map" onBack={() => navigate(boardPath())} />
-      <h1 className="sr-only">Project</h1>
+      <AppHeader
+        title={repo ? repoName(repo) : t("project.title")}
+        subtitle={t("project.subtitle")}
+        // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
+        // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
+        rightTrail={
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            aria-label={t("project.chatOpen")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border bg-background px-2.5 text-sm font-semibold shadow-xs hover:bg-accent lg:hidden"
+          >
+            <MessagesSquare className="size-4" />
+            {t("orch.title")}
+            {data.orchestrator?.running && (
+              <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />
+            )}
+          </button>
+        }
+      />
+      <BoardTabs repos={reposOf(data.cards)} />
+      <h1 className="sr-only">{t("project.title")}</h1>
       <div className="flex min-h-0 flex-1">
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <div
@@ -195,60 +218,47 @@ export function ProjectRoute() {
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
           {v.total === 0 ? (
-            <p className="px-2 py-16 text-center text-sm text-muted-foreground">
-              No cards{repo ? " in this repo" : ""} yet. Split a card into sub-tasks to make a phase.
-            </p>
+            <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>
           ) : (
             <>
               <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs uppercase tracking-[0.14em] text-brand">
-                    <span>{repo ? repoName(repo) : "all repos"} · road map</span>
+                    <span>{t("project.eyebrow", { repo: repo ? repoName(repo) : t("project.allRepos") })}</span>
                     {latest > 0 && (
                       <span className="inline-flex items-center gap-1.5 text-status-done">
                         <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-                        updated {timeAgo(latest)}
+                        {t("project.updated", { ago: ago(latest) })}
                       </span>
                     )}
                   </div>
                   <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-                    <b className="font-semibold text-foreground">{v.done}</b> of {v.total} steps done
-                    {named > 0 && ` across ${named} phase${named === 1 ? "" : "s"}`}.{" "}
-                    {v.waiting > 0 ? (
-                      <>
-                        <b className="font-semibold text-foreground">{v.waiting}</b> waiting for you
-                      </>
-                    ) : (
-                      "Nothing waits for you"
-                    )}
-                    , {v.active} in flight.
-                    {v.next && (
-                      <>
-                        {" "}
-                        Next up: <b className="font-semibold text-foreground">{v.next.title}</b>.
-                      </>
-                    )}
+                    {rich(t("project.sum.progress", { done: v.done, total: v.total }))}
+                    {named > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
+                    {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
+                    , {t("project.sum.flight", { count: v.active })}.
+                    {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
                   </p>
                 </div>
                 <Ring done={v.done} active={v.active} total={v.total} />
               </header>
 
               <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-                <Kpi label="Done" value={v.done} note={`of ${v.total} steps`} tone="bg-status-done" />
-                <Kpi label="In flight" value={v.active} note="an agent is on it" tone="bg-status-working" />
-                <Kpi label="Waiting for you" value={v.waiting} note={v.waiting ? "blocked, to review or orphaned" : "nothing to do"} tone="bg-brand" />
-                <Kpi label="To start" value={v.todo} note={v.next ? `next: ${v.next.title}` : undefined} tone="bg-muted-foreground" />
+                <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" />
+                <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" />
+                <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" />
+                <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" />
               </div>
 
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
 
               {v.awaiting.length > 0 && (
                 <section
-                  aria-label="Waiting for you"
+                  aria-label={t("project.waiting.aria")}
                   className="flex flex-col gap-2 rounded-2xl border border-brand/45 bg-card/70 p-4 shadow-[0_10px_40px_-20px] shadow-brand"
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
-                    ◆ {v.awaiting.length} waiting for you
+                    {t("project.waiting.head", { count: v.awaiting.length })}
                   </span>
                   <ul className="flex flex-col gap-1.5">
                     {v.awaiting.map((c) => (
@@ -265,9 +275,9 @@ export function ProjectRoute() {
                           className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-brand hover:bg-brand/5"
                         >
                           <span className="truncate text-sm font-semibold">{c.title}</span>
-                          <span className="font-mono text-xs text-brand">see →</span>
+                          <span className="font-mono text-xs text-brand">{t("project.waiting.see")}</span>
                           <span className="col-span-2 text-[13px] text-muted-foreground">
-                            {c.status === "review" ? "To review" : c.status === "blocked" ? "Needs you" : "Orphaned"}
+                            {CARD_STATUS_LABEL[c.status]}
                           </span>
                         </button>
                       </li>
@@ -276,7 +286,7 @@ export function ProjectRoute() {
                 </section>
               )}
 
-              <nav aria-label="Phases" className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
+              <nav aria-label={t("project.phases.aria")} className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
                 {v.phases.map((p) => (
                   <button
                     key={p.key}
@@ -290,17 +300,17 @@ export function ProjectRoute() {
                       p.steps.some((s) => stepGroup(s) === "flight") && "border-status-working/60",
                     )}
                   >
-                    <span className="text-[13px] font-semibold leading-tight">{p.title}</span>
+                    <span className="text-[13px] font-semibold leading-tight">{p.title || t("project.noPhase")}</span>
                     <Bar steps={p.steps} />
                     <span className="font-mono text-[11px] text-muted-foreground">
-                      {p.done} / {p.steps.length} done
+                      {t("project.phases.done", { done: p.done, total: p.steps.length })}
                     </span>
                   </button>
                 ))}
               </nav>
 
               <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
-                <div role="group" aria-label="Filter the steps" className="flex flex-wrap gap-1.5">
+                <div role="group" aria-label={t("project.filter.aria")} className="flex flex-wrap gap-1.5">
                   {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
                     <button
                       key={f.id}
@@ -313,7 +323,7 @@ export function ProjectRoute() {
                       )}
                     >
                       {f.id !== "all" && <span className={cn("size-2 rounded-full", f.dot)} />}
-                      {f.label}
+                      {t(f.label)}
                       <span className="tabular-nums text-muted-foreground">{counts[f.id]}</span>
                     </button>
                   ))}
@@ -325,7 +335,7 @@ export function ProjectRoute() {
                   }
                   className="rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
                 >
-                  {allOpen ? "Fold all" : "Open all"}
+                  {allOpen ? t("project.foldAll") : t("project.openAll")}
                 </button>
               </div>
 
@@ -338,7 +348,7 @@ export function ProjectRoute() {
                     return (
                       <li key={p.key} className="contents">
                         <div id={`phase-${p.key}`} className="flex scroll-mt-16 items-center gap-3 pb-1 pt-4">
-                          <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title}</h2>
+                          <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title || t("project.noPhase")}</h2>
                           <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
@@ -373,20 +383,17 @@ export function ProjectRoute() {
           )}
         </div>
       </main>
-      <aside aria-label="Orchestrateur" className="hidden w-[22rem] shrink-0 flex-col border-l lg:flex xl:w-96">
+      <aside aria-label={t("orch.title")} className="hidden w-[22rem] shrink-0 flex-col border-l lg:flex xl:w-96">
         <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </aside>
       </div>
-      <button
-        type="button"
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-4 right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg lg:hidden"
-      >
-        <MessagesSquare className="size-4" />
-        Discuter avec l'orchestrateur
-      </button>
-      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title="Orchestrateur">
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+      {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
+          the height left to the content the sheet was half-empty on a short thread and, on a long one,
+          scrolled as a whole with the composer below the fold. */}
+      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[82dvh]">
+        <div className="flex h-full min-h-0 flex-col">
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+        </div>
       </BottomSheet>
     </div>
   );

@@ -3,6 +3,7 @@ import { ChevronRight, ShieldCheck } from "lucide-react";
 
 import { GateSheet } from "@/components/gate-sheet";
 import { Card } from "@/components/ui/card";
+import { useT } from "@/i18n";
 import { fetchRepos, repoName, type RepoChoice } from "@/lib/board";
 
 // Settings: each repo's gate (ADR 0020) at a glance, one tap to set it. The list is the new-card
@@ -10,6 +11,7 @@ import { fetchRepos, repoName, type RepoChoice } from "@/lib/board";
 // would otherwise start a run on it. Renders nothing until the bridge answers, and nothing if it
 // never does.
 export function GateControl() {
+  const t = useT();
   const [repos, setRepos] = useState<RepoChoice[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -29,10 +31,8 @@ export function GateControl() {
       <div className="flex items-start gap-3 p-4 pb-2">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0">
-          <div className="font-medium">Barrière par dépôt</div>
-          <p className="text-sm text-muted-foreground">
-            La commande lancée sur chaque retour de worker avant le lead, pendant un run.
-          </p>
+          <div className="font-medium">{t("gate.control.title")}</div>
+          <p className="text-sm text-muted-foreground">{t("gate.control.hint")}</p>
         </div>
       </div>
       <ul className="divide-y">
@@ -45,7 +45,7 @@ export function GateControl() {
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{repoName(r.path)}</span>
-                <span className="block truncate font-mono text-xs text-muted-foreground">{r.gate ?? "aucune"}</span>
+                <span className="block truncate font-mono text-xs text-muted-foreground">{r.gate ?? t("gate.none")}</span>
               </span>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>

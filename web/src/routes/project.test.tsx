@@ -1,8 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CardView, Lot, Phase, Roadmap } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
@@ -26,6 +27,10 @@ function mount(cards: CardView[], extra: Partial<ProjectData> = {}, url = "/boar
   render(<RouterProvider router={router} />);
 }
 
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
+
 describe("ProjectRoute", () => {
   // The filter is remembered across visits; one test's choice must not become the next one's view.
   beforeEach(() => {
@@ -38,13 +43,28 @@ describe("ProjectRoute", () => {
 
   it("docks the orchestrator beside the road map: start button before it exists, its pane after", async () => {
     mount([card({ id: "a" })], { orchestrator: { paneId: null, running: false } });
-    expect(await screen.findByRole("button", { name: "Démarrer l'orchestrateur" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Start the orchestrator" })).toBeInTheDocument();
   });
 
   it("shows the running orchestrator's pane, and asks for a repo when there is none", async () => {
     mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true }, orchestratorEntries: [{ uuid: "u1", ts: "2026-10-09T10:00:00Z", role: "assistant", parts: [{ kind: "text", text: "bonjour" }] }] });
     expect(await screen.findByText("bonjour")).toBeInTheDocument();
-    expect(screen.getByLabelText("Message à l'orchestrateur")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message to the orchestrator")).toBeInTheDocument();
+  });
+
+  it("keeps the way into the chat in the header, with a dot while the orchestrator runs", async () => {
+    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
+    const open = await screen.findByRole("button", { name: "Open the orchestrator chat" });
+    expect(open.closest("header")).not.toBeNull();
+    expect(open.querySelector('[title="running"]')).not.toBeNull();
+  });
+
+  it("speaks French when asked to", async () => {
+    setPreference("fr");
+    mount([card({ id: "a", status: "done" }), card({ id: "b", status: "blocked" })]);
+    expect(await screen.findByText(/étapes terminées sur 2/)).toBeInTheDocument();
+    expect(screen.getAllByText(/t'attend/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Ouvrir le chat de l'orchestrateur/ })).toBeInTheDocument();
   });
 
   it("shows the phases, the progress and what waits for you", async () => {
@@ -142,8 +162,8 @@ describe("ProjectRoute", () => {
       }),
     );
     mount([card({ id: "x", phaseId: "P1", status: "working" })], { phases: [phase("P1"), phase("P2", 1)] });
-    await userEvent.selectOptions(await screen.findByRole("combobox"), "P2");
-    await screen.findByRole("combobox");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /phase/i }), "P2");
+    await screen.findByRole("combobox", { name: /phase/i });
     expect(body).toEqual({ phaseId: "P2" });
   });
 

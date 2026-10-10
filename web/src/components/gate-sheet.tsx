@@ -3,6 +3,7 @@ import { Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { useT } from "@/i18n";
 import { boardErrorMessage, repoName, setRepoGate, suggestRepoGate, type GateSuggestion } from "@/lib/board";
 
 // The repo's gate (ADR 0020): the command a run executes on each worker's checkout before the lead
@@ -26,6 +27,7 @@ export function GateSheet({
   /** Called with the saved command (null once removed), so the caller's list can follow. */
   onSaved?: (gate: string | null) => void;
 }) {
+  const t = useT();
   const [value, setValue] = useState(gate ?? "");
   const [suggestion, setSuggestion] = useState<GateSuggestion | null>(null);
   const [busy, setBusy] = useState<"suggest" | "save" | null>(null);
@@ -73,27 +75,25 @@ export function GateSheet({
     <BottomSheet
       open={open}
       onClose={onClose}
-      title={`Barrière · ${repoName(repoPath)}`}
+      title={t("gate.sheet.title", { repo: repoName(repoPath) })}
       footer={
         <div className="flex w-full gap-2">
           {gate && (
             <Button variant="outline" disabled={busy !== null} onClick={() => void save(null)}>
-              Retirer
+              {t("gate.remove")}
             </Button>
           )}
           <Button variant="brand" className="flex-1" disabled={busy !== null || trimmed === ""} onClick={() => void save(trimmed)}>
-            Enregistrer
+            {t("gate.save")}
           </Button>
         </div>
       }
     >
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Commande lancée dans le checkout du worker avant le lead. Rouge : le worker est renvoyé sans solliciter le lead.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("gate.intro")}</p>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Commande</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("gate.command")}</span>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -103,9 +103,7 @@ export function GateSheet({
             spellCheck={false}
             className="h-10 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          <span className="text-xs text-muted-foreground">
-            Pas de shell : des mots séparés par des espaces. Pour enchaîner, un script.
-          </span>
+          <span className="text-xs text-muted-foreground">{t("gate.noShell")}</span>
         </label>
 
         <Button
@@ -115,16 +113,16 @@ export function GateSheet({
           onClick={() => void suggest()}
         >
           {busy === "suggest" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          {busy === "suggest" ? "Le copilot lit le dépôt…" : "Suggérer (copilot)"}
+          {busy === "suggest" ? t("gate.suggesting") : t("gate.suggest")}
         </Button>
 
         {suggestion && (
-          <div aria-label="Suggestion" className="flex flex-col gap-2 rounded-lg border bg-card/50 p-3 text-sm">
+          <div aria-label={t("gate.suggestion")} className="flex flex-col gap-2 rounded-lg border bg-card/50 p-3 text-sm">
             <p>{suggestion.reason}</p>
             {suggestion.needsScript && suggestion.scriptSuggestion && (
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted-foreground">
-                  À créer vous-même dans le dépôt : <code>{suggestion.command}</code>
+                  {t("gate.createYourself")} <code>{suggestion.command}</code>
                 </span>
                 <pre className="max-h-48 overflow-auto rounded-md bg-muted p-2 font-mono text-xs">{suggestion.scriptSuggestion}</pre>
               </div>

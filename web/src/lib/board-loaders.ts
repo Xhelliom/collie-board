@@ -10,6 +10,7 @@ import { fetchHistory, isApiErrorStatus } from "./api";
 import type { TranscriptEntry } from "./types";
 import { fetchFacts, type CardFacts } from "./project-facts";
 import {
+  loadRepoScope,
   fetchCard,
   fetchCards,
   fetchLots,
@@ -119,7 +120,7 @@ export interface ProjectData extends BoardData {
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
 export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
   const base = await boardLoader({ request });
-  const repo = request ? new URL(request.url).searchParams.get("repo") : null;
+  const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
   const [phases, lots, roadmap, orchestrator, facts] = await Promise.all([
     fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),

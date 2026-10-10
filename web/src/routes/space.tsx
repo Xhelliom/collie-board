@@ -1,3 +1,4 @@
+import { useBack } from "@/hooks/use-back";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
 
@@ -44,7 +45,8 @@ export function SpaceRoute() {
 
   const selectedWs = data.workspaces.find((w) => w.workspaceId === spaceId);
 
-  const toSpaces = () => navigate(spacesPath(data.session));
+  const toSpaces = useBack(spacesPath(data.session));
+  const goSpaces = () => navigate(spacesPath(data.session));
   const switchSpace = (id: string) => navigate(spacePath(id, data.session));
   const switchTab = (id: string | null) => setTab(id);
   const open = (id: string) => navigate(panePath(id, data.session));
@@ -82,7 +84,7 @@ export function SpaceRoute() {
               workspaces={data.workspaces}
               agents={data.agents}
               selected={spaceId}
-              onSelect={(id) => (id === null ? toSpaces() : switchSpace(id))}
+              onSelect={(id) => (id === null ? goSpaces() : switchSpace(id))}
               onNewSpace={() => setNewSpaceOpen(true)}
               onBack={toSpaces}
             />

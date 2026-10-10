@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { useT } from "@/i18n";
 import { TagChip } from "@/components/tag-chip";
 import { cn } from "@/lib/utils";
 import { normalizeTag, TAG_MAX_CHARS } from "@/lib/board";
@@ -32,6 +33,7 @@ export function TagField({
   onChange: (value: string) => void;
   tags: string[];
 }) {
+  const t = useT();
   const inputId = useId();
   const listId = useId();
   const current = normalizeTag(value);
@@ -41,7 +43,7 @@ export function TagField({
     // below are buttons, and a button inside a label steals its own tap to focus the input.
     <div className="flex flex-col gap-1">
       <label htmlFor={inputId} className="text-xs font-medium text-muted-foreground">
-        Tag (optional)
+        {t("tagfield.label")}
       </label>
       <input
         id={inputId}

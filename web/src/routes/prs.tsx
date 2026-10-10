@@ -1,22 +1,24 @@
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { BoardTabs } from "@/components/board-tabs";
+import { t, useT, type MessageKey } from "@/i18n";
 import { StatusArea } from "@/components/status-area";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import {
   boardErrorMessage,
-  boardPath,
   cardPath,
   fetchOpenPrs,
   integrateCard,
+  loadRepoScope,
   repoName,
   type OpenPr,
 } from "@/lib/board";
 import { prLabel } from "@/lib/board-groups";
-import { timeAgo } from "@/lib/format";
+import { ago } from "@/lib/project-facts";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -38,11 +40,11 @@ export function prVerdict(pr: OpenPr["pr"]): PrVerdict {
   return pr.mergeable ? "mergeable" : "pending";
 }
 
-const CHIP: Partial<Record<PrVerdict, { text: string; className: string; icon?: typeof Check }>> = {
-  conflict: { text: "Conflicts with its base", className: "bg-status-blocked/16 text-status-blocked" },
-  mergeable: { text: "Mergeable", className: "bg-status-done/16 text-status-done", icon: Check },
-  pending: { text: "GitHub is still working it out", className: "bg-muted text-muted-foreground", icon: Clock },
-  unknown: { text: "GitHub could not be asked", className: "bg-muted text-muted-foreground" },
+const CHIP: Partial<Record<PrVerdict, { text: MessageKey; className: string; icon?: typeof Check }>> = {
+  conflict: { text: "prs.chip.conflict", className: "bg-status-blocked/16 text-status-blocked" },
+  mergeable: { text: "prs.chip.mergeable", className: "bg-status-done/16 text-status-done", icon: Check },
+  pending: { text: "prs.chip.pending", className: "bg-muted text-muted-foreground", icon: Clock },
+  unknown: { text: "prs.chip.unknown", className: "bg-muted text-muted-foreground" },
 };
 
 /** One column on a phone, then as many as the width holds. */
@@ -52,12 +54,12 @@ const GRID = "grid gap-2.5 sm:grid-cols-2 lg:gap-3 xl:grid-cols-3";
 export function checkSummary(verdicts: readonly PrVerdict[]): string {
   const count = (v: PrVerdict) => verdicts.filter((x) => x === v).length;
   const parts = [
-    count("conflict") && `${count("conflict")} conflict${count("conflict") === 1 ? "" : "s"}`,
-    count("mergeable") && `${count("mergeable")} mergeable`,
-    count("pending") && `${count("pending")} GitHub hasn't worked out yet`,
-    count("unknown") && `${count("unknown")} GitHub could not be asked about`,
+    count("conflict") && t("prs.sum.conflict", { count: count("conflict") }),
+    count("mergeable") && t("prs.sum.mergeable", { count: count("mergeable") }),
+    count("pending") && t("prs.sum.pending", { count: count("pending") }),
+    count("unknown") && t("prs.sum.unknown", { count: count("unknown") }),
   ].filter(Boolean);
-  const retry = count("pending") ? " — check again in a few seconds." : ".";
+  const retry = count("pending") ? t("prs.sum.retry") : ".";
   return parts.length ? parts.join(" · ") + retry : "";
 }
 
@@ -68,8 +70,13 @@ function meta(row: OpenPr, tail: string): string {
 }
 
 export function PrsRoute() {
+  const t = useT();
   const navigate = useNavigate();
-  const [rows, setRows] = useState(useLoaderData() as OpenPr[]);
+  const [all, setRows] = useState(useLoaderData() as OpenPr[]);
+  // The repo scope is the board's own, shared by its three views.
+  const scope = useSearchParams()[0].get("repo") ?? loadRepoScope();
+  const rows = scope ? all.filter((r) => r.card.repoPath === scope) : all;
+  const repos = [...new Set(all.map((r) => r.card.repoPath).filter((p): p is string => !!p))].map((path) => ({ path, name: repoName(path) }));
   const [checking, setChecking] = useState(false);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [reopening, setReopening] = useState<string | null>(null);
@@ -91,7 +98,7 @@ export function PrsRoute() {
     setReopening(cardId);
     try {
       await integrateCard(cardId, "reopen");
-      setStatus("Sent to the agent — tap Update the PR on the card once it has committed.", "success");
+      setStatus(t("prs.reopened"), "success");
       navigate(cardPath(cardId));
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
@@ -109,9 +116,8 @@ export function PrsRoute() {
     // rows become a grid, since a list of tiles has no line length to protect.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        title="Open PRs"
-        subtitle={`${open.length} PR${open.length === 1 ? "" : "s"}${checkedAt === null ? "" : ` · checked ${timeAgo(checkedAt)}`}`}
-        onBack={() => navigate(boardPath())}
+        title={t("prs.title")}
+        subtitle={`${t("prs.count", { count: open.length })}${checkedAt === null ? "" : t("prs.checkedAgo", { ago: ago(checkedAt) })}`}
         rightTrail={
           <Button
             variant="brand"
@@ -120,25 +126,21 @@ export function PrsRoute() {
             onClick={() => void check()}
           >
             <RefreshCw className={cn("size-4", checking && "animate-spin")} />
-            {checking ? "Checking…" : "Check"}
+            {checking ? t("prs.checking") : t("prs.check")}
           </Button>
         }
       />
-      <h1 className="sr-only">Open PRs</h1>
+      <BoardTabs repos={repos} />
+      <h1 className="sr-only">{t("prs.title")}</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">
         {rows.length === 0 ? (
-          <p className="px-2 py-16 text-center text-sm text-muted-foreground">
-            No open PRs. A card lands here when “Open a PR” succeeds, and leaves once a check sees its
-            PR merged or closed.
-          </p>
+          <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("prs.empty")}</p>
         ) : (
           <>
             {summary && <p className="mx-1 text-xs text-muted-foreground">{summary}</p>}
             {checkedAt === null && (
-              <p className="mx-1 text-xs text-muted-foreground">
-                Nothing has asked GitHub yet — tap Check to see which ones still merge.
-              </p>
+              <p className="mx-1 text-xs text-muted-foreground">{t("prs.unchecked")}</p>
             )}
             <div className={GRID}>
               {open.map((row) => {
@@ -150,16 +152,14 @@ export function PrsRoute() {
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-sm font-semibold leading-snug">{row.card.title}</span>
                         <span className="text-xs text-muted-foreground">
-                          {meta(row, `opened ${timeAgo(row.openedAt)}`)}
+                          {meta(row, t("prs.opened", { ago: ago(row.openedAt) }))}
                         </span>
                       </div>
                       <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     </Link>
                     {row.autoMerge && (
                       <p className="text-xs text-muted-foreground">
-                        {row.autoMerge === "armed"
-                          ? "Auto-merge armed — GitHub merges it once its checks pass."
-                          : "GitHub would not merge this by itself — turn on “Allow auto-merge” for the repo, or merge it yourself."}
+                        {t(row.autoMerge === "armed" ? "prs.auto.armed" : "prs.auto.refused")}
                       </p>
                     )}
                     {chip && (
@@ -171,7 +171,7 @@ export function PrsRoute() {
                           )}
                         >
                           {chip.icon && <chip.icon className="size-3" />}
-                          {chip.text}
+                          {t(chip.text)}
                         </span>
                         {verdict === "conflict" && (
                           <Button
@@ -182,7 +182,7 @@ export function PrsRoute() {
                             onClick={() => void reopen(row.card.id)}
                           >
                             <Play className="size-3.5" />
-                            {reopening === row.card.id ? "Starting an agent…" : "Reopen with an agent"}
+                            {reopening === row.card.id ? t("prs.reopening") : t("prs.reopen")}
                           </Button>
                         )}
                       </div>
@@ -193,7 +193,7 @@ export function PrsRoute() {
             </div>
             {over.length > 0 && (
               <>
-                <SectionLabel className="mx-1 mt-2.5">Merged or closed — leaving this list</SectionLabel>
+                <SectionLabel className="mx-1 mt-2.5">{t("prs.over")}</SectionLabel>
                 <div className={GRID}>
                   {over.map((row) => (
                     <Link
@@ -206,8 +206,8 @@ export function PrsRoute() {
                         {meta(
                           row,
                           row.pr?.state === "merged"
-                            ? `merged ${timeAgo(row.pr.mergedAt ?? row.openedAt)}`
-                            : "closed without merging",
+                            ? t("prs.merged", { ago: ago(row.pr.mergedAt ?? row.openedAt) })
+                            : t("prs.closed"),
                         )}
                       </span>
                     </Link>

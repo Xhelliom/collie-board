@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import { setPreference } from "@/i18n";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CardView } from "@/lib/board";
 import type { CardFacts } from "@/lib/project-facts";
@@ -26,6 +27,10 @@ const mount = (f?: CardFacts) =>
       <StepItem card={card} index={0} next={false} open flash={false} predecessor={undefined} facts={f} onToggle={() => {}} />
     </MemoryRouter>,
   );
+
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
 
 describe("StepItem with the journal's facts", () => {
   it("shows a one-line subtitle and the headline chips even when folded", () => {

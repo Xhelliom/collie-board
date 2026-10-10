@@ -5,6 +5,7 @@
 // The board is bound to the PRIMARY herdr session (see bridge/server.ts), so — unlike every path
 // in lib/nav.ts — none of these carry `?s=`.
 
+import { t } from "@/i18n";
 import { apiRequest, ApiError, GET_TIMEOUT_MS, withTimeout } from "./api";
 import type { AgentStatus } from "./types";
 
@@ -195,18 +196,15 @@ export interface CardDetail {
   events: BoardEvent[];
 }
 
-/** Human column names, in board order. `archived` never renders as a column. */
-export const CARD_STATUS_LABEL: Record<CardStatus, string> = {
-  blocked: "Needs you",
-  review: "To review",
-  working: "In progress",
-  starting: "Starting",
-  orphaned: "Orphaned",
-  ready: "Ready",
-  backlog: "Backlog",
-  done: "Done",
-  archived: "Archived",
-};
+/**
+ * Human column names, in board order. `archived` never renders as a column. Getters, not values: the
+ * names follow the language when it changes, and every existing `CARD_STATUS_LABEL[status]` read keeps
+ * working.
+ */
+export const CARD_STATUS_LABEL = {} as Record<CardStatus, string>;
+for (const s of ["blocked", "review", "working", "starting", "orphaned", "ready", "backlog", "done", "archived"] as const) {
+  Object.defineProperty(CARD_STATUS_LABEL, s, { enumerable: true, get: () => t(`status.${s}`) });
+}
 
 /**
  * Column order, urgency first — the same triage principle as Collie's home screen: what needs a
@@ -234,19 +232,28 @@ export const BOARD_COLUMNS: CardStatus[] = [
  * Every BOARD_COLUMNS status must appear exactly once — pinned by board.test.ts, because a status
  * that falls out of every lane would silently vanish from the wide-screen board only.
  */
-export const BOARD_LANES: { label: string; statuses: CardStatus[] }[] = [
+export type LaneKey = "todo" | "doing" | "review" | "done";
+/** `key` is the lane's identity (maps, anchors); `label` is only what is read, and follows the language. */
+const lane = (key: LaneKey, statuses: CardStatus[]) => ({
+  key,
+  get label() {
+    return t(`lane.${key}`);
+  },
+  statuses,
+});
+export const BOARD_LANES: { key: LaneKey; readonly label: string; statuses: CardStatus[] }[] = [
   // LEFT TO RIGHT IS THE FLOW, not the urgency. That is the opposite of BOARD_COLUMNS, and both are
   // right for where they are used: a phone shows one column, so what needs you has to be at the top
   // or you scroll past it; a wide board shows all four at once, so nothing is buried and the axis is
   // free to carry the thing a board is actually for — where the work is in its life. The phone
   // stacks these same four and re-sorts them in CSS alone (board.tsx, LANE_PHONE_ORDER) so the live
   // lanes lead there — so neither reading loses.
-  { label: "To do", statuses: ["ready", "backlog"] },
+  lane("todo", ["ready", "backlog"]),
   // `blocked` leads: inside a column, urgency still wins. It reads as "in progress, and it is
   // waiting on you", which is what it is — the agent is running, it just can't continue alone.
-  { label: "Doing", statuses: ["blocked", "working", "starting", "orphaned"] },
-  { label: "To review", statuses: ["review"] },
-  { label: "Done", statuses: ["done"] },
+  lane("doing", ["blocked", "working", "starting", "orphaned"]),
+  lane("review", ["review"]),
+  lane("done", ["done"]),
 ];
 
 /**
@@ -920,7 +927,7 @@ export function boardErrorMessage(err: unknown): string {
       // Not JSON after all — fall through to stripping the prefix.
     }
   }
-  return raw.replace(/^\S+\s→\s\d+\s*/, "").trim() || "something went wrong";
+  return raw.replace(/^\S+\s→\s\d+\s*/, "").trim() || t("error.generic");
 }
 
 /**

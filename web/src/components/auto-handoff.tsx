@@ -1,3 +1,4 @@
+import { useT, type MessageKey } from "@/i18n";
 import { useEffect, useState } from "react";
 import { Hourglass, Loader2 } from "lucide-react";
 import { useNavigate, useRevalidator } from "react-router";
@@ -81,14 +82,15 @@ export function AutoHandoffControl() {
   );
 }
 
-const CHOICES: ReadonlyArray<{ value: CardView["autoHandoff"]; label: string }> = [
-  { value: null, label: "Default" },
-  { value: "on", label: "Always" },
-  { value: "off", label: "Never" },
-];
+const CHOICES = [
+  { value: null, label: "card.autoHandoff.default" },
+  { value: "on", label: "card.autoHandoff.always" },
+  { value: "off", label: "card.autoHandoff.never" },
+] as const satisfies ReadonlyArray<{ value: CardView["autoHandoff"]; label: MessageKey }>;
 
 /** One card's answer, over the Settings switch. Durable on the card, so it outlives the session. */
 export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChanged: () => void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
 
   async function choose(value: CardView["autoHandoff"]) {
@@ -106,11 +108,8 @@ export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChang
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
       <div className="min-w-0">
-        <div className="text-xs font-medium">Auto handoff</div>
-        <p className="text-xs text-muted-foreground">
-          Never, for an agent that leaves work running in the background: its pane reads idle while
-          that work goes on, and a fresh session would close it.
-        </p>
+        <div className="text-xs font-medium">{t("card.autoHandoff.title")}</div>
+        <p className="text-xs text-muted-foreground">{t("card.autoHandoff.hint")}</p>
       </div>
       <div className="flex gap-1.5">
         {CHOICES.map(({ value, label }) => (
@@ -122,7 +121,7 @@ export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChang
             disabled={busy}
             onClick={() => void choose(value)}
           >
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>

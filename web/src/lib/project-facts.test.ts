@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { duration, factChips, specLine, type CardFacts } from "@/lib/project-facts";
+import { setPreference } from "@/i18n";
+import { ago, duration, factChips, specLine, type CardFacts } from "@/lib/project-facts";
 
 const facts = (o: Partial<CardFacts> = {}): CardFacts => ({
   cardId: "c", gate: null, lead: null, triage: null, review: null, pr: null,
   sentBack: 0, operatorSaid: 0, startedAt: null, endedAt: null, ...o,
 });
+
+// The texts asserted here are in one language, whatever the browser says.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
 
 describe("factChips", () => {
   it("says what the journal knows, headline first", () => {
@@ -28,5 +33,18 @@ describe("helpers", () => {
   it("specLine drops markdown marks and takes the first real line", () => {
     expect(specLine("\n## Show the score\nmore")).toBe("Show the score");
     expect(specLine(null)).toBeNull();
+  });
+});
+
+describe("in French", () => {
+  it("chips and relative times follow the language", () => {
+    setPreference("fr");
+    const chips = factChips(
+      { session: null },
+      facts({ gate: { ok: true, command: "make", ts: 1 }, pr: { url: "u", state: "open", autoMerge: "refused" }, sentBack: 2 }),
+    );
+    expect(chips.map((c) => c.label)).toEqual(["barrière ✓", "PR ouverte", "à fusionner à la main", "renvoyée 2×"]);
+    expect(ago(Date.now() - 5 * 60_000)).toMatch(/5/);
+    expect(ago(Date.now() - 5 * 60_000)).not.toMatch(/ago/);
   });
 });
