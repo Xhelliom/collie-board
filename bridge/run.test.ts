@@ -28,6 +28,7 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
   const rechecks: ConflictDecision[] = [];
   let pr: Awaited<ReturnType<RunPorts["openPr"]>> = { ok: true };
   let gate: string | null = null;
+  let commits: number | null = 1;
   const gates: GateResult[] = [];
   const ports: RunPorts = {
     lead: {
@@ -66,6 +67,8 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
     stat: async () => "a.ts | 1 +",
     freeSlots: () => (opts.slots ?? 3) - db.listOpenSessions().length,
     reviewing: () => opts.reviewing ?? false,
+    commits: async () => commits,
+    lastReply: async () => "bilan du worker",
   };
   return {
     calls,
@@ -74,6 +77,7 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
     rechecks,
     setPr: (r: typeof pr) => (pr = r),
     setGate: (cmd: string | null) => (gate = cmd),
+    setCommits: (n: number | null) => (commits = n),
     gates,
     coord: new RunCoordinator(db, ports),
     ports,
@@ -197,6 +201,71 @@ describe("RunCoordinator (ADR 0017)", () => {
     w.coord.update(snap({ p: "idle" }));
     await flush();
     expect(w.calls.filter((c) => c.startsWith("prompt"))).toHaveLength(MAX_ROUNDS);
+  });
+
+  const emptyRound = async (db: BoardDb, a: Card, w: ReturnType<typeof world>, n: number) => {
+    for (let i = 0; i < n; i++) {
+      db.setStatus(a.id, "working", "agent working");
+      land(db, a);
+      w.checks.push({ decision: "prompt", prompt: `round ${i}`, reason: "rien n'est commité" });
+      w.coord.update(snap({ p: "idle" }));
+      await flush();
+    }
+  };
+
+  it("limit reached on a branch with no commit: halted to the operator with the lead's reason and the worker's reply", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    w.setCommits(0);
+    await emptyRound(db, a, w, MAX_ROUNDS + 1);
+    const reason = (events(db, a, "run.halted")[0]!.payload as { reason: string }).reason;
+    expect(reason).toContain("rien n'est commité");
+    expect(reason).toContain("bilan du worker");
+    expect(db.getCard(a.id)!.status).not.toBe("done");
+  });
+
+  it("a finished verdict on a branch with no commit halts instead of filing", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    w.setCommits(0);
+    land(db, a);
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(1);
+    expect(w.calls).toEqual([]);
+  });
+
+  it("an explore card without code is not blocked", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", category: "explore" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    w.setCommits(0);
+    land(db, a);
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(0);
+    expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "finished" });
+  });
+
+  it("an unknown commit count never blocks", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    w.setCommits(null);
+    land(db, a);
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    expect(events(db, a, "run.halted")).toHaveLength(0);
   });
 
   it("folds follow-ups up to the cap; past it a follow-up stays out of the run; drop deletes", async () => {
