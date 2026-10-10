@@ -20,7 +20,7 @@ import { isAutoHandoffPending, type BoardDb, type BoardEvent, type Card, type Ca
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { cardDiffSummary, currentBranch, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { prForCard, resolveConflict } from "./integrate.ts";
+import { prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -42,7 +42,7 @@ export interface RunPorts {
   /** `promptAndConfirm` to the worker's pane. */
   prompt(paneId: string, text: string): Promise<void>;
   /** `prForCard` with auto-merge armed. */
-  openPr(card: Card): Promise<Outcome>;
+  openPr(card: Card, gate: MergeGate): Promise<Outcome>;
   /** `resolveConflict` against origin's base, to the card's own agent. */
   resolveConflict(card: Card): Promise<Outcome>;
   /** `fileAsDone`: close the session, file the card, ask for the wrapup. */
@@ -288,7 +288,15 @@ export class RunCoordinator {
       case "triage":
         return this.triage(run, card, step.sessionId);
       case "pr": {
-        const r = await this.ports.openPr(card);
+        // ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone.
+        const command = this.ports.gateCommand(card);
+        const verdict = newest(this.db.listEvents(card.id), (e) => e.type === "run.gate" && isRun(e, run.id));
+        const ok = !command || (verdict?.payload as { ok?: boolean } | undefined)?.ok === true;
+        const r = await this.ports.openPr(card, {
+          runId: run.id,
+          ok,
+          why: !command ? "no gate set" : ok ? "gate green" : verdict ? "the gate is red — not merging" : "the gate never ran — not merging",
+        });
         if (r.ok) return this.ports.fileAsDone(this.db.getCard(card.id)!);
         if (r.error.kind !== "conflict") return this.halt(run, card.id, `PR: ${r.error.message}`);
         const settled = await this.ports.resolveConflict(card);
@@ -421,7 +429,7 @@ export function runHook(
     lead,
     start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
-    openPr: (card) => prForCard(db, card, { autoMerge: true }),
+    openPr: (card, gate) => prForCard(db, card, { autoMerge: true, gate }),
     resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
     brief: async (card) => {

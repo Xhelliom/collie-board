@@ -232,7 +232,7 @@ export async function prForCard(
   db: BoardDb,
   card: Card,
   /** A run sets it (ADR 0017): GitHub merges on green. Off, this is the "Open a PR & done" tap. */
-  opts: { autoMerge?: boolean } = {},
+  opts: { autoMerge?: boolean; gate?: MergeGate } = {},
 ): Promise<Result<{ url: string | null }>> {
   const checked = await gate(card, "pr");
   if (!checked.ok) return checked;
@@ -299,14 +299,51 @@ export async function prForCard(
     base: state.base,
     url: pr.url,
   });
-  if (opts.autoMerge) await armAutoMerge(db, card.id, card.repoPath!, state.branch);
+  if (opts.autoMerge) await landPr(db, card.id, card.repoPath!, state.branch, opts.gate);
   return { ok: true, value: { url: pr.url } };
+}
+
+/** What a run knows about the gate when its PR opens: the board merges itself only on `ok`. */
+export interface MergeGate {
+  runId: string;
+  ok: boolean;
+  why: string;
+}
+
+/**
+ * ADR 0027: GitHub's auto-merge first (a bonus); when the repo refuses it, the board merges the PR
+ * itself — but only on a green gate and a PR GitHub says is MERGEABLE. Every skip is journaled
+ * (`run.merge`) with its reason. NEVER fails the PR.
+ */
+export async function landPr(
+  db: BoardDb,
+  cardId: string,
+  repoPath: string,
+  branch: string,
+  gate: MergeGate | undefined,
+  gh: GitRunner = runGh,
+): Promise<void> {
+  if (await armAutoMerge(db, cardId, repoPath, branch, gh)) return;
+  const runId = gate?.runId ?? "";
+  const skip = (reason: string) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason });
+  if (!gate?.ok) return skip(gate ? gate.why : "no gate verdict — not merging");
+  const pr = await prStatusOf(repoPath, branch, gh);
+  if (!pr) return skip("could not read the PR's state from GitHub — not merging");
+  if (pr.state !== "open") return skip(`the PR is already ${pr.state}`);
+  if (pr.conflicting) return skip("the PR has a conflict — not merging");
+  if (!pr.mergeable) return skip("GitHub has not worked out mergeability yet — not merging");
+  const r = await enableAutoMerge(repoPath, branch, gh, []);
+  db.recordRunEvent(cardId, "run.merge", {
+    runId,
+    merged: r.ok,
+    reason: r.ok ? `lead validated, ${gate.why}, no conflict; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
+  });
 }
 
 /**
  * Arm GitHub's auto-merge on a just-opened PR, and journal what GitHub said. NEVER fails the PR: a
  * refusal (no branch protection, auto-merge off on the repo) is written on the card and the card
- * counts as done with its PR open — ADR 0017, step 7.
+ * counts as done with its PR open — ADR 0017, step 7. Returns whether it was armed.
  */
 export async function armAutoMerge(
   db: BoardDb,
@@ -314,12 +351,13 @@ export async function armAutoMerge(
   repoPath: string,
   branch: string,
   gh: GitRunner = runGh,
-): Promise<void> {
+): Promise<boolean> {
   const r = await enableAutoMerge(repoPath, branch, gh);
   db.recordEvent(cardId, r.ok ? "card.automerge_armed" : "card.automerge_refused", {
     branch,
     ...(r.ok ? {} : { error: r.error }),
   });
+  return r.ok;
 }
 
 /** Both ways a conflict can find nobody to hand itself to — see `resolveConflict`. */
