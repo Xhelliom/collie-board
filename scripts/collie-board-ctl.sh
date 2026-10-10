@@ -56,7 +56,7 @@ resolve_bun() {
   local c
   for c in \
     "$(command -v bun 2>/dev/null || true)" \
-    "${BUN_INSTALL:-}/bin/bun" \
+    "${BUN_INSTALL:+${BUN_INSTALL}/bin/bun}" \
     "${HOME}/.bun/bin/bun" \
     "${XDG_DATA_HOME:-${HOME}/.local/share}/reflex/bun" \
     /usr/local/bin/bun \
