@@ -13,14 +13,20 @@ const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
 /** The message for a lot that ended: its cards, merged ones apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>): string {
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string): string {
   const ok = cards.filter((c) => FILED.has(c.status) && !blocked.has(c.id));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
     `Le lot « ${name ?? "sans nom"} » est terminé.`,
     ...(ok.length ? ["Mergées :", ...ok.map(line)] : []),
     ...(ko.length ? ["Bloquées ou non mergées :", ...ko.map(line)] : []),
-    "Lis le board (GET /api/cards) et dis à l'opérateur ce que tu proposes ensuite ; ne lance rien.",
+    `Fais à l'opérateur un bilan COURT : ce qui est mergé, ce qui est bloqué et POURQUOI (une raison par carte non mergée, lue dans /api/project/facts?repo=${repoPath ?? "<repo>"} — verdict du lead, gate, review — et dans le journal de la carte), puis la suite que tu proposes.`,
+    ...(phase
+      ? [
+          `C'est aussi la fin de la phase « ${phase.name} » : propose à l'opérateur de la valider (c'est à lui de le faire, pas à toi) et dis où vont les étapes encore ouvertes${phase.open.length ? ` (${phase.open.map((c) => `« ${c.title} »`).join(", ")})` : ""} : phase suivante, backlog ou abandon.`,
+        ]
+      : []),
+    "Ne lance rien et ne valide rien toi-même.",
   ].join("\n");
 }
 
@@ -60,7 +66,11 @@ export class OrchestratorNudger {
     if (e.type === "run.finished") {
       const cards = this.db.runMembers(run.id);
       const blocked = new Set(cards.filter((c) => this.db.listEvents(c.id, 200).some((x) => x.type === "run.halted" && (x.payload as { runId?: string } | null)?.runId === run.id)).map((c) => c.id));
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked) };
+      // End of phase: not yet validated, and every card it groups is filed or sits in this lot.
+      const phase = run.phaseId ? this.db.getPhase(run.phaseId) : null;
+      const inPhase = phase ? this.db.listCards().filter((c) => c.phaseId === phase.id) : [];
+      const ends = phase && phase.closedAt === null && inPhase.every((c) => FILED.has(c.status) || cards.some((m) => m.id === c.id));
+      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath) };
     }
     const unmerged = e.type === "run.merge" && p.merged === false;
     if ((!unmerged && e.type !== "run.halted") || !e.cardId) return null;
