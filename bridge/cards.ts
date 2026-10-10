@@ -26,6 +26,7 @@ import {
   type CardSession,
   type CardStatus,
 } from "./db.ts";
+import { installDeps } from "./deps.ts";
 import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import { bilanPrompt } from "./lead.ts";
@@ -810,6 +811,10 @@ export async function startCard(
     db.setStatus(cardId, "working", "adopted the agent already in this worktree");
     return { ok: true, value: { card: db.getCard(cardId)!, session, worktree, adopted: true } };
   }
+
+  // Dependencies before the first prompt. A failed install is told on the card and never blocks the start.
+  const depFailures = await installDeps(worktree.checkoutPath).catch((e) => [(e as Error).message]);
+  if (depFailures.length) db.recordEvent(cardId, "card.install_failed", { stage: "install", error: depFailures.join("\n") });
 
   try {
     const wait = opts.sleep ?? sleep;
