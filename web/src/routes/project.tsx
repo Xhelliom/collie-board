@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
 import { MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { BoardTabs } from "@/components/board-tabs";
 import { BottomSheet } from "@/components/ui/sheet";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardErrorMessage, boardPath, patchCard, repoName, type CardView } from "@/lib/board";
+import { boardErrorMessage, loadRepoScope, patchCard, repoName, type CardView } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
 import { projectOf, stepGroup, type StepGroup } from "@/lib/project";
@@ -129,10 +130,9 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
 }
 
 export function ProjectRoute() {
-  const navigate = useNavigate();
   const data = useLoaderData() as ProjectData;
   const revalidator = useRevalidator();
-  const repo = useSearchParams()[0].get("repo");
+  const repo = useSearchParams()[0].get("repo") ?? loadRepoScope();
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
@@ -185,7 +185,8 @@ export function ProjectRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title={repo ? repoName(repo) : "Project"} subtitle="Road map" onBack={() => navigate(boardPath())} />
+      <AppHeader title={repo ? repoName(repo) : "Project"} subtitle="Road map" />
+      <BoardTabs />
       <h1 className="sr-only">Project</h1>
       <div className="flex min-h-0 flex-1">
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">

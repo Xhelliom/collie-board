@@ -52,7 +52,8 @@ const SETTINGS_ITEM = NAV_ITEMS.find((item) => item.key === "settings")!;
 /** The four root paths the tab bar / sidebar active-state matches against (session query ignored). */
 function rootKeyFor(pathname: string): string | undefined {
   if (pathname === "/") return "herd";
-  if (pathname === "/board") return "board";
+  // Board, Project and Open PRs are views of one thing: the Board tab stays lit (and the bar visible).
+  if (pathname === "/board" || pathname.startsWith("/board/")) return "board";
   if (pathname === "/spaces") return "spaces";
   if (pathname === "/settings") return "settings";
   return undefined;
@@ -206,9 +207,10 @@ function BoardRepoList() {
   const location = useLocation();
   const matches = useMatches();
   const [params, setParams] = useSearchParams();
-  if (location.pathname !== "/board") return null;
+  if (location.pathname !== "/board" && location.pathname !== "/board/project") return null;
 
-  const board = matches.find((m) => m.id === "board")?.data as BoardData | undefined;
+  // The board's and the project view's loaders both return the cards; the repo list reads whichever is up.
+  const board = matches.map((m) => m.data as BoardData | undefined).find((d) => Array.isArray(d?.cards));
   if (!board) return null;
 
   const activeRepo = params.get("repo");

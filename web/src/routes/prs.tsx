@@ -3,12 +3,12 @@ import { Link, useLoaderData, useNavigate } from "react-router";
 import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { BoardTabs } from "@/components/board-tabs";
 import { StatusArea } from "@/components/status-area";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import {
   boardErrorMessage,
-  boardPath,
   cardPath,
   fetchOpenPrs,
   integrateCard,
@@ -111,7 +111,6 @@ export function PrsRoute() {
       <AppHeader
         title="Open PRs"
         subtitle={`${open.length} PR${open.length === 1 ? "" : "s"}${checkedAt === null ? "" : ` · checked ${timeAgo(checkedAt)}`}`}
-        onBack={() => navigate(boardPath())}
         rightTrail={
           <Button
             variant="brand"
@@ -124,6 +123,7 @@ export function PrsRoute() {
           </Button>
         }
       />
+      <BoardTabs />
       <h1 className="sr-only">Open PRs</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">

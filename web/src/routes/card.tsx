@@ -1,3 +1,4 @@
+import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 import {
@@ -126,6 +127,7 @@ export function CardRoute() {
   const data = useLoaderData() as CardData;
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const navigate = useNavigate();
+  const back = useBack(boardPath());
   const revalidator = useRevalidator();
   const [starting, setStarting] = useState(false);
   /** Which suggestion is being sent, so only ITS button says "Sending…". A title alone is not a key:
@@ -474,7 +476,7 @@ export function CardRoute() {
           treatment. The breadcrumb (children) carries "Board › title"; Éditer + the "⋯" menu (which
           holds Danger zone — see the sheet below) are the toolbar's own controls. */}
       <AppHeader
-        onBack={() => navigate(boardPath())}
+        onBack={back}
         rightTrail={
           card && (
             <>
