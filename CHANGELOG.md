@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.165.1] - 2026-10-10
+
+### Fixed
+
+- `collie-board-ctl.sh` : un `BUN_INSTALL` vide ne fait plus tester `/bin/bun` ; le test « bun hors PATH » construit un PATH sans bun au lieu de supposer que `/usr/bin` n'en a pas (da58fbd)
+
 ## [0.165.0] - 2026-10-09
 
 ### Added

@@ -203,6 +203,21 @@ EOF
 }
 
 
+# A directory of the system's executables with `bun` taken out. "/usr/bin:/bin with no bun on it" is
+# an assumption about the machine: a system package (Arch, Nix, a distro's own) puts bun in /usr/bin,
+# and then resolve_bun finds THAT first and the case proves nothing — or, here, fails. So the
+# bun-less PATH is built, not assumed.
+path_without_bun() {
+  local dir="${CASE_DIR}/sysbin" f n
+  mkdir -p "$dir"
+  for f in /usr/bin/* /bin/*; do
+    n="${f##*/}"
+    case "$n" in bun | bunx) continue ;; esac
+    [ -x "$f" ] && [ ! -e "${dir}/${n}" ] && ln -s "$f" "${dir}/${n}"
+  done
+  echo "$dir"
+}
+
 # Herdr runs plugin actions in a non-interactive shell, so bun's installer entry in ~/.zshrc does
 # not apply. Resolving bun from PATH alone made `start` fail with "bun not found" on a completely
 # standard install — this is that regression.
@@ -229,7 +244,7 @@ EOF
   # explicitly: it is set in most dev shells, it points at the REAL ~/.bun, and it is earlier in
   # resolve_bun's chain than ~/.bun/bin — so leaving it set makes this case pass against the
   # developer's own bun and prove nothing.
-  out="$(HOME="$HOME_DIR" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" PATH="${BIN_DIR}:/usr/bin:/bin" \
+  out="$(HOME="$HOME_DIR" HERDR_PLUGIN_CONFIG_DIR="$CONFIG_DIR" PATH="${BIN_DIR}:$(path_without_bun)" \
     BUN_INSTALL= \
     HERDR_SOCKET_PATH="${HOME_DIR}/.config/herdr/herdr.sock" \
     bash "$CTL" setup 2>&1)" || fail "setup failed with bun off PATH: $out"
