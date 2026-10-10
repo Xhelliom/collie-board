@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.170.0] - 2026-10-10
+
+### Added
+
+- Vue projet : un bandeau compte les étapes terminées hors de toute phase validée et les valide d'un coup (« Valider tout ce qui est terminé… ») ; chaque ancienne dictée a son bouton « Valider cette phase », nommé d'après elle (dd0fb9c)
+
+### Fixed
+
+- Le bouton de validation n'existait que sur « Sans phase » et ne comptait pas les étapes rangées dans une dictée : un vieux projet ne pouvait pas être remis à zéro ; valider ne range plus la carte conteneur comme une étape (dd0fb9c)
+- Une fois une phase validée, les autres dictées restent des sections au lieu de disparaître (dd0fb9c)
+
 ## [0.169.0] - 2026-10-10
 
 ### Added
