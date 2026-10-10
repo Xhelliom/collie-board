@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CardView } from "@/lib/board";
+import type { CardView, Phase } from "@/lib/board";
 import { projectOf } from "@/lib/project";
 
 let n = 0;
@@ -91,5 +91,46 @@ describe("projectOf with the phase table (ADR 0021)", () => {
     expect(v.phases[0]!.lots.map((l) => [l.lot.id, l.cards.length, l.done])).toEqual([["L1", 2, 1]]);
     expect(v.phases.at(-1)!.key).toBe("loose");
     expect(v.phases.at(-1)!.lots.map((l) => l.lot.id)).toEqual(["L2"]);
+  });
+});
+
+describe("projectOf: milestones (ADR 0025)", () => {
+  const ph = (id: string, position: number, closedAt: number | null = null): Phase => ({ id, repoPath: "/r", name: id, goal: "", position, roadmapItemId: null, closedAt });
+
+  it("reads the headline off the open scope only: a validated phase no longer counts", () => {
+    const v = projectOf(
+      [
+        card({ id: "d1", phaseId: "v1", status: "done" }),
+        card({ id: "d2", phaseId: "v1", status: "done" }),
+        card({ id: "a", phaseId: "p2", status: "done" }),
+        card({ id: "b", phaseId: "p2", status: "ready" }),
+      ],
+      [ph("v1", 0, 1000), ph("p2", 1)],
+    );
+    expect([v.total, v.done, v.todo]).toEqual([2, 1, 1]);
+    expect(v.phases.map((p) => p.key)).toEqual(["p2"]);
+    expect(v.closed.map((p) => p.key)).toEqual(["v1"]);
+    expect([v.deliveredSteps, v.closedCount]).toEqual([2, 1]);
+  });
+
+  it("lists the validated phases oldest first", () => {
+    const v = projectOf([], [ph("late", 0, 3000), ph("early", 1, 1000)]);
+    expect(v.closed.map((p) => p.key)).toEqual(["early", "late"]);
+  });
+
+  it("an open step filed in a validated phase is still work: counted, shown, and waiting for you", () => {
+    const v = projectOf(
+      [card({ id: "d", phaseId: "v1", status: "done" }), card({ id: "stray", phaseId: "v1", status: "blocked" })],
+      [ph("v1", 0, 1000)],
+    );
+    expect(v.closed[0]!.steps.map((s) => s.id)).toEqual(["d"]);
+    expect(v.total).toBe(1);
+    expect(v.awaiting.map((s) => s.id)).toEqual(["stray"]);
+    expect(v.phases.at(-1)!.steps.map((s) => s.id)).toEqual(["stray"]);
+  });
+
+  it("everything validated: nothing in progress, but what was delivered is kept", () => {
+    const v = projectOf([card({ id: "d", phaseId: "v1", status: "done" })], [ph("v1", 0, 1000)]);
+    expect([v.total, v.done, v.deliveredSteps]).toEqual([0, 0, 1]);
   });
 });

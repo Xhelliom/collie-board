@@ -9,12 +9,13 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
+import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { StepItem, STEP_TONE } from "@/components/project-step";
 import { boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
-import { projectOf, stepGroup, type StepGroup } from "@/lib/project";
+import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -152,6 +153,9 @@ export function ProjectRoute() {
   const [flash, setFlash] = useState<string | null>(null);
   // The orchestrator is docked on a wide screen and a sheet on a phone (ADR 0021).
   const [chatOpen, setChatOpen] = useState(false);
+  // Validating a phase (ADR 0025): the section being validated, or the "seal the finished steps" sheet.
+  const [validating, setValidating] = useState<ProjectPhase | null>(null);
+  const [sealing, setSealing] = useState(false);
   const toggle = (id: string, on?: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -185,12 +189,16 @@ export function ProjectRoute() {
   const allOpen = steps.filter(shownIn).every((s) => openIds.has(s.id));
   const latest = cards.reduce((m, c) => Math.max(m, c.updatedAt), 0);
   const named = v.phases.filter((p) => p.phase || p.container).length;
+  const activePhases = v.phases.filter((p) => p.phase && p.steps.length > 0);
+  // The phase-less finished steps an old project can fold into its first milestone.
+  const looseDone = v.phases.find((p) => p.key === "loose")?.steps.filter((s) => s.status === "done").length ?? 0;
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
         title={repo ? repoName(repo) : t("project.title")}
-        subtitle={t("project.subtitle")}
+        // The milestone in progress, when there is exactly one open phase to name.
+        subtitle={activePhases.length === 1 ? activePhases[0]!.title : t("project.subtitle")}
         // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
         // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
         rightTrail={
@@ -217,7 +225,7 @@ export function ProjectRoute() {
           className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
-          {v.total === 0 ? (
+          {v.total === 0 && v.closedCount === 0 ? (
             <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>
           ) : (
             <>
@@ -233,11 +241,17 @@ export function ProjectRoute() {
                     )}
                   </div>
                   <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-                    {rich(t("project.sum.progress", { done: v.done, total: v.total }))}
-                    {named > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
+                    {v.total > 0 ? rich(t("project.sum.progress", { done: v.done, total: v.total })) : t("project.sum.none")}
+                    {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
                     {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
                     , {t("project.sum.flight", { count: v.active })}.
                     {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
+                    {v.closedCount > 0 && (
+                      <>
+                        {" "}
+                        {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
+                      </>
+                    )}
                   </p>
                 </div>
                 <Ring done={v.done} active={v.active} total={v.total} />
@@ -350,6 +364,24 @@ export function ProjectRoute() {
                         <div id={`phase-${p.key}`} className="flex scroll-mt-16 items-center gap-3 pb-1 pt-4">
                           <h2 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title || t("project.noPhase")}</h2>
                           <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
+                          {p.phase && p.steps.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setValidating(p)}
+                              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
+                            >
+                              {t("project.validate")}
+                            </button>
+                          )}
+                          {!p.phase && p.key === "loose" && repo && looseDone > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSealing(true)}
+                              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
+                            >
+                              {t("project.seal")}
+                            </button>
+                          )}
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
                         <PhaseLots
@@ -379,6 +411,8 @@ export function ProjectRoute() {
                   });
                 })()}
               </ol>
+              {v.total === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">{t("project.allValidated")}</p>}
+              <ClosedPhases closed={v.closed} onReopened={() => void revalidator.revalidate()} />
             </>
           )}
         </div>
@@ -387,6 +421,15 @@ export function ProjectRoute() {
         <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </aside>
       </div>
+      {validating && (
+        <ValidateSheet
+          section={validating}
+          targets={v.phases.filter((p) => p.phase && p.key !== validating.key)}
+          onClose={() => setValidating(null)}
+          onDone={() => void revalidator.revalidate()}
+        />
+      )}
+      {sealing && repo && <SealSheet repo={repo} count={looseDone} onClose={() => setSealing(false)} onDone={() => void revalidator.revalidate()} />}
       {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
           the height left to the content the sheet was half-empty on a short thread and, on a long one,
           scrolled as a whole with the composer below the fold. */}
