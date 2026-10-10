@@ -29,6 +29,7 @@ import type { Config } from "./config.ts";
 import {
   armAutoMerge,
   landPr,
+  mergeWhenReady,
   cleanupCard,
   mergeCard,
   rebindDependents,
@@ -664,6 +665,7 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
     const gh: GitRunner = async (args) => {
       calls.push(args);
       if (args.includes("--auto")) return auto ? { ok: true, stdout: "", stderr: "" } : { ok: false, stdout: "", stderr: "Auto merge is not allowed for this repository" };
+      if (args.includes("statusCheckRollup")) return { ok: true, stdout: '{"statusCheckRollup":[]}', stderr: "" };
       if (args[1] === "view") return { ok: true, stdout: view(mergeable), stderr: "" };
       return { ok: true, stdout: "", stderr: "" };
     };
@@ -716,5 +718,44 @@ describe("landPr — the board merges itself when GitHub's auto-merge is not the
     await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
     expect(direct(t.calls)).toBe(false);
     expect(t.merges()[0]).toMatchObject({ merged: false });
+  });
+
+  describe("the PR's GitHub checks (ADR 0029)", () => {
+    const withChecks = (rollup: object[]) => {
+      const t = setup("MERGEABLE");
+      const gh: GitRunner = async (a, cwd) => {
+        if (a[1] === "view" && a.includes("statusCheckRollup")) return { ok: true, stdout: JSON.stringify({ statusCheckRollup: rollup }), stderr: "" };
+        if (a[0] === "run") return { ok: true, stdout: "l1\nTS2554 boom", stderr: "" };
+        return t.gh(a, cwd);
+      };
+      return { ...t, gh };
+    };
+    const run = (t: ReturnType<typeof withChecks>) => landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    const done = { __typename: "CheckRun", name: "ci", status: "COMPLETED" };
+
+    it("merges on green", async () => {
+      const t = withChecks([{ ...done, conclusion: "SUCCESS" }]);
+      await run(t);
+      expect(direct(t.calls)).toBe(true);
+    });
+    it("merges when there is no check at all", async () => {
+      const t = withChecks([]);
+      await run(t);
+      expect(direct(t.calls)).toBe(true);
+    });
+    it("never merges a red check, and hands the worker its name and log", async () => {
+      const t = withChecks([{ ...done, name: "typecheck", conclusion: "FAILURE", detailsUrl: "https://github.com/o/r/actions/runs/42/job/7" }]);
+      await run(t);
+      expect(direct(t.calls)).toBe(false);
+      expect(t.merges()[0]).toMatchObject({ merged: false, ci: { name: "typecheck", log: expect.stringContaining("TS2554") } });
+    });
+    it("waits on a running check without merging, and journals the wait once", async () => {
+      const t = withChecks([{ ...done, status: "IN_PROGRESS", conclusion: "" }]);
+      await run(t);
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+      expect(direct(t.calls)).toBe(false);
+      expect(t.merges()).toHaveLength(1);
+      expect(t.merges()[0]).toMatchObject({ merged: false, wait: true });
+    });
   });
 });

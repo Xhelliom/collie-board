@@ -962,3 +962,51 @@ export async function prStatusOf(
     return null;
   }
 }
+
+/** What a PR's GitHub checks say (ADR 0029). `none`: the repo runs no CI — nothing to wait for. */
+export type Checks = { state: "none" | "pending" | "green" } | { state: "red"; name: string; detailsUrl: string };
+
+const GOOD = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
+
+/** Parse `gh pr view --json statusCheckRollup`. Red beats pending: no reason to wait on a lost PR. Pure. */
+export function parseChecks(stdout: string): Checks | null {
+  let rollup: unknown;
+  try {
+    rollup = (JSON.parse(stdout) as { statusCheckRollup?: unknown }).statusCheckRollup;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(rollup)) return null;
+  let pending = false;
+  for (const c of rollup as Record<string, string | null>[]) {
+    // A CheckRun carries status/conclusion; a commit StatusContext carries state.
+    const verdict = c.status ? (c.status === "COMPLETED" ? (c.conclusion ?? "") : "PENDING") : (c.state ?? "");
+    if (GOOD.has(verdict)) continue;
+    if (verdict === "PENDING" || verdict === "EXPECTED") pending = true;
+    else return { state: "red", name: c.name ?? c.context ?? "(unnamed check)", detailsUrl: c.detailsUrl ?? c.targetUrl ?? "" };
+  }
+  return { state: rollup.length === 0 ? "none" : pending ? "pending" : "green" };
+}
+
+/** The checks of the branch's PR; `null` when GitHub cannot be read. Same leading-`-` guard as {@link prStatusOf}. */
+export async function checksOf(repoPath: string, branch: string, gh: GitRunner = runGh): Promise<Checks | null> {
+  if (!branch || branch.startsWith("-")) return null;
+  try {
+    const r = await gh(["pr", "view", branch, "--json", "statusCheckRollup"], repoPath);
+    return r.ok ? parseChecks(r.stdout) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The end of a failed check's log, or "" when the run cannot be told or read. */
+export async function failedLog(repoPath: string, detailsUrl: string, gh: GitRunner = runGh): Promise<string> {
+  const id = /\/actions\/runs\/(\d+)/.exec(detailsUrl)?.[1];
+  if (!id) return "";
+  try {
+    const r = await gh(["run", "view", id, "--log-failed"], repoPath);
+    return r.ok ? r.stdout.trim().split("\n").slice(-40).join("\n").slice(-3000) : "";
+  } catch {
+    return "";
+  }
+}
