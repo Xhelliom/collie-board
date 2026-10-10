@@ -167,6 +167,20 @@ export async function defaultBranchOf(root: string, git: GitRunner = runGit): Pr
   return head.ok && branch && branch !== "HEAD" ? branch : undefined;
 }
 
+/**
+ * A card filed without a `baseRef` takes its repo's default branch — a null base leaves the review
+ * an empty diff. Left alone when the caller named one, or when the card follows another (it forks
+ * from its predecessor's branch at start). Pure over `git`, so `bun test` covers it.
+ */
+export async function withDefaultBaseRef<T extends { repoPath?: string | null; baseRef?: string | null; dependsOn?: string | null }>(
+  input: T,
+  git: GitRunner = runGit,
+): Promise<T & { baseRef?: string | null }> {
+  if (input.baseRef || input.dependsOn || !input.repoPath) return input;
+  const baseRef = await defaultBranchOf(input.repoPath, git).catch(() => undefined);
+  return baseRef ? { ...input, baseRef } : input;
+}
+
 /** Walk a root looking for `.git`, bounded in depth, breadth and total results. */
 async function scanRoot(root: string, out: Set<string>): Promise<void> {
   const walk = async (dir: string, depth: number): Promise<void> => {
