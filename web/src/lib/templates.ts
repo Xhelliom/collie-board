@@ -62,6 +62,10 @@ export const draftTemplate = (description: string, baseOn?: string | null): Prom
 export const importTemplates = (repoPath: string): Promise<{ candidates: AgentFileCandidate[] }> =>
   apiRequest("/api/templates/import", { method: "POST", body: JSON.stringify({ repoPath }) });
 
+/** Set (or clear, with null) a phase's default template. */
+export const patchPhase = (id: string, input: { templateId: string | null }): Promise<{ phase: unknown }> =>
+  apiRequest(`/api/phases/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+
 const BUILTIN_KEYS = ["implementer", "reviewer", "doc", "explore", "fix"] as const;
 const isBuiltinKey = (k: string | null): k is (typeof BUILTIN_KEYS)[number] => !!k && (BUILTIN_KEYS as readonly string[]).includes(k);
 
@@ -71,4 +75,20 @@ export function templateName(tpl: Pick<AgentTemplate, "key" | "builtin" | "name"
 }
 export function templateDescription(tpl: Pick<AgentTemplate, "key" | "builtin" | "description">): string {
   return tpl.builtin && isBuiltinKey(tpl.key) ? t(`templates.builtin.${tpl.key}.description` as MessageKey) : tpl.description;
+}
+
+/**
+ * The template a card will start with — its own, else its phase's (the bridge's resolution, ADR
+ * 0026) — and whether it is INHERITED. Null when neither names one that still exists. Pure.
+ */
+export function templateFor(
+  card: { templateId?: string | null; phaseId?: string | null },
+  phases: readonly { id: string; templateId?: string | null }[],
+  templates: readonly AgentTemplate[],
+): { template: AgentTemplate; inherited: boolean } | null {
+  const own = card.templateId ? templates.find((x) => x.id === card.templateId) : undefined;
+  if (own) return { template: own, inherited: false };
+  const viaPhase = phases.find((p) => p.id === card.phaseId)?.templateId;
+  const inherited = viaPhase ? templates.find((x) => x.id === viaPhase) : undefined;
+  return inherited ? { template: inherited, inherited: true } : null;
 }

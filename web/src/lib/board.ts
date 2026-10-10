@@ -1126,6 +1126,8 @@ export interface Phase {
   /** When the operator validated it (ADR 0025): a milestone. Null/absent: the work in progress. */
   closedAt?: number | null;
   closedNote?: string;
+  /** The template its cards start with unless they carry their own (ADR 0026). */
+  templateId?: string | null;
 }
 
 /** A lot is a run: PLANNED while `launchedAt` is null (it drives nothing), launched by the operator's tap. */

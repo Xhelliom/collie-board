@@ -1,4 +1,7 @@
+import { useState } from "react";
+
 import { AGENT_KIND_LABEL, type AgentKindOption } from "@/components/agent-kind-picker";
+import { TemplatesSheet } from "@/components/templates-sheet";
 import { useTemplates } from "@/hooks/use-templates";
 import { useT } from "@/i18n";
 import { templateName } from "@/lib/templates";
@@ -8,8 +11,9 @@ import { templateName } from "@/lib/templates";
 // is never a surprise at Start. Renders nothing until the bridge has answered.
 export function TemplatePicker({ value, onChange }: { value: string | null; onChange: (id: string | null) => void }) {
   const t = useT();
-  const { data } = useTemplates();
-  if (!data || data.templates.length === 0) return null;
+  const { data, reload } = useTemplates();
+  const [managing, setManaging] = useState(false);
+  if (!data) return null;
   const sel = data.templates.find((x) => x.id === value) ?? null;
   const kind = sel?.agentKind ? (AGENT_KIND_LABEL[sel.agentKind as AgentKindOption] ?? sel.agentKind) : t("templates.agentDefault");
   const ignored = !!sel?.model && !!sel.agentKind && !data.modelKinds.includes(sel.agentKind);
@@ -40,6 +44,11 @@ export function TemplatePicker({ value, onChange }: { value: string | null; onCh
               .join(" ")
           : t("templates.picker.inherit")}
       </p>
+      {/* The same sheet Settings opens, without leaving the card: a role you need and do not have is one tap away. */}
+      <button type="button" onClick={() => setManaging(true)} className="self-start px-1 text-xs font-semibold text-brand">
+        {t("templates.manageLink")}
+      </button>
+      <TemplatesSheet open={managing} onClose={() => setManaging(false)} data={data} onChanged={reload} />
     </label>
   );
 }

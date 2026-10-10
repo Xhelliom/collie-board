@@ -449,7 +449,7 @@ export interface RoadmapItem {
   detail: string;
 }
 
-/** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — Overgate's three statuses (ADR 0023). */
+/** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — the three statuses of a design journal (ADR 0023). */
 export const DECISION_STATUSES = ["decided", "leaning", "open"] as const;
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 

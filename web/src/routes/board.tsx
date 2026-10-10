@@ -43,6 +43,7 @@ import {
   type CardView,
 } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
+import { templateFor, templateName } from "@/lib/templates";
 import { setStatus } from "@/lib/status";
 
 // The board: every card, grouped by lane, flow order left to right (or top to bottom on a phone).
@@ -221,6 +222,11 @@ export function BoardRoute() {
   // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
   // self-hiding rule, so the chip never opens onto an empty sheet.
   const progress = phaseProgress(data.cards, data.phases);
+  // The chip names the role a card will start with; only a repo's board knows its phases, so only it can show an inherited one.
+  const templateOf = (card: CardView) => {
+    const found = data.templates ? templateFor(card, data.phases, data.templates.templates) : null;
+    return found ? { name: templateName(found.template), inherited: found.inherited } : undefined;
+  };
   const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
   const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || phasesOn.length > 0;
 
@@ -645,6 +651,7 @@ export function BoardRoute() {
                                     // the container takes no tile, so this is where it is named.
                                     parent={card.parentId ? byId.get(card.parentId)?.title : undefined}
                                     phase={card.phaseId ? progress.get(card.phaseId) : undefined}
+                                    template={templateOf(card)}
                                     // Unconditional, unlike `parent`: a follow-up is never folded
                                     // under the card it came from (that link is not `parentId` —
                                     // see Card.originCardId), so nothing else on any screen says

@@ -18,6 +18,8 @@ export interface CardFacts {
   operatorSaid: number;
   startedAt: number | null;
   endedAt: number | null;
+  /** The template the card started with and the model actually passed to the agent (null: none passed). */
+  template?: { name: string; key: string | null; model: string | null } | null;
 }
 
 export const fetchFacts = (repo: string, signal?: AbortSignal): Promise<{ facts: CardFacts[] }> =>

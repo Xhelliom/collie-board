@@ -172,7 +172,7 @@ describe("startCard with a template (ADR 0026)", () => {
     expect(started).toEqual([{ kind: "claude", args: ["--model", "opus"] }]);
     expect(prompts[0]!.startsWith("ROLE BRIEF\n\n---\n\n")).toBe(true);
     expect(prompts[0]).toContain("do it");
-    expect(db.listEvents(card.id).find((e) => e.type === "card.template")!.payload).toMatchObject({ name: "Rev", kind: "claude", args: ["--model", "opus"] });
+    expect(db.listEvents(card.id).find((e) => e.type === "card.template")!.payload).toMatchObject({ name: "Rev", kind: "claude", args: ["--model", "opus"], model: "opus" });
     db.close();
   });
 

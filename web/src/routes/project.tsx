@@ -7,6 +7,8 @@ import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
 import { BottomSheet } from "@/components/ui/sheet";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
+import { PhaseTemplate } from "@/components/phase-template";
+import { templateFor, templateName } from "@/lib/templates";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
@@ -384,6 +386,9 @@ export function ProjectRoute() {
                           )}
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
+                        {p.phase && !p.phase.closedAt && (
+                          <PhaseTemplate phase={p.phase} data={data.templates} onChanged={() => void revalidator.revalidate()} />
+                        )}
                         <PhaseLots
                           lots={p.lots}
                           steps={visible}
@@ -399,6 +404,10 @@ export function ProjectRoute() {
                               flash={flash === s.id}
                               predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
                               facts={data.facts?.[s.id]}
+                              template={(() => {
+                                const f = data.templates ? templateFor(s, data.phases, data.templates.templates) : null;
+                                return f ? { name: templateName(f.template), inherited: f.inherited } : undefined;
+                              })()}
                               inLot={inLot}
                               onToggle={() => toggle(s.id)}
                               phases={data.phases}

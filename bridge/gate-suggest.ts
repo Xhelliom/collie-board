@@ -38,7 +38,7 @@ export function suggestPrompt(input: { repoPath: string; outPath: string }): str
     "",
     "THE COMMAND RUNS WITHOUT A SHELL: it is split on spaces and executed as-is. No `&&`, `|`, `;`,",
     "quotes, redirects or variables — they would mean nothing. One executable and its arguments",
-    "(`bun run test`, `make check`, `tools/ovg gate`).",
+    "(`bun run test`, `make check`, `tools/check`).",
     "If the right check needs several steps, do not chain them: set needsScript to true, make `command`",
     "the path of a script the operator will create (e.g. `scripts/gate.sh`), and put that script's full",
     "content in scriptSuggestion.",

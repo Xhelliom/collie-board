@@ -108,5 +108,13 @@ export const templates = defineMessages({
     en: "Applied when the card starts; the card's own agent wins over the template's.",
     fr: "Appliqué au démarrage de la carte ; l'agent choisi sur la carte l'emporte sur celui du template.",
   },
+  "templates.manageLink": { en: "Manage templates…", fr: "Gérer les templates…" },
+  "templates.phase.label": { en: "Default template", fr: "Template par défaut" },
+  "templates.phase.hint": {
+    en: "For the cards of this phase that have none of their own.",
+    fr: "Pour les cartes de cette phase qui n'ont pas le leur.",
+  },
+  "templates.chip.inherited": { en: "from the phase", fr: "hérité de la phase" },
+  "templates.agent.model": { en: "model {model}", fr: "modèle {model}" },
   "journal.template": { en: "Started with the “{name}” template", fr: "Démarrée avec le template « {name} »" },
 });

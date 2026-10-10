@@ -41,3 +41,13 @@ describe("foldFacts", () => {
     expect(foldFacts("c", [])).toMatchObject({ gate: null, lead: null, pr: null, sentBack: 0, startedAt: null });
   });
 });
+
+describe("foldFacts: the template a card started with", () => {
+  it("reads the template and the model actually passed, and is null without the event", () => {
+    const f = foldFacts("c", [ev("card.template", { templateId: "t", name: "Reviewer", key: "reviewer", kind: "claude", args: ["--model", "opus"], model: "opus" })]);
+    expect(f.template).toEqual({ name: "Reviewer", key: "reviewer", model: "opus" });
+    // An older journal entry has no model: the template is known, the model is not.
+    expect(foldFacts("c", [ev("card.template", { name: "Mine", key: null })]).template).toEqual({ name: "Mine", key: null, model: null });
+    expect(foldFacts("c", []).template).toBeNull();
+  });
+});

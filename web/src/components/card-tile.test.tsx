@@ -214,3 +214,14 @@ describe("CardTile — dependency line", () => {
     expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
   });
 });
+
+describe("CardTile — the template chip (ADR 0026)", () => {
+  it("names the role the card starts with, dimmer when it only inherits it from its phase", () => {
+    const { rerender } = render(<CardTile card={card()} onClick={() => {}} template={{ name: "Reviewer", inherited: false }} />);
+    expect(screen.getByText("Reviewer")).not.toHaveAttribute("title");
+    rerender(<CardTile card={card()} onClick={() => {}} template={{ name: "Reviewer", inherited: true }} />);
+    expect(screen.getByText("Reviewer")).toHaveAttribute("title");
+    rerender(<CardTile card={card()} onClick={() => {}} />);
+    expect(screen.queryByText("Reviewer")).toBeNull();
+  });
+});
