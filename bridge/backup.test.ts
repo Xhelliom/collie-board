@@ -68,6 +68,7 @@ describe("buildBackup", () => {
     expect(backup.exportedAt).toBe("2023-11-14T22:13:20.000Z");
     // Every table, not just the ones with rows — a restore needs to know `repo_pref` was empty.
     expect(Object.keys(backup.db).sort()).toEqual([
+      "agent_template",
       "board_pref",
       "card",
       "event",

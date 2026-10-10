@@ -391,7 +391,7 @@ export function runHook(
   leadPane = () => lead.paneId;
   const coordinator = new RunCoordinator(db, {
     lead,
-    start: async (cardId) => await startCard(db, herdr, cfg, cardId),
+    start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     openPr: (card) => prForCard(db, card, { autoMerge: true }),
     resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),

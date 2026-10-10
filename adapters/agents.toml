@@ -26,6 +26,10 @@
 clear      = "/clear"
 context    = true
 session_id = true
+# `claude --help` lists `--model <model>` ("Model for the current session"), and herdr hands what
+# follows `--` on `agent start` to the executable. Verified on the installed Claude Code; the other
+# kinds keep no `model_flag` until someone has run their CLI (a template's model is ignored there).
+model_flag = "--model"
 
 # `/new` — "start a new chat during a conversation" — is Codex's own reset, read from the enum the
 # command popup is built from (codex-rs/tui/src/slash_command.rs). `/clear` exists too and also

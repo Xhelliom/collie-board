@@ -52,6 +52,8 @@ import {
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleTemplateRoute } from "./template-routes.ts";
+import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
@@ -126,7 +128,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -148,6 +150,8 @@ export interface BoardContext {
   device: string | null;
   /** A pane's context occupancy (0-100) from the context tracker, or null when unknown (ADR 0023). */
   paneContext?: (paneId: string) => number | null;
+  /** The agent table (adapters/agents.toml), for the one thing a start reads from it: a kind's model flag (ADR 0026). */
+  adapters?: Record<string, AgentAdapter>;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
@@ -186,6 +190,7 @@ export function parseCardBody(
     "dependsOn",
     "duplicateOf",
     "phaseId",
+    "templateId",
     // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
     // the copilot's writes get it too — see there.
     "tag",
@@ -307,6 +312,7 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
   // `duplicateOf` gets the existence check but NOT the cycle check: it blocks nothing and is walked
   // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
   if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
+  if (patch.templateId && !db.getTemplate(patch.templateId)) return "templateId: no such template";
   // A phase groups ONE repo's cards (ADR 0021): it has to exist and be the card's own repo's.
   if (patch.phaseId) {
     const repo = patch.repoPath ?? (cardId ? db.getCard(cardId)?.repoPath : null) ?? null;
@@ -345,6 +351,8 @@ async function route(
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
   if (orchestrator) return orchestrator;
+  const templates = await handleTemplateRoute(pathname, req, ctx);
+  if (templates) return templates;
   const facts = handleFactsRoute(pathname, req, ctx);
   if (facts) return facts;
 
@@ -875,7 +883,7 @@ async function route(
     const denied = ctx.guard("write");
     if (denied) return denied;
     if (!db.getCard(id)) return text("card not found", 404);
-    const result = await startCard(db, ctx.herdr, ctx.cfg, id);
+    const result = await startCard(db, ctx.herdr, ctx.cfg, id, { adapters: ctx.adapters });
     ctx.audit.record({
       action: "card.start",
       session: ctx.session,

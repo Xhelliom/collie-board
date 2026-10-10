@@ -13,6 +13,7 @@
 // CONCURRENCY. One bridge process owns this file. WAL keeps a reader (a `GET /api/cards` mid-write)
 // from blocking, and `busy_timeout` covers the sqlite-internal contention that remains.
 
+import { BUILTIN_TEMPLATES } from "./templates.ts";
 import { chmodSync } from "node:fs";
 
 import { Database } from "bun:sqlite";
@@ -227,6 +228,8 @@ export interface Card {
   runId: string | null;
   /** The phase this card belongs to, or null — ADR 0021. Intent, so a column. */
   phaseId: string | null;
+  /** The agent template this card starts with, or null — ADR 0026. Falls back to its phase's. */
+  templateId: string | null;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -381,11 +384,57 @@ export interface Phase {
   /** When the operator validated it (ADR 0025), or null while it is the work in progress. A validated phase is a milestone. */
   closedAt: number | null;
   closedNote: string;
+  /** The agent template the phase's cards start with unless they name their own (ADR 0026). */
+  templateId: string | null;
   createdAt: number;
   updatedAt: number;
 }
 
 export const PHASE_NOTE_MAX = 1000;
+
+/** A role for a worker — ADR 0026. `key` is set on the shipped ones, which can be edited and reset but not deleted. */
+export interface AgentTemplate {
+  id: string;
+  key: string | null;
+  name: string;
+  description: string;
+  /** The agent kind it runs on, or null for the board's default. */
+  agentKind: string | null;
+  /** One model word, or null; reaches the CLI only for a kind with a verified `modelFlag`. */
+  model: string | null;
+  brief: string;
+  builtin: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface TemplateRow {
+  id: string;
+  key: string | null;
+  name: string;
+  description: string;
+  agent_kind: string | null;
+  model: string | null;
+  brief: string;
+  builtin: number;
+  created_at: number;
+  updated_at: number;
+}
+
+function toTemplate(r: TemplateRow): AgentTemplate {
+  return {
+    id: r.id,
+    key: r.key ?? null,
+    name: r.name,
+    description: r.description,
+    agentKind: r.agent_kind ?? null,
+    model: r.model ?? null,
+    brief: r.brief,
+    builtin: r.builtin === 1,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
 
 export const ROADMAP_STATUSES = ["planned", "active", "done", "dropped"] as const;
 export type RoadmapStatus = (typeof ROADMAP_STATUSES)[number];
@@ -516,6 +565,7 @@ interface CardRow {
   auto_handoff: string | null;
   run_id: string | null;
   phase_id: string | null;
+  template_id: string | null;
 }
 
 interface RunRow {
@@ -555,6 +605,7 @@ interface PhaseRow {
   roadmap_item_id: string | null;
   closed_at: number | null;
   closed_note: string | null;
+  template_id: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -569,6 +620,7 @@ function toPhase(r: PhaseRow): Phase {
     roadmapItemId: r.roadmap_item_id ?? null,
     closedAt: r.closed_at ?? null,
     closedNote: r.closed_note ?? "",
+    templateId: r.template_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -732,6 +784,7 @@ function toCard(r: CardRow): Card {
     autoHandoff: r.auto_handoff === "on" || r.auto_handoff === "off" ? r.auto_handoff : null,
     runId: r.run_id ?? null,
     phaseId: r.phase_id ?? null,
+    templateId: r.template_id ?? null,
   };
 }
 
@@ -801,7 +854,9 @@ CREATE TABLE IF NOT EXISTS card (
   -- Soft, like parent_id: a card outlives nothing by being in a run. See Card.runId.
   run_id        TEXT,
   -- ADR 0021. Soft too: deleting a phase clears it rather than taking the cards with it.
-  phase_id      TEXT
+  phase_id      TEXT,
+  -- ADR 0026. Soft: deleting a template clears it; the card then starts as any card does.
+  template_id   TEXT
 );
 
 -- ADR 0017. Intent only — never whether the run is going; that is read from its cards.
@@ -829,8 +884,23 @@ CREATE TABLE IF NOT EXISTS phase (
   roadmap_item_id TEXT,
   closed_at       INTEGER,
   closed_note     TEXT NOT NULL DEFAULT '',
+  template_id     TEXT,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
+);
+
+-- ADR 0026. A role for a worker: a brief, an agent kind and a model. \`key\` names the shipped ones.
+CREATE TABLE IF NOT EXISTS agent_template (
+  id          TEXT PRIMARY KEY,
+  key         TEXT UNIQUE,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  agent_kind  TEXT,
+  model       TEXT,
+  brief       TEXT NOT NULL,
+  builtin     INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
 );
 
 -- ADR 0021. One document per repo: intents, not cards. \`revision\` is the optimistic lock.
@@ -976,6 +1046,7 @@ export interface NewCard {
    */
   position?: number;
   phaseId?: string | null;
+  templateId?: string | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -998,6 +1069,7 @@ export interface CardPatch {
   keepWorktree?: boolean;
   autoHandoff?: AutoHandoffChoice | null;
   phaseId?: string | null;
+  templateId?: string | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1020,6 +1092,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   keepWorktree: "keep_worktree",
   autoHandoff: "auto_handoff",
   phaseId: "phase_id",
+  templateId: "template_id",
 };
 
 export class BoardDb {
@@ -1180,6 +1253,9 @@ export class BoardDb {
       { table: "phase", column: "closed_note", ddl: "TEXT NOT NULL DEFAULT ''" },
       // ADR 0023: the roadmap's decision journal.
       { table: "roadmap", column: "decisions", ddl: "TEXT NOT NULL DEFAULT '[]'" },
+      // ADR 0026: the agent template a card — or its phase — starts with.
+      { table: "card", column: "template_id", ddl: "TEXT" },
+      { table: "phase", column: "template_id", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1187,6 +1263,22 @@ export class BoardDb {
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
     if (!hadLaunchedAt) this.db.exec("UPDATE run SET launched_at = created_at WHERE launched_at IS NULL");
+    this.seedTemplates();
+  }
+
+  /** Insert the shipped templates that are missing, by `key` — never touches one the operator has edited. */
+  private seedTemplates(): void {
+    const has = this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM agent_template WHERE key = ?");
+    const ts = this.now();
+    for (const t of BUILTIN_TEMPLATES) {
+      if (has.get(t.key!)!.n > 0) continue;
+      this.db
+        .query(
+          `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, builtin, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+        )
+        .run(crypto.randomUUID(), t.key, t.name, t.description, t.agentKind, t.model, t.brief, ts, ts);
+    }
   }
 
   // ── cards ───────────────────────────────────────────────────────────────────
@@ -1229,6 +1321,7 @@ export class BoardDb {
         ts,
       );
     if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
+    if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1763,7 +1856,7 @@ export class BoardDb {
 
   // ── phases (ADR 0021) ───────────────────────────────────────────────────────
 
-  createPhase(input: { repoPath: string; name: string; goal?: string; position?: number; roadmapItemId?: string | null }): Phase {
+  createPhase(input: { repoPath: string; name: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null }): Phase {
     const id = crypto.randomUUID();
     const ts = this.now();
     const next =
@@ -1774,6 +1867,7 @@ export class BoardDb {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(id, input.repoPath, input.name, input.goal ?? "", input.position ?? next + 1, input.roadmapItemId ?? null, ts, ts);
+    if (input.templateId) this.db.query("UPDATE phase SET template_id = ? WHERE id = ?").run(input.templateId, id);
     return this.getPhase(id)!;
   }
 
@@ -1791,7 +1885,7 @@ export class BoardDb {
 
   updatePhase(
     id: string,
-    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null },
+    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null },
   ): Phase | null {
     if (!this.getPhase(id)) return null;
     const cols: [string, string | number | null][] = [];
@@ -1799,10 +1893,81 @@ export class BoardDb {
     if (patch.goal !== undefined) cols.push(["goal", patch.goal]);
     if (patch.position !== undefined) cols.push(["position", patch.position]);
     if (patch.roadmapItemId !== undefined) cols.push(["roadmap_item_id", patch.roadmapItemId]);
+    if (patch.templateId !== undefined) cols.push(["template_id", patch.templateId]);
     cols.push(["updated_at", this.now()]);
     // Column names come from the literals above, never from the caller.
     this.db.query(`UPDATE phase SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
     return this.getPhase(id);
+  }
+
+  // ── agent templates (ADR 0026) ──────────────────────────────────────────────
+
+  listTemplates(): AgentTemplate[] {
+    return this.db
+      .query<TemplateRow, []>("SELECT * FROM agent_template ORDER BY builtin DESC, created_at, name")
+      .all()
+      .map(toTemplate);
+  }
+
+  getTemplate(id: string): AgentTemplate | null {
+    const r = this.db.query<TemplateRow, [string]>("SELECT * FROM agent_template WHERE id = ?").get(id);
+    return r ? toTemplate(r) : null;
+  }
+
+  createTemplate(input: { name: string; description?: string; agentKind?: string | null; model?: string | null; brief: string }): AgentTemplate {
+    const id = crypto.randomUUID();
+    const ts = this.now();
+    this.db
+      .query(
+        `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, builtin, created_at, updated_at)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      )
+      .run(id, input.name, input.description ?? "", input.agentKind ?? null, input.model ?? null, input.brief, ts, ts);
+    return this.getTemplate(id)!;
+  }
+
+  updateTemplate(
+    id: string,
+    patch: { name?: string; description?: string; agentKind?: string | null; model?: string | null; brief?: string },
+  ): AgentTemplate | null {
+    if (!this.getTemplate(id)) return null;
+    const cols: [string, string | null | number][] = [];
+    if (patch.name !== undefined) cols.push(["name", patch.name]);
+    if (patch.description !== undefined) cols.push(["description", patch.description]);
+    if (patch.agentKind !== undefined) cols.push(["agent_kind", patch.agentKind]);
+    if (patch.model !== undefined) cols.push(["model", patch.model]);
+    if (patch.brief !== undefined) cols.push(["brief", patch.brief]);
+    cols.push(["updated_at", this.now()]);
+    // Column names come from the literals above, never from the caller.
+    this.db.query(`UPDATE agent_template SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
+    return this.getTemplate(id);
+  }
+
+  /** `builtin`: a shipped template is reset, never deleted. A deleted one is released from every card and phase. */
+  deleteTemplate(id: string): "deleted" | "builtin" | "missing" {
+    const t = this.getTemplate(id);
+    if (!t) return "missing";
+    if (t.builtin) return "builtin";
+    this.db.transaction(() => {
+      this.db.query("UPDATE card SET template_id = NULL WHERE template_id = ?").run(id);
+      this.db.query("UPDATE phase SET template_id = NULL WHERE template_id = ?").run(id);
+      this.db.query("DELETE FROM agent_template WHERE id = ?").run(id);
+    })();
+    return "deleted";
+  }
+
+  /** Put a shipped template back as it was shipped. Null for a custom one (nothing to go back to). */
+  resetTemplate(id: string): AgentTemplate | null {
+    const t = this.getTemplate(id);
+    const shipped = t?.key ? BUILTIN_TEMPLATES.find((b) => b.key === t.key) : undefined;
+    if (!t || !shipped) return null;
+    return this.updateTemplate(id, {
+      name: shipped.name,
+      description: shipped.description,
+      agentKind: shipped.agentKind,
+      model: shipped.model,
+      brief: shipped.brief,
+    });
   }
 
   /** Delete a phase. Its cards and lots are released, not deleted — a phase is a grouping. */

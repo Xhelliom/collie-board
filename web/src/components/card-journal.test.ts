@@ -36,6 +36,9 @@ describe("describe", () => {
     expect(describeEvent(event("session.closed", { outcome: "handoff" }))).toBe(
       "Session ended (handoff)",
     );
+    expect(describeEvent(event("card.template", { name: "Reviewer", kind: "claude" }))).toBe(
+      "Started with the “Reviewer” template",
+    );
   });
 
   it("says what a split did, on both sides of it", () => {

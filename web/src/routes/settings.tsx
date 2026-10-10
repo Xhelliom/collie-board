@@ -11,6 +11,7 @@ import { ConnectionInfo } from "@/components/connection-info";
 import { FollowUpsControl } from "@/components/follow-ups-control";
 import { GateControl } from "@/components/gate-control";
 import { LanguageControl } from "@/components/language-control";
+import { TemplatesControl } from "@/components/templates-control";
 import { MaxAgentsControl } from "@/components/max-agents-control";
 import { Card } from "@/components/ui/card";
 import { NotifyPrefsControl } from "@/components/notify-prefs-control";
@@ -141,6 +142,7 @@ export function SettingsRoute() {
         <AutoHandoffControl />
         <GateControl />
         <LanguageControl />
+        <TemplatesControl />
 
         <SectionLabel className="mb-2 px-1 pt-2">System</SectionLabel>
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}

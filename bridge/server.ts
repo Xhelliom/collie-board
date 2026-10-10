@@ -229,6 +229,7 @@ export function startServer(opts: {
           session: rt.name,
           guard: (level) => guard(req, cfg, level),
           device: deviceAuth(req, cfg).device,
+          adapters,
           paneContext: (id) =>
             context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0]?.ctxPct ?? null,
           json: (data, status) => {
