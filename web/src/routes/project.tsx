@@ -10,7 +10,7 @@ import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardErrorMessage, loadRepoScope, patchCard, repoName, type CardView } from "@/lib/board";
+import { boardErrorMessage, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
 import { timeAgo } from "@/lib/format";
 import { projectOf, stepGroup, type StepGroup } from "@/lib/project";
@@ -186,7 +186,7 @@ export function ProjectRoute() {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader title={repo ? repoName(repo) : "Project"} subtitle="Road map" />
-      <BoardTabs />
+      <BoardTabs repos={reposOf(data.cards)} />
       <h1 className="sr-only">Project</h1>
       <div className="flex min-h-0 flex-1">
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">

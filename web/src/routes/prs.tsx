@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
@@ -12,6 +12,7 @@ import {
   cardPath,
   fetchOpenPrs,
   integrateCard,
+  loadRepoScope,
   repoName,
   type OpenPr,
 } from "@/lib/board";
@@ -69,7 +70,11 @@ function meta(row: OpenPr, tail: string): string {
 
 export function PrsRoute() {
   const navigate = useNavigate();
-  const [rows, setRows] = useState(useLoaderData() as OpenPr[]);
+  const [all, setRows] = useState(useLoaderData() as OpenPr[]);
+  // The repo scope is the board's own, shared by its three views.
+  const scope = useSearchParams()[0].get("repo") ?? loadRepoScope();
+  const rows = scope ? all.filter((r) => r.card.repoPath === scope) : all;
+  const repos = [...new Set(all.map((r) => r.card.repoPath).filter((p): p is string => !!p))].map((path) => ({ path, name: repoName(path) }));
   const [checking, setChecking] = useState(false);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [reopening, setReopening] = useState<string | null>(null);
@@ -123,7 +128,7 @@ export function PrsRoute() {
           </Button>
         }
       />
-      <BoardTabs />
+      <BoardTabs repos={repos} />
       <h1 className="sr-only">Open PRs</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">

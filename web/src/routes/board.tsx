@@ -447,7 +447,7 @@ export function BoardRoute() {
           </>
         }
       />
-      <BoardTabs />
+      <BoardTabs repos={repos} />
 
       {/* One scroller on a phone (the whole board), FOUR on a wide screen (one per lane) — the
           outer one is switched off at `lg` and each lane takes over. Without this, seventeen cards

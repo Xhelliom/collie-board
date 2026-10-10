@@ -142,8 +142,8 @@ describe("ProjectRoute", () => {
       }),
     );
     mount([card({ id: "x", phaseId: "P1", status: "working" })], { phases: [phase("P1"), phase("P2", 1)] });
-    await userEvent.selectOptions(await screen.findByRole("combobox"), "P2");
-    await screen.findByRole("combobox");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /phase/i }), "P2");
+    await screen.findByRole("combobox", { name: /phase/i });
     expect(body).toEqual({ phaseId: "P2" });
   });
 
