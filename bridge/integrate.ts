@@ -338,6 +338,8 @@ export async function landPr(
     merged: r.ok,
     reason: r.ok ? `lead validated, ${gate.why}, no conflict; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
   });
+  // The board knows it merged: take the PR off Open PRs now, instead of waiting for a Check tap.
+  if (r.ok) db.recordEvent(cardId, "card.pr_merged", { url: pr.url });
 }
 
 /**
