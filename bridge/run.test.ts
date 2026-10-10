@@ -21,18 +21,19 @@ const flush = async () => {
 };
 
 /** A fake world: every port records its call; the lead answers from a queue. */
-function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) {
+function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null } = {}) {
   const calls: string[] = [];
   const checks: CheckDecision[] = [];
   const triages: TriageDecision[] = [];
   const rechecks: ConflictDecision[] = [];
+  const seen: { workerReport?: string | null }[] = [];
   let pr: Awaited<ReturnType<RunPorts["openPr"]>> = { ok: true };
   let gate: string | null = null;
   let commits: number | null = 1;
   const gates: GateResult[] = [];
   const ports: RunPorts = {
     lead: {
-      check: async () => checks.shift() ?? { decision: "finished", reason: "ok" },
+      check: async (i) => (seen.push(i), checks.shift() ?? { decision: "finished", reason: "ok" }) ?? { decision: "finished", reason: "ok" },
       triage: async () => triages.shift()!,
       recheckConflict: async () => rechecks.shift()!,
     },
@@ -64,7 +65,8 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
       return gates.shift() ?? { kind: "pass" };
     },
     brief: async (c) => ({ title: c.title, spec: c.spec, acceptance: c.acceptance, worktree: "/wt", base: "main" }),
-    stat: async () => "a.ts | 1 +",
+    stat: async () => opts.stat ?? "a.ts | 1 +",
+    report: async () => opts.report ?? null,
     freeSlots: () => (opts.slots ?? 3) - db.listOpenSessions().length,
     reviewing: () => opts.reviewing ?? false,
     commits: async () => commits,
@@ -73,6 +75,7 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean } = {}) 
   return {
     calls,
     checks,
+    seen,
     triages,
     rechecks,
     setPr: (r: typeof pr) => (pr = r),
@@ -129,6 +132,36 @@ describe("RunCoordinator (ADR 0017)", () => {
     w.coord.update(snap());
     await flush();
     expect(w.calls).toEqual(["start b"]);
+  });
+
+  it("an empty diff with no bilan goes back asking for it, without spending the lead", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { stat: "(no changes)" });
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.seen).toHaveLength(0);
+    expect(w.calls.at(-1)).toContain(".board/bilan.md");
+    expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "prompt", reason: "empty diff and no bilan from the worker" });
+  });
+
+  it("an empty diff with a bilan reaches the lead, which can finish without a round", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { stat: "(no changes)", report: "déjà sur main: abc123" });
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    w.checks.push({ decision: "finished", reason: "abc123 is on main" });
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.seen[0]!.workerReport).toBe("déjà sur main: abc123");
+    expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "finished", reason: "abc123 is on main" });
   });
 
   it("check → prompt the worker; check → finished → PR → filed; then the run finishes", async () => {

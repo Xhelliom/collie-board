@@ -22,6 +22,17 @@ const LEAD_LABEL = "lead";
  * A second instance of the copilot's plumbing, under its own label. Always enabled: the run's
  * gesture is the consent that pays for it, and the coordinator only asks inside a run.
  */
+/** Where the worker leaves its closing bilan, relative to its checkout (`.board/` is never committed). */
+export const BILAN_REL_PATH = ".board/bilan.md";
+
+/** Asked of the worker with its first prompt, and again when the lead sends it back for one. Pure. */
+export function bilanPrompt(): string {
+  return [
+    `When you stop, write a short bilan to ${BILAN_REL_PATH}: what is done, what is not, and why —`,
+    "and, if the work was already on the base branch, the commits or files there that prove it.",
+  ].join("\n");
+}
+
 export class Lead extends Copilot {
   override get enabled(): boolean {
     return true;
@@ -67,6 +78,8 @@ export interface CheckInput extends CardBrief {
   statSummary: string;
   /** The repo's gate command, when it passed on this checkout (ADR 0020): the lead need not re-check it. */
   gatePassed?: string;
+  /** What the worker wrote in {@link BILAN_REL_PATH} when it stopped; null when it left none. */
+  workerReport?: string | null;
   outPath: string;
 }
 
@@ -146,6 +159,17 @@ export function checkPrompt(input: CheckInput): string {
           ...input.operatorSaid.map((m) => `> ${m.replace(/\n/g, "\n> ")}`),
           "That is the current direction: judge the work against the card AND those words, and never send",
           "a message that contradicts them. If the worker did what they asked, that is finished.",
+          "",
+        ]
+      : []),
+    ...(input.workerReport
+      ? [
+          "The worker's own bilan, written when it stopped (a claim to check, not a fact):",
+          ...input.workerReport.split("\n").map((l) => `> ${l}`),
+          `If the diff is empty and the bilan says the work is already delivered, verify it: read the`,
+          `commits and files it names (\`git -C ${input.worktree} log ${input.base}\`, \`show\`, or the files`,
+          "themselves). If every criterion holds there, it is finished — do not send the worker back",
+          "to do nothing. If the claim does not hold, say which criterion fails.",
           "",
         ]
       : []),
