@@ -28,6 +28,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import type { Config } from "./config.ts";
 import {
   armAutoMerge,
+  landPr,
   cleanupCard,
   mergeCard,
   rebindDependents,
@@ -650,5 +651,59 @@ describe("armAutoMerge — GitHub merges on green, and its refusal is a note, no
     };
     await armAutoMerge(store, card.id, "/repo", "board/x", gh);
     expect(store.listEvents(card.id)[0]?.type).toBe("card.automerge_refused");
+  });
+});
+
+describe("landPr — the board merges itself when GitHub's auto-merge is not there (ADR 0027)", () => {
+  const view = (mergeable: string) => JSON.stringify({ state: "OPEN", url: "https://gh/o/r/pull/1", mergedAt: null, mergeable });
+  /** A gh double: auto-merge refused, `pr view` says `mergeable`, a direct merge succeeds. */
+  const setup = (mergeable: string, auto = false) => {
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    const calls: string[][] = [];
+    const gh: GitRunner = async (args) => {
+      calls.push(args);
+      if (args.includes("--auto")) return auto ? { ok: true, stdout: "", stderr: "" } : { ok: false, stdout: "", stderr: "Auto merge is not allowed for this repository" };
+      if (args[1] === "view") return { ok: true, stdout: view(mergeable), stderr: "" };
+      return { ok: true, stdout: "", stderr: "" };
+    };
+    const merges = () => store.listEvents(card.id).filter((e) => e.type === "run.merge").map((e) => e.payload as { runId: string; merged: boolean; reason: string });
+    return { store, card, gh, calls, merges };
+  };
+  const direct = (calls: string[][]) => calls.some((a) => a[0] === "pr" && a[1] === "merge" && !a.includes("--auto"));
+
+  it("merges directly once auto-merge is refused, gate green, no conflict", async () => {
+    const t = setup("MERGEABLE");
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    expect(t.calls.find((a) => a[1] === "merge" && !a.includes("--auto"))).toEqual(["pr", "merge", "board/x", "--squash"]);
+    expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("auto-merge unavailable") }]);
+  });
+
+  it("leaves a GitHub-armed auto-merge alone", async () => {
+    const t = setup("MERGEABLE", true);
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    expect(direct(t.calls)).toBe(false);
+    expect(t.merges()).toEqual([]);
+  });
+
+  it("never merges on a red gate", async () => {
+    const t = setup("MERGEABLE");
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: false, why: "gate red" }, t.gh);
+    expect(direct(t.calls)).toBe(false);
+    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("gate red") });
+  });
+
+  it("never merges a conflicting PR", async () => {
+    const t = setup("CONFLICTING");
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    expect(direct(t.calls)).toBe(false);
+    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("conflict") });
+  });
+
+  it("never merges while GitHub has not worked mergeability out", async () => {
+    const t = setup("UNKNOWN");
+    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    expect(direct(t.calls)).toBe(false);
+    expect(t.merges()[0]).toMatchObject({ merged: false });
   });
 });

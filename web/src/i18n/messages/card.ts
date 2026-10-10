@@ -66,6 +66,8 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "journal.triage.rejected": { en: "Lead rejected the review's verdict", fr: "Le lead a rejeté le verdict de la relecture" },
   "journal.gate.green": { en: "Gate green ({command})", fr: "Barrière verte ({command})" },
   "journal.gate.red": { en: "Gate red ({command}) — worker sent back", fr: "Barrière rouge ({command}) — worker renvoyé" },
+  "journal.merged": { en: "Board merged the PR — {reason}", fr: "Le board a mergé la PR — {reason}" },
+  "journal.notMerged": { en: "PR left open — {reason}", fr: "PR laissée ouverte — {reason}" },
   "journal.halted": { en: "Run halted, needs you — {reason}", fr: "Run arrêté, il a besoin de toi — {reason}" },
   "journal.runFinished": { en: "Run finished — every card is filed", fr: "Run terminé — toutes les cartes sont classées" },
   "journal.splitKept": { en: "Split kept — {started} has already started", fr: "Découpage conservé — {started} a déjà démarré" },

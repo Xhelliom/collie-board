@@ -880,10 +880,12 @@ export async function enableAutoMerge(
   repoPath: string,
   branch: string,
   gh: GitRunner = runGh,
+  /** `--auto` arms GitHub's merge-on-green; without it the PR merges now (ADR 0027). */
+  flags: string[] = ["--auto"],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!branch || branch.startsWith("-")) return { ok: false, error: `refusing branch name ${JSON.stringify(branch)}` };
   try {
-    const r = await gh(["pr", "merge", branch, "--auto", AUTO_MERGE_STRATEGY], repoPath);
+    const r = await gh(["pr", "merge", branch, ...flags, AUTO_MERGE_STRATEGY], repoPath);
     return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };

@@ -326,6 +326,8 @@ export function describeEvent(event: BoardEvent): string {
       return `${p.accept ? t("journal.triage.accepted") : t("journal.triage.rejected")}${p.verdict ? ` (${String(p.verdict)})` : ""} — ${reason()}`;
     case "run.gate":
       return p.ok ? t("journal.gate.green", { command: String(p.command) }) : t("journal.gate.red", { command: String(p.command) });
+    case "run.merge":
+      return t(p.merged ? "journal.merged" : "journal.notMerged", { reason: reason() });
     case "run.halted":
       return t("journal.halted", { reason: reason() });
     case "run.finished":
