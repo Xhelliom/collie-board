@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, ChevronDown, Layers, Plus, X } from "lucide-react";
 
@@ -31,6 +32,7 @@ export function CardEditor({
   onClose: () => void;
   onSave: (patch: CardInput) => Promise<void>;
 }) {
+  const t = useT();
   const [title, setTitle] = useState(card.title);
   const [spec, setSpec] = useState(card.spec ?? "");
   const [acceptance, setAcceptance] = useState<string[]>(card.acceptance);
@@ -95,10 +97,10 @@ export function CardEditor({
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Edit card">
+    <BottomSheet open={open} onClose={onClose} title={t("editor.title")}>
       <div className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto">
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Title</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("editor.fieldTitle")}</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -107,7 +109,7 @@ export function CardEditor({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Spec (markdown)</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("editor.spec")}</span>
           <textarea
             value={spec}
             onChange={(e) => setSpec(e.target.value)}
@@ -117,7 +119,7 @@ export function CardEditor({
         </label>
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Acceptance criteria</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("editor.acceptance")}</span>
           {acceptance.map((a, i) => (
             <div key={i} className="flex items-center gap-1">
               <input
@@ -129,7 +131,7 @@ export function CardEditor({
               />
               <button
                 type="button"
-                aria-label="Remove criterion"
+                aria-label={t("editor.removeCriterion")}
                 onClick={() => setAcceptance((list) => list.filter((_, j) => j !== i))}
                 className="p-2 text-muted-foreground"
               >
@@ -143,12 +145,12 @@ export function CardEditor({
             className="flex items-center gap-1.5 self-start px-1 py-1 text-xs text-muted-foreground underline underline-offset-4"
           >
             <Plus className="size-3" />
-            Add a criterion
+            {t("editor.addCriterion")}
           </button>
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Base ref</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("editor.baseRef")}</span>
           <input
             value={baseRef}
             onChange={(e) => setBaseRef(e.target.value)}
@@ -161,8 +163,7 @@ export function CardEditor({
         </label>
         {card.branch && (
           <p className="text-xs text-muted-foreground">
-            Branch <span className="font-mono">{card.branch}</span> is fixed — a worktree may exist
-            at it.
+            {t("editor.branchFixed", { branch: card.branch })}
           </p>
         )}
 
@@ -174,22 +175,22 @@ export function CardEditor({
         <AgentKindPicker value={agentKind} onChange={setAgentKind} />
 
         <LinkPicker
-          label="Part of"
-          hint="Groups this under another card on the board."
+          label={t("editor.partOf")}
+          hint={t("editor.partOfHint")}
           value={parentId}
           cards={others}
           onChange={setParentId}
         />
         <LinkPicker
-          label="After"
-          hint="Won't start until that card is done, and forks from its branch."
+          label={t("editor.after")}
+          hint={t("editor.afterHint")}
           value={dependsOn}
           cards={others}
           onChange={setDependsOn}
         />
 
         <Button onClick={save} disabled={!title.trim() || saving} className="mt-1 h-11">
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("editor.saving") : t("editor.save")}
         </Button>
       </div>
     </BottomSheet>
@@ -221,6 +222,7 @@ export function LinkPicker({
   cards: CardView[];
   onChange: (id: string | null) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const selected = cards.find((c) => c.id === value);
 
@@ -241,7 +243,7 @@ export function LinkPicker({
           /* A link this card has that isn't on the board (archived) still reads as set, not as
              nothing — silently showing "Nothing" would invite clearing it by accident. */
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            {value ? "A card not on the board" : "Nothing"}
+            {value ? t("editor.missingCard") : t("editor.nothing")}
           </span>
         )}
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground", open && "rotate-180")} />
@@ -251,7 +253,7 @@ export function LinkPicker({
       {open && (
         <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pt-1">
           <PickerRow active={value === null} onClick={() => { onChange(null); setOpen(false); }}>
-            <span className="text-muted-foreground">Nothing</span>
+            <span className="text-muted-foreground">{t("editor.nothing")}</span>
           </PickerRow>
           {cards.map((c) => (
             <PickerRow

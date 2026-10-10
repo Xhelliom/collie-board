@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw, Sparkles, User } from "lucide-react";
 
+import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
 import type { BoardEvent } from "@/lib/board";
@@ -105,6 +106,7 @@ function EventIcon({ type }: { type: string }) {
  * cause is recorded at all.
  */
 function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => Promise<void> }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const payload = (event.payload ?? {}) as EditPayload;
@@ -131,28 +133,28 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
           {byCopilot ? <Sparkles className="size-3" /> : <User className="size-3" />}
         </span>
         <span className="min-w-0 flex-1 truncate text-foreground">
-          {byCopilot ? "The copilot rewrote" : "You edited"} {fieldList(replaced)}
+          {byCopilot ? t("journal.copilotRewrote") : t("journal.youEdited")} {fieldList(replaced)}
         </span>
         <button
           type="button"
           onClick={() => setOpen(!open)}
           className="shrink-0 rounded-lg border border-border px-[9px] py-[3px] text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60"
         >
-          Restaurer
+          {t("journal.restore")}
         </button>
       </div>
 
       {open && (
         <div className="flex flex-col gap-2 pl-[74px]">
-          {replaced.title !== undefined && <Previous label="Title" text={replaced.title} />}
-          {replaced.spec !== undefined && <Previous label="Spec" text={replaced.spec ?? "(empty)"} />}
+          {replaced.title !== undefined && <Previous label={t("journal.field.title")} text={replaced.title} />}
+          {replaced.spec !== undefined && <Previous label={t("journal.field.spec")} text={replaced.spec ?? t("journal.empty")} />}
           {replaced.acceptance !== undefined && (
-            <Previous label="Acceptance" text={replaced.acceptance.join("\n")} />
+            <Previous label={t("journal.field.acceptance")} text={replaced.acceptance.join("\n")} />
           )}
           <p className="text-xs text-muted-foreground">
             {payload.truncated
-              ? "Shortened for this list — restoring puts the whole text back."
-              : "Restoring is itself an edit, so it lands here too and can be undone."}
+              ? t("journal.shortened")
+              : t("journal.restoreIsEdit")}
           </p>
           <button
             type="button"
@@ -164,7 +166,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
             )}
           >
             <RotateCcw className="size-[11px]" />
-            {busy ? "Restoring…" : "Restaurer cette version"}
+            {busy ? t("journal.restoring") : t("journal.restoreThis")}
           </button>
         </div>
       )}
@@ -206,131 +208,128 @@ export function editedByHandSince(events: BoardEvent[]): boolean {
 /** "the spec", "the title and the spec" — exported for the unit test. */
 export function fieldList(replaced: EditPayload["replaced"] = {}): string {
   const names: string[] = [];
-  if (replaced.title !== undefined) names.push("the title");
-  if (replaced.spec !== undefined) names.push("the spec");
-  if (replaced.acceptance !== undefined) names.push("the acceptance criteria");
-  if (names.length === 0) return "this card";
+  if (replaced.title !== undefined) names.push(t("journal.of.title"));
+  if (replaced.spec !== undefined) names.push(t("journal.of.spec"));
+  if (replaced.acceptance !== undefined) names.push(t("journal.of.acceptance"));
+  if (names.length === 0) return t("journal.of.card");
   if (names.length === 1) return names[0]!;
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return t("journal.and", { list: names.slice(0, -1).join(", "), last: names.at(-1)! });
 }
 
 /** What to do about a refused auto-merge, in the operator's words. Exported for the test. */
 export function autoMergeHint(error: string): string {
-  return /not allowed for this repository/i.test(error)
-    ? "turn on “Allow auto-merge” for the repository (gh repo edit --enable-auto-merge), or merge the PR yourself"
-    : error || "merge the PR yourself";
+  return /not allowed for this repository/i.test(error) ? t("journal.automerge.off") : error || t("journal.automerge.yourself");
 }
 
 /** The decision half of a `run.decision` line; an unknown one shows raw rather than vanishing. */
 function leadDecision(p: Record<string, unknown>): string {
   switch (p.decision) {
     case "finished":
-      return "Lead: done";
+      return t("journal.lead.done");
     case "prompt":
-      return p.prompt ? `Lead sent a follow-up: “${String(p.prompt)}”` : "Lead sent a follow-up";
+      return p.prompt ? t("journal.lead.sentQuoted", { prompt: String(p.prompt) }) : t("journal.lead.sent");
     case "keep":
-      return "Lead kept this follow-up for later";
+      return t("journal.lead.kept");
     case "fold":
-      return "Lead folded this follow-up into the run";
+      return t("journal.lead.folded");
     case "drop":
       // Journaled on the reviewed card — the follow-up itself is deleted — so it names it.
-      return p.followUp ? `Lead dropped the follow-up “${String(p.followUp)}”` : "Lead dropped this follow-up";
+      return p.followUp ? t("journal.lead.droppedNamed", { title: String(p.followUp) }) : t("journal.lead.dropped");
     default:
-      return `Lead decided ${String(p.decision)}`;
+      return t("journal.lead.decided", { decision: String(p.decision) });
   }
 }
 
 /**
- * A one-line English rendering of the other event types. Falls back to the raw type rather than
- * hiding an event nobody has written a sentence for yet — a journal with holes in it is worse than
- * one with a bit of jargon.
+ * A one-line rendering of the other event types, in the current language. Falls back to the raw type
+ * rather than hiding an event nobody has written a sentence for yet — a journal with holes in it is
+ * worse than one with a bit of jargon.
  */
 export function describeEvent(event: BoardEvent): string {
   const p = (event.payload ?? {}) as Record<string, unknown>;
+  const reason = () => String(p.reason ?? t("journal.noReason"));
   switch (event.type) {
     case "card.created":
-      return "Card created";
+      return t("journal.created");
     case "card.status":
-      return `Moved from ${String(p.from)} to ${String(p.to)}${p.reason ? ` — ${String(p.reason)}` : ""}`;
+      return t("journal.status", { from: String(p.from), to: String(p.to) }) + (p.reason ? ` — ${String(p.reason)}` : "");
     case "card.worktree":
-      return `Worktree on ${String(p.branch)}${p.after ? `, after “${String(p.after)}”` : ""}`;
+      return t("journal.worktree", { branch: String(p.branch) }) + (p.after ? t("journal.worktreeAfter", { after: String(p.after) }) : "");
     case "card.prompted":
-      if (p.command) return `Ran ${String(p.command)}`;
-      return p.followUp ? "Follow-up instruction sent" : "Spec sent to the agent";
+      if (p.command) return t("journal.ran", { command: String(p.command) });
+      return p.followUp ? t("journal.followUp") : t("journal.specSent");
     case "card.operator_said":
-      return `You told the agent: “${String(p.text ?? "").slice(0, 120)}”`;
+      return t("journal.operatorSaid", { text: String(p.text ?? "").slice(0, 120) });
     case "card.automerge_armed":
-      return "Auto-merge armed — GitHub merges the PR once its checks pass";
+      return t("journal.automerge.armed");
     case "card.automerge_refused":
-      return `GitHub refused auto-merge — ${autoMergeHint(String(p.error ?? ""))}`;
+      return t("journal.automerge.refused", { hint: autoMergeHint(String(p.error ?? "")) });
     case "card.start_failed":
-      return `Start failed at ${String(p.stage)}: ${String(p.error)}`;
+      return t("journal.startFailed", { stage: String(p.stage), error: String(p.error) });
     case "card.split_from":
-      return p.after ? `Split off, after “${String(p.after)}”` : "Split off from a dictation";
+      return p.after ? t("journal.splitAfter", { after: String(p.after) }) : t("journal.split");
     case "session.opened":
-      return "Agent session opened";
+      return t("journal.sessionOpened");
     // The other half of an `agent`-origin card's trace (ADR 0010): the new card points back here,
     // and this points forward, at the moment it happened — which is the part a link can't say, and
     // the only thing that tells you WHICH of a card's sessions filed it.
     case "card.filed":
-      return `Filed a card from this session: “${String(p.title ?? "untitled")}”`;
+      return t("journal.filed", { title: String(p.title ?? t("journal.untitled")) });
     case "agent.notify":
-      return `The agent asked for you: “${String(p.message ?? "")}”`;
+      return t("journal.agentAsked", { message: String(p.message ?? "") });
     case "session.closed":
-      return `Session ended (${String(p.outcome)})`;
+      return t("journal.sessionEnded", { outcome: String(p.outcome) });
     case "review.created":
-      return `Reviewed${p.verdict ? `: ${String(p.verdict)}` : ""}`;
+      return t("journal.reviewed") + (p.verdict ? `: ${String(p.verdict)}` : "");
     // The card that came here is GONE — this line is the only thing left saying it ever existed, so
     // it names it. Never "reviewed": nobody reviewed anything, someone tapped Convertir en action.
     case "card.action_added":
-      return `Turned the card “${String(p.title ?? "untitled")}” into an action here`;
+      return t("journal.actionAdded", { title: String(p.title ?? t("journal.untitled")) });
     case "copilot.reformulated":
-      return `Copilot rewrote the card${Number(p.split) > 0 ? ` and split it into ${String(p.split)}` : ""}`;
+      return t("journal.reformulated") + (Number(p.split) > 0 ? t("journal.reformulatedSplit", { count: Number(p.split) }) : "");
     case "copilot.reformulate_failed":
-      return "Copilot couldn't rewrite this card";
+      return t("journal.reformulateFailed");
     case "copilot.refined": {
       // The instruction IS the entry: "the copilot corrected this card" without saying what you
       // asked for sends you looking for the correction somewhere it isn't.
       const quoted = `“${String(p.instruction ?? "")}”`;
       // On a sub-task the instruction was given to the parent, and saying "on your instruction" on a
       // card you never typed one into reads as the board inventing corrections.
-      if (p.parentId) return `Corrected with its parent card: ${quoted}`;
+      if (p.parentId) return t("journal.refinedParent", { quoted });
       const subs = Number(p.subtasks) || 0;
-      return `Corrected on your instruction: ${quoted}${
-        subs > 0 ? ` — and ${subs} sub-task${subs > 1 ? "s" : ""}` : ""
-      }`;
+      return t("journal.refined", { quoted }) + (subs > 0 ? t("journal.refinedSubs", { count: subs }) : "");
     }
     case "copilot.refine_failed":
-      return `Copilot couldn't apply “${String(p.instruction ?? "that correction")}”`;
+      return t("journal.refineFailed", { instruction: String(p.instruction ?? t("journal.thatCorrection")) });
     case "copilot.review_failed":
-      return "Copilot couldn't review this card";
+      return t("journal.reviewFailed");
     case "copilot.explained":
       // The two paragraphs ARE the entry — a line saying "the copilot explained something" would
       // send you looking for the explanation somewhere it isn't.
       return [
-        `About the ${String(p.action ?? "failed action")}:`,
+        t("journal.explainAbout", { action: String(p.action ?? t("journal.failedAction")) }),
         p.meaning ? String(p.meaning) : null,
-        p.next ? `What you can do: ${String(p.next)}` : null,
-        p.likelyBug ? "It reads like a bug in the board rather than something you did." : null,
+        p.next ? t("journal.explainNext", { next: String(p.next) }) : null,
+        p.likelyBug ? t("journal.explainBug") : null,
       ]
         .filter(Boolean)
         .join("\n\n");
     case "copilot.explain_failed":
-      return "Copilot couldn't explain that error";
+      return t("journal.explainFailed");
     // The lead's journal (ADR 0017) — payloads from bridge/db.ts → RunEventPayloads. Every line
     // carries the reason: a decision without its why is a diff you'd have to go read after all.
     case "run.decision":
-      return `${leadDecision(p)} — ${String(p.reason ?? "no reason given")}`;
+      return `${leadDecision(p)} — ${reason()}`;
     case "run.triaged":
-      return `Lead ${p.accept ? "accepted" : "rejected"} the review's verdict${p.verdict ? ` (${String(p.verdict)})` : ""} — ${String(p.reason ?? "no reason given")}`;
+      return `${p.accept ? t("journal.triage.accepted") : t("journal.triage.rejected")}${p.verdict ? ` (${String(p.verdict)})` : ""} — ${reason()}`;
     case "run.gate":
-      return p.ok ? `Gate green (${String(p.command)})` : `Gate red (${String(p.command)}) — worker sent back`;
+      return p.ok ? t("journal.gate.green", { command: String(p.command) }) : t("journal.gate.red", { command: String(p.command) });
     case "run.halted":
-      return `Run halted, needs you — ${String(p.reason ?? "no reason given")}`;
+      return t("journal.halted", { reason: reason() });
     case "run.finished":
-      return "Run finished — every card is filed";
+      return t("journal.runFinished");
     case "copilot.split_kept":
-      return `Split kept — ${String(p.started ?? "a sub-task")} has already started`;
+      return t("journal.splitKept", { started: String(p.started ?? t("journal.aSubtask")) });
     default:
       return event.type;
   }

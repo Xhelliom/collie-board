@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -17,11 +18,12 @@ export function PhaseFilter({
   active: string | null;
   onPick: (id: string | null) => void;
 }) {
+  const t = useT();
   if (phases.length === 0) return null;
   return (
     <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
-      <SectionLabel>Phases</SectionLabel>
-      <Chip label="All" active={active === null} onClick={() => onPick(null)} />
+      <SectionLabel>{t("filter.phases")}</SectionLabel>
+      <Chip label={t("filter.all")} active={active === null} onClick={() => onPick(null)} />
       {phases.map((p) => (
         <button
           key={p.id}

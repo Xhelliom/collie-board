@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 import type { RepoScope } from "@/lib/board";
@@ -28,13 +29,14 @@ export function RepoFilter({
   active: string | null;
   onPick: (repoPath: string | null) => void;
 }) {
+  const t = useT();
   if (active === null && repos.length < 2) return null;
   return (
     // From `lg` the sheet is a 26rem side panel driven by a mouse, which can't swipe a hidden-scrollbar
     // row — so there the strip wraps instead, and every chip stays in sight.
     <div className="flex snap-x scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
-      <SectionLabel>Repos</SectionLabel>
-      <Chip label="All" active={active === null} onClick={() => onPick(null)} />
+      <SectionLabel>{t("filter.repos")}</SectionLabel>
+      <Chip label={t("filter.all")} active={active === null} onClick={() => onPick(null)} />
       {repos.map((repo) => (
         <Chip
           key={repo.path}

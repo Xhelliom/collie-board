@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { BoardEvent, CardStatus, CardView, PrStatus } from "./board";
 import { timeAgo } from "./format";
 
@@ -106,21 +107,21 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
  * Pure + exported for the test.
  */
 export function prSentence(status: PrStatus | null, openedTs: number): string {
-  if (status?.state === "merged") return `PR merged · ${timeAgo(status.mergedAt ?? openedTs)}`;
-  if (status?.state === "closed") return `PR closed without merging · opened ${timeAgo(openedTs)}`;
+  if (status?.state === "merged") return t("pr.merged", { ago: timeAgo(status.mergedAt ?? openedTs) });
+  if (status?.state === "closed") return t("pr.closed", { ago: timeAgo(openedTs) });
   // ADR 0014: clean when opened, it can conflict later — after the card was filed and cleaned up.
-  if (status?.conflicting) return `PR conflicts with its base · opened ${timeAgo(openedTs)}`;
+  if (status?.conflicting) return t("pr.conflicts", { ago: timeAgo(openedTs) });
   // Open, or unknown: both are honestly described by when it was opened.
-  return `PR opened ${timeAgo(openedTs)}`;
+  return t("pr.opened", { ago: timeAgo(openedTs) });
 }
 
 /**
  * Name the PR link's button. Falls back to the generic wording rather than showing a bare url on a
  * phone: the number is nice, the link working is what matters. Pure + exported for the test.
  */
-export function prLabel(url: string, verb = "View"): string {
+export function prLabel(url: string, verb = t("pr.view")): string {
   const n = /\/pull\/(\d+)/.exec(url)?.[1];
-  return n ? `${verb} PR #${n}` : `${verb} the PR`;
+  return n ? t("pr.label", { verb, n }) : t("pr.labelNoNum", { verb });
 }
 
 /**

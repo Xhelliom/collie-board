@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import {
   Bot,
   Check,
@@ -130,6 +131,7 @@ export function CardTile({
   /** Selection mode (a run's set, ADR 0017): true/false makes the tile a toggle; absent = a link. */
   selected?: boolean;
 }) {
+  const t = useT();
   const loud = LOUD_STATUS[card.status];
   const named = !loud ? NAMED_STATUS[card.status] : undefined;
   // Whether row 1 has a real status/repo signal to show. Without one, a lone tag chip floating
@@ -221,7 +223,7 @@ export function CardTile({
             {card.copilotBusy && (
               <span className="flex shrink-0 animate-pulse items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
                 <Sparkles className="size-3" />
-                copilot
+                {t("tile.copilot")}
               </span>
             )}
             {/* "This card wrote itself" — the review filed it while you were elsewhere, and nothing
@@ -230,7 +232,7 @@ export function CardTile({
             {card.origin === "copilot" && !card.copilotBusy && (
               <span className="flex shrink-0 items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
                 <Sparkles className="size-3" />
-                auto
+                {t("tile.auto")}
               </span>
             )}
             {/* Same sentence, the OTHER writer: a working session decided mid-turn there was
@@ -242,7 +244,7 @@ export function CardTile({
             {card.origin === "agent" && (
               <span className="flex shrink-0 items-center gap-1 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-muted-foreground">
                 <Bot className="size-3" />
-                agent
+                {t("tile.agent")}
               </span>
             )}
             {card.tag && (
@@ -291,7 +293,7 @@ export function CardTile({
         {source && (
           <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
             <CornerLeftUp className="size-3 shrink-0" />
-            <span className="truncate">from “{source}”</span>
+            <span className="truncate">{t("tile.from", { source })}</span>
           </div>
         )}
         {dependency && (
@@ -308,7 +310,7 @@ export function CardTile({
             ) : (
               <CornerDownRight className="size-3 shrink-0" />
             )}
-            <span className="truncate">after “{dependency.title}”</span>
+            <span className="truncate">{t("tile.after", { title: dependency.title })}</span>
           </div>
         )}
 
@@ -339,7 +341,7 @@ export function CardTile({
                   <span className="tabular-nums">{Math.round(ctxPct)}%</span>
                 </>
               )}
-              {card.sessionCount > 1 && <span>· {card.sessionCount} sessions</span>}
+              {card.sessionCount > 1 && <span>{t("tile.sessions", { count: card.sessionCount })}</span>}
             </span>
           </div>
         )}

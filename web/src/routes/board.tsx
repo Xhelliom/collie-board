@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
 import { ChevronRight, ListChecks, ListFilter, Plus, X } from "lucide-react";
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 import {
   BOARD_COLUMNS,
   BOARD_LANES,
+  type LaneKey,
   MANUAL_STATUSES,
   canDropCard,
   cardPath,
@@ -67,11 +69,11 @@ import { setStatus } from "@/lib/status";
 // just no longer draw a seam between themselves.
 
 /** Lane header dot colour — the tone a lane's own cards would use if any of them were "loud". */
-const LANE_TONE: Record<string, string> = {
-  "To do": "bg-brand",
-  Doing: "bg-status-working",
-  "To review": "bg-status-done",
-  Done: "bg-status-idle",
+const LANE_TONE: Record<LaneKey, string> = {
+  todo: "bg-brand",
+  doing: "bg-status-working",
+  review: "bg-status-done",
+  done: "bg-status-idle",
 };
 
 /**
@@ -83,14 +85,15 @@ const LANE_TONE: Record<string, string> = {
  * were not going to act on. So on a phone the live lanes lead and "To do" sinks under them; "Done"
  * stays where settled work belongs, at the bottom. Every lane still renders, only the order moves.
  */
-const LANE_PHONE_ORDER: Record<string, string> = {
-  Doing: "order-1",
-  "To review": "order-2",
-  "To do": "order-3",
-  Done: "order-4",
+const LANE_PHONE_ORDER: Record<LaneKey, string> = {
+  doing: "order-1",
+  review: "order-2",
+  todo: "order-3",
+  done: "order-4",
 };
 
 export function BoardRoute() {
+  const t = useT();
   const data = useLoaderData() as ProjectData;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -255,9 +258,9 @@ export function BoardRoute() {
       await createRun({ cardIds: chosen.map((c) => c.id), ...input });
       setRunOpen(false);
       setSelection(null);
-      const n = `${chosen.length} card${chosen.length === 1 ? "" : "s"}`;
+      const n = t("common.cards", { count: chosen.length });
       // A planned lot drives nothing: say where it is launched from, or it looks like nothing happened.
-      setStatus(input.planned ? `Lot planned — ${n}. Launch it from the project view.` : `Run recorded — ${n}`, "info", 4000);
+      setStatus(input.planned ? t("board.lotPlanned", { n }) : t("board.runRecorded", { n }), "info", 4000);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -357,8 +360,8 @@ export function BoardRoute() {
     // themselves re-lay out to whatever width the lane ends up with.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
-        title="Board"
-        subtitle={`${cards.length} card${cards.length === 1 ? "" : "s"}`}
+        title={t("board.title")}
+        subtitle={t("common.cards", { count: cards.length })}
         rightLead={
           <>
             {/* The active repo scope, as its own removable chip — otherwise a scoped board (the
@@ -394,7 +397,7 @@ export function BoardRoute() {
                 onClick={() => pickAuto(false)}
                 className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
               >
-                auto
+                {t("board.autoChip")}
                 <X className="size-3" />
               </button>
             )}
@@ -409,7 +412,7 @@ export function BoardRoute() {
                 )}
               >
                 <ListChecks className="size-[13px]" />
-                {selecting ? "Cancel" : "Select"}
+                {selecting ? t("board.cancel") : t("board.select")}
               </button>
             )}
             {selecting && activePhase && (
@@ -418,18 +421,18 @@ export function BoardRoute() {
                 onClick={() => setSelection(new Set(cards.filter(selectable).map((c) => c.id)))}
                 className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
               >
-                All in phase
+                {t("board.allInPhase")}
               </button>
             )}
             {hasFilters && (
               <button
                 type="button"
                 onClick={() => setFilterOpen(true)}
-                aria-label="Filter the board"
+                aria-label={t("board.filterAria")}
                 className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
               >
                 <ListFilter className="size-[13px]" />
-                Filter
+                {t("board.filter")}
               </button>
             )}
           </>
@@ -442,7 +445,7 @@ export function BoardRoute() {
               onClick={() => setNewOpen(true)}
             >
               <Plus className="size-4" />
-              <span className="hidden sm:inline">New card</span>
+              <span className="hidden sm:inline">{t("board.newCard")}</span>
             </Button>
           </>
         }
@@ -456,7 +459,7 @@ export function BoardRoute() {
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
         <main className="flex flex-1 flex-col gap-6 px-3 pb-24 pt-3 lg:grid lg:min-h-0 lg:grid-cols-4 lg:gap-4 lg:bg-muted lg:p-5 lg:pb-5 dark:lg:bg-[oklch(0.165_0.006_250)]">
           {/* The screen's one h1 — the toolbar already says "Board". */}
-          <h1 className="sr-only">Board</h1>
+          <h1 className="sr-only">{t("board.title")}</h1>
           {empty ? (
             <div className="px-3 py-6 lg:col-span-4">
               {/* "Nothing here" and "nothing here MATCHES" are different facts, and telling a
@@ -465,30 +468,20 @@ export function BoardRoute() {
                   a board that opened filtered without you touching anything this session. */}
               {active || activeRepo || autoOnly ? (
                 <>
-                  <NonNominalPanel tone="muted" title="Aucune carte qui corresponde">
-                    Aucune carte
-                    {autoOnly && <> créée automatiquement</>}
-                    {activeRepo && (
-                      <>
-                        {" "}
-                        dans <span className="font-medium text-foreground">{repoName(activeRepo)}</span>
-                      </>
-                    )}
-                    {active && (
-                      <>
-                        {" "}
-                        taguée «&nbsp;<span className="font-medium text-foreground">{active}</span>&nbsp;»
-                      </>
-                    )}
-                    .
+                  <NonNominalPanel tone="muted" title={t("board.emptyMatchTitle")}>
+                    {t("board.emptyMatch", {
+                      auto: autoOnly ? t("board.emptyAuto") : "",
+                      repo: activeRepo ? t("board.emptyRepo", { repo: repoName(activeRepo) }) : "",
+                      tag: active ? t("board.emptyTag", { tag: active }) : "",
+                    })}
                   </NonNominalPanel>
                   <Button variant="outline" className="mt-3" onClick={clearFilters}>
-                    Show all cards
+                    {t("board.showAll")}
                   </Button>
                 </>
               ) : (
-                <NonNominalPanel tone="muted" title="Aucune carte">
-                  A card is a task that outlives the pane working on it.
+                <NonNominalPanel tone="muted" title={t("board.emptyTitle")}>
+                  {t("board.emptyHint")}
                 </NonNominalPanel>
               )}
             </div>
@@ -497,10 +490,10 @@ export function BoardRoute() {
               const total = lane.statuses.reduce((n, s) => n + (byStatus.get(s)?.length ?? 0), 0);
               return (
                 <div
-                  key={lane.label}
+                  key={lane.key}
                   className={cn(
                     "flex flex-col gap-2.5 lg:order-none lg:h-full lg:min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3",
-                    LANE_PHONE_ORDER[lane.label],
+                    LANE_PHONE_ORDER[lane.key],
                   )}
                 >
                   {/* The lane's own heading exists only once there are lanes. An EMPTY lane still
@@ -513,7 +506,7 @@ export function BoardRoute() {
                   <div className="flex items-center gap-2 lg:sticky lg:top-0 lg:z-10 lg:bg-background lg:pb-1">
                     <span
                       aria-hidden
-                      className={cn("size-2 shrink-0 rounded-full", LANE_TONE[lane.label])}
+                      className={cn("size-2 shrink-0 rounded-full", LANE_TONE[lane.key])}
                     />
                     <span className="text-xs font-bold uppercase tracking-[0.08em]">
                       {lane.label}
@@ -522,12 +515,12 @@ export function BoardRoute() {
                       {total}
                     </span>
                     {/* Where a filed card's PR is followed up — the PR outlives the card's lane. */}
-                    {lane.label === "Done" && (
+                    {lane.key === "done" && (
                       <Link
                         to={prsPath()}
                         className="ml-auto flex min-h-8 items-center gap-0.5 px-1.5 text-xs font-semibold text-brand"
                       >
-                        Open PRs
+                        {t("tabs.prs")}
                         <ChevronRight className="size-3.5" />
                       </Link>
                     )}
@@ -716,7 +709,7 @@ export function BoardRoute() {
             disabled={chosen.length === 0}
             onClick={() => setRunOpen(true)}
           >
-            Run {chosen.length} card{chosen.length === 1 ? "" : "s"}
+            {t("board.runN", { count: chosen.length })}
           </Button>
         )}
         <StatusArea />
@@ -737,7 +730,7 @@ export function BoardRoute() {
       {/* The filter sheet: repo scope above tag, coarse then fine, same two components the board
           used to show as always-visible strips — just behind one tap now (redesign §2: "this removes
           two always-visible strips"). */}
-      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title="Filter">
+      <BottomSheet open={filterOpen} onClose={() => setFilterOpen(false)} title={t("board.filter")}>
         <div className="-mx-4 flex flex-col">
           <RepoFilter repos={repos} active={activeRepo} onPick={pickRepo} />
           <PhaseFilter

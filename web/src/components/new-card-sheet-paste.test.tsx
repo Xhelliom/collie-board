@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { setPreference } from "@/i18n";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 
@@ -16,6 +17,10 @@ function renderSheet() {
   render(<NewCardSheet open onClose={() => {}} onCreate={() => {}} tags={[]} />);
   return screen.getByRole("textbox", { name: /what needs doing/i });
 }
+
+// The language is set, never inherited from the browser jsdom pretends to be.
+beforeEach(() => setPreference("en"));
+afterEach(() => setPreference("en"));
 
 describe("NewCardSheet — clipboard image paste", () => {
   it("uploads a pasted image and appends its path to the dump", async () => {
@@ -45,7 +50,7 @@ describe("NewCardSheet — clipboard image paste", () => {
 
   it("offers the picker as a visible control, not just a paste target", () => {
     renderSheet();
-    expect(screen.getByRole("button", { name: /joindre une capture/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /attach a screenshot/i })).toBeInTheDocument();
   });
 
   it("leaves a plain-text paste alone", () => {

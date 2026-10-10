@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { setPreference } from "@/i18n";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import userEvent from "@testing-library/user-event";
@@ -193,6 +194,9 @@ describe("PromptBox", () => {
 // The container's progress bar (redesign §4a) — the count line and the "attend une réponse" flag
 // are the two things a container's own screen answers at a glance, so both get pinned here.
 describe("SubtaskProgress", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   it("renders nothing for a childless container", () => {
     const { container } = render(<SubtaskProgress cards={[]} />);
     expect(container.firstChild).toBeNull();
@@ -247,6 +251,9 @@ describe("topOfColumn", () => {
 // the drop writes — `onReorder(id, index)` is neighbour-space (the list minus the moved row), so a
 // one-row move is index ± 1, exactly what dropping a row on its neighbour passes.
 describe("SubtaskActionsSheet — reordering from the ⋯ menu", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   const rows = [card("ready"), card("ready"), card("ready")];
 
   function renderSheet(index: number, onConvert = vi.fn()) {
@@ -606,6 +613,9 @@ describe("TinyTodoRow", () => {
 // The whole point of the button: what lands in the clipboard is pasteable as-is, and carries THIS
 // card's id — the hand-rebuilt command it replaces is exactly where the wrong id used to come from.
 describe("CopyPromptButton", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   const secureDescriptor = Object.getOwnPropertyDescriptor(window, "isSecureContext");
   const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
 
@@ -643,6 +653,9 @@ describe("CopyPromptButton", () => {
 // A `partial` verdict is a to-do list you go and do — and until this button, nothing on the card
 // asked the copilot to look again, so the screen kept showing the verdict of the first pass.
 describe("Review section — asking for the verdict again", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   function review(id: string, verdict: string, createdAt: number) {
     return { id, cardId: "c1", sessionId: "s1", verdict, notes: null, todos: [], createdAt };
   }
@@ -697,6 +710,9 @@ describe("Review section — asking for the verdict again", () => {
 // The agent stopped before `git commit`: the review saw uncommitted files, and the fix is one tap
 // to the agent still in the branch — never a backlog card. These pin the row that offers it.
 describe("RequestCommitRow", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   it("offers the commit ask in one tap", async () => {
     const onAsk = vi.fn();
     render(<RequestCommitRow pending={false} onAsk={onAsk} />);
@@ -713,6 +729,9 @@ describe("RequestCommitRow", () => {
 });
 
 describe("IntegrationSection — uncommitted work asks for a commit, not a pane", () => {
+  // These cases read the screen by its French words: the language is set, never inherited.
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
   function liveCard(): CardView {
     return {
       ...card("working"),

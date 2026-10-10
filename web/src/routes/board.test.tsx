@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setPreference } from "@/i18n";
 import { BoardRoute } from "./board";
 import type { ProjectData } from "@/lib/board-loaders";
 import type { CardStatus, CardView, Phase } from "@/lib/board";
@@ -116,11 +117,16 @@ function lift(tile: HTMLElement) {
 const nextFrame = () => act(() => void vi.advanceTimersToNextFrame());
 
 beforeEach(() => {
+  // The run sheet's buttons are asserted by their French names; the language is set, never inherited.
+  setPreference("fr");
   patchCard.mockClear();
   vi.useFakeTimers({ toFake: ["requestAnimationFrame", "cancelAnimationFrame"] });
   viewport(true);
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  setPreference("en");
+});
 
 describe("board drag and drop — desktop", () => {
   it("leaves the dragged tile in the layout for the frame the drag starts in", async () => {
@@ -198,7 +204,7 @@ describe("choosing a run's set (ADR 0017)", () => {
 
   it("offers no selection without a repo scope — a run is one repo's", async () => {
     await mount(board);
-    expect(screen.queryByRole("button", { name: /select/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /sélectionner/i })).toBeNull();
   });
 
   it("selects only the scoped repo's startable cards, and records exactly those", async () => {
@@ -206,7 +212,7 @@ describe("choosing a run's set (ADR 0017)", () => {
     await mount(board, "/board?repo=/repo");
     // The scope is what bounds the set: another repo's card is not even on screen.
     expect(screen.queryByText("Elsewhere")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+    fireEvent.click(screen.getByRole("button", { name: /sélectionner/i }));
 
     fireEvent.click(tileOf("Alpha"));
     fireEvent.click(tileOf("Bravo"));
@@ -222,7 +228,7 @@ describe("choosing a run's set (ADR 0017)", () => {
     expect(tileOf("Bravo")).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(tileOf("Bravo"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Run 2 cards" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lancer 2 cartes" }));
     fireEvent.click(await screen.findByRole("button", { name: "Lancer le run" }));
     await act(async () => {});
     expect(createRun).toHaveBeenCalledWith({ cardIds: ["Alpha", "Bravo"], foldInCap: 2, leadAgent: null, maxParallel: null });
@@ -273,13 +279,13 @@ describe("one rule on every screen (ADR 0022)", () => {
       inRepo("Other phase", "backlog"),
     ];
     await mount(cards, "/board?repo=/repo&phase=p1", [phase]);
-    fireEvent.click(screen.getByRole("button", { name: /select/i }));
-    fireEvent.click(screen.getByRole("button", { name: "All in phase" }));
+    fireEvent.click(screen.getByRole("button", { name: /sélectionner/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Toute la phase" }));
     expect(tileOf("A")).toHaveAttribute("aria-pressed", "true");
     expect(tileOf("B")).toHaveAttribute("aria-pressed", "true");
     expect(tileOf("Started")).not.toHaveAttribute("aria-pressed");
 
-    fireEvent.click(screen.getByRole("button", { name: "Run 2 cards" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lancer 2 cartes" }));
     fireEvent.change(await screen.findByPlaceholderText("Nom du lot"), { target: { value: "Lot 1" } });
     fireEvent.click(screen.getByRole("button", { name: "Planifier un lot" }));
     await act(async () => {});

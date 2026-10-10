@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
 
@@ -29,9 +30,10 @@ export function AgentKindPicker({
   value: string | null;
   onChange: (kind: string | null) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-muted-foreground">Agent</span>
+      <span className="text-xs font-medium text-muted-foreground">{t("agentpicker.label")}</span>
       <div className="grid grid-cols-2 gap-1.5">
         {AGENT_KIND_OPTIONS.map((kind) => {
           const active = value === kind;
@@ -57,8 +59,8 @@ export function AgentKindPicker({
       <p className="flex items-center justify-between gap-2 px-1 text-xs text-muted-foreground">
         <span>
           {value === null
-            ? "Défaut du bridge (claude sauf COLLIE_BOARD_AGENT_KIND)."
-            : "Sera lancé avec ce harness au prochain Start."}
+            ? t("agentpicker.default")
+            : t("agentpicker.will")}
         </span>
         {value !== null && (
           <button
@@ -66,7 +68,7 @@ export function AgentKindPicker({
             onClick={() => onChange(null)}
             className="shrink-0 underline underline-offset-4"
           >
-            Défaut
+            {t("agentpicker.reset")}
           </button>
         )}
       </p>

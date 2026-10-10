@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronRight, FileDiff, FileText, GitBranch, RefreshCw } from "lucide-react";
 
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 // content by definition — it is literally whatever the agent, or a file it read, wrote.
 
 export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: string }) {
+  const t = useT();
   const [stat, setStat] = useState<DiffStat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -60,10 +62,10 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <SectionLabel>Diff</SectionLabel>
+        <SectionLabel>{t("diff.label")}</SectionLabel>
         {stat && (
           <span className="text-xs text-muted-foreground/70">
-            {stat.files.length} fichier{stat.files.length === 1 ? "" : "s"}
+            {t("diff.files", { count: stat.files.length })}
             {total > 0 && (
               <>
                 {" · "}
@@ -76,7 +78,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
         <button
           type="button"
           onClick={() => void load()}
-          aria-label="Refresh diff"
+          aria-label={t("diff.refresh")}
           className="ml-auto p-1 text-muted-foreground"
         >
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
@@ -98,11 +100,11 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{f.path}</span>
               {f.kind === "untracked" ? (
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  new
+                  {t("diff.new")}
                 </span>
               ) : f.kind === "binary" ? (
                 <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  bin
+                  {t("diff.bin")}
                 </span>
               ) : (
                 <StatBar added={f.added} removed={f.removed} max={max} />
@@ -129,6 +131,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
  * they are two routes that each already mean one thing.
  */
 function EmptyDiff({ cardId, onFixed }: { cardId: string; onFixed: () => Promise<void> }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,7 +155,7 @@ function EmptyDiff({ cardId, onFixed }: { cardId: string; onFixed: () => Promise
   return (
     <div className="flex flex-col items-start gap-2">
       <p className="text-xs text-muted-foreground">
-        Nothing changed on this branch — or the base ref it is measured from is the wrong one.
+        {t("diff.empty")}
       </p>
       <Button
         variant="outline"
@@ -162,7 +165,7 @@ function EmptyDiff({ cardId, onFixed }: { cardId: string; onFixed: () => Promise
         onClick={() => void rebaseOnMain()}
       >
         <GitBranch className="size-4" />
-        {busy ? "Re-measuring…" : "Base ref on main, review again"}
+        {busy ? t("diff.remeasuring") : t("diff.rebase")}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
@@ -202,6 +205,7 @@ function FileDiffSheet({
   file: DiffFile | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const [body, setBody] = useState<string>("");
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,7 +253,7 @@ function FileDiffSheet({
           className="mb-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground"
         >
           {prose ? <FileDiff className="size-3.5" /> : <BookOpen className="size-3.5" />}
-          {prose ? "Show the diff" : "Read the document"}
+          {prose ? t("diff.showDiff") : t("diff.readDoc")}
         </button>
       )}
       {error ? (
@@ -260,7 +264,7 @@ function FileDiffSheet({
         <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background p-3">
           {body.trim() === "" ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <FileText className="size-4" /> Empty file.
+              <FileText className="size-4" /> {t("diff.emptyFile")}
             </p>
           ) : (
             <MarkdownText text={body} className="text-sm leading-[1.6]" />
@@ -288,11 +292,11 @@ function FileDiffSheet({
       )}
       {truncated && (
         <p className="pt-2 text-xs text-muted-foreground">
-          {prose ? "File" : "Diff"} truncated — open it on a laptop for the rest.
+          {prose ? t("diff.truncatedFile") : t("diff.truncatedDiff")}
         </p>
       )}
       <Button variant="outline" onClick={onClose} className="mt-3 h-11 w-full">
-        Close
+        {t("diff.close")}
       </Button>
     </BottomSheet>
   );
