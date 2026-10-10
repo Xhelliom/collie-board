@@ -157,7 +157,8 @@ export function ProjectRoute() {
   const [chatOpen, setChatOpen] = useState(false);
   // Validating a phase (ADR 0025): the section being validated, or the "seal the finished steps" sheet.
   const [validating, setValidating] = useState<ProjectPhase | null>(null);
-  const [sealing, setSealing] = useState(false);
+  // The "validate the finished steps" sheet: all of them, or one old dictation's (cardIds + its title).
+  const [sealing, setSealing] = useState<{ count: number; cardIds?: string[]; name?: string } | null>(null);
   const toggle = (id: string, on?: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -192,8 +193,10 @@ export function ProjectRoute() {
   const latest = cards.reduce((m, c) => Math.max(m, c.updatedAt), 0);
   const named = v.phases.filter((p) => p.phase || p.container).length;
   const activePhases = v.phases.filter((p) => p.phase && p.steps.length > 0);
-  // The phase-less finished steps an old project can fold into its first milestone.
-  const looseDone = v.phases.find((p) => p.key === "loose")?.steps.filter((s) => s.status === "done").length ?? 0;
+  // The finished steps no phase has taken — in a dictation's section or loose — which an old project folds
+  // into its first milestone. This is what `POST /api/phases/seal` files when it is not given a list.
+  const unfiled = v.phases.filter((p) => !p.phase).flatMap((p) => p.steps.filter((s) => s.status === "done"));
+  const looseDone = unfiled.length;
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
@@ -265,6 +268,21 @@ export function ProjectRoute() {
                 <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" />
                 <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" />
               </div>
+
+              {/* The way to tidy an old project, on the page itself: the finished steps that sit in no validated phase
+                  (old dictations included) are the reason a figure reads 90 % of nothing in particular. */}
+              {repo && looseDone > 0 && (
+                <section aria-label={t("project.unfiled.aria")} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-dashed p-3.5">
+                  <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSealing({ count: looseDone })}
+                    className="shrink-0 rounded-full border bg-card/70 px-3.5 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
+                  >
+                    {t("project.sealAll")}
+                  </button>
+                </section>
+              )}
 
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
 
@@ -375,13 +393,16 @@ export function ProjectRoute() {
                               {t("project.validate")}
                             </button>
                           )}
-                          {!p.phase && p.key === "loose" && repo && looseDone > 0 && (
+                          {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
                             <button
                               type="button"
-                              onClick={() => setSealing(true)}
+                              onClick={() => {
+                                const done = p.steps.filter((s) => s.status === "done");
+                                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title });
+                              }}
                               className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
                             >
-                              {t("project.seal")}
+                              {p.container ? t("project.validate") : t("project.seal")}
                             </button>
                           )}
                         </div>
@@ -438,7 +459,16 @@ export function ProjectRoute() {
           onDone={() => void revalidator.revalidate()}
         />
       )}
-      {sealing && repo && <SealSheet repo={repo} count={looseDone} onClose={() => setSealing(false)} onDone={() => void revalidator.revalidate()} />}
+      {sealing && repo && (
+        <SealSheet
+          repo={repo}
+          count={sealing.count}
+          cardIds={sealing.cardIds}
+          initialName={sealing.name}
+          onClose={() => setSealing(null)}
+          onDone={() => void revalidator.revalidate()}
+        />
+      )}
       {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
           the height left to the content the sheet was half-empty on a short thread and, on a long one,
           scrolled as a whole with the composer below the fold. */}

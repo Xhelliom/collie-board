@@ -95,22 +95,28 @@ export function ValidateSheet({
 export function SealSheet({
   repo,
   count,
+  cardIds,
+  initialName = "",
   onClose,
   onDone,
 }: {
   repo: string;
   count: number;
+  /** Only these finished steps (one dictation's); omitted, every finished step no phase has taken. */
+  cardIds?: string[];
+  /** A name to start from — the dictation's title, so naming it is one tap. */
+  initialName?: string;
   onClose: () => void;
   onDone: () => void;
 }) {
   const tt = useT();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [busy, setBusy] = useState(false);
 
   async function go() {
     setBusy(true);
     try {
-      const r = await sealPhase({ repoPath: repo, name: name.trim() });
+      const r = await sealPhase({ repoPath: repo, name: name.trim(), ...(cardIds ? { cardIds } : {}) });
       setStatus(t("project.seal.done", { count: r.moved, name: name.trim() }), "success");
       onDone();
       onClose();

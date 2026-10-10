@@ -441,6 +441,26 @@ describe("milestones: validating a phase (ADR 0025)", () => {
     expect(db.listPhases("/r")).toHaveLength(1);
   });
 
+  it("seal takes only the cards it is given, and never files a container as a step", async () => {
+    const db = new BoardDb(":memory:");
+    const dictation = db.createCard({ title: "dictation", repoPath: "/r", status: "done" });
+    const inside = db.createCard({ title: "inside", repoPath: "/r", status: "done", parentId: dictation.id });
+    const outside = db.createCard({ title: "outside", repoPath: "/r", status: "done" });
+    const open = db.createCard({ title: "open", repoPath: "/r", status: "backlog", parentId: dictation.id });
+    const res = await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "Old dictation", cardIds: [inside.id, open.id] });
+    expect(res.status).toBe(201);
+    expect(res.body.moved).toBe(1); // the open one is not finished, so it is not offered
+    expect(db.getCard(inside.id)!.phaseId).toBe(res.body.phase.id);
+    expect(db.getCard(outside.id)!.phaseId).toBeNull();
+    expect(db.getCard(open.id)!.phaseId).toBeNull();
+    expect(db.getCard(dictation.id)!.phaseId).toBeNull();
+    // Without a list: every finished step, still not the container.
+    const all = await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "Rest" });
+    expect(all.body.moved).toBe(1);
+    expect(db.getCard(dictation.id)!.phaseId).toBeNull();
+    expect((await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "x", cardIds: "nope" })).status).toBe(400);
+  });
+
   it("seal can send the phase-less open cards to an existing open phase", async () => {
     const db = new BoardDb(":memory:");
     const next = db.createPhase({ repoPath: "/r", name: "Next" });

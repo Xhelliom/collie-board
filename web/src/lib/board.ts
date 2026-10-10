@@ -1205,7 +1205,7 @@ export const closePhase = (id: string, input: { moveOpenTo: string | null; note?
 export const reopenPhase = (id: string): Promise<{ phase: Phase }> =>
   apiRequest(`/api/phases/${encodeURIComponent(id)}/reopen`, { method: "POST", body: "{}" });
 /** An old project with no phases: file its finished, phase-less steps under one validated phase. */
-export const sealPhase = (input: { repoPath: string; name: string; note?: string }): Promise<{ phase: Phase; moved: number }> =>
+export const sealPhase = (input: { repoPath: string; name: string; note?: string; cardIds?: string[] }): Promise<{ phase: Phase; moved: number }> =>
   apiRequest("/api/phases/seal", { method: "POST", body: JSON.stringify(input) });
 export const launchLot = (id: string): Promise<{ run: Lot }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
