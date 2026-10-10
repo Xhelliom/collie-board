@@ -18,7 +18,7 @@ import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isAutoHandoffPending, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
-import { cardDiffSummary, currentBranch, resolveBase, worktreePathFor } from "./git.ts";
+import { cardDiffSummary, currentBranch, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { prForCard, resolveConflict } from "./integrate.ts";
 import { Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
@@ -58,6 +58,10 @@ export interface RunPorts {
   runGate(command: string, worktree: string): Promise<GateResult>;
   /** Whether the copilot reviews — off, there is no review to triage and the lead goes straight to the PR. */
   reviewing(): boolean;
+  /** Commits the card's branch has over its base; null when it cannot be told (never blocks). */
+  commits(card: Card): Promise<number | null>;
+  /** The tail of the worker's pane: its last word, for the operator. */
+  lastReply(paneId: string): Promise<string>;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -69,7 +73,7 @@ export type Step =
   | { kind: "triage"; sessionId: string }
   | { kind: "pr" }
   | { kind: "file" }
-  | { kind: "halt"; reason: string }
+  | { kind: "halt"; reason: string; limit?: true }
   | null;
 
 const STARTABLE = new Set<string>(["backlog", "ready"]);
@@ -138,7 +142,7 @@ export function stepFor(
     const rounds = events.filter(
       (e) => e.type === "run.decision" && isRun(e, run.id) && after(e, halted) && (e.payload as { decision: string }).decision === "prompt",
     ).length;
-    if (rounds >= MAX_ROUNDS) return { kind: "halt", reason: `${rounds} rounds without the lead finding it finished` };
+    if (rounds >= MAX_ROUNDS) return { kind: "halt", reason: `${rounds} rounds without the lead finding it finished`, limit: true };
     if (after(resolve, decision)) {
       const clash = newest(events, (e) => e.type === "card.pr_failed" && (e.payload as { stage?: string }).stage === "conflict");
       return { kind: "recheck", conflicts: ((clash?.payload as { files?: string[] } | null)?.files) ?? [] };
@@ -252,7 +256,7 @@ export class RunCoordinator {
     const runId = run.id;
     switch (step.kind) {
       case "halt":
-        return this.halt(run, card.id, step.reason);
+        { if (step.limit) await this.haltEmpty(run, card, session, step.reason); else this.halt(run, card.id, step.reason); return; }
       case "start": {
         const r = await this.ports.start(card.id);
         // `busy` / `blocked-by` are the gates racing a tick; anything else would fail again every tick.
@@ -277,6 +281,7 @@ export class RunCoordinator {
           this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "prompt", prompt: d.prompt, reason: d.reason });
           return;
         }
+        if (await this.haltEmpty(run, card, session, d.reason, true)) return;
         this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "finished", reason: d.reason });
         return;
       }
@@ -351,6 +356,29 @@ export class RunCoordinator {
     this.db.recordRunEvent(card.id, "run.triaged", { runId: run.id, verdict: review.verdict, ...d.verdict });
   }
 
+  /**
+   * A code card whose branch holds no commit is not finished, however the lead or the round count
+   * put it: the operator gets the lead's reason and the worker's last word. An explore card ships a
+   * conclusion, not commits, and an unknown count never blocks. Returns whether it halted;
+   * `onlyEmpty` false (the round limit) halts regardless, just without the detail on a card with code.
+   */
+  private async haltEmpty(run: Run, card: Card, session: CardSession | null, leadReason: string, onlyEmpty = false): Promise<boolean> {
+    const empty = card.category !== "explore" && (await this.ports.commits(card)) === 0;
+    if (!empty) {
+      if (!onlyEmpty) this.halt(run, card.id, leadReason);
+      return false;
+    }
+    const lastPrompt = this.db.listEvents(card.id, 200).find((e) => e.type === "run.decision" && isRun(e, run.id) && (e.payload as { decision: string }).decision === "prompt");
+    const lead = onlyEmpty ? leadReason : ((lastPrompt?.payload as { reason?: string } | undefined)?.reason ?? "");
+    const reply = session?.paneId ? (await this.ports.lastReply(session.paneId).catch(() => "")).trim() : "";
+    this.halt(
+      run,
+      card.id,
+      `${onlyEmpty ? "the lead called it finished" : leadReason}, yet the branch has no commit. Lead: ${lead || "(no reason)"}. Worker's last reply: ${reply || "(none)"}`,
+    );
+    return true;
+  }
+
   private halt(run: Run, cardId: string, reason: string): void {
     this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason });
   }
@@ -414,6 +442,12 @@ export function runHook(
     },
     freeSlots: () => (db.maxAgents() ?? cfg.boardMaxAgents) - runningCards(db),
     reviewing: () => cfg.boardCopilot,
+    commits: async (card) => {
+      if (!card.repoPath || !card.branch) return null;
+      const base = baseFor(card.baseRef, await currentBranch(card.repoPath));
+      return (await integrationOf(card.repoPath, card.branch, base))?.ahead ?? null;
+    },
+    lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
   });
   return (snap) => {
     lead.observe(snap);
