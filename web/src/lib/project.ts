@@ -99,7 +99,15 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
     phases = sorted.filter((p) => p.closedAt == null).map(build);
     closed = sorted.filter((p) => p.closedAt != null).sort((a, b) => a.closedAt! - b.closedAt!).map(build);
     const loose = steps.filter((s) => !frozen(s) && (!s.phaseId || !known.has(s.phaseId) || shutIds.has(s.phaseId)));
-    if (loose.length || lotRows.some((l) => !l.phaseId || !known.has(l.phaseId))) phases.push(section("loose", "", "", null, null, loose));
+    // What no phase has taken keeps the shape it had: a dictation's steps stay a section of their own, so an
+    // old project can be validated one dictation at a time, not only as one lump.
+    const dictations = live.filter((c) => parents.has(c.id)).sort(byPosition);
+    for (const c of dictations) {
+      const own = loose.filter((s) => s.parentId === c.id);
+      if (own.length) phases.push(section(c.id, c.title, "", null, c, own));
+    }
+    const rest = loose.filter((s) => !s.parentId || !parents.has(s.parentId));
+    if (rest.length || lotRows.some((l) => !l.phaseId || !known.has(l.phaseId))) phases.push(section("loose", "", "", null, null, rest));
   } else {
     phases = live
       .filter((c) => parents.has(c.id))

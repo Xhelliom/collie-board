@@ -2024,12 +2024,26 @@ export class BoardDb {
    * `moveOpenTo` sends the phase-less open ones to an existing open phase. `moved` is 0 when there was
    * nothing to file, and then nothing is created.
    */
-  sealPhase(input: { repoPath: string; name: string; goal?: string; note?: string; moveOpenTo?: string | null }): { phase: Phase | null; moved: number } {
+  sealPhase(input: {
+    repoPath: string;
+    name: string;
+    goal?: string;
+    note?: string;
+    moveOpenTo?: string | null;
+    /** Only these (finished, phase-less) cards; omitted, every one the repo has. */
+    cardIds?: string[];
+  }): { phase: Phase | null; moved: number } {
     return this.db.transaction(() => {
-      const ids = this.db
-        .query<{ id: string }, [string]>("SELECT id FROM card WHERE repo_path = ? AND phase_id IS NULL AND status = 'done'")
+      // A container holds no work of its own and is never a step, so it is not filed as one.
+      const all = this.db
+        .query<{ id: string }, [string]>(
+          `SELECT id FROM card WHERE repo_path = ? AND phase_id IS NULL AND status = 'done'
+             AND id NOT IN (SELECT parent_id FROM card WHERE parent_id IS NOT NULL)`,
+        )
         .all(input.repoPath)
         .map((r) => r.id);
+      const want = input.cardIds ? new Set(input.cardIds) : null;
+      const ids = want ? all.filter((id) => want.has(id)) : all;
       if (ids.length === 0) return { phase: null, moved: 0 };
       const phase = this.createPhase({ repoPath: input.repoPath, name: input.name, goal: input.goal });
       const ts = this.now();

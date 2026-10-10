@@ -133,4 +133,21 @@ describe("projectOf: milestones (ADR 0025)", () => {
     const v = projectOf([card({ id: "d", phaseId: "v1", status: "done" })], [ph("v1", 0, 1000)]);
     expect([v.total, v.done, v.deliveredSteps]).toEqual([0, 0, 1]);
   });
+
+  it("keeps an old dictation as a section of its own once a phase exists, so it can be validated alone", () => {
+    const v = projectOf(
+      [
+        card({ id: "Dictation" }),
+        card({ id: "a", parentId: "Dictation", status: "done" }),
+        card({ id: "free", status: "done" }),
+      ],
+      [{ id: "P1", repoPath: "/r", name: "P1", goal: "", position: 0, roadmapItemId: null, closedAt: null } as never],
+    );
+    expect(v.phases.map((p) => [p.key, p.container?.id ?? null, p.steps.map((s) => s.id)])).toEqual([
+      ["P1", null, []],
+      ["Dictation", "Dictation", ["a"]],
+      ["loose", null, ["free"]],
+    ]);
+  });
 });
+
