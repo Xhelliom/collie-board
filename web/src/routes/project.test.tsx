@@ -52,6 +52,25 @@ describe("ProjectRoute", () => {
     expect(screen.getByLabelText("Message to the orchestrator")).toBeInTheDocument();
   });
 
+  it("shows the template a step starts with — dashed when inherited from its phase — and the model that ran", async () => {
+    const t1 = { id: "t1", key: "reviewer", name: "Reviewer", description: "", agentKind: "claude", model: "opus", brief: "B", builtin: true };
+    mount(
+      [card({ id: "own", phaseId: "P1", templateId: "t2", status: "working", agentKind: "claude" }), card({ id: "inh", phaseId: "P1", status: "working", agentKind: "claude" })],
+      {
+        phases: [{ ...phase("P1"), templateId: "t1" }],
+        templates: { templates: [t1, { ...t1, id: "t2", key: null, name: "Mine", builtin: false, model: null }], modelKinds: ["claude"] },
+        facts: { inh: { cardId: "inh", gate: null, lead: null, triage: null, review: null, pr: null, sentBack: 0, operatorSaid: 0, startedAt: null, endedAt: null, template: { name: "Reviewer", key: "reviewer", model: "opus" } } },
+      },
+    );
+    await screen.findAllByText("Mine");
+    const chip = (name: string) => screen.getAllByText(name).filter((el) => el.tagName === "SPAN");
+    expect(chip("Mine")[0]).not.toHaveAttribute("title");
+    const inherited = chip("Reviewer").find((el) => el.getAttribute("title") === "from the phase");
+    expect(inherited).toBeDefined();
+    expect(screen.getByRole("combobox", { name: "Default template" })).toHaveValue("t1");
+    expect(screen.getAllByRole("list", { name: "Who did what" }).some((l) => l.textContent?.includes("claude, model opus"))).toBe(true);
+  });
+
   it("keeps the way into the chat in the header, with a dot while the orchestrator runs", async () => {
     mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
     const open = await screen.findByRole("button", { name: "Open the orchestrator chat" });

@@ -20,7 +20,7 @@ export type GateResult =
   | { kind: "error"; message: string };
 
 /**
- * `"tools/ovg gate"` → `["tools/ovg", "gate"]`. Whitespace-split on purpose: there is no shell here,
+ * `"tools/check all"` → `["tools/check", "all"]`. Whitespace-split on purpose: there is no shell here,
  * so quotes, pipes and `&&` mean nothing — wrap those in a script and name the script. Null: blank.
  */
 export function parseGate(command: string | null | undefined): string[] | null {

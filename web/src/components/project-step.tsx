@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 
 import { CardStatusChip } from "@/components/card-status-chip";
+import { TemplateChip } from "@/components/template-chip";
 import { MarkdownText } from "@/components/markdown-text";
 import { cardPath, type CardView, type Phase } from "@/lib/board";
 import { useT, type MessageKey } from "@/i18n";
@@ -63,6 +64,7 @@ export function StepItem({
   flash,
   predecessor,
   facts,
+  template,
   inLot = false,
   onToggle,
   phases = [],
@@ -76,6 +78,8 @@ export function StepItem({
   predecessor: CardView | undefined;
   /** What the journal knows of this card; absent while loading or when the bridge cannot say. */
   facts?: CardFacts;
+  /** The template this step starts with — its own or its phase's (ADR 0026). */
+  template?: { name: string; inherited: boolean };
   /** Drawn inside its lot's group: the group already says "in a run", so the chip is dropped. */
   inLot?: boolean;
   onToggle: () => void;
@@ -125,6 +129,7 @@ export function StepItem({
           {line && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{line}</span>}
           <span className="flex flex-wrap items-center gap-1.5">
           {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">{t("step.next")}</span>}
+          {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-[11px] py-0.5" />}
           {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("step.inRun")}</span>}
           <CardStatusChip status={card.status} />
           {chips.map((c) => (
@@ -176,6 +181,7 @@ export function StepItem({
                       : card.status === "done"
                         ? t("step.agent.finished")
                         : ""}
+                  {facts?.template?.model ? `, ${t("templates.agent.model", { model: facts.template.model })}` : ""}
                   {facts && facts.sentBack > 0 ? t("step.agent.sentBack", { count: facts.sentBack }) : ""}
                 </Who>
               )}

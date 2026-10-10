@@ -21,6 +21,8 @@ export interface CardFacts {
   operatorSaid: number;
   startedAt: number | null;
   endedAt: number | null;
+  /** The template the card was started with, and the model actually passed to the agent (none: not passed). */
+  template: { name: string; key: string | null; model: string | null } | null;
 }
 
 const str = (p: unknown, k: string): string | null => {
@@ -41,6 +43,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
     operatorSaid: 0,
     startedAt: null,
     endedAt: null,
+    template: null,
   };
   for (const e of [...events].sort((a, b) => a.id - b.id)) {
     switch (e.type) {
@@ -75,6 +78,9 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
       case "card.automerge_armed":
       case "card.automerge_refused":
         if (f.pr) f.pr.autoMerge = e.type === "card.automerge_armed" ? "armed" : "refused";
+        break;
+      case "card.template":
+        f.template = { name: str(e.payload, "name") ?? "", key: str(e.payload, "key"), model: str(e.payload, "model") };
         break;
       case "card.operator_said":
         f.operatorSaid++;

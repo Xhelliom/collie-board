@@ -813,7 +813,7 @@ export async function startCard(
   try {
     const wait = opts.sleep ?? sleep;
     const args = modelArgs(kind, template?.model, opts.adapters);
-    if (template) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args } : {}) });
+    if (template) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
   } catch (err) {
     // The agent never came up, so this session never existed in any meaningful sense — close it and

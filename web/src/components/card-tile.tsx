@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { AgentIcon } from "@/components/agent-icon";
 import { TagChip } from "@/components/tag-chip";
+import { TemplateChip } from "@/components/template-chip";
 import { CtxBar } from "@/components/ctx-bar";
 import { paneDisplayName } from "@/lib/types";
 import { CARD_STATUS_LABEL, type CardStatus, type CardView } from "@/lib/board";
@@ -79,6 +80,7 @@ export function CardTile({
   dependency,
   parent,
   phase,
+  template,
   source,
   repo,
   drag,
@@ -104,6 +106,8 @@ export function CardTile({
   parent?: string;
   /** The phase this card belongs to, with its progress (ADR 0022). Display only: the tile is a `<button>`, so the filter lives in the Filter sheet. */
   phase?: { name: string; done: number; total: number };
+  /** The agent template this card starts with — its own or its phase's (ADR 0026). */
+  template?: { name: string; inherited: boolean };
   /**
    * The card this one came out of — the reviewed card a follow-up was filed against, or the card
    * whose session filed it (ADR 0010). Either way its title is written as a note to that card
@@ -279,6 +283,11 @@ export function CardTile({
               label={`${phase.name} · ${phase.done}/${phase.total}`}
               className="px-[7px] py-px text-[10px] font-semibold"
             />
+          </div>
+        )}
+        {template && (
+          <div className="flex">
+            <TemplateChip name={template.name} inherited={template.inherited} />
           </div>
         )}
         {parent && (
