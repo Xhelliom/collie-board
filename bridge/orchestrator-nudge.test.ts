@@ -46,6 +46,19 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     expect(w.sent[0]).toContain("Bloquées ou non mergées");
   });
 
+  it("asks for a short bilan citing facts, and proposes validating the phase when it ends", async () => {
+    const w = world();
+    const ph = w.db.createPhase({ repoPath: "/g/r", name: "Phase 1" });
+    w.db.patchCard(w.card.id, { status: "done", phaseId: ph.id });
+    const run = w.db.createRun({ repoPath: "/g/r", cardIds: [w.card.id], foldInCap: 0, phaseId: ph.id });
+    w.db.recordRunEvent(null, "run.finished", { runId: run.id });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent[0]).toContain("/api/project/facts?repo=/g/r");
+    expect(w.sent[0]).toContain("fin de la phase « Phase 1 »");
+    expect(w.sent[0]).toContain("pas à toi");
+  });
+
   it("sends nothing, and does not throw, with no live orchestrator or on a disconnected snapshot", async () => {
     const w = world();
     w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });

@@ -30,3 +30,4 @@ memory — no timer, no new poll.
 - A restart forgets what was told: the tailer starts at the newest event, so nothing is replayed.
 - The message is not retracted — it states what happened, not a state that can stop being true
   ([ADR 0011](./0011-the-board-may-raise-an-alert-that-can-retract.md) does not apply: no alert slot).
+- The end-of-lot message asks for a short bilan (merged, blocked and why, from `/api/project/facts` and the journal) and, when the lot closes its phase, to propose validating it and say where open steps go — the validation stays the operator's.
