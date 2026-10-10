@@ -378,9 +378,14 @@ export interface Phase {
   position: number;
   /** The roadmap item this phase materialised, or null. */
   roadmapItemId: string | null;
+  /** When the operator validated it (ADR 0025), or null while it is the work in progress. A validated phase is a milestone. */
+  closedAt: number | null;
+  closedNote: string;
   createdAt: number;
   updatedAt: number;
 }
+
+export const PHASE_NOTE_MAX = 1000;
 
 export const ROADMAP_STATUSES = ["planned", "active", "done", "dropped"] as const;
 export type RoadmapStatus = (typeof ROADMAP_STATUSES)[number];
@@ -548,6 +553,8 @@ interface PhaseRow {
   goal: string;
   position: number;
   roadmap_item_id: string | null;
+  closed_at: number | null;
+  closed_note: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -560,6 +567,8 @@ function toPhase(r: PhaseRow): Phase {
     goal: r.goal,
     position: r.position,
     roadmapItemId: r.roadmap_item_id ?? null,
+    closedAt: r.closed_at ?? null,
+    closedNote: r.closed_note ?? "",
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -818,6 +827,8 @@ CREATE TABLE IF NOT EXISTS phase (
   goal            TEXT NOT NULL DEFAULT '',
   position        INTEGER NOT NULL DEFAULT 0,
   roadmap_item_id TEXT,
+  closed_at       INTEGER,
+  closed_note     TEXT NOT NULL DEFAULT '',
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
@@ -1164,6 +1175,9 @@ export class BoardDb {
       { table: "run", column: "position", ddl: "INTEGER NOT NULL DEFAULT 0" },
       { table: "run", column: "launched_at", ddl: "INTEGER" },
       { table: "run", column: "max_parallel", ddl: "INTEGER" },
+      // ADR 0025: a validated phase is a milestone. Null closed_at = still the work in progress.
+      { table: "phase", column: "closed_at", ddl: "INTEGER" },
+      { table: "phase", column: "closed_note", ddl: "TEXT NOT NULL DEFAULT ''" },
       // ADR 0023: the roadmap's decision journal.
       { table: "roadmap", column: "decisions", ddl: "TEXT NOT NULL DEFAULT '[]'" },
     ];
@@ -1800,6 +1814,84 @@ export class BoardDb {
       this.db.query("DELETE FROM phase WHERE id = ?").run(id);
     })();
     return true;
+  }
+
+  // ── milestones (ADR 0025) ───────────────────────────────────────────────────
+
+  /** A lot of the phase that is not over: planned (it holds cards and drives nothing) or launched and not finished. */
+  phaseHasUnfinishedLot(phaseId: string): boolean {
+    const open = new Set(this.listOpenRuns().map((r) => r.id));
+    return this.listRuns().some((r) => r.phaseId === phaseId && (r.launchedAt === null || open.has(r.id)));
+  }
+
+  /**
+   * Validate a phase. Its finished cards stay in it, frozen; its OPEN ones go to `moveOpenTo` (another
+   * open phase of the repo, or null = no phase). The linked roadmap item, if any, becomes `done`. The
+   * route has already checked the target and the lots — this writes, atomically.
+   */
+  closePhase(id: string, input: { moveOpenTo: string | null; note?: string }): Phase | null {
+    const phase = this.getPhase(id);
+    if (!phase || phase.closedAt !== null) return null;
+    this.db.transaction(() => {
+      const ts = this.now();
+      this.db
+        .query("UPDATE card SET phase_id = ? WHERE phase_id = ? AND status NOT IN ('done', 'archived')")
+        .run(input.moveOpenTo, id);
+      this.db
+        .query("UPDATE phase SET closed_at = ?, closed_note = ?, updated_at = ? WHERE id = ?")
+        .run(ts, (input.note ?? "").slice(0, PHASE_NOTE_MAX), ts, id);
+      if (phase.roadmapItemId) this.markRoadmapItemDone(phase.repoPath, phase.roadmapItemId);
+    })();
+    return this.getPhase(id);
+  }
+
+  /** Take a phase back to the work in progress. Its cards are where they were left. */
+  reopenPhase(id: string): Phase | null {
+    const phase = this.getPhase(id);
+    if (!phase || phase.closedAt === null) return null;
+    this.db.query("UPDATE phase SET closed_at = NULL, updated_at = ? WHERE id = ?").run(this.now(), id);
+    return this.getPhase(id);
+  }
+
+  /**
+   * An old project with no phases: make a phase that is ALREADY validated and file under it every
+   * finished card of the repo that has none. Only those — the open ones stay where they are, unless
+   * `moveOpenTo` sends the phase-less open ones to an existing open phase. `moved` is 0 when there was
+   * nothing to file, and then nothing is created.
+   */
+  sealPhase(input: { repoPath: string; name: string; goal?: string; note?: string; moveOpenTo?: string | null }): { phase: Phase | null; moved: number } {
+    return this.db.transaction(() => {
+      const ids = this.db
+        .query<{ id: string }, [string]>("SELECT id FROM card WHERE repo_path = ? AND phase_id IS NULL AND status = 'done'")
+        .all(input.repoPath)
+        .map((r) => r.id);
+      if (ids.length === 0) return { phase: null, moved: 0 };
+      const phase = this.createPhase({ repoPath: input.repoPath, name: input.name, goal: input.goal });
+      const ts = this.now();
+      const mark = this.db.query("UPDATE card SET phase_id = ? WHERE id = ?");
+      for (const id of ids) mark.run(phase.id, id);
+      if (input.moveOpenTo)
+        this.db
+          .query("UPDATE card SET phase_id = ? WHERE repo_path = ? AND phase_id IS NULL AND status NOT IN ('done', 'archived')")
+          .run(input.moveOpenTo, input.repoPath);
+      this.db
+        .query("UPDATE phase SET closed_at = ?, closed_note = ?, updated_at = ? WHERE id = ?")
+        .run(ts, (input.note ?? "").slice(0, PHASE_NOTE_MAX), ts, phase.id);
+      return { phase: this.getPhase(phase.id), moved: ids.length };
+    })();
+  }
+
+  /** Mark one roadmap item done, bumping the revision like any write. No roadmap or no such item: nothing. */
+  private markRoadmapItemDone(repoPath: string, itemId: string): void {
+    const rm = this.getRoadmap(repoPath);
+    if (!rm || !rm.items.some((i) => i.id === itemId && i.status !== "done")) return;
+    this.writeRoadmap(
+      repoPath,
+      rm.vision,
+      rm.items.map((i) => (i.id === itemId ? { ...i, status: "done" as const } : i)),
+      rm.decisions,
+      rm.revision + 1,
+    );
   }
 
   // ── roadmap (ADR 0021) ──────────────────────────────────────────────────────

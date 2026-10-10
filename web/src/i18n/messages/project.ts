@@ -177,4 +177,55 @@ export const project = defineMessages({
     en: "No roadmap yet. Start the brainstorm with the project orchestrator: it asks one theme at a time and writes the vision, each phase and every decision here as you settle them.",
     fr: "Pas encore de roadmap. Lance le brainstorm avec l'orchestrateur du projet : il pose un thème à la fois et écrit ici la vision, chaque phase et chaque décision au fur et à mesure que tu les tranches.",
   },
+
+  // ── milestones: validating a phase (ADR 0025) ──────────────────────────────
+  "project.validate": { en: "Validate this phase", fr: "Valider cette phase" },
+  "project.validate.title": { en: "Validate “{name}”", fr: "Valider « {name} »" },
+  "project.validate.counts": { en: "{done} finished, {open} still open", fr: "{done} terminées, {open} encore ouvertes" },
+  "project.validate.explain": {
+    en: "The finished steps stay in this phase, frozen. Progress then restarts from what is left.",
+    fr: "Les étapes terminées restent figées dans cette phase. La progression repart de ce qu'il reste.",
+  },
+  "project.validate.moveTo": { en: "Open steps move to", fr: "Les étapes ouvertes passent dans" },
+  "project.validate.note": { en: "Note (optional)", fr: "Note (facultative)" },
+  "project.validate.confirm": { en: "Validate", fr: "Valider" },
+  "project.validate.done": { en: "Phase “{name}” validated.", fr: "Phase « {name} » validée." },
+  "project.seal": { en: "Validate the finished steps as a milestone…", fr: "Valider les étapes terminées comme un jalon…" },
+  "project.seal.title": { en: "Validate the finished steps", fr: "Valider les étapes terminées" },
+  "project.seal.explain": {
+    en: {
+      one: "{count} finished step with no phase goes into one validated phase. The rest stays as it is.",
+      other: "{count} finished steps with no phase go into one validated phase. The rest stays as it is.",
+    },
+    fr: {
+      one: "{count} étape terminée sans phase va dans une phase validée. Le reste ne bouge pas.",
+      other: "{count} étapes terminées sans phase vont dans une phase validée. Le reste ne bouge pas.",
+    },
+  },
+  "project.seal.name": { en: "Name of the milestone", fr: "Nom du jalon" },
+  "project.seal.placeholder": { en: "e.g. v1", fr: "ex. v1" },
+  "project.seal.done": {
+    en: { one: "{count} step filed under “{name}”.", other: "{count} steps filed under “{name}”." },
+    fr: { one: "{count} étape rangée dans « {name} ».", other: "{count} étapes rangées dans « {name} »." },
+  },
+  "project.closed.title": { en: "Validated phases", fr: "Phases validées" },
+  "project.closed.row": {
+    en: { one: "{count} step · validated {date}", other: "{count} steps · validated {date}" },
+    fr: { one: "{count} étape · validée le {date}", other: "{count} étapes · validée le {date}" },
+  },
+  "project.closed.reopen": { en: "Reopen", fr: "Rouvrir" },
+  "project.closed.reopened": { en: "Phase “{name}” reopened.", fr: "Phase « {name} » rouverte." },
+  "project.sum.delivered": {
+    en: { one: "{count} step delivered", other: "{count} steps delivered" },
+    fr: { one: "{count} étape livrée", other: "{count} étapes livrées" },
+  },
+  "project.sum.inPhases": {
+    en: { one: "in {count} validated phase", other: "in {count} validated phases" },
+    fr: { one: "dans {count} phase validée", other: "dans {count} phases validées" },
+  },
+  "project.sum.none": { en: "Nothing in progress", fr: "Rien en cours" },
+  "project.allValidated": {
+    en: "Everything is validated — nothing in progress. Add cards or reopen a phase to carry on.",
+    fr: "Tout est validé — rien en cours. Ajoute des cartes ou rouvre une phase pour continuer.",
+  },
 });

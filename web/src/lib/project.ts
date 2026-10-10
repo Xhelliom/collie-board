@@ -32,6 +32,7 @@ export interface ProjectPhase {
 export type StepGroup = "done" | "flight" | "waiting" | "todo";
 
 export interface ProjectView {
+  /** The figures below count the OPEN scope only: steps that are not in a validated phase (ADR 0025). */
   total: number;
   done: number;
   /** Steps an agent is on right now: working, starting. */
@@ -40,7 +41,13 @@ export interface ProjectView {
   waiting: number;
   /** Steps not started: ready, backlog. */
   todo: number;
+  /** The phases still in progress (and the "no phase" section). */
   phases: ProjectPhase[];
+  /** The validated phases — milestones — oldest first, with the steps they froze. */
+  closed: ProjectPhase[];
+  /** Finished steps in validated phases: what was delivered before the current milestone. */
+  deliveredSteps: number;
+  closedCount: number;
   /** Steps that need the operator — blocked, in review or orphaned — most urgent first. */
   awaiting: CardView[];
   /** The first step that could start now: ready, and its predecessor filed. */
@@ -79,12 +86,19 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
   };
 
   let phases: ProjectPhase[];
+  let closed: ProjectPhase[] = [];
   if (phaseRows.length) {
     const known = new Set(phaseRows.map((p) => p.id));
-    phases = [...phaseRows]
-      .sort((a, b) => a.position - b.position)
-      .map((p) => section(p.id, p.name, p.goal, p, null, steps.filter((s) => s.phaseId === p.id)));
-    const loose = steps.filter((s) => !s.phaseId || !known.has(s.phaseId));
+    const sorted = [...phaseRows].sort((a, b) => a.position - b.position);
+    const shutIds = new Set(sorted.filter((p) => p.closedAt != null).map((p) => p.id));
+    // A validated phase holds what was DELIVERED. An open step that got filed there afterwards is still
+    // work in progress — it must not vanish from the figures or from "waiting for you".
+    const frozen = (s: CardView) => !!s.phaseId && shutIds.has(s.phaseId) && s.status === "done";
+    const build = (p: Phase) =>
+      section(p.id, p.name, p.goal, p, null, steps.filter((s) => s.phaseId === p.id && (p.closedAt == null || frozen(s))));
+    phases = sorted.filter((p) => p.closedAt == null).map(build);
+    closed = sorted.filter((p) => p.closedAt != null).sort((a, b) => a.closedAt! - b.closedAt!).map(build);
+    const loose = steps.filter((s) => !frozen(s) && (!s.phaseId || !known.has(s.phaseId) || shutIds.has(s.phaseId)));
     if (loose.length || lotRows.some((l) => !l.phaseId || !known.has(l.phaseId))) phases.push(section("loose", "", "", null, null, loose));
   } else {
     phases = live
@@ -97,12 +111,15 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
 
   const ordered = phases.flatMap((p) => p.steps);
   return {
-    total: steps.length,
-    done: steps.filter((s) => s.status === "done").length,
-    active: steps.filter((s) => stepGroup(s) === "flight").length,
-    waiting: steps.filter((s) => stepGroup(s) === "waiting").length,
-    todo: steps.filter((s) => stepGroup(s) === "todo").length,
+    total: ordered.length,
+    done: ordered.filter((s) => s.status === "done").length,
+    active: ordered.filter((s) => stepGroup(s) === "flight").length,
+    waiting: ordered.filter((s) => stepGroup(s) === "waiting").length,
+    todo: ordered.filter((s) => stepGroup(s) === "todo").length,
     phases,
+    closed,
+    deliveredSteps: closed.reduce((n, p) => n + p.steps.filter((s) => s.status === "done").length, 0),
+    closedCount: closed.length,
     awaiting: ["blocked", "review", "orphaned"].flatMap((st) => ordered.filter((s) => s.status === st)),
     next: ordered.find((s) => s.status === "ready" && dependencyMet(s.dependsOn ? byId.get(s.dependsOn) : null)) ?? null,
   };

@@ -217,4 +217,91 @@ describe("ProjectRoute", () => {
     mount([card({ id: "a" })], { roadmap: null });
     expect(await screen.findByText(/start the brainstorm with the project orchestrator/i)).toBeInTheDocument();
   });
+
+  describe("milestones (ADR 0025)", () => {
+    const closed = (id: string, position: number, closedAt: number): Phase => ({ ...phase(id, position), closedAt, closedNote: "shipped" });
+
+    it("reads the headline off the open phase only, and says what was delivered", async () => {
+      mount(
+        [
+          card({ id: "old1", phaseId: "v1", status: "done" }),
+          card({ id: "old2", phaseId: "v1", status: "done" }),
+          card({ id: "now1", phaseId: "p2", status: "done" }),
+          card({ id: "now2", phaseId: "p2", status: "ready" }),
+        ],
+        { phases: [closed("v1", 0, Date.UTC(2026, 0, 5)), phase("p2", 1)] },
+      );
+      expect(await screen.findByText(/of 2 steps done/)).toBeInTheDocument();
+      expect(screen.getByText(/2 steps delivered in 1 validated phase/)).toBeInTheDocument();
+      // The validated phase is folded away: its steps are not in the list until it is opened.
+      expect(document.getElementById("step-old1")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: /^v1/ }));
+      expect(screen.getByText("shipped")).toBeInTheDocument();
+    });
+
+    it("validates a phase after a confirmation, sending its open steps where asked", async () => {
+      let body: unknown = null;
+      server.use(
+        http.post("*/api/phases/p1/close", async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ phase: closed("p1", 0, 1) });
+        }),
+      );
+      mount(
+        [card({ id: "a", phaseId: "p1", status: "done" }), card({ id: "b", phaseId: "p1", status: "ready" })],
+        { phases: [phase("p1", 0), phase("p2", 1)] },
+      );
+      await userEvent.click((await screen.findAllByRole("button", { name: "Validate this phase" }))[0]!);
+      expect(await screen.findByText("1 finished, 1 still open")).toBeInTheDocument();
+      expect(body).toBeNull();
+      // The next open phase is the default; a note rides along.
+      await userEvent.type(screen.getByLabelText(/Note/), "first release");
+      await userEvent.click(screen.getByRole("button", { name: "Validate" }));
+      await waitFor(() => expect(body).toEqual({ moveOpenTo: "p2", note: "first release" }));
+    });
+
+    it("an old project with no phases can fold its finished steps into a first milestone", async () => {
+      let body: unknown = null;
+      server.use(
+        http.post("*/api/phases/seal", async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ phase: closed("v1", 0, 1), moved: 2 }, { status: 201 });
+        }),
+      );
+      mount([card({ id: "a", status: "done" }), card({ id: "b", status: "done" }), card({ id: "c", status: "ready" })]);
+      await userEvent.click(await screen.findByRole("button", { name: /Validate the finished steps as a milestone/ }));
+      const confirm = screen.getByRole("button", { name: "Validate" });
+      expect(confirm).toBeDisabled();
+      await userEvent.type(screen.getByLabelText("Name of the milestone"), "v1");
+      await userEvent.click(confirm);
+      await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "v1" }));
+    });
+
+    it("reopens a validated phase", async () => {
+      let hit = false;
+      server.use(
+        http.post("*/api/phases/v1/reopen", () => {
+          hit = true;
+          return HttpResponse.json({ phase: phase("v1") });
+        }),
+      );
+      mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
+      await userEvent.click(await screen.findByRole("button", { name: /^v1/ }));
+      await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
+      await waitFor(() => expect(hit).toBe(true));
+    });
+
+    it("everything validated is a state of its own, not an empty project", async () => {
+      mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
+      expect(await screen.findByText(/Everything is validated/)).toBeInTheDocument();
+      expect(screen.getByText("Validated phases · 1")).toBeInTheDocument();
+    });
+
+    it("speaks French", async () => {
+      setPreference("fr");
+      mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
+      expect(await screen.findByText("Phases validées · 1")).toBeInTheDocument();
+      expect(screen.getByText(/Tout est validé/)).toBeInTheDocument();
+    });
+  });
 });

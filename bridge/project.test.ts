@@ -349,3 +349,126 @@ describe("the roadmap as a document (ADR 0023)", () => {
   });
 });
 
+
+describe("milestones: validating a phase (ADR 0025)", () => {
+  const board = () => {
+    const db = new BoardDb(":memory:");
+    const p1 = db.createPhase({ repoPath: "/r", name: "P1" });
+    const p2 = db.createPhase({ repoPath: "/r", name: "P2" });
+    const done = db.createCard({ title: "done", repoPath: "/r", status: "done", phaseId: p1.id });
+    const open = db.createCard({ title: "open", repoPath: "/r", status: "backlog", phaseId: p1.id });
+    return { db, p1, p2, done, open };
+  };
+
+  it("keeps the finished cards, moves the open ones, stamps the phase and finishes its roadmap item", async () => {
+    const { db, p1, p2, done, open } = board();
+    db.putRoadmap("/r", { vision: "", items: [{ id: "i1", name: "P1", goal: "", detail: "", status: "active" }] }, 0);
+    db.updatePhase(p1.id, { roadmapItemId: "i1" });
+    const res = await call(db, "POST", `/api/phases/${p1.id}/close`, { moveOpenTo: p2.id, note: "v1 shipped" });
+    expect(res.status).toBe(200);
+    expect(res.body.phase).toMatchObject({ closedNote: "v1 shipped" });
+    expect(res.body.phase.closedAt).toBeGreaterThan(0);
+    expect(db.getCard(done.id)!.phaseId).toBe(p1.id);
+    expect(db.getCard(open.id)!.phaseId).toBe(p2.id);
+    expect(db.getRoadmap("/r")!.items[0]!.status).toBe("done");
+    expect((await call(db, "GET", "/api/phases?repo=%2Fr")).body.phases.find((p: { id: string }) => p.id === p1.id).closedAt).toBeGreaterThan(0);
+  });
+
+  it("with no target the open cards end up phase-less; a bad target is refused and writes nothing", async () => {
+    const { db, p1, p2, open } = board();
+    const other = db.createPhase({ repoPath: "/else", name: "X" });
+    for (const moveOpenTo of [other.id, p1.id, "nope", 7]) {
+      expect((await call(db, "POST", `/api/phases/${p1.id}/close`, { moveOpenTo })).status).toBe(400);
+    }
+    expect(db.getPhase(p1.id)!.closedAt).toBeNull();
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(200);
+    expect(db.getCard(open.id)!.phaseId).toBeNull();
+    // A validated phase is no target: validating again, or moving work into it, is refused.
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(409);
+    expect((await call(db, "POST", `/api/phases/${p2.id}/close`, { moveOpenTo: p1.id })).status).toBe(400);
+  });
+
+  it("refuses while the phase has a lot that is not over — planned or running", async () => {
+    const { db, p1, open } = board();
+    const lot = db.createRun({ repoPath: "/r", cardIds: [open.id], foldInCap: 0, planned: true, phaseId: p1.id });
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(409);
+    db.launchRun(lot.id);
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(409);
+    db.recordRunEvent(null, "run.finished", { runId: lot.id });
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(200);
+  });
+
+  it("is the operator's gesture: an agent pane gets 403 on close, reopen and seal, and nothing changes", async () => {
+    const { db, p1 } = board();
+    const h = { "x-collie-pane": "w1:p9" };
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {}, h)).status).toBe(403);
+    expect((await call(db, "POST", `/api/phases/${p1.id}/reopen`, {}, h)).status).toBe(403);
+    expect((await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "v1" }, h)).status).toBe(403);
+    expect(db.getPhase(p1.id)!.closedAt).toBeNull();
+    expect(db.listPhases("/r")).toHaveLength(2);
+  });
+
+  it("reopens a validated phase, and refuses to reopen one that is not", async () => {
+    const { db, p1 } = board();
+    expect((await call(db, "POST", `/api/phases/${p1.id}/reopen`, {})).status).toBe(409);
+    await call(db, "POST", `/api/phases/${p1.id}/close`, {});
+    const res = await call(db, "POST", `/api/phases/${p1.id}/reopen`, {});
+    expect(res.status).toBe(200);
+    expect(res.body.phase.closedAt).toBeNull();
+  });
+
+  it("a PATCH cannot validate or reopen a phase behind the gesture's back", async () => {
+    const { db, p1 } = board();
+    await call(db, "PATCH", `/api/phases/${p1.id}`, { closedAt: 123, name: "renamed" });
+    expect(db.getPhase(p1.id)).toMatchObject({ name: "renamed", closedAt: null });
+  });
+
+  it("seal: an old project's finished, phase-less cards become one validated phase; the rest stay", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const b = db.createCard({ title: "b", repoPath: "/r", status: "done" });
+    const open = db.createCard({ title: "open", repoPath: "/r", status: "backlog" });
+    const elsewhere = db.createCard({ title: "x", repoPath: "/else", status: "done" });
+    const res = await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "v1", note: "first release" });
+    expect(res.status).toBe(201);
+    expect(res.body.moved).toBe(2);
+    expect(res.body.phase.closedAt).toBeGreaterThan(0);
+    expect([a.id, b.id].map((id) => db.getCard(id)!.phaseId)).toEqual([res.body.phase.id, res.body.phase.id]);
+    expect(db.getCard(open.id)!.phaseId).toBeNull();
+    expect(db.getCard(elsewhere.id)!.phaseId).toBeNull();
+    // Nothing left to file: refused, and no empty phase is made.
+    expect((await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "v2" })).status).toBe(400);
+    expect(db.listPhases("/r")).toHaveLength(1);
+  });
+
+  it("seal can send the phase-less open cards to an existing open phase", async () => {
+    const db = new BoardDb(":memory:");
+    const next = db.createPhase({ repoPath: "/r", name: "Next" });
+    db.createCard({ title: "a", repoPath: "/r", status: "done" });
+    const open = db.createCard({ title: "open", repoPath: "/r", status: "ready" });
+    expect((await call(db, "POST", "/api/phases/seal", { repoPath: "/r", name: "v1", moveOpenTo: next.id })).status).toBe(201);
+    expect(db.getCard(open.id)!.phaseId).toBe(next.id);
+  });
+
+  it("migrates a board from before milestones: no phase is validated", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "collie-ms-")), "board.db");
+    const old = new Database(file, { create: true });
+    old.exec(`CREATE TABLE phase (id TEXT PRIMARY KEY, repo_path TEXT NOT NULL, name TEXT NOT NULL, goal TEXT NOT NULL DEFAULT '',
+      position INTEGER NOT NULL DEFAULT 0, roadmap_item_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
+    old.exec(`INSERT INTO phase VALUES ('p1','/r','old','',0,NULL,1,1)`);
+    old.close();
+    const db = new BoardDb(file);
+    expect(db.getPhase("p1")).toMatchObject({ closedAt: null, closedNote: "" });
+    expect(db.closePhase("p1", { moveOpenTo: null })!.closedAt).toBeGreaterThan(0);
+    db.close();
+  });
+
+  it("the step-by-step export says a validated phase in one line and does not list its cards", async () => {
+    const { db, p1 } = board();
+    await call(db, "POST", `/api/phases/${p1.id}/close`, { note: "shipped" });
+    const md = (await call(db, "GET", "/api/roadmap?repo=%2Fr&format=steps")).body as string;
+    expect(md).toContain("## Validated phases");
+    expect(md).toMatch(/\*\*P1\*\* — validated \d{4}-\d\d-\d\d, 1 step — shipped/);
+    expect(md).not.toContain("**done** —");
+  });
+});

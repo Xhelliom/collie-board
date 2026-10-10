@@ -1119,6 +1119,9 @@ export interface Phase {
   goal: string;
   position: number;
   roadmapItemId: string | null;
+  /** When the operator validated it (ADR 0025): a milestone. Null/absent: the work in progress. */
+  closedAt?: number | null;
+  closedNote?: string;
 }
 
 /** A lot is a run: PLANNED while `launchedAt` is null (it drives nothing), launched by the operator's tap. */
@@ -1190,6 +1193,14 @@ export const fetchOrchestrator = (repo: string, signal?: AbortSignal): Promise<O
 export const startOrchestrator = (repoPath: string): Promise<{ ok: true; paneId: string; started: boolean }> =>
   apiRequest("/api/orchestrator", { method: "POST", body: JSON.stringify({ repoPath }) });
 
+/** Validate a phase: its open steps go to `moveOpenTo` (an open phase, or null = none). The operator's gesture (ADR 0025). */
+export const closePhase = (id: string, input: { moveOpenTo: string | null; note?: string }): Promise<{ phase: Phase }> =>
+  apiRequest(`/api/phases/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify(input) });
+export const reopenPhase = (id: string): Promise<{ phase: Phase }> =>
+  apiRequest(`/api/phases/${encodeURIComponent(id)}/reopen`, { method: "POST", body: "{}" });
+/** An old project with no phases: file its finished, phase-less steps under one validated phase. */
+export const sealPhase = (input: { repoPath: string; name: string; note?: string }): Promise<{ phase: Phase; moved: number }> =>
+  apiRequest("/api/phases/seal", { method: "POST", body: JSON.stringify(input) });
 export const launchLot = (id: string): Promise<{ run: Lot }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
 export const saveRoadmap = (

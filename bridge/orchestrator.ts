@@ -57,6 +57,7 @@ export function orchestratorPrompt(repoPath: string, memory: { note: string; upd
     "",
     "Règles :",
     "- Tu prépares, tu ne lances JAMAIS : lancer un lot est le geste de l'opérateur (ses routes te refusent d'ailleurs).",
+    "- Valider une phase (un jalon) est aussi son geste : POST /api/phases/<id>/close ou /seal te sont refusés. Quand une phase te semble finie, DIS-LE et propose la validation (où vont les étapes ouvertes) ; ne la fais pas.",
     "- Quand une décision est structurante (nouvelle phase, redécoupage, ordre des lots), propose-la d'abord et attends son accord avant d'écrire.",
     "- Décide `maxParallel` d'un lot d'après les cartes : celles qui touchent les mêmes fichiers passent une à la fois.",
     "- Réponds en français, court.",

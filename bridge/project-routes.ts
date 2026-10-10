@@ -5,7 +5,7 @@
 
 import { basename } from "node:path";
 
-import { isMaxParallel, RevisionConflict, type Run } from "./db.ts";
+import { isMaxParallel, PHASE_NOTE_MAX, RevisionConflict, type Run } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
 
@@ -14,6 +14,8 @@ const MAX_GOAL = 2_000;
 
 const PHASES = "/api/phases";
 const PHASE = /^\/api\/phases\/([^/]+)$/;
+const PHASES_SEAL = "/api/phases/seal";
+const PHASE_CLOSE = /^\/api\/phases\/([^/]+)\/(close|reopen)$/;
 const RUNS = "/api/runs";
 const RUN = /^\/api\/runs\/([^/]+)(?:\/(launch))?$/;
 const ROADMAP = "/api/roadmap";
@@ -75,6 +77,59 @@ export async function handleProjectRoute(
     });
     audit("phase.create", { phaseId: phase.id, name: n });
     return ctx.json({ phase }, 201);
+  }
+
+  // ── milestones (ADR 0025) ──────────────────────────────────────────────────
+  // Validating a phase is the operator's judgement that a stretch of work is done — the same kind of
+  // gesture as launching a lot, so a caller that names itself an agent pane is refused, always.
+  const milestone = pathname === PHASES_SEAL ? "seal" : PHASE_CLOSE.exec(pathname)?.[2];
+  if (milestone) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = guard("write");
+    if (denied) return denied;
+    if (pane) return ctx.text("validating a phase is the operator's gesture — an agent pane may propose it, not do it", 403);
+    const b = (await bodyOf(req)) ?? {};
+    if (b.note !== undefined && (typeof b.note !== "string" || b.note.length > PHASE_NOTE_MAX)) return ctx.text(`note must be a string of at most ${PHASE_NOTE_MAX} characters`, 400);
+    const note = typeof b.note === "string" ? b.note.trim() : "";
+    // Where the open work goes: another phase of the same repo that is still open, or nowhere (null).
+    const target = (repoPath: string, selfId: string | null): { ok: true; id: string | null } | { ok: false; why: string } => {
+      const v = b.moveOpenTo ?? null;
+      if (v === null) return { ok: true, id: null };
+      if (typeof v !== "string") return { ok: false, why: "moveOpenTo must be a phase id or null" };
+      const t = db.getPhase(v);
+      if (!t || t.repoPath !== repoPath || t.closedAt !== null || v === selfId) return { ok: false, why: "moveOpenTo: no such open phase in this repo" };
+      return { ok: true, id: v };
+    };
+
+    if (milestone === "seal") {
+      if (typeof b.repoPath !== "string" || !b.repoPath.startsWith("/")) return ctx.text("repoPath must be an absolute path", 400);
+      const n = name(b.name);
+      if (!n) return ctx.text("name required", 400);
+      const g = b.goal === undefined ? "" : goal(b.goal);
+      if (g === null) return ctx.text("bad goal", 400);
+      const to = target(b.repoPath, null);
+      if (!to.ok) return ctx.text(to.why, 400);
+      const sealed = db.sealPhase({ repoPath: b.repoPath, name: n, goal: g, note, moveOpenTo: to.id });
+      if (!sealed.phase) return ctx.text("no finished card without a phase to file", 400);
+      audit("phase.seal", { phaseId: sealed.phase.id, name: n, moved: sealed.moved });
+      return ctx.json({ phase: sealed.phase, moved: sealed.moved }, 201);
+    }
+
+    const id = PHASE_CLOSE.exec(pathname)![1]!;
+    const phase = db.getPhase(id);
+    if (!phase) return ctx.text("phase not found", 404);
+    if (milestone === "reopen") {
+      if (phase.closedAt === null) return ctx.text("phase is not validated", 409);
+      audit("phase.reopen", { phaseId: id });
+      return ctx.json({ phase: db.reopenPhase(id) });
+    }
+    if (phase.closedAt !== null) return ctx.text("phase is already validated", 409);
+    const to = target(phase.repoPath, id);
+    if (!to.ok) return ctx.text(to.why, 400);
+    if (db.phaseHasUnfinishedLot(id)) return ctx.text("the phase has a lot that is not over — finish or delete it first", 409);
+    const closed = db.closePhase(id, { moveOpenTo: to.id, note });
+    audit("phase.close", { phaseId: id, moveOpenTo: to.id });
+    return ctx.json({ phase: closed });
   }
 
   const phaseMatch = PHASE.exec(pathname);
