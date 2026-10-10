@@ -21,6 +21,7 @@
 // the world: a merge, a push, and a branch delete. Each one refuses before it acts rather than
 // unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
+import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
@@ -638,13 +639,29 @@ export async function mergeIntoBase(
   return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 5).join("\n"), kind };
 }
 
+/**
+ * Where to run the push: the branch's own worktree, so the pre-push hook judges what is pushed and
+ * not whatever the main checkout has (a red local main blocked the very card that fixes it). The
+ * repo itself when the worktree is gone — the previous behaviour.
+ */
+export async function pushDir(
+  repoPath: string,
+  branch: string,
+  git: GitRunner = runGit,
+  exists: (p: string) => boolean = existsSync,
+): Promise<string> {
+  const wt = await worktreePathFor(repoPath, branch, git);
+  return wt && exists(wt) ? wt : repoPath;
+}
+
 /** Push the card's branch and set its upstream. Needed before a PR can reference it. */
 export async function pushBranch(
   repoPath: string,
   branch: string,
   git: GitRunner = runGit,
+  exists: (p: string) => boolean = existsSync,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const r = await git(["push", "--set-upstream", "origin", branch], repoPath);
+  const r = await git(["push", "--set-upstream", "origin", branch], await pushDir(repoPath, branch, git, exists));
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
 }
 

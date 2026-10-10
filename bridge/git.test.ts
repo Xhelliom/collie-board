@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { diffStat, diffStatLine, formatDiffStat, parseMergeTree, type DiffStat, type GitRunner } from "./git.ts";
+import { diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushDir, type DiffStat, type GitRunner } from "./git.ts";
 
 // Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
 describe("parseMergeTree — does the PR conflict, before anything is pushed", () => {
@@ -119,5 +119,25 @@ describe("diffStat against HEAD — the hand-launched pane's only diff", () => {
     const stat = await diffStat("/repo", null, fakeGit("", ""));
     expect(formatDiffStat(stat)).toBe("(no changes)");
     expect(diffStatLine(stat)).toBeNull();
+  });
+});
+
+describe("pushDir — where the pre-push hook runs", () => {
+  const list = (path: string): GitRunner => async () => ({
+    ok: true,
+    stdout: `worktree /repo\nHEAD abc\nbranch refs/heads/main\n\nworktree ${path}\nHEAD def\nbranch refs/heads/card\n\n`,
+    stderr: "",
+  });
+
+  test("the card's worktree when it exists", async () => {
+    expect(await pushDir("/repo", "card", list("/wt/card"), () => true)).toBe("/wt/card");
+  });
+
+  test("the repo when the worktree is gone from disk", async () => {
+    expect(await pushDir("/repo", "card", list("/wt/card"), () => false)).toBe("/repo");
+  });
+
+  test("the repo when no worktree carries the branch", async () => {
+    expect(await pushDir("/repo", "other", list("/wt/card"), () => true)).toBe("/repo");
   });
 });
