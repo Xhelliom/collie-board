@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { nextRole, pipelineOf, stepPrompt } from "./pipeline.ts";
+import { currentStep, nextRole, pipelineOf, sendBackPrompt, stepPrompt } from "./pipeline.ts";
 
 describe("pipeline (ADR 0031)", () => {
   it("the next role is read from the journal: one card.pipeline_step per step already taken", () => {
@@ -11,10 +11,24 @@ describe("pipeline (ADR 0031)", () => {
     db.patchCard(card.id, { pipelineId: db.createFlow({ name: "F", steps: [a!.id, b!.id, c!.id] }).id });
     const pipeline = pipelineOf(db, db.getCard(card.id)!);
     expect(nextRole(pipeline, db.listEvents(card.id))?.key).toBe("reviewer");
-    db.recordEvent(card.id, "card.pipeline_step", {});
+    db.recordEvent(card.id, "card.pipeline_step", { index: 1 });
     expect(nextRole(pipeline, db.listEvents(card.id))?.key).toBe("fix");
-    db.recordEvent(card.id, "card.pipeline_step", {});
+    db.recordEvent(card.id, "card.pipeline_step", { index: 2 });
     expect(nextRole(pipeline, db.listEvents(card.id))).toBeNull();
+    // Sent back to the first role: the card is on step 0 again, so the reviewer comes next once more.
+    db.recordEvent(card.id, "card.pipeline_step", { index: 0 });
+    expect(currentStep(db.listEvents(card.id))).toBe(0);
+    expect(nextRole(pipeline, db.listEvents(card.id))?.key).toBe("reviewer");
+  });
+
+  it("a send-back tells the first role its work is in the branch and what failed", () => {
+    const db = new BoardDb(":memory:");
+    const impl = db.listTemplates().find((t) => t.key === "implementer")!;
+    const card = db.createCard({ title: "Add X", spec: "Do X", repoPath: "/r" });
+    const text = sendBackPrompt(impl, card, "The gate failed: exit 1");
+    expect(text.startsWith(impl.brief.trim())).toBe(true);
+    expect(text).toContain("already in this branch");
+    expect(text).toContain("The gate failed: exit 1");
   });
 
   it("the next role's prompt carries its brief, the card and what the step before reported", () => {

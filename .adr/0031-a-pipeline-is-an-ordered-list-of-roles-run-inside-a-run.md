@@ -28,6 +28,11 @@ runtime state.
 **A step that finds a problem stops and tells the operator.** No automatic `implementer ↔ reviewer`
 loop in this decision.
 
+**A machine failure goes back to the first role.** A red gate or a red CI check on a card past its first
+step is sent to the FIRST role, in a fresh session, with the failure; the card is then on step 0 again,
+so its next landing is judged and handed on to the later roles afresh. The lead's own send-backs about
+a step's work stay with that step.
+
 ## What this rules out
 
 **A pipeline that starts without consent** — an agent that launches itself spends the quota unseen.

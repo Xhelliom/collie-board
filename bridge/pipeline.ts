@@ -18,10 +18,24 @@ import { resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
 import { worktreePathFor } from "./git.ts";
 
+/** The index of the pipeline step the card is on: the newest `card.pipeline_step` says, none yet = step 0. Pure. */
+export function currentStep(events: readonly BoardEvent[]): number {
+  const latest = events.find((e) => e.type === "card.pipeline_step"); // newest first
+  const i = (latest?.payload as { index?: unknown } | null)?.index;
+  return typeof i === "number" ? i : 0;
+}
+
 /** The role that follows the one the card is on, or null at the end of the pipeline. Pure. */
 export function nextRole(pipeline: readonly AgentTemplate[], events: readonly BoardEvent[]): AgentTemplate | null {
-  const advanced = events.filter((e) => e.type === "card.pipeline_step").length;
-  return pipeline[advanced + 1] ?? null;
+  return pipeline[currentStep(events) + 1] ?? null;
+}
+
+/** What the first role is told when a machine failure (red gate, red CI) comes back to it: the card, then the failure. Pure. */
+export function sendBackPrompt(role: AgentTemplate, card: Card, failure: string): string {
+  return composePrompt(
+    role.brief,
+    `${initialPrompt(card)}\n\n---\n\nYour earlier work on this card is already in this branch (read the recent commits). A later step could not accept it:\n\n${failure}\n\n${bilanPrompt()}`,
+  );
 }
 
 /** What the next role is told: its brief, the card, and what the previous step reported. Pure. */
@@ -38,24 +52,22 @@ export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
 }
 
 /**
- * Replace the card's session with a fresh agent in the next role. Modelled on `swapToFreshSession`
- * (new pane first, then the old one closed). Throws; the coordinator turns a failure into a halt.
+ * Replace the card's session with a fresh agent in `role`, at pipeline step `index`, told `text`.
+ * Modelled on `swapToFreshSession` (new pane first, then the old one closed). Throws; the coordinator
+ * turns a failure into a halt.
  */
-export async function advancePipeline(
+async function swapRole(
   db: BoardDb,
   herdr: HerdrClient,
   cfg: Config,
   card: Card,
   session: CardSession,
   role: AgentTemplate,
-  report: string | null,
+  index: number,
+  text: string,
   adapters?: Record<string, AgentAdapter>,
 ): Promise<void> {
   if (!card.workspaceId || !session.paneId) throw new Error("card has no workspace or pane");
-  const pipeline = pipelineOf(db, card);
-  const index = db.listEvents(card.id, 200).filter((e) => e.type === "card.pipeline_step").length + 1;
-  const previous = pipeline[index - 1]?.name ?? "previous step";
-
   const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
   db.closeSession(session.id, "pipeline");
   try {
@@ -74,6 +86,42 @@ export async function advancePipeline(
   db.recordEvent(card.id, "card.pipeline_step", { index, from: session.id, to: next.id, templateId: role.id, name: role.name, kind, ...(args.length ? { args, model: role.model } : {}) });
 
   await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, args);
-  await promptAndConfirm(herdr, created.paneId, stepPrompt(role, card, { name: previous, report }), undefined, { firstAfterLaunch: true });
+  await promptAndConfirm(herdr, created.paneId, text, undefined, { firstAfterLaunch: true });
   db.setStatus(card.id, "working", `pipeline: ${role.name}`);
+}
+
+/** The next role takes the branch, told what the step before reported. */
+export async function advancePipeline(
+  db: BoardDb,
+  herdr: HerdrClient,
+  cfg: Config,
+  card: Card,
+  session: CardSession,
+  role: AgentTemplate,
+  report: string | null,
+  adapters?: Record<string, AgentAdapter>,
+): Promise<void> {
+  const pipeline = pipelineOf(db, card);
+  const index = currentStep(db.listEvents(card.id, 200)) + 1;
+  const previous = pipeline[index - 1]?.name ?? "previous step";
+  await swapRole(db, herdr, cfg, card, session, role, index, stepPrompt(role, card, { name: previous, report }), adapters);
+}
+
+/**
+ * A machine failure (red gate, red CI) belongs to whoever wrote the code: back to the FIRST role, in a
+ * fresh session, with the failure. The card is then on step 0 again, so its next landing is judged and
+ * handed on to the second role afresh.
+ */
+export async function sendBackToFirst(
+  db: BoardDb,
+  herdr: HerdrClient,
+  cfg: Config,
+  card: Card,
+  session: CardSession,
+  failure: string,
+  adapters?: Record<string, AgentAdapter>,
+): Promise<void> {
+  const first = pipelineOf(db, card)[0];
+  if (!first) throw new Error("the card has no pipeline");
+  await swapRole(db, herdr, cfg, card, session, first, 0, sendBackPrompt(first, card, failure), adapters);
 }

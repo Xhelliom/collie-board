@@ -23,7 +23,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { advancePipeline, nextRole, pipelineOf } from "./pipeline.ts";
+import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToFirst } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
 
 /** How many times the lead may send a worker back before the card goes to the operator. */
@@ -74,6 +74,8 @@ export interface RunPorts {
   lastReply(paneId: string): Promise<string>;
   /** ADR 0031: swap the card's session for a fresh agent in its next pipeline role. */
   advance(card: Card, role: AgentTemplate, report: string | null): Promise<void>;
+  /** ADR 0031: a machine failure goes back to the card's FIRST role, in a fresh session. */
+  sendBack(card: Card, failure: string): Promise<void>;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -369,7 +371,7 @@ export class RunCoordinator {
     if (p.wait) return;
     if (p.ci) {
       const prompt = ciPrompt(p.ci.name, p.ci.log);
-      await this.ports.prompt(session.paneId!, prompt);
+      await this.sendFailure(card, session, prompt);
       this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the check ${p.ci.name} failed on GitHub` });
       return;
     }
@@ -391,7 +393,7 @@ export class RunCoordinator {
     this.db.recordRunEvent(card.id, "run.gate", { runId: run.id, command, ok, ...(ok ? {} : { summary: r.summary }) });
     if (ok) return;
     const prompt = gatePrompt(command, r.summary);
-    await this.ports.prompt(session.paneId!, prompt);
+    await this.sendFailure(card, session, prompt);
     this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the gate failed (exit ${r.exit})` });
   }
 
@@ -453,6 +455,15 @@ export class RunCoordinator {
       `${onlyEmpty ? "the lead called it finished" : leadReason}, yet the branch has no commit. Lead: ${lead || "(no reason)"}. Worker's last reply: ${reply || "(none)"}`,
     );
     return true;
+  }
+
+  /**
+   * A machine failure (red gate, red CI) goes to whoever wrote the code: the card's session while it is
+   * on its first role, the FIRST role again once a later one (the reviewer) has taken over (ADR 0031).
+   */
+  private async sendFailure(card: Card, session: CardSession, failure: string): Promise<void> {
+    if (currentStep(this.db.listEvents(card.id, 200)) > 0) await this.ports.sendBack(card, failure);
+    else await this.ports.prompt(session.paneId!, failure);
   }
 
   private halt(run: Run, cardId: string, reason: string): void {
@@ -529,6 +540,11 @@ export function runHook(
       return (await integrationOf(card.repoPath, card.branch, base))?.ahead ?? null;
     },
     lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
+    sendBack: async (card, failure) => {
+      const session = db.openSessionFor(card.id);
+      if (!session) throw new Error("no open session to send back");
+      await sendBackToFirst(db, herdr, cfg, card, session, failure, adapters);
+    },
     advance: async (card, role, report) => {
       const session = db.openSessionFor(card.id);
       if (!session) throw new Error("no open session to advance");

@@ -4,6 +4,7 @@ import { BoardDb, isMaxParallel, type Card } from "./db.ts";
 import type { GateResult } from "./gate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt } from "./lead.ts";
+import { currentStep } from "./pipeline.ts";
 import { baseFor, briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -77,7 +78,14 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
       calls.push(`advance ${c.title} ${role.key} ${report ?? "-"}`);
       db.closeSession(db.openSessionFor(c.id)!.id, "pipeline");
       db.openSession({ cardId: c.id, paneId: `p-${c.title}-${role.key}` });
-      db.recordEvent(c.id, "card.pipeline_step", { templateId: role.id });
+      db.recordEvent(c.id, "card.pipeline_step", { templateId: role.id, index: currentStep(db.listEvents(c.id, 200)) + 1 });
+      db.setStatus(c.id, "working", "pipeline");
+    },
+    sendBack: async (c, failure) => {
+      calls.push(`sendBack ${c.title} ${failure}`);
+      db.closeSession(db.openSessionFor(c.id)!.id, "pipeline");
+      db.openSession({ cardId: c.id, paneId: `p-${c.title}-first` });
+      db.recordEvent(c.id, "card.pipeline_step", { templateId: "first", index: 0 });
       db.setStatus(c.id, "working", "pipeline");
     },
   };
@@ -395,6 +403,57 @@ describe("RunCoordinator (ADR 0017)", () => {
     await flush();
     expect(w.calls.slice(-2)).toEqual(["pr a", "done a"]);
     expect(w.calls.filter((c) => c.startsWith("advance"))).toHaveLength(1);
+  });
+
+  it("a red gate after the reviewer took over goes back to the FIRST role, which is then reviewed again", async () => {
+    const db = new BoardDb(":memory:");
+    const roles = db.listTemplates();
+    const id = (key: string) => roles.find((t) => t.key === key)!.id;
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.patchCard(a.id, { pipelineId: db.createFlow({ name: "F", steps: [id("implementer"), id("reviewer")] }).id });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    w.setGate("gate");
+    const tick = async (pane: string) => {
+      for (let i = 0; i < 3; i++) {
+        w.coord.update(snap({ [pane]: "idle" }));
+        await flush();
+      }
+    };
+    w.coord.update(snap());
+    await flush();
+
+    land(db, a);
+    await tick("p-a"); // gate green, finished → the reviewer takes the branch
+    expect(w.calls.filter((c) => c.startsWith("advance"))).toHaveLength(1);
+
+    w.gates.push({ kind: "fail", exit: 1, summary: "red" });
+    land(db, a);
+    await tick("p-a-reviewer"); // red: back to the first role, not to the reviewer
+    expect(w.calls.some((c) => c.startsWith("sendBack a"))).toBe(true);
+    expect(w.calls.some((c) => c.startsWith("prompt p-a-reviewer"))).toBe(false);
+
+    land(db, a);
+    await tick("p-a-first"); // fixed: judged afresh and handed to the reviewer again
+    expect(w.calls.filter((c) => c.startsWith("advance"))).toHaveLength(2);
+  });
+
+  it("a red gate on the first role still goes to its own session", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    w.setGate("gate");
+    w.gates.push({ kind: "fail", exit: 1, summary: "red" });
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    for (let i = 0; i < 2; i++) {
+      w.coord.update(snap({ "p-a": "idle" }));
+      await flush();
+    }
+    expect(w.calls.some((c) => c.startsWith("prompt p-a "))).toBe(true);
+    expect(w.calls.some((c) => c.startsWith("sendBack"))).toBe(false);
   });
 
   it("a card with no pipeline never advances", async () => {
