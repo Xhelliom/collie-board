@@ -4,6 +4,7 @@ import { AGENT_KIND_LABEL, type AgentKindOption } from "@/components/agent-kind-
 import { TemplatesSheet } from "@/components/templates-sheet";
 import { useT } from "@/i18n";
 import { boardErrorMessage, type Phase } from "@/lib/board";
+import { flowName, flowSteps, type Flow } from "@/lib/flows";
 import { setStatus } from "@/lib/status";
 import { patchPhase, templateName, type TemplatesData } from "@/lib/templates";
 
@@ -13,10 +14,13 @@ import { patchPhase, templateName, type TemplatesData } from "@/lib/templates";
 export function PhaseTemplate({
   phase,
   data,
+  flows,
   onChanged,
 }: {
   phase: Phase;
   data: TemplatesData | null | undefined;
+  /** The flows (ADR 0032); the flow line is absent while null, as on an older bridge. */
+  flows?: Flow[] | null;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -34,10 +38,10 @@ export function PhaseTemplate({
     onChanged();
   }
 
-  const steps = phase.pipeline ?? [];
-  async function setPipeline(next: string[]) {
+  const flow = flows?.find((f) => f.id === phase.pipelineId) ?? null;
+  async function pickFlow(id: string) {
     try {
-      await patchPhase(phase.id, { pipeline: next.length ? next : null });
+      await patchPhase(phase.id, { pipelineId: id || null });
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -75,39 +79,27 @@ export function PhaseTemplate({
       </button>
       <TemplatesSheet open={managing} onClose={() => setManaging(false)} data={data} onChanged={onChanged} />
     </div>
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 pt-1 text-xs text-muted-foreground" title={t("templates.pipeline.hint")}>
-      <span>{t("templates.pipeline.label")}</span>
-      {steps.map((id, i) => {
-        const tpl = data.templates.find((x) => x.id === id);
-        if (!tpl) return null;
-        return (
-          <span key={`${id}-${i}`} className="inline-flex items-center gap-1">
-            {i > 0 && <span aria-hidden="true">→</span>}
-            <button
-              type="button"
-              aria-label={t("templates.pipeline.remove", { name: templateName(tpl) })}
-              onClick={() => void setPipeline(steps.filter((_, j) => j !== i))}
-              className="rounded-full border bg-card/70 px-2 py-0.5 font-semibold text-foreground hover:border-foreground/25"
-            >
-              {templateName(tpl)} ×
-            </button>
-          </span>
-        );
-      })}
-      <select
-        aria-label={t("templates.pipeline.add")}
-        value=""
-        onChange={(e) => e.target.value && void setPipeline([...steps, e.target.value])}
-        className="h-7 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
-      >
-        <option value="">+ {t("templates.pipeline.add")}</option>
-        {data.templates.map((x) => (
-          <option key={x.id} value={x.id}>
-            {templateName(x)}
-          </option>
-        ))}
-      </select>
-    </div>
+    {flows && (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-muted-foreground" title={t("flows.picker.hint")}>
+        <label className="flex items-center gap-1.5">
+          {t("flows.picker.label")}
+          <select
+            aria-label={t("flows.picker.label")}
+            value={phase.pipelineId ?? ""}
+            onChange={(e) => void pickFlow(e.target.value)}
+            className="h-7 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
+          >
+            <option value="">{t("flows.picker.none")}</option>
+            {flows.map((f) => (
+              <option key={f.id} value={f.id}>
+                {flowName(f)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {flow && <span>{flowSteps(flow, data.templates)}</span>}
+      </div>
+    )}
     </div>
   );
 }

@@ -52,8 +52,8 @@ import {
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleFlowRoute } from "./flow-routes.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
-import { PIPELINE_MAX } from "./templates.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleProjectRoute } from "./project-routes.ts";
@@ -192,6 +192,7 @@ export function parseCardBody(
     "duplicateOf",
     "phaseId",
     "templateId",
+    "pipelineId",
     // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
     // the copilot's writes get it too — see there.
     "tag",
@@ -200,14 +201,6 @@ export function parseCardBody(
     const value = o[key];
     if (value !== null && typeof value !== "string") return { ok: false, error: `bad ${key}` };
     out[key] = value === null ? null : value.trim() || null;
-  }
-
-  // ADR 0031: ordered template ids. Shape only here; that each one exists is the route's check.
-  if ("pipeline" in o) {
-    if (o.pipeline !== null && (!Array.isArray(o.pipeline) || !o.pipeline.every((x) => typeof x === "string") || o.pipeline.length > PIPELINE_MAX)) {
-      return { ok: false, error: "bad pipeline" };
-    }
-    out.pipeline = o.pipeline as string[] | null;
   }
 
   if ("acceptance" in o) {
@@ -322,7 +315,7 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
   // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
   if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
   if (patch.templateId && !db.getTemplate(patch.templateId)) return "templateId: no such template";
-  if (patch.pipeline?.some((id) => !db.getTemplate(id))) return "pipeline: no such template";
+  if (patch.pipelineId && !db.getFlow(patch.pipelineId)) return "pipelineId: no such flow";
   // A phase groups ONE repo's cards (ADR 0021): it has to exist and be the card's own repo's.
   if (patch.phaseId) {
     const repo = patch.repoPath ?? (cardId ? db.getCard(cardId)?.repoPath : null) ?? null;
@@ -363,6 +356,8 @@ async function route(
   if (orchestrator) return orchestrator;
   const templates = await handleTemplateRoute(pathname, req, ctx);
   if (templates) return templates;
+  const flows = await handleFlowRoute(pathname, req, ctx);
+  if (flows) return flows;
   const facts = handleFactsRoute(pathname, req, ctx);
   if (facts) return facts;
 

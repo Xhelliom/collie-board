@@ -46,6 +46,7 @@ import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
+import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
@@ -674,6 +675,17 @@ export function CardRoute() {
                       onChange={async (templateId) => {
                         try {
                           await patchCard(card.id, { templateId });
+                        } catch (e) {
+                          setStatus((e as Error).message, "error", null);
+                        }
+                        revalidator.revalidate();
+                      }}
+                    />
+                    <FlowPicker
+                      value={card.pipelineId ?? null}
+                      onChange={async (pipelineId) => {
+                        try {
+                          await patchCard(card.id, { pipelineId });
                         } catch (e) {
                           setStatus((e as Error).message, "error", null);
                         }

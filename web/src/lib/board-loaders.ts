@@ -9,6 +9,7 @@
 import { fetchHistory, isApiErrorStatus } from "./api";
 import type { TranscriptEntry } from "./types";
 import { fetchFacts, type CardFacts } from "./project-facts";
+import { fetchFlows, type Flow } from "./flows";
 import { fetchTemplates, type TemplatesData } from "./templates";
 import {
   loadRepoScope,
@@ -118,6 +119,8 @@ export interface ProjectData extends BoardData {
   facts?: Record<string, CardFacts>;
   /** The agent templates, for the phase selector and the chips (ADR 0026). Null: none, or an older bridge. */
   templates?: TemplatesData | null;
+  /** The flows (ADR 0032), for the phase's flow select. Null: none, or an older bridge. */
+  flows?: Flow[] | null;
 }
 
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
@@ -125,7 +128,7 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const base = await boardLoader({ request });
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
-  const [phases, lots, roadmap, orchestrator, facts, templates] = await Promise.all([
+  const [phases, lots, roadmap, orchestrator, facts, templates, flows] = await Promise.all([
     fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
     fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
     fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
@@ -133,6 +136,7 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
     // Facts are garnish: without them a step is just its card.
     fetchFacts(repo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
     fetchTemplates(request?.signal).catch(() => null),
+    fetchFlows(request?.signal).then((r) => r.flows).catch(() => null),
   ]);
   const orchestratorEntries = orchestrator?.paneId
     ? await fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, request?.signal).then(
@@ -143,5 +147,5 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const orchestratorMemory = orchestrator?.paneId
     ? await fetchOrchestratorMemory(repo, request?.signal).then((r) => r.memory, () => null)
     : null;
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, facts, templates };
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, facts, templates, flows };
 }

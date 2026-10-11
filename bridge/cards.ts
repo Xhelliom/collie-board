@@ -31,7 +31,8 @@ import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner }
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import { bilanPrompt } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { composePrompt, modelArgs, resolvePipeline } from "./templates.ts";
+import { resolvePipeline } from "./flows.ts";
+import { composePrompt, modelArgs } from "./templates.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
 /**
@@ -726,7 +727,7 @@ export async function startCard(
 
   const branch = card.branch ?? branchFromTitle(card.title, cfg.boardBranchPrefix);
   // The card's own template, else its phase's (ADR 0026). Its kind yields to one the card names.
-  const template = resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, db.listTemplates())[0] ?? null;
+  const template = resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, card.repoPath ? db.repoFlow(card.repoPath) : null, db.listTemplates(), db.listFlows())[0] ?? null;
   const kind = card.agentKind ?? template?.agentKind ?? cfg.boardAgentKind;
 
   // THE REAL HANDOFF BETWEEN TWO CARDS IS THE BRANCH. A task that follows another needs the code

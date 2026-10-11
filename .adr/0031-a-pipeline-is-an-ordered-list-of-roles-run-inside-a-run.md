@@ -1,6 +1,6 @@
 # 0031 — A pipeline is an ordered list of roles, chained only inside a run
 
-**Status:** Accepted — extends [ADR 0026](./0026-an-agent-template-is-a-role-kept-in-the-board.md) (a template is one role)
+**Status:** Accepted, storage superseded by [ADR 0032](./0032-a-flow-is-a-named-pipeline-kept-in-the-board.md) (a pipeline is a named flow, not a list on the card) — extends [ADR 0026](./0026-an-agent-template-is-a-role-kept-in-the-board.md) (a template is one role)
 
 ## Context
 

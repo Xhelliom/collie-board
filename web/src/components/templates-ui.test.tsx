@@ -8,6 +8,7 @@ import { TemplateChip } from "@/components/template-chip";
 import { TemplatePicker } from "@/components/template-picker";
 import { setPreference } from "@/i18n";
 import type { Phase } from "@/lib/board";
+import type { Flow } from "@/lib/flows";
 import { templateFor, type AgentTemplate, type TemplatesData } from "@/lib/templates";
 import { server } from "@/test/setup";
 
@@ -21,6 +22,7 @@ const DATA: TemplatesData = {
   ],
   modelKinds: ["claude"],
 };
+const FLOWS: Flow[] = [{ id: "f1", key: null, name: "Docs then review", description: "", steps: ["t2", "t1"], builtin: false }];
 const phase = (o: Partial<Phase> = {}): Phase => ({ id: "p1", repoPath: "/r", name: "P1", goal: "", position: 0, roadmapItemId: null, templateId: null, ...o });
 
 beforeEach(() => {
@@ -75,7 +77,7 @@ describe("PhaseTemplate", () => {
     expect(screen.getByRole("combobox", { name: "Template par défaut" })).toHaveValue("t1");
   });
 
-  it("builds the phase's pipeline: add a step, remove one", async () => {
+  it("sets the phase's flow, and says its steps", async () => {
     const bodies: unknown[] = [];
     server.use(
       http.patch("*/api/phases/p1", async ({ request }) => {
@@ -83,11 +85,10 @@ describe("PhaseTemplate", () => {
         return HttpResponse.json({ phase: {} });
       }),
     );
-    render(<PhaseTemplate phase={phase({ pipeline: ["t2", "t1"] })} data={DATA} onChanged={() => {}} />);
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Add a step" }), "t2");
-    await waitFor(() => expect(bodies).toEqual([{ pipeline: ["t2", "t1", "t2"] }]));
-    await userEvent.click(screen.getByRole("button", { name: "Remove Doc writer" }));
-    await waitFor(() => expect(bodies.at(-1)).toEqual({ pipeline: ["t1"] }));
+    render(<PhaseTemplate phase={phase({ pipelineId: "f1" })} data={DATA} flows={FLOWS} onChanged={() => {}} />);
+    expect(screen.getByText("Doc writer → Reviewer")).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Flow" }), "");
+    await waitFor(() => expect(bodies).toEqual([{ pipelineId: null }]));
   });
 
   it("renders nothing while the templates are unknown", () => {

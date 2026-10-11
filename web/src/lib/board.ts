@@ -126,8 +126,8 @@ export interface CardView {
   phaseId?: string | null;
   /** The agent template it starts with (ADR 0026), or null. Optional: older fixtures omit it. */
   templateId?: string | null;
-  /** The ordered roles it goes through in a run (ADR 0031), or null. Optional: older fixtures omit it. */
-  pipeline?: string[] | null;
+  /** The flow it goes through in a run (ADR 0032), or null. Optional: older fixtures omit it. */
+  pipelineId?: string | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -596,6 +596,8 @@ export interface CardInput {
   phaseId?: string | null;
   /** The agent template it starts with (ADR 0026), or `null` for none. */
   templateId?: string | null;
+  /** The flow it goes through in a run (ADR 0032), or `null` for none. */
+  pipelineId?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */
@@ -800,6 +802,8 @@ export interface RepoChoice {
   hidden?: boolean;
   /** The repo's gate command (ADR 0020), when the operator set one. */
   gate?: string;
+  /** The repo's default flow id (ADR 0032), when the operator set one. */
+  flowId?: string;
 }
 
 /**
@@ -833,6 +837,11 @@ export function setRepoHidden(path: string, hidden: boolean): Promise<{ ok: true
 /** Set a repo's gate command, or remove it with null (ADR 0020). */
 export function setRepoGate(path: string, gate: string | null): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>("/api/repos/gate", { method: "POST", body: JSON.stringify({ path, gate }) });
+}
+
+/** Set a repo's default flow (ADR 0032), or remove it with null. */
+export function setRepoFlow(path: string, flowId: string | null): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>("/api/repos/flow", { method: "POST", body: JSON.stringify({ path, flowId }) });
 }
 
 /** What the copilot proposes for a repo's gate. Never saved by the bridge — the operator saves it. */
@@ -1136,8 +1145,8 @@ export interface Phase {
   closedNote?: string;
   /** The template its cards start with unless they carry their own (ADR 0026). */
   templateId?: string | null;
-  /** The ordered roles its cards go through in a run (ADR 0031), or null. */
-  pipeline?: string[] | null;
+  /** The flow (named pipeline of roles) its cards go through in a run (ADR 0032), or null. */
+  pipelineId?: string | null;
 }
 
 /** A lot is a run: PLANNED while `launchedAt` is null (it drives nothing), launched by the operator's tap. */

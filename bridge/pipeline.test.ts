@@ -8,7 +8,7 @@ describe("pipeline (ADR 0031)", () => {
     const db = new BoardDb(":memory:");
     const [a, b, c] = ["implementer", "reviewer", "fix"].map((k) => db.listTemplates().find((t) => t.key === k)!);
     const card = db.createCard({ title: "t", repoPath: "/r" });
-    db.patchCard(card.id, { pipeline: [a!.id, b!.id, c!.id] });
+    db.patchCard(card.id, { pipelineId: db.createFlow({ name: "F", steps: [a!.id, b!.id, c!.id] }).id });
     const pipeline = pipelineOf(db, db.getCard(card.id)!);
     expect(nextRole(pipeline, db.listEvents(card.id))?.key).toBe("reviewer");
     db.recordEvent(card.id, "card.pipeline_step", {});

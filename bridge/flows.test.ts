@@ -1,0 +1,77 @@
+import { describe, expect, it } from "bun:test";
+
+import { BoardDb, type AgentFlow, type AgentTemplate } from "./db.ts";
+import { parseFlowBody, PIPELINE_MAX, resolvePipeline } from "./flows.ts";
+
+const tpl = (id: string) => ({ id }) as AgentTemplate;
+const flow = (id: string, steps: string[]) => ({ id, steps }) as AgentFlow;
+const T = [tpl("a"), tpl("b"), tpl("c")];
+const F = [flow("f1", ["a", "b"]), flow("f2", ["c"]), flow("f3", ["gone"])];
+const ids = (c: { templateId?: string | null; pipelineId?: string | null }, p: { templateId?: string | null; pipelineId?: string | null } | null, repo: string | null) =>
+  resolvePipeline(
+    { templateId: c.templateId ?? null, pipelineId: c.pipelineId ?? null },
+    p && { templateId: p.templateId ?? null, pipelineId: p.pipelineId ?? null },
+    repo,
+    T,
+    F,
+  ).map((t) => t.id);
+
+describe("resolvePipeline (ADR 0032)", () => {
+  it("goes from the card to the repo: card flow, card template, phase flow, phase template, repo flow", () => {
+    expect(ids({ pipelineId: "f1", templateId: "c" }, { pipelineId: "f2" }, "f2")).toEqual(["a", "b"]);
+    expect(ids({ templateId: "c" }, { pipelineId: "f1" }, "f1")).toEqual(["c"]);
+    expect(ids({}, { pipelineId: "f2", templateId: "a" }, "f1")).toEqual(["c"]);
+    expect(ids({}, { templateId: "a" }, "f1")).toEqual(["a"]);
+    expect(ids({}, null, "f1")).toEqual(["a", "b"]);
+    expect(ids({}, null, null)).toEqual([]);
+  });
+
+  it("skips what no longer exists instead of failing", () => {
+    expect(ids({ pipelineId: "deleted" }, { pipelineId: "f2" }, null)).toEqual(["c"]);
+    expect(ids({ pipelineId: "f3" }, null, "f1")).toEqual(["a", "b"]); // a flow whose templates are all gone is no flow
+    expect(ids({ templateId: "gone" }, { templateId: "b" }, null)).toEqual(["b"]);
+  });
+});
+
+describe("parseFlowBody", () => {
+  const known = (id: string) => id !== "nope";
+  it("a create needs a name and 1 to PIPELINE_MAX existing templates", () => {
+    expect(parseFlowBody({ name: " Dev ", steps: ["a"] }, true, known)).toEqual({ ok: true, value: { name: "Dev", steps: ["a"] } });
+    expect(parseFlowBody({ steps: ["a"] }, true, known).ok).toBe(false);
+    expect(parseFlowBody({ name: "x", steps: [] }, true, known).ok).toBe(false);
+    expect(parseFlowBody({ name: "x", steps: Array(PIPELINE_MAX + 1).fill("a") }, true, known).ok).toBe(false);
+    expect(parseFlowBody({ name: "x", steps: ["nope"] }, true, known).ok).toBe(false);
+    expect(parseFlowBody({ description: "d" }, false, known)).toEqual({ ok: true, value: { description: "d" } });
+  });
+});
+
+describe("flows in the board", () => {
+  it("ships code, doc and explore over the shipped templates, once", () => {
+    const db = new BoardDb(":memory:");
+    const byKey = new Map(db.listTemplates().map((t) => [t.key, t.id]));
+    const code = db.listFlows().find((f) => f.key === "code")!;
+    expect(code.steps).toEqual([byKey.get("implementer")!, byKey.get("reviewer")!]);
+    expect(db.listFlows().map((f) => f.key).sort()).toEqual(["code", "doc", "explore"]);
+  });
+
+  it("a shipped flow is edited then reset, never deleted; a custom one is released from its users when deleted", () => {
+    const db = new BoardDb(":memory:");
+    const code = db.listFlows().find((f) => f.key === "code")!;
+    db.updateFlow(code.id, { name: "Mine", steps: [code.steps[0]!] });
+    expect(db.resetFlow(code.id)).toMatchObject({ steps: code.steps });
+    expect(db.deleteFlow(code.id)).toBe("builtin");
+
+    const mine = db.createFlow({ name: "Mine", steps: [code.steps[0]!] });
+    const phase = db.createPhase({ repoPath: "/r", name: "P" });
+    const card = db.createCard({ title: "t", repoPath: "/r" });
+    db.updatePhase(phase.id, { pipelineId: mine.id });
+    db.patchCard(card.id, { pipelineId: mine.id });
+    db.setRepoFlow("/r", mine.id);
+    expect(db.repoFlow("/r")).toBe(mine.id);
+    expect(db.deleteFlow(mine.id)).toBe("deleted");
+    expect(db.getPhase(phase.id)!.pipelineId).toBeNull();
+    expect(db.getCard(card.id)!.pipelineId).toBeNull();
+    expect(db.repoFlow("/r")).toBeNull();
+    expect(db.deleteFlow(mine.id)).toBe("missing");
+  });
+});

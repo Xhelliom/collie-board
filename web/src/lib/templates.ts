@@ -62,8 +62,8 @@ export const draftTemplate = (description: string, baseOn?: string | null): Prom
 export const importTemplates = (repoPath: string): Promise<{ candidates: AgentFileCandidate[] }> =>
   apiRequest("/api/templates/import", { method: "POST", body: JSON.stringify({ repoPath }) });
 
-/** Set (or clear, with null) a phase's default template, or its pipeline of roles. */
-export const patchPhase = (id: string, input: { templateId?: string | null; pipeline?: string[] | null }): Promise<{ phase: unknown }> =>
+/** Set (or clear, with null) a phase's default template, or its flow. */
+export const patchPhase = (id: string, input: { templateId?: string | null; pipelineId?: string | null }): Promise<{ phase: unknown }> =>
   apiRequest(`/api/phases/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
 
 const BUILTIN_KEYS = ["implementer", "reviewer", "doc", "explore", "fix"] as const;

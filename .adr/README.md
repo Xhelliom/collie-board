@@ -64,3 +64,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0029](./0029-the-board-reads-the-prs-checks-before-it-merges.md) | The board reads the PR's GitHub checks before it merges | Accepted |
 | [0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) | The orchestrator may launch a lot when the operator allows it, per project | Accepted |
 | [0031](./0031-a-pipeline-is-an-ordered-list-of-roles-run-inside-a-run.md) | A pipeline is an ordered list of roles, chained only inside a run | Accepted |
+| [0032](./0032-a-flow-is-a-named-pipeline-kept-in-the-board.md) | A flow is a named pipeline, kept in the board | Accepted |

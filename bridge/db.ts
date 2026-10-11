@@ -13,6 +13,7 @@
 // CONCURRENCY. One bridge process owns this file. WAL keeps a reader (a `GET /api/cards` mid-write)
 // from blocking, and `busy_timeout` covers the sqlite-internal contention that remains.
 
+import { BUILTIN_FLOWS } from "./flows.ts";
 import { BUILTIN_TEMPLATES } from "./templates.ts";
 import { chmodSync } from "node:fs";
 
@@ -230,8 +231,8 @@ export interface Card {
   phaseId: string | null;
   /** The agent template this card starts with, or null — ADR 0026. Falls back to its phase's. */
   templateId: string | null;
-  /** The ordered template ids this card goes through, or null — ADR 0031. Falls back to its phase's. */
-  pipeline: string[] | null;
+  /** The flow this card goes through, or null — ADR 0032. Falls back to its phase's, then its repo's. */
+  pipelineId: string | null;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -388,8 +389,8 @@ export interface Phase {
   closedNote: string;
   /** The agent template the phase's cards start with unless they name their own (ADR 0026). */
   templateId: string | null;
-  /** The ordered template ids the phase's cards go through unless they name their own (ADR 0031). */
-  pipeline: string[] | null;
+  /** The flow the phase's cards go through unless they name their own (ADR 0032). */
+  pipelineId: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -397,6 +398,43 @@ export interface Phase {
 export const PHASE_NOTE_MAX = 1000;
 
 /** A role for a worker — ADR 0026. `key` is set on the shipped ones, which can be edited and reset but not deleted. */
+/** A named pipeline (ADR 0032): the ordered roles a card goes through. */
+export interface AgentFlow {
+  id: string;
+  key: string | null;
+  name: string;
+  description: string;
+  /** Template ids, in order. */
+  steps: string[];
+  builtin: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface FlowRow {
+  id: string;
+  key: string | null;
+  name: string;
+  description: string;
+  steps: string;
+  builtin: number;
+  created_at: number;
+  updated_at: number;
+}
+
+function toFlow(r: FlowRow): AgentFlow {
+  return {
+    id: r.id,
+    key: r.key,
+    name: r.name,
+    description: r.description,
+    steps: jsonArray(r.steps),
+    builtin: r.builtin === 1,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 export interface AgentTemplate {
   id: string;
   key: string | null;
@@ -582,7 +620,7 @@ interface CardRow {
   run_id: string | null;
   phase_id: string | null;
   template_id: string | null;
-  pipeline: string | null;
+  pipeline_id: string | null;
 }
 
 interface RunRow {
@@ -623,15 +661,9 @@ interface PhaseRow {
   closed_at: number | null;
   closed_note: string | null;
   template_id: string | null;
-  pipeline: string | null;
+  pipeline_id: string | null;
   created_at: number;
   updated_at: number;
-}
-
-/** A stored pipeline: a JSON array of template ids, or null for "none" (an empty list is none too). */
-function toPipeline(raw: string | null): string[] | null {
-  const ids = jsonArray(raw).filter((x): x is string => typeof x === "string");
-  return ids.length ? ids : null;
 }
 
 function toPhase(r: PhaseRow): Phase {
@@ -645,7 +677,7 @@ function toPhase(r: PhaseRow): Phase {
     closedAt: r.closed_at ?? null,
     closedNote: r.closed_note ?? "",
     templateId: r.template_id ?? null,
-    pipeline: toPipeline(r.pipeline),
+    pipelineId: r.pipeline_id ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -810,7 +842,7 @@ function toCard(r: CardRow): Card {
     runId: r.run_id ?? null,
     phaseId: r.phase_id ?? null,
     templateId: r.template_id ?? null,
-    pipeline: toPipeline(r.pipeline),
+    pipelineId: r.pipeline_id ?? null,
   };
 }
 
@@ -883,8 +915,8 @@ CREATE TABLE IF NOT EXISTS card (
   phase_id      TEXT,
   -- ADR 0026. Soft: deleting a template clears it; the card then starts as any card does.
   template_id   TEXT,
-  -- ADR 0031. JSON array of template ids, in order; soft like template_id.
-  pipeline      TEXT
+  -- ADR 0032. The flow it goes through; soft like template_id.
+  pipeline_id   TEXT
 );
 
 -- ADR 0017. Intent only — never whether the run is going; that is read from its cards.
@@ -913,7 +945,7 @@ CREATE TABLE IF NOT EXISTS phase (
   closed_at       INTEGER,
   closed_note     TEXT NOT NULL DEFAULT '',
   template_id     TEXT,
-  pipeline        TEXT,
+  pipeline_id     TEXT,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
@@ -927,6 +959,18 @@ CREATE TABLE IF NOT EXISTS agent_template (
   agent_kind  TEXT,
   model       TEXT,
   brief       TEXT NOT NULL,
+  builtin     INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+-- ADR 0032. A flow is a named pipeline: an ordered list of template ids. \`key\` names the shipped ones.
+CREATE TABLE IF NOT EXISTS agent_flow (
+  id          TEXT PRIMARY KEY,
+  key         TEXT UNIQUE,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  steps       TEXT NOT NULL DEFAULT '[]',
   builtin     INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
@@ -1000,6 +1044,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   hidden     INTEGER NOT NULL DEFAULT 0,
   -- The repo's gate command (ADR 0020): the operator's decision too, and equally underivable.
   gate       TEXT,
+  -- ADR 0032: the repo's default flow, the last fallback of a card's resolution.
+  flow_id    TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1087,7 +1133,7 @@ export interface NewCard {
   position?: number;
   phaseId?: string | null;
   templateId?: string | null;
-  pipeline?: string[] | null;
+  pipelineId?: string | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -1111,7 +1157,7 @@ export interface CardPatch {
   autoHandoff?: AutoHandoffChoice | null;
   phaseId?: string | null;
   templateId?: string | null;
-  pipeline?: string[] | null;
+  pipelineId?: string | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1135,7 +1181,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   autoHandoff: "auto_handoff",
   phaseId: "phase_id",
   templateId: "template_id",
-  pipeline: "pipeline",
+  pipelineId: "pipeline_id",
 };
 
 export class BoardDb {
@@ -1299,9 +1345,10 @@ export class BoardDb {
       // ADR 0026: the agent template a card — or its phase — starts with.
       { table: "card", column: "template_id", ddl: "TEXT" },
       { table: "phase", column: "template_id", ddl: "TEXT" },
-      // ADR 0031: the ordered roles a card — or its phase's cards — goes through.
-      { table: "card", column: "pipeline", ddl: "TEXT" },
-      { table: "phase", column: "pipeline", ddl: "TEXT" },
+      // ADR 0032: the flow (named pipeline) a card, a phase or a repo goes through.
+      { table: "card", column: "pipeline_id", ddl: "TEXT" },
+      { table: "phase", column: "pipeline_id", ddl: "TEXT" },
+      { table: "repo_pref", column: "flow_id", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1310,6 +1357,7 @@ export class BoardDb {
     }
     if (!hadLaunchedAt) this.db.exec("UPDATE run SET launched_at = created_at WHERE launched_at IS NULL");
     this.seedTemplates();
+    this.seedFlows();
   }
 
   /** Insert the shipped templates that are missing, by `key` — never touches one the operator has edited. */
@@ -1325,6 +1373,24 @@ export class BoardDb {
         )
         .run(crypto.randomUUID(), t.key, t.name, t.description, t.agentKind, t.model, t.brief, ts, ts);
     }
+  }
+
+  /** Insert the shipped flows that are missing, by `key`, over the shipped templates (by their key). */
+  private seedFlows(): void {
+    const has = this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM agent_flow WHERE key = ?");
+    const ts = this.now();
+    for (const f of BUILTIN_FLOWS) {
+      if (has.get(f.key)!.n > 0) continue;
+      const steps = this.shippedSteps(f.roles);
+      this.db
+        .query(`INSERT INTO agent_flow (id, key, name, description, steps, builtin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)`)
+        .run(crypto.randomUUID(), f.key, f.name, f.description, JSON.stringify(steps), ts, ts);
+    }
+  }
+
+  /** The ids of the shipped templates a shipped flow is made of; a role whose template is gone is skipped. */
+  private shippedSteps(roles: readonly string[]): string[] {
+    return roles.flatMap((key) => this.db.query<{ id: string }, [string]>("SELECT id FROM agent_template WHERE key = ?").get(key)?.id ?? []);
   }
 
   // ── cards ───────────────────────────────────────────────────────────────────
@@ -1368,7 +1434,7 @@ export class BoardDb {
       );
     if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
     if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
-    if (input.pipeline?.length) this.db.query("UPDATE card SET pipeline = ? WHERE id = ?").run(JSON.stringify(input.pipeline), id);
+    if (input.pipelineId) this.db.query("UPDATE card SET pipeline_id = ? WHERE id = ?").run(input.pipelineId, id);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1450,11 +1516,9 @@ export class BoardDb {
           ? JSON.stringify(value ?? [])
           : key === "keepWorktree"
             ? (value ? 1 : 0)
-            : key === "pipeline"
-              ? JSON.stringify(value ?? [])
-              : key === "tag"
-                ? normalizeTag(value)
-                : (value as string | number | null),
+            : key === "tag"
+              ? normalizeTag(value)
+              : (value as string | number | null),
       );
     }
     if (sets.length === 0) return this.getCard(id);
@@ -1934,7 +1998,7 @@ export class BoardDb {
 
   updatePhase(
     id: string,
-    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null; pipeline?: string[] | null },
+    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null; pipelineId?: string | null },
   ): Phase | null {
     if (!this.getPhase(id)) return null;
     const cols: [string, string | number | null][] = [];
@@ -1943,7 +2007,7 @@ export class BoardDb {
     if (patch.position !== undefined) cols.push(["position", patch.position]);
     if (patch.roadmapItemId !== undefined) cols.push(["roadmap_item_id", patch.roadmapItemId]);
     if (patch.templateId !== undefined) cols.push(["template_id", patch.templateId]);
-    if (patch.pipeline !== undefined) cols.push(["pipeline", JSON.stringify(patch.pipeline ?? [])]);
+    if (patch.pipelineId !== undefined) cols.push(["pipeline_id", patch.pipelineId]);
     cols.push(["updated_at", this.now()]);
     // Column names come from the literals above, never from the caller.
     this.db.query(`UPDATE phase SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
@@ -1991,6 +2055,60 @@ export class BoardDb {
     // Column names come from the literals above, never from the caller.
     this.db.query(`UPDATE agent_template SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
     return this.getTemplate(id);
+  }
+
+  // ── agent flows (ADR 0032) ──────────────────────────────────────────────────
+
+  listFlows(): AgentFlow[] {
+    return this.db.query<FlowRow, []>("SELECT * FROM agent_flow ORDER BY builtin DESC, created_at, name").all().map(toFlow);
+  }
+
+  getFlow(id: string): AgentFlow | null {
+    const r = this.db.query<FlowRow, [string]>("SELECT * FROM agent_flow WHERE id = ?").get(id);
+    return r ? toFlow(r) : null;
+  }
+
+  createFlow(input: { name: string; description?: string; steps: string[] }): AgentFlow {
+    const id = crypto.randomUUID();
+    const ts = this.now();
+    this.db
+      .query(`INSERT INTO agent_flow (id, key, name, description, steps, builtin, created_at, updated_at) VALUES (?, NULL, ?, ?, ?, 0, ?, ?)`)
+      .run(id, input.name, input.description ?? "", JSON.stringify(input.steps), ts, ts);
+    return this.getFlow(id)!;
+  }
+
+  updateFlow(id: string, patch: { name?: string; description?: string; steps?: string[] }): AgentFlow | null {
+    if (!this.getFlow(id)) return null;
+    const cols: [string, string | number][] = [];
+    if (patch.name !== undefined) cols.push(["name", patch.name]);
+    if (patch.description !== undefined) cols.push(["description", patch.description]);
+    if (patch.steps !== undefined) cols.push(["steps", JSON.stringify(patch.steps)]);
+    cols.push(["updated_at", this.now()]);
+    // Column names come from the literals above, never from the caller.
+    this.db.query(`UPDATE agent_flow SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
+    return this.getFlow(id);
+  }
+
+  /** A shipped flow is reset, never deleted. A deleted one is released from every card, phase and repo. */
+  deleteFlow(id: string): "deleted" | "builtin" | "missing" {
+    const f = this.getFlow(id);
+    if (!f) return "missing";
+    if (f.builtin) return "builtin";
+    this.db.transaction(() => {
+      this.db.query("UPDATE card SET pipeline_id = NULL WHERE pipeline_id = ?").run(id);
+      this.db.query("UPDATE phase SET pipeline_id = NULL WHERE pipeline_id = ?").run(id);
+      this.db.query("UPDATE repo_pref SET flow_id = NULL WHERE flow_id = ?").run(id);
+      this.db.query("DELETE FROM agent_flow WHERE id = ?").run(id);
+    })();
+    return "deleted";
+  }
+
+  /** Put a shipped flow back as it was shipped. Null for a custom one. */
+  resetFlow(id: string): AgentFlow | null {
+    const f = this.getFlow(id);
+    const shipped = f?.key ? BUILTIN_FLOWS.find((b) => b.key === f.key) : undefined;
+    if (!f || !shipped) return null;
+    return this.updateFlow(id, { name: shipped.name, description: shipped.description, steps: this.shippedSteps(shipped.roles) });
   }
 
   /** `builtin`: a shipped template is reset, never deleted. A deleted one is released from every card and phase. */
@@ -2297,8 +2415,28 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** The repo's default flow (ADR 0032), or null. */
+  repoFlow(path: string): string | null {
+    return this.db.query<{ flow_id: string | null }, [string]>("SELECT flow_id FROM repo_pref WHERE path = ?").get(path)?.flow_id ?? null;
+  }
+
+  repoFlows(): Map<string, string> {
+    const rows = this.db.query<{ path: string; flow_id: string }, []>("SELECT path, flow_id FROM repo_pref WHERE flow_id IS NOT NULL").all();
+    return new Map(rows.map((r) => [r.path, r.flow_id]));
+  }
+
+  setRepoFlow(path: string, flowId: string | null): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, flow_id, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET flow_id = excluded.flow_id, updated_at = excluded.updated_at`,
+      )
+      .run(path, flowId, this.now());
+    this.pruneRepoPref(path);
+  }
+
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL").run(path);
   }
 
   // ── board preferences ───────────────────────────────────────────────────────

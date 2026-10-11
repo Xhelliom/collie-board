@@ -109,13 +109,6 @@ export const templates = defineMessages({
     fr: "Appliqué au démarrage de la carte ; l'agent choisi sur la carte l'emporte sur celui du template.",
   },
   "templates.manageLink": { en: "Manage templates…", fr: "Gérer les templates…" },
-  "templates.pipeline.label": { en: "Pipeline", fr: "Pipeline" },
-  "templates.pipeline.hint": {
-    en: "In a run, each role takes the branch after the one before it.",
-    fr: "Dans un run, chaque rôle reprend la branche après le précédent.",
-  },
-  "templates.pipeline.add": { en: "Add a step", fr: "Ajouter une étape" },
-  "templates.pipeline.remove": { en: "Remove {name}", fr: "Retirer {name}" },
   "templates.phase.label": { en: "Default template", fr: "Template par défaut" },
   "templates.phase.hint": {
     en: "For the cards of this phase that have none of their own.",

@@ -7,8 +7,9 @@ import { sheets } from "./messages/sheets";
 import { orchestrator } from "./messages/orchestrator";
 import { languageMessages } from "./messages/language";
 import { templates } from "./messages/templates";
+import { flows } from "./messages/flows";
 import { home } from "./messages/home";
 
 // One file per area, so two people (or agents) never edit the same one. Adding an area is one line here.
-export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...home };
+export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...flows, ...home };
 export type MessageKey = keyof typeof CATALOG;

@@ -307,20 +307,23 @@ tickets get `implementer`. A card's own agent kind wins over the template's; the
 kinds in `modelKinds` (today `claude`). Do not create or edit templates unasked — they are the user's roles, and
 `POST /api/templates/import` (a repo's `.claude/agents/*.md`) only ever *proposes*.
 
-### Pipelines (ADR 0031)
+### Flows (ADR 0031, 0032)
 
-A **pipeline** is an ordered list of template ids: the roles a card goes through, each a fresh agent on the same
-branch that is told what the one before reported. Set it on the phase (every card without its own) or on one card.
+A **flow** is a named pipeline: an ordered list of templates (roles) a card goes through, each a fresh agent on
+the same branch that is told what the one before reported. The user defines them once in Settings; three ship —
+`code` (implementer then reviewer), `doc`, `explore`. You read them and attach one by id.
 
 ```bash
-curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"pipeline":["<implementer id>","<reviewer id>"]}'   # null clears it
-curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"pipeline":["<template id>", …]}'                    # its own wins over the phase's
+curl -s "$B/api/flows"                                                       # {flows:[{id,key,name,description,steps:[template ids],builtin}]}
+curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"pipelineId":"<flow id>"}'   # every card of the phase without its own; null clears
+curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"pipelineId":"<flow id>"}'    # its own wins over the phase's
 ```
 
-At most 6 steps, every id an existing template. Only a **launched lot** chains the steps; a card the user starts by
-hand stops after its first role. Put the default on the **phase**, not card by card: for code, `implementer` then
-`reviewer`; a `doc`, `fix` or `explore` card needs none. A card that names a single `templateId` keeps that one role.
-Like templates, a pipeline is the user's call to change once set — propose, do not rewrite it unasked.
+A card resolves, most specific first: its flow, its single template, its phase's flow, its phase's template, then
+the **repo's default flow** (the user's setting; you do not set it). Only a **launched lot** chains the steps; a card
+the user starts by hand stops after its first role. Attach the flow to the **phase**, not card by card: `code` for
+code work; a `doc` or `explore` card takes that flow or none. Do not create or edit flows unasked, and do not
+replace one the user set — they are the user's roles, like templates.
 
 ### Gate and facts (ADR 0020) — read, don't set
 

@@ -378,7 +378,7 @@ export function ProjectRoute() {
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
                         {p.phase && !p.phase.closedAt && (
-                          <PhaseTemplate phase={p.phase} data={data.templates} onChanged={() => void revalidator.revalidate()} />
+                          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => void revalidator.revalidate()} />
                         )}
                         <PhaseLots
                           lots={p.lots}

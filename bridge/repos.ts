@@ -83,6 +83,8 @@ export interface RepoChoice {
   hidden?: boolean;
   /** The repo's gate command (ADR 0020), when the operator set one. */
   gate?: string;
+  /** The repo's default flow (ADR 0032), when the operator set one. */
+  flowId?: string;
 }
 
 /**
@@ -246,10 +248,13 @@ export async function listRepos(
   );
 
   const gates = db.repoGates();
+  const flows = db.repoFlows();
   for (const choice of choices) {
     if (hidden.has(choice.path)) choice.hidden = true;
     const gate = gates.get(choice.path);
     if (gate) choice.gate = gate;
+    const flow = flows.get(choice.path);
+    if (flow) choice.flowId = flow;
   }
 
   // Resolve default branches in parallel — it pre-fills the card's base ref, which is the OTHER

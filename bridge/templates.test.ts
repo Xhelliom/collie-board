@@ -16,7 +16,6 @@ import {
   isModel,
   modelArgs,
   parseAgentFile,
-  resolvePipeline,
   resolveTemplate,
   toTemplateDraft,
 } from "./templates.ts";
@@ -49,18 +48,6 @@ describe("pure helpers", () => {
     expect(modelArgs("mystery", "sonnet")).toEqual([]);
     expect(isModel("claude-sonnet-4-5")).toBe(true);
     expect(isModel("-x")).toBe(false);
-  });
-
-  it("resolvePipeline: the card's own list, else a card's own template, else its phase's list, else one role", () => {
-    const all = [tpl({ id: "a" }), tpl({ id: "b" }), tpl({ id: "c" })];
-    const ids = (c: { templateId?: string | null; pipeline?: string[] | null }, p: { templateId?: string | null; pipeline?: string[] | null } | null) =>
-      resolvePipeline({ templateId: c.templateId ?? null, pipeline: c.pipeline ?? null }, p && { templateId: p.templateId ?? null, pipeline: p.pipeline ?? null }, all).map((t) => t.id);
-    expect(ids({ pipeline: ["b", "a"] }, { pipeline: ["c"] })).toEqual(["b", "a"]);
-    expect(ids({}, { pipeline: ["a", "b"] })).toEqual(["a", "b"]);
-    expect(ids({ templateId: "c" }, { pipeline: ["a", "b"] })).toEqual(["c"]); // an explicit single role wins over the phase
-    expect(ids({}, { templateId: "b" })).toEqual(["b"]);
-    expect(ids({ pipeline: ["a", "gone", "b"] }, null)).toEqual(["a", "b"]);
-    expect(ids({}, null)).toEqual([]);
   });
 
   it("resolveTemplate: the card's own, else its phase's, else none", () => {

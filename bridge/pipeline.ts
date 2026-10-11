@@ -14,7 +14,8 @@ import type { AgentAdapter } from "./adapters.ts";
 import type { BoardDb, BoardEvent, Card, CardSession, AgentTemplate } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
-import { composePrompt, modelArgs, resolvePipeline } from "./templates.ts";
+import { resolvePipeline } from "./flows.ts";
+import { composePrompt, modelArgs } from "./templates.ts";
 import { worktreePathFor } from "./git.ts";
 
 /** The role that follows the one the card is on, or null at the end of the pipeline. Pure. */
@@ -33,7 +34,7 @@ export function stepPrompt(role: AgentTemplate, card: Card, previous: { name: st
 
 /** The pipeline of a card, read from the db. */
 export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
-  return resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, db.listTemplates());
+  return resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, card.repoPath ? db.repoFlow(card.repoPath) : null, db.listTemplates(), db.listFlows());
 }
 
 /**

@@ -3,8 +3,11 @@ import { ChevronRight, ShieldCheck } from "lucide-react";
 
 import { GateSheet } from "@/components/gate-sheet";
 import { Card } from "@/components/ui/card";
+import { useFlows } from "@/hooks/use-flows";
 import { useT } from "@/i18n";
-import { fetchRepos, repoName, type RepoChoice } from "@/lib/board";
+import { boardErrorMessage, fetchRepos, repoName, setRepoFlow, type RepoChoice } from "@/lib/board";
+import { flowName } from "@/lib/flows";
+import { setStatus } from "@/lib/status";
 
 // Settings: each repo's gate (ADR 0020) at a glance, one tap to set it. The list is the new-card
 // picker's — a repo you have carded or have open — so a repo with no gate says so right where you
@@ -14,6 +17,17 @@ export function GateControl() {
   const t = useT();
   const [repos, setRepos] = useState<RepoChoice[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const { flows } = useFlows();
+
+  // The repo's default flow (ADR 0032): the last fallback when neither the card nor its phase names one.
+  async function pickFlow(path: string, flowId: string) {
+    try {
+      await setRepoFlow(path, flowId || null);
+      setRepos((rs) => rs?.map((r) => (r.path === path ? { ...r, flowId: flowId || undefined } : r)) ?? rs);
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  }
 
   useEffect(() => {
     const ac = new AbortController();
@@ -49,6 +63,24 @@ export function GateControl() {
               </span>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>
+            {flows && (
+              <label className="flex items-center gap-2 px-4 pb-2 text-xs text-muted-foreground" title={t("flows.repo.hint")}>
+                {t("flows.repo.label")}
+                <select
+                  aria-label={`${t("flows.repo.label")} — ${repoName(r.path)}`}
+                  value={r.flowId ?? ""}
+                  onChange={(e) => void pickFlow(r.path, e.target.value)}
+                  className="h-7 min-w-0 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
+                >
+                  <option value="">{t("flows.picker.none")}</option>
+                  {flows.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {flowName(f)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </li>
         ))}
       </ul>

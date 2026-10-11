@@ -373,7 +373,7 @@ describe("RunCoordinator (ADR 0017)", () => {
     const roles = db.listTemplates();
     const id = (key: string) => roles.find((t) => t.key === key)!.id;
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
-    db.patchCard(a.id, { pipeline: [id("implementer"), id("reviewer")] });
+    db.patchCard(a.id, { pipelineId: db.createFlow({ name: "F", steps: [id("implementer"), id("reviewer")] }).id });
     db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
     const w = world(db, { report: "tests added" });
     w.coord.update(snap());
