@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.183.0] - 2026-10-11
+
+### Added
+
+- Flux (pipelines nommés) : `agent_flow`, `/api/flows`, flux par carte, phase et repo (défaut) ; trois livrés : code, doc, exploration (ADR 0032) (742216d)
+
+### Changed
+
+- Le pipeline d'une carte ou d'une phase n'est plus une liste d'ids mais la référence d'un flux (`pipelineId`) (742216d)
+
 ## [0.182.0] - 2026-10-11
 
 ### Added
