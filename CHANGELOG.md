@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.185.1] - 2026-10-11
+
+### Fixed
+
+- Copilote et lead : la requête complète est écrite dans un fichier et le panneau ne reçoit qu'une ligne courte ; un long prompt collé était pris pour du texte non écrit par toi, sans réponse (revue bloquée 5 min par requête) (eb4d702)
+
 ## [0.185.0] - 2026-10-11
 
 ### Changed
