@@ -307,6 +307,21 @@ tickets get `implementer`. A card's own agent kind wins over the template's; the
 kinds in `modelKinds` (today `claude`). Do not create or edit templates unasked — they are the user's roles, and
 `POST /api/templates/import` (a repo's `.claude/agents/*.md`) only ever *proposes*.
 
+### Pipelines (ADR 0031)
+
+A **pipeline** is an ordered list of template ids: the roles a card goes through, each a fresh agent on the same
+branch that is told what the one before reported. Set it on the phase (every card without its own) or on one card.
+
+```bash
+curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"pipeline":["<implementer id>","<reviewer id>"]}'   # null clears it
+curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"pipeline":["<template id>", …]}'                    # its own wins over the phase's
+```
+
+At most 6 steps, every id an existing template. Only a **launched lot** chains the steps; a card the user starts by
+hand stops after its first role. Put the default on the **phase**, not card by card: for code, `implementer` then
+`reviewer`; a `doc`, `fix` or `explore` card needs none. A card that names a single `templateId` keeps that one role.
+Like templates, a pipeline is the user's call to change once set — propose, do not rewrite it unasked.
+
 ### Gate and facts (ADR 0020) — read, don't set
 
 A repo may have a **gate**: a command the user set (build, tests, lint) that the board runs in a worker's checkout
