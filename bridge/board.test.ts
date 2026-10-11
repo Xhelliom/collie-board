@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -2082,6 +2082,7 @@ describe("Copilot.ensurePane — adoption", () => {
   function copilotWith(snap: EngineSnapshot, fail: Set<string> = new Set(), label = "board") {
     const calls: string[] = [];
     const named: string[] = [];
+    const typed: string[] = [];
     const herdr = {
       async createWorkspace(opts: { label: string }) {
         calls.push("createWorkspace");
@@ -2097,8 +2098,9 @@ describe("Copilot.ensurePane — adoption", () => {
       async getAgent() {
         return { interactive_ready: true, agent_status: "working" as AgentStatus };
       },
-      async promptAgent() {
+      async promptAgent(opts: { text: string }) {
         calls.push("promptAgent");
+        typed.push(opts.text);
       },
       async sendPaneKeys() {
         calls.push("sendPaneKeys");
@@ -2115,6 +2117,7 @@ describe("Copilot.ensurePane — adoption", () => {
     return {
       calls,
       named,
+      typed,
       copilot: new Copilot(herdr as never, cfg, WD, () => snap, {}, { timeoutMs: 30, pollMs: 10 }),
     };
   }
@@ -2127,6 +2130,30 @@ describe("Copilot.ensurePane — adoption", () => {
     expect(calls).not.toContain("createWorkspace");
     expect(calls).not.toContain("startAgent");
     expect(calls).toContain("promptAgent");
+  });
+
+  it("types the pane ONE short line and keeps the request itself in a file the line points to", async () => {
+    // A long pasted prompt was answered "you pasted a text again" and its answer file never written.
+    const { typed, copilot } = copilotWith(snapshot([pane("wOLD:p1", "idle", { cwd: WD })]));
+    let written: string | null = null;
+    const pending = copilot.ask((out) => `LONG REQUEST\nwrite ${out}`);
+    // The file exists while the copilot is working on it; read it before the request ends.
+    const dir = join(WD, ".board/prompts");
+    for (let i = 0; i < 20 && written === null; i++) {
+      await new Promise((r) => setTimeout(r, 2));
+      try {
+        const f = readdirSync(dir)[0];
+        if (f) written = readFileSync(join(dir, f), "utf8");
+      } catch {
+        /* not there yet */
+      }
+    }
+    await pending;
+    expect(typed).toHaveLength(1);
+    expect(typed[0]).not.toContain("\n");
+    expect(typed[0]).toMatch(/Read \.board\/prompts\/[0-9a-f]{8}\.md/);
+    expect(written).toContain("LONG REQUEST");
+    expect(readdirSync(dir)).toEqual([]); // cleaned once the request is over
   });
 
   it("relaunches into a leftover SHELL in its directory rather than stacking a workspace", async () => {

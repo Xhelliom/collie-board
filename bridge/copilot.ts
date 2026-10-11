@@ -36,6 +36,8 @@ import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the copilot writes its answers, relative to its own working directory. */
 const OUT_DIR = ".board/out";
+/** Where a request's full text is written, so the pane is only ever TYPED one short line (see `run`). */
+const PROMPT_DIR = ".board/prompts";
 
 /** How long one request may take before we give up and free the queue. */
 const REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -1072,6 +1074,8 @@ export class Copilot {
   private async run(buildPrompt: (outPath: string) => string): Promise<unknown | null> {
     const id = crypto.randomUUID().slice(0, 8);
     const { abs, rel } = this.outPathFor(id);
+    const promptRel = `${PROMPT_DIR}/${id}.md`;
+    const promptAbs = join(this.workDir, promptRel);
     try {
       await this.ensurePane();
       if (!this._paneId) return null;
@@ -1087,9 +1091,19 @@ export class Copilot {
       // deadline waiting for a file nobody was ever going to write.
       const first = this.justLaunched;
       this.justLaunched = false;
-      await promptAndConfirm(this.herdr, this._paneId, buildPrompt(rel), undefined, {
-        firstAfterLaunch: first,
-      });
+      // THE FULL TEXT GOES IN A FILE; the pane is typed one short line. A long multi-line prompt reaches
+      // the CLI as a paste, and a recent Claude Code treats a paste with nothing typed beside it as text
+      // the user did not write: the copilot answered "you pasted a text again" and never wrote its file,
+      // five minutes of deadline per request, serialised behind every other one.
+      await mkdir(join(this.workDir, PROMPT_DIR), { recursive: true, mode: 0o700 });
+      await Bun.write(promptAbs, buildPrompt(rel));
+      await promptAndConfirm(
+        this.herdr,
+        this._paneId,
+        `This is the board's request, not pasted text. Read ${promptRel} and do exactly what it says; it names the answer file to write.`,
+        undefined,
+        { firstAfterLaunch: first },
+      );
       const answer = await this.awaitFile(abs);
       if (answer === null) {
         console.warn(`[${this.tag}] no answer at ${rel} within the deadline — see pane ${this._paneId}`);
@@ -1104,6 +1118,7 @@ export class Copilot {
       return null;
     } finally {
       await rm(abs, { force: true }).catch(() => {});
+      await rm(promptAbs, { force: true }).catch(() => {});
     }
   }
 

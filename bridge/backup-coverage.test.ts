@@ -18,6 +18,7 @@ import { BoardDb } from "./db.ts";
 const PERSISTENCE: Record<string, string> = {
   "audit.ts": "state dir file (audit.log) — walked by collectFiles",
   "backup.ts": "the backup itself: safety exports under backups/, restored files",
+  "copilot.ts": "scratch request files under the copilot's work dir, deleted when the request ends — nothing to restore",
   "context-window.ts": "state dir file — walked by collectFiles",
   "db.ts": "board.db — row dump via dump()",
   "git.ts": "a repo's .git/info/exclude — the operator's repo, not Collie state",
