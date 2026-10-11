@@ -19,20 +19,25 @@ import { NotifyPrefsControl } from "@/components/notify-prefs-control";
 import { SnoozeControl } from "@/components/snooze-control";
 import { ThemeControl } from "@/components/theme-control";
 import { UpdateCheckControl } from "@/components/update-check-control";
-import { SectionLabel } from "@/components/ui/section-label";
 import { Switch } from "@/components/ui/switch";
 import { fetchConfig } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePushControl } from "@/hooks/use-push";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
 import type { PushAvailability } from "@/lib/push";
 
+const TABS = ["Display", "Notifications", "Agents", "System"] as const;
+type Tab = (typeof TABS)[number];
+
 // Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
 // Lives under the root route, so the snapshot polling/push-setup in RootLayout keeps running behind it.
 export function SettingsRoute() {
   const { state, busy, setEnabled } = usePushControl();
   const [error, setError] = useState<string | null>(null);
+  // One tab at a time: the page grew too long to scroll. Not remembered — it is a visit, not a mode.
+  const [tab, setTab] = useState<Tab>("Display");
 
   // Settings lives under the root route, so the live snapshot (bridge + device auth) is right here.
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
@@ -74,8 +79,27 @@ export function SettingsRoute() {
           reading width rather than stretching a switch 2000px away from its label. The cap is on
           the ROWS, not on <main>: capping the scroller put its scrollbar 700px in from the right
           edge of the window, which reads as a broken page rather than a narrow column. */}
+      <div role="tablist" aria-label="Settings sections" className="flex shrink-0 gap-1.5 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-5">
+        {TABS.map((name) => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            onClick={() => setTab(name)}
+            className={cn(
+              "shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              tab === name ? "border-foreground/50 bg-accent" : "bg-card/70 text-muted-foreground hover:border-foreground/25",
+            )}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
-        <SectionLabel className="mb-2 px-1 pt-2">Display</SectionLabel>
+        {tab === "Display" && (
+          <>
         <ThemeControl />
         <StatusLineControl />
 
@@ -94,7 +118,11 @@ export function SettingsRoute() {
           </Link>
         </Card>
 
-        <SectionLabel className="mb-2 px-1 pt-2">Notifications</SectionLabel>
+          </>
+        )}
+
+        {tab === "Notifications" && (
+          <>
         <Card className="gap-0 py-0">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -137,7 +165,11 @@ export function SettingsRoute() {
           </>
         )}
 
-        <SectionLabel className="mb-2 px-1 pt-2">Agents</SectionLabel>
+          </>
+        )}
+
+        {tab === "Agents" && (
+          <>
         <MaxAgentsControl />
         <FollowUpsControl />
         <AutoHandoffControl />
@@ -146,13 +178,19 @@ export function SettingsRoute() {
         <TemplatesControl />
         <FlowsControl />
 
-        <SectionLabel className="mb-2 px-1 pt-2">System</SectionLabel>
+          </>
+        )}
+
+        {tab === "System" && (
+          <>
         {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
         <UpdateCheckControl />
 
         <BackupControl device={root?.device} />
 
         <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
+          </>
+        )}
 
         {/* Update nudge + build stamp, grouped and pinned to the bottom of the page. */}
         <div className="mt-auto flex flex-col gap-2 pt-4">
