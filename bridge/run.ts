@@ -16,13 +16,14 @@ import { join } from "node:path";
 import type { AgentAdapter } from "./adapters.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
-import { isAutoHandoffPending, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
+import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { cardDiffSummary, currentBranch, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { advancePipeline, nextRole, pipelineOf } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
 
 /** How many times the lead may send a worker back before the card goes to the operator. */
@@ -71,6 +72,8 @@ export interface RunPorts {
   commits(card: Card): Promise<number | null>;
   /** The tail of the worker's pane: its last word, for the operator. */
   lastReply(paneId: string): Promise<string>;
+  /** ADR 0031: swap the card's session for a fresh agent in its next pipeline role. */
+  advance(card: Card, role: AgentTemplate, report: string | null): Promise<void>;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -80,6 +83,7 @@ export type Step =
   | { kind: "check" }
   | { kind: "recheck"; conflicts: string[] }
   | { kind: "triage"; sessionId: string }
+  | { kind: "advance"; role: AgentTemplate }
   | { kind: "pr" }
   | { kind: "land" }
   | { kind: "file" }
@@ -126,6 +130,8 @@ export function stepFor(
     reviewing: boolean;
     /** The copilot's review of the open session: there, failed, or still to come. */
     review: "done" | "failed" | "pending";
+    /** The next role of the card's pipeline (ADR 0031), or null on its last step. */
+    next?: AgentTemplate | null;
   },
 ): Step {
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
@@ -165,6 +171,8 @@ export function stepFor(
   if ((decision!.payload as { decision: string }).decision !== "finished") return null;
   // The conflict went to the worker; its next landing is a recheck, not this.
   if (after(resolve, decision)) return null;
+  // ADR 0031: the lead found this step finished; the next role takes the branch before it is reviewed and integrated.
+  if (ctx.next) return { kind: "advance", role: ctx.next };
 
   if (ctx.reviewing && !events.some((e) => e.type === "run.triaged" && isRun(e, run.id))) {
     if (ctx.review === "pending") return null;
@@ -244,6 +252,7 @@ export class RunCoordinator {
           gated: this.ports.gateCommand(card) !== null,
           reviewing: this.ports.reviewing(),
           review: reviews.length ? "done" : failed ? "failed" : "pending",
+          next: nextRole(pipelineOf(this.db, card), events),
         });
         if (!step) continue;
         const start = step.kind === "start";
@@ -306,6 +315,12 @@ export class RunCoordinator {
         }
         if (await this.haltEmpty(run, card, session, d.reason, true)) return;
         this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "finished", reason: d.reason });
+        return;
+      }
+      case "advance": {
+        const brief = await this.ports.brief(card);
+        const report = brief ? await this.ports.report(brief.worktree) : null;
+        await this.ports.advance(card, step.role, report);
         return;
       }
       case "triage":
@@ -514,6 +529,11 @@ export function runHook(
       return (await integrationOf(card.repoPath, card.branch, base))?.ahead ?? null;
     },
     lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
+    advance: async (card, role, report) => {
+      const session = db.openSessionFor(card.id);
+      if (!session) throw new Error("no open session to advance");
+      await advancePipeline(db, herdr, cfg, card, session, role, report, adapters);
+    },
   });
   return (snap) => {
     lead.observe(snap);

@@ -236,7 +236,7 @@ export interface Card {
 
 export type AutoHandoffChoice = "on" | "off";
 
-export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost";
+export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost" | "pipeline";
 
 export interface CardSession {
   id: string;

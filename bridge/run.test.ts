@@ -73,6 +73,13 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
     reviewing: () => opts.reviewing ?? false,
     commits: async () => commits,
     lastReply: async () => "bilan du worker",
+    advance: async (c, role, report) => {
+      calls.push(`advance ${c.title} ${role.key} ${report ?? "-"}`);
+      db.closeSession(db.openSessionFor(c.id)!.id, "pipeline");
+      db.openSession({ cardId: c.id, paneId: `p-${c.title}-${role.key}` });
+      db.recordEvent(c.id, "card.pipeline_step", { templateId: role.id });
+      db.setStatus(c.id, "working", "pipeline");
+    },
   };
   return {
     calls,
@@ -360,7 +367,53 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(w.calls.slice(-2)).toEqual(["pr a", "done a"]);
   });
 
-  describe("the PR's checks (ADR 0029)", () => {
+  describe("a card's pipeline (ADR 0031)", () => {
+  it("a finished step hands the branch to the next role before the PR; the last role's landing goes on to the PR", async () => {
+    const db = new BoardDb(":memory:");
+    const roles = db.listTemplates();
+    const id = (key: string) => roles.find((t) => t.key === key)!.id;
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.patchCard(a.id, { pipeline: [id("implementer"), id("reviewer")] });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { report: "tests added" });
+    w.coord.update(snap());
+    await flush();
+
+    land(db, a);
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("advance"))).toEqual(["advance a reviewer tests added"]);
+    expect(w.calls.some((c) => c.startsWith("pr "))).toBe(false);
+
+    // The reviewer lands: judged afresh, and with nothing after it the card goes to the PR.
+    land(db, a);
+    w.coord.update(snap({ "p-a-reviewer": "idle" }));
+    await flush();
+    w.coord.update(snap({ "p-a-reviewer": "idle" }));
+    await flush();
+    expect(w.calls.slice(-2)).toEqual(["pr a", "done a"]);
+    expect(w.calls.filter((c) => c.startsWith("advance"))).toHaveLength(1);
+  });
+
+  it("a card with no pipeline never advances", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    for (let i = 0; i < 2; i++) {
+      w.coord.update(snap({ "p-a": "idle" }));
+      await flush();
+    }
+    expect(w.calls.some((c) => c.startsWith("advance"))).toBe(false);
+  });
+});
+
+describe("the PR's checks (ADR 0029)", () => {
     const setup = (merge: object) => {
       const db = new BoardDb(":memory:");
       const a = db.createCard({ title: "a", repoPath: "/r" });
