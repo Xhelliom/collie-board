@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.181.0] - 2026-10-11
+
+### Added
+
+- Dans un run, une carte enchaîne les rôles de son pipeline : chaque rôle suivant démarre en session fraîche sur la même branche, avec le rapport du précédent (ADR 0031, étape 2) (c481a32)
+
 ## [0.180.0] - 2026-10-11
 
 ### Added
