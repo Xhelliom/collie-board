@@ -108,7 +108,7 @@ export function PhaseLots({
   const visible = groups.filter((g) => g.own.length > 0);
   return (
     <>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-5">
         {visible.map(({ pl, own }) => {
           const planned = pl.lot.launchedAt === null;
           const finished = pl.cards.length > 0 && pl.done === pl.cards.length;
@@ -117,9 +117,9 @@ export function PhaseLots({
             <section
               key={pl.lot.id}
               aria-label={t("lot.aria", { name: pl.lot.name ?? "" })}
-              className={cn("flex flex-col gap-2 rounded-2xl border p-2.5", planned ? "border-dashed" : "bg-card/30")}
+              className="flex flex-col gap-2"
             >
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-0.5 pt-1">
                 <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? t("run.lot")}</span>
                 <span
                   className={cn(
@@ -150,11 +150,11 @@ export function PhaseLots({
                 )}
               </div>
               {!planned && (
-                <div className="mx-1 h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
+                <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
                   <i className="block h-full bg-status-done transition-[width] duration-700" style={{ width: `${pct}%` }} />
                 </div>
               )}
-              <ul className="ml-2 flex flex-col gap-2 border-l-2 pl-3">{own.map((c) => renderStep(c, true))}</ul>
+              <ul className="flex flex-col gap-2">{own.map((c) => renderStep(c, true))}</ul>
             </section>
           );
         })}

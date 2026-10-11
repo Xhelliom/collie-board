@@ -127,7 +127,7 @@ describe("ProjectRoute", () => {
       items: [{ id: "1", name: "Scale", goal: "72 players", status: "active", detail: "" }],
     };
     mount([card({ id: "x" })], { roadmap });
-    expect(await screen.findByText("Scale")).toBeTruthy();
+    await userEvent.click(await screen.findByRole("button", { name: /go to Scale/i }));
     expect(screen.getByRole("button", { name: /copy the detailed roadmap/i })).toBeTruthy();
   });
 
@@ -202,7 +202,8 @@ describe("ProjectRoute", () => {
       ],
     };
     mount([card({ id: "a" })], { roadmap });
-    // The active phase is open by itself; the planned one stays folded.
+    // Folded by default; the quick link opens the roadmap and the first unfinished phase.
+    await userEvent.click(await screen.findByRole("button", { name: /go to Cadrage/i }));
     expect(await screen.findByText("La démo : le plan est validé.")).toBeInTheDocument();
     expect(screen.queryByText("Un portail traversé.")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /Prototype/ }));
@@ -226,6 +227,7 @@ describe("ProjectRoute", () => {
       }),
     );
     mount([card({ id: "a" })], { roadmap: { repoPath: "/r/app", vision: "", revision: 1, items: [], decisions: [] } });
+    await userEvent.click(await screen.findByRole("button", { name: /^roadmap/i }));
     await userEvent.click(await screen.findByRole("button", { name: /copy the detailed roadmap/i }));
     await userEvent.click(screen.getByRole("button", { name: /copy the step by step/i }));
     await waitFor(() => expect(written).toEqual(["# Roadmap", "# Étape par étape"]));

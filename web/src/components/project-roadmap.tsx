@@ -31,7 +31,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
   const t = useT();
   const body = `roadmap-${item.id}`;
   return (
-    <li className="rounded-xl border bg-background/40">
+    <li id={`phase-${item.id}`} className="scroll-mt-4 rounded-xl border bg-background/40">
       <button
         type="button"
         onClick={onToggle}
@@ -77,7 +77,8 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
 
 export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadmap | null }) {
   const t = useT();
-  const [open, setOpen] = useState(true);
+  // Folded by default: the page is read to reach one phase, not to scroll past the whole document.
+  const [open, setOpen] = useState(!roadmap);
   // The active phase opens by itself — that is where the brainstorm is; the rest stay folded.
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set((roadmap?.items ?? []).filter((i) => i.status === "active").map((i) => i.id)));
   const items = roadmap?.items ?? [];
@@ -88,6 +89,15 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
       if (!next.delete(id)) next.add(id);
       return next;
     });
+
+  // One click to the first phase not finished: unfold, open it, bring it into view.
+  const current = items.find((i) => i.status === "active" || i.status === "planned");
+  function goCurrent() {
+    if (!current) return;
+    setOpen(true);
+    setOpenIds((prev) => new Set(prev).add(current.id));
+    requestAnimationFrame(() => document.getElementById(`phase-${current.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
 
   async function copy(format: "md" | "steps") {
     try {
@@ -109,7 +119,13 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
           {items.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>}
           <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
         </button>
-        {roadmap && (
+        {current && !open && (
+          <button type="button" onClick={goCurrent} className={cn(copyButton, "max-w-full")}>
+            <span className={cn("size-2 shrink-0 rounded-full", DOT[current.status])} />
+            <span className="truncate">{t("roadmap.goCurrent", { name: current.name })}</span>
+          </button>
+        )}
+        {roadmap && open && (
           <>
             <button type="button" onClick={() => void copy("md")} className={copyButton}>
               <Copy className="size-3.5" />

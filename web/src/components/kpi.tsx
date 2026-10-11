@@ -23,14 +23,14 @@ export function useCountUp(to: number): number {
   return v;
 }
 
-export function Kpi({ label, value, note, tone }: { label: string; value: number; note?: string; tone: string }) {
+export function Kpi({ label, value, note, tone, compact }: { label: string; value: number; note?: string; tone: string; compact?: boolean }) {
   const shown = useCountUp(value);
   return (
-    <div className="relative overflow-hidden rounded-xl border bg-card/70 p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25">
+    <div className={cn("relative overflow-hidden rounded-xl border bg-card/70 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25", compact ? "p-2.5" : "p-3.5")}>
       <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
-      <div className="mt-1.5 text-3xl font-semibold leading-none tabular-nums">{shown}</div>
-      {note && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
+      <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-[10px] tracking-[0.08em]" : "text-[11px] tracking-[0.14em]")}>{label}</span>
+      <div className={cn("mt-1.5 font-semibold leading-none tabular-nums", compact ? "text-2xl" : "text-3xl")}>{shown}</div>
+      {note && !compact && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
     </div>
   );
 }

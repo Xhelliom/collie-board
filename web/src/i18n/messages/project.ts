@@ -166,6 +166,7 @@ export const project = defineMessages({
     en: "No detail yet — the orchestrator writes the objective, the end-of-phase demo, the risk and the why here.",
     fr: "Pas encore de détail — l'orchestrateur y écrit l'objectif, la démo de fin de phase, le risque et le pourquoi.",
   },
+  "roadmap.goCurrent": { en: "Go to {name}", fr: "Aller à {name}" },
   "roadmap.phaseDecisions": { en: "Decisions of this phase", fr: "Décisions de cette phase" },
   "roadmap.copyDetailed": { en: "Copy the detailed roadmap", fr: "Copier la roadmap détaillée" },
   "roadmap.copySteps": { en: "Copy the step by step", fr: "Copier l'étape par étape" },

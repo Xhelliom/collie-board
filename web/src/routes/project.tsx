@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
-import { MessagesSquare } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
@@ -230,11 +230,11 @@ export function ProjectRoute() {
                 <Ring done={v.done} active={v.active} total={v.total} />
               </header>
 
-              <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-                <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" />
-                <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" />
-                <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" />
-                <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" />
+              <div className="grid grid-cols-4 gap-2">
+                <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
+                <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
+                <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
+                <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
               </div>
 
               {/* The way to tidy an old project, on the page itself: the finished steps that sit in no validated phase
@@ -311,8 +311,8 @@ export function ProjectRoute() {
                 ))}
               </nav>
 
-              <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
-                <div role="group" aria-label={t("project.filter.aria")} className="flex flex-wrap gap-1.5">
+              <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
+                <div role="group" aria-label={t("project.filter.aria")} className="flex min-w-0 gap-1.5 overflow-x-auto [scrollbar-width:none]">
                   {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
                     <button
                       key={f.id}
@@ -320,7 +320,7 @@ export function ProjectRoute() {
                       aria-pressed={filter === f.id}
                       onClick={() => pick(f.id)}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
+                        "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
                         filter === f.id ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
                       )}
                     >
@@ -335,9 +335,11 @@ export function ProjectRoute() {
                   onClick={() =>
                     setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)))
                   }
-                  className="rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
+                  aria-label={allOpen ? t("project.foldAll") : t("project.openAll")}
+                  title={allOpen ? t("project.foldAll") : t("project.openAll")}
+                  className="shrink-0 rounded-full border bg-card/70 p-2 hover:border-foreground/25"
                 >
-                  {allOpen ? t("project.foldAll") : t("project.openAll")}
+                  {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
                 </button>
               </div>
 
