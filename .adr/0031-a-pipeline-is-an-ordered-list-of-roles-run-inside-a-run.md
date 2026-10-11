@@ -28,10 +28,12 @@ runtime state.
 **A step that finds a problem stops and tells the operator.** No automatic `implementer ↔ reviewer`
 loop in this decision.
 
-**A machine failure goes back to the first role.** A red gate or a red CI check on a card past its first
-step is sent to the FIRST role, in a fresh session, with the failure; the card is then on step 0 again,
-so its next landing is judged and handed on to the later roles afresh. The lead's own send-backs about
-a step's work stay with that step.
+**A send-back about the code goes back to the first role.** A red gate, a red CI check, or the lead's own
+correction on a card past its first step is sent to the FIRST role, in a fresh session, with the
+message; the card is then on step 0 again, so its next landing is judged and handed on to the later
+roles afresh. (Live, a reviewer's findings came back from the lead as code fixes three times in five
+cards, and the reviewer was the one made to apply them.) Asking for a missing bilan stays with the
+session that owes it.
 
 ## What this rules out
 

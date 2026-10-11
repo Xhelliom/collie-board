@@ -438,6 +438,31 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(w.calls.filter((c) => c.startsWith("advance"))).toHaveLength(2);
   });
 
+  it("the lead's correction after the reviewer took over goes to the FIRST role too", async () => {
+    const db = new BoardDb(":memory:");
+    const roles = db.listTemplates();
+    const id = (key: string) => roles.find((t) => t.key === key)!.id;
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.patchCard(a.id, { pipelineId: db.createFlow({ name: "F", steps: [id("implementer"), id("reviewer")] }).id });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    const tick = async (pane: string) => {
+      for (let i = 0; i < 3; i++) {
+        w.coord.update(snap({ [pane]: "idle" }));
+        await flush();
+      }
+    };
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    await tick("p-a"); // finished → the reviewer takes the branch
+    w.checks.push({ decision: "prompt", prompt: "fix the race in eat", reason: "the review found a defect" });
+    land(db, a);
+    await tick("p-a-reviewer");
+    expect(w.calls.some((c) => c === "sendBack a fix the race in eat")).toBe(true);
+    expect(w.calls.some((c) => c.startsWith("prompt p-a-reviewer"))).toBe(false);
+  });
+
   it("a red gate on the first role still goes to its own session", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });

@@ -311,7 +311,7 @@ export class RunCoordinator {
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
         if (d.decision === "prompt") {
-          await this.ports.prompt(session!.paneId!, d.prompt);
+          await this.sendFailure(card, session!, d.prompt);
           this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "prompt", prompt: d.prompt, reason: d.reason });
           return;
         }
@@ -458,8 +458,9 @@ export class RunCoordinator {
   }
 
   /**
-   * A machine failure (red gate, red CI) goes to whoever wrote the code: the card's session while it is
-   * on its first role, the FIRST role again once a later one (the reviewer) has taken over (ADR 0031).
+   * A send-back about the code (red gate, red CI, the lead's own correction) goes to whoever wrote it: the
+   * card's session while it is on its first role, the FIRST role again once a later one (the reviewer)
+   * has taken over (ADR 0031). Asking for a missing bilan stays with the session that owes it.
    */
   private async sendFailure(card: Card, session: CardSession, failure: string): Promise<void> {
     if (currentStep(this.db.listEvents(card.id, 200)) > 0) await this.ports.sendBack(card, failure);
