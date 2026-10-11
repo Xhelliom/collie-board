@@ -14,6 +14,8 @@ export interface AgentTemplate {
   model: string | null;
   brief: string;
   builtin: boolean;
+  /** Writes the code (ADR 0031): fixes asked by a later step, a red check or the lead come back to this role. */
+  worker: boolean;
 }
 
 export interface TemplatesData {
@@ -28,6 +30,7 @@ export interface TemplateFields {
   agentKind?: string | null;
   model?: string | null;
   brief?: string;
+  worker?: boolean;
 }
 
 export interface TemplateDraft {

@@ -27,6 +27,7 @@ const tpl = (o: Partial<AgentTemplate> & { id: string }): AgentTemplate => ({
   agentKind: null,
   model: null,
   brief: "BRIEF",
+  worker: false,
   builtin: false,
   createdAt: 0,
   updatedAt: 0,

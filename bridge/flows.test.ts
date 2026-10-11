@@ -1,4 +1,8 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { BoardDb, type AgentFlow, type AgentTemplate } from "./db.ts";
 import { parseFlowBody, PIPELINE_MAX, resolvePipeline } from "./flows.ts";
@@ -42,6 +46,30 @@ describe("parseFlowBody", () => {
     expect(parseFlowBody({ name: "x", steps: Array(PIPELINE_MAX + 1).fill("a") }, true, known).ok).toBe(false);
     expect(parseFlowBody({ name: "x", steps: ["nope"] }, true, known).ok).toBe(false);
     expect(parseFlowBody({ description: "d" }, false, known)).toEqual({ ok: true, value: { description: "d" } });
+  });
+});
+
+describe("the worker flag (ADR 0031)", () => {
+  it("marks the shipped worker roles when it migrates an older database, and only then", () => {
+    const dir = mkdtempSync(join(tmpdir(), "flows-worker-"));
+    const file = join(dir, "board.db");
+    const flags = (db: BoardDb) => Object.fromEntries(db.listTemplates().map((t) => [t.key, t.worker]));
+    const first = new BoardDb(file);
+    expect(flags(first)).toEqual({ implementer: true, reviewer: false, doc: true, explore: false, fix: true });
+    first.close();
+
+    // A database from before the column: drop it, then reopen.
+    const raw = new Database(file);
+    raw.exec("ALTER TABLE agent_template DROP COLUMN worker");
+    raw.close();
+    const migrated = new BoardDb(file);
+    expect(flags(migrated)).toEqual({ implementer: true, reviewer: false, doc: true, explore: false, fix: true });
+
+    // After that it is the operator's: unticking a shipped role survives a restart.
+    const implementer = migrated.listTemplates().find((t) => t.key === "implementer")!;
+    migrated.updateTemplate(implementer.id, { worker: false });
+    migrated.close();
+    expect(flags(new BoardDb(file)).implementer).toBe(false);
   });
 });
 

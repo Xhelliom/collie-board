@@ -37,6 +37,12 @@ export const templates = defineMessages({
     en: "Finds the root cause, proves it with a failing test, fixes it where all callers route through.",
     fr: "Trouve la cause racine, la prouve par un test qui échoue, corrige là où tous les appelants passent.",
   },
+  "templates.worker.label": { en: "Writes the code", fr: "Écrit le code" },
+  "templates.worker.badge": { en: "Writes the code", fr: "Écrit le code" },
+  "templates.worker.hint": {
+    en: "Writes the code — fixes asked by a later step, a red check or the lead come back to this role.",
+    fr: "Écrit le code — les corrections demandées par une étape suivante, un check rouge ou le lead reviennent à ce rôle.",
+  },
   "templates.shipped": { en: "Shipped", fr: "Fourni" },
   "templates.new": { en: "New template", fr: "Nouveau template" },
   "templates.import": { en: "Import from a repo", fr: "Importer depuis un dépôt" },

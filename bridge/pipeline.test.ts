@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { currentStep, nextRole, pipelineOf, sendBackPrompt, stepPrompt } from "./pipeline.ts";
+import { currentStep, nextRole, pipelineOf, sendBackPrompt, stepPrompt, workerStep } from "./pipeline.ts";
 
 describe("pipeline (ADR 0031)", () => {
   it("the next role is read from the journal: one card.pipeline_step per step already taken", () => {
@@ -19,6 +19,22 @@ describe("pipeline (ADR 0031)", () => {
     db.recordEvent(card.id, "card.pipeline_step", { index: 0 });
     expect(currentStep(db.listEvents(card.id))).toBe(0);
     expect(nextRole(pipeline, db.listEvents(card.id))?.key).toBe("reviewer");
+  });
+
+  it("a send-back goes to the nearest worker role at or before the current step", () => {
+    const db = new BoardDb(":memory:");
+    const t = (key: string) => db.listTemplates().find((x) => x.key === key)!;
+    const [explore, impl, reviewer, fix] = [t("explore"), t("implementer"), t("reviewer"), t("fix")];
+    expect([explore, impl, reviewer].map((x) => x.worker)).toEqual([false, true, false]);
+    // explore → implementer → reviewer: a failure on the reviewer goes to the implementer, not the explorer.
+    expect(workerStep([explore, impl, reviewer], 2)).toBe(1);
+    expect(workerStep([explore, impl, reviewer], 1)).toBe(1); // already on the worker
+    // implementer → reviewer → fix: before `fix` it is the implementer's, after it is `fix`'s.
+    expect(workerStep([impl, reviewer, fix], 1)).toBe(0);
+    expect(workerStep([impl, reviewer, fix], 2)).toBe(2);
+    // No worker at or before the step: nothing to send it back to.
+    expect(workerStep([explore, reviewer], 1)).toBeNull();
+    expect(workerStep([reviewer, impl], 0)).toBeNull();
   });
 
   it("a send-back tells the first role its work is in the branch and what failed", () => {

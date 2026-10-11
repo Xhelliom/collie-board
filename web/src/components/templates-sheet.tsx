@@ -3,6 +3,7 @@ import { ChevronLeft, FileDown, Plus, Sparkles } from "lucide-react";
 
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
 import { boardErrorMessage, fetchRepos, repoName, type RepoChoice } from "@/lib/board";
@@ -97,6 +98,7 @@ function List({ data, onView, onChanged }: { data: TemplatesData; onView: (v: Vi
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 text-sm font-semibold">{templateName(tpl)}</span>
               {tpl.builtin && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.shipped")}</span>}
+              {tpl.worker && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.worker.badge")}</span>}
               <span className="font-mono text-[11px] text-muted-foreground">
                 {tpl.agentKind ?? t("templates.agentDefault")}
                 {tpl.model ? ` · ${tpl.model}` : ""}
@@ -159,6 +161,7 @@ function Editor({
   const [agentKind, setAgentKind] = useState<string | null>(template?.agentKind ?? null);
   const [model, setModel] = useState(template?.model ?? "");
   const [brief, setBrief] = useState(template?.brief ?? "");
+  const [worker, setWorker] = useState(template?.worker ?? false);
   const [ask, setAsk] = useState("");
   const [busy, setBusy] = useState<"draft" | "save" | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -190,7 +193,7 @@ function Editor({
   async function save() {
     setBusy("save");
     try {
-      const fields = { description: description.trim(), agentKind, model: model.trim() || null, brief: brief.trim() };
+      const fields = { description: description.trim(), agentKind, model: model.trim() || null, brief: brief.trim(), worker };
       if (template) await patchTemplate(template.id, shipped ? fields : { ...fields, name: name.trim() });
       else await createTemplate({ ...fields, name: name.trim() });
       setStatus(t("templates.saved"), "success");
@@ -268,6 +271,13 @@ function Editor({
         />
         <span className="px-1 text-xs text-muted-foreground">{t("templates.briefHint")}</span>
       </label>
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0 text-xs text-muted-foreground">
+          <span className="block text-sm font-medium text-foreground">{t("templates.worker.label")}</span>
+          {t("templates.worker.hint")}
+        </span>
+        <Switch checked={worker} onCheckedChange={setWorker} aria-label={t("templates.worker.label")} />
+      </div>
       <Button variant="brand" className="w-full" disabled={!canSave} onClick={() => void save()}>
         {busy === "save" ? t("templates.saving") : t("templates.save")}
       </Button>

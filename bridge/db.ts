@@ -445,6 +445,8 @@ export interface AgentTemplate {
   /** One model word, or null; reaches the CLI only for a kind with a verified `modelFlag`. */
   model: string | null;
   brief: string;
+  /** This role writes the code: corrections asked of a card go back to the nearest one (ADR 0031). */
+  worker: boolean;
   builtin: boolean;
   createdAt: number;
   updatedAt: number;
@@ -458,6 +460,7 @@ interface TemplateRow {
   agent_kind: string | null;
   model: string | null;
   brief: string;
+  worker: number;
   builtin: number;
   created_at: number;
   updated_at: number;
@@ -472,6 +475,7 @@ function toTemplate(r: TemplateRow): AgentTemplate {
     agentKind: r.agent_kind ?? null,
     model: r.model ?? null,
     brief: r.brief,
+    worker: r.worker === 1,
     builtin: r.builtin === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -959,6 +963,8 @@ CREATE TABLE IF NOT EXISTS agent_template (
   agent_kind  TEXT,
   model       TEXT,
   brief       TEXT NOT NULL,
+  -- ADR 0031: this role writes the code, so a send-back goes to it.
+  worker      INTEGER NOT NULL DEFAULT 0,
   builtin     INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
@@ -1294,6 +1300,12 @@ export class BoardDb {
       .query<{ name: string }, []>("PRAGMA table_info(run)")
       .all()
       .some((c) => c.name === "launched_at");
+    // ADR 0031: the shipped worker roles are marked ONLY on the migration that adds the column — after
+    // it, `worker` is the operator's to change and a shipped template they unticked stays unticked.
+    const hadWorker = this.db
+      .query<{ name: string }, []>("PRAGMA table_info(agent_template)")
+      .all()
+      .some((c) => c.name === "worker");
     const additions: { table: string; column: string; ddl: string }[] = [
       // 0.22: the handoff is asynchronous (the agent has to finish writing the file first), so the
       // request has to survive a bridge restart — a board whose whole point is durable memory can't
@@ -1349,6 +1361,7 @@ export class BoardDb {
       { table: "card", column: "pipeline_id", ddl: "TEXT" },
       { table: "phase", column: "pipeline_id", ddl: "TEXT" },
       { table: "repo_pref", column: "flow_id", ddl: "TEXT" },
+      { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1356,6 +1369,10 @@ export class BoardDb {
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
     if (!hadLaunchedAt) this.db.exec("UPDATE run SET launched_at = created_at WHERE launched_at IS NULL");
+    if (!hadWorker) {
+      const keys = BUILTIN_TEMPLATES.filter((t) => t.worker).map((t) => t.key);
+      this.db.query(`UPDATE agent_template SET worker = 1 WHERE key IN (${keys.map(() => "?").join(",")})`).run(...keys);
+    }
     this.seedTemplates();
     this.seedFlows();
   }
@@ -1368,10 +1385,10 @@ export class BoardDb {
       if (has.get(t.key!)!.n > 0) continue;
       this.db
         .query(
-          `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, builtin, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, worker, builtin, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
         )
-        .run(crypto.randomUUID(), t.key, t.name, t.description, t.agentKind, t.model, t.brief, ts, ts);
+        .run(crypto.randomUUID(), t.key, t.name, t.description, t.agentKind, t.model, t.brief, t.worker ? 1 : 0, ts, ts);
     }
   }
 
@@ -2028,21 +2045,21 @@ export class BoardDb {
     return r ? toTemplate(r) : null;
   }
 
-  createTemplate(input: { name: string; description?: string; agentKind?: string | null; model?: string | null; brief: string }): AgentTemplate {
+  createTemplate(input: { name: string; description?: string; agentKind?: string | null; model?: string | null; brief: string; worker?: boolean }): AgentTemplate {
     const id = crypto.randomUUID();
     const ts = this.now();
     this.db
       .query(
-        `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, builtin, created_at, updated_at)
-         VALUES (?, NULL, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        `INSERT INTO agent_template (id, key, name, description, agent_kind, model, brief, worker, builtin, created_at, updated_at)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
       )
-      .run(id, input.name, input.description ?? "", input.agentKind ?? null, input.model ?? null, input.brief, ts, ts);
+      .run(id, input.name, input.description ?? "", input.agentKind ?? null, input.model ?? null, input.brief, input.worker ? 1 : 0, ts, ts);
     return this.getTemplate(id)!;
   }
 
   updateTemplate(
     id: string,
-    patch: { name?: string; description?: string; agentKind?: string | null; model?: string | null; brief?: string },
+    patch: { name?: string; description?: string; agentKind?: string | null; model?: string | null; brief?: string; worker?: boolean },
   ): AgentTemplate | null {
     if (!this.getTemplate(id)) return null;
     const cols: [string, string | null | number][] = [];
@@ -2051,6 +2068,7 @@ export class BoardDb {
     if (patch.agentKind !== undefined) cols.push(["agent_kind", patch.agentKind]);
     if (patch.model !== undefined) cols.push(["model", patch.model]);
     if (patch.brief !== undefined) cols.push(["brief", patch.brief]);
+    if (patch.worker !== undefined) cols.push(["worker", patch.worker ? 1 : 0]);
     cols.push(["updated_at", this.now()]);
     // Column names come from the literals above, never from the caller.
     this.db.query(`UPDATE agent_template SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);
@@ -2135,6 +2153,7 @@ export class BoardDb {
       agentKind: shipped.agentKind,
       model: shipped.model,
       brief: shipped.brief,
+      worker: shipped.worker,
     });
   }
 

@@ -17,6 +17,7 @@ const tpl = (o: Partial<AgentTemplate> & { id: string }): AgentTemplate => ({
   model: null,
   brief: "BRIEF",
   builtin: false,
+  worker: false,
   ...o,
 });
 const DATA: TemplatesData = {
@@ -69,7 +70,24 @@ describe("TemplatesControl", () => {
     await userEvent.clear(screen.getByLabelText("Model"));
     await userEvent.type(screen.getByLabelText("Model"), "opus");
     await userEvent.click(save);
-    await waitFor(() => expect(body).toEqual({ description: "", agentKind: null, model: "opus", brief: "Look at auth.", name: "Sec" }));
+    await waitFor(() => expect(body).toEqual({ description: "", agentKind: null, model: "opus", brief: "Look at auth.", worker: false, name: "Sec" }));
+  });
+
+  it("marks a role as the one that writes the code: the switch is sent on update, the badge shows in the list", async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.patch("*/api/templates/t2", async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ template: tpl({ id: "t2", worker: true }) });
+      }),
+    );
+    await openSheet();
+    expect(screen.queryByText("Writes the code")).toBeNull(); // no template is a worker yet
+    const row = (await screen.findByText("Auth reviewer")).closest("li")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    await userEvent.click(await screen.findByRole("switch", { name: "Writes the code" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(body).toMatchObject({ worker: true }));
   });
 
   it("the copilot's draft fills the form and saves nothing", async () => {

@@ -30,7 +30,16 @@ export function nextRole(pipeline: readonly AgentTemplate[], events: readonly Bo
   return pipeline[currentStep(events) + 1] ?? null;
 }
 
-/** What the first role is told when a machine failure (red gate, red CI) comes back to it: the card, then the failure. Pure. */
+/**
+ * The step a send-back goes to: the nearest `worker` role at or before the step the card is on, or null
+ * when there is none (the message then stays with the current session). Pure.
+ */
+export function workerStep(pipeline: readonly AgentTemplate[], current: number): number | null {
+  for (let i = Math.min(current, pipeline.length - 1); i >= 0; i--) if (pipeline[i]!.worker) return i;
+  return null;
+}
+
+/** What a worker role is told when a send-back comes back to it: the card, then the failure. Pure. */
 export function sendBackPrompt(role: AgentTemplate, card: Card, failure: string): string {
   return composePrompt(
     role.brief,
@@ -108,20 +117,21 @@ export async function advancePipeline(
 }
 
 /**
- * A machine failure (red gate, red CI) belongs to whoever wrote the code: back to the FIRST role, in a
- * fresh session, with the failure. The card is then on step 0 again, so its next landing is judged and
- * handed on to the second role afresh.
+ * A send-back about the code (red gate, red CI, the lead's correction) belongs to whoever writes it:
+ * back to the worker role at `index`, in a fresh session, with the failure. The card is then on that
+ * step again, so its next landing is judged and handed on to the later roles afresh.
  */
-export async function sendBackToFirst(
+export async function sendBackToWorker(
   db: BoardDb,
   herdr: HerdrClient,
   cfg: Config,
   card: Card,
   session: CardSession,
+  index: number,
   failure: string,
   adapters?: Record<string, AgentAdapter>,
 ): Promise<void> {
-  const first = pipelineOf(db, card)[0];
-  if (!first) throw new Error("the card has no pipeline");
-  await swapRole(db, herdr, cfg, card, session, first, 0, sendBackPrompt(first, card, failure), adapters);
+  const role = pipelineOf(db, card)[index];
+  if (!role) throw new Error("the card has no such pipeline step");
+  await swapRole(db, herdr, cfg, card, session, role, index, sendBackPrompt(role, card, failure), adapters);
 }

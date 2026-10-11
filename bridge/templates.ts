@@ -23,7 +23,7 @@ export const isKind = (v: unknown): v is string => typeof v === "string" && KIND
 
 // ── the shipped templates ──────────────────────────────────────────────────────
 
-type Builtin = Pick<AgentTemplate, "key" | "name" | "description" | "agentKind" | "model" | "brief">;
+type Builtin = Pick<AgentTemplate, "key" | "name" | "description" | "agentKind" | "model" | "brief" | "worker">;
 
 const LANG = "Answer and write your report in the language of the card.";
 
@@ -34,6 +34,7 @@ const LANG = "Answer and write your report in the language of the card.";
 export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   {
     key: "implementer",
+    worker: true,
     name: "Implementer",
     description: "Implements exactly one ticket, tests first, until the checks are green.",
     agentKind: null,
@@ -58,6 +59,7 @@ export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   },
   {
     key: "reviewer",
+    worker: false,
     name: "Reviewer",
     description: "Read-only review of a diff: APPROVE or CHANGES with a short, actionable list.",
     agentKind: null,
@@ -77,6 +79,7 @@ export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   },
   {
     key: "doc",
+    worker: true,
     name: "Documentation",
     description: "Touches documentation only: no code, no tests, no config.",
     agentKind: null,
@@ -91,6 +94,7 @@ export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   },
   {
     key: "explore",
+    worker: false,
     name: "Exploration",
     description: "Brainstorm or investigation: delivers a written conclusion and the cards it proposes.",
     agentKind: null,
@@ -106,6 +110,7 @@ export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   },
   {
     key: "fix",
+    worker: true,
     name: "Bug fix",
     description: "Finds the root cause, proves it with a failing test, fixes it where all callers route through.",
     agentKind: null,

@@ -81,11 +81,11 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
       db.recordEvent(c.id, "card.pipeline_step", { templateId: role.id, index: currentStep(db.listEvents(c.id, 200)) + 1 });
       db.setStatus(c.id, "working", "pipeline");
     },
-    sendBack: async (c, failure) => {
+    sendBack: async (c, failure, index) => {
       calls.push(`sendBack ${c.title} ${failure}`);
       db.closeSession(db.openSessionFor(c.id)!.id, "pipeline");
       db.openSession({ cardId: c.id, paneId: `p-${c.title}-first` });
-      db.recordEvent(c.id, "card.pipeline_step", { templateId: "first", index: 0 });
+      db.recordEvent(c.id, "card.pipeline_step", { templateId: "first", index });
       db.setStatus(c.id, "working", "pipeline");
     },
   };
@@ -461,6 +461,34 @@ describe("RunCoordinator (ADR 0017)", () => {
     await tick("p-a-reviewer");
     expect(w.calls.some((c) => c === "sendBack a fix the race in eat")).toBe(true);
     expect(w.calls.some((c) => c.startsWith("prompt p-a-reviewer"))).toBe(false);
+  });
+
+  it("with a non-worker first role, a send-back goes to the worker, not to the first step", async () => {
+    const db = new BoardDb(":memory:");
+    const roles = db.listTemplates();
+    const id = (key: string) => roles.find((t) => t.key === key)!.id;
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.patchCard(a.id, { pipelineId: db.createFlow({ name: "F", steps: [id("explore"), id("implementer"), id("reviewer")] }).id });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db);
+    const tick = async (pane: string) => {
+      for (let i = 0; i < 3; i++) {
+        w.coord.update(snap({ [pane]: "idle" }));
+        await flush();
+      }
+    };
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    await tick("p-a"); // explore finished → implementer
+    land(db, a);
+    await tick("p-a-implementer"); // implementer finished → reviewer
+    w.checks.push({ decision: "prompt", prompt: "fix it", reason: "the review found a defect" });
+    land(db, a);
+    await tick("p-a-reviewer");
+    const back = db.listEvents(a.id).find((e) => e.type === "card.pipeline_step")!;
+    expect(w.calls).toContain("sendBack a fix it");
+    expect((back.payload as { index: number }).index).toBe(1); // the implementer, step 1 — not the explorer, step 0
   });
 
   it("a red gate on the first role still goes to its own session", async () => {

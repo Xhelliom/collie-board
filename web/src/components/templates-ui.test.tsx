@@ -13,7 +13,7 @@ import { templateFor, type AgentTemplate, type TemplatesData } from "@/lib/templ
 import { server } from "@/test/setup";
 
 const tpl = (o: Partial<AgentTemplate> & { id: string }): AgentTemplate => ({
-  key: null, name: o.id, description: "", agentKind: null, model: null, brief: "B", builtin: false, ...o,
+  key: null, name: o.id, description: "", agentKind: null, model: null, brief: "B", builtin: false, worker: false, ...o,
 });
 const DATA: TemplatesData = {
   templates: [

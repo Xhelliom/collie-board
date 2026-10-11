@@ -28,12 +28,15 @@ runtime state.
 **A step that finds a problem stops and tells the operator.** No automatic `implementer ↔ reviewer`
 loop in this decision.
 
-**A send-back about the code goes back to the first role.** A red gate, a red CI check, or the lead's own
-correction on a card past its first step is sent to the FIRST role, in a fresh session, with the
-message; the card is then on step 0 again, so its next landing is judged and handed on to the later
-roles afresh. (Live, a reviewer's findings came back from the lead as code fixes three times in five
-cards, and the reviewer was the one made to apply them.) Asking for a missing bilan stays with the
-session that owes it.
+**A send-back about the code goes back to a worker role.** A template carries `worker`: this role writes
+the code (shipped: `implementer`, `fix`, `doc`). A red gate, a red CI check, or the lead's own correction
+on a card past that role is sent to the NEAREST worker at or before the step the card is on, in a fresh
+session, with the message; the card is then on that step again, so its next landing is judged and handed
+on to the later roles afresh. A pipeline whose first role is no worker (`explore → implementer →
+reviewer`) sends back to the implementer; a pipeline with no worker leaves the message with the current
+session. (Live, a reviewer's findings came back from the lead as code fixes three times in five cards,
+and the reviewer was the one made to apply them.) Asking for a missing bilan stays with the session that
+owes it.
 
 ## What this rules out
 

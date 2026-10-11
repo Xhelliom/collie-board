@@ -23,7 +23,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToFirst } from "./pipeline.ts";
+import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
 
 /** How many times the lead may send a worker back before the card goes to the operator. */
@@ -74,8 +74,8 @@ export interface RunPorts {
   lastReply(paneId: string): Promise<string>;
   /** ADR 0031: swap the card's session for a fresh agent in its next pipeline role. */
   advance(card: Card, role: AgentTemplate, report: string | null): Promise<void>;
-  /** ADR 0031: a machine failure goes back to the card's FIRST role, in a fresh session. */
-  sendBack(card: Card, failure: string): Promise<void>;
+  /** ADR 0031: a send-back about the code goes back to the worker role at `index`, in a fresh session. */
+  sendBack(card: Card, failure: string, index: number): Promise<void>;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -459,11 +459,14 @@ export class RunCoordinator {
 
   /**
    * A send-back about the code (red gate, red CI, the lead's own correction) goes to whoever wrote it: the
-   * card's session while it is on its first role, the FIRST role again once a later one (the reviewer)
-   * has taken over (ADR 0031). Asking for a missing bilan stays with the session that owes it.
+   * card's session while it is on a worker role (or the pipeline has none), the nearest earlier worker
+   * once a later role (the reviewer) has taken over (ADR 0031). Asking for a missing bilan stays with
+   * the session that owes it.
    */
   private async sendFailure(card: Card, session: CardSession, failure: string): Promise<void> {
-    if (currentStep(this.db.listEvents(card.id, 200)) > 0) await this.ports.sendBack(card, failure);
+    const current = currentStep(this.db.listEvents(card.id, 200));
+    const worker = workerStep(pipelineOf(this.db, card), current);
+    if (worker !== null && worker !== current) await this.ports.sendBack(card, failure, worker);
     else await this.ports.prompt(session.paneId!, failure);
   }
 
@@ -541,10 +544,10 @@ export function runHook(
       return (await integrationOf(card.repoPath, card.branch, base))?.ahead ?? null;
     },
     lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
-    sendBack: async (card, failure) => {
+    sendBack: async (card, failure, index) => {
       const session = db.openSessionFor(card.id);
       if (!session) throw new Error("no open session to send back");
-      await sendBackToFirst(db, herdr, cfg, card, session, failure, adapters);
+      await sendBackToWorker(db, herdr, cfg, card, session, index, failure, adapters);
     },
     advance: async (card, role, report) => {
       const session = db.openSessionFor(card.id);

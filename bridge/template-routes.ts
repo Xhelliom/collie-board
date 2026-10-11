@@ -38,7 +38,7 @@ async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
   }
 }
 
-type Fields = { name?: string; description?: string; agentKind?: string | null; model?: string | null; brief?: string };
+type Fields = { name?: string; description?: string; agentKind?: string | null; model?: string | null; brief?: string; worker?: boolean };
 
 /** Validate an untrusted template body. `all`: a create, where name and brief are required. Pure + exported. */
 export function parseTemplateBody(b: Record<string, unknown>, all: boolean): { ok: true; value: Fields } | { ok: false; error: string } {
@@ -61,6 +61,10 @@ export function parseTemplateBody(b: Record<string, unknown>, all: boolean): { o
     // One model word, never a flag: it rides to the CLI behind the kind's own flag (templates.ts).
     if (b.model !== null && !isModel(b.model)) return { ok: false, error: "model must be a single model name or null" };
     out.model = b.model;
+  }
+  if ("worker" in b) {
+    if (typeof b.worker !== "boolean") return { ok: false, error: "worker must be true or false" };
+    out.worker = b.worker;
   }
   if ("brief" in b || all) {
     if (typeof b.brief !== "string" || b.brief.trim() === "" || b.brief.length > TEMPLATE_BRIEF_MAX)

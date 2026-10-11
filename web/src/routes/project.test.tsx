@@ -53,7 +53,7 @@ describe("ProjectRoute", () => {
   });
 
   it("shows the template a step starts with — dashed when inherited from its phase — and the model that ran", async () => {
-    const t1 = { id: "t1", key: "reviewer", name: "Reviewer", description: "", agentKind: "claude", model: "opus", brief: "B", builtin: true };
+    const t1 = { id: "t1", key: "reviewer", name: "Reviewer", description: "", agentKind: "claude", model: "opus", brief: "B", builtin: true, worker: false };
     mount(
       [card({ id: "own", phaseId: "P1", templateId: "t2", status: "working", agentKind: "claude" }), card({ id: "inh", phaseId: "P1", status: "working", agentKind: "claude" })],
       {

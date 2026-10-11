@@ -319,7 +319,8 @@ curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"pipelineId":"<flow id>"}' 
 curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"pipelineId":"<flow id>"}'    # its own wins over the phase's
 ```
 
-A card resolves, most specific first: its flow, its single template, its phase's flow, its phase's template, then
+A template with `"worker": true` writes the code: in a run, a red check or a correction asked after a later role
+(the reviewer) goes back to the nearest worker, so put a worker role before any reviewer. A card resolves, most specific first: its flow, its single template, its phase's flow, its phase's template, then
 the **repo's default flow** (the user's setting; you do not set it). Only a **launched lot** chains the steps; a card
 the user starts by hand stops after its first role. Attach the flow to the **phase**, not card by card: `code` for
 code work; a `doc` or `explore` card takes that flow or none. Do not create or edit flows unasked, and do not
