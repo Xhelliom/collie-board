@@ -82,6 +82,15 @@ describe("flows in the board", () => {
     expect(db.listFlows().map((f) => f.key).sort()).toEqual(["code", "doc", "explore"]);
   });
 
+  it("deleting a template takes its step out of every flow that used it", () => {
+    const db = new BoardDb(":memory:");
+    const [a] = db.listTemplates();
+    const mine = db.createTemplate({ name: "Mine", brief: "b" });
+    const flow = db.createFlow({ name: "F", steps: [a!.id, mine.id, a!.id] });
+    db.deleteTemplate(mine.id);
+    expect(db.getFlow(flow.id)!.steps).toEqual([a!.id, a!.id]);
+  });
+
   it("a shipped flow is edited then reset, never deleted; a custom one is released from its users when deleted", () => {
     const db = new BoardDb(":memory:");
     const code = db.listFlows().find((f) => f.key === "code")!;

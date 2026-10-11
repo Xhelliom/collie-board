@@ -347,7 +347,9 @@ export async function cardDiffStat(
   if (!card?.repoPath || !card.branch) return null;
   const cwd = await worktreePathFor(card.repoPath, card.branch);
   if (!cwd) return null;
-  return diffStat(cwd, card.baseRef);
+  // A card made without a base forked from the main checkout's current branch; read against nothing, its
+  // COMMITTED work diffed to "(no changes)" and the copilot reviewed an empty diff.
+  return diffStat(cwd, card.baseRef?.trim() || (await currentBranch(card.repoPath)));
 }
 
 /**

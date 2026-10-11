@@ -2137,6 +2137,10 @@ export class BoardDb {
     this.db.transaction(() => {
       this.db.query("UPDATE card SET template_id = NULL WHERE template_id = ?").run(id);
       this.db.query("UPDATE phase SET template_id = NULL WHERE template_id = ?").run(id);
+      // A flow made of it loses that step on the spot, rather than silently shrinking at read time.
+      for (const f of this.listFlows()) {
+        if (f.steps.includes(id)) this.db.query("UPDATE agent_flow SET steps = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(f.steps.filter((s) => s !== id)), this.now(), f.id);
+      }
       this.db.query("DELETE FROM agent_template WHERE id = ?").run(id);
     })();
     return "deleted";

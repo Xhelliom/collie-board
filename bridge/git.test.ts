@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushDir, type DiffStat, type GitRunner } from "./git.ts";
+import { cardDiffStat, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushDir, type DiffStat, type GitRunner } from "./git.ts";
 
 // Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
 describe("parseMergeTree — does the PR conflict, before anything is pushed", () => {
@@ -139,5 +142,33 @@ describe("pushDir — where the pre-push hook runs", () => {
 
   test("the repo when no worktree carries the branch", async () => {
     expect(await pushDir("/repo", "other", list("/wt/card"), () => true)).toBe("/repo");
+  });
+});
+
+describe("cardDiffStat — a card with no base (the copilot reviewed an empty diff)", () => {
+  const sh = (cwd: string, ...args: string[]) => {
+    const r = Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], { cwd });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+  };
+
+  test("COMMITTED work is read against the main checkout's branch, not against HEAD", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cardstat-"));
+    const repo = join(root, "repo");
+    const wt = join(root, "wt");
+    Bun.spawnSync(["mkdir", repo]);
+    sh(repo, "init", "-b", "main");
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    sh(repo, "add", "-A");
+    sh(repo, "commit", "-m", "base");
+    sh(repo, "worktree", "add", "-b", "feat", wt);
+    writeFileSync(join(wt, "b.txt"), "b\n");
+    sh(wt, "add", "-A");
+    sh(wt, "commit", "-m", "work");
+
+    const db = { getCard: () => ({ repoPath: repo, branch: "feat", baseRef: null }) };
+    expect((await cardDiffStat(db, "x"))!.files.map((f) => f.path)).toEqual(["b.txt"]);
+    // …and a base the card names still wins.
+    const named = { getCard: () => ({ repoPath: repo, branch: "feat", baseRef: "feat" }) };
+    expect((await cardDiffStat(named, "x"))!.files).toEqual([]);
   });
 });

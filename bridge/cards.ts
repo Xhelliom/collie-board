@@ -27,7 +27,7 @@ import {
   type CardStatus,
 } from "./db.ts";
 import { installDeps } from "./deps.ts";
-import { branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
+import { branchExists, currentBranch, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import { bilanPrompt } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -740,7 +740,9 @@ export async function startCard(
     predecessor?.branch && (await branchExists(card.repoPath, predecessor.branch, opts.git))
       ? predecessor.branch
       : null;
-  const base = predecessorBranch ?? card.baseRef;
+  // Resolved, not as configured: a card with no base forks from the main checkout's current branch, and
+  // `baseRef` is the left side of every diff it shows (git.ts) — left null it diffs against HEAD.
+  const base = predecessorBranch ?? card.baseRef ?? (await currentBranch(card.repoPath, opts.git).catch(() => null));
 
   // A NEW BRANCH FORKS FROM THE MORE COMPLETE OF THE LOCAL BASE AND ORIGIN'S — see
   // `syncBaseWithOrigin`. Not for a predecessor's branch: that one IS the handoff, as it stands.
