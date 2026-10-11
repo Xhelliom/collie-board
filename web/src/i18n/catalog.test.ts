@@ -23,6 +23,13 @@ describe("the message catalog", () => {
     expect(Object.keys(CATALOG).length).toBe(all.length);
   });
 
+  it("names every way a session can end — the card screen builds the key from the bridge's outcome", () => {
+    // Keep in step with SessionOutcome (bridge/db.ts): a missing key crashed the card screen once ("pipeline").
+    for (const outcome of ["running", "ended", "handoff", "done", "abandoned", "lost", "pipeline"]) {
+      expect(CATALOG, `card.outcome.${outcome}`).toHaveProperty(`card.outcome.${outcome}`);
+    }
+  });
+
   it("says everything in both languages, with the same placeholders on both sides", () => {
     for (const [key, entry] of Object.entries(CATALOG)) {
       const en = forms(entry.en);

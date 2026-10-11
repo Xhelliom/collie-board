@@ -38,7 +38,7 @@ export interface CardSession {
   ctxTokens: number | null;
   ctxPct: number | null;
   handoffMd: string | null;
-  outcome: "handoff" | "done" | "abandoned" | "lost" | null;
+  outcome: "handoff" | "done" | "abandoned" | "lost" | "pipeline" | null;
   /** Set while a handoff has been asked for but the agent hasn't written its note yet. */
   handoffRequestedAt: number | null;
   /** The automatic handoff (bridge/auto-handoff.ts): asked for while `handoffMd` is null, then when

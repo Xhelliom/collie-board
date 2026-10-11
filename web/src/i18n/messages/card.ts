@@ -275,6 +275,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "card.outcome.running": { en: "running", fr: "en cours" },
   "card.outcome.ended": { en: "ended", fr: "terminée" },
   "card.outcome.handoff": { en: "handoff", fr: "relais" },
+  "card.outcome.pipeline": { en: "next step", fr: "étape suivante" },
   "card.outcome.done": { en: "done", fr: "terminée" },
   "card.outcome.abandoned": { en: "abandoned", fr: "abandonnée" },
   "card.outcome.lost": { en: "lost", fr: "perdue" },
