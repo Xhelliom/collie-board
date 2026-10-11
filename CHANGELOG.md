@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.184.0] - 2026-10-11
+
+### Changed
+
+- Settings : quatre onglets (Display, Notifications, Agents, System) au lieu d'une seule longue page (ac86301)
+
+### Fixed
+
+- `/api/flows` était servi comme la page HTML : la route n'était pas dans la liste des routes du board (ebd8144)
+
 ## [0.183.0] - 2026-10-11
 
 ### Added
