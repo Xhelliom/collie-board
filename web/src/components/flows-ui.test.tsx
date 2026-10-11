@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FlowPicker } from "@/components/flow-picker";
 import { FlowsSheet } from "@/components/flows-sheet";
 import { GateControl } from "@/components/gate-control";
+import { NewCardSheet } from "@/components/new-card-sheet";
+import { RepoFlow } from "@/components/repo-flow";
 import { setPreference } from "@/i18n";
 import { flowName, flowSteps, type Flow } from "@/lib/flows";
 import type { AgentTemplate, TemplatesData } from "@/lib/templates";
@@ -83,5 +85,39 @@ describe("GateControl: a repo's default flow", () => {
     render(<GateControl />);
     await userEvent.selectOptions(await screen.findByRole("combobox", { name: /Default flow — app/ }), "f2");
     await waitFor(() => expect(bodies).toEqual([{ path: "/r/app", flowId: "f2" }]));
+  });
+});
+
+describe("flow selectors", () => {
+  it("the new-card sheet sends the chosen flow as pipelineId", async () => {
+    const onCreate = vi.fn();
+    render(<NewCardSheet open onClose={() => {}} onCreate={onCreate} tags={[]} />);
+    await userEvent.type(screen.getByRole("textbox", { name: /what needs doing/i }), "do the thing");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Flow" }), "f1");
+    await userEvent.click(screen.getByRole("button", { name: /add to backlog/i }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ pipelineId: "f1" }));
+  });
+
+  it("the project page's repo select shows the repo's default flow and changes it", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.get("*/api/repos", () => HttpResponse.json({ repos: [{ path: "/r/app", lastUsedAt: 0, flowId: "f2" }] })),
+      http.post("*/api/repos/flow", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    render(<RepoFlow repo="/r/app" flows={[CODE, MINE]} />);
+    const select = screen.getByRole("combobox", { name: "Default flow" });
+    await waitFor(() => expect(select).toHaveValue("f2"));
+    await userEvent.selectOptions(select, "f1");
+    await waitFor(() => expect(bodies).toEqual([{ path: "/r/app", flowId: "f1" }]));
+    await userEvent.selectOptions(select, "");
+    await waitFor(() => expect(bodies.at(-1)).toEqual({ path: "/r/app", flowId: null }));
+  });
+
+  it("renders nothing while the flows are unknown (an older bridge)", () => {
+    const { container } = render(<RepoFlow repo="/r/app" flows={null} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

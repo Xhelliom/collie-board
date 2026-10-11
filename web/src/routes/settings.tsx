@@ -100,95 +100,92 @@ export function SettingsRoute() {
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
         {tab === "Display" && (
           <>
-        <ThemeControl />
-        <StatusLineControl />
+            <ThemeControl />
+            <StatusLineControl />
 
-        {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
-            the four places the app is about. A row here rather than a fifth item in the nav bar. */}
-        <Card className="gap-0 py-0">
-          <Link to={galleryPath()} className="flex items-center gap-3 p-4">
-            <Images className="size-5 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="font-medium">Gallery</div>
-              <p className="text-sm text-muted-foreground">
-                Images your agents left in their scratchpads.
-              </p>
-            </div>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-          </Link>
-        </Card>
-
+            {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
+                the four places the app is about. A row here rather than a fifth item in the nav bar. */}
+            <Card className="gap-0 py-0">
+              <Link to={galleryPath()} className="flex items-center gap-3 p-4">
+                <Images className="size-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">Gallery</div>
+                  <p className="text-sm text-muted-foreground">
+                    Images your agents left in their scratchpads.
+                  </p>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </Card>
           </>
         )}
 
         {tab === "Notifications" && (
           <>
-        <Card className="gap-0 py-0">
-          <div className="flex items-center justify-between gap-4 p-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <Bell className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <div className="font-medium">Push notifications</div>
-                <p className="text-sm text-muted-foreground">
-                  Get a notification when an agent needs you.
-                </p>
+            <Card className="gap-0 py-0">
+              <div className="flex items-center justify-between gap-4 p-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <Bell className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="font-medium">Push notifications</div>
+                    <p className="text-sm text-muted-foreground">
+                      Get a notification when an agent needs you.
+                    </p>
+                  </div>
+                </div>
+                {state ? (
+                  <Switch
+                    checked={on}
+                    disabled={toggleDisabled}
+                    onCheckedChange={toggle}
+                    aria-label="Push notifications"
+                  />
+                ) : (
+                  <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+                )}
               </div>
-            </div>
-            {state ? (
-              <Switch
-                checked={on}
-                disabled={toggleDisabled}
-                onCheckedChange={toggle}
-                aria-label="Push notifications"
-              />
-            ) : (
-              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+
+              {state && blocked && (
+                <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+                  {availabilityNote(state.availability)}
+                </p>
+              )}
+              {error && (
+                <p className="border-t border-border/60 px-4 py-2.5 text-xs text-status-blocked">
+                  {error}
+                </p>
+              )}
+            </Card>
+
+            {state && state.availability !== "server-off" && (
+              <>
+                <NotifyPrefsControl />
+                <SnoozeControl snoozedUntil={root?.snoozedUntil ?? null} />
+              </>
             )}
-          </div>
-
-          {state && blocked && (
-            <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
-              {availabilityNote(state.availability)}
-            </p>
-          )}
-          {error && (
-            <p className="border-t border-border/60 px-4 py-2.5 text-xs text-status-blocked">
-              {error}
-            </p>
-          )}
-        </Card>
-
-        {state && state.availability !== "server-off" && (
-          <>
-            <NotifyPrefsControl />
-            <SnoozeControl snoozedUntil={root?.snoozedUntil ?? null} />
-          </>
-        )}
-
           </>
         )}
 
         {tab === "Agents" && (
           <>
-        <MaxAgentsControl />
-        <FollowUpsControl />
-        <AutoHandoffControl />
-        <GateControl />
-        <LanguageControl />
-        <TemplatesControl />
-        <FlowsControl />
-
+            <MaxAgentsControl />
+            <FollowUpsControl />
+            <AutoHandoffControl />
+            <GateControl />
+            <LanguageControl />
+            <TemplatesControl />
+            <FlowsControl />
           </>
         )}
 
         {tab === "System" && (
           <>
-        {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
-        <UpdateCheckControl />
+            {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
+            <UpdateCheckControl />
 
-        <BackupControl device={root?.device} />
+            <BackupControl device={root?.device} />
 
-        <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
+            <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
           </>
         )}
 

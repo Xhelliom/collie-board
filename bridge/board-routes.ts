@@ -18,6 +18,7 @@ import { buildBackup, parseBackup, restoreBackup, writeSafetyBackup } from "./ba
 import {
   cardView,
   cardViews,
+  type CardView,
   convertToAction,
   finishNow,
   isAgentGone,
@@ -53,6 +54,7 @@ import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
+import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
@@ -122,7 +124,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /**
  * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
@@ -727,14 +729,19 @@ async function route(
   // Every card view carries the copilot's in-flight set, including the ones echoed straight back
   // from a POST — a card created from a dictated dump is busy the instant it exists, and the client
   // renders that echo before its next poll.
-  const view = (cardId: string) => cardView(db, engine.current(), cardId, ctx.copilot.busy());
+  // …and the pipeline role a tap would hand it to (ADR 0031) — computed only for a card that has landed.
+  const withNext = (v: CardView): CardView => ({ ...v, nextStep: nextStepOf(v, v.session !== null, v.status === "review" ? pipelineOf(db, v) : [], v.status === "review" ? db.listEvents(v.id, 200) : []) });
+  const view = (cardId: string) => {
+    const v = cardView(db, engine.current(), cardId, ctx.copilot.busy());
+    return v && withNext(v);
+  };
 
   // ── collection ───────────────────────────────────────────────────────────
   if (!id) {
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      return json({ cards: cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }) });
+      return json({ cards: cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }).map(withNext) });
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");
@@ -1369,6 +1376,37 @@ async function route(
   }
 
   // ── prompt: a follow-up instruction to the card's running agent ───────────
+  // ── next-step: outside a run, hand a landed card to the next role of its pipeline (ADR 0031) ──
+  // The tap is the consent a run gives once; the swap itself is the coordinator's (pipeline.ts).
+  if (action === "next-step" && req.method === "POST") {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    const session = db.openSessionFor(id);
+    if (!session?.paneId) return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
+    if (card.runId) return ctx.json({ ok: false, error: "a run chains this card by itself", kind: "in-run" }, 409);
+    const status = view(id)?.runtime?.agentStatus;
+    if (card.status !== "review" || (status !== "idle" && status !== "done")) {
+      return ctx.json({ ok: false, error: "the agent has not finished its step", kind: "not-landed" }, 409);
+    }
+    const role = nextRole(pipelineOf(db, card), db.listEvents(id, 200));
+    if (!role) return ctx.json({ ok: false, error: "this card has no next step", kind: "no-next-step" }, 409);
+    try {
+      await advancePipeline(db, ctx.herdr, ctx.cfg, card, session, role, await readBilan(card), ctx.adapters);
+    } catch (err) {
+      return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
+    }
+    ctx.audit.record({
+      action: "card.next_step",
+      paneId: session.paneId,
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, role: role.name },
+    });
+    return json({ ok: true, card: view(id) });
+  }
+
   if (action === "prompt" && req.method === "POST") {
     const denied = ctx.guard("write");
     if (denied) return denied;

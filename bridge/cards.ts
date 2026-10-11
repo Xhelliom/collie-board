@@ -126,6 +126,8 @@ export interface CardRuntime {
 
 /** A card as the API serves it: durable fields, its open session, and live herd state. */
 export interface CardView extends Card {
+  /** The pipeline role a tap would hand this card to next (ADR 0031), or null. Set by the routes, not here. */
+  nextStep?: { templateId: string; name: string } | null;
   /** The session currently running for this card, or null (backlog, done, orphaned…). */
   session: CardSession | null;
   /** Live pane state, or null when no pane backs this card right now. */

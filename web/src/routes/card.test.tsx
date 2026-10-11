@@ -779,3 +779,55 @@ describe("IntegrationSection — uncommitted work asks for a commit, not a pane"
     cleanup();
   });
 });
+
+// ADR 0031: outside a run, a landed card stops after its first role and offers the next one as one tap.
+describe("Next step — handing a landed card to the next role of its flow", () => {
+  beforeEach(() => setPreference("fr"));
+  afterEach(() => setPreference("en"));
+
+  async function mount(nextStep: CardView["nextStep"]) {
+    const base = card("review");
+    const detail: CardDetail = {
+      card: {
+        ...base,
+        id: "c1",
+        title: "The card",
+        parentId: null,
+        nextStep,
+        runtime: { paneId: "w1:p1", agent: "claude", agentStatus: "idle", cwd: "/r", workspaceId: "w1", workspaceLabel: "w" },
+      },
+      predecessor: null,
+      parent: null,
+      originCard: null,
+      duplicate: null,
+      children: [],
+      sessions: [],
+      reviews: [],
+      events: [],
+    };
+    const router = createMemoryRouter(
+      [{ path: "/card/:cardId", loader: (): CardData => ({ cardId: "c1", detail, error: false, authError: false }), element: <CardRoute /> }],
+      { initialEntries: ["/card/c1"] },
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByRole("heading", { name: "The card" });
+  }
+
+  it("shows the button only when the bridge names a next role, and POSTs it on tap", async () => {
+    const hits: string[] = [];
+    server.use(
+      http.post("/api/cards/:id/next-step", ({ params }) => {
+        hits.push(String(params.id));
+        return HttpResponse.json({ ok: true, card: { ...card("working"), id: "c1" } });
+      }),
+    );
+    await mount({ templateId: "t2", name: "Relecteur" });
+    await userEvent.click(await screen.findByRole("button", { name: "Étape suivante : Relecteur" }));
+    expect(hits).toEqual(["c1"]);
+  });
+
+  it("is absent when there is no next role", async () => {
+    await mount(null);
+    expect(screen.queryByRole("button", { name: /étape suivante/i })).toBeNull();
+  });
+});

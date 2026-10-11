@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
+  Workflow,
   CornerDownRight,
   CornerLeftUp,
   EllipsisVertical,
@@ -78,6 +79,7 @@ import {
   MANUAL_STATUSES,
   patchCard,
   positionFor,
+  nextStepCard,
   promptCard,
   refineCard,
   reformulateCard,
@@ -643,6 +645,20 @@ export function CardRoute() {
                         revalidator.revalidate();
                       }}
                     />
+                    {card.nextStep && (
+                      <NextStepButton
+                        name={card.nextStep.name}
+                        onNext={async () => {
+                          try {
+                            await nextStepCard(card.id);
+                            setStatus(t("card.toast.nextStep", { name: card.nextStep!.name }), "success");
+                          } catch (e) {
+                            setStatus((e as Error).message, "error", null);
+                          }
+                          revalidator.revalidate();
+                        }}
+                      />
+                    )}
                     <HandoffButton
                       card={card}
                       onHandoff={async () => {
@@ -2200,6 +2216,29 @@ export function ReviewPass({ card, onRun }: { card: CardView; onRun: (command: s
         {t("card.pass.hint")}
       </p>
     </div>
+  );
+}
+
+function NextStepButton({ name, onNext }: { name: string; onNext: () => Promise<void> }) {
+  const t = useT();
+  const [pending, setPending] = useState(false);
+  return (
+    <Button
+      variant="default"
+      disabled={pending}
+      onClick={async () => {
+        setPending(true);
+        try {
+          await onNext();
+        } finally {
+          setPending(false);
+        }
+      }}
+      className="h-11 w-full gap-2"
+    >
+      <Workflow className="size-4" />
+      {pending ? t("card.nextStep.asking") : t("card.nextStep", { name })}
+    </Button>
   );
 }
 

@@ -128,6 +128,8 @@ export interface CardView {
   templateId?: string | null;
   /** The flow it goes through in a run (ADR 0032), or null. Optional: older fixtures omit it. */
   pipelineId?: string | null;
+  /** The pipeline role a tap would hand this card to next (ADR 0031): a landed card, outside a run. */
+  nextStep?: { templateId: string; name: string } | null;
   /**
    * Who wrote a card that appeared without anyone asking: `"copilot"` for the follow-ups a review
    * files while you are elsewhere, `"agent"` for one a working session opened mid-turn (ADR 0010).
@@ -708,6 +710,11 @@ export function promptCard(id: string, text: string): Promise<{ ok: true; card: 
     method: "POST",
     body: JSON.stringify({ text }),
   });
+}
+
+/** Hand a landed card to the next role of its flow — the tap a run gives once (ADR 0031). */
+export function nextStepCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/next-step`, { method: "POST" });
 }
 
 // ── diff ─────────────────────────────────────────────────────────────────────

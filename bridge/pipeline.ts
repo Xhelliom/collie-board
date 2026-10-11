@@ -55,6 +55,29 @@ export function stepPrompt(role: AgentTemplate, card: Card, previous: { name: st
   return composePrompt(role.brief, `${initialPrompt(card)}\n\n---\n\n${said}\n\n${bilanPrompt()}`);
 }
 
+/**
+ * The role a tap can hand a card to outside a run: only a card that has landed (`review`) with a session
+ * still open and a role left after the one it is on. A card in a run chains by itself. Pure.
+ */
+export function nextStepOf(
+  card: Pick<Card, "runId" | "status">,
+  hasSession: boolean,
+  pipeline: readonly AgentTemplate[],
+  events: readonly BoardEvent[],
+): { templateId: string; name: string } | null {
+  if (card.runId || !hasSession || card.status !== "review") return null;
+  const role = nextRole(pipeline, events);
+  return role ? { templateId: role.id, name: role.name } : null;
+}
+
+/** The worker's closing bilan from its checkout, or null when it left none (what the next role is told). */
+export async function readBilan(card: Card): Promise<string | null> {
+  const checkout = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
+  if (!checkout) return null;
+  const text = await Bun.file(join(checkout, BILAN_REL_PATH)).text().catch(() => "");
+  return text.trim().slice(0, 8000) || null;
+}
+
 /** The pipeline of a card, read from the db. */
 export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
   return resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, card.repoPath ? db.repoFlow(card.repoPath) : null, db.listTemplates(), db.listFlows());

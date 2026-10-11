@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
+import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { useLongPress } from "@/hooks/use-long-press";
 import { useImageUpload } from "@/hooks/use-image-upload";
@@ -49,6 +50,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   const [baseRef, setBaseRef] = useState("");
   const [agentKind, setAgentKind] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [pipelineId, setPipelineId] = useState<string | null>(null);
   // Whether the dump goes in as rawInput (and so gets rewritten). Reset per open, deliberately: it
   // is a property of THIS card, not a preference — most cards are dictated and want the rewrite.
   const [rewrite, setRewrite] = useState(true);
@@ -85,6 +87,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     setManualPath("");
     setAgentKind(null);
     setTemplateId(null);
+    setPipelineId(null);
     let cancelled = false;
     setShowHidden(false);
     void fetchRepos()
@@ -166,6 +169,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
       baseRef: baseRef.trim() || null,
       agentKind,
       templateId,
+      pipelineId,
       // Optional, and null is the normal answer — most cards have no tag. Normalised here so the
       // card lands as the tag the field was showing you; the bridge folds it again regardless.
       tag: normalizeTag(tag),
@@ -319,6 +323,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
 
         <AgentKindPicker value={agentKind} onChange={setAgentKind} />
         <TemplatePicker value={templateId} onChange={setTemplateId} />
+        <FlowPicker value={pipelineId} onChange={setPipelineId} />
       </div>
     </BottomSheet>
   );

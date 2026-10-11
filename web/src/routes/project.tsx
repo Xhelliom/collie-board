@@ -11,6 +11,7 @@ import { PhaseTemplate } from "@/components/phase-template";
 import { templateFor, templateName } from "@/lib/templates";
 import { PhaseLots } from "@/components/project-lots";
 import { ProjectRoadmap } from "@/components/project-roadmap";
+import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
@@ -252,6 +253,7 @@ export function ProjectRoute() {
                 </section>
               )}
 
+              {repo && <RepoFlow repo={repo} flows={data.flows} />}
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
 
               {v.awaiting.length > 0 && (
