@@ -230,6 +230,8 @@ export interface Card {
   phaseId: string | null;
   /** The agent template this card starts with, or null — ADR 0026. Falls back to its phase's. */
   templateId: string | null;
+  /** The ordered template ids this card goes through, or null — ADR 0031. Falls back to its phase's. */
+  pipeline: string[] | null;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -386,6 +388,8 @@ export interface Phase {
   closedNote: string;
   /** The agent template the phase's cards start with unless they name their own (ADR 0026). */
   templateId: string | null;
+  /** The ordered template ids the phase's cards go through unless they name their own (ADR 0031). */
+  pipeline: string[] | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -578,6 +582,7 @@ interface CardRow {
   run_id: string | null;
   phase_id: string | null;
   template_id: string | null;
+  pipeline: string | null;
 }
 
 interface RunRow {
@@ -618,8 +623,15 @@ interface PhaseRow {
   closed_at: number | null;
   closed_note: string | null;
   template_id: string | null;
+  pipeline: string | null;
   created_at: number;
   updated_at: number;
+}
+
+/** A stored pipeline: a JSON array of template ids, or null for "none" (an empty list is none too). */
+function toPipeline(raw: string | null): string[] | null {
+  const ids = jsonArray(raw).filter((x): x is string => typeof x === "string");
+  return ids.length ? ids : null;
 }
 
 function toPhase(r: PhaseRow): Phase {
@@ -633,6 +645,7 @@ function toPhase(r: PhaseRow): Phase {
     closedAt: r.closed_at ?? null,
     closedNote: r.closed_note ?? "",
     templateId: r.template_id ?? null,
+    pipeline: toPipeline(r.pipeline),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -797,6 +810,7 @@ function toCard(r: CardRow): Card {
     runId: r.run_id ?? null,
     phaseId: r.phase_id ?? null,
     templateId: r.template_id ?? null,
+    pipeline: toPipeline(r.pipeline),
   };
 }
 
@@ -868,7 +882,9 @@ CREATE TABLE IF NOT EXISTS card (
   -- ADR 0021. Soft too: deleting a phase clears it rather than taking the cards with it.
   phase_id      TEXT,
   -- ADR 0026. Soft: deleting a template clears it; the card then starts as any card does.
-  template_id   TEXT
+  template_id   TEXT,
+  -- ADR 0031. JSON array of template ids, in order; soft like template_id.
+  pipeline      TEXT
 );
 
 -- ADR 0017. Intent only — never whether the run is going; that is read from its cards.
@@ -897,6 +913,7 @@ CREATE TABLE IF NOT EXISTS phase (
   closed_at       INTEGER,
   closed_note     TEXT NOT NULL DEFAULT '',
   template_id     TEXT,
+  pipeline        TEXT,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
@@ -1070,6 +1087,7 @@ export interface NewCard {
   position?: number;
   phaseId?: string | null;
   templateId?: string | null;
+  pipeline?: string[] | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -1093,6 +1111,7 @@ export interface CardPatch {
   autoHandoff?: AutoHandoffChoice | null;
   phaseId?: string | null;
   templateId?: string | null;
+  pipeline?: string[] | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1116,6 +1135,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   autoHandoff: "auto_handoff",
   phaseId: "phase_id",
   templateId: "template_id",
+  pipeline: "pipeline",
 };
 
 export class BoardDb {
@@ -1279,6 +1299,9 @@ export class BoardDb {
       // ADR 0026: the agent template a card — or its phase — starts with.
       { table: "card", column: "template_id", ddl: "TEXT" },
       { table: "phase", column: "template_id", ddl: "TEXT" },
+      // ADR 0031: the ordered roles a card — or its phase's cards — goes through.
+      { table: "card", column: "pipeline", ddl: "TEXT" },
+      { table: "phase", column: "pipeline", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -1345,6 +1368,7 @@ export class BoardDb {
       );
     if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
     if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
+    if (input.pipeline?.length) this.db.query("UPDATE card SET pipeline = ? WHERE id = ?").run(JSON.stringify(input.pipeline), id);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1426,9 +1450,11 @@ export class BoardDb {
           ? JSON.stringify(value ?? [])
           : key === "keepWorktree"
             ? (value ? 1 : 0)
-            : key === "tag"
-              ? normalizeTag(value)
-              : (value as string | number | null),
+            : key === "pipeline"
+              ? JSON.stringify(value ?? [])
+              : key === "tag"
+                ? normalizeTag(value)
+                : (value as string | number | null),
       );
     }
     if (sets.length === 0) return this.getCard(id);
@@ -1908,7 +1934,7 @@ export class BoardDb {
 
   updatePhase(
     id: string,
-    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null },
+    patch: { name?: string; goal?: string; position?: number; roadmapItemId?: string | null; templateId?: string | null; pipeline?: string[] | null },
   ): Phase | null {
     if (!this.getPhase(id)) return null;
     const cols: [string, string | number | null][] = [];
@@ -1917,6 +1943,7 @@ export class BoardDb {
     if (patch.position !== undefined) cols.push(["position", patch.position]);
     if (patch.roadmapItemId !== undefined) cols.push(["roadmap_item_id", patch.roadmapItemId]);
     if (patch.templateId !== undefined) cols.push(["template_id", patch.templateId]);
+    if (patch.pipeline !== undefined) cols.push(["pipeline", JSON.stringify(patch.pipeline ?? [])]);
     cols.push(["updated_at", this.now()]);
     // Column names come from the literals above, never from the caller.
     this.db.query(`UPDATE phase SET ${cols.map(([c]) => `${c} = ?`).join(", ")} WHERE id = ?`).run(...cols.map(([, v]) => v), id);

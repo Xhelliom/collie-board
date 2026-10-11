@@ -8,6 +8,7 @@ import { basename } from "node:path";
 import { isMaxParallel, PHASE_NOTE_MAX, RevisionConflict, type Run } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
+import { PIPELINE_MAX } from "./templates.ts";
 
 const MAX_NAME = 200;
 const MAX_GOAL = 2_000;
@@ -168,6 +169,13 @@ export async function handleProjectRoute(
       if ("templateId" in b) {
         if (b.templateId !== null && (typeof b.templateId !== "string" || !db.getTemplate(b.templateId))) return ctx.text("templateId: no such template", 400);
         patch.templateId = b.templateId as string | null;
+      }
+      if ("pipeline" in b) {
+        const ids = b.pipeline;
+        if (ids !== null && (!Array.isArray(ids) || ids.length > PIPELINE_MAX || !ids.every((x) => typeof x === "string" && db.getTemplate(x)))) {
+          return ctx.text("pipeline: no such template", 400);
+        }
+        patch.pipeline = ids as string[] | null;
       }
       const phase = db.updatePhase(id, patch);
       audit("phase.patch", { phaseId: id, ...patch });

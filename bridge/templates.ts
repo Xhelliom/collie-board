@@ -154,6 +154,27 @@ export function resolveTemplate(
   return id ? (templates.find((t) => t.id === id) ?? null) : null;
 }
 
+/** A pipeline is a handful of roles, not a program. */
+export const PIPELINE_MAX = 6;
+
+/**
+ * The ordered roles a card goes through (ADR 0031): its own pipeline, else its phase's, else its
+ * single template (a pipeline of one), else none. An id whose template was deleted is dropped — the
+ * references are soft, like `templateId`'s. Pure.
+ */
+export function resolvePipeline(
+  card: { templateId: string | null; pipeline: string[] | null },
+  phase: { templateId: string | null; pipeline: string[] | null } | null,
+  templates: readonly AgentTemplate[],
+): AgentTemplate[] {
+  const ids = card.pipeline ?? (card.templateId ? null : phase?.pipeline) ?? null;
+  if (!ids) {
+    const one = resolveTemplate(card, phase, templates);
+    return one ? [one] : [];
+  }
+  return ids.flatMap((id) => templates.find((t) => t.id === id) ?? []);
+}
+
 // ── reading a repo's `.claude/agents/*.md` ─────────────────────────────────────
 
 export interface AgentFile {

@@ -62,3 +62,5 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0018](./0018-no-parasite-cards-from-a-review.md) | A review files no parasite cards | Accepted |
 | [0019](./0019-an-agents-note-retracts-with-its-pane-or-in-ten-minutes.md) | An agent's note retracts with its pane, or in ten minutes | Accepted |
 | [0029](./0029-the-board-reads-the-prs-checks-before-it-merges.md) | The board reads the PR's GitHub checks before it merges | Accepted |
+| [0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) | The orchestrator may launch a lot when the operator allows it, per project | Accepted |
+| [0031](./0031-a-pipeline-is-an-ordered-list-of-roles-run-inside-a-run.md) | A pipeline is an ordered list of roles, chained only inside a run | Accepted |

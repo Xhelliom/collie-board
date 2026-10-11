@@ -53,6 +53,7 @@ import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
+import { PIPELINE_MAX } from "./templates.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleProjectRoute } from "./project-routes.ts";
@@ -201,6 +202,14 @@ export function parseCardBody(
     out[key] = value === null ? null : value.trim() || null;
   }
 
+  // ADR 0031: ordered template ids. Shape only here; that each one exists is the route's check.
+  if ("pipeline" in o) {
+    if (o.pipeline !== null && (!Array.isArray(o.pipeline) || !o.pipeline.every((x) => typeof x === "string") || o.pipeline.length > PIPELINE_MAX)) {
+      return { ok: false, error: "bad pipeline" };
+    }
+    out.pipeline = o.pipeline as string[] | null;
+  }
+
   if ("acceptance" in o) {
     if (!Array.isArray(o.acceptance)) return { ok: false, error: "bad acceptance" };
     if (!o.acceptance.every((a) => typeof a === "string")) return { ok: false, error: "bad acceptance" };
@@ -313,6 +322,7 @@ function checkLinks(db: BoardDb, cardId: string, patch: CardPatch): string | nul
   // by nothing, so two cards pointing at each other is merely redundant, never a wedge.
   if (patch.duplicateOf && !db.getCard(patch.duplicateOf)) return "duplicateOf: no such card";
   if (patch.templateId && !db.getTemplate(patch.templateId)) return "templateId: no such template";
+  if (patch.pipeline?.some((id) => !db.getTemplate(id))) return "pipeline: no such template";
   // A phase groups ONE repo's cards (ADR 0021): it has to exist and be the card's own repo's.
   if (patch.phaseId) {
     const repo = patch.repoPath ?? (cardId ? db.getCard(cardId)?.repoPath : null) ?? null;
