@@ -129,7 +129,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 

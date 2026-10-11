@@ -274,7 +274,7 @@ describe("/api/orchestrator/memory and /renew", () => {
 
 describe("isBoardPath: what the server forwards to the board", () => {
   it("covers every route family, including the ones a prefix check used to drop", () => {
-    for (const p of ["/api/cards", "/api/cards/x/start", "/api/repos/gate", "/api/board/prefs", "/api/backup", "/api/runs", "/api/runs/x/launch", "/api/phases", "/api/phases/x", "/api/roadmap", "/api/orchestrator"])
+    for (const p of ["/api/cards", "/api/cards/x/start", "/api/repos/gate", "/api/board/prefs", "/api/backup", "/api/runs", "/api/runs/x/launch", "/api/phases", "/api/phases/x", "/api/roadmap", "/api/orchestrator", "/api/templates", "/api/flows", "/api/flows/x/reset", "/api/repos/flow"])
       expect(isBoardPath(p)).toBe(true);
     for (const p of ["/api/snapshot", "/api/pane/p1/reply", "/api/runsfoo", "/"]) expect(isBoardPath(p)).toBe(false);
   });
