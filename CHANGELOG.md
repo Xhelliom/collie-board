@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.187.0] - 2026-10-11
+
+### Added
+
+- Création de carte : choix du flux à côté du template (1f3dcf8)
+- Page projet : flux par défaut du repo modifiable depuis la page, sans passer par les Settings (1f3dcf8)
+- Bouton « Étape suivante : <rôle> » sur la carte lancée à la main : un tap confie la branche au rôle suivant de son flux (`POST /api/cards/:id/next-step`, ADR 0031) (1f3dcf8)
+
 ## [0.186.1] - 2026-10-11
 
 ### Fixed
