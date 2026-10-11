@@ -72,7 +72,22 @@ describe("PhaseTemplate", () => {
     render(<PhaseTemplate phase={phase({ templateId: "t1" })} data={DATA} onChanged={() => {}} />);
     expect(screen.getByText("Template par défaut")).toBeInTheDocument();
     expect(screen.getByText(/modèle opus/)).toBeInTheDocument();
-    expect(screen.getByText("Relecteur")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Template par défaut" })).toHaveValue("t1");
+  });
+
+  it("builds the phase's pipeline: add a step, remove one", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch("*/api/phases/p1", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ phase: {} });
+      }),
+    );
+    render(<PhaseTemplate phase={phase({ pipeline: ["t2", "t1"] })} data={DATA} onChanged={() => {}} />);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Add a step" }), "t2");
+    await waitFor(() => expect(bodies).toEqual([{ pipeline: ["t2", "t1", "t2"] }]));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Doc writer" }));
+    await waitFor(() => expect(bodies.at(-1)).toEqual({ pipeline: ["t1"] }));
   });
 
   it("renders nothing while the templates are unknown", () => {

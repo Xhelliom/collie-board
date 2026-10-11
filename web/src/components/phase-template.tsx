@@ -34,8 +34,19 @@ export function PhaseTemplate({
     onChanged();
   }
 
+  const steps = phase.pipeline ?? [];
+  async function setPipeline(next: string[]) {
+    try {
+      await patchPhase(phase.id, { pipeline: next.length ? next : null });
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+    onChanged();
+  }
+
   return (
-    <div className="-mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pb-1 text-xs text-muted-foreground">
+    <div className="-mt-1 flex flex-col pb-1">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-1 text-xs text-muted-foreground">
       <label className="flex items-center gap-1.5">
         {t("templates.phase.label")}
         <select
@@ -63,6 +74,40 @@ export function PhaseTemplate({
         {t("templates.manageLink")}
       </button>
       <TemplatesSheet open={managing} onClose={() => setManaging(false)} data={data} onChanged={onChanged} />
+    </div>
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 pt-1 text-xs text-muted-foreground" title={t("templates.pipeline.hint")}>
+      <span>{t("templates.pipeline.label")}</span>
+      {steps.map((id, i) => {
+        const tpl = data.templates.find((x) => x.id === id);
+        if (!tpl) return null;
+        return (
+          <span key={`${id}-${i}`} className="inline-flex items-center gap-1">
+            {i > 0 && <span aria-hidden="true">→</span>}
+            <button
+              type="button"
+              aria-label={t("templates.pipeline.remove", { name: templateName(tpl) })}
+              onClick={() => void setPipeline(steps.filter((_, j) => j !== i))}
+              className="rounded-full border bg-card/70 px-2 py-0.5 font-semibold text-foreground hover:border-foreground/25"
+            >
+              {templateName(tpl)} ×
+            </button>
+          </span>
+        );
+      })}
+      <select
+        aria-label={t("templates.pipeline.add")}
+        value=""
+        onChange={(e) => e.target.value && void setPipeline([...steps, e.target.value])}
+        className="h-7 rounded-md border border-border bg-background px-1.5 text-xs font-semibold text-foreground"
+      >
+        <option value="">+ {t("templates.pipeline.add")}</option>
+        {data.templates.map((x) => (
+          <option key={x.id} value={x.id}>
+            {templateName(x)}
+          </option>
+        ))}
+      </select>
+    </div>
     </div>
   );
 }
