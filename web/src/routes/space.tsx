@@ -75,7 +75,7 @@ export function SpaceRoute() {
       <AppHeader title={selectedWs?.label ?? "Space"} onBack={toSpaces} />
 
       {/* Content region below the header: the viewport-clipped scroller. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
         <ReadOnlyBanner device={data.device} />
 
         {selectedWs && (
@@ -124,8 +124,8 @@ export function SpaceRoute() {
         <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
       </div>
 
-      {/* Status overlay, anchored to the bottom of the viewport. Stays outside the scroller. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      {/* Status overlay, anchored above the tab bar (bottom-14, as spaces.tsx) — at bottom-0 z-30 the bar, z-40, hid it. Stays outside the scroller. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 lg:bottom-0 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
 

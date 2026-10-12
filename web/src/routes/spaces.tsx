@@ -32,11 +32,10 @@ export function SpacesRoute() {
           single-session install. */}
       <AppHeader
         title="Spaces"
-        subtitle={`${data.workspaces.length} space${data.workspaces.length === 1 ? "" : "s"}`}
         rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
         <h1 className="sr-only">Spaces</h1>
         <main className="flex-1">
           <SpaceOverview

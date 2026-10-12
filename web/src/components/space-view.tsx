@@ -23,9 +23,9 @@ export function SpaceView({ workspace, tabs, agents, shellPanes, selectedTab, on
   return (
     <div className="flex flex-col gap-5 px-3 py-4">
       <div className="px-1">
-        {/* The space screen's one h1 — it's already the visible title of the screen, so it says so.
+        {/* The space screen's one h1 — the visible title is the AppHeader's, so this one is screen-reader only.
             The per-tab headings below hang off it at h2. */}
-        <h1 className="truncate text-sm font-semibold">{workspace.label}</h1>
+        <h1 className="sr-only">{workspace.label}</h1>
         <p className="text-xs text-muted-foreground">
           {workspace.tabCount} {workspace.tabCount === 1 ? "tab" : "tabs"} ·{" "}
           {workspace.paneCount} {workspace.paneCount === 1 ? "pane" : "panes"}
