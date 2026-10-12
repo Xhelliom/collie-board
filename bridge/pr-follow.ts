@@ -7,6 +7,7 @@ import { parseGate, runGate, type GateResult } from "./gate.ts";
 import { worktreePathFor, type PrStatus } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prStatusFor, type MergeGate } from "./integrate.ts";
+import { exclusive, integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
 
@@ -18,8 +19,8 @@ export interface FollowPorts {
   prStatus(card: Card): Promise<PrStatus | null>;
   /** The gate verdict for this follow, run at most once and journaled as `run.gate { runId }`. */
   gate(card: Card, runId: string): Promise<MergeGate>;
-  /** `mergeWhenReady` — journals `run.merge` (and `card.pr_merged` when it merged). */
-  land(card: Card, gate: MergeGate): Promise<void>;
+  /** `mergeWhenReady` — journals `run.merge` (and `card.pr_merged` when it merged). "busy": a gesture holds the card. */
+  land(card: Card, gate: MergeGate): Promise<void | "busy">;
   fileAsDone(card: Card): void;
 }
 
@@ -29,8 +30,9 @@ export function followsOf(events: readonly { id: number; cardId: string | null; 
   for (const e of events) {
     if (!e.cardId) continue;
     if (e.type === "card.pr_opened") out.set(e.cardId, { followId: null, merged: false });
-    // `pr_updated` with no PR open in the journal: one the agent opened itself (`gh pr create`).
-    else if (e.type === "card.pr_updated") { if (!out.has(e.cardId)) out.set(e.cardId, { followId: null, merged: false }); }
+    // `pr_updated` with no PR open in the journal: one the agent opened itself (`gh pr create`). After a
+    // merge it is a NEW PR, like `openPrsOf`/`foldFacts` read it — a stale `merged` would file the card done.
+    else if (e.type === "card.pr_updated") { if (!out.get(e.cardId) || out.get(e.cardId)!.merged) out.set(e.cardId, { followId: null, merged: false }); }
     else if (e.type === "card.pr_closed") out.delete(e.cardId);
     else if (e.type === "card.pr_merged") { const f = out.get(e.cardId); if (f) f.merged = true; }
     // A re-push of a PR already open journals `pr_updated`, not `pr_opened`: the follow attaches to the open PR.
@@ -91,7 +93,10 @@ export class PrFollower {
     // merging there — a new "PR & done" tap after the fix journals a new follow. Only a wait (checks
     // running, GitHub not done computing or unreadable — ADR 0036) asks again.
     if (this.stoppedAt(card.id, runId) !== null) return;
-    await this.ports.land(card, await this.ports.gate(card, runId));
+    if ((await this.ports.land(card, await this.ports.gate(card, runId))) === "busy") {
+      this.asked.delete(card.id); // a gesture holds the card (integration-lock.ts): ask on the next tick
+      return;
+    }
     const merge = this.db.listEvents(card.id, 20).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
     if ((merge?.payload as { merged?: boolean } | undefined)?.merged) this.ports.fileAsDone(this.db.getCard(card.id)!);
   }
@@ -115,7 +120,7 @@ export function prFollowHook(db: BoardDb, herdr: HerdrClient): (snap: EngineSnap
       }
       return { runId, ok, why: ok ? "gate green" : "the gate is red — not merging" };
     },
-    land: (card, gate) => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate),
+    land: async (card, gate) => ((await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate))).busy ? "busy" : undefined),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
   });
   return (snap) => follower.update(snap);

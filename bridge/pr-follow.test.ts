@@ -3,14 +3,14 @@ import { describe, expect, it } from "bun:test";
 import { BoardDb, type Card } from "./db.ts";
 import type { PrStatus } from "./git.ts";
 import type { MergeGate } from "./integrate.ts";
-import { followRunId, PrFollower } from "./pr-follow.ts";
+import { followRunId, followsOf, PrFollower } from "./pr-follow.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = { bridge: "connected" } as EngineSnapshot;
 const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true, createdAt: null });
 
 /** A board with one card whose PR was opened by "PR & done", and a fake GitHub behind it. */
-function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void, opened = "card.pr_opened") {
+function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void | "busy", opened = "card.pr_opened") {
   const time = { clock: 0 };
   const db = new BoardDb(":memory:", () => time.clock); // the journal and the follower share one clock
   const card = db.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
@@ -38,7 +38,7 @@ function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void, opened 
         gate: async (_c, runId) => ({ runId, ok: true, why: "no gate set" }),
         land: async (c, gate) => {
           w.lands++;
-          land(db, c, gate);
+          return land(db, c, gate);
         },
         fileAsDone: (c) => {
           w.filed++;
@@ -179,6 +179,35 @@ describe("PR & done follows the PR to its merge (ADR 0035)", () => {
     expect(w.lands).toBe(0);
     expect(w.filed).toBe(1);
     expect(w.db.listEvents(w.card.id).some((e) => e.type === "card.pr_merged")).toBe(true);
+  });
+
+  it("a new PR opened by the agent after a merge is followed afresh, not filed done", async () => {
+    const { w, make } = world(() => {});
+    w.db.recordEvent(w.card.id, "card.pr_merged", {});
+    w.db.recordEvent(w.card.id, "card.pr_updated", { url: "u2" }); // the agent's own `gh pr create`
+    w.db.recordEvent(w.card.id, "card.pr_follow", {});
+    expect(followsOf(w.db.listPrEvents()).get(w.card.id)?.merged).toBe(false);
+    make().update(snap);
+    await settle();
+    expect(w.filed).toBe(0);
+    expect(w.lands).toBe(1);
+  });
+
+  it("a land refused by the integration lock journals nothing and is asked again on the next tick", async () => {
+    let busy = true;
+    const { w, make } = world((db, c, gate) => {
+      if (busy) return "busy";
+      db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: true, reason: "green" } as never);
+    });
+    const f = make();
+    f.update(snap);
+    await settle();
+    expect(w.filed).toBe(0);
+    expect(w.db.listEvents(w.card.id).some((e) => e.type === "run.merge")).toBe(false);
+    busy = false;
+    f.update(snap); // same clock: the refused ask did not start the 30 s wait
+    await settle();
+    expect(w.filed).toBe(1);
   });
 
   it("a plain PR is not followed", async () => {

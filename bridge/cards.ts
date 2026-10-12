@@ -14,6 +14,8 @@
 // Nothing here writes runtime state INTO the database beyond those three facts: a card's live
 // status, cwd and agent all still come from the snapshot on every read.
 
+import { join } from "node:path";
+
 import type { AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
 import {
@@ -30,9 +32,9 @@ import {
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
-import { bilanPrompt } from "./lead.ts";
+import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { resolvePipeline } from "./flows.ts";
+import { owedStep, resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
@@ -730,7 +732,11 @@ export async function startCard(
 
   const branch = card.branch ?? branchFromTitle(card.title, cfg.boardBranchPrefix);
   // The card's own template, else its phase's (ADR 0026). Its kind yields to one the card names.
-  const template = resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, card.repoPath ? db.repoFlow(card.repoPath) : null, db.listTemplates(), db.listFlows())[0] ?? null;
+  const pipeline = resolvePipeline(card, card.phaseId ? db.getPhase(card.phaseId) : null, card.repoPath ? db.repoFlow(card.repoPath) : null, db.listTemplates(), db.listFlows());
+  // A later step whose launch failed (ADR 0031) is resumed — that role, that prompt — not role 0 again.
+  const owed = owedStep(db.listEvents(cardId, 200));
+  const step = owed && pipeline[owed.index] ? owed : null;
+  const template = pipeline[step?.index ?? 0] ?? null;
   const kind = card.agentKind ?? template?.agentKind ?? cfg.boardAgentKind;
 
   // THE REAL HANDOFF BETWEEN TWO CARDS IS THE BRANCH. A task that follows another needs the code
@@ -831,8 +837,13 @@ export async function startCard(
   try {
     const wait = opts.sleep ?? sleep;
     const args = modelArgs(kind, template?.model, opts.adapters);
-    if (template) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
+    if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
+    if (step && template) {
+      // Journaled once up, as `swapRole` does; the previous bilan is spent (its report is in the prompt).
+      db.recordEvent(cardId, "card.pipeline_step", { index: step.index, to: session.id, templateId: template.id, name: template.name, kind, ...(args.length ? { args, model: template.model } : {}) });
+      await Bun.file(join(worktree.checkoutPath, BILAN_REL_PATH)).delete().catch(() => {});
+    }
   } catch (err) {
     // The agent never came up, so this session never existed in any meaningful sense — close it and
     // put the card back where it can be retried. Leaving it open would wedge the card: its pane is a
@@ -841,7 +852,10 @@ export async function startCard(
     // rebuilding it, and lands on this very same shell pane.
     db.closeSession(session.id, "abandoned");
     db.setStatus(cardId, "ready", "agent failed to start");
-    db.recordEvent(cardId, "card.start_failed", { stage: "agent.start", error: (err as Error).message });
+    // A resumed step that fails again stays owed.
+    db.recordEvent(cardId, "card.start_failed", step && template
+      ? { stage: "pipeline", step: step.index, role: template.name, ...(step.prompt ? { prompt: step.prompt } : {}), error: (err as Error).message }
+      : { stage: "agent.start", error: (err as Error).message });
     return { ok: false, error: { kind: "herdr", message: `agent.start: ${(err as Error).message}` } };
   }
 
@@ -853,7 +867,7 @@ export async function startCard(
     : undefined;
   // The brief goes in front of the card's first prompt — never in front of a special one (a conflict
   // to settle, say), which is a message to an agent that already has its role.
-  const text = opts.promptText ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}`);
+  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}`);
   try {
     // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });

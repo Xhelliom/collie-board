@@ -3,6 +3,11 @@
 // operator tap again while the first push is still going — two pushes, or two local merges in the main
 // checkout, on one card. The second tap is answered "already running" instead.
 //
+// WHO TAKES IT: the integration route (every tap), the run's and the "PR & done" follower's `land`
+// (`mergeWhenReady` — held, they ask again on the next tick, nothing journaled), and the wrapup's
+// automatic `cleanupCard` (held, it is skipped). NOT a run's own `pr` / conflict steps: those push
+// without it.
+//
 // In memory on purpose: what it guards is a request in flight, which a restart ends anyway.
 
 /** The cards with an integration gesture in flight. Module-wide: every route shares it. */

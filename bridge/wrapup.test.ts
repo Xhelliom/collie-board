@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { Card } from "./db.ts";
 import { BoardDb, isPendingWrapup } from "./db.ts";
 import type { cleanupCard } from "./integrate.ts";
+import { integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 import type { probeCheckout } from "./wrapup.ts";
@@ -172,6 +173,20 @@ describe("WrapupCoordinator", () => {
     new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(cleanup.calls.map((c) => c.id)).toEqual([card.id]);
+  });
+
+  it("does NOT clean up a card an integration gesture holds (integration-lock.ts)", () => {
+    const now = 10_000_000;
+    const store = db();
+    const { card } = pending(store, 31 * 60 * 1000, now);
+    const cleanup = fakeCleanup();
+    integrating.add(card.id);
+    try {
+      new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
+    } finally {
+      integrating.delete(card.id);
+    }
+    expect(cleanup.calls).toEqual([]);
   });
 
   it("does NOT clean up a card the operator asked to keep", () => {
