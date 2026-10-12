@@ -307,10 +307,28 @@ export async function prForCard(
 
 /**
  * How long an EMPTY check rollup reads as "GitHub has not registered the checks yet" rather than
- * "this repo runs no CI" (ADR 0036). Measured in the PR's own age, so a repo without CI still
- * merges — a few minutes late.
+ * "this repo runs no CI" (ADR 0036). Measured from the last push — the newest of the card's journaled
+ * `card.pr_opened`/`card.pr_updated` and the PR's own `createdAt` — so a re-push's new head gets its
+ * grace too, and a repo without CI still merges, a few minutes late.
  */
 export const CHECKS_GRACE_MS = 5 * 60_000;
+
+/**
+ * How many asks in a row may find GitHub unreadable (network, `gh` logged out, rate limit) before the
+ * board stops and says so (ADR 0036). Below it, unreadable is a wait like any other: the caller's next
+ * tick (≥ 30 s apart) asks again.
+ */
+export const MAX_UNREADABLE = 5;
+
+/**
+ * How often to re-ask GitHub about a PR the board has stopped acting on, but still watches for a merge
+ * (a stopped "PR & done" follow, a dependent waiting on its predecessor's auto-merge): every 30 s at
+ * first, then a quarter of the time already waited, at most every 30 min (ADR 0036). Pure.
+ */
+export const askEvery = (waited: number): number => Math.min(30 * 60_000, Math.max(30_000, waited / 4));
+
+/** ponytail: consecutive unreadable asks per card+run, in memory — a restart only starts the count again. */
+const unreadable = new Map<string, number>();
 
 /** What a run knows about the gate when its PR opens: the board merges itself only on `ok`. */
 export interface MergeGate {
@@ -341,10 +359,12 @@ export async function landPr(
  * their next tick. Three answers, all journaled as `run.merge`:
  *   - merged (and `card.pr_merged`), or the PR found already merged (`card.pr_merged` alone);
  *   - `{ wait: true }`, ONCE — GitHub has not answered yet: mergeability `UNKNOWN`, checks running,
- *     or no check registered on a PR younger than {@link CHECKS_GRACE_MS} (ADR 0036). No timer, no
- *     loop here: the caller's next tick asks again;
+ *     no check registered within {@link CHECKS_GRACE_MS} of the last push, or GitHub unreadable fewer
+ *     than {@link MAX_UNREADABLE} times in a row (ADR 0036). No timer, no loop here: the caller's next
+ *     tick asks again;
  *   - a skip with its reason: red gate, red check (`ci`, for the worker), conflict (`conflict`), a PR
- *     closed, GitHub unreadable, the merge refused. The caller decides; nothing here files a card.
+ *     closed, GitHub unreadable {@link MAX_UNREADABLE} times in a row, the merge refused. The caller
+ *     decides; nothing here files a card.
  */
 export async function mergeWhenReady(
   db: BoardDb,
@@ -361,9 +381,18 @@ export async function mergeWhenReady(
     const last = db.listEvents(cardId, 50).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
     if (!(last?.payload as { wait?: boolean } | undefined)?.wait) skip(reason, { wait: true });
   };
+  // Consecutive: any ask that does not end unreadable clears the count.
+  const key = `${cardId}\u0000${runId}`;
+  const failures = unreadable.get(key) ?? 0;
+  unreadable.delete(key);
+  const unread = (what: string) => {
+    if (failures + 1 >= MAX_UNREADABLE) return skip(`could not read ${what} from GitHub ${failures + 1} times in a row — not merging`);
+    unreadable.set(key, failures + 1);
+    wait(`could not read ${what} from GitHub — asking again`);
+  };
   if (!gate?.ok) return skip(gate ? gate.why : "no gate verdict — not merging");
   const pr = await prStatusOf(repoPath, branch, gh);
-  if (!pr) return skip("could not read the PR's state from GitHub — not merging");
+  if (!pr) return unread("the PR's state");
   // GitHub's auto-merge or a human got there first: that is a landing too.
   if (pr.state === "merged") return notePrOutcome(db, cardId, pr);
   if (pr.state !== "open") return skip(`the PR is already ${pr.state}`);
@@ -371,15 +400,16 @@ export async function mergeWhenReady(
   // GitHub computes mergeability lazily — `UNKNOWN` for a while after `pr create` or a push.
   if (!pr.mergeable) return wait("GitHub has not worked out mergeability yet — waiting");
   const checks = await checksOf(repoPath, branch, gh);
-  if (!checks) return skip("could not read the PR's checks from GitHub — not merging");
+  if (!checks) return unread("the PR's checks");
   if (checks.state === "red") {
     const log = await failedLog(repoPath, checks.detailsUrl, gh);
     return skip(`the check ${checks.name} failed — not merging`, { ci: { name: checks.name, log } });
   }
   if (checks.state === "pending") return wait("the PR's checks are still running — waiting");
-  // Right after `pr create` the rollup is empty before GitHub registers the checks. Read against the
-  // PR's age, not the repo's workflow files (ADR 0036): a `paths:`/`branches:` filter would wait forever.
-  if (checks.state === "none" && pr.createdAt !== null && now() - pr.createdAt < CHECKS_GRACE_MS) {
+  // Right after `pr create` — or a push to it — the rollup is empty before GitHub registers the checks
+  // of the new head. Read against the last push, not the repo's workflow files (ADR 0036): a
+  // `paths:`/`branches:` filter would wait forever. Neither known: no grace, it merges.
+  if (checks.state === "none" && now() - lastPushOf(db, cardId, pr) < CHECKS_GRACE_MS) {
     return wait("GitHub has registered no check on this PR yet — waiting");
   }
   const r = await enableAutoMerge(repoPath, branch, gh, []);
@@ -395,15 +425,22 @@ export async function mergeWhenReady(
 /** The PR events that end an open PR. */
 const PR_OVER = new Set(["card.pr_merged", "card.pr_closed"]);
 
+/** When the card's PR last received a push, epoch ms: see {@link CHECKS_GRACE_MS}. -Infinity when unknown. */
+function lastPushOf(db: BoardDb, cardId: string, pr: PrStatus): number {
+  const pushed = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  return Math.max(pushed?.ts ?? -Infinity, pr.createdAt ?? -Infinity);
+}
+
 /**
- * Write down that a card's PR is over, the first time GitHub says so — and only then, so a card
- * screen re-reading a merged PR doesn't journal it again on every open. A merge is final; a close
- * can be undone on GitHub, and the card screen, which always asks, still says so if it is.
+ * Write down what a card's PR became, each time GitHub says something new — and only then, so a card
+ * screen re-reading a merged PR doesn't journal it again on every open. A merge is final; a close can
+ * be undone on GitHub: a PR journaled closed, then reopened and merged there, is journaled merged too —
+ * the land step would otherwise ask GitHub for ever without the card ever being filed.
  */
 export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null): void {
   if (pr?.state !== "merged" && pr?.state !== "closed") return;
-  const last = db.listEvents(cardId).find((e) => e.type === "card.pr_opened" || PR_OVER.has(e.type));
-  if (last?.type !== "card.pr_opened") return;
+  const last = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || PR_OVER.has(e.type));
+  if (!last || last.type === `card.pr_${pr.state}`) return;
   const payload = { url: pr.url, ...(pr.mergedAt ? { mergedAt: pr.mergedAt } : {}) };
   if (pr.state === "merged") notePrMerged(db, cardId, payload);
   else db.recordEvent(cardId, "card.pr_closed", payload);
@@ -414,11 +451,16 @@ export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null):
  * by the follower, a Check tap or a card screen. The squash put the card's work in its base, so the
  * cards forked from its branch are repointed there ({@link rebindDependents}): a successor must not
  * keep that branch as its base, nor open its PR against it.
+ *
+ * The base: the card's `baseRef`, else — a row filed before every card had one — the base its PR was
+ * opened against, as `prForCard` journaled it. Neither: nothing is repointed.
  */
 function notePrMerged(db: BoardDb, cardId: string, payload: { url: string; mergedAt?: number }): void {
   db.recordEvent(cardId, "card.pr_merged", payload);
   const card = db.getCard(cardId);
-  if (card?.branch && card.baseRef) rebindDependents(db, card.branch, card.baseRef);
+  const opened = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  const base = card?.baseRef?.trim() || String((opened?.payload as { base?: unknown } | null)?.base ?? "").trim();
+  if (card?.branch && base) rebindDependents(db, card.branch, base, "predecessor PR merged");
 }
 
 /**
@@ -608,11 +650,18 @@ export function wrapupGate(lastSession: CardSession | null): IntegrateError | nu
  * dependent's diff when the predecessor was merged; when it was only PUSHED (cleaned up behind an
  * open PR), the predecessor's commits show up in the dependent's diff until that PR lands, which is
  * the honest reading — they really are not in the base yet.
+ *
+ * Only the LABEL moves. A dependent already started (and not yet filed) holds the predecessor's commits in its own branch
+ * — squash-merged, they are not ancestors of the base, so its PR would carry them (and their `changes/`
+ * fragment) a second time (ADR 0034). The board does not rewrite an agent's branch: it journals
+ * `card.base_moved { from, to }` on that card, for its agent or the operator to merge `to` into it.
  */
-export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string): void {
+export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string, reason = "predecessor branch deleted"): void {
   for (const dependent of db.listCards({ includeArchived: true })) {
-    if (dependent.baseRef === deletedBranch) {
-      db.patchCard(dependent.id, { baseRef: resolvedBase }, "predecessor branch deleted");
+    if (dependent.baseRef !== deletedBranch) continue;
+    db.patchCard(dependent.id, { baseRef: resolvedBase }, reason);
+    if (dependent.status !== "done" && dependent.status !== "archived" && db.listEvents(dependent.id, 500).some((e) => e.type === "card.worktree")) {
+      db.recordEvent(dependent.id, "card.base_moved", { from: deletedBranch, to: resolvedBase, reason });
     }
   }
 }

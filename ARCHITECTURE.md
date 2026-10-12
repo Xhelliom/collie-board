@@ -370,7 +370,8 @@ follow-ups, or *re-check* after a conflict. It then executes the answer through 
 would use — `promptAndConfirm` back to the worker, `prForCard` with auto-merge armed,
 `resolveConflict`, `fileAsDone` — and journals each decision with its reason as `run.*`. A member is
 filed only once its PR has landed (merged, or GitHub's auto-merge armed); "GitHub has not answered
-yet" is a wait asked again on a later tick, never a timer ([ADR 0036](./.adr/0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md)). The lead
+yet" is a wait asked again on a later tick, never a timer, and a member filed on an armed auto-merge
+holds its dependents back until the board has seen that merge ([ADR 0036](./.adr/0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md)). The lead
 judges and speaks; it never edits, starts, pushes or merges. The coordinator keeps no state: where
 a member stands (`stepFor`) is read from the card, its journal and its pane on every snapshot, so a
 restart resumes the run. A `blocked` worker is never answered, and a card the lead sent back

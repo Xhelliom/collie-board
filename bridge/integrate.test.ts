@@ -29,6 +29,7 @@ import type { Config } from "./config.ts";
 import {
   armAutoMerge,
   landPr,
+  MAX_UNREADABLE,
   mergeWhenReady,
   notePrOutcome,
   cleanupCard,
@@ -702,7 +703,9 @@ const FRESH = "2026-10-12T11:59:30Z";
 describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () => {
   const green = { runId: "r1", ok: true, why: "gate green" };
   const setup = (over: Parameters<typeof ghDouble>[0] = {}) => {
-    const store = new BoardDb(":memory:");
+    // The journal's clock: the PR was opened (pushed) long ago unless a test says otherwise.
+    const clock = { t: Date.parse(OLD) };
+    const store = new BoardDb(":memory:", () => clock.t);
     const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
     store.recordEvent(card.id, "card.pr_opened", { url: "https://gh/o/r/pull/1" });
     const { gh, calls } = ghDouble(over);
@@ -711,7 +714,7 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
     const direct = () => calls.some((a) => a[0] === "pr" && a[1] === "merge" && !a.includes("--auto"));
     const land = (gate = green) => landPr(store, card.id, "/repo", "board/x", gate, gh);
     const again = (gate = green) => mergeWhenReady(store, card.id, "/repo", "board/x", gate, gh, () => NOW);
-    return { store, card, gh, calls, merges, merged, direct, land, again };
+    return { store, clock, card, gh, calls, merges, merged, direct, land, again };
   };
 
   it("merges directly once auto-merge is refused, gate green, no conflict", async () => {
@@ -772,6 +775,39 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
     expect(t.merged()).toBe(1);
   });
 
+  describe("GitHub unreadable (network, gh logged out, rate limit) is a wait, up to MAX_UNREADABLE in a row (ADR 0036)", () => {
+    it("a passing failure, then a readable answer: a wait, then the merge — never a skip", async () => {
+      let down = true;
+      const t = setup();
+      const flaky: GitRunner = async (args) => (down && args.includes("--json") ? { ok: false, stdout: "", stderr: "connection reset" } : t.gh(args, "/repo"));
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, flaky, () => NOW);
+      expect(t.merges()).toEqual([{ runId: "r1", merged: false, wait: true, reason: expect.stringContaining("could not read the PR's state") }]);
+      down = false;
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, flaky, () => NOW);
+      expect(t.merged()).toBe(1);
+    });
+
+    it("the checks unreadable count too; MAX_UNREADABLE in a row is a skip the caller halts on — journaled once until then", async () => {
+      const t = setup();
+      const noChecks: GitRunner = async (args) => (args.includes("statusCheckRollup") ? { ok: false, stdout: "", stderr: "API rate limit exceeded" } : t.gh(args, "/repo"));
+      for (let i = 0; i < MAX_UNREADABLE - 1; i++) await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, noChecks, () => NOW);
+      expect(t.merges()).toHaveLength(1);
+      expect(t.merges()[0]).toMatchObject({ wait: true });
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, noChecks, () => NOW);
+      expect(t.merges()[0]).toEqual({ runId: "r1", merged: false, reason: expect.stringContaining(`${MAX_UNREADABLE} times in a row`) });
+      expect(t.direct()).toBe(false);
+    });
+  });
+
+  it("a PR journaled closed, reopened and merged on GitHub, is journaled merged — the land step does not spin for ever", async () => {
+    const t = setup({ view: () => ({ state: "MERGED", mergedAt: "2026-10-12T11:00:00Z" }) });
+    t.store.recordEvent(t.card.id, "card.pr_closed", { url: "https://gh/o/r/pull/1" });
+    await t.again();
+    expect(t.merged()).toBe(1);
+    await t.again();
+    expect(t.merged()).toBe(1);
+  });
+
   it("a PR found already merged — GitHub's auto-merge, a human — is journaled as merged, not skipped", async () => {
     const t = setup({ view: () => ({ state: "MERGED", mergedAt: "2026-10-12T11:00:00Z" }) });
     await t.again();
@@ -802,10 +838,19 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
       expect(t.direct()).toBe(true);
     });
 
-    it("an empty rollup on a PR whose age GitHub did not give merges — never an endless wait", async () => {
+    it("an empty rollup on a PR whose age GitHub did not give is read against the journaled push — never an endless wait", async () => {
       const t = setup({ view: () => ({ createdAt: undefined }) });
       await t.again();
       expect(t.direct()).toBe(true);
+    });
+
+    it("a re-push restarts the grace: pr_updated a moment ago, the PR itself old, an empty rollup — a wait", async () => {
+      const t = setup({ view: () => ({ createdAt: OLD }) });
+      t.clock.t = Date.parse(FRESH);
+      t.store.recordEvent(t.card.id, "card.pr_updated", { url: "https://gh/o/r/pull/1" });
+      await t.again();
+      expect(t.direct()).toBe(false);
+      expect(t.merges()[0]).toMatchObject({ merged: false, wait: true, reason: expect.stringContaining("no check") });
     });
 
     it("never merges a red check, and hands the worker its name and log", async () => {
@@ -843,6 +888,24 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
       const t = chain();
       notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
+    });
+
+    it("a card with no baseRef (an older row) repoints to the base its PR was opened against", () => {
+      const t = setup();
+      t.store.patchCard(t.card.id, { branch: "board/x", baseRef: null });
+      t.store.recordEvent(t.card.id, "card.pr_opened", { url: "u", base: "trunk" });
+      const next = t.store.createCard({ title: "next", repoPath: "/repo", baseRef: "board/x", dependsOn: t.card.id });
+      notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.getCard(next.id)!.baseRef).toBe("trunk");
+    });
+
+    it("a dependent already started is told its branch still carries the predecessor's commits", () => {
+      const t = chain();
+      t.store.recordEvent(t.next.id, "card.worktree", { branch: "board/next", base: "board/x" });
+      const idle = t.store.createCard({ title: "idle", repoPath: "/repo", baseRef: "board/x", dependsOn: t.card.id });
+      notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.listEvents(t.next.id).find((e) => e.type === "card.base_moved")?.payload).toEqual({ from: "board/x", to: "main", reason: "predecessor PR merged" });
+      expect(t.store.listEvents(idle.id).some((e) => e.type === "card.base_moved")).toBe(false);
     });
 
     it("not on a closed PR: nothing landed", () => {

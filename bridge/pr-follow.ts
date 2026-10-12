@@ -6,7 +6,7 @@ import type { BoardDb, Card } from "./db.ts";
 import { parseGate, runGate, type GateResult } from "./gate.ts";
 import { worktreePathFor, type PrStatus } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { mergeWhenReady, notePrOutcome, prStatusFor, type MergeGate } from "./integrate.ts";
+import { askEvery, mergeWhenReady, notePrOutcome, prStatusFor, type MergeGate } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
 
@@ -58,12 +58,22 @@ export class PrFollower {
       if (merged) { this.ports.fileAsDone(card); continue; }
       const asked = this.asked.get(cardId);
       if (asked !== undefined && this.now() - asked < FOLLOW_EVERY_MS) continue;
+      // A stopped follow (red check, conflict…) is only watched for a merge by hand: slower and slower
+      // while its PR stays open (ADR 0036), never a `gh pr view` every 30 s for days.
+      const stop = this.stoppedAt(cardId, followRunId(followId));
+      if (asked !== undefined && stop !== null && this.now() - asked < askEvery(this.now() - stop)) continue;
       this.asked.set(cardId, this.now());
       this.busy.add(cardId);
       void this.tick(card, followRunId(followId))
         .catch(() => {})
         .finally(() => this.busy.delete(cardId));
     }
+  }
+
+  /** When this follow stopped merging — its last `run.merge` is not a wait — or null while it still merges. */
+  private stoppedAt(cardId: string, runId: string): number | null {
+    const last = this.db.listEvents(cardId, 200).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
+    return last && !(last.payload as { wait?: boolean }).wait ? last.ts : null;
   }
 
   /** One ask. Exported through `update` only; public so a test can await it. */
@@ -73,12 +83,12 @@ export class PrFollower {
     const pr = await this.ports.prStatus(card);
     notePrOutcome(this.db, card.id, pr);
     if (pr?.state === "merged") return this.ports.fileAsDone(this.db.getCard(card.id)!);
-    if (pr?.state !== "open") return;
+    // Unreadable (null) goes on to `land`, which counts it as a wait up to MAX_UNREADABLE (ADR 0036).
+    if (pr && pr.state !== "open") return;
     // A red check, a red gate, a conflict: the board said no and why (`run.merge`). The board stops
     // merging there — a new "PR & done" tap after the fix journals a new follow. Only a wait (checks
-    // running, GitHub not done computing — ADR 0036) asks again.
-    const last = this.db.listEvents(card.id, 200).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
-    if (last && !(last.payload as { wait?: boolean }).wait) return;
+    // running, GitHub not done computing or unreadable — ADR 0036) asks again.
+    if (this.stoppedAt(card.id, runId) !== null) return;
     await this.ports.land(card, await this.ports.gate(card, runId));
     const merge = this.db.listEvents(card.id, 20).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
     if ((merge?.payload as { merged?: boolean } | undefined)?.merged) this.ports.fileAsDone(this.db.getCard(card.id)!);
