@@ -1,6 +1,6 @@
 # 0015 — A card forks from the more complete of the local base and origin's
 
-**Status:** Accepted
+**Status:** Accepted — partially superseded by [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) (a merged predecessor)
 **Date:** 2026-09-15
 
 ## Context

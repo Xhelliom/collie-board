@@ -56,7 +56,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0012](./0012-the-review-is-markdown-the-app-already-renders.md) | The review is Markdown the app already renders | Accepted |
 | [0013](./0013-the-bridge-does-not-know-its-consumers.md) | The bridge does not know its consumers | Accepted |
 | [0014](./0014-a-conflicting-pr-does-not-file-the-card.md) | A PR that conflicts does not file its card; a filed card reopens on demand | Accepted |
-| [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Accepted |
+| [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Partially superseded by [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) |
 | [0016](./0016-the-version-is-cut-on-main-by-ci.md) | The version is cut on main by CI; a branch only drops a fragment | Accepted |
 | [0017](./0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md) | A run is consent given once, over a chosen set of cards | Accepted |
 | [0018](./0018-no-parasite-cards-from-a-review.md) | A review files no parasite cards | Accepted |
@@ -66,3 +66,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0031](./0031-a-pipeline-is-an-ordered-list-of-roles-run-inside-a-run.md) | A pipeline is an ordered list of roles, chained only inside a run | Accepted |
 | [0032](./0032-a-flow-is-a-named-pipeline-kept-in-the-board.md) | A flow is a named pipeline, kept in the board | Accepted |
 | [0033](./0033-a-report-is-read-from-the-journal-the-narrative-is-the-only-thing-stored.md) | A report is read from the journal; the narrative is the only thing stored | Accepted |
+| [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) | A card after a merged predecessor forks from the base, not from its branch | Accepted |

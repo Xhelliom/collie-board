@@ -738,8 +738,12 @@ export async function startCard(
   // never actually ran (it has no branch), OR when it ran and its branch was since cleaned up
   // after merge — `card.branch` outlives the ref (see `branchExists`), and handing a deleted ref
   // to `worktree.create` as `base` fails immediately, before this even reaches herdr's retry path.
+  //
+  // UNLESS THAT WORK HAS LANDED (ADR 0034). The board merges in squash, so a merged predecessor's
+  // branch is not an ancestor of the base: forking from it re-carries its commits into this card's
+  // PR, and its `changes/` fragment is released twice. Its code is in the base by then — fork there.
   const predecessorBranch =
-    predecessor?.branch && (await branchExists(card.repoPath, predecessor.branch, opts.git))
+    predecessor?.branch && !hasLanded(db, predecessor.id) && (await branchExists(card.repoPath, predecessor.branch, opts.git))
       ? predecessor.branch
       : null;
   // Resolved, not as configured: a card with no base forks from the main checkout's current branch, and
@@ -1152,6 +1156,18 @@ export function convertToAction(
   // and this one is the card's, not whatever the row that offered the conversion was labelled. A
   // caller that guesses gets it wrong the moment a promoted card was renamed — after the delete.
   return { ok: true, reviewId: review.id, title: card.title };
+}
+
+/**
+ * Whether a card's work is in its base: the newest of its merges and its starts is a merge. A start
+ * after the merge (a relaunch) means new work the base lacks, so its branch is the handoff again.
+ * Read from the newest 100 events: a merge is the last thing a card does, so it is among them.
+ */
+export function hasLanded(db: BoardDb, cardId: string): boolean {
+  const last = db
+    .listEvents(cardId)
+    .find((e) => e.type === "card.pr_merged" || e.type === "card.merged" || e.type === "card.worktree");
+  return last !== undefined && last.type !== "card.worktree";
 }
 
 /**

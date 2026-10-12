@@ -2577,6 +2577,43 @@ describe("startCard — containers and dependencies", () => {
     expect(store.getCard(next.id)!.baseRef).toBe("main");
   });
 
+  describe("a predecessor whose PR was squash-merged (ADR 0034)", () => {
+    async function startAfter(events: string[]) {
+      const store = db();
+      const first = store.createCard({ title: "first", repoPath: "/repo", baseRef: "main" });
+      store.patchCard(first.id, { branch: "board/first" });
+      for (const type of events) store.recordEvent(first.id, type, {});
+      store.setStatus(first.id, "done", "test");
+      const next = store.createCard({ title: "next", repoPath: "/repo", baseRef: "main", dependsOn: first.id });
+      const bases: (string | null | undefined)[] = [];
+      const { client } = fakeHerdr();
+      const spy = {
+        ...client,
+        async createWorktree(opts: { branch: string; base?: string | null }) {
+          bases.push(opts.base);
+          return client.createWorktree(opts);
+        },
+      };
+      // The branch still exists: only the merge in the journal can tell it apart from the handoff.
+      const git: GitRunner = async () => ({ ok: true, stdout: "sha\n", stderr: "" });
+      const res = await startCard(store, spy as never, startCfg, next.id, { sleep: async () => {}, git });
+      expect(res.ok).toBe(true);
+      return { bases, baseRef: store.getCard(next.id)!.baseRef };
+    }
+
+    it("forks from the up-to-date base, not from the merged branch", async () => {
+      expect(await startAfter(["card.worktree", "card.pr_opened", "card.pr_merged"])).toEqual({ bases: ["main"], baseRef: "main" });
+    });
+
+    it("keeps the predecessor's branch while its PR is not merged", async () => {
+      expect(await startAfter(["card.worktree", "card.pr_opened"])).toEqual({ bases: ["board/first"], baseRef: "board/first" });
+    });
+
+    it("keeps the predecessor's branch when it was relaunched after its merge", async () => {
+      expect(await startAfter(["card.worktree", "card.pr_merged", "card.worktree"])).toEqual({ bases: ["board/first"], baseRef: "board/first" });
+    });
+  });
+
   it("falls back to its own base when the predecessor never actually ran", async () => {
     const store = db();
     const first = store.createCard({ title: "first", repoPath: "/repo", status: "done" });
