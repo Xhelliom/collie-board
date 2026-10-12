@@ -87,6 +87,10 @@ export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
  * Replace the card's session with a fresh agent in `role`, at pipeline step `index`, told `text`.
  * Modelled on `swapToFreshSession` (new pane first, then the old one closed). Throws; the coordinator
  * turns a failure into a halt.
+ *
+ * SAME DISCIPLINE AS `startCard`: the step is journaled only once the agent is up. An agent that never
+ * came up leaves no open session on a shell pane (that wedges the card: reconciliation never orphans a
+ * live shell, and every retry answers "already running") and no step counted as taken.
  */
 async function swapRole(
   db: BoardDb,
@@ -98,6 +102,7 @@ async function swapRole(
   index: number,
   text: string,
   adapters?: Record<string, AgentAdapter>,
+  wait?: (ms: number) => Promise<void>,
 ): Promise<void> {
   if (!card.workspaceId || !session.paneId) throw new Error("card has no workspace or pane");
   const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
@@ -108,17 +113,32 @@ async function swapRole(
     // Already gone is the outcome we wanted.
   }
 
-  // The previous bilan is spent: the next role writes its own, and the lead must not read a stale one.
-  const checkout = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
-  if (checkout) await Bun.file(join(checkout, BILAN_REL_PATH)).delete().catch(() => {});
-
+  // The card's explicit kind, else the ROLE's (ADR 0026) — never the kind an earlier role ran with.
   const kind = card.agentKind ?? role.agentKind ?? cfg.boardAgentKind;
   const next = db.openSession({ cardId: card.id, paneId: created.paneId, agentKind: kind });
   const args = modelArgs(kind, role.model, adapters);
+  try {
+    await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, args);
+  } catch (err) {
+    db.closeSession(next.id, "abandoned");
+    db.setStatus(card.id, "ready", "agent failed to start");
+    db.recordEvent(card.id, "card.start_failed", { stage: "pipeline", step: index, role: role.name, error: (err as Error).message });
+    throw new Error(`agent.start (${role.name}): ${(err as Error).message}`);
+  }
   db.recordEvent(card.id, "card.pipeline_step", { index, from: session.id, to: next.id, templateId: role.id, name: role.name, kind, ...(args.length ? { args, model: role.model } : {}) });
 
-  await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, args);
-  await promptAndConfirm(herdr, created.paneId, text, undefined, { firstAfterLaunch: true });
+  // The previous bilan is spent: the next role writes its own, and the lead must not read a stale one.
+  // Only once the agent is up — a failed launch keeps it for the retry.
+  const checkout = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
+  if (checkout) await Bun.file(join(checkout, BILAN_REL_PATH)).delete().catch(() => {});
+
+  try {
+    await promptAndConfirm(herdr, created.paneId, text, wait, { firstAfterLaunch: true });
+  } catch (err) {
+    // The agent IS up; only the prompt failed — recoverable by hand, as in `startCard`: keep the session.
+    db.recordEvent(card.id, "card.start_failed", { stage: "agent.prompt", error: (err as Error).message });
+    throw new Error(`agent started but the prompt failed: ${(err as Error).message}`);
+  }
   db.setStatus(card.id, "working", `pipeline: ${role.name}`);
 }
 
@@ -132,11 +152,12 @@ export async function advancePipeline(
   role: AgentTemplate,
   report: string | null,
   adapters?: Record<string, AgentAdapter>,
+  wait?: (ms: number) => Promise<void>,
 ): Promise<void> {
   const pipeline = pipelineOf(db, card);
   const index = currentStep(db.listEvents(card.id, 200)) + 1;
   const previous = pipeline[index - 1]?.name ?? "previous step";
-  await swapRole(db, herdr, cfg, card, session, role, index, stepPrompt(role, card, { name: previous, report }), adapters);
+  await swapRole(db, herdr, cfg, card, session, role, index, stepPrompt(role, card, { name: previous, report }), adapters, wait);
 }
 
 /**
@@ -153,8 +174,9 @@ export async function sendBackToWorker(
   index: number,
   failure: string,
   adapters?: Record<string, AgentAdapter>,
+  wait?: (ms: number) => Promise<void>,
 ): Promise<void> {
   const role = pipelineOf(db, card)[index];
   if (!role) throw new Error("the card has no such pipeline step");
-  await swapRole(db, herdr, cfg, card, session, role, index, sendBackPrompt(role, card, failure), adapters);
+  await swapRole(db, herdr, cfg, card, session, role, index, sendBackPrompt(role, card, failure), adapters, wait);
 }

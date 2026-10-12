@@ -27,10 +27,13 @@ export type { NotifyLogEntry, NotifyPrefs, UpdateInfo };
 // error the loaders still recognise — isApiErrorStatus is an instanceof check, so nothing else can.
 export class ApiError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  /** The bridge's own `kind` for a refusal (`in-progress`, `conflict`…), when its body named one. */
+  readonly kind: string | undefined;
+  constructor(message: string, status: number, kind?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.kind = kind;
   }
 }
 
@@ -104,8 +107,8 @@ async function apiError(res: Response, path: string): Promise<ApiError> {
   }
   if (body.startsWith("{")) {
     try {
-      const { error } = JSON.parse(body) as { error?: unknown };
-      if (typeof error === "string" && error.trim()) return new ApiError(error, res.status);
+      const { error, kind } = JSON.parse(body) as { error?: unknown; kind?: unknown };
+      if (typeof error === "string" && error.trim()) return new ApiError(error, res.status, typeof kind === "string" ? kind : undefined);
     } catch {
       // Not JSON after all — fall through to the raw form.
     }

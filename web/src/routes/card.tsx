@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ApiError } from "@/lib/api";
 import { AgentIcon } from "@/components/agent-icon";
 import { AppHeader } from "@/components/app-header";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
@@ -1692,6 +1693,11 @@ export function IntegrationSection({
       if (e instanceof DOMException && e.name === "TimeoutError") {
         setStatus(t("int.stillRunning"), "info", 10_000);
         onDone();
+        return;
+      }
+      // The bridge is still on an earlier tap (a push behind a slow pre-push): not a failure either.
+      if (e instanceof ApiError && e.kind === "in-progress") {
+        setStatus(t("int.alreadyRunning"), "info", 10_000);
         return;
       }
       // A conflict is the one failure with a next step, so the button for it appears here. A failed

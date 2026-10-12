@@ -374,6 +374,22 @@ export function toNotifySubtitle(parsed: unknown): string | null {
 }
 
 /**
+ * The card whose base a card's work really sits on: the card itself, unless it forked from its
+ * predecessor's branch (`startCard` then records that branch as its `baseRef`), in which case the
+ * predecessor's — walked back to the first card of the chain. Pure.
+ */
+export function forkOrigin(card: Card, getCard: (id: string) => Card | null): Card {
+  const seen = new Set([card.id]);
+  let c = card;
+  for (;;) {
+    const pred = c.dependsOn ? getCard(c.dependsOn) : null;
+    if (!pred || !pred.branch || pred.branch !== c.baseRef || seen.has(pred.id)) return c;
+    seen.add(pred.id);
+    c = pred;
+  }
+}
+
+/**
  * Snap a copilot-proposed tag onto the tags the board already uses, or keep it as a new one.
  *
  * NOT PURE, deliberately: a tag it accepts as new is PUSHED onto `inventory`, which is what makes a
@@ -1731,8 +1747,9 @@ export class CopilotCoordinator {
         }
         return true;
       });
-    // A follow-up is born with the reviewed card's base (`baseOf`, git.ts), never without one.
-    const baseRef = await baseOf(card);
+    // A follow-up is born with the reviewed card's REAL base (`baseOf`, git.ts), never without one —
+    // not the predecessor branch that card forked from: a follow-up depends on nothing.
+    const baseRef = await baseOf(forkOrigin(card, (id) => this.db.getCard(id)));
     const mapped: ReviewTodo[] = suggested.map(({ todo, category }) => {
       // TOO SMALL FOR A CARD — and so it does not become one. The suggestion is kept on the review
       // instead, with the spec that would have been the card's, and the card screen offers it as

@@ -791,7 +791,9 @@ export async function startCard(
   // `baseRef` is persisted as RESOLVED, not as configured: it is also the left side of every diff
   // this card shows (git.ts), so leaving it at "main" after forking from a predecessor would make
   // the card's diff include the predecessor's work as if this agent had written it.
-  db.patchCard(cardId, { branch, baseRef: base, workspaceId: worktree.workspaceId, agentKind: kind });
+  // NOT the resolved kind (ADR 0026): `card.agentKind` stays the operator's explicit choice, or the
+  // pipeline's later roles would inherit the first role's kind (pipeline.ts). The session carries it.
+  db.patchCard(cardId, { branch, baseRef: base, workspaceId: worktree.workspaceId });
   db.recordEvent(cardId, "card.worktree", {
     branch,
     base,

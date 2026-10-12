@@ -71,6 +71,7 @@ import {
   reopenForPr,
   resolveConflict,
 } from "./integrate.ts";
+import { exclusive, integrating } from "./integration-lock.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
@@ -1296,7 +1297,8 @@ async function route(
     // picks is typed into a terminal.
     const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
 
-    const result =
+    // One gesture at a time per card (integration-lock.ts): a second tap while a push is in flight is refused.
+    const held = await exclusive(integrating, id, async () =>
       what === "merge"
         ? await mergeCard(db, card)
         : what === "pr"
@@ -1305,7 +1307,12 @@ async function route(
             ? await resolveConflict(db, ctx.herdr, card, via)
             : what === "reopen"
               ? await reopenForPr(db, ctx.herdr, ctx.cfg, card)
-              : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" });
+              : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" }),
+    );
+    if (held.busy) {
+      return ctx.json({ ok: false, error: "an integration is already running on this card", kind: "in-progress" }, 409);
+    }
+    const result = held.value;
 
     // INTEGRATE FIRST, FILE SECOND, and only on success. The other order is the one everybody
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its

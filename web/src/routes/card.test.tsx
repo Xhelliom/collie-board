@@ -424,6 +424,29 @@ describe("IntegrationSection — merged, pushed, and neither", () => {
     cleanup();
   });
 
+  // A second tap while the first push still runs: the bridge answers 409 in-progress, which is news, not an error.
+  it("reads a 409 in-progress as already running, not as an error", async () => {
+    function Probe() {
+      const status = useStatus();
+      return <output>{status ? `${status.tone}: ${status.text}` : ""}</output>;
+    }
+    server.use(
+      http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: integration() })),
+      http.post("*/api/cards/:id/integration", () =>
+        HttpResponse.json({ ok: false, error: "an integration is already running on this card", kind: "in-progress" }, { status: 409 }),
+      ),
+    );
+    render(
+      <>
+        <Probe />
+        <IntegrationSection card={card("working")} events={[]} onDone={vi.fn()} onState={vi.fn()} />
+      </>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: /open a pr/i }));
+    expect((await screen.findByText(/already running on this card — wait/i)).textContent).toMatch(/^info: /);
+    cleanup();
+  });
+
   it("offers cleanup on a pushed branch, and keeps discard next to it", async () => {
     await show({ ahead: 2, pushed: true });
     expect(cleanupButton()).toBeTruthy();
