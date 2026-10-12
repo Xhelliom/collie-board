@@ -9,6 +9,30 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.190.1] - 2026-10-12
+
+### Changed
+
+- Diff vide : plus de bouton « Base ref sur main » (f426290)
+- Suppression du délai de 5 s avant re-vérification et de la lecture des workflows du dépôt (84bf0c5)
+
+### Fixed
+
+- Base d'une carte : une seule résolution (`baseOf`), la branche par défaut du dépôt, jamais la branche courante du checkout principal (f426290)
+- Dépôt sans `origin/HEAD`, `main` ni `master` : pas de base devinée ni persistée (jamais une branche `board/…`), ses cartes sont sautées par le back-fill (f426290)
+- Toute carte naît avec sa `baseRef` (copilot et cartes dépendantes comprises) ; les anciennes lignes à `NULL` sont remplies une fois au démarrage (f426290)
+- Diff, revue, intégration, bilan et artefacts lisent la même base (f426290)
+- Atterrissage d'une PR : mergeabilité `UNKNOWN` et rollup vide sur une PR de moins de 5 min sont une attente relue au tick suivant, plus un abandon (ADR 0036) (84bf0c5)
+- Lot : une carte n'est classée que si sa PR est mergée ou son auto-merge armé ; un conflit va à l'agent, un autre refus arrête la carte (84bf0c5)
+- « PR et terminé » : le suivi relit l'état de la PR avant de s'arrêter, une PR mergée à la main classe la carte (84bf0c5)
+- Une PR mergée repointe les cartes dépendantes vers la base de la prédécesseure (84bf0c5)
+- GitHub illisible (réseau, gh, limite de débit) : une attente, l'arrêt seulement après 5 essais de suite (84bf0c5)
+- Rollup vide : la grâce de 5 min part du dernier push (`pr_updated`), plus seulement de la création de la PR (84bf0c5)
+- Lot : une dépendante d'une carte classée sur auto-merge armé attend que la fusion soit vue avant de démarrer (84bf0c5)
+- PR fermée puis rouverte et mergée sur GitHub : journalisée mergée, l'étape d'atterrissage ne tourne plus en rond (84bf0c5)
+- Repointage d'une dépendante déjà démarrée : `card.base_moved` lui demande de merger la nouvelle base (84bf0c5)
+- Suivi arrêté et dépendante en attente : GitHub relu de moins en moins souvent, au plus toutes les 30 min (84bf0c5)
+
 ## [0.190.0] - 2026-10-12
 
 ### Added
