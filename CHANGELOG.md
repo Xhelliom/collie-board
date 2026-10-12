@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.190.3] - 2026-10-12
+
+### Changed
+
+- Gates run one at a time bridge-wide; a queued gate's timeout starts when it runs (ADR 0020 note). (ed1cd7c)
+- Tests share one git-free env (`scripts/test-env.ts`) instead of four copies of the `GIT_DIR` strip. (ed1cd7c)
+- `hasLanded` and `landedStat` read the same journal window as the run (`EVENT_WINDOW`, 200). (ed1cd7c)
+- `listPrEvents` reads only each card's current PR, not the whole PR history, every tick. (ed1cd7c)
+
+### Fixed
+
+- An unknown i18n key shows the key instead of crashing the screen; session outcome labels are checked against the bridge's list. (ed1cd7c)
+
 ## [0.190.2] - 2026-10-12
 
 ### Fixed
