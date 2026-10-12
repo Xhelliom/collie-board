@@ -7,18 +7,20 @@ import { join } from "node:path";
 // that file, and stay quiet about what .gitignore says is not the repo's.
 
 const script = join(import.meta.dir, "check-untracked.sh");
+// A git hook exports GIT_DIR & co: left in, `git init` here would rewrite the REAL repository's config.
+const { GIT_DIR: _d, GIT_WORK_TREE: _w, GIT_PREFIX: _p, GIT_INDEX_FILE: _i, ...env } = process.env;
 let dir = "";
 afterEach(() => dir && rmSync(dir, { recursive: true, force: true }));
 
 function repo(): string {
   dir = mkdtempSync(join(tmpdir(), "untracked-"));
-  const git = (...a: string[]) => Bun.spawnSync(["git", "-C", dir, ...a]);
+  const git = (...a: string[]) => Bun.spawnSync(["git", "-C", dir, ...a], { env });
   git("init", "-q");
   writeFileSync(join(dir, ".gitignore"), "ignored.txt\n");
   git("add", ".gitignore");
   return dir;
 }
-const run = (cwd: string) => Bun.spawnSync(["bash", script], { cwd });
+const run = (cwd: string) => Bun.spawnSync(["bash", script], { cwd, env });
 
 describe("check-untracked.sh", () => {
   it("fails and prints the path of an untracked file", () => {
