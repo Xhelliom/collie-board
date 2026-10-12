@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { UserCog } from "lucide-react";
 
+import { SettingsLoading } from "@/components/settings-loading";
 import { TemplatesSheet } from "@/components/templates-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,7 +14,7 @@ export function TemplatesControl() {
   const t = useT();
   const { data, reload } = useTemplates();
   const [open, setOpen] = useState(false);
-  if (!data) return null;
+  if (!data) return <SettingsLoading />;
   return (
     <Card className="gap-0 py-0">
       <div className="flex items-start gap-3 p-4">

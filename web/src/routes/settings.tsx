@@ -101,6 +101,7 @@ export function SettingsRoute() {
         {tab === "Display" && (
           <>
             <ThemeControl />
+            <LanguageControl />
             <StatusLineControl />
 
             {/* The gallery isn't a root tab: it's something you go and look at now and then, not one of
@@ -172,7 +173,6 @@ export function SettingsRoute() {
             <FollowUpsControl />
             <AutoHandoffControl />
             <GateControl />
-            <LanguageControl />
             <TemplatesControl />
             <FlowsControl />
           </>

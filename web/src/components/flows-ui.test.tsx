@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FlowPicker } from "@/components/flow-picker";
 import { FlowsSheet } from "@/components/flows-sheet";
-import { GateControl } from "@/components/gate-control";
+import { FlowsControl } from "@/components/flows-control";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { RepoFlow } from "@/components/repo-flow";
 import { setPreference } from "@/i18n";
@@ -72,7 +72,7 @@ describe("FlowsSheet", () => {
   });
 });
 
-describe("GateControl: a repo's default flow", () => {
+describe("FlowsControl: a repo's default flow", () => {
   it("sets it from the repo's row", async () => {
     const bodies: unknown[] = [];
     server.use(
@@ -82,9 +82,19 @@ describe("GateControl: a repo's default flow", () => {
         return HttpResponse.json({ ok: true });
       }),
     );
-    render(<GateControl />);
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /Default flow — app/ }), "f2");
+    render(<FlowsControl />);
+    const select = await screen.findByRole("combobox", { name: /Default flow — app/ });
+    expect(select.className).toContain("h-10");
+    await userEvent.selectOptions(select, "f2");
     await waitFor(() => expect(bodies).toEqual([{ path: "/r/app", flowId: "f2" }]));
+  });
+});
+
+describe("settings cards while the bridge is silent", () => {
+  it("say loading instead of rendering nothing", async () => {
+    server.use(http.get("*/api/flows", () => new Promise(() => {})));
+    render(<FlowsControl />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading…");
   });
 });
 
