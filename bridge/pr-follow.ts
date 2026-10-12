@@ -29,6 +29,8 @@ export function followsOf(events: readonly { id: number; cardId: string | null; 
   for (const e of events) {
     if (!e.cardId) continue;
     if (e.type === "card.pr_opened") out.set(e.cardId, { followId: null, merged: false });
+    // `pr_updated` with no PR open in the journal: one the agent opened itself (`gh pr create`).
+    else if (e.type === "card.pr_updated") { if (!out.has(e.cardId)) out.set(e.cardId, { followId: null, merged: false }); }
     else if (e.type === "card.pr_closed") out.delete(e.cardId);
     else if (e.type === "card.pr_merged") { const f = out.get(e.cardId); if (f) f.merged = true; }
     // A re-push of a PR already open journals `pr_updated`, not `pr_opened`: the follow attaches to the open PR.

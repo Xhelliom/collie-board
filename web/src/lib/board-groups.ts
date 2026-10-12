@@ -83,6 +83,8 @@ export function integrationHistory(events: readonly BoardEvent[]): IntegrationHi
     const p = (e.payload ?? {}) as { base?: string; url?: string | null; commits?: number };
     if (e.type === "card.merged") out.merged = { base: p.base ?? "the base", ts: e.ts };
     else if (e.type === "card.pr_opened") out.pr = { url: p.url ?? null, ts: e.ts };
+    // A PR the agent opened itself: the board's first word on it is `pr_updated`.
+    else if (e.type === "card.pr_updated" && !out.pr) out.pr = { url: p.url ?? null, ts: e.ts };
     else if (e.type === "card.cleaned_up") out.cleanedUp = e.ts;
     else if (e.type === "card.reopened") out.reopened = e.ts;
     else if (e.type === "card.discarded") out.discarded = { commits: p.commits ?? 0, ts: e.ts };

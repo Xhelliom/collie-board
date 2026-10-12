@@ -620,6 +620,50 @@ describe("a landed card keeps the diff its review reads", () => {
     await rm(checkout, { recursive: true, force: true });
   });
 
+  describe("card.base_moved only when the dependent really has something to merge", () => {
+    const fixture = async () => {
+      const repo = join(tmpdir(), `collie-moved-${Math.random().toString(36).slice(2)}`);
+      await mkdir(repo, { recursive: true });
+      git(repo, "init", "-q", "-b", "main");
+      git(repo, "config", "user.name", "t");
+      git(repo, "config", "user.email", "t@t");
+      git(repo, "config", "commit.gpgsign", "false");
+      await Bun.write(join(repo, "README"), "x\n");
+      git(repo, "add", ".");
+      git(repo, "commit", "-qm", "init");
+      git(repo, "branch", "board/x");
+      git(repo, "checkout", "-q", "board/x");
+      await Bun.write(join(repo, "x.ts"), "export {};\n");
+      git(repo, "add", ".");
+      git(repo, "commit", "-qm", "x");
+      git(repo, "checkout", "-q", "main");
+      const store = new BoardDb(":memory:");
+      const card = store.createCard({ title: "x", repoPath: repo, baseRef: "main" });
+      store.patchCard(card.id, { branch: "board/x" });
+      const next = store.createCard({ title: "next", repoPath: repo, baseRef: "board/x", dependsOn: card.id });
+      store.recordEvent(next.id, "card.worktree", { branch: "board/next", base: "board/x" });
+      const moved = () => store.listEvents(next.id).some((e) => e.type === "card.base_moved");
+      return { repo, store, card, next, moved };
+    };
+
+    it("not after a local `--no-ff` merge: the predecessor's commits are already in the base", async () => {
+      const t = await fixture();
+      expect((await mergeCard(t.store, t.store.getCard(t.card.id)!)).ok).toBe(true);
+      expect((await cleanupCard(t.store, {} as HerdrClient, t.store.getCard(t.card.id)!)).ok).toBe(true);
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
+      expect(t.moved()).toBe(false);
+      await rm(t.repo, { recursive: true, force: true });
+    });
+
+    it("not after a discard: that work is thrown away, there is nothing to merge", async () => {
+      const t = await fixture();
+      expect((await cleanupCard(t.store, {} as HerdrClient, t.store.getCard(t.card.id)!, { discard: true })).ok).toBe(true);
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
+      expect(t.moved()).toBe(false);
+      await rm(t.repo, { recursive: true, force: true });
+    });
+  });
+
   it("still has nothing to say for a card that never recorded a landing", async () => {
     const store = new BoardDb(":memory:");
     const card = store.createCard({ title: "x" });
@@ -906,6 +950,31 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
       notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
       expect(t.store.listEvents(t.next.id).find((e) => e.type === "card.base_moved")?.payload).toEqual({ from: "board/x", to: "main", reason: "predecessor PR merged" });
       expect(t.store.listEvents(idle.id).some((e) => e.type === "card.base_moved")).toBe(false);
+    });
+
+    it("a PR the agent opened itself (only `pr_updated` in the journal), merged: journaled, its dependents rebound", async () => {
+      const store = new BoardDb(":memory:");
+      const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+      store.patchCard(card.id, { branch: "board/x" });
+      store.recordEvent(card.id, "card.pr_updated", { url: "https://gh/o/r/pull/1", base: "main" });
+      const next = store.createCard({ title: "next", repoPath: "/repo", baseRef: "board/x", dependsOn: card.id });
+      const { gh } = ghDouble({ view: () => ({ state: "MERGED", mergedAt: "2026-10-12T11:00:00Z" }) });
+      await mergeWhenReady(store, card.id, "/repo", "board/x", green, gh, () => NOW);
+      expect(store.listEvents(card.id).filter((e) => e.type === "card.pr_merged")).toHaveLength(1);
+      expect(store.getCard(next.id)!.baseRef).toBe("main");
+    });
+
+    it("the merge journaled by a card screen while the board's own merge was in flight is journaled once", async () => {
+      const t = chain();
+      const racing: GitRunner = async (args, cwd) => {
+        if (args[0] === "pr" && args[1] === "merge" && !args.includes("--auto")) {
+          notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+        }
+        return t.gh(args, cwd);
+      };
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, racing, () => NOW);
+      expect(t.merged()).toBe(1);
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
     });
 
     it("not on a closed PR: nothing landed", () => {

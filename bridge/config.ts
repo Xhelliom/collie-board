@@ -277,6 +277,9 @@ export function defaultSocketPath(
   return join(home, ".config", "herdr", "herdr.sock");
 }
 
+/** `cfg.boardBranchPrefix`, readable where no `Config` is threaded through (`baseOf` in git.ts). */
+export const boardBranchPrefix = (): string => process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/";
+
 export function loadConfig(): Config {
   const stateDir =
     process.env.HERDR_PLUGIN_STATE_DIR ??
@@ -311,7 +314,7 @@ export function loadConfig(): Config {
     skipServe: envBool("COLLIE_BOARD_SKIP_SERVE", false),
     boardAgentKind: (process.env.COLLIE_BOARD_AGENT_KIND ?? "claude").trim() || "claude",
     boardMaxAgents: envInt("COLLIE_BOARD_MAX_AGENTS", 3, { min: 1, max: 32 }),
-    boardBranchPrefix: process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/",
+    boardBranchPrefix: boardBranchPrefix(),
     boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
     boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
     boardOpenCodeDb: expandHome(process.env.COLLIE_BOARD_OPENCODE_DB ?? defaultOpenCodeDbPath()),

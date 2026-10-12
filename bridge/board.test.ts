@@ -1923,8 +1923,27 @@ describe("repo picker", () => {
     expect(await backfillBaseRefs(store, git)).toBe(0);
     expect(store.getCard(legacy.id)!.baseRef).toBeNull();
     // Nor a declared default that is itself a board branch.
-    const boardHead: GitRunner = async () => ({ ok: true, stdout: "origin/board/y\n", stderr: "" });
+    const boardHead: GitRunner = async (args) =>
+      args.includes("--verify") ? { ok: false, stdout: "", stderr: "" } : { ok: true, stdout: "origin/board/y\n", stderr: "" };
     expect(await baseOf({ repoPath: "/repo", baseRef: null }, boardHead)).toBeNull();
+  });
+
+  it("baseOf: an origin/HEAD on a board branch falls through to main/master — with the configured prefix", async () => {
+    const repo = (head: string, local: string): GitRunner => async (args) =>
+      args[0] === "symbolic-ref" ? { ok: true, stdout: `${head}\n`, stderr: "" }
+      : args.includes(`refs/heads/${local}`) ? { ok: true, stdout: "abc\n", stderr: "" }
+      : { ok: false, stdout: "", stderr: "" };
+    expect(await baseOf({ repoPath: "/repo", baseRef: null }, repo("origin/board/y", "main"))).toBe("main");
+    expect(await baseOf({ repoPath: "/repo", baseRef: null }, repo("origin/board/y", "master"))).toBe("master");
+    const before = process.env.COLLIE_BOARD_BRANCH_PREFIX;
+    process.env.COLLIE_BOARD_BRANCH_PREFIX = "agent/";
+    try {
+      expect(await baseOf({ repoPath: "/repo", baseRef: null }, repo("origin/agent/y", "main"))).toBe("main");
+      expect(await baseOf({ repoPath: "/repo", baseRef: null }, repo("origin/board/y", "main"))).toBe("board/y");
+    } finally {
+      if (before === undefined) delete process.env.COLLIE_BOARD_BRANCH_PREFIX;
+      else process.env.COLLIE_BOARD_BRANCH_PREFIX = before;
+    }
   });
 
   it("prefers origin/HEAD for the default branch, not whatever is checked out", async () => {

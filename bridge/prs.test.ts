@@ -39,6 +39,12 @@ describe("the open-PR list is the journal, folded", () => {
     const open = openPrsOf([ev("a", "card.pr_opened"), ev("a", "card.pr_closed"), ev("a", "card.pr_opened")]);
     expect(open.has("a")).toBe(true);
   });
+
+  it("lists a PR the agent opened itself (only `pr_updated`), and keeps the opening time of one the board opened", () => {
+    const open = openPrsOf([ev("a", "card.pr_updated", { url: "u-a" }), ev("b", "card.pr_opened"), ev("b", "card.pr_updated")]);
+    expect(open.get("a")?.url).toBe("u-a");
+    expect(open.get("b")?.ts).toBe(n - 1);
+  });
 });
 
 describe("notePrOutcome", () => {

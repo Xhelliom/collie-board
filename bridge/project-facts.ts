@@ -83,6 +83,9 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
       case "card.pr_opened":
         f.pr = { url: str(e.payload, "url"), state: "open" };
         break;
+      case "card.pr_updated": // a PR the agent opened itself: the board's first word on it
+        if (f.pr?.state !== "open") f.pr = { url: str(e.payload, "url"), state: "open" };
+        break;
       case "card.pr_merged":
       case "card.pr_closed":
         if (f.pr) f.pr.state = e.type === "card.pr_merged" ? "merged" : "closed";
