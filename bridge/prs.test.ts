@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { BoardDb, type BoardEvent } from "./db.ts";
 import type { PrStatus } from "./git.ts";
+import { followsOf } from "./pr-follow.ts";
 import { notePrOutcome, openPrs, openPrsOf } from "./prs.ts";
 
 let n = 0;
@@ -44,6 +45,44 @@ describe("the open-PR list is the journal, folded", () => {
     const open = openPrsOf([ev("a", "card.pr_updated", { url: "u-a" }), ev("b", "card.pr_opened"), ev("b", "card.pr_updated")]);
     expect(open.get("a")?.url).toBe("u-a");
     expect(open.get("b")?.ts).toBe(n - 1);
+  });
+});
+
+describe("listPrEvents reads each card's current PR only", () => {
+  it("drops the earlier episodes, and folds exactly as the whole history would", () => {
+    const db = new BoardDb(":memory:");
+    for (const [card, type] of [
+      ["a", "card.pr_opened"], ["a", "card.pr_follow"], ["a", "card.pr_closed"],
+      ["a", "card.pr_opened"], ["a", "card.automerge_armed"],
+      ["b", "card.pr_merged"], // no PR opened: nothing to fold
+      ["c", "card.pr_opened"], ["c", "card.pr_merged"],
+      ["a", "card.status"],
+    ] as const) db.recordEvent(card, type);
+    const read = db.listPrEvents();
+    expect(read.map((e) => `${e.cardId}:${e.type}`)).toEqual(["a:card.pr_opened", "a:card.automerge_armed", "c:card.pr_opened", "c:card.pr_merged"]);
+    const all = ["a", "b", "c"].flatMap((id) => db.listEvents(id, 1000)).sort((x, y) => x.id - y.id);
+    expect(openPrsOf(read)).toEqual(openPrsOf(all));
+    expect(followsOf(read)).toEqual(followsOf(all));
+  });
+
+  it("keeps a PR the agent opened itself, and a follow taken before a re-push", () => {
+    const db = new BoardDb(":memory:");
+    for (const [card, type] of [
+      ["d", "card.pr_follow"], // before any PR: nothing to attach to
+      ["d", "card.pr_updated"], ["d", "card.pr_follow"], ["d", "card.pr_updated"], // agent's own PR, re-pushed
+      ["e", "card.pr_opened"], ["e", "card.pr_updated"], ["e", "card.pr_follow"], ["e", "card.pr_updated"],
+      ["f", "card.pr_opened"], ["f", "card.pr_follow"], ["f", "card.pr_opened"], ["f", "card.automerge_armed"],
+    ] as const) db.recordEvent(card, type);
+    const read = db.listPrEvents();
+    const all = ["d", "e", "f"].flatMap((id) => db.listEvents(id, 1000)).sort((x, y) => x.id - y.id);
+    expect(read.map((e) => `${e.cardId}:${e.type}`)).toEqual([
+      "d:card.pr_updated", "d:card.pr_follow", "d:card.pr_updated",
+      "e:card.pr_opened", "e:card.pr_updated", "e:card.pr_follow", "e:card.pr_updated",
+      "f:card.pr_opened", "f:card.automerge_armed",
+    ]);
+    expect(openPrsOf(read)).toEqual(openPrsOf(all));
+    expect(followsOf(read)).toEqual(followsOf(all));
+    expect([...followsOf(read).keys()].sort()).toEqual(["d", "e"]);
   });
 });
 

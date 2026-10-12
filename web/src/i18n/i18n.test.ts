@@ -21,6 +21,10 @@ describe("i18n", () => {
     expect(t("language.label")).toBe("Language");
   });
 
+  it("shows an unknown key instead of crashing — a key built from a value the bridge added later", () => {
+    expect(t("card.outcome.someday" as never)).toBe("card.outcome.someday");
+  });
+
   it("picks the plural form of the language", () => {
     setPreference("en");
     expect([t("common.cards", { count: 1 }), t("common.cards", { count: 3 })]).toEqual(["1 card", "3 cards"]);

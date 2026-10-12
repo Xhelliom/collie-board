@@ -25,6 +25,8 @@ import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { boardBranchPrefix } from "./config.ts";
 
+import { EVENT_WINDOW } from "./db.ts";
+
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
 const GIT_TIMEOUT_MS = 15_000;
 
@@ -360,12 +362,12 @@ export async function cardDiffStat(
  * review gets asked for again — the agent forgot to commit a file, the verdict said `partial`, the file
  * was committed and the card filed — and this is the only place the work can still be read.
  */
-// ponytail: reads the card's newest 100 journal entries; a landing is near the end of a card's life.
+// ponytail: reads the card's newest EVENT_WINDOW journal entries; a landing is near the end of a card's life.
 export function landedStat(
-  db: { listEvents(cardId: string): { type: string; payload: unknown }[] },
+  db: { listEvents(cardId: string, limit?: number): { type: string; payload: unknown }[] },
   cardId: string,
 ): string | null {
-  for (const e of db.listEvents(cardId)) {
+  for (const e of db.listEvents(cardId, EVENT_WINDOW)) {
     if (e.type !== "card.merged" && e.type !== "card.cleaned_up") continue;
     const stat = (e.payload as { stat?: unknown } | null)?.stat;
     if (typeof stat === "string") return stat;
@@ -381,7 +383,7 @@ export function landedStat(
 export async function cardDiffSummary(
   db: {
     getCard(id: string): { repoPath: string | null; branch: string | null; baseRef: string | null } | null;
-    listEvents(cardId: string): { type: string; payload: unknown }[];
+    listEvents(cardId: string, limit?: number): { type: string; payload: unknown }[];
   },
   cardId: string,
 ): Promise<string> {

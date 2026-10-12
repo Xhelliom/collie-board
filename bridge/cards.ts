@@ -17,6 +17,7 @@
 import type { AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
 import {
+  EVENT_WINDOW,
   isAutoHandoffOffered,
   isAutoHandoffPending,
   isLiveStatus,
@@ -1163,11 +1164,11 @@ export function convertToAction(
 /**
  * Whether a card's work is in its base: the newest of its merges and its starts is a merge. A start
  * after the merge (a relaunch) means new work the base lacks, so its branch is the handoff again.
- * Read from the newest 100 events: a merge is the last thing a card does, so it is among them.
+ * Read from the newest EVENT_WINDOW events: a merge is the last thing a card does, so it is among them.
  */
 export function hasLanded(db: BoardDb, cardId: string): boolean {
   const last = db
-    .listEvents(cardId)
+    .listEvents(cardId, EVENT_WINDOW)
     .find((e) => e.type === "card.pr_merged" || e.type === "card.merged" || e.type === "card.worktree");
   return last !== undefined && last.type !== "card.worktree";
 }

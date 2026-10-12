@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb } from "./db.ts";
-import { gatePrompt, parseGate, runGate, summarizeGate } from "./gate.ts";
+import { gatePrompt, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
 
 describe("gate (ADR 0020)", () => {
   it("parseGate splits on whitespace and refuses blank", () => {
@@ -32,6 +32,33 @@ describe("gate (ADR 0020)", () => {
     expect((fail as { summary: string }).summary).toContain("bad");
     expect((await runGate(["definitely-not-a-binary-xyz"], "/tmp")).kind).toBe("error");
     expect(await runGate(["sleep", "5"], "/tmp", 50)).toMatchObject({ kind: "error" });
+  });
+
+  it("oneAtATime: calls never overlap, and a failing one frees the slot", async () => {
+    let running = 0;
+    let peak = 0;
+    const order: string[] = [];
+    const job = oneAtATime(async (name: string, fail: boolean) => {
+      running++;
+      peak = Math.max(peak, running);
+      await Bun.sleep(10);
+      running--;
+      order.push(name);
+      if (fail) throw new Error(name);
+      return name;
+    });
+    const results = await Promise.allSettled([job("a", false), job("b", true), job("c", false)]);
+    expect(peak).toBe(1);
+    expect(order).toEqual(["a", "b", "c"]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "rejected", "fulfilled"]);
+  });
+
+  it("runGate is queued: a gate waits out a timed-out one, then runs", async () => {
+    const t0 = Date.now();
+    const [slow, fast] = await Promise.all([runGate(["sleep", "5"], "/tmp", 100), runGate(["true"], "/tmp")]);
+    expect(slow.kind).toBe("error");
+    expect(fast).toEqual({ kind: "pass" });
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(100);
   });
 
   it("a repo's gate survives hiding and unhiding, and a bare row is pruned", () => {

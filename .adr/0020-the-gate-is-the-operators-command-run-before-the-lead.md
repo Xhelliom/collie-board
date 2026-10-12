@@ -51,3 +51,12 @@ nothing about the output's content. Judging is still the lead's.
   is what saves it. A suggestion that would need a shell is refused by the parser; the copilot is
   told to propose a script instead, which the operator creates — the bridge never writes into the repo.
 - Not yet: per-lane parallelism, a model per role.
+
+## Note (2026-10-12) — gates run one at a time
+
+`runGate` is queued bridge-wide (`oneAtATime` in `bridge/gate.ts`): a lot gated card by card in
+parallel, plus pr-follow's landings, ran N test suites at once and starved the CPU until healthy
+suites timed out — a red that was not the worker's. Each gate's 30-min cap starts when it actually
+runs; a queued gate is not charged for the wait. `bun install` (`deps.ts`) is not a gate and stays
+unqueued. Parallel gating is closed off until a gate can be shown not to contend — per-repo slots
+are the upgrade path, not a free-for-all.

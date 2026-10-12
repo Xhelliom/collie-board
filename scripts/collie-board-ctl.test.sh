@@ -4,11 +4,10 @@
 # throwaway $HOME and config dir, so these run anywhere and touch nothing real.
 set -euo pipefail
 
-# Git locates its directory from the ENVIRONMENT before `-C`: git exports GIT_DIR to its hooks,
-# and this suite runs under the pre-push hook — every `git -C "$CASE_DIR/…"` below would otherwise
-# land on the real repository (`init` "re-initialises" it, `remote add origin` fails "already
-# exists"). Same guard as bridge/git.ts and the bun fixtures.
-unset GIT_DIR GIT_WORK_TREE GIT_PREFIX GIT_INDEX_FILE
+# Git locates its directory from the ENVIRONMENT before `-C`, and exports GIT_DIR to its hooks:
+# left in, every `git -C "$CASE_DIR/…"` below lands on the real repository. Same list as the bun
+# suites' scripts/test-env.ts.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
 # Same for the service's own config: a push made BY the bridge runs this suite with the unit's
 # environment (its .env included), and an inherited COLLIE_BOARD_TRUSTED_USER masks what `setup`
 # is supposed to derive. The suite sets every variable it means to test.

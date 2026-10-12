@@ -237,7 +237,9 @@ export interface Card {
 
 export type AutoHandoffChoice = "on" | "off";
 
-export type SessionOutcome = "handoff" | "done" | "abandoned" | "lost" | "pipeline";
+/** Every way a session can end — a value, so the web's labels are checked against it (sessions.test.ts). */
+export const SESSION_OUTCOMES = ["handoff", "done", "abandoned", "lost", "pipeline"] as const;
+export type SessionOutcome = (typeof SESSION_OUTCOMES)[number];
 
 export interface CardSession {
   id: string;
@@ -356,7 +358,10 @@ export interface Run {
   createdAt: number;
   /** How many follow-ups the lead may fold into the run. Past it, a follow-up is a card for later. */
   foldInCap: number;
-  /** The lead's agent kind; null follows the board's default. */
+  /**
+   * The agent kind asked for the lead. Recorded, not acted on: the lead pane is one for every run and
+   * runs cfg.boardCopilotKind (run.ts). Kept because `POST /api/runs` and the run sheet expose it.
+   */
   leadAgent: string | null;
   /** The phase this lot belongs to, or null — ADR 0021. */
   phaseId: string | null;
@@ -1065,6 +1070,8 @@ CREATE TABLE IF NOT EXISTS event (
   ts      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS event_card_idx ON event(card_id, ts);
+-- listPrEvents reads each card's newest card.pr_opened every tick.
+CREATE INDEX IF NOT EXISTS event_type_idx ON event(type, card_id);
 
 -- The ONLY thing stored about a repository, and deliberately so.
 --
@@ -1217,6 +1224,12 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   templateId: "template_id",
   pipelineId: "pipeline_id",
 };
+
+/**
+ * How far back the bridge reads a card's journal to decide a fact about it (landed, gated, decided…).
+ * One number, so a fact is never true for one reader and silently out of reach for another.
+ */
+export const EVENT_WINDOW = 200;
 
 export class BoardDb {
   private readonly db: Database;
@@ -2621,11 +2634,23 @@ export class BoardDb {
     return r ? toEvent(r) : null;
   }
 
-  /** Every PR event on the board, oldest first — what the open-PR list folds (prs.ts). */
+  /**
+   * The PR events of each card's CURRENT PR — from its newest `card.pr_opened` on — oldest first: what
+   * the open-PR list (prs.ts) and pr-follow fold, every tick. Both folds restart a card at its
+   * `pr_opened` and ignore anything before one, so the earlier episodes are left in the table.
+   * A card with no `pr_opened` (a PR the agent opened itself) starts at its first `pr_updated`: a
+   * later `pr_updated` is a re-push, and starting there would drop the follow taken before it.
+   */
   listPrEvents(): BoardEvent[] {
     return this.db
       .query<EventRow, []>(
-        "SELECT * FROM event WHERE type IN ('card.pr_opened', 'card.pr_updated', 'card.pr_merged', 'card.pr_closed', 'card.automerge_armed', 'card.automerge_refused', 'card.pr_follow') ORDER BY id",
+        `SELECT e.* FROM event e
+           JOIN (SELECT card_id,
+                        COALESCE(MAX(CASE WHEN type = 'card.pr_opened' THEN id END), MIN(id)) AS since
+                   FROM event WHERE type IN ('card.pr_opened', 'card.pr_updated') GROUP BY card_id) o
+             ON e.card_id = o.card_id AND e.id >= o.since
+         WHERE e.type IN ('card.pr_opened', 'card.pr_updated', 'card.pr_merged', 'card.pr_closed', 'card.automerge_armed', 'card.automerge_refused', 'card.pr_follow')
+         ORDER BY e.id`,
       )
       .all()
       .map(toEvent);
@@ -2646,7 +2671,7 @@ export class BoardDb {
       .map(toEvent);
   }
 
-  /** A card's journal, newest first. */
+  /** A card's journal, newest first, capped — a fact about the card is read through {@link EVENT_WINDOW}. */
   listEvents(cardId: string, limit = 100): BoardEvent[] {
     return this.db
       .query<EventRow, [string, number]>(

@@ -26,7 +26,7 @@
 
 import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
-import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
+import { EVENT_WINDOW, isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   baseOf,
   cardDiffStat,
@@ -429,11 +429,11 @@ export async function mergeWhenReady(
  * agent opened itself with `gh pr create` is only ever `pr_updated` in the journal.
  */
 const lastPrWord = (db: BoardDb, cardId: string) =>
-  db.listEvents(cardId, 500).find((e) => ["card.pr_opened", "card.pr_updated", "card.pr_merged", "card.pr_closed"].includes(e.type));
+  db.listEvents(cardId, EVENT_WINDOW).find((e) => ["card.pr_opened", "card.pr_updated", "card.pr_merged", "card.pr_closed"].includes(e.type));
 
 /** When the card's PR last received a push, epoch ms: see {@link CHECKS_GRACE_MS}. -Infinity when unknown. */
 function lastPushOf(db: BoardDb, cardId: string, pr: PrStatus): number {
-  const pushed = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  const pushed = db.listEvents(cardId, EVENT_WINDOW).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   return Math.max(pushed?.ts ?? -Infinity, pr.createdAt ?? -Infinity);
 }
 
@@ -467,7 +467,7 @@ function notePrMerged(db: BoardDb, cardId: string, payload: { url: string; merge
   if (lastPrWord(db, cardId)?.type === "card.pr_merged") return;
   db.recordEvent(cardId, "card.pr_merged", payload);
   const card = db.getCard(cardId);
-  const opened = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  const opened = db.listEvents(cardId, EVENT_WINDOW).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   const base = card?.baseRef?.trim() || String((opened?.payload as { base?: unknown } | null)?.base ?? "").trim();
   if (card?.branch && base) rebindDependents(db, card.branch, base, "predecessor PR merged");
 }

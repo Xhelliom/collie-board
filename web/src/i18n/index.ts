@@ -69,7 +69,10 @@ const fill = (s: string, params?: Params) =>
  * the language changes.
  */
 export function t(key: MessageKey, params?: Params): string {
-  const entry: Entry = CATALOG[key];
+  // A key built at runtime (`card.outcome.${outcome}`) can name a value the bridge added after this
+  // build: show the key rather than crash the screen. The labels are checked in bridge/sessions.test.ts.
+  const entry: Entry | undefined = CATALOG[key];
+  if (!entry) return key;
   const raw = entry[current];
   if (typeof raw === "string") return fill(raw, params);
   const n = typeof params?.count === "number" ? params.count : 1;
