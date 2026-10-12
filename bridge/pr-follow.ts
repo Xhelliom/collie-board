@@ -6,8 +6,7 @@ import type { BoardDb, Card } from "./db.ts";
 import { parseGate, runGate, type GateResult } from "./gate.ts";
 import { worktreePathFor, type PrStatus } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { mergeWhenReady, prStatusFor, type MergeGate } from "./integrate.ts";
-import { notePrOutcome } from "./prs.ts";
+import { mergeWhenReady, notePrOutcome, prStatusFor, type MergeGate } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { fileAsDone } from "./wrapup.ts";
 
@@ -69,14 +68,17 @@ export class PrFollower {
 
   /** One ask. Exported through `update` only; public so a test can await it. */
   async tick(card: Card, runId: string): Promise<void> {
-    // A red check, a red gate, a conflict: the board said no and why (`run.merge`). The follow ends
-    // there — a new "PR & done" tap after the fix journals a new one. Only "checks running" waits.
-    const last = this.db.listEvents(card.id, 200).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
-    if (last && !(last.payload as { wait?: boolean }).wait) return;
+    // The PR's state FIRST, every time: a merge by hand or by GitHub's auto-merge files the card even
+    // on a follow that has stopped merging.
     const pr = await this.ports.prStatus(card);
-    notePrOutcome(this.db, card.id, pr); // merged by GitHub's auto-merge or by hand counts too
+    notePrOutcome(this.db, card.id, pr);
     if (pr?.state === "merged") return this.ports.fileAsDone(this.db.getCard(card.id)!);
     if (pr?.state !== "open") return;
+    // A red check, a red gate, a conflict: the board said no and why (`run.merge`). The board stops
+    // merging there — a new "PR & done" tap after the fix journals a new follow. Only a wait (checks
+    // running, GitHub not done computing — ADR 0036) asks again.
+    const last = this.db.listEvents(card.id, 200).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
+    if (last && !(last.payload as { wait?: boolean }).wait) return;
     await this.ports.land(card, await this.ports.gate(card, runId));
     const merge = this.db.listEvents(card.id, 20).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
     if ((merge?.payload as { merged?: boolean } | undefined)?.merged) this.ports.fileAsDone(this.db.getCard(card.id)!);

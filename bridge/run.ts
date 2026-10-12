@@ -183,10 +183,13 @@ export function stepFor(
   const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   // INTEGRATE FIRST, FILE SECOND — as the route does: filing ends the session that could settle a conflict.
   if (!after(pr, decision)) return { kind: "pr" };
-  // ADR 0029: the PR's checks were still running when it opened — ask again, file when answered.
-  const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
-  return after(merge, pr) && (merge!.payload as { wait?: boolean }).wait ? { kind: "land" } : { kind: "file" };
+  // Filed once landed, nothing less (ADR 0036): merged, or GitHub's auto-merge armed. Until then the
+  // land step asks GitHub again — a wait is answered later, a refusal halts or goes back (`landed`).
+  return after(landing(events), pr) ? { kind: "file" } : { kind: "land" };
 }
+
+/** The newest proof a PR has landed or will: merged, or GitHub's auto-merge armed (ADR 0017 step 7). */
+const landing = (events: BoardEvent[]) => newest(events, (e) => e.type === "card.pr_merged" || e.type === "card.automerge_armed");
 
 /** A check or re-check answer — the ones that move the card, not a triaged follow-up's. */
 const isVerdict = (e: BoardEvent) => {
@@ -360,14 +363,19 @@ export class RunCoordinator {
   }
 
   /**
-   * What the PR just did (ADR 0029): checks running — wait, the next tick asks again; a check red —
-   * back to the worker with its log, a round like a red gate; otherwise the card is filed.
+   * What the PR just did. Merged, or auto-merge armed — the card is filed. GitHub has not answered
+   * (checks running, mergeability unknown) — nothing, the next tick asks again (ADR 0036). A check red
+   * — back to the worker with its log, a round like a red gate (ADR 0029). A conflict — to the
+   * worker's agent, against origin's base (ADR 0014). Anything else the board refused to merge — the
+   * operator's: the card is halted, never filed with its PR open (ADR 0035).
    */
   private async landed(run: Run, card: Card, session: CardSession): Promise<void> {
     const events = this.db.listEvents(card.id, 200);
     const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+    if (after(landing(events), pr)) return this.ports.fileAsDone(this.db.getCard(card.id)!);
     const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
-    const p = after(merge, pr) ? (merge!.payload as { wait?: boolean; ci?: { name: string; log: string } }) : {};
+    if (!after(merge, pr)) return;
+    const p = merge!.payload as { wait?: boolean; reason?: string; conflict?: boolean; ci?: { name: string; log: string } };
     if (p.wait) return;
     if (p.ci) {
       const prompt = ciPrompt(p.ci.name, p.ci.log);
@@ -375,7 +383,12 @@ export class RunCoordinator {
       this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the check ${p.ci.name} failed on GitHub` });
       return;
     }
-    this.ports.fileAsDone(this.db.getCard(card.id)!);
+    if (p.conflict) {
+      const settled = await this.ports.resolveConflict(card);
+      if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
+      return;
+    }
+    this.halt(run, card.id, `PR not merged: ${p.reason ?? "no reason given"}`);
   }
 
   /**

@@ -19,6 +19,7 @@ const pr = (state: PrStatus["state"]): PrStatus => ({
   mergedAt: state === "merged" ? 9 : null,
   conflicting: false,
   mergeable: false,
+  createdAt: null,
 });
 
 describe("the open-PR list is the journal, folded", () => {

@@ -7,7 +7,7 @@ import { followRunId, PrFollower } from "./pr-follow.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = { bridge: "connected" } as EngineSnapshot;
-const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true });
+const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true, createdAt: null });
 
 /** A board with one card whose PR was opened by "PR & done", and a fake GitHub behind it. */
 function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void) {
@@ -83,6 +83,38 @@ describe("PR & done follows the PR to its merge (ADR 0035)", () => {
     await settle();
     expect(w.lands).toBe(1);
     expect(w.filed).toBe(0);
+  });
+
+  it("a stopped follow still reads the PR: merged by hand after a red check, the card is filed", async () => {
+    const { w, make } = world((db, c, gate) => db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "red", ci: {} } as never));
+    const f = make();
+    f.update(snap);
+    await settle();
+    w.state = "merged"; // someone fixed it and merged on GitHub
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.lands).toBe(1);
+    expect(w.filed).toBe(1);
+  });
+
+  it("GitHub not done computing on the first tick is a wait: the follow keeps asking (ADR 0036)", async () => {
+    let ready = false;
+    const { w, make } = world((db, c, gate) => {
+      if (!ready) return db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "mergeability", wait: true } as never);
+      db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: true, reason: "green" });
+      db.recordEvent(c.id, "card.pr_merged", { url: "u" });
+    });
+    const f = make();
+    f.update(snap);
+    await settle();
+    expect(w.filed).toBe(0);
+    ready = true;
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.lands).toBe(2);
+    expect(w.filed).toBe(1);
   });
 
   it("files a PR merged by someone else (GitHub's auto-merge, a human)", async () => {

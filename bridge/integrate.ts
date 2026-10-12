@@ -24,8 +24,6 @@
 // cannot be reached for to make a refusal go away. It is the only place in this bridge that destroys
 // work knowingly, so it says what it is about to lose and takes two taps to confirm.
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
@@ -307,8 +305,12 @@ export async function prForCard(
   return { ok: true, value: { url: pr.url } };
 }
 
-/** Wait before the single mergeability re-check — a guess at GitHub's lag, to be validated by the owner. */
-const MERGEABLE_RECHECK_MS = 5000;
+/**
+ * How long an EMPTY check rollup reads as "GitHub has not registered the checks yet" rather than
+ * "this repo runs no CI" (ADR 0036). Measured in the PR's own age, so a repo without CI still
+ * merges — a few minutes late.
+ */
+export const CHECKS_GRACE_MS = 5 * 60_000;
 
 /** What a run knows about the gate when its PR opens: the board merges itself only on `ok`. */
 export interface MergeGate {
@@ -329,27 +331,20 @@ export async function landPr(
   branch: string,
   gate: MergeGate | undefined,
   gh: GitRunner = runGh,
-  recheckMs = MERGEABLE_RECHECK_MS,
 ): Promise<void> {
   if (await armAutoMerge(db, cardId, repoPath, branch, gh)) return;
-  await mergeWhenReady(db, cardId, repoPath, branch, gate, gh, recheckMs);
-}
-
-/** Does the repo declare a workflow triggered by `pull_request`? Then an empty rollup is "not registered yet". */
-export function hasPrWorkflow(repoPath: string): boolean {
-  try {
-    const dir = join(repoPath, ".github", "workflows");
-    return readdirSync(dir).some((f) => /\.ya?ml$/.test(f) && /\bpull_request(_target)?\b/.test(readFileSync(join(dir, f), "utf8")));
-  } catch {
-    return false;
-  }
+  await mergeWhenReady(db, cardId, repoPath, branch, gate, gh);
 }
 
 /**
- * The merge half of {@link landPr}, and what the coordinator re-asks while checks run (ADR 0029).
- * Beyond the gate and MERGEABLE, the PR's own GitHub checks must be green or absent: red journals
- * `run.merge { ci }` for the coordinator to send back to the worker, pending journals `{ wait }`
- * once — no merge, no loop here; the next tick asks again.
+ * The merge half of {@link landPr}, and what the coordinator and the "PR & done" follower re-ask on
+ * their next tick. Three answers, all journaled as `run.merge`:
+ *   - merged (and `card.pr_merged`), or the PR found already merged (`card.pr_merged` alone);
+ *   - `{ wait: true }`, ONCE — GitHub has not answered yet: mergeability `UNKNOWN`, checks running,
+ *     or no check registered on a PR younger than {@link CHECKS_GRACE_MS} (ADR 0036). No timer, no
+ *     loop here: the caller's next tick asks again;
+ *   - a skip with its reason: red gate, red check (`ci`, for the worker), conflict (`conflict`), a PR
+ *     closed, GitHub unreadable, the merge refused. The caller decides; nothing here files a card.
  */
 export async function mergeWhenReady(
   db: BoardDb,
@@ -358,34 +353,35 @@ export async function mergeWhenReady(
   branch: string,
   gate: MergeGate | undefined,
   gh: GitRunner = runGh,
-  recheckMs = 0, // the coordinator's next tick is its own re-check; only landPr waits
+  now: () => number = Date.now,
 ): Promise<void> {
   const runId = gate?.runId ?? "";
   const skip = (reason: string, extra: object = {}) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason, ...extra });
+  const wait = (reason: string) => {
+    const last = db.listEvents(cardId, 50).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
+    if (!(last?.payload as { wait?: boolean } | undefined)?.wait) skip(reason, { wait: true });
+  };
   if (!gate?.ok) return skip(gate ? gate.why : "no gate verdict — not merging");
-  let pr = await prStatusOf(repoPath, branch, gh);
-  // GitHub computes mergeability lazily after `pr create`: one deferred re-check, never a poll loop.
-  if (pr?.state === "open" && !pr.mergeable && !pr.conflicting) {
-    await new Promise((r) => setTimeout(r, recheckMs));
-    pr = await prStatusOf(repoPath, branch, gh);
-  }
+  const pr = await prStatusOf(repoPath, branch, gh);
   if (!pr) return skip("could not read the PR's state from GitHub — not merging");
+  // GitHub's auto-merge or a human got there first: that is a landing too.
+  if (pr.state === "merged") return notePrOutcome(db, cardId, pr);
   if (pr.state !== "open") return skip(`the PR is already ${pr.state}`);
-  if (pr.conflicting) return skip("the PR has a conflict — not merging");
+  if (pr.conflicting) return skip("the PR has a conflict — not merging", { conflict: true });
+  // GitHub computes mergeability lazily — `UNKNOWN` for a while after `pr create` or a push.
+  if (!pr.mergeable) return wait("GitHub has not worked out mergeability yet — waiting");
   const checks = await checksOf(repoPath, branch, gh);
   if (!checks) return skip("could not read the PR's checks from GitHub — not merging");
-  // Right after `pr create` the rollup is empty before GitHub registers the checks: with a PR workflow, that is pending, not "no CI".
-  if (checks.state === "none" && hasPrWorkflow(repoPath)) checks.state = "pending";
   if (checks.state === "red") {
     const log = await failedLog(repoPath, checks.detailsUrl, gh);
     return skip(`the check ${checks.name} failed — not merging`, { ci: { name: checks.name, log } });
   }
-  if (checks.state === "pending") {
-    const last = db.listEvents(cardId, 50).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
-    if (!(last?.payload as { wait?: boolean } | undefined)?.wait) skip("the PR's checks are still running — waiting", { wait: true });
-    return;
+  if (checks.state === "pending") return wait("the PR's checks are still running — waiting");
+  // Right after `pr create` the rollup is empty before GitHub registers the checks. Read against the
+  // PR's age, not the repo's workflow files (ADR 0036): a `paths:`/`branches:` filter would wait forever.
+  if (checks.state === "none" && pr.createdAt !== null && now() - pr.createdAt < CHECKS_GRACE_MS) {
+    return wait("GitHub has registered no check on this PR yet — waiting");
   }
-  if (!pr.mergeable) return skip("GitHub still has not worked out mergeability after a re-check — not merging");
   const r = await enableAutoMerge(repoPath, branch, gh, []);
   db.recordRunEvent(cardId, "run.merge", {
     runId,
@@ -393,7 +389,36 @@ export async function mergeWhenReady(
     reason: r.ok ? `lead validated, ${gate.why}, no conflict, ${checks.state === "green" ? "checks green" : "no checks"}; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
   });
   // The board knows it merged: take the PR off Open PRs now, instead of waiting for a Check tap.
-  if (r.ok) db.recordEvent(cardId, "card.pr_merged", { url: pr.url });
+  if (r.ok) notePrMerged(db, cardId, { url: pr.url });
+}
+
+/** The PR events that end an open PR. */
+const PR_OVER = new Set(["card.pr_merged", "card.pr_closed"]);
+
+/**
+ * Write down that a card's PR is over, the first time GitHub says so — and only then, so a card
+ * screen re-reading a merged PR doesn't journal it again on every open. A merge is final; a close
+ * can be undone on GitHub, and the card screen, which always asks, still says so if it is.
+ */
+export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null): void {
+  if (pr?.state !== "merged" && pr?.state !== "closed") return;
+  const last = db.listEvents(cardId).find((e) => e.type === "card.pr_opened" || PR_OVER.has(e.type));
+  if (last?.type !== "card.pr_opened") return;
+  const payload = { url: pr.url, ...(pr.mergedAt ? { mergedAt: pr.mergedAt } : {}) };
+  if (pr.state === "merged") notePrMerged(db, cardId, payload);
+  else db.recordEvent(cardId, "card.pr_closed", payload);
+}
+
+/**
+ * Every merge the board learns of comes through here: its own, GitHub's auto-merge, a human's — seen
+ * by the follower, a Check tap or a card screen. The squash put the card's work in its base, so the
+ * cards forked from its branch are repointed there ({@link rebindDependents}): a successor must not
+ * keep that branch as its base, nor open its PR against it.
+ */
+function notePrMerged(db: BoardDb, cardId: string, payload: { url: string; mergedAt?: number }): void {
+  db.recordEvent(cardId, "card.pr_merged", payload);
+  const card = db.getCard(cardId);
+  if (card?.branch && card.baseRef) rebindDependents(db, card.branch, card.baseRef);
 }
 
 /**
@@ -573,7 +598,7 @@ export function wrapupGate(lastSession: CardSession | null): IntegrateError | nu
 
 /**
  * Repoint every card forked from `deletedBranch` to `resolvedBase`, the ref the cleanup gate just
- * checked it against.
+ * checked it against — or, on a merged PR ({@link notePrMerged}), the base it was squashed into.
  *
  * A dependent card's `baseRef` is persisted as the predecessor's branch name, frozen at fork time
  * (`cards.ts`). Deleting that branch here would otherwise leave it dangling forever: `resolveBase`
