@@ -38,6 +38,7 @@ import {
   fetchBase,
   formatDiffStat,
   integrationOf,
+  isAncestor,
   mergeConflicts,
   mergeIntoBase,
   prStatusOf,
@@ -423,8 +424,12 @@ export async function mergeWhenReady(
   if (r.ok) notePrMerged(db, cardId, { url: pr.url });
 }
 
-/** The PR events that end an open PR. */
-const PR_OVER = new Set(["card.pr_merged", "card.pr_closed"]);
+/**
+ * The card's newest PR word: opened, or merged / closed. `card.pr_updated` counts as opened — a PR the
+ * agent opened itself with `gh pr create` is only ever `pr_updated` in the journal.
+ */
+const lastPrWord = (db: BoardDb, cardId: string) =>
+  db.listEvents(cardId, 500).find((e) => ["card.pr_opened", "card.pr_updated", "card.pr_merged", "card.pr_closed"].includes(e.type));
 
 /** When the card's PR last received a push, epoch ms: see {@link CHECKS_GRACE_MS}. -Infinity when unknown. */
 function lastPushOf(db: BoardDb, cardId: string, pr: PrStatus): number {
@@ -440,7 +445,7 @@ function lastPushOf(db: BoardDb, cardId: string, pr: PrStatus): number {
  */
 export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null): void {
   if (pr?.state !== "merged" && pr?.state !== "closed") return;
-  const last = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || PR_OVER.has(e.type));
+  const last = lastPrWord(db, cardId);
   if (!last || last.type === `card.pr_${pr.state}`) return;
   const payload = { url: pr.url, ...(pr.mergedAt ? { mergedAt: pr.mergedAt } : {}) };
   if (pr.state === "merged") notePrMerged(db, cardId, payload);
@@ -457,6 +462,9 @@ export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null):
  * opened against, as `prForCard` journaled it. Neither: nothing is repointed.
  */
 function notePrMerged(db: BoardDb, cardId: string, payload: { url: string; mergedAt?: number }): void {
+  // Once: a card screen may journal the merge while the board's own merge call is still in flight.
+  // The first one rebound the dependents already.
+  if (lastPrWord(db, cardId)?.type === "card.pr_merged") return;
   db.recordEvent(cardId, "card.pr_merged", payload);
   const card = db.getCard(cardId);
   const opened = db.listEvents(cardId, 500).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
@@ -656,12 +664,14 @@ export function wrapupGate(lastSession: CardSession | null): IntegrateError | nu
  * — squash-merged, they are not ancestors of the base, so its PR would carry them (and their `changes/`
  * fragment) a second time (ADR 0034). The board does not rewrite an agent's branch: it journals
  * `card.base_moved { from, to }` on that card, for its agent or the operator to merge `to` into it.
+ * `moved: false` says there is nothing to merge: the branch is already in the base (a local merge), or
+ * its work was thrown away (a discard).
  */
-export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string, reason = "predecessor branch deleted"): void {
+export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBase: string, reason = "predecessor branch deleted", moved = true): void {
   for (const dependent of db.listCards({ includeArchived: true })) {
     if (dependent.baseRef !== deletedBranch) continue;
     db.patchCard(dependent.id, { baseRef: resolvedBase }, reason);
-    if (dependent.status !== "done" && dependent.status !== "archived" && db.listEvents(dependent.id, 500).some((e) => e.type === "card.worktree")) {
+    if (moved && dependent.status !== "done" && dependent.status !== "archived" && db.listEvents(dependent.id, 500).some((e) => e.type === "card.worktree")) {
       db.recordEvent(dependent.id, "card.base_moved", { from: deletedBranch, to: resolvedBase, reason });
     }
   }
@@ -734,13 +744,16 @@ export async function cleanupCard(
     }
   }
 
+  // Read before the branch goes: merged locally (`--no-ff` or not), its commits are already ancestors
+  // of the base, and a dependent forked from it has nothing to merge. Squash-merged or only pushed, it does.
+  const landed = !opts.discard && (await isAncestor(card.repoPath!, branch, state!.base));
   const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard);
   if (!deleted.ok) {
     // The checkout is already gone, so say what actually happened rather than claiming a clean run.
     db.recordEvent(card.id, "card.cleanup_failed", { stage: "branch", error: deleted.error });
     return { ok: false, error: { kind: "git", message: `worktree removed, but the branch is still there: ${deleted.error}` } };
   }
-  rebindDependents(db, branch, state!.base);
+  rebindDependents(db, branch, state!.base, undefined, !opts.discard && !landed);
 
   if (opts.discard) {
     db.setStatus(card.id, "archived", "work discarded");

@@ -23,6 +23,7 @@
 
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { boardBranchPrefix } from "./config.ts";
 
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
 const GIT_TIMEOUT_MS = 15_000;
@@ -501,7 +502,10 @@ export async function currentBranch(repoPath: string, git: GitRunner = runGit): 
  */
 async function declaredDefaultBranchOf(root: string, git: GitRunner): Promise<string | undefined> {
   const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
-  if (remote.ok && remote.stdout.trim()) return remote.stdout.trim().replace(/^origin\//, "");
+  const declared = remote.ok ? remote.stdout.trim().replace(/^origin\//, "") : "";
+  // An origin/HEAD on a board branch is a previous card's work, not a default: main/master come next.
+  const prefix = boardBranchPrefix();
+  if (declared && !(prefix && declared.startsWith(prefix))) return declared;
   for (const candidate of ["main", "master"]) {
     const verify = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`], root);
     if (verify.ok && verify.stdout.trim()) return candidate;
@@ -532,8 +536,7 @@ export async function baseOf(
   const own = card.baseRef?.trim();
   if (own) return own;
   if (!card.repoPath) return null;
-  const declared = await declaredDefaultBranchOf(card.repoPath, git).catch(() => undefined);
-  return declared && !declared.startsWith("board/") ? declared : null;
+  return (await declaredDefaultBranchOf(card.repoPath, git).catch(() => undefined)) ?? null;
 }
 
 /**
@@ -866,6 +869,11 @@ export async function mergeConflicts(
   const files = parseMergeTree(r.ok, r.stdout);
   if (files) return { ok: true, files };
   return { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") || "git merge-tree failed" };
+}
+
+/** Whether `ancestor` is already in `ref`'s history (`merge-base --is-ancestor`). False when git cannot say. */
+export async function isAncestor(repoPath: string, ancestor: string, ref: string, git: GitRunner = runGit): Promise<boolean> {
+  return (await git(["merge-base", "--is-ancestor", "--", ancestor, ref], repoPath)).ok;
 }
 
 /**

@@ -26,7 +26,7 @@ const flush = async () => {
 /** A fake world: every port records its call; the lead answers from a queue. */
 function world(
   db: BoardDb,
-  opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void } = {},
+  opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void; clock?: { now: number } } = {},
 ) {
   const calls: string[] = [];
   const checks: CheckDecision[] = [];
@@ -39,7 +39,7 @@ function world(
   const gates: GateResult[] = [];
   /** What GitHub says of a predecessor's PR when the coordinator asks (`refreshPr`). */
   let predPr: PrStatus | null = null;
-  const clock = { now: 1_000_000_000_000 };
+  const clock = opts.clock ?? { now: 1_000_000_000_000 };
   const ports: RunPorts = {
     lead: {
       check: async (i) => (seen.push(i), checks.shift() ?? { decision: "finished", reason: "ok" }) ?? { decision: "finished", reason: "ok" },
@@ -676,7 +676,9 @@ describe("the PR's checks (ADR 0029)", () => {
 
 describe("a predecessor filed on GitHub's auto-merge armed (ADR 0036)", () => {
   const setup = () => {
-    const db = new BoardDb(":memory:");
+    // The journal and the coordinator share one clock: `askEvery` reads the wait's journaled `ts`.
+    const clock = { now: 1_000_000_000_000 };
+    const db = new BoardDb(":memory:", () => clock.now);
     const a = db.createCard({ title: "a", repoPath: "/r", baseRef: "main" });
     const b = db.createCard({ title: "b", repoPath: "/r", baseRef: "main", status: "ready", dependsOn: a.id });
     db.createRun({ repoPath: "/r", cardIds: [a.id, b.id], foldInCap: 0 });
@@ -684,7 +686,7 @@ describe("a predecessor filed on GitHub's auto-merge armed (ADR 0036)", () => {
     db.recordEvent(a.id, "card.pr_opened", { base: "main" });
     db.recordEvent(a.id, "card.automerge_armed", {});
     db.setStatus(a.id, "done", "auto-merge armed");
-    const w = world(db);
+    const w = world(db, { clock });
     const tick = async () => {
       w.coord.update(snap());
       await flush();
@@ -710,6 +712,25 @@ describe("a predecessor filed on GitHub's auto-merge armed (ADR 0036)", () => {
     expect(events(db, a, "card.pr_merged")).toHaveLength(1);
     await tick(); // …and the dependent starts — `hasLanded` makes it fork from its base (ADR 0034)
     expect(w.calls.at(-1)).toBe("start b");
+  });
+
+  it("a predecessor that stays unmerged is asked slower and slower (askEvery), never every 30 s for hours", async () => {
+    const { w, tick, open } = setup();
+    w.setPredPr(open("open"));
+    await tick(); // the wait is said, now
+    const refreshes = () => w.calls.filter((c) => c === "refresh a").length;
+    const step = async (min: number) => {
+      w.clock.now += min * 60_000;
+      await tick();
+      return refreshes();
+    };
+    expect(await step(40)).toBe(2); // waited 40 min: one ask per 10 min
+    expect(await step(5)).toBe(2); // waited 45: one per 11¼ — 5 min since the last ask, not asked
+    expect(await step(7)).toBe(2); // waited 52: one per 13 — 12 min, still not
+    expect(await step(2)).toBe(3); // waited 54: one per 13½ — 14 min, asked
+    expect(await step(600)).toBe(4); // waited 10 h: capped at one per 30 min
+    expect(await step(29)).toBe(4);
+    expect(await step(1)).toBe(5);
   });
 
   it("a predecessor's PR closed unmerged halts the dependent for the operator", async () => {

@@ -10,11 +10,11 @@ const snap = { bridge: "connected" } as EngineSnapshot;
 const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true, createdAt: null });
 
 /** A board with one card whose PR was opened by "PR & done", and a fake GitHub behind it. */
-function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void) {
+function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void, opened = "card.pr_opened") {
   const time = { clock: 0 };
   const db = new BoardDb(":memory:", () => time.clock); // the journal and the follower share one clock
   const card = db.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
-  db.recordEvent(card.id, "card.pr_opened", { url: "u" });
+  db.recordEvent(card.id, opened, { url: "u" });
   db.recordEvent(card.id, "card.pr_follow", {});
   const w = {
     db,
@@ -84,6 +84,16 @@ describe("PR & done follows the PR to its merge (ADR 0035)", () => {
     });
     make().update(snap); // the "restarted" bridge's first tick
     await settle();
+    expect(w.filed).toBe(1);
+  });
+
+  it("follows a PR the agent opened itself — only `pr_updated` in the journal — to its merge", async () => {
+    const { w, make } = world(() => {}, "card.pr_updated");
+    w.state = "merged";
+    make().update(snap);
+    await settle();
+    expect(w.asks).toBe(1);
+    expect(w.db.listEvents(w.card.id).filter((e) => e.type === "card.pr_merged")).toHaveLength(1);
     expect(w.filed).toBe(1);
   });
 

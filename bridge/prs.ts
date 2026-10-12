@@ -22,6 +22,9 @@ export function openPrsOf(
     if (!e.cardId) continue;
     if (e.type === "card.pr_opened") {
       open.set(e.cardId, { url: (e.payload as { url?: string | null } | null)?.url ?? null, ts: e.ts });
+    } else if (e.type === "card.pr_updated" && !open.has(e.cardId)) {
+      // A PR the agent opened itself (`gh pr create`): the board's first word on it is `pr_updated`.
+      open.set(e.cardId, { url: (e.payload as { url?: string | null } | null)?.url ?? null, ts: e.ts });
     } else if (OVER.has(e.type)) {
       open.delete(e.cardId);
     } else if (e.type === "card.automerge_armed" || e.type === "card.automerge_refused") {

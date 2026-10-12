@@ -91,4 +91,6 @@ the board has not seen.
   predecessor's branch: after a squash merge its branch still carries those commits (and their
   `changes/` fragment) — ADR 0034's bug. The board does not rewrite an agent's branch; it journals
   `card.base_moved { from, to }` on that card, shown in its journal as "merge or rebase `to` into it
-  before its PR". Acting on it is the agent's or the operator's.
+  before its PR". Acting on it is the agent's or the operator's. Not journaled when there is nothing
+  to merge: a cleanup after a local merge (the branch is an ancestor of the base — `merge-base
+  --is-ancestor`), or a discard (that work is thrown away).
