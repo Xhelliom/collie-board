@@ -31,6 +31,7 @@ import {
   type ReviewTodo,
 } from "./db.ts";
 import { agentNameFor, isCommitFollowUp, launchAgent, promptAndConfirm } from "./cards.ts";
+import { baseOf } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -1517,6 +1518,8 @@ export class CopilotCoordinator {
     // Positions are assigned explicitly and increasing: createCard's default puts a new card at the
     // TOP of its column, which applied three times in a row would show the chain backwards.
     const ids: string[] = [];
+    // Every card has a base from birth (`baseOf`, git.ts) — a sub-task shares its container's.
+    const baseRef = await baseOf(fresh);
     for (const [i, task] of split!.entries()) {
       const child = this.db.createCard({
         title: task.title,
@@ -1524,7 +1527,7 @@ export class CopilotCoordinator {
         acceptance: task.acceptance ?? [],
         status: "backlog",
         repoPath: fresh.repoPath,
-        baseRef: fresh.baseRef,
+        baseRef,
         parentId: fresh.id,
         // Backward-only by construction (see toSplit), so the predecessor's id always exists here.
         dependsOn: task.dependsOn === undefined ? null : (ids[task.dependsOn] ?? null),
@@ -1728,6 +1731,8 @@ export class CopilotCoordinator {
         }
         return true;
       });
+    // A follow-up is born with the reviewed card's base (`baseOf`, git.ts), never without one.
+    const baseRef = await baseOf(card);
     const mapped: ReviewTodo[] = suggested.map(({ todo, category }) => {
       // TOO SMALL FOR A CARD — and so it does not become one. The suggestion is kept on the review
       // instead, with the spec that would have been the card's, and the card screen offers it as
@@ -1751,7 +1756,7 @@ export class CopilotCoordinator {
         acceptance: todo.acceptance ?? [],
         status: "backlog",
         repoPath: card.repoPath,
-        baseRef: card.baseRef,
+        baseRef,
         // The one place a card appears with nobody asking: the review runs hours later, while you
         // are somewhere else. Nothing else on the card would say so — a split doesn't get this,
         // because you dictated it and `parentId` already points at the dump it came out of.

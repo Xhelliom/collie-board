@@ -347,9 +347,7 @@ export async function cardDiffStat(
   if (!card?.repoPath || !card.branch) return null;
   const cwd = await worktreePathFor(card.repoPath, card.branch);
   if (!cwd) return null;
-  // A card made without a base forked from the main checkout's current branch; read against nothing, its
-  // COMMITTED work diffed to "(no changes)" and the copilot reviewed an empty diff.
-  return diffStat(cwd, card.baseRef?.trim() || (await currentBranch(card.repoPath)));
+  return diffStat(cwd, await baseOf(card));
 }
 
 /**
@@ -401,7 +399,7 @@ export async function cardDiffSummary(
 export interface Integration {
   /** The branch the card owns. */
   branch: string;
-  /** What it would be merged into — the card's `baseRef`, or the main checkout's current branch. */
+  /** What it would be merged into — the card's base ({@link baseOf}). */
   base: string;
   /** Commits on the branch that the base doesn't have. 0 means "nothing left to integrate". */
   ahead: number;
@@ -497,6 +495,74 @@ export async function currentBranch(repoPath: string, git: GitRunner = runGit): 
 }
 
 /**
+ * A repo's DECLARED default branch: `origin/HEAD`, else a local `main`/`master`. Never the branch that
+ * happens to be checked out — after a single card that is a `board/…` branch, and forking the next card
+ * off it would silently chain unrelated work. Undefined when the repo declares none.
+ */
+async function declaredDefaultBranchOf(root: string, git: GitRunner): Promise<string | undefined> {
+  const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
+  if (remote.ok && remote.stdout.trim()) return remote.stdout.trim().replace(/^origin\//, "");
+  for (const candidate of ["main", "master"]) {
+    const verify = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`], root);
+    if (verify.ok && verify.stdout.trim()) return candidate;
+  }
+  return undefined;
+}
+
+/**
+ * A repo's default branch as the repo PICKER pre-fills it: the declared one, else the current branch
+ * for a repo with no remote and no `main`/`master`. A suggestion the operator sees and can edit before
+ * the card is filed — {@link baseOf} never takes this last-resort fallback.
+ */
+export async function defaultBranchOf(root: string, git: GitRunner = runGit): Promise<string | undefined> {
+  return (await declaredDefaultBranchOf(root, git)) ?? (await currentBranch(root, git)) ?? undefined;
+}
+
+/**
+ * THE base of a card: the one answer every diff, integration check, fork and review reads. Its
+ * `baseRef` — filled at creation (`withDefaultBaseRef`) and back-filled once for older rows
+ * ({@link backfillBaseRefs}) — else its repo's DECLARED default branch. Never the main checkout's
+ * current branch and never a `board/…` branch as a fallback: that is a previous card's work. Null
+ * without a repo, or for a repo that declares no default — no answer rather than a guess.
+ */
+export async function baseOf(
+  card: { repoPath: string | null; baseRef: string | null },
+  git: GitRunner = runGit,
+): Promise<string | null> {
+  const own = card.baseRef?.trim();
+  if (own) return own;
+  if (!card.repoPath) return null;
+  const declared = await declaredDefaultBranchOf(card.repoPath, git).catch(() => undefined);
+  return declared && !declared.startsWith("board/") ? declared : null;
+}
+
+/**
+ * The one-time migration of cards filed before every card got a `baseRef`: each NULL row with a repo
+ * takes that repo's default branch ({@link baseOf}). A repo that declares none, or is gone, is skipped
+ * — never filled with whatever branch its checkout is on. Idempotent — a later boot finds nothing to
+ * fill. Returns how many rows it filled.
+ */
+export async function backfillBaseRefs(
+  db: {
+    listCards(opts: { includeArchived?: boolean }): { id: string; repoPath: string | null; baseRef: string | null }[];
+    fillBaseRef(id: string, baseRef: string): void;
+  },
+  git: GitRunner = runGit,
+): Promise<number> {
+  const perRepo = new Map<string, Promise<string | null>>();
+  let filled = 0;
+  for (const card of db.listCards({ includeArchived: true })) {
+    if (card.baseRef?.trim() || !card.repoPath) continue;
+    if (!perRepo.has(card.repoPath)) perRepo.set(card.repoPath, baseOf({ repoPath: card.repoPath, baseRef: null }, git));
+    const base = await perRepo.get(card.repoPath)!;
+    if (!base) continue;
+    db.fillBaseRef(card.id, base);
+    filled++;
+  }
+  return filled;
+}
+
+/**
  * Parse `git rev-list --count --left-right <base>...<branch>`, whose output is `<behind>\t<ahead>`.
  * Pure + exported: getting these two the wrong way round would offer to merge nothing, or refuse a
  * cleanup that is perfectly safe.
@@ -514,12 +580,12 @@ export function parseLeftRight(stdout: string): { behind: number; ahead: number 
 export async function integrationOf(
   repoPath: string,
   branch: string,
-  baseRef: string | null,
+  /** The card's base, from {@link baseOf}. */
+  base: string | null,
   git: GitRunner = runGit,
 ): Promise<Integration | null> {
-  const head = await currentBranch(repoPath, git);
-  const base = baseRef?.trim() || head;
   if (!base || base === branch) return null;
+  const head = await currentBranch(repoPath, git);
 
   const counts = await git(["rev-list", "--count", "--left-right", `${base}...${branch}`], repoPath);
   const parsed = counts.ok ? parseLeftRight(counts.stdout) : null;
@@ -726,12 +792,12 @@ export async function restoreBranch(
  */
 export async function syncBaseWithOrigin(
   repoPath: string,
-  baseRef: string | null,
+  /** The card's base, from {@link baseOf}. */
+  base: string | null,
   branch: string,
   git: GitRunner = runGit,
 ): Promise<{ ok: true; note: string | null } | { ok: false; error: string }> {
   try {
-    const base = baseRef?.trim() || (await currentBranch(repoPath, git));
     if (!base || base.startsWith("-") || (await branchExists(repoPath, branch, git))) return { ok: true, note: null };
     const local = `refs/heads/${base}`;
     const remote = `refs/remotes/origin/${base}`;

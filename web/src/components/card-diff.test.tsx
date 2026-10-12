@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -35,51 +35,27 @@ describe("lineClass", () => {
   });
 });
 
-// The way out of an empty diff. An empty `--stat` almost always means the base ref is wrong, not
-// that the agent slept — so the empty state carries the fix (base on `main`, review again) and the
-// non-empty one must not, or every card with real work would offer to re-point its base.
+// An empty diff says so and offers nothing: the base is the bridge's single answer (`baseOf`). The
+// old "base ref on main" button wrote a literal `main` — wrong for a dependent card, and offered on
+// a merged one whose diff is empty because its work has landed.
 describe("CardDiff — empty diff", () => {
   const stat = (files: unknown[]) => ({ ok: true, base: "abc123", cwd: "/w", files, added: 0, removed: 0 });
 
-  let patched: Record<string, unknown> | undefined;
-  let reviewed = 0;
-
-  beforeEach(() => {
-    patched = undefined;
-    reviewed = 0;
+  it("never offers to write `main` as the base", async () => {
+    let patched = false;
     server.use(
-      http.patch("/api/cards/c1", async ({ request }) => {
-        patched = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ok: true, card: {} });
-      }),
-      http.post("/api/cards/c1/review", () => {
-        reviewed += 1;
+      http.get("/api/cards/c1/diff", () => HttpResponse.json(stat([]))),
+      http.patch("/api/cards/c1", () => {
+        patched = true;
         return HttpResponse.json({ ok: true, card: {} });
       }),
     );
-  });
+    render(<CardDiff cardId="c1" statusKey="done" />);
 
-  it("offers to re-point the base at main, and the tap PATCHes then re-reviews", async () => {
-    const user = userEvent.setup();
-    server.use(http.get("/api/cards/c1/diff", () => HttpResponse.json(stat([]))));
-    render(<CardDiff cardId="c1" statusKey="review" />);
-
-    await user.click(await screen.findByRole("button", { name: /base ref on main/i }));
-
-    await waitFor(() => expect(patched).toEqual({ baseRef: "main" }));
-    await waitFor(() => expect(reviewed).toBe(1));
-  });
-
-  it("does not offer it when the diff has files", async () => {
-    server.use(
-      http.get("/api/cards/c1/diff", () =>
-        HttpResponse.json(stat([{ path: "web/src/a.ts", added: 3, removed: 1, kind: "text" }])),
-      ),
-    );
-    render(<CardDiff cardId="c1" statusKey="review" />);
-
-    expect(await screen.findByText("web/src/a.ts")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /base ref on main/i })).not.toBeInTheDocument();
+    expect(await screen.findByText(/nothing changed on this branch/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /main/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1); // the refresh, nothing else
+    expect(patched).toBe(false);
   });
 });
 

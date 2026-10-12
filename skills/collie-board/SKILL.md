@@ -88,7 +88,7 @@ Fields, all optional except `title`:
 | `spec` | the brief the agent receives when the card is started |
 | `acceptance` | array of strings, the done-conditions |
 | `repoPath` | absolute path; **without it the card cannot be started later** |
-| `baseRef` / `branch` | branch point and worktree branch name. **Always send `baseRef`** — the repo's default branch (`main`) unless the work really must fork from elsewhere: a card with no base leaves the review with an empty diff |
+| `baseRef` / `branch` | branch point and worktree branch name. Omit `baseRef` and the board fills in the repo's default branch (`origin/HEAD`, else `main`/`master`); send one only when the work really must fork from elsewhere — or when the repo has none of those, since the board then fills in nothing rather than guess |
 | `agentKind` | `claude`, `codex`… — defaults to the board's setting |
 | `parentId` | card id of a container — use it to group a batch |
 | `dependsOn` | card id that must be `done` first (a gate, nothing auto-starts) |

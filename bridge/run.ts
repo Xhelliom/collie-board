@@ -18,7 +18,7 @@ import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
-import { cardDiffSummary, currentBranch, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
+import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
@@ -475,14 +475,6 @@ export class RunCoordinator {
   }
 }
 
-/**
- * The base a card is read against. A card made without a `baseRef` forks from the main checkout's
- * current branch, but `resolveBase` reads a null one as `HEAD` — so every COMMITTED change of the
- * worker looked like "no changes" to the lead, who then sent the worker back for work it had done.
- * Pure over the branch it is given.
- */
-export const baseFor = (baseRef: string | null, current: string | null): string | null => baseRef?.trim() || current;
-
 /** What the lead is told of a card. `category` is what makes the check an explore card's (ADR 0017). Pure. */
 export function briefOf(card: Card, worktree: string, base: string): CardBrief {
   return { title: card.title, spec: card.spec, acceptance: card.acceptance, category: card.category, worktree, base };
@@ -519,14 +511,10 @@ export function runHook(
     brief: async (card) => {
       const worktree = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;
       if (!worktree) return null;
-      const base = await resolveBase(worktree, baseFor(card.baseRef, card.repoPath ? await currentBranch(card.repoPath) : null));
+      const base = await resolveBase(worktree, await baseOf(card));
       return briefOf(card, worktree, base);
     },
-    stat: async (cardId) => {
-      const c = db.getCard(cardId);
-      const baseRef = c?.repoPath ? baseFor(c.baseRef, await currentBranch(c.repoPath)) : null;
-      return cardDiffSummary({ getCard: (id) => (c && id === cardId ? { ...c, baseRef } : null), listEvents: (id) => db.listEvents(id) }, cardId);
-    },
+    stat: (cardId) => cardDiffSummary(db, cardId),
     report: async (worktree) => {
       const text = await Bun.file(join(worktree, BILAN_REL_PATH)).text().catch(() => "");
       return text.trim().slice(0, 8000) || null;
@@ -540,8 +528,7 @@ export function runHook(
     reviewing: () => cfg.boardCopilot,
     commits: async (card) => {
       if (!card.repoPath || !card.branch) return null;
-      const base = baseFor(card.baseRef, await currentBranch(card.repoPath));
-      return (await integrationOf(card.repoPath, card.branch, base))?.ahead ?? null;
+      return (await integrationOf(card.repoPath, card.branch, await baseOf(card)))?.ahead ?? null;
     },
     lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
     sendBack: async (card, failure, index) => {

@@ -24,7 +24,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { BoardDb } from "./db.ts";
-import { runGit, type GitRunner } from "./git.ts";
+import { baseOf, defaultBranchOf, runGit, type GitRunner } from "./git.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** How deep a scan root is walked looking for `.git`. Enough for `~/code/org/project`. */
@@ -150,36 +150,17 @@ export async function repoRootOf(cwd: string, git: GitRunner = runGit): Promise<
 }
 
 /**
- * A repo's default branch — what a new card should fork from.
- *
- * `origin/HEAD` is asked first and is the one that's right: the repo's own HEAD is whatever branch
- * happens to be checked out, which after a single card is a `board/…` branch, and forking the next
- * card off that would silently chain unrelated work. The current branch is only the fallback for a
- * repo with no remote.
+ * A card filed without a `baseRef` takes its repo's default branch ({@link baseOf}), so no card is
+ * created with a base left to be guessed at read time. A card that follows another gets one too: it
+ * forks from its predecessor's branch at start only while that work has not landed (ADR 0034), and
+ * from this base otherwise. Pure over `git`, so `bun test` covers it.
  */
-export async function defaultBranchOf(root: string, git: GitRunner = runGit): Promise<string | undefined> {
-  const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
-  if (remote.ok && remote.stdout.trim()) return remote.stdout.trim().replace(/^origin\//, "");
-  for (const candidate of ["main", "master"]) {
-    const verify = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`], root);
-    if (verify.ok && verify.stdout.trim()) return candidate;
-  }
-  const head = await git(["rev-parse", "--abbrev-ref", "HEAD"], root);
-  const branch = head.stdout.trim();
-  return head.ok && branch && branch !== "HEAD" ? branch : undefined;
-}
-
-/**
- * A card filed without a `baseRef` takes its repo's default branch — a null base leaves the review
- * an empty diff. Left alone when the caller named one, or when the card follows another (it forks
- * from its predecessor's branch at start). Pure over `git`, so `bun test` covers it.
- */
-export async function withDefaultBaseRef<T extends { repoPath?: string | null; baseRef?: string | null; dependsOn?: string | null }>(
+export async function withDefaultBaseRef<T extends { repoPath?: string | null; baseRef?: string | null }>(
   input: T,
   git: GitRunner = runGit,
 ): Promise<T & { baseRef?: string | null }> {
-  if (input.baseRef || input.dependsOn || !input.repoPath) return input;
-  const baseRef = await defaultBranchOf(input.repoPath, git).catch(() => undefined);
+  if (input.baseRef || !input.repoPath) return input;
+  const baseRef = await baseOf({ repoPath: input.repoPath, baseRef: null }, git);
   return baseRef ? { ...input, baseRef } : input;
 }
 
