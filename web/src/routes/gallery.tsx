@@ -38,15 +38,29 @@ export function groupBySession<T extends { project: string; session: string }>(
   return [...groups].map(([key, list]) => ({ key, items: list }));
 }
 
+/** A group's heading: the project and when its newest file landed — the session id means nothing on a phone. */
+export function groupTitle(items: { project: string; mtime: number }[]): string {
+  const newest = Math.max(...items.map((i) => i.mtime));
+  return `${items[0]?.project} · ${new Date(newest).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+}
+
+export function filterByProject<T extends { project: string }>(items: T[], project: string | null): T[] {
+  return project === null ? items : items.filter((i) => i.project === project);
+}
+
 export function GalleryRoute() {
-  const { images, docs } = useLoaderData() as GalleryListing;
+  const listing = useLoaderData() as GalleryListing;
+  const [project, setProject] = useState<string | null>(null);
+  const projects = [...new Set([...listing.images, ...listing.docs].map((i) => i.project))].sort();
+  const images = filterByProject(listing.images, project);
+  const docs = filterByProject(listing.docs, project);
   const imageGroups = groupBySession(images);
   const docGroups = groupBySession(docs);
   const [selected, setSelected] = useState<GalleryDoc | null>(null);
 
   const subtitleParts = [
     `${images.length} image${images.length === 1 ? "" : "s"}`,
-    ...(docs.length > 0 ? [`${docs.length} document${docs.length === 1 ? "" : "s"}`] : []),
+    `${docs.length} document${docs.length === 1 ? "" : "s"}`,
   ];
 
   if (selected !== null) {
@@ -96,9 +110,24 @@ export function GalleryRoute() {
       <h1 className="sr-only">Gallery</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
+        {projects.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label="Filter by project">
+            {[null, ...projects].map((p) => (
+              <button
+                key={p ?? "all"}
+                type="button"
+                aria-pressed={project === p}
+                onClick={() => setProject(p)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${project === p ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
+              >
+                {p ?? "All"}
+              </button>
+            ))}
+          </div>
+        )}
         {imageGroups.length === 0 && docGroups.length === 0 ? (
           <p className="px-2 py-16 text-center text-sm text-muted-foreground">
-            No images yet. Anything an agent writes into its scratchpad — pictures, pages, reports —
+            Nothing yet. Anything an agent writes into its scratchpad — pictures, pages, reports —
             shows up here.
           </p>
         ) : (
@@ -108,7 +137,7 @@ export function GalleryRoute() {
               return (
                 <section key={group.key}>
                   <h2 className="mb-1.5 truncate font-mono text-xs text-muted-foreground">
-                    {group.items[0]?.project} · {group.key.split("/")[1]?.slice(0, 8)}
+                    {groupTitle(group.items)}
                   </h2>
                   <div className="grid grid-cols-3 gap-1 sm:grid-cols-4 lg:grid-cols-6">
                     {group.items.map((image: GalleryImage, i: number) => (
@@ -132,7 +161,7 @@ export function GalleryRoute() {
             {docGroups.map((group) => (
               <section key={`docs-${group.key}`}>
                 <h2 className="mb-1.5 truncate font-mono text-xs text-muted-foreground">
-                  {group.items[0]?.project} · {group.key.split("/")[1]?.slice(0, 8)} · documents
+                  {groupTitle(group.items)} · documents
                 </h2>
                 <ul className="space-y-1">
                   {group.items.map((doc: GalleryDoc) => {
