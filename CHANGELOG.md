@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.187.1] - 2026-10-12
+
+### Fixed
+
+- A git test no longer runs on the real repository when launched from a hook (it flipped `core.bare` and corrupted worktree indexes). (bd77c81)
+
 ## [0.187.0] - 2026-10-11
 
 ### Added
