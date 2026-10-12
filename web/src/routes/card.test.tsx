@@ -1,6 +1,6 @@
 import { setPreference } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -829,5 +829,42 @@ describe("Next step — handing a landed card to the next role of its flow", () 
   it("is absent when there is no next role", async () => {
     await mount(null);
     expect(screen.queryByRole("button", { name: /étape suivante/i })).toBeNull();
+  });
+});
+
+// The long texts of a card fold past the threshold: spec, acceptance criteria, review report.
+describe("long texts fold", () => {
+  beforeEach(() => {
+    setPreference("fr");
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+  });
+  afterEach(() => {
+    setPreference("en");
+    vi.restoreAllMocks();
+  });
+
+  it("puts a « Voir plus » under the spec, the criteria and the review notes", async () => {
+    const detail: CardDetail = {
+      card: { ...card("done"), id: "c1", title: "The card", parentId: null, spec: "Spec body text", acceptance: ["Criterion one"] },
+      predecessor: null,
+      parent: null,
+      originCard: null,
+      duplicate: null,
+      children: [],
+      sessions: [],
+      reviews: [{ id: "r1", cardId: "c1", sessionId: "s1", verdict: "partial", notes: "Report body text", todos: [], createdAt: 1 }],
+      events: [],
+    };
+    const router = createMemoryRouter(
+      [{ path: "/card/:cardId", loader: (): CardData => ({ cardId: "c1", detail, error: false, authError: false }), element: <CardRoute /> }],
+      { initialEntries: ["/card/c1"] },
+    );
+    render(<RouterProvider router={router} />);
+    for (const text of ["Spec body text", "Criterion one", "Report body text"]) {
+      const el = await screen.findByText(text);
+      // the fold wraps the text: its toggle is the next sibling of the clamped box
+      const box = el.closest("[id]")!;
+      expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
+    }
   });
 });
