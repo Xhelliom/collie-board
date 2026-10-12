@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { setPreference } from "@/i18n";
 
 import { integrationHistory, prLabel, prSentence } from "./board-groups";
 import type { BoardEvent } from "./board";
@@ -99,6 +101,15 @@ describe("prLabel", () => {
 });
 
 describe("prSentence", () => {
+  afterEach(() => setPreference("en"));
+
+  it("dates the PR in the interface language, not in English", () => {
+    setPreference("fr");
+    const out = prSentence(null, Date.now() - 3 * 86_400_000);
+    expect(out).not.toMatch(/\bago\b/);
+    expect(out).toMatch(/il y a/);
+  });
+
   const opened = Date.parse("2026-08-24T15:00:00Z");
   const merged = Date.parse("2026-08-24T15:37:36Z");
 

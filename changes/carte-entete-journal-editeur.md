@@ -8,3 +8,4 @@ bump: patch
 ### Fixed
 - Journal : `card.reopened`, `card.cleaned_up`, `card.pr_opened`, `wrapup.requested`, `wrapup.collected` s'affichent en phrases ; détail de « Restaurer » sans indentation sous `sm`.
 - Diff : une erreur autre que 409 s'affiche au lieu de masquer la section.
+- PR : la date de « ouverte / fusionnée / fermée » suit la langue de l'interface (audit #22).

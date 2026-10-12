@@ -1,6 +1,6 @@
 import { t } from "@/i18n";
 import type { BoardEvent, CardStatus, CardView, PrStatus } from "./board";
-import { timeAgo } from "./format";
+import { ago as timeAgo } from "./project-facts";
 
 // Turning the flat card list into what the board renders — ADR 0022.
 //
