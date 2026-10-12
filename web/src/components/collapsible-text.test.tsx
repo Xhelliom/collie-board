@@ -6,7 +6,7 @@ import { CollapsibleText } from "./collapsible-text";
 // jsdom has no layout: fake the measured heights.
 function measure(scroll: number, client: number) {
   vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(scroll);
-  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(client);
+  void client;
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -17,6 +17,9 @@ describe("CollapsibleText", () => {
     render(<CollapsibleText>court</CollapsibleText>);
     expect(screen.getByText("court")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
+    const el = screen.getByText("court");
+    expect(el.style.maxHeight).toBe("");
+    expect(el).not.toHaveClass("overflow-hidden");
   });
 
   it("folds long text and toggles with aria-expanded", async () => {
@@ -24,7 +27,7 @@ describe("CollapsibleText", () => {
     render(<CollapsibleText lines={4}>long</CollapsibleText>);
     const btn = screen.getByRole("button", { name: "Voir plus" });
     expect(btn).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("long").style.maxHeight).toBe("6em");
+    expect(screen.getByText("long").style.maxHeight).toBe("96px");
 
     await userEvent.setup().click(btn);
     const less = screen.getByRole("button", { name: "Voir moins" });

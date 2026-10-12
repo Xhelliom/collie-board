@@ -21,12 +21,16 @@ export function CollapsibleText({
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [overflow, setOverflow] = useState(false);
+  // Height limit in px once overflow is confirmed; null = fits, nothing is clamped.
+  const [limit, setLimit] = useState<number | null>(null);
 
-  // Re-measure on every render of the content; only while folded (open = unclamped, nothing to measure).
+  // Re-measure on every render of the content. Short text is never clamped, so it renders as before.
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el && !open) setOverflow(el.scrollHeight > el.clientHeight + 1);
+    if (!el || open) return;
+    const cs = getComputedStyle(el);
+    const lh = parseFloat(cs.lineHeight) || 1.5 * (parseFloat(cs.fontSize) || 16);
+    setLimit(el.scrollHeight > lines * lh + 1 ? lines * lh : null);
   });
 
   return (
@@ -34,12 +38,12 @@ export function CollapsibleText({
       <div
         ref={ref}
         id={id}
-        className={open ? undefined : "overflow-hidden"}
-        style={open ? undefined : { maxHeight: `${lines * 1.5}em` }}
+        className={limit !== null && !open ? "overflow-hidden" : undefined}
+        style={limit !== null && !open ? { maxHeight: limit } : undefined}
       >
         {children}
       </div>
-      {(overflow || open) && (
+      {(limit !== null || open) && (
         <button
           type="button"
           aria-expanded={open}
