@@ -1,0 +1,34 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { CollapsibleText } from "./collapsible-text";
+
+// jsdom has no layout: fake the measured heights.
+function measure(scroll: number, client: number) {
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(scroll);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(client);
+}
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("CollapsibleText", () => {
+  it("leaves short text untouched: no button", () => {
+    measure(40, 40);
+    render(<CollapsibleText>court</CollapsibleText>);
+    expect(screen.getByText("court")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("folds long text and toggles with aria-expanded", async () => {
+    measure(400, 100);
+    render(<CollapsibleText lines={4}>long</CollapsibleText>);
+    const btn = screen.getByRole("button", { name: "Voir plus" });
+    expect(btn).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("long").style.maxHeight).toBe("6em");
+
+    await userEvent.setup().click(btn);
+    const less = screen.getByRole("button", { name: "Voir moins" });
+    expect(less).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("long").style.maxHeight).toBe("");
+  });
+});
