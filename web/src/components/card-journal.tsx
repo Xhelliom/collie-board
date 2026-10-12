@@ -4,7 +4,7 @@ import { RotateCcw, Sparkles, User } from "lucide-react";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/format";
+import { ago as timeAgo } from "@/lib/project-facts";
 import type { BoardEvent } from "@/lib/board";
 
 // The card's journal — and the one place an overwritten spec can be got back.
@@ -39,26 +39,64 @@ export function CardJournal({
   events: BoardEvent[];
   onRestore: (eventId: number) => Promise<void>;
 }) {
+  const t = useT();
+  const [all, setAll] = useState(false);
   if (events.length === 0) return null;
+  const rows = foldStatusLoops(events);
+  const shown = all ? rows : rows.slice(0, LIMIT);
   return (
-    <ul className="flex flex-col">
-      {events.slice(0, 30).map((e) =>
-        e.type === "card.edited" ? (
-          <EditEntry key={e.id} event={e} onRestore={() => onRestore(e.id)} />
-        ) : (
-          <JournalRow
-            key={e.id}
-            ts={e.ts}
-            icon={<EventIcon type={e.type} />}
-            // The lead's reason IS the entry — it's what you read instead of the diff, so it wraps.
-            wrap={e.type.startsWith("run.")}
-          >
-            {describeEvent(e)}
-          </JournalRow>
-        ),
+    <>
+      <ul className="flex flex-col">
+        {shown.map((r) =>
+          "loop" in r ? (
+            <JournalRow key={r.id} ts={r.ts} icon={null}>
+              {t("journal.statusLoop", { count: r.loop, a: LOOP[0], b: LOOP[1] })}
+            </JournalRow>
+          ) : r.type === "card.edited" ? (
+            <EditEntry key={r.id} event={r} onRestore={() => onRestore(r.id)} />
+          ) : (
+            <JournalRow key={r.id} ts={r.ts} icon={<EventIcon type={r.type} />}>
+              {describeEvent(r)}
+            </JournalRow>
+          ),
+        )}
+      </ul>
+      {rows.length > shown.length && (
+        <button
+          type="button"
+          onClick={() => setAll(true)}
+          className="mt-1 flex min-h-11 items-center px-2 text-sm text-primary underline-offset-2 hover:underline"
+        >
+          {t("journal.showAll", { shown: shown.length, total: rows.length })}
+        </button>
       )}
-    </ul>
+    </>
   );
+}
+
+const LIMIT = 30;
+const LOOP = ["working", "review"] as const;
+const isLoopMove = (e: BoardEvent) => {
+  const p = (e.payload ?? {}) as { from?: string; to?: string };
+  return e.type === "card.status" && LOOP.includes(p.from as never) && LOOP.includes(p.to as never) && p.from !== p.to;
+};
+
+/** Three or more consecutive working ↔ review moves become one row (events come newest first).
+ *  Pure. The `reason` of folded moves is not shown. */
+export function foldStatusLoops(events: BoardEvent[]): (BoardEvent | { loop: number; id: number; ts: number })[] {
+  const out: (BoardEvent | { loop: number; id: number; ts: number })[] = [];
+  for (let i = 0; i < events.length; ) {
+    let j = i;
+    while (j < events.length && isLoopMove(events[j]!)) j++;
+    if (j - i >= 3) {
+      out.push({ loop: j - i, id: events[i]!.id, ts: events[i]!.ts });
+      i = j;
+    } else {
+      out.push(events[i]!);
+      i++;
+    }
+  }
+  return out;
 }
 
 /** The shared row shape every entry renders as — timestamp, a 12px icon (or an empty spacer of the
@@ -66,27 +104,21 @@ export function CardJournal({
 function JournalRow({
   ts,
   icon,
-  wrap = false,
   children,
 }: {
   ts: number;
   icon: ReactNode;
-  wrap?: boolean;
   children: ReactNode;
 }) {
   return (
-    <li className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs">
-      <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
-      <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
+    <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-xs">
+      <span className="w-[76px] shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
+      <span className="flex size-3 shrink-0 items-center justify-center self-center text-muted-foreground">
         {icon}
       </span>
-      <span
-        className={cn(
-          "min-w-0 flex-1 text-foreground",
-          wrap ? "whitespace-pre-wrap break-words" : "truncate",
-        )}
-      >
-        {wrap ? <CollapsibleText lines={3}>{children}</CollapsibleText> : children}
+      {/* Any entry can be long (a quoted instruction, a refused merge, an explanation): fold, never cut. */}
+      <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-foreground">
+        <CollapsibleText lines={2}>{children}</CollapsibleText>
       </span>
     </li>
   );
@@ -127,7 +159,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
   return (
     <li className="flex flex-col gap-2 rounded-lg px-2 py-1.5">
       <div className="flex items-center gap-2.5 text-xs">
-        <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">
+        <span className="w-[76px] shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
           {timeAgo(event.ts)}
         </span>
         <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
@@ -146,7 +178,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
       </div>
 
       {open && (
-        <div className="flex flex-col gap-2 pl-[74px]">
+        <div className="flex flex-col gap-2 sm:pl-[74px]">
           {replaced.title !== undefined && <Previous label={t("journal.field.title")} text={replaced.title} />}
           {replaced.spec !== undefined && <Previous label={t("journal.field.spec")} text={replaced.spec ?? t("journal.empty")} />}
           {replaced.acceptance !== undefined && (
@@ -271,6 +303,16 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.startFailed", { stage: String(p.stage), error: String(p.error) });
     case "card.split_from":
       return p.after ? t("journal.splitAfter", { after: String(p.after) }) : t("journal.split");
+    case "card.reopened":
+      return t("journal.reopened");
+    case "card.cleaned_up":
+      return t("journal.cleanedUp");
+    case "card.pr_opened":
+      return t("journal.prOpened");
+    case "wrapup.requested":
+      return t("journal.wrapupRequested");
+    case "wrapup.collected":
+      return t("journal.wrapupCollected");
     case "session.opened":
       return t("journal.sessionOpened");
     // The other half of an `agent`-origin card's trace (ADR 0010): the new card points back here,

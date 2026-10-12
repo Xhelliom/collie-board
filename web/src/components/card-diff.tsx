@@ -16,6 +16,7 @@ import {
   type DiffFile,
   type DiffStat,
 } from "@/lib/board";
+import { isApiErrorStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // "What has the agent actually written." `--stat` first — a file list with bars is the only diff
@@ -32,6 +33,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
   const t = useT();
   const [stat, setStat] = useState<DiffStat | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notStarted, setNotStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<DiffFile | null>(null);
 
@@ -40,10 +42,12 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
     try {
       setStat(await fetchDiffStat(cardId));
       setError(null);
+      setNotStarted(false);
     } catch (e) {
       setStat(null);
       // A 409 here is the ordinary "not started yet" answer, not a failure worth shouting about.
-      setError((e as Error).message);
+      setNotStarted(isApiErrorStatus(e, 409));
+      setError(boardErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -54,7 +58,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
     void load();
   }, [load, statusKey]);
 
-  if (error && !stat) return null;
+  if (notStarted && !stat) return null;
 
   const total = stat ? stat.added + stat.removed : 0;
   const max = stat ? Math.max(1, ...stat.files.map((f) => f.added + f.removed)) : 1;
@@ -84,6 +88,8 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </button>
       </div>
+
+      {error && !stat && <p className="text-xs text-status-blocked">{t("diff.error", { error })}</p>}
 
       {stat && stat.files.length === 0 ? (
         <EmptyDiff cardId={cardId} onFixed={load} />
