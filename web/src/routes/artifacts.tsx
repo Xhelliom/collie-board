@@ -154,6 +154,16 @@ export function ArtifactsRoute() {
         </main>
       ) : (
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+          {/* The reading view's other door into the same thread — a report sits next to the
+              conversation that wrote it. */}
+          <button
+            type="button"
+            onClick={() => navigate(historyPath(paneId, session))}
+            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium text-muted-foreground transition-colors active:bg-muted/50"
+          >
+            <ArrowLeft className="size-3.5" />
+            Back to the conversation
+          </button>
           <ul className="space-y-1">
             {data.artifacts.map((artifact) => {
               const Icon = KIND_ICON[artifact.kind];
@@ -169,7 +179,7 @@ export function ArtifactsRoute() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-mono text-sm">{artifact.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{artifact.rel}</span>
+                      <span dir="rtl" className="block truncate text-left text-xs text-muted-foreground"><bdi>{artifact.rel}</bdi></span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       {byteSize(artifact.size)}
@@ -179,16 +189,6 @@ export function ArtifactsRoute() {
               );
             })}
           </ul>
-          {/* The reading view's other door into the same thread — a report sits next to the
-              conversation that wrote it. */}
-          <button
-            type="button"
-            onClick={() => navigate(historyPath(paneId, session))}
-            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium text-muted-foreground transition-colors active:bg-muted/50"
-          >
-            <ArrowLeft className="size-3.5" />
-            Back to the conversation
-          </button>
         </main>
       )}
     </div>

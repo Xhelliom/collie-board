@@ -1,4 +1,4 @@
-import { groupBySession } from "./gallery";
+import { filterByProject, groupBySession, groupTitle } from "./gallery";
 import type { GalleryImage } from "@/lib/types";
 
 // The screen is markup around one decision: images are grouped by the SESSION that made them, and
@@ -37,4 +37,19 @@ describe("groupBySession", () => {
   it("is empty for no images", () => {
     expect(groupBySession([])).toEqual([]);
   });
+});
+
+describe("groupTitle", () => {
+  it("names a group by project and the date of its newest file, not the session id", () => {
+    const t = groupTitle([img({ project: "collie", session: "abcdef123456", mtime: Date.UTC(2026, 9, 12, 12) })]);
+    expect(t).toContain("collie");
+    expect(t).not.toContain("abcdef12");
+    expect(t).toMatch(/2026/);
+  });
+});
+
+describe("filterByProject", () => {
+  const items = [img({ project: "a" }), img({ project: "b" }), img({ project: "a" })];
+  it("keeps one project", () => expect(filterByProject(items, "a")).toHaveLength(2));
+  it("keeps everything for null", () => expect(filterByProject(items, null)).toHaveLength(3));
 });
