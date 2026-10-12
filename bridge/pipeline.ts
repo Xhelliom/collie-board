@@ -90,7 +90,8 @@ export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
  *
  * SAME DISCIPLINE AS `startCard`: the step is journaled only once the agent is up. An agent that never
  * came up leaves no open session on a shell pane (that wedges the card: reconciliation never orphans a
- * live shell, and every retry answers "already running") and no step counted as taken.
+ * live shell, and every retry answers "already running") and no step counted as taken. The retry is a
+ * plain start: `startCard` reads the owed step from the journal (`owedStep`) and launches that role.
  */
 async function swapRole(
   db: BoardDb,
@@ -121,8 +122,11 @@ async function swapRole(
     await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, args);
   } catch (err) {
     db.closeSession(next.id, "abandoned");
+    // The tab was created for this agent: left open, it is a stray shell nobody owns.
+    await herdr.closeTab(created.tabId).catch(() => {});
     db.setStatus(card.id, "ready", "agent failed to start");
-    db.recordEvent(card.id, "card.start_failed", { stage: "pipeline", step: index, role: role.name, error: (err as Error).message });
+    // `prompt`: the retry is `startCard`, which resumes THIS step with it (`owedStep`), not role 0.
+    db.recordEvent(card.id, "card.start_failed", { stage: "pipeline", step: index, role: role.name, prompt: text, error: (err as Error).message });
     throw new Error(`agent.start (${role.name}): ${(err as Error).message}`);
   }
   db.recordEvent(card.id, "card.pipeline_step", { index, from: session.id, to: next.id, templateId: role.id, name: role.name, kind, ...(args.length ? { args, model: role.model } : {}) });

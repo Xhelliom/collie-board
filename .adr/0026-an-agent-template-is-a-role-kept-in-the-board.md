@@ -56,5 +56,8 @@ enforce them by prompt would be a promise nobody checks.
 - `launchAgent` takes optional `args`; `startCard` takes optional `adapters` so the model flag follows
   the operator's own `agents.toml`. A restart that sends a special prompt (a conflict to settle) does
   not repeat the brief: that agent already has its role.
+- A card started before PR #77 may carry in `card.agentKind` the kind the old code resolved and
+  wrote there, which reads exactly like an explicit choice: its later pipeline roles inherit it. It is
+  not migrated — a migration could not tell it from a real choice; clearing the card's kind fixes it.
 - The lead's, the copilot's and the orchestrator's prompts are still written in code. Making them
   templates is the next step, not this one.

@@ -1298,17 +1298,20 @@ async function route(
     const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
 
     // One gesture at a time per card (integration-lock.ts): a second tap while a push is in flight is refused.
-    const held = await exclusive(integrating, id, async () =>
-      what === "merge"
-        ? await mergeCard(db, card)
+    const held = await exclusive(integrating, id, async () => {
+      // Read under the lock, not before the body: a tap that came in while the last one finished acts
+      // on the card that one left, not on a snapshot taken before it.
+      const now = db.getCard(id) ?? card;
+      return what === "merge"
+        ? await mergeCard(db, now)
         : what === "pr"
-          ? await prForCard(db, card)
+          ? await prForCard(db, now)
           : what === "resolve"
-            ? await resolveConflict(db, ctx.herdr, card, via)
+            ? await resolveConflict(db, ctx.herdr, now, via)
             : what === "reopen"
-              ? await reopenForPr(db, ctx.herdr, ctx.cfg, card)
-              : await cleanupCard(db, ctx.herdr, card, { discard: what === "discard" }),
-    );
+              ? await reopenForPr(db, ctx.herdr, ctx.cfg, now)
+              : await cleanupCard(db, ctx.herdr, now, { discard: what === "discard" });
+    });
     if (held.busy) {
       return ctx.json({ ok: false, error: "an integration is already running on this card", kind: "in-progress" }, 409);
     }

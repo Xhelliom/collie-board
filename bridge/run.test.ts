@@ -596,6 +596,23 @@ describe("the PR's checks (ADR 0029)", () => {
       expect(w.calls).toEqual(["pr a", "land a", "done a"]);
     });
 
+    it("a land refused by the integration lock is no answer: no halt, nothing filed, asked again on the next tick", async () => {
+      const { db, a, w } = setup({ wait: true }, (db, c) => {
+        db.recordRunEvent(c.id, "run.merge", { runId: c.runId!, merged: true, reason: "green" });
+        db.recordEvent(c.id, "card.pr_merged", {});
+      });
+      await tick(w); // the lead's verdict
+      await tick(w); // the PR: a wait
+      const real = w.ports.land;
+      w.ports.land = async (c) => (w.calls.push(`busy ${c.title}`), "busy");
+      await tick(w);
+      expect(w.calls).toEqual(["pr a", "busy a"]);
+      expect(events(db, a, "run.halted")).toHaveLength(0);
+      w.ports.land = real;
+      await tick(w); // no clock moved: a refused ask does not count against the 30 s pace
+      expect(w.calls).toEqual(["pr a", "busy a", "land a", "done a"]);
+    });
+
     it("a refusal that is not a wait halts the card for the operator — never filed with its PR open (ADR 0035)", async () => {
       // GitHub unreadable is a wait until MAX_UNREADABLE asks in a row (ADR 0036); this is what is left after.
       const { db, a, w } = setup({ reason: "could not read the PR's state from GitHub 5 times in a row — not merging" });

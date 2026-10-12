@@ -38,6 +38,7 @@ import type { BoardDb, Card, CardSession } from "./db.ts";
 import { baseOf, diffStat, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { cleanupCard } from "./integrate.ts";
+import { exclusive, integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the agent writes its closing note, relative to the card's checkout. */
@@ -244,7 +245,9 @@ export class WrapupCoordinator {
   private async autoCleanup(cardId: string): Promise<void> {
     const card = this.db.getCard(cardId);
     if (!card || card.keepWorktree) return;
-    await this.cleanup(this.db, this.herdr, card, {});
+    // A gesture in flight on this card (integration-lock.ts) is the operator's: this tidy-up is skipped,
+    // not retried — the worktree stays for that gesture, or the manual "Clean up" tap.
+    await exclusive(integrating, card.id, () => this.cleanup(this.db, this.herdr, card, {}));
   }
 
   /** Whether an empty checkout has been empty long enough to be believed. Starts the clock. */

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
 import type { Config } from "./config.ts";
+import { startCard } from "./cards.ts";
 import { BoardDb } from "./db.ts";
+import { owedStep } from "./flows.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackPrompt, sendBackToWorker, stepPrompt, workerStep } from "./pipeline.ts";
 
@@ -65,13 +67,26 @@ describe("pipeline (ADR 0031)", () => {
 function fakeHerdr(opts: { failStart?: boolean } = {}) {
   const starts: { paneId: string; kind: string; args?: string[] }[] = [];
   const closed: string[] = [];
+  const closedTabs: string[] = [];
+  const prompts: string[] = [];
   let tabs = 0;
   const client = {
     async createTab() {
-      return { paneId: `w1:p${++tabs + 1}` };
+      ++tabs;
+      return { paneId: `w1:p${tabs + 1}`, tabId: `w1:t${tabs + 1}` };
     },
     async closePane(paneId: string) {
       closed.push(paneId);
+    },
+    async closeTab(tabId: string) {
+      closedTabs.push(tabId);
+    },
+    // What `startCard` needs to reopen the card's checkout.
+    async createWorktree(o: { branch: string }) {
+      return { checkoutPath: `/wt/${o.branch}`, branch: o.branch, workspaceId: "w1", tabId: "w1:t9", paneId: "w1:p9", alreadyOpen: true };
+    },
+    async getPane() {
+      return {};
     },
     async startAgent(o: { paneId: string; kind: string; args?: string[] }) {
       if (opts.failStart) throw new Error("agent never became ready");
@@ -80,10 +95,12 @@ function fakeHerdr(opts: { failStart?: boolean } = {}) {
     async getAgent() {
       return { interactive_ready: true, agent_status: "working" };
     },
-    async promptAgent() {},
+    async promptAgent(o: { text: string }) {
+      prompts.push(o.text);
+    },
     async sendPaneKeys() {},
   } as unknown as HerdrClient;
-  return { client, starts, closed };
+  return { client, starts, closed, closedTabs, prompts, opts };
 }
 
 const cfg = { boardAgentKind: "claude" } as Config;
@@ -122,19 +139,40 @@ describe("advancing a pipeline", () => {
     expect(h.starts[0]!.kind).toBe("opencode");
   });
 
-  it("a launch that fails counts no step and leaves no session on the shell pane; a retry resumes the same step", async () => {
+  it("a launch that fails counts no step, leaves no session and closes the tab it opened", async () => {
     const { db, card, session, reviewer } = pipelineCard();
-    await expect(advancePipeline(db, fakeHerdr({ failStart: true }).client, cfg, card, session, reviewer, "done", undefined, noWait)).rejects.toThrow(/agent.start/);
+    const h = fakeHerdr({ failStart: true });
+    await expect(advancePipeline(db, h.client, cfg, card, session, reviewer, "done", undefined, noWait)).rejects.toThrow(/agent.start/);
     expect(db.openSessionFor(card.id)).toBeNull();
+    expect(h.closedTabs).toEqual(["w1:t2"]); // no stray shell tab left behind
     expect(currentStep(db.listEvents(card.id))).toBe(0);
     expect(db.getCard(card.id)!.status).toBe("ready");
-    expect(db.listEvents(card.id).some((e) => e.type === "card.start_failed")).toBe(true);
-    // Restarted (the journal is all there is): the same role is still next, and taking it counts step 1.
     expect(nextRole(pipelineOf(db, card), db.listEvents(card.id))?.id).toBe(reviewer.id);
-    const again = db.openSession({ cardId: card.id, paneId: "w1:p9", agentKind: "claude" });
-    await advancePipeline(db, fakeHerdr().client, cfg, card, again, reviewer, "done", undefined, noWait);
+  });
+
+  it("the retry — a plain start of the `ready` card — resumes the failed step, not role 0", async () => {
+    const { db, card, session, reviewer } = pipelineCard();
+    db.patchCard(card.id, { repoPath: "/nonexistent-repo", baseRef: "main" });
+    const h = fakeHerdr({ failStart: true });
+    await expect(advancePipeline(db, h.client, cfg, db.getCard(card.id)!, session, reviewer, "added 3 tests", undefined, noWait)).rejects.toThrow(/agent.start/);
+    h.opts.failStart = false;
+    const res = await startCard(db, h.client, { ...cfg, boardMaxAgents: 5 } as Config, card.id, { sleep: noWait });
+    expect(res.ok).toBe(true);
+    expect(h.starts.map((s) => s.kind)).toEqual(["codex"]); // the reviewer's kind, not the implementer's
+    expect(h.prompts[0]!.startsWith(reviewer.brief.trim())).toBe(true);
+    expect(h.prompts[0]).toContain("added 3 tests"); // what the step before reported
     expect(currentStep(db.listEvents(card.id))).toBe(1);
     expect(nextRole(pipelineOf(db, card), db.listEvents(card.id))).toBeNull();
+    expect(db.listEvents(card.id).some((e) => e.type === "card.template")).toBe(false);
+  });
+
+  it("a first start is untouched, and a step owed is settled once taken", () => {
+    expect(owedStep([])).toBeNull();
+    const failed = { type: "card.start_failed", payload: { stage: "pipeline", step: 2, prompt: "P" } };
+    expect(owedStep([failed])).toEqual({ index: 2, prompt: "P" });
+    expect(owedStep([{ type: "card.pipeline_step", payload: { index: 2 } }, failed])).toBeNull();
+    // A step-0 start failing is not a pipeline step: role 0 again, as before.
+    expect(owedStep([{ type: "card.start_failed", payload: { stage: "agent.start" } }])).toBeNull();
   });
 
   it("a send-back goes to the worker role's own kind", async () => {

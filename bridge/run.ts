@@ -21,6 +21,7 @@ import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
+import { exclusive, integrating } from "./integration-lock.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -49,8 +50,8 @@ export interface RunPorts {
   prompt(paneId: string, text: string): Promise<void>;
   /** `prForCard` with auto-merge armed. */
   openPr(card: Card, gate: MergeGate): Promise<Outcome>;
-  /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). */
-  land(card: Card, gate: MergeGate): Promise<void>;
+  /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). "busy": a gesture holds the card (integration-lock.ts) — not asked, ask again next tick. */
+  land(card: Card, gate: MergeGate): Promise<void | "busy">;
   /** Ask GitHub, fresh, what a card's PR became and journal it (`notePrOutcome`): a merge, a close, or nothing. */
   refreshPr(card: Card): Promise<void>;
   /** `resolveConflict` against origin's base, to the card's own agent. */
@@ -360,7 +361,10 @@ export class RunCoordinator {
         // Throttled in memory: the tick is 1.5 s, GitHub's checks take minutes.
         if (this.now() - (this.landAsked.get(card.id) ?? 0) < LAND_EVERY_MS) return;
         this.landAsked.set(card.id, this.now());
-        await this.ports.land(card, this.mergeGate(run, card));
+        if ((await this.ports.land(card, this.mergeGate(run, card))) === "busy") {
+          this.landAsked.delete(card.id); // nothing asked: the next tick asks
+          return;
+        }
         return this.landed(run, card, session!);
       }
       case "file":
@@ -562,7 +566,7 @@ export function runHook(
     start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     openPr: (card, gate) => prForCard(db, card, { autoMerge: true, gate }),
-    land: (card, gate) => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate),
+    land: async (card, gate) => ((await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate))).busy ? "busy" : undefined),
     refreshPr: async (card) => notePrOutcome(db, card.id, await prStatusFor(card, Date.now, true)),
     resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
