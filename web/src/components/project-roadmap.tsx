@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Copy } from "lucide-react";
 
+import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { useT, type MessageKey } from "@/i18n";
 import { boardErrorMessage, type Decision, type DecisionStatus, type Roadmap, type RoadmapItem, type RoadmapStatus } from "@/lib/board";
@@ -53,9 +54,9 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
       {open && (
         <div id={body} className="flex flex-col gap-2.5 border-t px-3 py-3 pl-9">
           {item.detail ? (
-            <div className="max-h-96 overflow-y-auto text-muted-foreground">
+            <CollapsibleText className="text-muted-foreground">
               <MarkdownText text={item.detail} className="text-sm" />
-            </div>
+            </CollapsibleText>
           ) : (
             <p className="text-sm text-muted-foreground">{t("roadmap.noDetail")}</p>
           )}

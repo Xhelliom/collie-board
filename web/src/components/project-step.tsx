@@ -52,7 +52,7 @@ function Who({ label, tone, children }: { label: string; tone: string; children:
       <span className={cn("rounded-[5px] px-1 py-1 text-center text-[10px] font-semibold uppercase leading-none tracking-widest", tone)}>
         {label}
       </span>
-      <span className="text-muted-foreground">{children}</span>
+      <CollapsibleText lines={3} className="text-muted-foreground">{children}</CollapsibleText>
     </li>
   );
 }
