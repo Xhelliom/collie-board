@@ -112,7 +112,7 @@ function JournalRow({
 }) {
   return (
     <li className="flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-xs">
-      <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
+      <span className="w-[76px] shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">{timeAgo(ts)}</span>
       <span className="flex size-3 shrink-0 items-center justify-center self-center text-muted-foreground">
         {icon}
       </span>
@@ -159,7 +159,7 @@ function EditEntry({ event, onRestore }: { event: BoardEvent; onRestore: () => P
   return (
     <li className="flex flex-col gap-2 rounded-lg px-2 py-1.5">
       <div className="flex items-center gap-2.5 text-xs">
-        <span className="w-[60px] shrink-0 tabular-nums text-muted-foreground">
+        <span className="w-[76px] shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
           {timeAgo(event.ts)}
         </span>
         <span className="flex size-3 shrink-0 items-center justify-center text-muted-foreground">
