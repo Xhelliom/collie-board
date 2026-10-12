@@ -664,7 +664,20 @@ export async function pushBranch(
   exists: (p: string) => boolean = existsSync,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const r = await git(["push", "--set-upstream", "origin", branch], await pushDir(repoPath, branch, git, exists));
-  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  return r.ok ? { ok: true } : { ok: false, error: tailOf(r.stderr || r.stdout) || "git push failed" };
+}
+
+/**
+ * The END of a refused push's output, plus its first line. A pre-push hook prints its progress first
+ * and its verdict last — the head alone showed "typecheck…" and hid the error every time.
+ */
+export function tailOf(output: string, maxLines = 40, maxChars = 4000): string {
+  const lines = output.trim().split("\n");
+  if (lines.length <= maxLines && output.trim().length <= maxChars) return output.trim();
+  const first = lines[0]!;
+  let tail = lines.slice(Math.max(1, lines.length - maxLines)).join("\n");
+  if (tail.length > maxChars) tail = tail.slice(-maxChars);
+  return `${first}\n…\n${tail}`;
 }
 
 /** Bring `origin/<base>` up to date — it is what a PR is compared with, not the local base. */

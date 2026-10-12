@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { cardDiffStat, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushDir, type DiffStat, type GitRunner } from "./git.ts";
+import { cardDiffStat, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushBranch, pushDir, tailOf, type DiffStat, type GitRunner } from "./git.ts";
 
 // Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
 describe("parseMergeTree — does the PR conflict, before anything is pushed", () => {
@@ -172,5 +172,26 @@ describe("cardDiffStat — a card with no base (the copilot reviewed an empty di
     // …and a base the card names still wins.
     const named = { getCard: () => ({ repoPath: repo, branch: "feat", baseRef: "feat" }) };
     expect((await cardDiffStat(named, "x"))!.files).toEqual([]);
+  });
+});
+
+describe("pushBranch — a refused push says why, not just how it started", () => {
+  test("keeps the hook's first line and its last lines, where the real error is", async () => {
+    const out = ["$ tsc --noEmit", "$ cd web && tsc", ...Array.from({ length: 60 }, (_, i) => `test ${i} ok`), "FAIL bridge/x.test.ts: expected 1, got 2", "error: failed to push some refs"].join("\n");
+    const git: GitRunner = async () => ({ ok: false, stdout: "", stderr: out });
+    const r = await pushBranch("/repo", "b", git, () => false);
+    expect(r.ok).toBe(false);
+    const error = (r as { error: string }).error;
+    expect(error.startsWith("$ tsc --noEmit\n…\n")).toBe(true);
+    expect(error).toContain("FAIL bridge/x.test.ts: expected 1, got 2");
+    expect(error.endsWith("error: failed to push some refs")).toBe(true);
+    expect(error).not.toContain("test 5 ok");
+  });
+
+  test("a short output is kept whole; a huge line is capped from its end", () => {
+    expect(tailOf("a\nb")).toBe("a\nb");
+    const capped = tailOf(`head\n${"x".repeat(5000)}END`);
+    expect(capped.endsWith("END")).toBe(true);
+    expect(capped.length).toBeLessThan(4100);
   });
 });
