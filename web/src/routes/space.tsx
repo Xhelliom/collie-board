@@ -124,8 +124,8 @@ export function SpaceRoute() {
         <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
       </div>
 
-      {/* Status overlay, anchored to the bottom of the viewport. Stays outside the scroller. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      {/* Status overlay at bottom-0: /space/:id has no tab bar (MobileTabBar only shows on /, /board, /spaces, /settings). Stays outside the scroller. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm px-3 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
 
