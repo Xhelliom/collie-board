@@ -808,6 +808,33 @@ function jsonReviewTodos(raw: string | null): ReviewTodo[] {
   return out;
 }
 
+/**
+ * Stable topological order over `dependsOn`: each card after its predecessor when that predecessor is
+ * in the same list, otherwise the given order. A dependency outside the list doesn't count; a cycle
+ * leaves the given order untouched.
+ */
+export function byDependsOn<T extends { id: string; dependsOn: string | null }>(cards: T[]): T[] {
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const out: T[] = [];
+  const state = new Map<string, "open" | "done">();
+  let cycle = false;
+  const visit = (c: T): void => {
+    const s = state.get(c.id);
+    if (s === "done") return;
+    if (s === "open") {
+      cycle = true;
+      return;
+    }
+    state.set(c.id, "open");
+    const pred = c.dependsOn ? byId.get(c.dependsOn) : undefined;
+    if (pred) visit(pred);
+    state.set(c.id, "done");
+    out.push(c);
+  };
+  for (const c of cards) visit(c);
+  return cycle ? cards : out;
+}
+
 function toCard(r: CardRow): Card {
   return {
     id: r.id,
@@ -1768,11 +1795,14 @@ export class BoardDb {
     this.db.query("UPDATE card SET run_id = ? WHERE id = ?").run(runId, cardId);
   }
 
+  /** The lot's cards in launch order: an in-lot `dependsOn` predecessor first, then board position. */
   runMembers(runId: string): Card[] {
-    return this.db
-      .query<CardRow, [string]>("SELECT * FROM card WHERE run_id = ? ORDER BY position, created_at")
-      .all(runId)
-      .map(toCard);
+    return byDependsOn(
+      this.db
+        .query<CardRow, [string]>("SELECT * FROM card WHERE run_id = ? ORDER BY position, created_at")
+        .all(runId)
+        .map(toCard),
+    );
   }
 
   /** {@link recordEvent}, typed to the `run.*` kinds so a payload can't drift from its shape. */
