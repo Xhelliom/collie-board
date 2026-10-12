@@ -1,4 +1,4 @@
-import { useT } from "@/i18n";
+import { useT, type MessageKey } from "@/i18n";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
 import { ChevronRight, ListChecks, ListFilter, Plus, X } from "lucide-react";
@@ -115,9 +115,14 @@ export function BoardRoute() {
   // separate — a card has one tag and it answers what kind of work this is (ADR 0005), so folding
   // "who wrote it" into the same filter would make the two mutually exclusive for no reason.
   const autoOnly = params.get("origin") === "auto";
+  // `?status=blocked,orphaned` — where the home KPIs lead. Comma-separated: "stuck" is two columns.
+  // The URL is untrusted: keep only real columns (each has a `status.*` key), and no list at all when
+  // none survives — `[]` would be truthy and hide every card behind an empty chip.
+  const known = params.get("status")?.split(",").filter((s): s is CardStatus => (BOARD_COLUMNS as string[]).includes(s));
+  const statuses = known?.length ? known : null;
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
-  const setParam = (key: "tag" | "repo" | "origin" | "phase", value: string | null) =>
+  const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status", value: string | null) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -215,7 +220,7 @@ export function BoardRoute() {
   // Offered only when there is something to offer, from the SCOPED list — same rule as the tags
   // above, so the strip never proposes a combination that comes back empty.
   const hasAuto = scoped.some((c) => c.origin !== null);
-  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase }));
+  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase, statuses }));
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
   const showRepo = !activeRepo && repos.length > 1;
@@ -397,6 +402,16 @@ export function BoardRoute() {
             )}
             {/* Same removable chip, third axis. Says "auto" rather than "copilot": the tiles use
                 that word for "the copilot has this card RIGHT NOW", which is a different fact. */}
+            {statuses && (
+              <button
+                type="button"
+                onClick={() => setParam("status", null)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {statuses.map((s) => t(`status.${s}` as MessageKey)).join(" · ")}
+                <X className="size-3" />
+              </button>
+            )}
             {autoOnly && (
               <button
                 type="button"
@@ -472,7 +487,7 @@ export function BoardRoute() {
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
-              {active || activeRepo || autoOnly ? (
+              {active || activeRepo || autoOnly || statuses ? (
                 <>
                   <NonNominalPanel tone="muted" title={t("board.emptyMatchTitle")}>
                     {t("board.emptyMatch", {

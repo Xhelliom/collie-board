@@ -18,6 +18,12 @@ import type { AgentView } from "@/lib/types";
 // different urgencies (loud → medium → bare row), not one card reused three times at different
 // tints. This one stays as the space view's card: every pane in a tab is equally "current", so
 // there is no urgency ranking to express there.
+/** An unnamed pane is "claude" like its neighbours; the workspace is what tells them apart, so it
+ *  becomes the title and the agent name the footnote. */
+const named = (a: AgentView) => !!(a.paneLabel || a.sessionName);
+const headline = (a: AgentView) => (named(a) ? paneDisplayName(a) : a.workspaceLabel);
+const footnote = (a: AgentView) => (named(a) ? a.workspaceLabel : paneDisplayName(a));
+
 /**
  * "5m ago" for a SETTLED pane — how long it has been idle / done, so a session that just finished
  * reads differently from one that has been sitting there all afternoon. Only idle/done (the note
@@ -151,10 +157,10 @@ export function WorkingCard({ agent, onClick }: { agent: AgentView; onClick: () 
       <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors hover:bg-muted/40">
         <AgentIcon agent={agent.agent} className="size-[26px] shrink-0" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold">{paneDisplayName(agent)}</div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {agent.workspaceLabel}
-            {agent.ctxPct != null && ` · ctx ${Math.round(agent.ctxPct)}%`}
+          <div className="truncate text-[15px] font-semibold">{headline(agent)}</div>
+          <div className="flex gap-1 font-mono text-[11px] text-muted-foreground">
+            <span className="min-w-0 truncate">{footnote(agent)}</span>
+            {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
         </div>
         {/* size-2.5 = 10px, already StatusDot's default. */}
@@ -184,8 +190,8 @@ export function IdleDoneRow({ agent, onClick }: { agent: AgentView; onClick: () 
           "claude" (paneDisplayName's fallback). The Herdr workspace name is the actual
           differentiator, so it rides along on every breakpoint now, not just desktop. */}
       <span className="min-w-0 flex-1 truncate text-sm">
-        {paneDisplayName(agent)}
-        <span className="text-muted-foreground"> · {agent.workspaceLabel}</span>
+        {headline(agent)}
+        <span className="text-muted-foreground"> · {footnote(agent)}</span>
       </span>
       {/* Repo (last segment of cwd) — NOT the same field as the workspace name above: Herdr lets a
           workspace be labelled anything, so the two agree by convention, not by guarantee. */}

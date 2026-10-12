@@ -1,6 +1,7 @@
 import { Check, Copy } from "lucide-react";
 import { useRouteLoaderData } from "react-router";
 
+import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -32,19 +33,20 @@ export function updateNotice(update: UpdateInfo | undefined): UpdateNotice | nul
   if (update.bridgeStale) {
     // No release page for "restart needed" — show the Herdr restart action to copy.
     return {
-      line: "Bridge restart needed",
+      line: t("update.restart"),
       command: "herdr plugin action invoke restart --plugin herdr.collie-board",
     };
   }
   // Guard on `latest` too: without a version string there's nothing meaningful to name. The release
   // page (linked) carries the update commands, so the footer just links there.
   if (update.releaseAvailable && update.latest) {
-    return { line: `Collie ${update.latest} available`, href: update.latestUrl ?? undefined };
+    return { line: t("update.available", { version: update.latest }), href: update.latestUrl ?? undefined };
   }
   return null;
 }
 
 export function UpdateBanner({ className }: { className?: string }) {
+  useT(); // re-render on a language switch: updateNotice reads the catalog outside React
   // Home is the root route; space/settings are its children — so the root loader data (and its
   // `update`) is in scope for all three footers via one read.
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
