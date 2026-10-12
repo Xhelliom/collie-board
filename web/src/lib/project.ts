@@ -79,7 +79,8 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
       .filter((l) => (phase ? l.phaseId === phase.id : key === "loose" && !phaseRows.some((p) => p.id === l.phaseId)))
       .sort((a, b) => a.position - b.position)
       .map((lot) => {
-        const lotCards = lot.cardIds.map((id) => byId.get(id)).filter((c): c is CardView => !!c).sort(byPosition);
+        // The bridge already orders a lot (dependsOn, then position) — keep it.
+        const lotCards = lot.cardIds.map((id) => byId.get(id)).filter((c): c is CardView => !!c);
         return { lot, cards: lotCards, done: lotCards.filter((c) => c.status === "done").length };
       });
     return { key, title, goal, phase, container, steps: mine, done: mine.filter((s) => s.status === "done").length, lots };
