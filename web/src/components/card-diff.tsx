@@ -1,6 +1,6 @@
 import { useT } from "@/i18n";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, ChevronRight, FileDiff, FileText, GitBranch, RefreshCw } from "lucide-react";
+import { BookOpen, ChevronRight, FileDiff, FileText, RefreshCw } from "lucide-react";
 
 import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,6 @@ import {
   fetchDiffFile,
   fetchDiffStat,
   fetchWorktreeFile,
-  patchCard,
-  reviewCard,
   type DiffFile,
   type DiffStat,
 } from "@/lib/board";
@@ -92,7 +90,9 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
       {error && !stat && <p className="text-xs text-status-blocked">{t("diff.error", { error })}</p>}
 
       {stat && stat.files.length === 0 ? (
-        <EmptyDiff cardId={cardId} onFixed={load} />
+        // No way out offered here on purpose: the base is the bridge's one answer (`baseOf`), and a
+        // button writing `main` broke dependent cards and was offered on merged ones.
+        <p className="text-xs text-muted-foreground">{t("diff.empty")}</p>
       ) : (
         <div className="flex flex-col gap-1">
           {stat?.files.map((f) => (
@@ -123,58 +123,6 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
 
       <FileDiffSheet cardId={cardId} file={open} onClose={() => setOpen(null)} />
     </section>
-  );
-}
-
-/**
- * An empty diff is more often the WRONG BASE REF than an idle agent: the card forked off a branch
- * that already contains the work, so `git diff <base>…HEAD` comes back empty and the copilot's
- * review duly reports that nothing changed. Reading that as "the agent did nothing" is what costs
- * the half hour — the diff is right, the question it was asked was wrong.
- *
- * So the way out is a button, not a diagnosis: put the base back on `main` and ask the copilot for
- * its verdict again. Two calls on purpose — the PATCH is the fix, the review is the re-read — and
- * they are two routes that each already mean one thing.
- */
-function EmptyDiff({ cardId, onFixed }: { cardId: string; onFixed: () => Promise<void> }) {
-  const t = useT();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function rebaseOnMain() {
-    setBusy(true);
-    setError(null);
-    try {
-      // ponytail: `main` literally, not the repo's resolved default branch — that would need a
-      // `git symbolic-ref refs/remotes/origin/HEAD` round trip through the bridge. Add it the day a
-      // repo on this board actually forks off `master`.
-      await patchCard(cardId, { baseRef: "main" });
-      await reviewCard(cardId);
-      await onFixed();
-    } catch (e) {
-      setError(boardErrorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col items-start gap-2">
-      <p className="text-xs text-muted-foreground">
-        {t("diff.empty")}
-      </p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-9 gap-2"
-        disabled={busy}
-        onClick={() => void rebaseOnMain()}
-      >
-        <GitBranch className="size-4" />
-        {busy ? t("diff.remeasuring") : t("diff.rebase")}
-      </Button>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
   );
 }
 

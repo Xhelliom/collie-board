@@ -30,6 +30,7 @@ import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards
 import type { Config } from "./config.ts";
 import { isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
+  baseOf,
   cardDiffStat,
   checksOf,
   createPr,
@@ -112,7 +113,7 @@ type Result<T> = { ok: true; value: T } | { ok: false; error: IntegrateError };
 /** The card's branch state, or null when it has no repo/branch to speak of. */
 export async function integrationFor(card: Card): Promise<Integration | null> {
   if (!card.repoPath || !card.branch) return null;
-  return await integrationOf(card.repoPath, card.branch, card.baseRef);
+  return await integrationOf(card.repoPath, card.branch, await baseOf(card));
 }
 
 /**

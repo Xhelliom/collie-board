@@ -717,9 +717,7 @@ describe("Review section — asking for the verdict again", () => {
       { initialEntries: ["/card/c1"] },
     );
     render(<RouterProvider router={router} />);
-    // Anchored: the default diff handler is empty, so the diff section later renders its own
-    // "Base ref sur main, relancer la review" — a loose regex matched both once that fetch landed.
-    await screen.findByRole("button", { name: /^relancer la review$/i });
+    await screen.findByRole("button", { name: /relancer la review/i });
   }
 
   it("shows the newest verdict above the one it replaces", async () => {
@@ -737,7 +735,7 @@ describe("Review section — asking for the verdict again", () => {
       }),
     );
     await mount();
-    await userEvent.click(screen.getByRole("button", { name: /^relancer la review$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /relancer la review/i }));
     expect(hits).toEqual(["c1"]);
   });
 });

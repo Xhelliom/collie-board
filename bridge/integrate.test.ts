@@ -297,20 +297,20 @@ describe("integrationOf", () => {
     }
   });
 
-  it("falls back to the checkout's current branch when the card names no base", async () => {
+  it("never guesses a base from the checked-out branch — no base, no integration (`baseOf` answers first)", async () => {
     const { git } = fakeGit({
-      "rev-parse --abbrev-ref": { stdout: "develop\n" },
+      "rev-parse --abbrev-ref": { stdout: "board/other-card\n" },
       "rev-list --count --left-right": { stdout: "0\t1\n" },
       "worktree list": { stdout: "" },
       status: { stdout: "" },
     });
 
-    expect((await integrationOf("/repo", "board/x", null, git))!.base).toBe("develop");
+    expect(await integrationOf("/repo", "board/x", null, git)).toBeNull();
   });
 
   it("degrades to null rather than throwing — this rides the card view", async () => {
     const { git } = fakeGit({ "rev-parse --abbrev-ref": { ok: false }, "rev-list": { ok: false } });
-    expect(await integrationOf("/repo", "board/x", null, git)).toBeNull();
+    expect(await integrationOf("/repo", "board/x", "main", git)).toBeNull();
   });
 });
 

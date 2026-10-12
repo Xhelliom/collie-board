@@ -30,7 +30,7 @@ import { realpath, readdir, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, normalize, sep } from "node:path";
 
 import { containedIn, IMAGE_TYPES } from "./gallery.ts";
-import { diffStat, runGit, worktreePathFor, type GitRunner } from "./git.ts";
+import { baseOf, diffStat, runGit, worktreePathFor, type GitRunner } from "./git.ts";
 import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
 import { scrubHtml } from "./scrub.ts";
 import type { TranscriptEntry } from "./transcript.ts";
@@ -394,7 +394,7 @@ export async function worktreeForPane(
   if (card === null || card.repoPath === null || card.branch === null) return null;
   const root = await worktreePathFor(card.repoPath, card.branch, git);
   if (root === null) return null;
-  return { root, baseRef: card.baseRef };
+  return { root, baseRef: await baseOf(card, git) };
 }
 
 /**

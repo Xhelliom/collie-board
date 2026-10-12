@@ -35,7 +35,7 @@ import { join } from "node:path";
 
 import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
-import { diffStat, worktreePathFor } from "./git.ts";
+import { baseOf, diffStat, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { cleanupCard } from "./integrate.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -273,6 +273,6 @@ export async function probeCheckout(card: Card): Promise<{ note: string | null; 
   if (!(await file.exists())) return empty;
   const note = (await file.slice(0, MAX_WRAPUP_BYTES).text()).trim() || null;
   if (note === null) return empty;
-  const stat = await diffStat(checkout, card.baseRef);
+  const stat = await diffStat(checkout, await baseOf(card));
   return { note, empty: stat.files.length === 0 };
 }

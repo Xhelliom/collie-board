@@ -1488,6 +1488,14 @@ export class BoardDb {
     return row ? toCard(row) : null;
   }
 
+  /**
+   * Give a card created before every card had a base its repo's default (git.ts `backfillBaseRefs`).
+   * Only a NULL is filled, and `updated_at` is left alone: this is a migration, not an edit.
+   */
+  fillBaseRef(id: string, baseRef: string): void {
+    this.db.query("UPDATE card SET base_ref = ? WHERE id = ? AND base_ref IS NULL").run(baseRef, id);
+  }
+
   /** Every card except `archived`, ordered for the board (column order, then manual position). */
   listCards(opts: { includeArchived?: boolean } = {}): Card[] {
     const sql = opts.includeArchived

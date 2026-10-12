@@ -46,7 +46,7 @@ import {
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
-import { cardDiffStat, cardDiffSummary, diffStat } from "./git.ts";
+import { backfillBaseRefs, cardDiffStat, cardDiffSummary, diffStat } from "./git.ts";
 import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
@@ -85,6 +85,8 @@ const audit = new AuditLog(fileAuditAppender(join(cfg.stateDir, "audit.log")));
 // The board's durable store. Lives in the state dir next to the audit log and the push
 // subscriptions, so a single `rm -rf` of that directory resets the whole plugin's state.
 const board = new BoardDb(join(cfg.stateDir, "board.db"));
+// Cards filed before every card had a base get their repo's default once (git.ts). Idempotent.
+void backfillBaseRefs(board).catch(() => {});
 
 // Per-agent divergence, resolved once at boot: shipped adapters/agents.toml, then the operator's.
 const adapters = loadAdapters(cfg.adapterPaths);

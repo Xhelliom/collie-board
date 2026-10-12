@@ -1,6 +1,6 @@
 import type { BoardDb, Card } from "./db.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
-import { diffStat, isBoardPath, parseNumstat, resolveBase, runGit, worktreePathFor, type GitRunner } from "./git.ts";
+import { baseOf, diffStat, isBoardPath, parseNumstat, resolveBase, runGit, worktreePathFor, type GitRunner } from "./git.ts";
 
 /** What a card's branch holds against its base. `committed` is the only state that is a review. */
 export type BranchWork = "committed" | "uncommitted" | "nothing";
@@ -48,9 +48,10 @@ export class ReviewGuard {
       this.checked.add(card.id);
       const cwd = await worktreePathFor(card.repoPath, card.branch, this.git);
       if (!cwd) continue;
-      const work = await branchWork(cwd, card.baseRef, this.git);
+      const base = await baseOf(card, this.git);
+      const work = await branchWork(cwd, base, this.git);
       if (work === "committed") continue;
-      this.db.setStatus(card.id, "working", refusalReason(work, card.branch, card.baseRef ?? "HEAD"));
+      this.db.setStatus(card.id, "working", refusalReason(work, card.branch, base ?? "HEAD"));
     }
   }
 }

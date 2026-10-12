@@ -42,6 +42,7 @@ import type {
 } from "./db.ts";
 import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isMaxParallel, MAX_AGENTS_CAP } from "./db.ts";
 import {
+  baseOf,
   cardDiffStat,
   cardDiffSummary,
   diffFile,
@@ -1155,13 +1156,13 @@ async function route(
     }
     if (url.searchParams.get("mode") === "file") {
       const path = url.searchParams.get("path") ?? "";
-      const result = await diffFile(cwd, card.baseRef, path, {
+      const result = await diffFile(cwd, await baseOf(card), path, {
         untracked: url.searchParams.get("untracked") === "1",
       });
       if (!result.ok) return ctx.json({ ok: false, error: result.error }, 400);
       return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
     }
-    return json({ ok: true, ...(await diffStat(cwd, card.baseRef)), cwd });
+    return json({ ok: true, ...(await diffStat(cwd, await baseOf(card))), cwd });
   }
 
   // ── review: ask the copilot for its verdict again, now ───────────────────

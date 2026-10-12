@@ -59,6 +59,9 @@ import {
   toSplit,
 } from "./copilot.ts";
 import {
+  backfillBaseRefs,
+  baseOf,
+  defaultBranchOf,
   isSafeDiffPath,
   mergeConflicts,
   parseNumstat,
@@ -75,7 +78,6 @@ import {
 } from "./handoff.ts";
 import {
   basename,
-  defaultBranchOf,
   withDefaultBaseRef,
   listRepos,
   mergeRepoChoices,
@@ -1858,11 +1860,53 @@ describe("repo picker", () => {
     expect(await repoRootOf("/tmp", git)).toBeNull();
   });
 
-  it("withDefaultBaseRef: fills an absent baseRef, respects a given one and a dependent card", async () => {
+  it("withDefaultBaseRef: fills an absent baseRef — a dependent card's too — and respects a given one", async () => {
     const git: GitRunner = async () => ({ ok: true, stdout: "origin/main\n", stderr: "" });
     expect((await withDefaultBaseRef({ repoPath: "/repo" }, git)).baseRef).toBe("main");
     expect((await withDefaultBaseRef({ repoPath: "/repo", baseRef: "dev" }, git)).baseRef).toBe("dev");
-    expect((await withDefaultBaseRef({ repoPath: "/repo", dependsOn: "abc" }, git)).baseRef).toBeUndefined();
+    // ADR 0034: a dependent forks from its own base once its predecessor has landed — so it needs one.
+    expect((await withDefaultBaseRef({ repoPath: "/repo", dependsOn: "abc" }, git)).baseRef).toBe("main");
+  });
+
+  it("baseOf: the card's own base, else the repo's default — never the checked-out board branch", async () => {
+    const asked: string[][] = [];
+    const git: GitRunner = async (args) => {
+      asked.push(args);
+      if (args[1] === "--short") return { ok: true, stdout: "origin/main\n", stderr: "" };
+      return { ok: true, stdout: "board/previous-card\n", stderr: "" };
+    };
+    expect(await baseOf({ repoPath: "/repo", baseRef: " dev " }, git)).toBe("dev");
+    expect(asked).toEqual([]);
+    expect(await baseOf({ repoPath: "/repo", baseRef: null }, git)).toBe("main");
+    expect(await baseOf({ repoPath: null, baseRef: null }, git)).toBeNull();
+    const broken: GitRunner = async () => {
+      throw new Error("no such directory");
+    };
+    expect(await baseOf({ repoPath: "/gone", baseRef: null }, broken)).toBeNull();
+  });
+
+  it("backfillBaseRefs: fills every NULL base once, per repo, and leaves the rest alone", async () => {
+    const store = db();
+    const legacy = store.createCard({ title: "legacy", repoPath: "/repo" });
+    const archived = store.createCard({ title: "old", repoPath: "/repo" });
+    store.setStatus(archived.id, "archived", "test");
+    const own = store.createCard({ title: "own", repoPath: "/repo", baseRef: "dev" });
+    const loose = store.createCard({ title: "no repo" });
+    const stamp = store.getCard(legacy.id)!.updatedAt;
+    let calls = 0;
+    const git: GitRunner = async () => {
+      calls++;
+      return { ok: true, stdout: "origin/main\n", stderr: "" };
+    };
+    expect(await backfillBaseRefs(store, git)).toBe(2);
+    expect(calls).toBe(1);
+    expect(store.getCard(legacy.id)!.baseRef).toBe("main");
+    expect(store.getCard(archived.id)!.baseRef).toBe("main");
+    expect(store.getCard(own.id)!.baseRef).toBe("dev");
+    expect(store.getCard(loose.id)!.baseRef).toBeNull();
+    // A migration, not an edit: the card does not jump to the top of "recently touched".
+    expect(store.getCard(legacy.id)!.updatedAt).toBe(stamp);
+    expect(await backfillBaseRefs(store, git)).toBe(0);
   });
 
   it("prefers origin/HEAD for the default branch, not whatever is checked out", async () => {

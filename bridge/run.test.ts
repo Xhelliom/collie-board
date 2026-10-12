@@ -5,7 +5,7 @@ import type { GateResult } from "./gate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
-import { baseFor, briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -703,12 +703,3 @@ describe("the repo's gate (ADR 0020)", () => {
   });
 });
 
-
-describe("baseFor", () => {
-  it("falls back to the main checkout's branch when the card has no base, so committed work is seen", () => {
-    expect(baseFor(null, "main")).toBe("main");
-    expect(baseFor("  ", "main")).toBe("main");
-    expect(baseFor("develop", "main")).toBe("develop");
-    expect(baseFor(null, null)).toBeNull();
-  });
-});
