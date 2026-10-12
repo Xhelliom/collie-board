@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
 import { SectionLabel } from "@/components/ui/section-label";
+import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusArea } from "@/components/status-area";
@@ -852,17 +853,19 @@ export function CardRoute() {
 
                 {card.spec && (
                   <Section label={t("card.section.spec")}>
-                    <MarkdownText text={card.spec} className="max-w-[70ch] text-sm leading-[1.6]" />
+                    <CollapsibleText><MarkdownText text={card.spec} className="max-w-[70ch] text-sm leading-[1.6]" /></CollapsibleText>
                   </Section>
                 )}
 
                 {card.acceptance.length > 0 && (
                   <Section label={t("card.section.acceptance")}>
-                    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
-                      {card.acceptance.map((a, i) => (
-                        <li key={i}>{a}</li>
-                      ))}
-                    </ul>
+                    <CollapsibleText>
+                      <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+                        {card.acceptance.map((a, i) => (
+                          <li key={i}>{a}</li>
+                        ))}
+                      </ul>
+                    </CollapsibleText>
                   </Section>
                 )}
 
@@ -979,7 +982,11 @@ export function CardRoute() {
                               which renders as a paragraph. Sized like the card's own spec rather
                               than MarkdownText's default `text-base`: it sits inside a nested card
                               whose header is text-sm. */}
-                          {r.notes && <MarkdownText text={r.notes} className="text-sm leading-[1.6]" />}
+                          {r.notes && (
+                            <CollapsibleText>
+                              <MarkdownText text={r.notes} className="text-sm leading-[1.6]" />
+                            </CollapsibleText>
+                          )}
                           {r.todos.length > 0 && (
                             <div className="flex flex-col gap-1">
                               {r.todos.map((todo, i) =>

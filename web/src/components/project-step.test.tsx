@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CardView } from "@/lib/board";
 import type { CardFacts } from "@/lib/project-facts";
@@ -30,7 +30,10 @@ const mount = (f?: CardFacts) =>
 
 // The texts asserted here are in one language, whatever the browser says.
 beforeEach(() => setPreference("en"));
-afterEach(() => setPreference("en"));
+afterEach(() => {
+  setPreference("en");
+  vi.restoreAllMocks();
+});
 
 describe("StepItem with the journal's facts", () => {
   it("shows a one-line subtitle and the headline chips even when folded", () => {
@@ -55,5 +58,13 @@ describe("StepItem with the journal's facts", () => {
     mount(undefined);
     expect(screen.getByRole("list", { name: "Who did what" })).toHaveTextContent("claude — finished");
     expect(screen.queryByText("gate ✓")).toBeNull();
+  });
+});
+
+describe("long roadmap item detail", () => {
+  it("folds the spec past the threshold", () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+    mount(facts);
+    expect(screen.getAllByRole("button", { name: "Voir plus" }).length).toBeGreaterThan(0);
   });
 });

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw, Sparkles, User } from "lucide-react";
 
+import { CollapsibleText } from "@/components/collapsible-text";
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
@@ -85,7 +86,7 @@ function JournalRow({
           wrap ? "whitespace-pre-wrap break-words" : "truncate",
         )}
       >
-        {children}
+        {wrap ? <CollapsibleText lines={3}>{children}</CollapsibleText> : children}
       </span>
     </li>
   );
@@ -179,9 +180,9 @@ function Previous({ label, text }: { label: string; text: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <p className="whitespace-pre-wrap break-words rounded-md bg-muted/50 px-2 py-1.5 text-xs">
-        {text}
-      </p>
+      <CollapsibleText lines={4} className="rounded-md bg-muted/50 px-2 py-1.5 text-xs">
+        <p className="whitespace-pre-wrap break-words">{text}</p>
+      </CollapsibleText>
     </div>
   );
 }
