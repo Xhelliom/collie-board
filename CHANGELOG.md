@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.189.1] - 2026-10-12
+
+### Fixed
+
+- Accueil : plus de débordement horizontal à 390 px (grille à une colonne rétractable) (a1428a7)
+- Accueil : le triage des agents passe avant les KPI de cartes ; KPI compacts sous le triage (a1428a7)
+- Accueil : les KPI mènent au board filtré (`/board?status=…`), avec une puce pour retirer le filtre (a1428a7)
+- Accueil : plus de doublons (compte de panes, « à relire », état vide) ; « Activité » devient « Dernières alertes » (a1428a7)
+- Accueil : textes d'en-tête, groupes, états vides et bannière de mise à jour traduits (a1428a7)
+- Accueil : un pane sans nom est titré par son espace ; `ctx %` ne se tronque plus (a1428a7)
+- Accueil : ligne « PR ouvertes » masquée à 0, bannière de mise à jour remontée sous l'en-tête (a1428a7)
+
 ## [0.189.0] - 2026-10-12
 
 ### Added
