@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.189.3] - 2026-10-12
+
+### Changed
+
+- Page projet : « À toi » passe en tête, étapes repliées au chargement (sauf « à toi »), KPI et chiffres de la prose masqués sur mobile, anneau réduit en ligne, filtres « à toi » d'abord et sur plusieurs lignes, textes ≥ 12 px, surtitre retiré (c0fb0a6)
+
+### Fixed
+
+- Geste PR/merge/resolve : délai client de 3 min (le hook pre-push dépassait 20 s) ; au timeout, « toujours en cours… » et la carte se relit au lieu d'un échec « signal timed out » (5635f79)
+- Page projet : plus de défilement horizontal avec « Jalonner… », sélecteur de phase d'une étape tenu dans la carte, « 1 étape terminée », états vides avec action (c0fb0a6)
+- Un push refusé remonte la fin de la sortie du hook (première ligne + 40 dernières), là où est l’erreur réelle (d29150d)
+
 ## [0.189.2] - 2026-10-12
 
 ### Fixed
