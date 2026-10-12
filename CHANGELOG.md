@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.189.5] - 2026-10-12
+
+### Changed
+
+- Réglages : Langue passe dans Display ; le flux par défaut d'un repo quitte la carte Gate pour la carte Flux (select 40 px) (2feefd0)
+- Réglages : Flux, Templates et Gate affichent « Chargement… » tant que le pont ne répond pas, au lieu de rien (2feefd0)
+
+### Fixed
+
+- Board : plus de débordement horizontal à 390 px — la puce dépôt (doublon du sélecteur des onglets) est supprimée. (d00aa4b)
+- Board : le filtre phase a sa puce amovible ; une phase seule vide le board en « aucune carte dans la phase ». (d00aa4b)
+- Tuile : phase + modèle sur une rangée, parent + origine sur une rangée. (d00aa4b)
+- PRs : la zone de statut passe au-dessus de la barre de nav ; l'état vide nomme le dépôt sélectionné. (d00aa4b)
+
 ## [0.189.4] - 2026-10-12
 
 ### Fixed
