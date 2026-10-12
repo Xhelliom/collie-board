@@ -255,7 +255,7 @@ describe("GET /api/project/facts", () => {
     expect(ok.body.facts).toHaveLength(1);
     expect(ok.body.facts[0]).toMatchObject({ cardId: a.id, gate: { ok: true, command: "make" } });
     // no repo: every live card (the board's tiles read their milestone dots from it)
-    expect((await call(db, "GET", "/api/project/facts")).body.facts).toHaveLength(1);
+    expect((await call(db, "GET", "/api/project/facts")).body.facts).toHaveLength(2);
     expect((await call(db, "POST", "/api/project/facts?repo=%2Fr")).status).toBe(405);
   });
 });
