@@ -46,7 +46,30 @@ export function gatePrompt(command: string, summary: string): string {
   ].join("\n");
 }
 
-export async function runGate(argv: string[], cwd: string, timeoutMs = GATE_TIMEOUT_MS): Promise<GateResult> {
+/**
+ * Wraps `fn` so its calls run one after another, never together. A call that throws or rejects
+ * still frees the slot for the next. Pure over `fn`, so the queueing is pinned by a test.
+ */
+export function oneAtATime<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return (...args) => {
+    const next = tail.then(() => fn(...args));
+    tail = next.catch(() => {});
+    return next;
+  };
+}
+
+/**
+ * The operator's gate, one at a time across the whole bridge: a run gates each card of a lot in
+ * parallel and pr-follow gates each PR it lands, and N test suites at once starve the CPU until a
+ * healthy suite times out (a red that is not the worker's). Each gate's own timeout starts when it
+ * actually runs, so a queued gate is never charged for the wait.
+ * ponytail: one global queue; per-repo slots if gates on unrelated repos must overlap.
+ */
+export const runGate = oneAtATime(spawnGate);
+
+/** Run a command unqueued — what the gate runs, and what `bun install` (deps.ts) uses directly. */
+export async function spawnGate(argv: string[], cwd: string, timeoutMs = GATE_TIMEOUT_MS): Promise<GateResult> {
   // Same reason as runGit: a gate run under a git hook would inherit the wrong repo's location.
   const env: Record<string, string | undefined> = { ...process.env };
   for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX", "GIT_INDEX_FILE"]) delete env[key];

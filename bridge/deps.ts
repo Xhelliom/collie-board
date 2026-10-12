@@ -2,7 +2,7 @@
 // card never opens its PR. Install before the agent starts. argv, never a shell — same rule as gate.ts.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { runGate } from "./gate.ts";
+import { spawnGate } from "./gate.ts";
 
 const INSTALL_TIMEOUT_MS = 5 * 60_000;
 
@@ -15,7 +15,7 @@ export function installDirs(has: (rel: string) => boolean): string[] {
 export async function installDeps(checkout: string): Promise<string[]> {
   const failures: string[] = [];
   for (const d of installDirs((rel) => existsSync(join(checkout, rel)))) {
-    const r = await runGate(["bun", "install"], join(checkout, d), INSTALL_TIMEOUT_MS);
+    const r = await spawnGate(["bun", "install"], join(checkout, d), INSTALL_TIMEOUT_MS);
     if (r.kind === "fail") failures.push(`${d || "."}: exit ${r.exit}: ${r.summary}`);
     else if (r.kind === "error") failures.push(`${d || "."}: ${r.message}`);
   }

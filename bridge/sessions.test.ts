@@ -317,3 +317,13 @@ describe("SessionRegistry — refresh() lifecycle", () => {
     expect(h.registry.get()).toBeUndefined();
   });
 });
+
+// The card screen builds `card.outcome.<outcome>` from what the bridge sends: an outcome added here
+// without its label crashed that screen once ("pipeline", 41b8e889). Read from the real list.
+describe("every session outcome has its label on the card screen", () => {
+  test("card.outcome.<outcome> exists in the web catalog", async () => {
+    const { SESSION_OUTCOMES } = await import("./db.ts");
+    const messages = await Bun.file(new URL("../web/src/i18n/messages/card.ts", import.meta.url)).text();
+    for (const o of SESSION_OUTCOMES) expect(messages, `card.outcome.${o}`).toContain(`"card.outcome.${o}":`);
+  });
+});
