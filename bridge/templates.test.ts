@@ -186,6 +186,9 @@ describe("startCard with a template (ADR 0026)", () => {
     await startCard(db, first.client as never, cfg, a.id, { sleep: async () => {} });
     // the template's kind (codex) has no verified model flag: the model is ignored, not smuggled in
     expect(first.started).toEqual([{ kind: "codex", args: undefined }]);
+    // The resolved kind rides on the session, never on the card: a later role must not inherit it.
+    expect(db.getCard(a.id)!.agentKind).toBeNull();
+    expect(db.openSessionFor(a.id)!.agentKind).toBe("codex");
 
     const b = db.createCard({ title: "b", repoPath: "/repo", baseRef: "main", status: "ready", phaseId: phase.id, agentKind: "claude" });
     const second = fakeHerdr();

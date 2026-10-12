@@ -260,7 +260,8 @@ export async function swapToFreshSession(
   }
 
   // Chain a new session onto the card, then bring its agent up.
-  const kind = card.agentKind ?? cfg.boardAgentKind;
+  // A handoff continues the same agent: the kind the session ran with, which may be its role's (ADR 0026).
+  const kind = session.agentKind ?? card.agentKind ?? cfg.boardAgentKind;
   const next = db.openSession({ cardId: card.id, paneId: created.paneId, agentKind: kind });
   db.recordEvent(card.id, "handoff.completed", {
     from: session.id,

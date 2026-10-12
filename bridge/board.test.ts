@@ -3048,6 +3048,23 @@ describe("the copilot tags what it creates", () => {
     expect(store.getCard(reviewed.id)?.origin).toBeNull();
   });
 
+  it("files a follow-up on the real base, not on the predecessor branch the reviewed card forked from", async () => {
+    const store = db();
+    const pred = store.createCard({ title: "first", status: "done", repoPath: "/r", baseRef: "main" });
+    store.patchCard(pred.id, { branch: "board/first" });
+    const reviewed = store.createCard({ title: "second", status: "done", repoPath: "/r", baseRef: "board/first", dependsOn: pred.id });
+    const session = store.openSession({ cardId: reviewed.id, paneId: "w1:p1" });
+    store.closeSession(session.id, "done");
+    store.patchSession(session.id, { handoffMd: "done" });
+    store.setAutoFollowUps(true);
+    const { copilot } = fakeCopilot({ verdict: "partial", notes: "ok", todos: [{ title: "next" }] });
+
+    new CopilotCoordinator(store, copilot, cfg).update(snapshot([]), async () => "stat");
+    await settle();
+
+    expect(store.listCards().find((c) => c.title === "next")!.baseRef).toBe("main");
+  });
+
   it("categorises every review follow-up, on an axis of its own — and no hand-written card", async () => {
     const store = db();
     const reviewed = store.createCard({ title: "shipped", status: "done", repoPath: "/r", tag: "ui" });
