@@ -12,6 +12,7 @@ import {
   uploadImage,
   withTimeout,
 } from "./api";
+import { integrateCard } from "./board";
 
 // The default happy-path handlers live in test/handlers.ts; here we focus on the write paths and the
 // ApiError-on-non-2xx contract that every mutation depends on (and uploadImage's separate code path).
@@ -119,6 +120,24 @@ describe("api client — request timeouts", () => {
     const spy = vi.spyOn(AbortSignal, "timeout");
     await uploadImage("w1:p1", new File(["x"], "x.png", { type: "image/png" }));
     expect(spy).toHaveBeenCalledWith(60_000);
+  });
+
+  it("gives merge/pr/resolve the 3-minute integration budget, other integration actions the 20s one", async () => {
+    // `pr` runs the pre-push hook on the bridge (typecheck + both suites, 1–2 min).
+    server.use(
+      http.post(/\/api\/cards\/[^/]+\/integration$/, () => HttpResponse.json({ ok: true, card: {} })),
+    );
+    const spy = vi.spyOn(AbortSignal, "timeout");
+    for (const action of ["merge", "pr", "resolve"] as const) {
+      spy.mockClear();
+      await integrateCard("c1", action);
+      expect(spy.mock.calls).toEqual([[180_000]]);
+    }
+    for (const action of ["reopen", "cleanup", "discard"] as const) {
+      spy.mockClear();
+      await integrateCard("c1", action);
+      expect(spy.mock.calls).toEqual([[20_000]]);
+    }
   });
 
   it("passes the timeout signal through to fetch", async () => {

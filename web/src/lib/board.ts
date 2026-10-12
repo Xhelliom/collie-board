@@ -6,7 +6,7 @@
 // in lib/nav.ts — none of these carry `?s=`.
 
 import { t } from "@/i18n";
-import { apiRequest, ApiError, GET_TIMEOUT_MS, withTimeout } from "./api";
+import { apiRequest, ApiError, GET_TIMEOUT_MS, INTEGRATION_TIMEOUT_MS, withTimeout } from "./api";
 import type { AgentStatus } from "./types";
 
 export type CardStatus =
@@ -1055,10 +1055,12 @@ export function integrateCard(
   /** `resolve` only: the gesture that hit the conflict — a PR's is settled against origin's base. */
   via?: "merge" | "pr",
 ): Promise<{ ok: true; url?: string | null; base?: string; discarded?: number; card: CardView }> {
-  return apiRequest(`/api/cards/${encodeURIComponent(id)}/integration`, {
-    method: "POST",
-    body: JSON.stringify({ action, andDone, via }),
-  });
+  return apiRequest(
+    `/api/cards/${encodeURIComponent(id)}/integration`,
+    { method: "POST", body: JSON.stringify({ action, andDone, via }) },
+    // Only the gestures that run git for real get the long budget; the rest keep the mutation one.
+    action === "merge" || action === "pr" || action === "resolve" ? INTEGRATION_TIMEOUT_MS : undefined,
+  );
 }
 
 /**

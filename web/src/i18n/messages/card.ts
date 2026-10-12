@@ -219,6 +219,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "int.reopenWith": { en: "Reopen with an agent", fr: "Rouvrir avec un agent" },
   "int.sentRefresh": { en: "Sent to the agent — this section refreshes on its own once it's done.", fr: "Envoyé à l'agent — cette section se rafraîchit toute seule une fois terminé." },
   "int.done": { en: "{label} done.", fr: "{label} : terminé." },
+  "int.stillRunning": { en: "Still running… this card updates with the result.", fr: "Toujours en cours… la carte se mettra à jour avec le résultat." },
   "int.noBranch": { en: "No branch to integrate.", fr: "Aucune branche à intégrer." },
   "int.lossCommits": { en: { one: "{count} commit", other: "{count} commits" }, fr: { one: "{count} commit", other: "{count} commits" } },
   "int.lossDirty": { en: "uncommitted work", fr: "du travail non commité" },

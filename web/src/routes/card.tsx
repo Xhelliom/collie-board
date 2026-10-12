@@ -1697,6 +1697,13 @@ export function IntegrationSection({
       );
       onDone();
     } catch (e) {
+      // Out of patience is not a failure: the bridge keeps going (a PR's pre-push hook alone can
+      // outlast any budget), so say so and re-read the card — the journal will tell how it ended.
+      if (e instanceof DOMException && e.name === "TimeoutError") {
+        setStatus(t("int.stillRunning"), "info", 10_000);
+        onDone();
+        return;
+      }
       // A conflict is the one failure with a next step, so the button for it appears here. A failed
       // resolve ("no running agent … the conflict") keeps the gesture the conflict came from.
       const message = boardErrorMessage(e);

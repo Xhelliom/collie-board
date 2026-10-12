@@ -52,6 +52,9 @@ export const GET_TIMEOUT_MS = 10_000;
 const MUTATION_TIMEOUT_MS = 20_000;
 //   - Uploads carry a whole file over the phone's uplink — the most generous budget.
 const UPLOAD_TIMEOUT_MS = 60_000;
+//   - Integration gestures (merge/pr/resolve) run git on the host, and `pr` runs the pre-push hook —
+//     typecheck plus both test suites, one to two minutes. 20 s gave up on a PR that then opened.
+export const INTEGRATION_TIMEOUT_MS = 180_000;
 
 /**
  * Compose the caller's abort signal (a loader's `request.signal`, used to supersede a stale poll)
@@ -118,10 +121,10 @@ function captureBuild(res: Response): void {
   observeServerBuild(res.headers.get(SERVER_BUILD_HEADER));
 }
 
-async function doReq<T>(path: string, init?: RequestInit): Promise<T> {
+async function doReq<T>(path: string, init?: RequestInit, timeoutOverrideMs?: number): Promise<T> {
   // GET reads get the short leash; anything mutating gets the longer mutation budget.
   const method = init?.method?.toUpperCase() ?? "GET";
-  const timeoutMs = method === "GET" ? GET_TIMEOUT_MS : MUTATION_TIMEOUT_MS;
+  const timeoutMs = timeoutOverrideMs ?? (method === "GET" ? GET_TIMEOUT_MS : MUTATION_TIMEOUT_MS);
   const res = await fetch(path, {
     ...init,
     signal: withTimeout(init?.signal, timeoutMs),
@@ -138,8 +141,8 @@ async function doReq<T>(path: string, init?: RequestInit): Promise<T> {
 // Every mutating request (non-GET) feeds the app-wide busy signal so the top progress bar shows
 // while it's in flight; GET reads (snapshot/config polling) don't, or the bar would never rest.
 // trackBusy increments synchronously, so a caller sees `isBusy()` true the instant it fires.
-function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const op = doReq<T>(path, init);
+function req<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  const op = doReq<T>(path, init, timeoutMs);
   const method = init?.method?.toUpperCase() ?? "GET";
   return method === "GET" ? op : trackBusy(op);
 }
@@ -432,8 +435,8 @@ export function uploadImage(paneId: string, file: File, session?: string): Promi
  * (the board — see lib/board.ts). Same busy-tracking, build-header capture, timeouts and error
  * shape as every call above; exported so the fork's routes don't re-implement the fetch plumbing.
  */
-export function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  return req<T>(path, init);
+export function apiRequest<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  return req<T>(path, init, timeoutMs);
 }
 
 /**
