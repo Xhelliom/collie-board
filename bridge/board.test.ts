@@ -1909,6 +1909,24 @@ describe("repo picker", () => {
     expect(await backfillBaseRefs(store, git)).toBe(0);
   });
 
+  it("baseOf / backfillBaseRefs: a repo with no origin/HEAD, main nor master, checked out on board/x, gets no base", async () => {
+    // The picker's last resort (the current branch) must never be persisted unseen: here it is the
+    // previous card's branch, and every NULL card of the repo would fork off it for good.
+    const git: GitRunner = async (args) => {
+      if (args[0] === "symbolic-ref" || args.includes("--verify")) return { ok: false, stdout: "", stderr: "" };
+      return { ok: true, stdout: "board/x\n", stderr: "" };
+    };
+    expect(await defaultBranchOf("/repo", git)).toBe("board/x");
+    expect(await baseOf({ repoPath: "/repo", baseRef: null }, git)).toBeNull();
+    const store = db();
+    const legacy = store.createCard({ title: "legacy", repoPath: "/repo" });
+    expect(await backfillBaseRefs(store, git)).toBe(0);
+    expect(store.getCard(legacy.id)!.baseRef).toBeNull();
+    // Nor a declared default that is itself a board branch.
+    const boardHead: GitRunner = async () => ({ ok: true, stdout: "origin/board/y\n", stderr: "" });
+    expect(await baseOf({ repoPath: "/repo", baseRef: null }, boardHead)).toBeNull();
+  });
+
   it("prefers origin/HEAD for the default branch, not whatever is checked out", async () => {
     // The repo is ON a board branch — taking HEAD would fork the next card off the previous card's
     // work, silently chaining unrelated changes.

@@ -379,7 +379,8 @@ predecessor's branch rather than the repo's base, because a serial task needs th
 code, not a summary of it; its opening prompt says the branch is *not* clean and carries the
 predecessor's review notes. A card's base is ONE answer, `baseOf` (`git.ts`): its `base_ref`, filled
 at creation with the repo's default branch (`origin/HEAD`, then `main`/`master`) — a dependent card's
-too — and never the main checkout's current branch, which is a `board/…` branch after one card. Every
+too — and never the main checkout's current branch, which is a `board/…` branch after one card: a
+repo that declares none of those gives no base (the back-fill skips its cards) rather than a guess. Every
 diff, integration check, review and fork reads it. The resolved base is persisted onto the card at
 start, since `base_ref` is also the left side of its diff — left at `main` the card would display its predecessor's work as its own.
 Once the predecessor's PR has merged (in squash, so its branch is no ancestor of the base), the

@@ -495,28 +495,35 @@ export async function currentBranch(repoPath: string, git: GitRunner = runGit): 
 }
 
 /**
- * A repo's default branch — what a new card should fork from.
- *
- * `origin/HEAD` is asked first and is the one that's right: the repo's own HEAD is whatever branch
- * happens to be checked out, which after a single card is a `board/…` branch, and forking the next
- * card off that would silently chain unrelated work. The current branch is only the fallback for a
- * repo with no remote and no `main`/`master`.
+ * A repo's DECLARED default branch: `origin/HEAD`, else a local `main`/`master`. Never the branch that
+ * happens to be checked out — after a single card that is a `board/…` branch, and forking the next card
+ * off it would silently chain unrelated work. Undefined when the repo declares none.
  */
-export async function defaultBranchOf(root: string, git: GitRunner = runGit): Promise<string | undefined> {
+async function declaredDefaultBranchOf(root: string, git: GitRunner): Promise<string | undefined> {
   const remote = await git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root);
   if (remote.ok && remote.stdout.trim()) return remote.stdout.trim().replace(/^origin\//, "");
   for (const candidate of ["main", "master"]) {
     const verify = await git(["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`], root);
     if (verify.ok && verify.stdout.trim()) return candidate;
   }
-  return (await currentBranch(root, git)) ?? undefined;
+  return undefined;
+}
+
+/**
+ * A repo's default branch as the repo PICKER pre-fills it: the declared one, else the current branch
+ * for a repo with no remote and no `main`/`master`. A suggestion the operator sees and can edit before
+ * the card is filed — {@link baseOf} never takes this last-resort fallback.
+ */
+export async function defaultBranchOf(root: string, git: GitRunner = runGit): Promise<string | undefined> {
+  return (await declaredDefaultBranchOf(root, git)) ?? (await currentBranch(root, git)) ?? undefined;
 }
 
 /**
  * THE base of a card: the one answer every diff, integration check, fork and review reads. Its
  * `baseRef` — filled at creation (`withDefaultBaseRef`) and back-filled once for older rows
- * ({@link backfillBaseRefs}) — else its repo's default branch. Never the main checkout's current
- * branch: that is a `board/…` branch as soon as one card has run there. Null only without a repo.
+ * ({@link backfillBaseRefs}) — else its repo's DECLARED default branch. Never the main checkout's
+ * current branch and never a `board/…` branch as a fallback: that is a previous card's work. Null
+ * without a repo, or for a repo that declares no default — no answer rather than a guess.
  */
 export async function baseOf(
   card: { repoPath: string | null; baseRef: string | null },
@@ -525,13 +532,15 @@ export async function baseOf(
   const own = card.baseRef?.trim();
   if (own) return own;
   if (!card.repoPath) return null;
-  return (await defaultBranchOf(card.repoPath, git).catch(() => undefined)) ?? null;
+  const declared = await declaredDefaultBranchOf(card.repoPath, git).catch(() => undefined);
+  return declared && !declared.startsWith("board/") ? declared : null;
 }
 
 /**
  * The one-time migration of cards filed before every card got a `baseRef`: each NULL row with a repo
- * takes that repo's default branch. Idempotent — a later boot finds nothing to fill. Returns how many
- * rows it filled.
+ * takes that repo's default branch ({@link baseOf}). A repo that declares none, or is gone, is skipped
+ * — never filled with whatever branch its checkout is on. Idempotent — a later boot finds nothing to
+ * fill. Returns how many rows it filled.
  */
 export async function backfillBaseRefs(
   db: {
