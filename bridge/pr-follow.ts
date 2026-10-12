@@ -22,6 +22,8 @@ export interface FollowPorts {
   /** `mergeWhenReady` — journals `run.merge` (and `card.pr_merged` when it merged). "busy": a gesture holds the card. */
   land(card: Card, gate: MergeGate): Promise<void | "busy">;
   fileAsDone(card: Card): void;
+  /** A gesture holds the card's integration lock (`integrating`): no `gh` at all until it is released. */
+  held(card: Card): boolean;
 }
 
 /** card id → the follow on its current PR, folded from the PR events oldest first. Pure + exported. */
@@ -60,6 +62,9 @@ export class PrFollower {
       if (!card || card.status === "done" || card.status === "archived" || this.busy.has(cardId)) continue;
       // Merged while the bridge was down between the merge and the filing: file it now.
       if (merged) { this.ports.fileAsDone(card); continue; }
+      // A push (and its pre-push hook) can hold the lock for minutes: asking GitHub on every 1.5 s tick
+      // meanwhile would only end in `land` → busy. Skip the card, `asked` untouched; resume once free.
+      if (this.ports.held(card)) continue;
       const asked = this.asked.get(cardId);
       if (asked !== undefined && this.now() - asked < FOLLOW_EVERY_MS) continue;
       // A stopped follow (red check, conflict…) is only watched for a merge by hand: slower and slower
@@ -122,6 +127,7 @@ export function prFollowHook(db: BoardDb, herdr: HerdrClient): (snap: EngineSnap
     },
     land: async (card, gate) => ((await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate))).busy ? "busy" : undefined),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
+    held: (card) => integrating.has(card.id),
   });
   return (snap) => follower.update(snap);
 }

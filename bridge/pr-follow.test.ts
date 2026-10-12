@@ -23,6 +23,7 @@ function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void | "busy"
     filed: 0,
     lands: 0,
     asks: 0,
+    held: false,
     get clock() {
       return time.clock;
     },
@@ -44,6 +45,7 @@ function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void | "busy"
           w.filed++;
           db.setStatus(c.id, "done", "manual");
         },
+        held: () => w.held,
       },
       () => w.clock,
     );
@@ -208,6 +210,32 @@ describe("PR & done follows the PR to its merge (ADR 0035)", () => {
     f.update(snap); // same clock: the refused ask did not start the 30 s wait
     await settle();
     expect(w.filed).toBe(1);
+  });
+
+  it("while a gesture holds the lock, GitHub is not asked at all; once free, the normal pace resumes", async () => {
+    const { w, make } = world((db, c, gate) => db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "running", wait: true } as never));
+    const f = make();
+    w.held = true;
+    for (let i = 0; i < 40; i++) {
+      w.clock += 1_500;
+      f.update(snap);
+      await settle();
+    }
+    expect(w.asks).toBe(0);
+    expect(w.lands).toBe(0);
+    expect(w.db.listEvents(w.card.id).some((e) => e.type === "run.merge")).toBe(false);
+    w.held = false;
+    f.update(snap);
+    await settle();
+    expect(w.asks).toBe(1);
+    w.clock += 1_500;
+    f.update(snap); // the 30 s pace again
+    await settle();
+    expect(w.asks).toBe(1);
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.asks).toBe(2);
   });
 
   it("a plain PR is not followed", async () => {
