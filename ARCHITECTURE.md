@@ -379,6 +379,8 @@ predecessor's branch rather than the repo's base, because a serial task needs th
 code, not a summary of it; its opening prompt says the branch is *not* clean and carries the
 predecessor's review notes. The resolved base is persisted onto the card, since `base_ref` is also
 the left side of its diff — left at `main` the card would display its predecessor's work as its own.
+Once the predecessor's PR has merged (in squash, so its branch is no ancestor of the base), the
+dependent card forks from the synced base instead — [ADR 0034](./.adr/0034-a-card-after-a-merged-predecessor-forks-from-the-base.md).
 This is deliberately **not** the `.board/handoff.md` mechanism: that one is for context exhaustion
 inside a single card, where the next agent inherits the same worktree and can read the note from its
 own cwd. Across two cards the file isn't even there.
