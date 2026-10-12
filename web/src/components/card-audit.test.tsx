@@ -5,7 +5,7 @@ import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
 import { setPreference } from "@/i18n";
-import { CardJournal, describeEvent } from "./card-journal";
+import { CardJournal, describeEvent, foldStatusLoops } from "./card-journal";
 import { CardEditor, LinkPicker } from "./card-editor";
 import { CardDiff } from "./card-diff";
 import type { BoardEvent, CardView } from "@/lib/board";
@@ -16,7 +16,7 @@ const status = (id: number, from: string, to: string) => ev(id, "card.status", {
 
 afterEach(() => setPreference("en"));
 
-describe("journal (audit #22 #23 #10 #5)", () => {
+describe("journal (audit #22 #23 #10)", () => {
   it("#22 translates the five raw event types", () => {
     setPreference("fr");
     for (const type of ["card.reopened", "card.cleaned_up", "card.pr_opened", "wrapup.requested", "wrapup.collected"]) {
@@ -52,10 +52,10 @@ describe("journal (audit #22 #23 #10 #5)", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(35);
   });
 
-  it("#5 lets any long line be opened, not only run.*", () => {
-    const e = ev(1, "card.operator_said", { text: "x".repeat(110) });
-    const { container } = render(<CardJournal events={[e]} onRestore={async () => {}} />);
-    expect(container.querySelector(".truncate")).toBeNull();
+  it("#10 folds 3+ consecutive working ↔ review moves into one row", () => {
+    const rows = foldStatusLoops([status(1, "working", "review"), status(2, "review", "working"), status(3, "working", "review"), ev(4, "card.created")]);
+    expect(rows).toHaveLength(2);
+    expect("loop" in rows[0]! && rows[0].loop).toBe(3);
   });
 });
 

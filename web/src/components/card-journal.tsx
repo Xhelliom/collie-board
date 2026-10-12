@@ -82,7 +82,7 @@ const isLoopMove = (e: BoardEvent) => {
 };
 
 /** Three or more consecutive working ↔ review moves become one row (events come newest first).
- *  Pure + exported for the test. */
+ *  Pure. The `reason` of folded moves is not shown. */
 export function foldStatusLoops(events: BoardEvent[]): (BoardEvent | { loop: number; id: number; ts: number })[] {
   const out: (BoardEvent | { loop: number; id: number; ts: number })[] = [];
   for (let i = 0; i < events.length; ) {
