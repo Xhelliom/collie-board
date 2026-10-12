@@ -116,7 +116,10 @@ export function BoardRoute() {
   // "who wrote it" into the same filter would make the two mutually exclusive for no reason.
   const autoOnly = params.get("origin") === "auto";
   // `?status=blocked,orphaned` — where the home KPIs lead. Comma-separated: "stuck" is two columns.
-  const statuses = params.get("status")?.split(",").filter(Boolean) ?? null;
+  // The URL is untrusted: keep only real columns (each has a `status.*` key), and no list at all when
+  // none survives — `[]` would be truthy and hide every card behind an empty chip.
+  const known = params.get("status")?.split(",").filter((s): s is CardStatus => (BOARD_COLUMNS as string[]).includes(s));
+  const statuses = known?.length ? known : null;
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
   const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status", value: string | null) =>

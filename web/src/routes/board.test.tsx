@@ -300,3 +300,19 @@ describe("one rule on every screen (ADR 0022)", () => {
     });
   });
 });
+
+describe("?status= from the URL", () => {
+  for (const q of ["foo", "", "foo,,bar"]) {
+    it(`"${q}" neither crashes nor filters`, async () => {
+      await mount(two, `/board?status=${q}`);
+      expect(screen.getByText("Alpha")).toBeInTheDocument();
+      expect(screen.getByText("Bravo")).toBeInTheDocument();
+    });
+  }
+
+  it("keeps the known statuses and drops the rest", async () => {
+    await mount(two, "/board?status=ready,foo");
+    expect(screen.queryByText("Alpha")).toBeNull();
+    expect(screen.getByText("Bravo")).toBeInTheDocument();
+  });
+});
