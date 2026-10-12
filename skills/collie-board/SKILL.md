@@ -336,7 +336,7 @@ gated repo is checked by a machine first.
 
 ```bash
 curl -s "$B/api/repos" | jq '.repos[] | {path, gate}'        # gate = the command, or absent
-curl -s "$B/api/project/facts?repo=/abs/repo"                # per card, read off its journal: gate result, the lead's
+curl -s "$B/api/project/facts[?repo=/abs/repo]"                # per card, read off its journal: gate result, the lead's
                                                               # verdict and reason, review verdict, PR + auto-merge,
                                                               # times sent back, template, start/end
 ```

@@ -46,15 +46,20 @@ export interface BoardData {
   /** True when this render is the last-good card list after a failed refresh. */
   error: boolean;
   authError: boolean;
+  /** What the journal knows of each card, keyed by card id — the tiles' milestone dots. Garnish: undefined when it can't be read. */
+  facts?: Record<string, CardFacts>;
 }
 
 let lastCards: CardView[] | null = null;
 
 export async function boardLoader({ request }: { request?: Request } = {}): Promise<BoardData> {
   try {
-    const { cards } = await fetchCards(request?.signal);
+    const [{ cards }, facts] = await Promise.all([
+      fetchCards(request?.signal),
+      fetchFacts(undefined, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
+    ]);
     lastCards = cards;
-    return { cards, error: false, authError: false };
+    return { cards, error: false, authError: false, facts };
   } catch (e) {
     if (isAbortError(e)) throw e;
     return { cards: lastCards ?? [], error: true, authError: isAuthError(e) };
@@ -128,13 +133,11 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const base = await boardLoader({ request });
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
-  const [phases, lots, roadmap, orchestrator, facts, templates, flows] = await Promise.all([
+  const [phases, lots, roadmap, orchestrator, templates, flows] = await Promise.all([
     fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
     fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
     fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
     fetchOrchestrator(repo, request?.signal).catch(() => null),
-    // Facts are garnish: without them a step is just its card.
-    fetchFacts(repo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
     fetchTemplates(request?.signal).catch(() => null),
     fetchFlows(request?.signal).then((r) => r.flows).catch(() => null),
   ]);
@@ -147,5 +150,5 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
   const orchestratorMemory = orchestrator?.paneId
     ? await fetchOrchestratorMemory(repo, request?.signal).then((r) => r.memory, () => null)
     : null;
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, facts, templates, flows };
+  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, templates, flows };
 }

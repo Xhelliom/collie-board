@@ -51,3 +51,15 @@ describe("foldFacts: the template a card started with", () => {
     expect(foldFacts("c", []).template).toBeNull();
   });
 });
+
+describe("foldFacts: the milestone events", () => {
+  it("keeps only the milestone types, slimmed, oldest first", () => {
+    const f = foldFacts("c", [
+      ev("card.edited", { replaced: { spec: "long" } }),
+      ev("run.gate", { ok: false, command: "make", output: "x".repeat(500) }),
+      ev("session.opened"),
+    ]);
+    expect(f.milestoneEvents.map((e) => e.type)).toEqual(["run.gate", "session.opened"]);
+    expect(f.milestoneEvents[0]!.payload).toEqual({ ok: false, command: "make" });
+  });
+});

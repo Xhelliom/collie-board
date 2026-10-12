@@ -245,7 +245,7 @@ describe("a lot's maxParallel over the routes (ADR 0021)", () => {
 });
 
 describe("GET /api/project/facts", () => {
-  it("returns the facts of one repo's live cards, and needs a repo", async () => {
+  it("returns the facts of one repo's live cards, and, without a repo, all cards", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "working" });
     db.createCard({ title: "other", repoPath: "/else", status: "working" });
@@ -254,7 +254,8 @@ describe("GET /api/project/facts", () => {
     expect(ok.status).toBe(200);
     expect(ok.body.facts).toHaveLength(1);
     expect(ok.body.facts[0]).toMatchObject({ cardId: a.id, gate: { ok: true, command: "make" } });
-    expect((await call(db, "GET", "/api/project/facts")).status).toBe(400);
+    // no repo: every live card (the board's tiles read their milestone dots from it)
+    expect((await call(db, "GET", "/api/project/facts")).body.facts).toHaveLength(1);
     expect((await call(db, "POST", "/api/project/facts?repo=%2Fr")).status).toBe(405);
   });
 });

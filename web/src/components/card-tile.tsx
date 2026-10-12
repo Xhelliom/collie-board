@@ -16,8 +16,9 @@ import { AgentIcon } from "@/components/agent-icon";
 import { TagChip } from "@/components/tag-chip";
 import { TemplateChip } from "@/components/template-chip";
 import { CtxBar } from "@/components/ctx-bar";
+import { MilestoneDots } from "@/components/milestone-dots";
 import { paneDisplayName } from "@/lib/types";
-import { CARD_STATUS_LABEL, type CardStatus, type CardView } from "@/lib/board";
+import { CARD_STATUS_LABEL, type BoardEvent, type CardStatus, type CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
@@ -85,7 +86,10 @@ export function CardTile({
   repo,
   drag,
   selected,
+  milestones,
 }: {
+  /** The card's journal milestones (from the facts), drawn as dots under the title. */
+  milestones?: BoardEvent[];
   card: CardView;
   onClick: () => void;
   /**
@@ -275,6 +279,8 @@ export function CardTile({
             <TagChip tag={card.tag} className="mt-0.5 shrink-0 px-[7px] py-px text-[10px] font-semibold" />
           )}
         </div>
+
+        <MilestoneDots events={milestones} />
 
         {(phase || template) && (
           <div className="flex flex-wrap gap-1.5">

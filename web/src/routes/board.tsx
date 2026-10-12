@@ -96,6 +96,7 @@ const LANE_PHONE_ORDER: Record<LaneKey, string> = {
 export function BoardRoute() {
   const t = useT();
   const data = useLoaderData() as ProjectData;
+  const facts = data.facts;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const desktop = useIsDesktop();
@@ -663,6 +664,7 @@ export function BoardRoute() {
                                     }
                                     dependency={dependencyInfo(card, byId)}
                                     repo={repoLabel(card)}
+                                    milestones={facts?.[card.id]?.milestoneEvents}
                                     // The dictation this was split from, on every screen (ADR 0022):
                                     // the container takes no tile, so this is where it is named.
                                     parent={card.parentId ? byId.get(card.parentId)?.title : undefined}
