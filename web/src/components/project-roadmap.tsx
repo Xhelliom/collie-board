@@ -45,7 +45,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
           <b className="font-semibold">{item.name}</b>
           {item.goal && <span className="text-muted-foreground"> — {item.goal}</span>}
         </span>
-        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
           <span className={cn("size-2 rounded-full", DOT[item.status])} />
           {t(`roadmap.status.${item.status}`)}
         </span>
@@ -116,7 +116,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
     <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-2xl border bg-card/70 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex flex-1 items-center gap-2 text-left">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.aria")}</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.aria")}</span>
           {items.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>}
           <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
         </button>
@@ -158,7 +158,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
             {decisions.length > 0 && (
               <div aria-label={t("roadmap.journal")} className="flex flex-col gap-2 border-t pt-3">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.decisions")}</span>
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.decisions")}</span>
                   {ORDER.map((s) => (
                     <span key={s} className="tabular-nums text-muted-foreground">
                       {DECISION[s].mark} {t(DECISION[s].count, { count: decisions.filter((d) => d.status === s).length })}

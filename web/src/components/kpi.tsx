@@ -28,7 +28,7 @@ export function Kpi({ label, value, note, tone, compact }: { label: string; valu
   return (
     <div className={cn("relative overflow-hidden rounded-xl border bg-card/70 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25", compact ? "p-2.5" : "p-3.5")}>
       <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />
-      <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-[10px] tracking-[0.08em]" : "text-[11px] tracking-[0.14em]")}>{label}</span>
+      <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-xs tracking-[0.08em]" : "text-xs tracking-[0.14em]")}>{label}</span>
       <div className={cn("mt-1.5 font-semibold leading-none tabular-nums", compact ? "text-2xl" : "text-3xl")}>{shown}</div>
       {note && !compact && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
     </div>

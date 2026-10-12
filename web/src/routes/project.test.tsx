@@ -81,7 +81,7 @@ describe("ProjectRoute", () => {
   it("speaks French when asked to", async () => {
     setPreference("fr");
     mount([card({ id: "a", status: "done" }), card({ id: "b", status: "blocked" })]);
-    expect(await screen.findByText(/étapes terminées sur 2/)).toBeInTheDocument();
+    expect(await screen.findByText(/étape terminée sur 2/)).toBeInTheDocument();
     expect(screen.getAllByText(/t'attend/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Ouvrir le chat de l'orchestrateur/ })).toBeInTheDocument();
   });
@@ -97,6 +97,22 @@ describe("ProjectRoute", () => {
     expect(await screen.findByText("50%", {}, { timeout: 3000 })).toBeTruthy();
     expect(screen.getByText(/1 waiting for you/i)).toBeTruthy();
     expect(screen.queryByText("other")).toBeNull();
+  });
+
+  it("puts what waits for you first, folds the steps that merely run, and lists « à toi » first in the filters", async () => {
+    mount([card({ id: "a", status: "working" }), card({ id: "b", status: "blocked" }), card({ id: "c", status: "done" })]);
+    const waiting = await screen.findByRole("region", { name: "Waiting for you" });
+    const summary = screen.getByRole("img", { name: /steps done/ }).closest("header")!;
+    expect(waiting.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.querySelector("#step-b [aria-expanded]")).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelector("#step-a [aria-expanded]")).toHaveAttribute("aria-expanded", "false");
+    const names = within(screen.getByRole("group", { name: /filter/i })).getAllByRole("button").map((b) => b.textContent);
+    expect(names[1]).toMatch(/^waiting/i);
+  });
+
+  it("offers a way out of an empty project", async () => {
+    mount([]);
+    expect(await screen.findByRole("button", { name: "Ask the orchestrator" })).toBeInTheDocument();
   });
 
   it("filters the steps by what they are doing, and remembers it", async () => {

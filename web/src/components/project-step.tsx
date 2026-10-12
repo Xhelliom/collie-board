@@ -49,7 +49,7 @@ export const WHO = {
 function Who({ label, tone, children }: { label: string; tone: string; children: React.ReactNode }) {
   return (
     <li className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-baseline gap-2.5 text-sm">
-      <span className={cn("rounded-[5px] px-1 py-1 text-center text-[10px] font-semibold uppercase leading-none tracking-widest", tone)}>
+      <span className={cn("rounded-[5px] px-1 py-1 text-center text-xs font-semibold uppercase leading-none tracking-widest", tone)}>
         {label}
       </span>
       <CollapsibleText lines={3} className="text-muted-foreground">{children}</CollapsibleText>
@@ -129,12 +129,12 @@ export function StepItem({
         <span className="col-span-2 flex flex-col gap-1.5">
           {line && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{line}</span>}
           <span className="flex flex-wrap items-center gap-1.5">
-          {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[11px] font-semibold text-brand">{t("step.next")}</span>}
-          {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-[11px] py-0.5" />}
-          {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("step.inRun")}</span>}
+          {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("step.next")}</span>}
+          {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-xs py-0.5" />}
+          {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>}
           <CardStatusChip status={card.status} />
           {chips.map((c) => (
-            <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", CHIP_TONE[c.tone])}>
+            <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", CHIP_TONE[c.tone])}>
               {c.label}
             </span>
           ))}
@@ -234,12 +234,12 @@ export function StepItem({
               )}
             </ul>
             {phases.length > 0 && onMove && (
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <label className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                 {t("step.phase")}
                 <select
                   value={card.phaseId ?? ""}
                   onChange={(e) => onMove(e.target.value || null)}
-                  className="rounded-lg border bg-background px-2 py-1 text-sm text-foreground"
+                  className="w-full min-w-0 max-w-full rounded-lg border bg-background px-2 py-1 text-sm text-foreground"
                 >
                   <option value="">{t("project.noPhase")}</option>
                   {phases.map((p) => (
