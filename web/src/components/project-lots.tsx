@@ -123,14 +123,14 @@ export function PhaseLots({
                 <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? t("run.lot")}</span>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    "rounded-full px-2 py-0.5 text-xs font-semibold",
                     planned ? "bg-muted text-muted-foreground" : finished ? "bg-status-done/15 text-status-done" : "bg-status-working/15 text-status-working",
                   )}
                 >
                   {planned ? t("lot.planned") : finished ? t("lot.finished") : t("lot.running")}
                 </span>
                 {pl.lot.maxParallel ? (
-                  <span className="font-mono text-[11px] text-muted-foreground">
+                  <span className="font-mono text-xs text-muted-foreground">
                     {pl.lot.maxParallel === 1 ? t("lot.oneAtATime") : t("lot.nAtATime", { count: pl.lot.maxParallel })}
                   </span>
                 ) : null}
@@ -161,7 +161,7 @@ export function PhaseLots({
         {loose.length > 0 && (
           <div className="flex flex-col gap-2">
             {visible.length > 0 && (
-              <span className="px-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="px-1 font-mono text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {t("lot.notIn", { count: loose.length })}
               </span>
             )}

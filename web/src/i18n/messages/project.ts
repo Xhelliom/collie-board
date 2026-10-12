@@ -6,7 +6,6 @@ export const project = defineMessages({
   "project.title": { en: "Project", fr: "Projet" },
   "project.subtitle": { en: "Roadmap", fr: "Roadmap" },
   "project.allRepos": { en: "all repos", fr: "tous les dépôts" },
-  "project.eyebrow": { en: "{repo} · roadmap", fr: "{repo} · roadmap" },
   "project.updated": { en: "updated {ago}", fr: "mis à jour {ago}" },
   "project.emptyRepo": {
     en: "No cards in this repo yet. Split a card into sub-tasks to make a phase.",
@@ -18,7 +17,10 @@ export const project = defineMessages({
   },
   "project.noPhase": { en: "No phase", fr: "Sans phase" },
 
-  "project.sum.progress": { en: "**{done}** of {total} steps done", fr: "**{done}** étapes terminées sur {total}" },
+  "project.sum.progress": {
+    en: { one: "**{done}** of {total} steps done", other: "**{done}** of {total} steps done" },
+    fr: { one: "**{done}** étape terminée sur {total}", other: "**{done}** étapes terminées sur {total}" },
+  },
   "project.sum.phases": {
     en: { one: "across {count} phase", other: "across {count} phases" },
     fr: { one: "réparties sur {count} phase", other: "réparties sur {count} phases" },
@@ -203,7 +205,11 @@ export const project = defineMessages({
     },
   },
   "project.sealAll": { en: "Validate everything finished…", fr: "Valider tout ce qui est terminé…" },
-  "project.seal": { en: "Validate the finished steps as a milestone…", fr: "Valider les étapes terminées comme un jalon…" },
+  "project.seal": { en: "Milestone…", fr: "Jalonner…" },
+  "project.seal.aria": { en: "Validate the finished steps as a milestone", fr: "Valider les étapes terminées comme un jalon" },
+  "project.emptyAction": { en: "Ask the orchestrator", fr: "Demander à l'orchestrateur" },
+  "project.emptyPhase": { en: "No steps — ask the orchestrator", fr: "Aucune étape — demande à l'orchestrateur" },
+  "project.pickRepo": { en: "Pick a repo to see its roadmap.", fr: "Choisis un dépôt pour voir la roadmap." },
   "project.seal.title": { en: "Validate the finished steps", fr: "Valider les étapes terminées" },
   "project.seal.explain": {
     en: {

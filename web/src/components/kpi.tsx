@@ -31,7 +31,7 @@ export function Kpi({ label, value, note, tone, compact, to }: { label: string; 
   const body = (
     <>
       <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />
-      <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-[10px] tracking-[0.08em]" : "text-[11px] tracking-[0.14em]")}>{label}</span>
+      <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-xs tracking-[0.08em]" : "text-xs tracking-[0.14em]")}>{label}</span>
       <div className={cn("mt-1.5 font-semibold leading-none tabular-nums", compact ? "text-2xl" : "text-3xl")}>{shown}</div>
       {note && !compact && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
     </>
