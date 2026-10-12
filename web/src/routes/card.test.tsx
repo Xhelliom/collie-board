@@ -867,4 +867,29 @@ describe("long texts fold", () => {
       expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
     }
   });
+  it("puts a « Voir plus » under the agent's closing report", async () => {
+    const detail: CardDetail = {
+      card: { ...card("done"), id: "c1", title: "The card", parentId: null },
+      predecessor: null,
+      parent: null,
+      originCard: null,
+      duplicate: null,
+      children: [],
+      sessions: [
+        {
+          id: "s1", cardId: "c1", paneId: null, agentSessionId: null, agentKind: "claude", ctxTokens: null, ctxPct: null,
+          handoffMd: "Closing report text", outcome: "done", handoffRequestedAt: null, autoHandoffAt: null, startedAt: 1, endedAt: 2,
+        },
+      ],
+      reviews: [],
+      events: [],
+    };
+    const router = createMemoryRouter(
+      [{ path: "/card/:cardId", loader: (): CardData => ({ cardId: "c1", detail, error: false, authError: false }), element: <CardRoute /> }],
+      { initialEntries: ["/card/c1"] },
+    );
+    render(<RouterProvider router={router} />);
+    const box = (await screen.findByText("Closing report text")).closest("[id]")!;
+    expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
+  });
 });

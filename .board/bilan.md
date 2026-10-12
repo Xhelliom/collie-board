@@ -1,10 +1,5 @@
 # Bilan
 
-**Fait** : repli (CollapsibleText) appliqué sur spec, critères, bilan, journal, détail de roadmap, raisons lead/tri (commits précédents). Cette passe corrige deux tests qui ne gardaient rien :
-- `project-step.test.tsx` : cible maintenant le repli de la spec elle-même (via son texte), vérifie « Voir plus » puis le dépliage « Voir moins ».
-- `card.test.tsx` : nouveau cas (`scrollHeight` mocké) avec un « Voir plus » sous la spec, les critères et `r.notes`.
-
-Les deux tests échouent bien quand on retire le repli (vérifié par mutation, code restauré).
-
-**Checks** : tsc racine + web OK ; `web` vitest 1647/1647 verts.
-**Reste** : rien. Le fragment `changes/` existe déjà (bump: patch).
+Fait : le repli commun (`CollapsibleText`) couvre maintenant tous les textes listés : spec, critères, raison du lead / du tri, bilan de l'agent (`session.handoffMd`, ajouté ici), entrées du journal, détail de roadmap. Fragment `changes/appliquer-le-repli-aux-textes-longs-connus.md` (patch).
+Test ajouté : « Voir plus » sous le bilan de clôture (échoue sans le repli). Typecheck/build et 1648 tests verts.
+Non fait : rien. L'ordre des blocs (lot 3) n'est pas touché.

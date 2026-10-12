@@ -2141,7 +2141,7 @@ function SessionRow({
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               {noteLabel(false, session.outcome === "done")}
             </div>
-            <MarkdownText text={session.handoffMd} />
+            <CollapsibleText><MarkdownText text={session.handoffMd} /></CollapsibleText>
           </div>
         )}
       </div>
