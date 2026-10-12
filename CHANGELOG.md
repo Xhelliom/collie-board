@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.189.8] - 2026-10-12
+
+### Changed
+
+- Carte (#3, décision Q3) : « Reformuler » est retiré de l'en-tête (reste dans « Retravailler »), « Éditer » en icône seule et fil d'Ariane réduit à « Board » sous `sm` ; alerte doublon et « copilote occupé » avant les sous-tâches. (a500378)
+- Journal : toute ligne longue se replie (« Voir plus »), les allers-retours working ↔ review consécutifs sont regroupés, « 30 sur N — tout voir », dates relatives dans la langue de l'interface. (a500378)
+- Éditeur : champs à 16 px sur mobile, « Enregistrer » collant en bas de la feuille, filtre dans les sélecteurs « Fait partie de » / « Après ». (a500378)
+
+### Fixed
+
+- Journal : `card.reopened`, `card.cleaned_up`, `card.pr_opened`, `wrapup.requested`, `wrapup.collected` s'affichent en phrases ; détail de « Restaurer » sans indentation sous `sm`. (a500378)
+- Diff : une erreur autre que 409 s'affiche au lieu de masquer la section. (a500378)
+- PR : la date de « ouverte / fusionnée / fermée » suit la langue de l'interface ; `ago` en `short` (« il y a 3 j » au lieu de « -3 j »), partout. (a500378)
+
 ## [0.189.7] - 2026-10-12
 
 ### Changed
