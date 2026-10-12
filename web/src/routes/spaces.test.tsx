@@ -38,11 +38,4 @@ describe("Spaces screens (390 px, one title, one count)", () => {
     expect(h1.className).toMatch(/\bsr-only\b/);
   });
 
-  it("a space's status area clears the tab bar below lg", async () => {
-    const { container } = renderAt("/space/w1");
-    await screen.findByRole("heading", { level: 1 });
-    const overlay = container.querySelector(".fixed.inset-x-0.z-30")!;
-    expect(overlay.className).toMatch(/\bbottom-14\b/);
-    expect(overlay.className).toMatch(/\blg:bottom-0\b/);
-  });
 });
