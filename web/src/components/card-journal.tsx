@@ -309,6 +309,10 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.cleanedUp");
     case "card.pr_opened":
       return t("journal.prOpened");
+    case "card.pr_merged":
+      return t("journal.prMerged");
+    case "card.pr_closed":
+      return t("journal.prClosed");
     case "wrapup.requested":
       return t("journal.wrapupRequested");
     case "wrapup.collected":

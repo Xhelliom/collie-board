@@ -2,7 +2,7 @@
 // (gate, the lead's verdict and reason, the review, the PR, how many times it was sent back…).
 // Derived on every read from the cards' own journals, stored nowhere: it cannot drift from the board.
 
-import type { BoardEvent } from "./db.ts";
+import { MILESTONE_TYPES as MILESTONES, type BoardEvent } from "./db.ts";
 
 export interface CardFacts {
   cardId: string;
@@ -23,7 +23,17 @@ export interface CardFacts {
   endedAt: number | null;
   /** The template the card was started with, and the model actually passed to the agent (none: not passed). */
   template: { name: string; key: string | null; model: string | null } | null;
+  /** The journal's milestone events, slimmed to what the client needs to derive the timeline's dots (web/src/lib/card-milestones.ts). */
+  milestoneEvents: BoardEvent[];
 }
+
+/** The event types a card's milestones are derived from, and the payload keys each needs. */
+const MILESTONE_TYPES = new Set([...MILESTONES, "card.status"]);
+const MILESTONE_KEYS = ["ok", "command", "decision", "verdict", "to"];
+const slim = (e: BoardEvent): BoardEvent => {
+  const p = (e.payload ?? {}) as Record<string, unknown>;
+  return { ...e, payload: Object.fromEntries(MILESTONE_KEYS.filter((k) => k in p).map((k) => [k, p[k]])) };
+};
 
 const str = (p: unknown, k: string): string | null => {
   const v = (p as Record<string, unknown> | null)?.[k];
@@ -44,8 +54,10 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
     startedAt: null,
     endedAt: null,
     template: null,
+    milestoneEvents: [],
   };
   for (const e of [...events].sort((a, b) => a.id - b.id)) {
+    if (MILESTONE_TYPES.has(e.type)) f.milestoneEvents.push(slim(e));
     switch (e.type) {
       case "run.gate":
         f.gate = { ok: (e.payload as { ok?: boolean }).ok === true, command: str(e.payload, "command") ?? "", ts: e.ts };
@@ -105,17 +117,23 @@ import type { BoardContext } from "./board-routes.ts";
 /** How much of a card's journal is read: its newest entries are the story; a card is rarely older. */
 const JOURNAL_LIMIT = 300;
 
-/** `GET /api/project/facts?repo=` — the facts of every live card of one repo. Read-only. */
+/** The capped journal plus the uncapped milestone events: a card older than the cap keeps its start and its send-backs. */
+const withMilestones = (journal: BoardEvent[], milestones: BoardEvent[]): BoardEvent[] => {
+  const seen = new Set(journal.map((e) => e.id));
+  return [...journal, ...milestones.filter((e) => !seen.has(e.id))];
+};
+
+/** `GET /api/project/facts[?repo=]` — the facts of every live card (of one repo with `repo`). Read-only. */
 export function handleFactsRoute(pathname: string, req: Request, ctx: BoardContext): Response | null {
   if (pathname !== "/api/project/facts") return null;
   if (req.method !== "GET") return ctx.text("method not allowed", 405);
   const denied = ctx.guard("read");
   if (denied) return denied;
+  // No repo: every live card — the board's tiles read their dots from here (one request per poll).
   const repo = new URL(req.url).searchParams.get("repo");
-  if (!repo) return ctx.text("repo required", 400);
   const facts = ctx.db
     .listCards()
-    .filter((c) => c.repoPath === repo)
-    .map((c) => foldFacts(c.id, ctx.db.listEvents(c.id, JOURNAL_LIMIT)));
+    .filter((c) => !repo || c.repoPath === repo)
+    .map((c) => foldFacts(c.id, withMilestones(ctx.db.listEvents(c.id, JOURNAL_LIMIT), ctx.db.listMilestoneEvents(c.id))));
   return ctx.json({ facts });
 }

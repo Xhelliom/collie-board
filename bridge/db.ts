@@ -2622,6 +2622,21 @@ export class BoardDb {
       .map(toEvent);
   }
 
+  /**
+   * The events a card's milestones are derived from, oldest first, NOT capped (listEvents is: past
+   * 100 the start and the send-back count would vanish silently). Plus the card's newest status move,
+   * which says whether it is done. The one list both the card page and the project's dots read.
+   */
+  listMilestoneEvents(cardId: string): BoardEvent[] {
+    const marks = MILESTONE_TYPES.map(() => "?").join(",");
+    return this.db
+      .query<EventRow, string[]>(
+        `SELECT * FROM event WHERE card_id = ? AND (type IN (${marks}) OR id = (SELECT MAX(id) FROM event WHERE card_id = ? AND type = 'card.status')) ORDER BY id`,
+      )
+      .all(cardId, ...MILESTONE_TYPES, cardId)
+      .map(toEvent);
+  }
+
   /** A card's journal, newest first. */
   listEvents(cardId: string, limit = 100): BoardEvent[] {
     return this.db
@@ -2670,3 +2685,6 @@ function safeJson(raw: string): unknown {
     return raw;
   }
 }
+
+/** The event types a card's milestones are derived from (web/src/lib/card-milestones.ts). */
+export const MILESTONE_TYPES = ["session.opened", "run.gate", "run.decision", "review.created", "card.pr_opened", "card.pr_merged", "card.pr_closed"];

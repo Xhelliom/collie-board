@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { BoardEvent } from "./db.ts";
+import { BoardDb, type BoardEvent } from "./db.ts";
 import { foldFacts } from "./project-facts.ts";
 
 let n = 0;
@@ -49,5 +49,34 @@ describe("foldFacts: the template a card started with", () => {
     // An older journal entry has no model: the template is known, the model is not.
     expect(foldFacts("c", [ev("card.template", { name: "Mine", key: null })]).template).toEqual({ name: "Mine", key: null, model: null });
     expect(foldFacts("c", []).template).toBeNull();
+  });
+});
+
+describe("foldFacts: the milestone events", () => {
+  it("keeps only the milestone types, slimmed, oldest first", () => {
+    const f = foldFacts("c", [
+      ev("card.edited", { replaced: { spec: "long" } }),
+      ev("run.gate", { ok: false, command: "make", output: "x".repeat(500) }),
+      ev("session.opened"),
+    ]);
+    expect(f.milestoneEvents.map((e) => e.type)).toEqual(["run.gate", "session.opened"]);
+    expect(f.milestoneEvents[0]!.payload).toEqual({ ok: false, command: "make" });
+  });
+});
+
+describe("listMilestoneEvents — the story is not capped at the journal's 100", () => {
+  it("keeps the start and the send-backs past 100 events, and the newest status move", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "working" });
+    db.openSession({ cardId: a.id, paneId: "p1" });
+    db.recordRunEvent(a.id, "run.decision", { runId: "r", decision: "prompt", reason: "x" });
+    for (let i = 0; i < 150; i++) db.recordEvent(a.id, "card.edited", { reason: "noise" });
+    db.setStatus(a.id, "done", "test");
+    expect(db.listEvents(a.id).some((e) => e.type === "session.opened")).toBe(false);
+    const types = db.listMilestoneEvents(a.id).map((e) => e.type);
+    expect(types).toContain("session.opened");
+    expect(types).toContain("run.decision");
+    expect(types.at(-1)).toBe("card.status");
+    expect(types).not.toContain("card.edited");
   });
 });

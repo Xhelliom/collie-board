@@ -200,6 +200,8 @@ export interface CardDetail {
   sessions: CardSession[];
   reviews: Review[];
   events: BoardEvent[];
+  /** The events the timeline derives from — uncapped, unlike `events`. Absent on an older bridge. */
+  milestoneEvents?: BoardEvent[];
 }
 
 /**

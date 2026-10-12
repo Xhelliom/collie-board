@@ -7,6 +7,7 @@ import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { cardPath, type CardView, type Phase } from "@/lib/board";
 import { useT, type MessageKey } from "@/i18n";
+import { MilestoneDots } from "@/components/milestone-dots";
 import { duration, factChips, rich, specLine, type CardFacts, type Tone } from "@/lib/project-facts";
 import { stepGroup } from "@/lib/project";
 import { cn } from "@/lib/utils";
@@ -133,6 +134,7 @@ export function StepItem({
           {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-xs py-0.5" />}
           {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>}
           <CardStatusChip status={card.status} />
+          <MilestoneDots events={facts?.milestoneEvents} />
           {chips.map((c) => (
             <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", CHIP_TONE[c.tone])}>
               {c.label}

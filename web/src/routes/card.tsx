@@ -52,6 +52,7 @@ import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
+import { CardTimeline } from "@/components/card-timeline";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
@@ -1068,6 +1069,12 @@ export function CardRoute() {
                         />
                       ))}
                     </div>
+                  </Section>
+                )}
+
+                {detail && detail.events.length > 0 && (
+                  <Section label={t("timeline.title")}>
+                    <CardTimeline events={detail.milestoneEvents ?? detail.events} />
                   </Section>
                 )}
 
