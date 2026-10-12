@@ -7,7 +7,7 @@ import { Ring } from "@/components/ring";
 import { STEP_TONE } from "@/components/project-step";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
-import { cardPath, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Phase, type ProviderUsage } from "@/lib/board";
+import { boardPath, cardPath, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Phase, type ProviderUsage } from "@/lib/board";
 import { herdCounts, type DashboardView, type RepoTile } from "@/lib/dashboard";
 import { panePath } from "@/lib/nav";
 import { ago, rich } from "@/lib/project-facts";
@@ -21,13 +21,12 @@ import { cn } from "@/lib/utils";
 const sectionTitle = "text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground";
 
 /** The hero: one sentence, and the herd as a ring — rouge = needs you, bleu = working, gris = idle. */
-export function HomeHero({ agents, dash }: { agents: AgentView[]; dash: DashboardView }) {
+export function HomeHero({ agents }: { agents: AgentView[] }) {
   const t = useT();
   const [needs, working, idle] = herdCounts(agents);
   const parts = [
     agents.length === 0 ? t("home.sum.none") : needs > 0 ? t("home.sum.needs", { count: needs }) : t("home.sum.calm"),
     working > 0 && t("home.sum.working", { count: working }),
-    dash.review > 0 && t("home.sum.review", { count: dash.review }),
   ].filter(Boolean);
   return (
     <header className="flex items-center justify-between gap-5">
@@ -57,13 +56,19 @@ export function HomeHero({ agents, dash }: { agents: AgentView[]; dash: Dashboar
 
 export function HomeKpis({ dash }: { dash: DashboardView }) {
   const t = useT();
+  // Each figure leads to the board filtered on its status(es); the section title names the object
+  // (cards, not panes — the hero above counts panes).
+  const to = (status: string) => `${boardPath()}?${new URLSearchParams({ status })}`;
   return (
-    <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-      <Kpi label={t("home.kpi.review")} value={dash.review} note={t("home.kpi.reviewNote")} tone="bg-brand" />
-      <Kpi label={t("home.kpi.stuck")} value={dash.stuck} note={t("home.kpi.stuckNote")} tone="bg-status-blocked" />
-      <Kpi label={t("home.kpi.ready")} value={dash.ready} note={t("home.kpi.readyNote")} tone="bg-muted-foreground" />
-      <Kpi label={t("home.kpi.delivered")} value={dash.delivered} note={t("home.kpi.deliveredNote")} tone="bg-status-done" />
-    </div>
+    <section className="flex flex-col gap-2.5" aria-label={t("home.kpi.title")}>
+      <h2 className={sectionTitle}>{t("home.kpi.title")}</h2>
+      <div className="grid grid-cols-4 gap-2 [&>*]:min-w-0">
+        <Kpi compact to={to("review")} label={t("home.kpi.review")} value={dash.review} tone="bg-brand" />
+        <Kpi compact to={to("blocked,orphaned")} label={t("home.kpi.stuck")} value={dash.stuck} tone="bg-status-blocked" />
+        <Kpi compact to={to("ready")} label={t("home.kpi.ready")} value={dash.ready} tone="bg-muted-foreground" />
+        <Kpi compact to={to("done")} label={t("home.kpi.delivered")} value={dash.delivered} tone="bg-status-done" />
+      </div>
+    </section>
   );
 }
 
@@ -235,29 +240,41 @@ const VERB = {
   note: "home.activity.note",
 } as const;
 
-/** Open PRs and the last few alerts, read once on arrival. Both degrade to nothing on an older bridge. */
-export function HomeActivity({ session }: { session: string | undefined }) {
+/** Open PRs, read once on arrival — nothing at zero or on an older bridge. */
+export function OpenPrs() {
   const t = useT();
   const [prs, setPrs] = useState(0);
-  const [log, setLog] = useState<NotifyLogEntry[] | null>(null);
   useEffect(() => {
     void fetchOpenPrs().then((r) => setPrs(r.prs.length), () => {});
+  }, []);
+  if (prs === 0) return null;
+  return (
+    <Link to={prsPath()} className="flex items-center gap-2 rounded-xl border bg-card/70 p-3.5 text-sm hover:border-foreground/25">
+      <GitPullRequest className="size-4 text-muted-foreground" />
+      <span className="flex-1">{t("home.prs")}</span>
+      <b className="tabular-nums">{prs}</b>
+      <ChevronRight className="size-4 text-muted-foreground" />
+    </Link>
+  );
+}
+
+/** The last few alerts (the bell's log), read once on arrival. Degrades to nothing on an older bridge. */
+export function HomeActivity({ session }: { session: string | undefined }) {
+  const t = useT();
+  const [log, setLog] = useState<NotifyLogEntry[] | null>(null);
+  useEffect(() => {
     void getNotifyLog().then((e) => setLog(e.slice(0, 5)), () => setLog([]));
   }, []);
   return (
     <section className="flex flex-col gap-2.5" aria-label={t("home.activity")}>
-      <Link to={prsPath()} className="flex items-center gap-2 rounded-xl border bg-card/70 p-3.5 text-sm hover:border-foreground/25">
-        <GitPullRequest className="size-4 text-muted-foreground" />
-        <span className="flex-1">{t("home.prs")}</span>
-        <b className="tabular-nums">{prs}</b>
-        <ChevronRight className="size-4 text-muted-foreground" />
-      </Link>
       <h2 className={sectionTitle}>{t("home.activity")}</h2>
-      {log && log.length === 0 ? (
+      {log === null ? (
+        <div aria-hidden className="h-9 rounded-md bg-muted/50 motion-safe:animate-pulse" />
+      ) : log.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t("home.activity.empty")}</p>
       ) : (
         <ul className="flex flex-col">
-          {(log ?? []).map((e) => {
+          {log.map((e) => {
             const to = e.paneId ? panePath(e.paneId, session) : e.cardId ? cardPath(e.cardId) : null;
             const body = (
               <>

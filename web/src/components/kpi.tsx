@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { Link } from "react-router";
+
 import { cn } from "@/lib/utils";
 
 export const calm = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -23,14 +25,16 @@ export function useCountUp(to: number): number {
   return v;
 }
 
-export function Kpi({ label, value, note, tone, compact }: { label: string; value: number; note?: string; tone: string; compact?: boolean }) {
+export function Kpi({ label, value, note, tone, compact, to }: { label: string; value: number; note?: string; tone: string; compact?: boolean; to?: string }) {
   const shown = useCountUp(value);
-  return (
-    <div className={cn("relative overflow-hidden rounded-xl border bg-card/70 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25", compact ? "p-2.5" : "p-3.5")}>
+  const box = cn("relative block overflow-hidden rounded-xl border bg-card/70", compact ? "p-2.5" : "p-3.5", to && "transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25");
+  const body = (
+    <>
       <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />
       <span className={cn("block font-semibold uppercase text-muted-foreground", compact ? "truncate text-[10px] tracking-[0.08em]" : "text-[11px] tracking-[0.14em]")}>{label}</span>
       <div className={cn("mt-1.5 font-semibold leading-none tabular-nums", compact ? "text-2xl" : "text-3xl")}>{shown}</div>
       {note && !compact && <p className="mt-1.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{note}</p>}
-    </div>
+    </>
   );
+  return to ? <Link to={to} className={box}>{body}</Link> : <div className={box}>{body}</div>;
 }

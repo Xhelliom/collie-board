@@ -87,3 +87,17 @@ describe("AgentList — triage grouping", () => {
     expect(screen.getByText("Working").closest("h2")?.textContent).toMatch(/\(1\)/);
   });
 });
+
+describe("AgentList — pane names", () => {
+  it("titles an unnamed pane by its workspace, not by the agent every row shares", () => {
+    render(<AgentList agents={[agent({ status: "idle", workspaceLabel: "tablee" }), agent({ paneId: "w1:p2", status: "working", workspaceLabel: "collie" })]} onOpen={() => {}} />);
+    expect(screen.getByText("tablee").className).toMatch(/truncate/);
+    expect(screen.getByText("collie").className).toMatch(/truncate/);
+  });
+
+  it("keeps ctx % out of the truncating line", () => {
+    render(<AgentList agents={[agent({ ctxPct: 42 })]} onOpen={() => {}} />);
+    expect(screen.getByText(/ctx 42%/).className).toMatch(/shrink-0/);
+  });
+});
+

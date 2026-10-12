@@ -1,5 +1,6 @@
 import { Inbox } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AGENT_GROUPS, groupMembers, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
@@ -27,13 +28,14 @@ export function AgentList({
   groups = AGENT_GROUPS,
   emptyState = true,
 }: AgentListProps) {
+  const t = useT();
   if (agents.length === 0) {
     if (!emptyState) return null;
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
         <Inbox className="size-7" />
         <span className="text-sm">
-          {bridge === "connected" ? "No agents running." : "Waiting for Herdr…"}
+          {bridge === "connected" ? t("home.empty.none") : t("home.empty.waiting")}
         </span>
       </div>
     );
@@ -57,7 +59,7 @@ export function AgentList({
             )}
           >
             <span aria-hidden className={cn("size-2 shrink-0 rounded-full", g.dot)} />
-            {g.label}
+            {t(g.label)}
             <span className="font-semibold tabular-nums opacity-70">({members.length})</span>
           </h2>
           {g.key === "other" ? (

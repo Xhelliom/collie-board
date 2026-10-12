@@ -185,6 +185,13 @@ describe("matchesFilters", () => {
     ]);
   });
 
+  it("keeps only the statuses the home KPI sent us with", () => {
+    const s = (status: CardView["status"]) => card({ status });
+    const rows = [s("blocked"), s("orphaned"), s("ready")];
+    expect(rows.filter((c) => matchesFilters(c, { tag: null, autoOnly: false, statuses: ["blocked", "orphaned"] }))).toEqual(rows.slice(0, 2));
+    expect(rows.filter((c) => matchesFilters(c, { tag: null, autoOnly: false, statuses: null }))).toEqual(rows);
+  });
+
   it("isolates the cards the copilot filed on its own", () => {
     expect([auto, hand].filter((c) => matchesFilters(c, { tag: null, autoOnly: true }))).toEqual([
       auto,

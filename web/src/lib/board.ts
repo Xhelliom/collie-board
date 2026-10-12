@@ -433,10 +433,11 @@ export function tagsOf(cards: readonly CardView[]): string[] {
  */
 export function matchesFilters(
   card: CardView,
-  filters: { tag: string | null; autoOnly: boolean; phase?: string | null },
+  filters: { tag: string | null; autoOnly: boolean; phase?: string | null; statuses?: string[] | null },
 ): boolean {
   if (filters.tag && card.tag !== filters.tag) return false;
   if (filters.phase && card.phaseId !== filters.phase) return false;
+  if (filters.statuses && !filters.statuses.includes(card.status)) return false;
   // Any origin, not just the copilot's: the strip asks "what appeared without me?", and a filter
   // that answered it for one of the two writers would be a gauge that is quietly wrong.
   return !filters.autoOnly || card.origin !== null;

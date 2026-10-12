@@ -3,6 +3,16 @@ import { defineMessages } from "../define";
 // The home dashboard: the herd ring, the board's figures, one tile per repo, the quota rings.
 // `**bold**` in a message is rendered bold by `rich()` (lib/project-facts.tsx).
 export const home = defineMessages({
+  "home.title": { en: "Herd", fr: "Troupeau" },
+  "home.spaces": { en: { one: "{count} space", other: "{count} spaces" }, fr: { one: "{count} espace", other: "{count} espaces" } },
+  "home.group.needs": { en: "Needs you", fr: "À toi" },
+  "home.group.working": { en: "Working", fr: "En cours" },
+  "home.group.other": { en: "Idle · done", fr: "Au repos · terminés" },
+  "home.empty.none": { en: "No agents running.", fr: "Aucun agent en cours." },
+  "home.empty.waiting": { en: "Waiting for Herdr…", fr: "En attente de Herdr…" },
+  "home.kpi.title": { en: "Cards", fr: "Cartes" },
+  "update.restart": { en: "Bridge restart needed", fr: "Redémarrage du pont nécessaire" },
+  "update.available": { en: "Collie {version} available", fr: "Collie {version} disponible" },
   "home.eyebrow": { en: "Herd · live", fr: "Troupeau · en direct" },
   "home.sum.none": { en: "No agent is running.", fr: "Aucun agent en cours." },
   "home.sum.needs": {
@@ -14,10 +24,6 @@ export const home = defineMessages({
     en: { one: "**{count}** is working", other: "**{count}** are working" },
     fr: { one: "**{count}** travaille", other: "**{count}** travaillent" },
   },
-  "home.sum.review": {
-    en: { one: "**{count}** card to review", other: "**{count}** cards to review" },
-    fr: { one: "**{count}** carte à relire", other: "**{count}** cartes à relire" },
-  },
   "home.ring.aria": { en: "{needs} need you, {working} working, {idle} idle", fr: "{needs} t'attendent, {working} travaillent, {idle} au repos" },
   "home.ring.agents": { en: "agents", fr: "agents" },
   "home.ring.legend": { en: "{needs} · {working} · {idle}", fr: "{needs} · {working} · {idle}" },
@@ -25,10 +31,6 @@ export const home = defineMessages({
   "home.kpi.stuck": { en: "Stuck", fr: "Bloquées" },
   "home.kpi.ready": { en: "Ready", fr: "Prêtes" },
   "home.kpi.delivered": { en: "Delivered · 7 d", fr: "Livrées · 7 j" },
-  "home.kpi.reviewNote": { en: "waiting for your eyes", fr: "attendent ton regard" },
-  "home.kpi.stuckNote": { en: "blocked or orphaned", fr: "bloquées ou orphelines" },
-  "home.kpi.readyNote": { en: "can start now", fr: "peuvent démarrer" },
-  "home.kpi.deliveredNote": { en: "cards done this week", fr: "cartes finies cette semaine" },
   "home.projects": { en: "Projects", fr: "Projets" },
   "home.project.loose": { en: "No phase", fr: "Hors phase" },
   "home.project.idle": {
@@ -43,7 +45,7 @@ export const home = defineMessages({
   "home.usage.resets": { en: "resets {when}", fr: "se réinitialise {when}" },
   "home.usage.atLimit": { en: "at the limit", fr: "à la limite" },
   "home.prs": { en: "Open PRs", fr: "PR ouvertes" },
-  "home.activity": { en: "Activity", fr: "Activité" },
+  "home.activity": { en: "Latest alerts", fr: "Dernières alertes" },
   "home.activity.empty": { en: "Nothing yet.", fr: "Rien pour l'instant." },
   "home.activity.blocked": { en: "needs you", fr: "a besoin de toi" },
   "home.activity.done": { en: "finished", fr: "a terminé" },
