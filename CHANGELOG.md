@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.190.0] - 2026-10-12
+
+### Added
+
+- Page carte : frise verticale de jalons dérivée du journal (démarrée, gate, lead, renvois repliés, review, PR ouverte/fusionnée, terminée) (4d8af16)
+- Pastilles de jalons sur la tuile de carte et les étapes projet (`/api/project/facts` renvoie `milestoneEvents`) (4d8af16)
+
+### Changed
+
+- `/api/project/facts` : `repo` devient optionnel (sans lui, toutes les cartes) ; le board charge les facts avec ses cartes (4d8af16)
+
+### Fixed
+
+- Frise et pastilles : « Terminée » vient du passage de la carte à `done` ; jalons dérivés de tout le journal, non plafonné (4d8af16)
+
 ## [0.189.9] - 2026-10-12
 
 ### Fixed
