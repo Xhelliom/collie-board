@@ -50,4 +50,4 @@ Onglets de Réglages (la page était trop longue), `overflow-x-auto` sur les str
 Rendu 390 px non vérifié (pas de navigateur). Les points 12, 13 et 17 sont à confirmer visuellement avant correction.
 
 ## Hors périmètre
-La page carte (`card/:cardId` : commandes de session, fusion et ouverture de la PR) n'a pas été auditée.
+La page carte (`card/:cardId`), le board et les PRs : voir [board, détail d'une carte et PRs](./board-d-tail-d-une-carte-et-prs.md).
