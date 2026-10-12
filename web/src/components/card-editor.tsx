@@ -104,7 +104,7 @@ export function CardEditor({
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
 
@@ -114,7 +114,7 @@ export function CardEditor({
             value={spec}
             onChange={(e) => setSpec(e.target.value)}
             rows={8}
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
 
@@ -127,7 +127,7 @@ export function CardEditor({
                 onChange={(e) =>
                   setAcceptance((list) => list.map((v, j) => (j === i ? e.target.value : v)))
                 }
-                className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="h-11 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
               />
               <button
                 type="button"
@@ -158,7 +158,7 @@ export function CardEditor({
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            className="h-11 rounded-lg border border-border bg-background px-3 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="h-11 rounded-lg border border-border bg-background px-3 font-mono text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </label>
         {card.branch && (
@@ -189,9 +189,12 @@ export function CardEditor({
           onChange={setDependsOn}
         />
 
-        <Button onClick={save} disabled={!title.trim() || saving} className="mt-1 h-11">
-          {saving ? t("editor.saving") : t("editor.save")}
-        </Button>
+        {/* Sticky: with the keyboard open the end of the form is off screen, and so was Save. */}
+        <div className="sticky bottom-0 -mx-1 bg-background px-1 pb-1 pt-2">
+          <Button onClick={save} disabled={!title.trim() || saving} className="h-11 w-full">
+            {saving ? t("editor.saving") : t("editor.save")}
+          </Button>
+        </div>
       </div>
     </BottomSheet>
   );
@@ -224,6 +227,8 @@ export function LinkPicker({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const shown = q.trim() ? cards.filter((c) => c.title.toLowerCase().includes(q.trim().toLowerCase())) : cards;
   const selected = cards.find((c) => c.id === value);
 
   return (
@@ -252,10 +257,19 @@ export function LinkPicker({
 
       {open && (
         <div className="flex max-h-44 flex-col gap-1 overflow-y-auto pt-1">
+          {cards.length > 8 && (
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t("editor.filterCards")}
+              className="sticky top-0 h-11 shrink-0 rounded-lg border border-border bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:text-sm"
+            />
+          )}
           <PickerRow active={value === null} onClick={() => { onChange(null); setOpen(false); }}>
             <span className="text-muted-foreground">{t("editor.nothing")}</span>
           </PickerRow>
-          {cards.map((c) => (
+          {shown.map((c) => (
             <PickerRow
               key={c.id}
               active={value === c.id}

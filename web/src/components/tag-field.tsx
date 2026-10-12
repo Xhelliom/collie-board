@@ -57,7 +57,7 @@ export function TagField({
         autoCorrect="off"
         spellCheck={false}
         maxLength={TAG_MAX_CHARS}
-        className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <datalist id={listId}>
         {tags.map((tag) => (

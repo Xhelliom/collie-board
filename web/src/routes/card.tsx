@@ -104,7 +104,7 @@ import { dependencyInfo, dependencyMet, integrationHistory, prLabel, prSentence 
 import { commandsFor } from "@/lib/agent-commands";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import type { CardData } from "@/lib/board-loaders";
-import { timeAgo } from "@/lib/format";
+import { ago as timeAgo } from "@/lib/project-facts";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
@@ -487,27 +487,9 @@ export function CardRoute() {
         rightTrail={
           card && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-2"
-                onClick={() => {
-                  // Same two-tap confirm as the Rework section below — same `confirmRework` state,
-                  // so the two never disagree about whether a hand edit is about to be discarded.
-                  if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
-                    setConfirmRework(true);
-                    return;
-                  }
-                  setConfirmRework(false);
-                  void reformulate();
-                }}
-              >
-                <Sparkles className="size-4" />
-                {confirmRework ? t("card.replaceEdits") : t("card.reformulate")}
-              </Button>
-              <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)} aria-label={t("card.edit")}>
                 <Pencil className="size-4" />
-                {t("card.edit")}
+                <span className="hidden sm:inline">{t("card.edit")}</span>
               </Button>
               <button
                 type="button"
@@ -527,8 +509,9 @@ export function CardRoute() {
           className="flex min-w-0 flex-1 items-center gap-1 text-left"
         >
           <span className="shrink-0 text-sm text-muted-foreground">{t("board.title")}</span>
-          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
+          {/* The <h1> below says the title; on a phone the crumb is only the way back. */}
+          <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
+          <span className="hidden min-w-0 flex-1 truncate text-[15px] font-semibold sm:block">
             {card?.title ?? ""}
           </span>
         </button>
@@ -793,29 +776,6 @@ export function CardRoute() {
               </div>
 
               <div className="flex min-w-0 flex-col gap-[22px] order-1">
-                {detail && detail.children.length > 0 && (
-                  <Section label={t("card.section.subtasks")}>
-                    <SubtaskList
-                      container={card}
-                      childCards={childCards}
-                      byId={byId}
-                      session={root?.session}
-                      onOpen={(id) => navigate(cardPath(id))}
-                      onReorder={reorderSubtask}
-                      onNewSubtask={newSubtask}
-                      onLinkExisting={linkExisting}
-                      onDetach={detach}
-                      onDependsOn={setSubtaskDependsOn}
-                      onDelete={deleteSubtask}
-                      onConvert={convertSubtask}
-                      linkable={boardCards.filter(
-                        (c) => c.id !== card.id && c.parentId !== card.id && !c.parentId,
-                      )}
-                      dependsOnCandidates={boardCards.filter((c) => c.id !== card.id)}
-                    />
-                  </Section>
-                )}
-
                 {/* Right under the title, because it is a question about THIS card's right to exist,
                     and it has to be answerable before anyone reads the spec below it. */}
                 {detail?.duplicate && (
@@ -849,6 +809,29 @@ export function CardRoute() {
                     <Sparkles className="size-3.5 shrink-0" />
                     <span>{t("card.copilotBusy")}</span>
                   </div>
+                )}
+
+                {detail && detail.children.length > 0 && (
+                  <Section label={t("card.section.subtasks")}>
+                    <SubtaskList
+                      container={card}
+                      childCards={childCards}
+                      byId={byId}
+                      session={root?.session}
+                      onOpen={(id) => navigate(cardPath(id))}
+                      onReorder={reorderSubtask}
+                      onNewSubtask={newSubtask}
+                      onLinkExisting={linkExisting}
+                      onDetach={detach}
+                      onDependsOn={setSubtaskDependsOn}
+                      onDelete={deleteSubtask}
+                      onConvert={convertSubtask}
+                      linkable={boardCards.filter(
+                        (c) => c.id !== card.id && c.parentId !== card.id && !c.parentId,
+                      )}
+                      dependsOnCandidates={boardCards.filter((c) => c.id !== card.id)}
+                    />
+                  </Section>
                 )}
 
                 {card.spec && (

@@ -30,7 +30,7 @@ export const fetchFacts = (repo: string, signal?: AbortSignal): Promise<{ facts:
  * keep. Coarse like {@link duration}. (lib/format's timeAgo is upstream's and English-only.)
  */
 export function ago(ts: number, now = Date.now()): string {
-  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto", style: "narrow" });
+  const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: "auto", style: "short" });
   const min = Math.max(0, Math.round((now - ts) / 60_000));
   if (min < 1) return rtf.format(0, "second");
   if (min < 60) return rtf.format(-min, "minute");
