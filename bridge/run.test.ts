@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 
 import { BoardDb, isMaxParallel, type Card } from "./db.ts";
 import type { GateResult } from "./gate.ts";
+import type { GitRunner, PrStatus } from "./git.ts";
+import { mergeWhenReady, notePrOutcome } from "./integrate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
@@ -22,7 +24,10 @@ const flush = async () => {
 };
 
 /** A fake world: every port records its call; the lead answers from a queue. */
-function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object } = {}) {
+function world(
+  db: BoardDb,
+  opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void } = {},
+) {
   const calls: string[] = [];
   const checks: CheckDecision[] = [];
   const triages: TriageDecision[] = [];
@@ -32,6 +37,9 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
   let gate: string | null = null;
   let commits: number | null = 1;
   const gates: GateResult[] = [];
+  /** What GitHub says of a predecessor's PR when the coordinator asks (`refreshPr`). */
+  let predPr: PrStatus | null = null;
+  const clock = { now: 1_000_000_000_000 };
   const ports: RunPorts = {
     lead: {
       check: async (i) => (seen.push(i), checks.shift() ?? { decision: "finished", reason: "ok" }) ?? { decision: "finished", reason: "ok" },
@@ -48,10 +56,19 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
     openPr: async (c) => {
       calls.push(`pr ${c.title}`);
       if (pr.ok) db.recordEvent(c.id, "card.pr_opened", {});
-      if (opts.merge) db.recordRunEvent(c.id, "run.merge", { runId: db.getCard(c.id)!.runId!, merged: false, reason: "ci", ...opts.merge });
+      // What `landPr` leaves: GitHub's auto-merge armed, or — refused — the board's `run.merge` answer.
+      if (pr.ok && opts.merge) db.recordRunEvent(c.id, "run.merge", { runId: db.getCard(c.id)!.runId!, merged: false, reason: "ci", ...opts.merge });
+      else if (pr.ok) db.recordEvent(c.id, "card.automerge_armed", {});
       return pr;
     },
-    land: async (c) => void calls.push(`land ${c.title}`),
+    land: async (c) => {
+      calls.push(`land ${c.title}`);
+      opts.onLand?.(c);
+    },
+    refreshPr: async (c) => {
+      calls.push(`refresh ${c.title}`);
+      notePrOutcome(db, c.id, predPr);
+    },
     resolveConflict: async (c) => {
       calls.push(`resolve ${c.title}`);
       db.recordEvent(c.id, "card.resolve_requested", {});
@@ -98,8 +115,10 @@ function world(db: BoardDb, opts: { slots?: number; reviewing?: boolean; stat?: 
     setPr: (r: typeof pr) => (pr = r),
     setGate: (cmd: string | null) => (gate = cmd),
     setCommits: (n: number | null) => (commits = n),
+    setPredPr: (p: PrStatus | null) => (predPr = p),
+    clock,
     gates,
-    coord: new RunCoordinator(db, ports),
+    coord: new RunCoordinator(db, ports, () => clock.now),
     ports,
   };
 }
@@ -526,13 +545,13 @@ describe("RunCoordinator (ADR 0017)", () => {
 });
 
 describe("the PR's checks (ADR 0029)", () => {
-    const setup = (merge: object) => {
+    const setup = (merge: object | undefined, onLand?: (db: BoardDb, c: Card) => void) => {
       const db = new BoardDb(":memory:");
       const a = db.createCard({ title: "a", repoPath: "/r" });
       db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
       db.openSession({ cardId: a.id, paneId: "p" });
       land(db, a);
-      return { db, a, w: world(db, { merge }) };
+      return { db, a, w: world(db, { merge, onLand: onLand && ((c) => onLand(db, c)) }) };
     };
     const tick = async (w: ReturnType<typeof world>) => {
       w.coord.update(snap({ p: "idle" }));
@@ -557,11 +576,76 @@ describe("the PR's checks (ADR 0029)", () => {
       expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "prompt" });
     });
 
-    it("no run.merge verdict: filed as before", async () => {
-      const { w } = setup({});
+    it("GitHub's auto-merge armed: filed — GitHub merges on green (ADR 0017 step 7)", async () => {
+      const { w } = setup(undefined);
       await tick(w);
       await tick(w);
       expect(w.calls).toEqual(["pr a", "done a"]);
+    });
+
+    it("GitHub has not worked mergeability out: a wait, the card stays open, and is filed once the next ask merges", async () => {
+      const { db, a, w } = setup({ wait: true, reason: "GitHub has not worked out mergeability yet — waiting" }, (db, c) => {
+        db.recordRunEvent(c.id, "run.merge", { runId: c.runId!, merged: true, reason: "green" });
+        db.recordEvent(c.id, "card.pr_merged", {});
+      });
+      await tick(w); // the lead's verdict
+      await tick(w); // the PR
+      expect(w.calls).toEqual(["pr a"]);
+      expect(db.getCard(a.id)!.status).toBe("review");
+      await tick(w);
+      expect(w.calls).toEqual(["pr a", "land a", "done a"]);
+    });
+
+    it("a refusal that is not a wait halts the card for the operator — never filed with its PR open (ADR 0035)", async () => {
+      // GitHub unreadable is a wait until MAX_UNREADABLE asks in a row (ADR 0036); this is what is left after.
+      const { db, a, w } = setup({ reason: "could not read the PR's state from GitHub 5 times in a row — not merging" });
+      await tick(w);
+      await tick(w);
+      expect(w.calls).toEqual(["pr a"]);
+      expect(db.getCard(a.id)!.status).toBe("review");
+      expect(events(db, a, "run.halted")[0]!.payload).toMatchObject({ reason: expect.stringContaining("could not read the PR") });
+    });
+
+    it("through the real mergeWhenReady: GitHub unreadable once, then readable — a wait, no halt, the card is filed", async () => {
+      const { db, a, w } = setup(undefined);
+      let readable = false;
+      const gh: GitRunner = async (args) => {
+        const ok = (stdout = "") => ({ ok: true, stdout, stderr: "" });
+        if (args[0] === "pr" && args[1] === "merge") return ok();
+        if (args.includes("statusCheckRollup")) return ok(JSON.stringify({ statusCheckRollup: [{ __typename: "CheckRun", name: "ci", status: "COMPLETED", conclusion: "SUCCESS" }] }));
+        if (!readable) return { ok: false, stdout: "", stderr: "error connecting to api.github.com" };
+        return ok(JSON.stringify({ state: "OPEN", url: "https://gh/o/r/pull/1", mergedAt: null, mergeable: "MERGEABLE", createdAt: "2020-01-01T00:00:00Z" }));
+      };
+      // What `prForCard` + `landPr` do once GitHub's auto-merge is refused: open the PR, then ask to merge.
+      w.ports.openPr = async (c, gate) => {
+        w.calls.push(`pr ${c.title}`);
+        db.recordEvent(c.id, "card.pr_opened", { base: "main" });
+        db.recordEvent(c.id, "card.automerge_refused", {});
+        await mergeWhenReady(db, c.id, "/r", "board/a", gate, gh);
+        return { ok: true };
+      };
+      w.ports.land = async (c, gate) => {
+        w.calls.push(`land ${c.title}`);
+        await mergeWhenReady(db, c.id, "/r", "board/a", gate, gh);
+      };
+      await tick(w); // the lead's verdict
+      await tick(w); // the PR: GitHub unreadable — a wait
+      expect(events(db, a, "run.merge")[0]!.payload).toMatchObject({ merged: false, wait: true });
+      expect(events(db, a, "run.halted")).toHaveLength(0);
+      readable = true;
+      w.clock.now += 30_000;
+      await tick(w);
+      expect(w.calls).toEqual(["pr a", "land a", "done a"]);
+      expect(events(db, a, "run.halted")).toHaveLength(0);
+      expect(events(db, a, "card.pr_merged")).toHaveLength(1);
+    });
+
+    it("a conflict GitHub found after the PR opened goes to the worker's agent, not to done", async () => {
+      const { db, a, w } = setup({ conflict: true, reason: "the PR has a conflict — not merging" });
+      await tick(w);
+      await tick(w);
+      expect(w.calls).toEqual(["pr a", "resolve a"]);
+      expect(db.getCard(a.id)!.status).toBe("review");
     });
   });
 
@@ -587,6 +671,62 @@ describe("the PR's checks (ADR 0029)", () => {
     expect(checkPrompt({ ...brief, statSummary: "", outPath: "o.json" })).not.toBe(
       checkPrompt({ ...brief, category: null, statSummary: "", outPath: "o.json" }),
     );
+  });
+});
+
+describe("a predecessor filed on GitHub's auto-merge armed (ADR 0036)", () => {
+  const setup = () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", baseRef: "main" });
+    const b = db.createCard({ title: "b", repoPath: "/r", baseRef: "main", status: "ready", dependsOn: a.id });
+    db.createRun({ repoPath: "/r", cardIds: [a.id, b.id], foldInCap: 0 });
+    db.patchCard(a.id, { branch: "board/a" });
+    db.recordEvent(a.id, "card.pr_opened", { base: "main" });
+    db.recordEvent(a.id, "card.automerge_armed", {});
+    db.setStatus(a.id, "done", "auto-merge armed");
+    const w = world(db);
+    const tick = async () => {
+      w.coord.update(snap());
+      await flush();
+    };
+    const open = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: false, createdAt: null });
+    return { db, a, b, w, tick, open };
+  };
+
+  it("the dependent waits — said once — until the board has seen the merge, then starts from its base", async () => {
+    const { db, a, b, w, tick, open } = setup();
+    w.setPredPr(open("open"));
+    await tick();
+    await tick(); // throttled: GitHub is not asked again within 30 s
+    expect(w.calls).toEqual(["refresh a"]);
+    expect(events(db, b, "run.decision")[0]!.payload).toMatchObject({ decision: "wait", reason: expect.stringContaining("“a”") });
+    w.clock.now += 30_000;
+    await tick();
+    expect(events(db, b, "run.decision")).toHaveLength(1);
+
+    w.setPredPr(open("merged"));
+    w.clock.now += 30_000;
+    await tick(); // the merge is journaled on the predecessor…
+    expect(events(db, a, "card.pr_merged")).toHaveLength(1);
+    await tick(); // …and the dependent starts — `hasLanded` makes it fork from its base (ADR 0034)
+    expect(w.calls.at(-1)).toBe("start b");
+  });
+
+  it("a predecessor's PR closed unmerged halts the dependent for the operator", async () => {
+    const { db, b, w, tick, open } = setup();
+    w.setPredPr(open("closed"));
+    await tick();
+    expect(w.calls).toEqual(["refresh a"]);
+    expect(events(db, b, "run.halted")[0]!.payload).toMatchObject({ reason: expect.stringContaining("closed without merging") });
+    await tick();
+    expect(w.calls).toEqual(["refresh a"]);
+  });
+
+  it("a predecessor whose merge is already journaled starts the dependent at once", async () => {
+    const { db, a, w, tick } = setup();
+    db.recordEvent(a.id, "card.pr_merged", {});
+    await tick();
+    expect(w.calls).toEqual(["start b"]);
   });
 });
 

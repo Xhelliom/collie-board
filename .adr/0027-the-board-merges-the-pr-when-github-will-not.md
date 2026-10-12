@@ -1,6 +1,6 @@
 # 0027 — The board merges the PR itself when GitHub's auto-merge is not there
 
-**Status:** Accepted
+**Status:** Accepted — superseded by [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) on "`UNKNOWN` is a skip, not a wait"
 **Date:** 2026-10-10
 **Amends:** [0017](./0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md), step 7 (not edited: this is its successor)
 

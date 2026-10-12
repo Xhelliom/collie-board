@@ -35,6 +35,11 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "journal.prOpened": { en: "Pull request opened", fr: "Pull request ouverte" },
   "journal.prMerged": { en: "Pull request merged", fr: "Pull request fusionnée" },
   "journal.prClosed": { en: "Pull request closed without merging", fr: "Pull request fermée sans fusion" },
+  "journal.baseMoved": {
+    en: "Base moved from {from} to {to}: this branch still carries {from}'s commits — merge or rebase {to} into it before its PR",
+    fr: "Base déplacée de {from} vers {to} : cette branche porte encore les commits de {from} — merger ou rebaser {to} dedans avant sa PR",
+  },
+  "journal.lead.waiting": { en: "Run waiting", fr: "Le run attend" },
   "milestone.started": { en: "Started", fr: "Démarrée" },
   "milestone.gate.ok": { en: "Gate green", fr: "Gate verte" },
   "milestone.gate.ko": { en: "Gate red", fr: "Gate rouge" },

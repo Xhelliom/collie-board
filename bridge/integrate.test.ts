@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,7 +29,9 @@ import type { Config } from "./config.ts";
 import {
   armAutoMerge,
   landPr,
+  MAX_UNREADABLE,
   mergeWhenReady,
+  notePrOutcome,
   cleanupCard,
   mergeCard,
   rebindDependents,
@@ -106,7 +107,13 @@ describe("parsePrView", () => {
       mergedAt: Date.parse("2026-08-24T15:37:36Z"),
       conflicting: false,
       mergeable: false,
+      createdAt: null,
     });
+  });
+
+  it("reads when the PR was opened — an empty rollup is judged against it", () => {
+    const got = parsePrView('{"state":"OPEN","url":"https://gh/o/r/pull/7","createdAt":"2026-10-12T10:00:00Z"}');
+    expect(got?.createdAt).toBe(Date.parse("2026-10-12T10:00:00Z"));
   });
 
   it("says an open PR conflicts only once GitHub has computed it", () => {
@@ -137,6 +144,7 @@ describe("parsePrView", () => {
       mergedAt: null,
       conflicting: false,
       mergeable: false,
+      createdAt: null,
     });
   });
 
@@ -154,7 +162,7 @@ describe("prStatusOf", () => {
       "pr view": { stdout: '{"state":"MERGED","mergedAt":"2026-08-24T15:37:36Z","url":"https://gh/o/r/pull/1"}' },
     });
     expect((await prStatusOf("/repo", "board/x", git))?.state).toBe("merged");
-    expect(calls[0]).toEqual(["pr", "view", "board/x", "--json", "state,mergedAt,url,mergeable"]);
+    expect(calls[0]).toEqual(["pr", "view", "board/x", "--json", "state,mergedAt,url,mergeable,createdAt"]);
   });
 
   it("degrades to null rather than to an error — no gh, no auth, no remote, no PR", async () => {
@@ -656,141 +664,254 @@ describe("armAutoMerge — GitHub merges on green, and its refusal is a note, no
   });
 });
 
-describe("landPr — the board merges itself when GitHub's auto-merge is not there (ADR 0027)", () => {
-  const view = (mergeable: string) => JSON.stringify({ state: "OPEN", url: "https://gh/o/r/pull/1", mergedAt: null, mergeable });
-  /** A gh double: auto-merge refused, `pr view` says `mergeable`, a direct merge succeeds. */
-  const setup = (mergeable: string, auto = false) => {
-    const store = new BoardDb(":memory:");
-    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
-    const calls: string[][] = [];
-    const gh: GitRunner = async (args) => {
-      calls.push(args);
-      if (args.includes("--auto")) return auto ? { ok: true, stdout: "", stderr: "" } : { ok: false, stdout: "", stderr: "Auto merge is not allowed for this repository" };
-      if (args.includes("statusCheckRollup")) return { ok: true, stdout: '{"statusCheckRollup":[]}', stderr: "" };
-      if (args[1] === "view") return { ok: true, stdout: view(mergeable), stderr: "" };
-      return { ok: true, stdout: "", stderr: "" };
-    };
-    const merges = () => store.listEvents(card.id).filter((e) => e.type === "run.merge").map((e) => e.payload as { runId: string; merged: boolean; reason: string });
-    return { store, card, gh, calls, merges };
+/**
+ * A `gh` double that answers by SUBCOMMAND — `pr merge --auto`, `pr merge`, `pr view` asking for the
+ * PR or for its checks, `run view` — never by argument position, and refuses any call it does not
+ * know, so a new `gh` call in the code under test fails here instead of reading a wrong default.
+ */
+function ghDouble(over: {
+  view?: () => Record<string, unknown>;
+  rollup?: () => object[];
+  auto?: boolean;
+  merge?: boolean;
+} = {}) {
+  const calls: string[][] = [];
+  const at = (args: string[], flag: string) => (args.includes(flag) ? args[args.indexOf(flag) + 1] ?? "" : null);
+  const gh: GitRunner = async (args) => {
+    calls.push(args);
+    const ok = (stdout = "") => ({ ok: true, stdout, stderr: "" });
+    const [cmd, sub] = args;
+    if (cmd === "pr" && sub === "merge" && args.includes("--auto")) {
+      return over.auto ? ok() : { ok: false, stdout: "", stderr: "Auto merge is not allowed for this repository" };
+    }
+    if (cmd === "pr" && sub === "merge") return over.merge === false ? { ok: false, stdout: "", stderr: "nope" } : ok();
+    const fields = cmd === "pr" && sub === "view" ? at(args, "--json") : null;
+    if (fields === "statusCheckRollup") return ok(JSON.stringify({ statusCheckRollup: over.rollup?.() ?? [] }));
+    if (fields?.split(",").includes("mergeable")) {
+      return ok(JSON.stringify({ state: "OPEN", url: "https://gh/o/r/pull/1", mergedAt: null, mergeable: "MERGEABLE", createdAt: OLD, ...over.view?.() }));
+    }
+    if (cmd === "run" && sub === "view") return ok("l1\nTS2554 boom");
+    throw new Error(`gh double: unexpected call ${args.join(" ")}`);
   };
-  const merged = (t: { store: BoardDb; card: { id: string } }) => t.store.listEvents(t.card.id).filter((e) => e.type === "card.pr_merged").length;
-  const direct = (calls: string[][]) => calls.some((a) => a[0] === "pr" && a[1] === "merge" && !a.includes("--auto"));
+  return { gh, calls };
+}
+/** A PR opened long before "now" (well past CHECKS_GRACE_MS), and one opened a moment ago. */
+const NOW = Date.parse("2026-10-12T12:00:00Z");
+const OLD = "2026-10-12T10:00:00Z";
+const FRESH = "2026-10-12T11:59:30Z";
+
+describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () => {
+  const green = { runId: "r1", ok: true, why: "gate green" };
+  const setup = (over: Parameters<typeof ghDouble>[0] = {}) => {
+    // The journal's clock: the PR was opened (pushed) long ago unless a test says otherwise.
+    const clock = { t: Date.parse(OLD) };
+    const store = new BoardDb(":memory:", () => clock.t);
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    store.recordEvent(card.id, "card.pr_opened", { url: "https://gh/o/r/pull/1" });
+    const { gh, calls } = ghDouble(over);
+    const merges = () => store.listEvents(card.id).filter((e) => e.type === "run.merge").map((e) => e.payload as Record<string, unknown>);
+    const merged = () => store.listEvents(card.id).filter((e) => e.type === "card.pr_merged").length;
+    const direct = () => calls.some((a) => a[0] === "pr" && a[1] === "merge" && !a.includes("--auto"));
+    const land = (gate = green) => landPr(store, card.id, "/repo", "board/x", gate, gh);
+    const again = (gate = green) => mergeWhenReady(store, card.id, "/repo", "board/x", gate, gh, () => NOW);
+    return { store, clock, card, gh, calls, merges, merged, direct, land, again };
+  };
 
   it("merges directly once auto-merge is refused, gate green, no conflict", async () => {
-    const t = setup("MERGEABLE");
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
+    const t = setup();
+    await t.land();
     expect(t.calls.find((a) => a[1] === "merge" && !a.includes("--auto"))).toEqual(["pr", "merge", "board/x", "--squash"]);
     expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("auto-merge unavailable") }]);
-    expect(merged(t)).toBe(1);
+    expect(t.merged()).toBe(1);
   });
 
   it("journals no pr_merged when the direct merge is refused", async () => {
-    const t = setup("MERGEABLE");
-    const gh: GitRunner = async (a, cwd) => (a[1] === "merge" && !a.includes("--auto") ? { ok: false, stdout: "", stderr: "nope" } : t.gh(a, cwd));
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh);
+    const t = setup({ merge: false });
+    await t.land();
     expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("refused") });
-    expect(merged(t)).toBe(0);
+    expect(t.merged()).toBe(0);
   });
 
   it("leaves a GitHub-armed auto-merge alone", async () => {
-    const t = setup("MERGEABLE", true);
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
-    expect(direct(t.calls)).toBe(false);
+    const t = setup({ auto: true });
+    await t.land();
+    expect(t.direct()).toBe(false);
     expect(t.merges()).toEqual([]);
+    expect(t.store.listEvents(t.card.id)[0]?.type).toBe("card.automerge_armed");
   });
 
   it("never merges on a red gate", async () => {
-    const t = setup("MERGEABLE");
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: false, why: "gate red" }, t.gh);
-    expect(direct(t.calls)).toBe(false);
+    const t = setup();
+    await t.land({ runId: "r1", ok: false, why: "gate red" });
+    expect(t.direct()).toBe(false);
     expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("gate red") });
-    expect(merged(t)).toBe(0);
+    expect(t.merged()).toBe(0);
   });
 
-  it("never merges a conflicting PR", async () => {
-    const t = setup("CONFLICTING");
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
-    expect(direct(t.calls)).toBe(false);
-    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("conflict") });
+  it("never merges a conflicting PR, and says it is a conflict", async () => {
+    const t = setup({ view: () => ({ mergeable: "CONFLICTING" }) });
+    await t.land();
+    expect(t.direct()).toBe(false);
+    expect(t.merges()[0]).toMatchObject({ merged: false, conflict: true });
   });
 
-  it("never merges while GitHub has not worked mergeability out", async () => {
-    const t = setup("UNKNOWN");
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh, 0);
-    expect(direct(t.calls)).toBe(false);
-    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("re-check") });
+  it("UNKNOWN mergeability is a wait, journaled once — no timer, no skip (ADR 0036)", async () => {
+    const t = setup({ view: () => ({ mergeable: "UNKNOWN" }) });
+    await t.land();
+    await t.again();
+    expect(t.direct()).toBe(false);
+    expect(t.merges()).toEqual([{ runId: "r1", merged: false, wait: true, reason: expect.stringContaining("mergeability") }]);
+    // The checks are not even asked while GitHub has not answered the first question.
+    expect(t.calls.some((a) => a.includes("statusCheckRollup"))).toBe(false);
   });
 
-  it("merges when the single re-check finds an UNKNOWN PR MERGEABLE", async () => {
-    const t = setup("UNKNOWN");
-    let views = 0;
-    const gh: GitRunner = async (a, cwd) =>
-      a[1] === "view" && !a.includes("statusCheckRollup") ? { ok: true, stdout: view(++views > 1 ? "MERGEABLE" : "UNKNOWN"), stderr: "" } : t.gh(a, cwd);
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh, 0);
-    expect(views).toBe(2);
-    expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("the board merged it") }]);
-    expect(merged(t)).toBe(1);
+  it("the next ask merges once GitHub has worked it out", async () => {
+    let mergeable = "UNKNOWN";
+    const t = setup({ view: () => ({ mergeable }) });
+    await t.again();
+    mergeable = "MERGEABLE";
+    await t.again();
+    expect(t.merges().map((m) => m.merged)).toEqual([true, false]); // newest first
+    expect(t.merged()).toBe(1);
   });
 
-  it("does not merge when the re-check turns UNKNOWN into CONFLICTING", async () => {
-    const t = setup("UNKNOWN");
-    let views = 0;
-    const gh: GitRunner = async (a, cwd) =>
-      a[1] === "view" && !a.includes("statusCheckRollup") ? { ok: true, stdout: view(++views > 1 ? "CONFLICTING" : "UNKNOWN"), stderr: "" } : t.gh(a, cwd);
-    await landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, gh, 0);
-    expect(direct(t.calls)).toBe(false);
-    expect(t.merges()[0]).toMatchObject({ merged: false, reason: expect.stringContaining("conflict") });
+  describe("GitHub unreadable (network, gh logged out, rate limit) is a wait, up to MAX_UNREADABLE in a row (ADR 0036)", () => {
+    it("a passing failure, then a readable answer: a wait, then the merge — never a skip", async () => {
+      let down = true;
+      const t = setup();
+      const flaky: GitRunner = async (args) => (down && args.includes("--json") ? { ok: false, stdout: "", stderr: "connection reset" } : t.gh(args, "/repo"));
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, flaky, () => NOW);
+      expect(t.merges()).toEqual([{ runId: "r1", merged: false, wait: true, reason: expect.stringContaining("could not read the PR's state") }]);
+      down = false;
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, flaky, () => NOW);
+      expect(t.merged()).toBe(1);
+    });
+
+    it("the checks unreadable count too; MAX_UNREADABLE in a row is a skip the caller halts on — journaled once until then", async () => {
+      const t = setup();
+      const noChecks: GitRunner = async (args) => (args.includes("statusCheckRollup") ? { ok: false, stdout: "", stderr: "API rate limit exceeded" } : t.gh(args, "/repo"));
+      for (let i = 0; i < MAX_UNREADABLE - 1; i++) await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, noChecks, () => NOW);
+      expect(t.merges()).toHaveLength(1);
+      expect(t.merges()[0]).toMatchObject({ wait: true });
+      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, noChecks, () => NOW);
+      expect(t.merges()[0]).toEqual({ runId: "r1", merged: false, reason: expect.stringContaining(`${MAX_UNREADABLE} times in a row`) });
+      expect(t.direct()).toBe(false);
+    });
+  });
+
+  it("a PR journaled closed, reopened and merged on GitHub, is journaled merged — the land step does not spin for ever", async () => {
+    const t = setup({ view: () => ({ state: "MERGED", mergedAt: "2026-10-12T11:00:00Z" }) });
+    t.store.recordEvent(t.card.id, "card.pr_closed", { url: "https://gh/o/r/pull/1" });
+    await t.again();
+    expect(t.merged()).toBe(1);
+    await t.again();
+    expect(t.merged()).toBe(1);
+  });
+
+  it("a PR found already merged — GitHub's auto-merge, a human — is journaled as merged, not skipped", async () => {
+    const t = setup({ view: () => ({ state: "MERGED", mergedAt: "2026-10-12T11:00:00Z" }) });
+    await t.again();
+    expect(t.direct()).toBe(false);
+    expect(t.merges()).toEqual([]);
+    expect(t.merged()).toBe(1);
   });
 
   describe("the PR's GitHub checks (ADR 0029)", () => {
-    const withChecks = (rollup: object[]) => {
-      const t = setup("MERGEABLE");
-      const gh: GitRunner = async (a, cwd) => {
-        if (a[1] === "view" && a.includes("statusCheckRollup")) return { ok: true, stdout: JSON.stringify({ statusCheckRollup: rollup }), stderr: "" };
-        if (a[0] === "run") return { ok: true, stdout: "l1\nTS2554 boom", stderr: "" };
-        return t.gh(a, cwd);
-      };
-      return { ...t, gh };
-    };
-    const run = (t: ReturnType<typeof withChecks>) => landPr(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
     const done = { __typename: "CheckRun", name: "ci", status: "COMPLETED" };
 
     it("merges on green", async () => {
-      const t = withChecks([{ ...done, conclusion: "SUCCESS" }]);
-      await run(t);
-      expect(direct(t.calls)).toBe(true);
+      const t = setup({ rollup: () => [{ ...done, conclusion: "SUCCESS" }] });
+      await t.again();
+      expect(t.direct()).toBe(true);
     });
-    it("merges when there is no check at all", async () => {
-      const t = withChecks([]);
-      await run(t);
-      expect(direct(t.calls)).toBe(true);
+
+    it("an empty rollup on a young PR is a wait — GitHub has not registered the checks yet", async () => {
+      const t = setup({ view: () => ({ createdAt: FRESH }) });
+      await t.again();
+      expect(t.direct()).toBe(false);
+      expect(t.merges()[0]).toMatchObject({ merged: false, wait: true });
     });
-    it("waits on an empty rollup when the repo has a PR workflow, merges when it has none", async () => {
-      const repo = mkdtempSync(join(tmpdir(), "wf-"));
-      const gate = { runId: "r1", ok: true, why: "gate green" };
-      const t = withChecks([]);
-      await landPr(t.store, t.card.id, repo, "board/x", gate, t.gh);
-      expect(direct(t.calls)).toBe(true);
-      mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
-      writeFileSync(join(repo, ".github", "workflows", "ci.yml"), "on:\n  pull_request:\n");
-      const w = withChecks([]);
-      await landPr(w.store, w.card.id, repo, "board/x", gate, w.gh);
-      expect(direct(w.calls)).toBe(false);
-      expect(w.merges()[0]).toMatchObject({ merged: false, wait: true });
+
+    it("an empty rollup on an older PR is a repo with no CI: it merges", async () => {
+      const t = setup({ view: () => ({ createdAt: OLD }) });
+      await t.again();
+      expect(t.direct()).toBe(true);
     });
+
+    it("an empty rollup on a PR whose age GitHub did not give is read against the journaled push — never an endless wait", async () => {
+      const t = setup({ view: () => ({ createdAt: undefined }) });
+      await t.again();
+      expect(t.direct()).toBe(true);
+    });
+
+    it("a re-push restarts the grace: pr_updated a moment ago, the PR itself old, an empty rollup — a wait", async () => {
+      const t = setup({ view: () => ({ createdAt: OLD }) });
+      t.clock.t = Date.parse(FRESH);
+      t.store.recordEvent(t.card.id, "card.pr_updated", { url: "https://gh/o/r/pull/1" });
+      await t.again();
+      expect(t.direct()).toBe(false);
+      expect(t.merges()[0]).toMatchObject({ merged: false, wait: true, reason: expect.stringContaining("no check") });
+    });
+
     it("never merges a red check, and hands the worker its name and log", async () => {
-      const t = withChecks([{ ...done, name: "typecheck", conclusion: "FAILURE", detailsUrl: "https://github.com/o/r/actions/runs/42/job/7" }]);
-      await run(t);
-      expect(direct(t.calls)).toBe(false);
+      const t = setup({ rollup: () => [{ ...done, name: "typecheck", conclusion: "FAILURE", detailsUrl: "https://github.com/o/r/actions/runs/42/job/7" }] });
+      await t.again();
+      expect(t.direct()).toBe(false);
       expect(t.merges()[0]).toMatchObject({ merged: false, ci: { name: "typecheck", log: expect.stringContaining("TS2554") } });
     });
+
     it("waits on a running check without merging, and journals the wait once", async () => {
-      const t = withChecks([{ ...done, status: "IN_PROGRESS", conclusion: "" }]);
-      await run(t);
-      await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", { runId: "r1", ok: true, why: "gate green" }, t.gh);
-      expect(direct(t.calls)).toBe(false);
+      const t = setup({ rollup: () => [{ ...done, status: "IN_PROGRESS", conclusion: "" }] });
+      await t.land();
+      await t.again();
+      expect(t.direct()).toBe(false);
       expect(t.merges()).toHaveLength(1);
       expect(t.merges()[0]).toMatchObject({ merged: false, wait: true });
+    });
+  });
+
+  describe("a merge repoints the cards forked from the merged branch", () => {
+    const chain = () => {
+      const t = setup();
+      t.store.patchCard(t.card.id, { branch: "board/x" });
+      const next = t.store.createCard({ title: "next", repoPath: "/repo", baseRef: "board/x", dependsOn: t.card.id });
+      return { ...t, next };
+    };
+
+    it("the board's own merge", async () => {
+      const t = chain();
+      await t.again();
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
+    });
+
+    it("a merge GitHub reports — auto-merge, a human — seen by a Check, a card screen, the follower", () => {
+      const t = chain();
+      notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
+    });
+
+    it("a card with no baseRef (an older row) repoints to the base its PR was opened against", () => {
+      const t = setup();
+      t.store.patchCard(t.card.id, { branch: "board/x", baseRef: null });
+      t.store.recordEvent(t.card.id, "card.pr_opened", { url: "u", base: "trunk" });
+      const next = t.store.createCard({ title: "next", repoPath: "/repo", baseRef: "board/x", dependsOn: t.card.id });
+      notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.getCard(next.id)!.baseRef).toBe("trunk");
+    });
+
+    it("a dependent already started is told its branch still carries the predecessor's commits", () => {
+      const t = chain();
+      t.store.recordEvent(t.next.id, "card.worktree", { branch: "board/next", base: "board/x" });
+      const idle = t.store.createCard({ title: "idle", repoPath: "/repo", baseRef: "board/x", dependsOn: t.card.id });
+      notePrOutcome(t.store, t.card.id, { state: "merged", url: "u", mergedAt: 1, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.listEvents(t.next.id).find((e) => e.type === "card.base_moved")?.payload).toEqual({ from: "board/x", to: "main", reason: "predecessor PR merged" });
+      expect(t.store.listEvents(idle.id).some((e) => e.type === "card.base_moved")).toBe(false);
+    });
+
+    it("not on a closed PR: nothing landed", () => {
+      const t = chain();
+      notePrOutcome(t.store, t.card.id, { state: "closed", url: "u", mergedAt: null, conflicting: false, mergeable: false, createdAt: null });
+      expect(t.store.getCard(t.next.id)!.baseRef).toBe("board/x");
     });
   });
 });

@@ -7,7 +7,9 @@
 
 import type { BoardDb, BoardEvent, Card } from "./db.ts";
 import type { PrStatus } from "./git.ts";
-import { prStatusFor } from "./integrate.ts";
+import { notePrOutcome, prStatusFor } from "./integrate.ts";
+
+export { notePrOutcome };
 
 const OVER = new Set(["card.pr_merged", "card.pr_closed"]);
 
@@ -28,18 +30,6 @@ export function openPrsOf(
     }
   }
   return open;
-}
-
-/**
- * Write down that a card's PR is over, the first time GitHub says so — and only then, so a card
- * screen re-reading a merged PR doesn't journal it again on every open. A merge is final; a close
- * can be undone on GitHub, and the card screen, which always asks, still says so if it is.
- */
-export function notePrOutcome(db: BoardDb, cardId: string, pr: PrStatus | null): void {
-  if (pr?.state !== "merged" && pr?.state !== "closed") return;
-  const last = db.listEvents(cardId).find((e) => e.type === "card.pr_opened" || OVER.has(e.type));
-  if (last?.type !== "card.pr_opened") return;
-  db.recordEvent(cardId, `card.pr_${pr.state}`, { url: pr.url, ...(pr.mergedAt ? { mergedAt: pr.mergedAt } : {}) });
 }
 
 export interface OpenPr {

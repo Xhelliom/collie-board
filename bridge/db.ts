@@ -540,9 +540,10 @@ export class RevisionConflict extends Error {
  * What the lead may decide about a card, written with its reason. `finished` / `prompt` answer the
  * check (and the conflict re-check); `keep` / `fold` / `drop` the triage — a kept or folded
  * follow-up carries the decision on its OWN journal, a dropped one on the reviewed card's, since it
- * is deleted.
+ * is deleted. `wait` is the coordinator's own, once per run: a dependent held back until its
+ * predecessor's armed auto-merge has landed (ADR 0036).
  */
-export type LeadDecision = "finished" | "prompt" | "keep" | "fold" | "drop";
+export type LeadDecision = "finished" | "prompt" | "keep" | "fold" | "drop" | "wait";
 
 /** The `run.*` journal kinds and their payloads — the single source of both. */
 export interface RunEventPayloads {

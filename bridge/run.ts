@@ -20,7 +20,7 @@ import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { mergeWhenReady, prForCard, resolveConflict, type MergeGate } from "./integrate.ts";
+import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -51,6 +51,8 @@ export interface RunPorts {
   openPr(card: Card, gate: MergeGate): Promise<Outcome>;
   /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). */
   land(card: Card, gate: MergeGate): Promise<void>;
+  /** Ask GitHub, fresh, what a card's PR became and journal it (`notePrOutcome`): a merge, a close, or nothing. */
+  refreshPr(card: Card): Promise<void>;
   /** `resolveConflict` against origin's base, to the card's own agent. */
   resolveConflict(card: Card): Promise<Outcome>;
   /** `fileAsDone`: close the session, file the card, ask for the wrapup. */
@@ -81,6 +83,7 @@ export interface RunPorts {
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
 export type Step =
   | { kind: "start" }
+  | { kind: "predecessor" }
   | { kind: "gate" }
   | { kind: "check" }
   | { kind: "recheck"; conflicts: string[] }
@@ -127,6 +130,8 @@ export function stepFor(
     pane: string | undefined;
     /** Its predecessor is filed (or it has none). */
     depsDone: boolean;
+    /** …but filed on an armed auto-merge nobody has seen land yet ({@link awaitsMerge}). */
+    predecessorArmed?: boolean;
     /** The repo has a gate: a landing is run through it before the lead sees it. */
     gated: boolean;
     reviewing: boolean;
@@ -142,7 +147,9 @@ export function stepFor(
   if (STARTABLE.has(card.status)) {
     // A halt on a card never started (its start failed) holds until the operator moves it.
     if (halted) return null;
-    return ctx.depsDone ? { kind: "start" } : null;
+    if (!ctx.depsDone) return null;
+    // ADR 0036: started now, it would fork from — and open its PR against — a branch not merged yet.
+    return ctx.predecessorArmed ? { kind: "predecessor" } : { kind: "start" };
   }
   // Only a worker that has landed and sits quietly. `blocked` is a question — never ours to answer.
   if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
@@ -183,10 +190,20 @@ export function stepFor(
   const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   // INTEGRATE FIRST, FILE SECOND — as the route does: filing ends the session that could settle a conflict.
   if (!after(pr, decision)) return { kind: "pr" };
-  // ADR 0029: the PR's checks were still running when it opened — ask again, file when answered.
-  const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
-  return after(merge, pr) && (merge!.payload as { wait?: boolean }).wait ? { kind: "land" } : { kind: "file" };
+  // Filed once landed, nothing less (ADR 0036): merged, or GitHub's auto-merge armed. Until then the
+  // land step asks GitHub again — a wait is answered later, a refusal halts or goes back (`landed`).
+  return after(landing(events), pr) ? { kind: "file" } : { kind: "land" };
 }
+
+/** The newest proof a PR has landed or will: merged, or GitHub's auto-merge armed (ADR 0017 step 7). */
+const landing = (events: BoardEvent[]) => newest(events, (e) => e.type === "card.pr_merged" || e.type === "card.automerge_armed");
+
+/**
+ * A card filed on GitHub's auto-merge ARMED, whose merge nobody has journaled yet: its newest PR word
+ * is the arming. Its successor must not start before the board has seen the merge (ADR 0036). Pure.
+ */
+export const awaitsMerge = (events: BoardEvent[]): boolean => newest(events, (e) => PR_WORDS.has(e.type))?.type === "card.automerge_armed";
+const PR_WORDS = new Set(["card.automerge_armed", "card.pr_opened", "card.pr_updated", "card.pr_merged", "card.pr_closed", "card.merged"]);
 
 /** A check or re-check answer — the ones that move the card, not a triaged follow-up's. */
 const isVerdict = (e: BoardEvent) => {
@@ -220,6 +237,7 @@ export class RunCoordinator {
   constructor(
     private readonly db: BoardDb,
     private readonly ports: RunPorts,
+    private readonly now: () => number = Date.now,
   ) {}
 
   /** Called on every snapshot. Never throws. */
@@ -251,6 +269,7 @@ export class RunCoordinator {
           session,
           pane: session?.paneId ? panes.get(session.paneId) : undefined,
           depsDone: !pred || FILED.has(pred.status),
+          predecessorArmed: pred !== null && FILED.has(pred.status) && awaitsMerge(this.db.listEvents(pred.id, 200)),
           gated: this.ports.gateCommand(card) !== null,
           reviewing: this.ports.reviewing(),
           review: reviews.length ? "done" : failed ? "failed" : "pending",
@@ -335,15 +354,43 @@ export class RunCoordinator {
         if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
         return;
       }
+      case "predecessor":
+        return this.awaitPredecessor(run, card);
       case "land": {
         // Throttled in memory: the tick is 1.5 s, GitHub's checks take minutes.
-        if (Date.now() - (this.landAsked.get(card.id) ?? 0) < LAND_EVERY_MS) return;
-        this.landAsked.set(card.id, Date.now());
+        if (this.now() - (this.landAsked.get(card.id) ?? 0) < LAND_EVERY_MS) return;
+        this.landAsked.set(card.id, this.now());
         await this.ports.land(card, this.mergeGate(run, card));
         return this.landed(run, card, session!);
       }
       case "file":
         return this.ports.fileAsDone(card);
+    }
+  }
+
+  /**
+   * ADR 0036: the predecessor was filed on GitHub's auto-merge armed, and nobody has seen the merge.
+   * Ask GitHub (at the land step's pace) through `notePrOutcome`: merged — journaled, its dependents
+   * rebound, and the next tick starts this card from its base (ADR 0034); closed — its work will not
+   * land, the operator's call; still open — wait, said once on this card.
+   */
+  private async awaitPredecessor(run: Run, card: Card): Promise<void> {
+    const said = this.db.listEvents(card.id, 200).find((e) => e.type === "run.decision" && isRun(e, run.id) && (e.payload as { decision?: string }).decision === "wait");
+    // An auto-merge whose checks went red never merges: slow down the longer it waits.
+    const every = said ? askEvery(this.now() - said.ts) : LAND_EVERY_MS;
+    if (this.now() - (this.landAsked.get(card.id) ?? 0) < every) return;
+    this.landAsked.set(card.id, this.now());
+    const pred = this.db.getCard(card.dependsOn!)!;
+    await this.ports.refreshPr(pred);
+    const word = newest(this.db.listEvents(pred.id, 200), (e) => PR_WORDS.has(e.type));
+    if (word?.type === "card.pr_closed") return this.halt(run, card.id, `“${pred.title}”'s PR was closed without merging — its work is not in the base`);
+    if (word?.type !== "card.automerge_armed") return;
+    if (!said) {
+      this.db.recordRunEvent(card.id, "run.decision", {
+        runId: run.id,
+        decision: "wait",
+        reason: `waiting for “${pred.title}”'s PR to merge (auto-merge armed) — started now, this card would fork from its unmerged branch`,
+      });
     }
   }
 
@@ -360,14 +407,19 @@ export class RunCoordinator {
   }
 
   /**
-   * What the PR just did (ADR 0029): checks running — wait, the next tick asks again; a check red —
-   * back to the worker with its log, a round like a red gate; otherwise the card is filed.
+   * What the PR just did. Merged, or auto-merge armed — the card is filed. GitHub has not answered
+   * (checks running, mergeability unknown) — nothing, the next tick asks again (ADR 0036). A check red
+   * — back to the worker with its log, a round like a red gate (ADR 0029). A conflict — to the
+   * worker's agent, against origin's base (ADR 0014). Anything else the board refused to merge — the
+   * operator's: the card is halted, never filed with its PR open (ADR 0035).
    */
   private async landed(run: Run, card: Card, session: CardSession): Promise<void> {
     const events = this.db.listEvents(card.id, 200);
     const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+    if (after(landing(events), pr)) return this.ports.fileAsDone(this.db.getCard(card.id)!);
     const merge = newest(events, (e) => e.type === "run.merge" && isRun(e, run.id));
-    const p = after(merge, pr) ? (merge!.payload as { wait?: boolean; ci?: { name: string; log: string } }) : {};
+    if (!after(merge, pr)) return;
+    const p = merge!.payload as { wait?: boolean; reason?: string; conflict?: boolean; ci?: { name: string; log: string } };
     if (p.wait) return;
     if (p.ci) {
       const prompt = ciPrompt(p.ci.name, p.ci.log);
@@ -375,7 +427,12 @@ export class RunCoordinator {
       this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the check ${p.ci.name} failed on GitHub` });
       return;
     }
-    this.ports.fileAsDone(this.db.getCard(card.id)!);
+    if (p.conflict) {
+      const settled = await this.ports.resolveConflict(card);
+      if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
+      return;
+    }
+    this.halt(run, card.id, `PR not merged: ${p.reason ?? "no reason given"}`);
   }
 
   /**
@@ -506,6 +563,7 @@ export function runHook(
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     openPr: (card, gate) => prForCard(db, card, { autoMerge: true, gate }),
     land: (card, gate) => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate),
+    refreshPr: async (card) => notePrOutcome(db, card.id, await prStatusFor(card, Date.now, true)),
     resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),
     fileAsDone: (card) => fileAsDone(db, herdr, card),
     brief: async (card) => {

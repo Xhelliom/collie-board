@@ -7,20 +7,34 @@ import { followRunId, PrFollower } from "./pr-follow.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = { bridge: "connected" } as EngineSnapshot;
-const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true });
+const pr = (state: PrStatus["state"]): PrStatus => ({ state, url: "u", mergedAt: null, conflicting: false, mergeable: true, createdAt: null });
 
 /** A board with one card whose PR was opened by "PR & done", and a fake GitHub behind it. */
 function world(land: (db: BoardDb, card: Card, gate: MergeGate) => void) {
-  const db = new BoardDb(":memory:");
+  const time = { clock: 0 };
+  const db = new BoardDb(":memory:", () => time.clock); // the journal and the follower share one clock
   const card = db.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
   db.recordEvent(card.id, "card.pr_opened", { url: "u" });
   db.recordEvent(card.id, "card.pr_follow", {});
-  const w = { db, card, state: "open" as PrStatus["state"], filed: 0, lands: 0, clock: 0 };
+  const w = {
+    db,
+    card,
+    state: "open" as PrStatus["state"] | null,
+    filed: 0,
+    lands: 0,
+    asks: 0,
+    get clock() {
+      return time.clock;
+    },
+    set clock(t: number) {
+      time.clock = t;
+    },
+  };
   const make = () =>
     new PrFollower(
       db,
       {
-        prStatus: async () => pr(w.state),
+        prStatus: async () => (w.asks++, w.state ? pr(w.state) : null),
         gate: async (_c, runId) => ({ runId, ok: true, why: "no gate set" }),
         land: async (c, gate) => {
           w.lands++;
@@ -83,6 +97,68 @@ describe("PR & done follows the PR to its merge (ADR 0035)", () => {
     await settle();
     expect(w.lands).toBe(1);
     expect(w.filed).toBe(0);
+  });
+
+  it("a stopped follow still reads the PR: merged by hand after a red check, the card is filed", async () => {
+    const { w, make } = world((db, c, gate) => db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "red", ci: {} } as never));
+    const f = make();
+    f.update(snap);
+    await settle();
+    w.state = "merged"; // someone fixed it and merged on GitHub
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.lands).toBe(1);
+    expect(w.filed).toBe(1);
+  });
+
+  it("GitHub not done computing on the first tick is a wait: the follow keeps asking (ADR 0036)", async () => {
+    let ready = false;
+    const { w, make } = world((db, c, gate) => {
+      if (!ready) return db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "mergeability", wait: true } as never);
+      db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: true, reason: "green" });
+      db.recordEvent(c.id, "card.pr_merged", { url: "u" });
+    });
+    const f = make();
+    f.update(snap);
+    await settle();
+    expect(w.filed).toBe(0);
+    ready = true;
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.lands).toBe(2);
+    expect(w.filed).toBe(1);
+  });
+
+  it("GitHub unreadable is no reason to stop: the follow asks `land`, which counts it as a wait (ADR 0036)", async () => {
+    const { w, make } = world((db, c, gate) => db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "unreadable", wait: true } as never));
+    w.state = null;
+    const f = make();
+    f.update(snap);
+    await settle();
+    w.clock += 30_000;
+    f.update(snap);
+    await settle();
+    expect(w.lands).toBe(2);
+    expect(w.filed).toBe(0);
+  });
+
+  it("a stopped follow is watched slower and slower while its PR stays open, at most every 30 min", async () => {
+    const { w, make } = world((db, c, gate) => db.recordRunEvent(c.id, "run.merge", { runId: gate.runId, merged: false, reason: "red", ci: {} } as never));
+    const f = make();
+    const tickAt = async (t: number) => {
+      w.clock = t;
+      f.update(snap);
+      await settle();
+      return w.asks;
+    };
+    expect(await tickAt(0)).toBe(1); // stops on the red check
+    expect(await tickAt(30_000)).toBe(2); // fresh stop: still every 30 s
+    expect(await tickAt(4 * 3_600_000)).toBe(3); // hours later…
+    expect(await tickAt(4 * 3_600_000 + 60_000)).toBe(3); // …not again a minute after
+    expect(await tickAt(4 * 3_600_000 + 30 * 60_000)).toBe(4); // but within 30 min
+    expect(w.lands).toBe(1);
   });
 
   it("files a PR merged by someone else (GitHub's auto-merge, a human)", async () => {

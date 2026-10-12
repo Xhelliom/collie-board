@@ -1004,16 +1004,18 @@ export interface PrStatus {
   conflicting: boolean;
   /** Open AND GitHub says MERGEABLE. Neither this nor `conflicting`: GitHub hasn't worked it out yet. */
   mergeable: boolean;
+  /** When the PR was opened, epoch ms; null when GitHub did not say. An empty rollup is read against it. */
+  createdAt: number | null;
 }
 
 /**
- * Parse `gh pr view --json state,mergedAt,url,mergeable`. Anything unrecognised is `null`, never a
+ * Parse `gh pr view --json state,mergedAt,url,mergeable,createdAt`. Anything unrecognised is `null`, never a
  * guess — the card then keeps saying only what its journal knows.
  *
  * Pure + exported: this is the fragile half, so it is the half with a test.
  */
 export function parsePrView(stdout: string): PrStatus | null {
-  let raw: { state?: unknown; mergedAt?: unknown; url?: unknown; mergeable?: unknown };
+  let raw: { state?: unknown; mergedAt?: unknown; url?: unknown; mergeable?: unknown; createdAt?: unknown };
   try {
     raw = JSON.parse(stdout) as typeof raw;
   } catch {
@@ -1024,12 +1026,14 @@ export function parsePrView(stdout: string): PrStatus | null {
   if (state !== "open" && state !== "merged" && state !== "closed") return null;
   if (typeof raw.url !== "string" || !raw.url) return null;
   const merged = typeof raw.mergedAt === "string" ? Date.parse(raw.mergedAt) : NaN;
+  const created = typeof raw.createdAt === "string" ? Date.parse(raw.createdAt) : NaN;
   return {
     state,
     url: raw.url,
     mergedAt: Number.isFinite(merged) ? merged : null,
     conflicting: state === "open" && raw.mergeable === "CONFLICTING",
     mergeable: state === "open" && raw.mergeable === "MERGEABLE",
+    createdAt: Number.isFinite(created) ? created : null,
   };
 }
 
@@ -1054,7 +1058,7 @@ export async function prStatusOf(
 ): Promise<PrStatus | null> {
   if (!branch || branch.startsWith("-")) return null;
   try {
-    const r = await gh(["pr", "view", branch, "--json", "state,mergedAt,url,mergeable"], repoPath);
+    const r = await gh(["pr", "view", branch, "--json", "state,mergedAt,url,mergeable,createdAt"], repoPath);
     return r.ok ? parsePrView(r.stdout) : null;
   } catch {
     return null;

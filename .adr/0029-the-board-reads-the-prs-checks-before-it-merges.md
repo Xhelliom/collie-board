@@ -1,6 +1,6 @@
 # 0029 — The board reads the PR's GitHub checks before it merges
 
-**Status:** Accepted
+**Status:** Accepted — amended by [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) (an empty rollup on a young PR is a wait)
 **Date:** 2026-10-10
 **Amends:** [0027](./0027-the-board-merges-the-pr-when-github-will-not.md) (not edited: this is its successor)
 

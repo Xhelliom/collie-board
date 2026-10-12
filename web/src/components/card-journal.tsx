@@ -265,6 +265,8 @@ function leadDecision(p: Record<string, unknown>): string {
       return t("journal.lead.kept");
     case "fold":
       return t("journal.lead.folded");
+    case "wait":
+      return t("journal.lead.waiting");
     case "drop":
       // Journaled on the reviewed card — the follow-up itself is deleted — so it names it.
       return p.followUp ? t("journal.lead.droppedNamed", { title: String(p.followUp) }) : t("journal.lead.dropped");
@@ -313,6 +315,8 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.prMerged");
     case "card.pr_closed":
       return t("journal.prClosed");
+    case "card.base_moved":
+      return t("journal.baseMoved", { from: String(p.from), to: String(p.to) });
     case "wrapup.requested":
       return t("journal.wrapupRequested");
     case "wrapup.collected":
