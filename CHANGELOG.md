@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.190.2] - 2026-10-12
+
+### Fixed
+
+- Pipeline : chaque rôle tourne avec son propre type d'agent ; le type résolu au démarrage n'est plus écrit sur la carte (ADR 0026) (f4b8fa8)
+- Pipeline : un lancement raté ne compte plus le pas et ne laisse plus de session ouverte sur un pane shell (f4b8fa8)
+- Intégration : un second geste (PR, merge…) sur une carte déjà en cours d'intégration répond 409 « déjà en cours » (f4b8fa8)
+- Suivis du copilote : nés sur la base réelle de la carte relue, plus sur la branche du prédécesseur (f4b8fa8)
+- PR ouverte par l'agent (`pr_updated` seul) : son merge est journalisé, la carte d'un lot est classée, ses dépendantes rebasées, « PR et terminé » la suit (4cfd32f)
+- `pr_merged` n'est plus journalisé deux fois quand l'écran de carte voit le merge pendant celui du board (4cfd32f)
+- Base par défaut : un `origin/HEAD` sur une branche `board/…` (préfixe configuré) retombe sur `main`/`master` (4cfd32f)
+- `card.base_moved` n'est plus émis après un merge local ni après un discard (4cfd32f)
+
 ## [0.190.1] - 2026-10-12
 
 ### Changed
