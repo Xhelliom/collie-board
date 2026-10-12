@@ -263,7 +263,9 @@ export function HomeActivity({ session }: { session: string | undefined }) {
   const t = useT();
   const [log, setLog] = useState<NotifyLogEntry[] | null>(null);
   useEffect(() => {
-    void getNotifyLog().then((e) => setLog(e.slice(0, 5)), () => setLog([]));
+    let live = true; // the reply can land after unmount (or test teardown)
+    void getNotifyLog().then((e) => live && setLog(e.slice(0, 5)), () => live && setLog([]));
+    return () => { live = false; };
   }, []);
   return (
     <section className="flex flex-col gap-2.5" aria-label={t("home.activity")}>
