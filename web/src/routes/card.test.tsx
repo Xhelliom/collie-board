@@ -1,11 +1,12 @@
 import { setPreference } from "@/i18n";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
+import { useStatus } from "@/lib/status";
 import {
   convertible,
   CardRoute,
@@ -390,6 +391,38 @@ describe("IntegrationSection — merged, pushed, and neither", () => {
 
   const cleanupButton = () => screen.queryByRole("button", { name: /clean up worktree/i });
   const discardButton = () => screen.queryByRole("button", { name: /discard this work/i });
+
+  // `pr` runs the pre-push hook on the bridge, which can outlast the client's budget while the PR
+  // still opens: a timeout is not a failure, so no error — "still running" and a re-read instead.
+  it("reads a timed-out PR gesture as still running, not as an error", async () => {
+    const realFetch = globalThis.fetch;
+    onTestFinished(() => {
+      vi.restoreAllMocks();
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+      init?.method === "POST"
+        ? Promise.reject(new DOMException("signal timed out", "TimeoutError"))
+        : realFetch(input, init),
+    );
+    function Probe() {
+      const status = useStatus();
+      return <output>{status ? `${status.tone}: ${status.text}` : ""}</output>;
+    }
+    const onDone = vi.fn();
+    server.use(
+      http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: integration() })),
+    );
+    render(
+      <>
+        <Probe />
+        <IntegrationSection card={card("working")} events={[]} onDone={onDone} onState={vi.fn()} />
+      </>,
+    );
+    await userEvent.click(await screen.findByRole("button", { name: /open a pr/i }));
+    expect((await screen.findByText(/still running/i)).textContent).toMatch(/^info: /);
+    expect(onDone).toHaveBeenCalled();
+    cleanup();
+  });
 
   it("offers cleanup on a pushed branch, and keeps discard next to it", async () => {
     await show({ ahead: 2, pushed: true });
