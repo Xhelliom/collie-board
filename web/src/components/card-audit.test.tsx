@@ -52,7 +52,7 @@ describe("journal (audit #22 #23 #10)", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(35);
   });
 
-  it("#10 folds 3+ consecutive working ↔ review moves into one row", () => {
+  it("#23 folds 3+ consecutive working ↔ review moves into one row", () => {
     const rows = foldStatusLoops([status(1, "working", "review"), status(2, "review", "working"), status(3, "working", "review"), ev(4, "card.created")]);
     expect(rows).toHaveLength(2);
     expect("loop" in rows[0]! && rows[0].loop).toBe(3);
