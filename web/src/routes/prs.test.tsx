@@ -102,4 +102,12 @@ describe("PrsRoute", () => {
     expect(await screen.findByText("card screen")).toBeTruthy();
     expect(sent).toMatchObject({ action: "reopen" });
   });
+
+  it("names the repo in the empty state when one is selected", async () => {
+    const router = createMemoryRouter([{ path: "/board/prs", loader: () => [], element: <PrsRoute /> }], {
+      initialEntries: ["/board/prs?repo=%2Fhome%2Fme%2Fcollie-board"],
+    });
+    render(<RouterProvider router={router} />);
+    expect(await screen.findByText(/No open PRs in collie-board/)).toBeTruthy();
+  });
 });

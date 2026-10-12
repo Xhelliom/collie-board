@@ -135,7 +135,7 @@ export function PrsRoute() {
 
       <main className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3 pb-24 lg:gap-3 lg:p-5">
         {rows.length === 0 ? (
-          <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("prs.empty")}</p>
+          <p className="px-2 py-16 text-center text-sm text-muted-foreground">{scope ? t("prs.emptyRepo", { repo: repoName(scope) }) : t("prs.empty")}</p>
         ) : (
           <>
             {summary && <p className="mx-1 text-xs text-muted-foreground">{summary}</p>}
@@ -219,7 +219,7 @@ export function PrsRoute() {
         )}
       </main>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 lg:bottom-0 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
     </div>

@@ -276,33 +276,35 @@ export function CardTile({
           )}
         </div>
 
-        {phase && (
-          <div className="flex">
-            <TagChip
-              tag={phase.name}
-              label={`${phase.name} · ${phase.done}/${phase.total}`}
-              className="px-[7px] py-px text-[10px] font-semibold"
-            />
+        {(phase || template) && (
+          <div className="flex flex-wrap gap-1.5">
+            {phase && (
+              <TagChip
+                tag={phase.name}
+                label={`${phase.name} · ${phase.done}/${phase.total}`}
+                className="px-[7px] py-px text-[10px] font-semibold"
+              />
+            )}
+            {template && <TemplateChip name={template.name} inherited={template.inherited} />}
           </div>
         )}
-        {template && (
-          <div className="flex">
-            <TemplateChip name={template.name} inherited={template.inherited} />
-          </div>
-        )}
-        {parent && (
-          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-            <Layers className="size-3 shrink-0" />
-            <span className="truncate">{parent}</span>
-          </div>
-        )}
-        {/* Where this one came from — the caption that turns "test the feature" back into a
-            sentence. Same shape as the parent caption above it, a different arrow: `Layers` means
-            "part of", this means "came out of". */}
-        {source && (
-          <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-            <CornerLeftUp className="size-3 shrink-0" />
-            <span className="truncate">{t("tile.from", { source })}</span>
+        {/* Part-of and came-out-of share a row: two captions, one line of height. */}
+        {(parent || source) && (
+          <div className="flex items-center gap-x-3 text-xs text-muted-foreground">
+            {parent && (
+              <span className="flex min-w-0 items-center gap-1">
+                <Layers className="size-3 shrink-0" />
+                <span className="truncate">{parent}</span>
+              </span>
+            )}
+            {/* Where this one came from — the caption that turns "test the feature" back into a
+                sentence. `Layers` means "part of", this arrow means "came out of". */}
+            {source && (
+              <span className="flex min-w-0 items-center gap-1">
+                <CornerLeftUp className="size-3 shrink-0" />
+                <span className="truncate">{t("tile.from", { source })}</span>
+              </span>
+            )}
           </div>
         )}
         {dependency && (
