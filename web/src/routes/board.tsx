@@ -375,17 +375,15 @@ export function BoardRoute() {
         subtitle={t("common.cards", { count: cards.length })}
         rightLead={
           <>
-            {/* The active repo scope, as its own removable chip — otherwise a scoped board (the
-                common case, ADR 0006) shows no on-screen sign it's filtered at all until it's
-                empty. Repo before tag: it's the coarser, remembered filter. */}
-            {activeRepo && (
+            {/* The phase filter, same removable chip: it used to narrow the board with no sign at all. */}
+            {activePhase && (
               <button
                 type="button"
-                onClick={() => pickRepo(null)}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+                onClick={() => pickPhase(null)}
+                className="flex min-w-0 shrink items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
               >
-                {repoName(activeRepo)}
-                <X className="size-3" />
+                <span className="truncate">{phasesOn.find((p) => p.id === activePhase)?.name ?? activePhase}</span>
+                <X className="size-3 shrink-0" />
               </button>
             )}
             {/* The active tag, as its own removable chip — a tag is a momentary lens (unlike the
@@ -487,13 +485,16 @@ export function BoardRoute() {
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
-              {active || activeRepo || autoOnly || statuses ? (
+              {active || activeRepo || autoOnly || statuses || activePhase ? (
                 <>
                   <NonNominalPanel tone="muted" title={t("board.emptyMatchTitle")}>
                     {t("board.emptyMatch", {
                       auto: autoOnly ? t("board.emptyAuto") : "",
                       repo: activeRepo ? t("board.emptyRepo", { repo: repoName(activeRepo) }) : "",
                       tag: active ? t("board.emptyTag", { tag: active }) : "",
+                      phase: activePhase
+                        ? t("board.emptyPhase", { phase: phasesOn.find((p) => p.id === activePhase)?.name ?? activePhase })
+                        : "",
                     })}
                   </NonNominalPanel>
                   <Button variant="outline" className="mt-3" onClick={clearFilters}>

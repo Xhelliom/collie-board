@@ -11,6 +11,10 @@ export const prs = defineMessages({
     en: "No open PRs. A card lands here when “Open a PR” succeeds, and leaves once a check sees its PR merged or closed.",
     fr: "Aucune PR ouverte. Une carte arrive ici quand « Ouvrir une PR » réussit, et part dès qu'une vérification voit sa PR fusionnée ou fermée.",
   },
+  "prs.emptyRepo": {
+    en: "No open PRs in {repo}. A card lands here when “Open a PR” succeeds, and leaves once a check sees its PR merged or closed.",
+    fr: "Aucune PR ouverte dans {repo}. Une carte arrive ici quand « Ouvrir une PR » réussit, et part dès qu'une vérification voit sa PR fusionnée ou fermée.",
+  },
   "prs.unchecked": {
     en: "Nothing has asked GitHub yet — tap Check to see which ones still merge.",
     fr: "Personne n'a encore interrogé GitHub — touche Vérifier pour voir lesquelles fusionnent encore.",
