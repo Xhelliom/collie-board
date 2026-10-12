@@ -146,8 +146,10 @@ describe("pushDir — where the pre-push hook runs", () => {
 });
 
 describe("cardDiffStat — a card with no base (the copilot reviewed an empty diff)", () => {
+  // A git hook exports GIT_DIR & co: left in, these fixture repos would operate on the REAL repository.
+  const { GIT_DIR: _d, GIT_WORK_TREE: _w, GIT_PREFIX: _p, GIT_INDEX_FILE: _i, ...env } = process.env;
   const sh = (cwd: string, ...args: string[]) => {
-    const r = Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], { cwd });
+    const r = Bun.spawnSync(["git", "-c", "user.email=t@t", "-c", "user.name=t", ...args], { cwd, env });
     if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
   };
 
