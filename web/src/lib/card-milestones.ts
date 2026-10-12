@@ -18,7 +18,7 @@ export interface Milestone {
 }
 
 /** Kinds where only the newest occurrence is the state of the card. */
-const LATEST = new Set<MilestoneKind>(["started", "gate", "lead", "review"]);
+const LATEST = new Set<MilestoneKind>(["started", "gate", "lead", "review", "finished"]);
 
 function classify(e: BoardEvent): Pick<Milestone, "kind" | "tone"> | null {
   const p = (e.payload ?? {}) as Record<string, unknown>;
@@ -37,8 +37,8 @@ function classify(e: BoardEvent): Pick<Milestone, "kind" | "tone"> | null {
       return { kind: "prMerged", tone: "good" };
     case "card.pr_closed":
       return { kind: "prClosed", tone: "bad" };
-    case "run.finished":
-      return { kind: "finished", tone: "good" };
+    case "card.status":
+      return p.to === "done" ? { kind: "finished", tone: "good" } : null;
     default:
       return null;
   }
@@ -49,7 +49,14 @@ export function cardMilestones(events: readonly BoardEvent[]): Milestone[] {
   const out: Milestone[] = [];
   for (const e of [...events].sort((a, b) => a.id - b.id)) {
     const c = classify(e);
-    if (!c) continue;
+    if (!c) {
+      // "Finished" is the card's status: moved out of done again (a reopen), it is no longer true.
+      if (e.type === "card.status") {
+        const i = out.findIndex((m) => m.kind === "finished");
+        if (i >= 0) out.splice(i, 1);
+      }
+      continue;
+    }
     if (c.kind === "sentBack") {
       const prev = out.find((m) => m.kind === "sentBack");
       if (prev) {

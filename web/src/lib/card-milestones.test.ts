@@ -35,6 +35,13 @@ describe("cardMilestones", () => {
     expect(gates[0]!.tone).toBe("bad");
   });
 
+  it("'finished' comes from the card moving to done, and a reopen takes it back", () => {
+    const done = () => ev("card.status", { from: "review", to: "done" });
+    expect(cardMilestones(journal(ev("session.opened"), done())).map((x) => x.kind)).toEqual(["started", "finished"]);
+    expect(cardMilestones(journal(ev("session.opened"), done(), ev("card.status", { from: "done", to: "working" }))).map((x) => x.kind)).toEqual(["started"]);
+    expect(cardMilestones(journal(ev("run.finished")))).toEqual([]);
+  });
+
   it("returns nothing for noise only", () => {
     expect(cardMilestones(journal(ev("card.edited"), ev("agent.notify")))).toEqual([]);
   });

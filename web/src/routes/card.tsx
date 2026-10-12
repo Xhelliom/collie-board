@@ -1074,7 +1074,7 @@ export function CardRoute() {
 
                 {detail && detail.events.length > 0 && (
                   <Section label={t("timeline.title")}>
-                    <CardTimeline events={detail.events} />
+                    <CardTimeline events={detail.milestoneEvents ?? detail.events} />
                   </Section>
                 )}
 

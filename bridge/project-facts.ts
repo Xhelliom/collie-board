@@ -2,7 +2,7 @@
 // (gate, the lead's verdict and reason, the review, the PR, how many times it was sent back…).
 // Derived on every read from the cards' own journals, stored nowhere: it cannot drift from the board.
 
-import type { BoardEvent } from "./db.ts";
+import { MILESTONE_TYPES as MILESTONES, type BoardEvent } from "./db.ts";
 
 export interface CardFacts {
   cardId: string;
@@ -28,8 +28,8 @@ export interface CardFacts {
 }
 
 /** The event types a card's milestones are derived from, and the payload keys each needs. */
-const MILESTONE_TYPES = new Set(["session.opened", "run.gate", "run.decision", "review.created", "card.pr_opened", "card.pr_merged", "card.pr_closed", "run.finished"]);
-const MILESTONE_KEYS = ["ok", "command", "decision", "verdict"];
+const MILESTONE_TYPES = new Set([...MILESTONES, "card.status"]);
+const MILESTONE_KEYS = ["ok", "command", "decision", "verdict", "to"];
 const slim = (e: BoardEvent): BoardEvent => {
   const p = (e.payload ?? {}) as Record<string, unknown>;
   return { ...e, payload: Object.fromEntries(MILESTONE_KEYS.filter((k) => k in p).map((k) => [k, p[k]])) };
@@ -117,6 +117,12 @@ import type { BoardContext } from "./board-routes.ts";
 /** How much of a card's journal is read: its newest entries are the story; a card is rarely older. */
 const JOURNAL_LIMIT = 300;
 
+/** The capped journal plus the uncapped milestone events: a card older than the cap keeps its start and its send-backs. */
+const withMilestones = (journal: BoardEvent[], milestones: BoardEvent[]): BoardEvent[] => {
+  const seen = new Set(journal.map((e) => e.id));
+  return [...journal, ...milestones.filter((e) => !seen.has(e.id))];
+};
+
 /** `GET /api/project/facts[?repo=]` — the facts of every live card (of one repo with `repo`). Read-only. */
 export function handleFactsRoute(pathname: string, req: Request, ctx: BoardContext): Response | null {
   if (pathname !== "/api/project/facts") return null;
@@ -128,6 +134,6 @@ export function handleFactsRoute(pathname: string, req: Request, ctx: BoardConte
   const facts = ctx.db
     .listCards()
     .filter((c) => !repo || c.repoPath === repo)
-    .map((c) => foldFacts(c.id, ctx.db.listEvents(c.id, JOURNAL_LIMIT)));
+    .map((c) => foldFacts(c.id, withMilestones(ctx.db.listEvents(c.id, JOURNAL_LIMIT), ctx.db.listMilestoneEvents(c.id))));
   return ctx.json({ facts });
 }

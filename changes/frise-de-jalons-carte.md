@@ -6,3 +6,6 @@ bump: minor
 
 ### Changed
 - `/api/project/facts` : `repo` devient optionnel (sans lui, toutes les cartes) ; le board charge les facts avec ses cartes
+
+### Fixed
+- Frise et pastilles : « Terminée » vient du passage de la carte à `done` ; jalons dérivés de tout le journal, non plafonné

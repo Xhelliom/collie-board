@@ -825,6 +825,8 @@ async function route(
         sessions: db.listSessions(id),
         reviews: db.listReviews(id).map((r) => ({ ...r, todos: resolveReviewTodos(db, r.todos) })),
         events: db.listEvents(id).map(trimEvent),
+        // The timeline reads these, not `events`: the journal above stops at 100, the story must not.
+        milestoneEvents: db.listMilestoneEvents(id).map(trimEvent),
       });
     }
     if (req.method === "PATCH" || req.method === "POST") {
