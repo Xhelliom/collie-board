@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.189.0] - 2026-10-12
+
+### Added
+
+- Composant `CollapsibleText` : replie un texte long au-delà de N lignes, « Voir plus / moins » accessible (5ad4529)
+
+### Changed
+
+- Spec, critères, bilan de l'agent, raison du lead, journal et détail d'une étape de roadmap : repliés au-delà de quelques lignes (Voir plus / moins) (5ad4529)
+
 ## [0.188.0] - 2026-10-12
 
 ### Added
