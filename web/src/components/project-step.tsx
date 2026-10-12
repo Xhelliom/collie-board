@@ -3,6 +3,7 @@ import { ChevronDown } from "lucide-react";
 
 import { CardStatusChip } from "@/components/card-status-chip";
 import { TemplateChip } from "@/components/template-chip";
+import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { cardPath, type CardView, type Phase } from "@/lib/board";
 import { useT, type MessageKey } from "@/i18n";
@@ -51,7 +52,7 @@ function Who({ label, tone, children }: { label: string; tone: string; children:
       <span className={cn("rounded-[5px] px-1 py-1 text-center text-[10px] font-semibold uppercase leading-none tracking-widest", tone)}>
         {label}
       </span>
-      <span className="text-muted-foreground">{children}</span>
+      <CollapsibleText lines={3} className="text-muted-foreground">{children}</CollapsibleText>
     </li>
   );
 }
@@ -148,9 +149,9 @@ export function StepItem({
         <div className="min-h-0 overflow-hidden">
           <div className={cn("flex flex-col gap-3 px-3.5 pb-3.5 pl-[2.1rem] transition-opacity duration-300", open ? "opacity-100" : "opacity-0")}>
             {card.spec && (
-              <div className="max-h-52 overflow-y-auto text-muted-foreground">
+              <CollapsibleText className="text-muted-foreground">
                 <MarkdownText text={card.spec} className="text-sm" />
-              </div>
+              </CollapsibleText>
             )}
             {card.acceptance.length > 0 && (
               <ul className="flex flex-col gap-1 text-sm text-muted-foreground">

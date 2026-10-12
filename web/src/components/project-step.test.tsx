@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CardView } from "@/lib/board";
 import type { CardFacts } from "@/lib/project-facts";
@@ -30,7 +30,10 @@ const mount = (f?: CardFacts) =>
 
 // The texts asserted here are in one language, whatever the browser says.
 beforeEach(() => setPreference("en"));
-afterEach(() => setPreference("en"));
+afterEach(() => {
+  setPreference("en");
+  vi.restoreAllMocks();
+});
 
 describe("StepItem with the journal's facts", () => {
   it("shows a one-line subtitle and the headline chips even when folded", () => {
@@ -55,5 +58,18 @@ describe("StepItem with the journal's facts", () => {
     mount(undefined);
     expect(screen.getByRole("list", { name: "Who did what" })).toHaveTextContent("claude — finished");
     expect(screen.queryByText("gate ✓")).toBeNull();
+  });
+});
+
+describe("long roadmap item detail", () => {
+  it("folds the spec past the threshold", () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(2000);
+    mount(facts);
+    // The spec's own fold — "Who did what" also folds, so look from the spec's text outwards.
+    const fold = screen.getByText("Letters on the recipe page.").closest("div")!.parentElement!.parentElement!;
+    const more = within(fold).getByRole("button", { name: "Voir plus" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(within(fold).getByRole("button", { name: "Voir moins" })).toBeInTheDocument();
   });
 });
