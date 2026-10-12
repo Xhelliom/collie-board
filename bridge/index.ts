@@ -29,6 +29,7 @@ import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
 import { isOrchestratorAgent } from "./orchestrator.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
+import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
 import { startServer } from "./server.ts";
 import {
@@ -350,6 +351,8 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
     engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters));
+    // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
+    engine.onUpdate(prFollowHook(board, herdr));
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap));

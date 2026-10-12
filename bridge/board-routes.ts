@@ -1308,9 +1308,9 @@ async function route(
     // reaches for — mark it done, then merge it — and it is the wrong one: filing a card ends its
     // session, so the agent that could have settled a merge conflict is gone by the time the merge
     // discovers one. A failed integration leaves the card exactly where it was, agent included.
-    if (result.ok && andDone && (what === "merge" || what === "pr")) {
-      fileAsDone(db, ctx.herdr, db.getCard(id)!);
-    }
+    // "PR & done" is consent to land it (ADR 0035): the card is filed when the PR merges — pr-follow.ts.
+    if (result.ok && andDone && what === "pr") db.recordEvent(id, "card.pr_follow", {});
+    else if (result.ok && andDone && what === "merge") fileAsDone(db, ctx.herdr, db.getCard(id)!);
 
     ctx.audit.record({
       action: `card.${what}`,
