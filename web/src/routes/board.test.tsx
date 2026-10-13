@@ -330,9 +330,14 @@ describe("board filters — header", () => {
 });
 
 describe("board — Done column", () => {
-  it("lists the newest 5 finished cards, the rest behind a count", async () => {
-    await mount(Array.from({ length: 12 }, (_, i) => card(`D${i}`, "done", i)));
-    expect(screen.queryByText("D5")).toBeNull();
+  it("lists the 5 most recently finished cards, wherever they sit in the column", async () => {
+    // D11 sits last by position but was finished long ago; D0 sits first but was finished today.
+    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: 100 + (11 - i) }));
+    cards[11] = { ...cards[11], updatedAt: 1 };
+    cards[7] = { ...cards[7], updatedAt: 999 };
+    await mount(cards);
+    expect(screen.getByText("D7")).toBeInTheDocument();
+    expect(screen.queryByText("D11")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Voir les 7 autres" }));
     expect(screen.getByText("D11")).toBeInTheDocument();
   });

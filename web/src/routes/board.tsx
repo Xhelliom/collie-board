@@ -97,6 +97,13 @@ const LANE_PHONE_ORDER: Record<LaneKey, string> = {
 /** Finished cards a column lists before « Voir les n autres »; Done is the only column that only grows. */
 const DONE_SHOWN = 5;
 
+/** The DONE_SHOWN most recently updated (≈ finished) cards, kept in the column's manual order (the sort only picks). */
+function newestDone(column: CardView[]): CardView[] {
+  // ponytail: CardView has no doneAt; updatedAt is the closest "finished when" (an edit after Done also bumps it).
+  const keep = new Set([...column].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, DONE_SHOWN));
+  return column.filter((c) => keep.has(c));
+}
+
 export function BoardRoute() {
   const t = useT();
   const data = useLoaderData() as ProjectData;
@@ -634,7 +641,7 @@ export function BoardRoute() {
                           )}
                         >
                           {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
-                          {(status === "done" && !doneAll ? column.slice(0, DONE_SHOWN) : column).map((card, slot) => (
+                          {(status === "done" && !doneAll ? newestDone(column) : column).map((card, slot) => (
                             <Fragment key={card.id}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
                               {/* The wrapper exists for one line: which HALF of a tile the pointer
