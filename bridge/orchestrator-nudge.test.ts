@@ -12,7 +12,7 @@ const snap = (live: boolean, bridge = "connected") =>
     agents: live ? [{ paneId: "o1", workspaceLabel: "orchestrator-r", cwd: "/g/r", status: "idle" }] : [],
   }) as unknown as EngineSnapshot;
 
-function world() {
+function world(prState?: (c: { id: string }) => Promise<{ state: string } | null>) {
   const db = new BoardDb(":memory:");
   const sent: string[] = [];
   const herdr = {
@@ -20,7 +20,7 @@ function world() {
     promptAgent: async (o: { target: string; text: string }) => void sent.push(o.text),
     sendPaneKeys: async () => {},
   } as never;
-  const nudger = new OrchestratorNudger(db, herdr);
+  const nudger = new OrchestratorNudger(db, herdr, undefined, prState as never);
   const card = db.createCard({ title: "a", repoPath: "/g/r", status: "ready" });
   const run = db.createRun({ repoPath: "/g/r", cardIds: [card.id], foldInCap: 0, name: "lot 1" });
   return { db, sent, nudger, card, run };
@@ -44,6 +44,29 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     await flush();
     expect(w.sent[0]).toContain("lot 1");
     expect(w.sent[0]).toContain("Bloquées ou non mergées");
+  });
+
+  it("lists a card merged when GitHub says its PR is MERGED, even halted in the journal", async () => {
+    const w = world(async () => ({ state: "merged" }));
+    w.db.patchCard(w.card.id, { status: "done", branch: "b" });
+    w.db.recordRunEvent(w.card.id, "run.halted", { runId: w.run.id, reason: "x" });
+    w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
+    w.nudger.update(snap(true));
+    await flush();
+    const msg = w.sent.find((m) => m.includes("est terminé"))!;
+    expect(msg).toContain("Mergées :");
+    expect(msg).not.toContain("Bloquées ou non mergées");
+  });
+
+  it("falls back on the journal when GitHub cannot be reached", async () => {
+    const w = world(async () => {
+      throw new Error("offline");
+    });
+    w.db.patchCard(w.card.id, { status: "done", branch: "b" });
+    w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent[0]).toContain("Mergées :");
   });
 
   it("asks for a short bilan citing facts, and proposes validating the phase when it ends", async () => {
