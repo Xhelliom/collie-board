@@ -4,10 +4,9 @@
 // find, and in a thousand-turn thread the only landmarks are the handful of messages YOU wrote (20
 // human turns in 900 is typical), so stepping between them is the fastest way to navigate.
 //
-// WHAT IS SEARCHED — deliberately, only what is VISIBLE with tool output collapsed: prose text and
-// the one-line tool summaries. Tool RESULT bodies are excluded even though we hold them, because
-// matching inside a collapsed body would jump you to a turn where nothing on screen matches. Every
-// hit this returns is a hit you can actually see.
+// WHAT IS SEARCHED — prose text, the one-line tool summaries AND tool result bodies. A hit inside a
+// folded output is still a hit you can see: TranscriptView unfolds the call and its long-output fold
+// whenever the query matches, so the turn a jump lands on always shows the match.
 
 import type { TranscriptEntry } from "@/lib/types";
 
@@ -16,7 +15,7 @@ export function searchableText(entry: TranscriptEntry): string {
   const parts: string[] = [];
   for (const part of entry.parts) {
     if (part.kind === "tool") {
-      parts.push(part.name, part.summary);
+      parts.push(part.name, part.summary, part.result?.text ?? "");
     } else {
       parts.push(part.text);
     }

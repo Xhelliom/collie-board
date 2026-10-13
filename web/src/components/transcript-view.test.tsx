@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ImageLightboxHost } from "./image-lightbox";
+import { matchingEntries } from "@/lib/transcript-search";
 import { TranscriptView } from "./transcript-view";
 import type { TranscriptEntry } from "@/lib/types";
 
@@ -407,5 +408,19 @@ describe("TranscriptView — long tool output", () => {
   it("a find hit inside the output opens the call and its fold", () => {
     render(<TranscriptView entries={entries} query="ligne 39" />);
     expect(screen.getByRole("button", { name: "Voir moins" })).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+describe("TranscriptView — find in output only", () => {
+  it("a query present only in a long output is found, and the turn opens unfolded", () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1000);
+    const text = Array.from({ length: 40 }, (_, i) => (i === 39 ? "AIGUILLE" : `ligne ${i}`)).join("\n");
+    const entries = [
+      turn({ uuid: "a1", role: "assistant", parts: [{ kind: "tool", name: "Bash", summary: "cat f", result: { text } }] }),
+    ];
+    expect(matchingEntries(entries, "aiguille")).toEqual([0]);
+    render(<TranscriptView entries={entries} query="aiguille" focusedUuid="a1" />);
+    expect(screen.getByRole("button", { name: "Voir moins" })).toHaveAttribute("aria-expanded", "true");
+    vi.restoreAllMocks();
   });
 });
