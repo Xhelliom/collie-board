@@ -396,13 +396,13 @@ describe("TranscriptView — long tool output", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it("folds output past N lines by default, Voir tout unfolds it", async () => {
+  it("folds output past N lines by default, Show all unfolds it", async () => {
     render(<TranscriptView entries={entries} />);
     await userEvent.click(screen.getByRole("button", { name: /Bash/ }));
-    const more = screen.getByRole("button", { name: "Voir tout" });
+    const more = screen.getByRole("button", { name: "Show all" });
     expect(more).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(more);
-    expect(screen.getByRole("button", { name: "Voir moins" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
   });
 
   it("a find hit inside the output opens the call and its fold", () => {
@@ -411,7 +411,7 @@ describe("TranscriptView — long tool output", () => {
     expect(head).toHaveAttribute("aria-expanded", "true");
     expect(head).toBeDisabled();
     expect(screen.getByText(/ligne 0/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Voir/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
   });
 });
 
@@ -425,7 +425,7 @@ describe("TranscriptView — find in output only", () => {
     expect(matchingEntries(entries, "aiguille")).toEqual([0]);
     render(<TranscriptView entries={entries} query="aiguille" focusedUuid="a1" />);
     expect(screen.getByRole("button", { name: /Bash/ })).toHaveAttribute("aria-expanded", "true");
-    expect(screen.queryByRole("button", { name: /Voir/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
     vi.restoreAllMocks();
   });
 });

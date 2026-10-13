@@ -46,7 +46,7 @@ export function updateNotice(update: UpdateInfo | undefined): UpdateNotice | nul
 }
 
 export function UpdateBanner({ className }: { className?: string }) {
-  useT(); // re-render on a language switch: updateNotice reads the catalog outside React
+  const t = useT(); // also re-renders on a language switch: updateNotice reads the catalog outside React
   // Home is the root route; space/settings are its children — so the root loader data (and its
   // `update`) is in scope for all three footers via one read.
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
@@ -84,7 +84,7 @@ export function UpdateBanner({ className }: { className?: string }) {
             type="button"
             disabled={!canCopy}
             onClick={() => copy(command)}
-            aria-label={`Copy command: ${command}`}
+            aria-label={t("settings.updates.copy", { command })}
             title={canCopy ? undefined : COPY_UNAVAILABLE_TITLE}
             className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground/80 disabled:pointer-events-none disabled:opacity-50"
           >

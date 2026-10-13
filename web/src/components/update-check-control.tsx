@@ -2,26 +2,28 @@ import { useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useRevalidator, useRouteLoaderData } from "react-router";
 
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { checkForUpdates } from "@/lib/api";
-import { timeAgo } from "@/lib/format";
+import { ago } from "@/lib/project-facts";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import type { UpdateInfo } from "@/lib/types";
 
-// "Check for updates" — a manual, on-demand upstream check. The bridge only polls upstream every few
+// t("settings.updates.check") — a manual, on-demand upstream check. The bridge only polls upstream every few
 // hours, so this forces a fresh look (which can take ~10s). It reads the current version + last-checked
 // time from the snapshot's `update` (via the root loader), then after a check revalidates so the footer
 // UpdateBanner reflects the new state. The actionable "available"/"restart needed" lines live in that
 // banner; here we only confirm an up-to-date result or surface a check failure.
 
-function describe(update: UpdateInfo | undefined): string {
-  if (!update) return "Check whether a new Collie version is available.";
-  const checked = update.checkedAt ? ` · checked ${timeAgo(update.checkedAt)}` : "";
-  return `Running v${update.current}${checked}`;
+function describe(update: UpdateInfo | undefined, t: ReturnType<typeof useT>): string {
+  if (!update) return t("settings.updates.none");
+  const checked = update.checkedAt ? t("settings.updates.checked", { ago: ago(update.checkedAt) }) : "";
+  return t("settings.updates.running", { version: update.current }) + checked;
 }
 
 export function UpdateCheckControl() {
+  const t = useT();
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const update = data?.update;
   const revalidator = useRevalidator();
@@ -57,8 +59,8 @@ export function UpdateCheckControl() {
         <div className="flex min-w-0 items-start gap-3">
           <RefreshCw className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Updates</div>
-            <p className="text-sm text-muted-foreground">{describe(update)}</p>
+            <div className="font-medium">{t("settings.updates.title")}</div>
+            <p className="text-sm text-muted-foreground">{describe(update, t)}</p>
           </div>
         </div>
       </div>
@@ -68,16 +70,16 @@ export function UpdateCheckControl() {
           {busy ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              Checking…
+              {t("settings.updates.checking")}
             </>
           ) : (
-            "Check for updates"
+            t("settings.updates.check")
           )}
         </Button>
         {/* Lightweight result — the actionable "available"/"restart" case is left to the UpdateBanner. */}
-        {!busy && error && <span className="text-xs text-status-blocked">Couldn't check.</span>}
+        {!busy && error && <span className="text-xs text-status-blocked">{t("settings.updates.failed")}</span>}
         {!busy && !error && upToDate && (
-          <span className="text-xs text-muted-foreground">Up to date</span>
+          <span className="text-xs text-muted-foreground">{t("settings.updates.upToDate")}</span>
         )}
       </div>
     </Card>

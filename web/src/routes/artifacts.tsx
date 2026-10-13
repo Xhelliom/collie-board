@@ -4,13 +4,14 @@ import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react
 import { ArrowLeft, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { DocViewer, KIND_ICON, KIND_LABEL, byteSize } from "@/components/artifact-viewer";
+import { DocViewer, KIND_ICON, byteSize } from "@/components/artifact-viewer";
 import { GalleryImg } from "@/components/gallery-img";
 import { paneArtifactUrl } from "@/lib/api";
 import { historyPath, panePath } from "@/lib/nav";
 import { openLightbox } from "@/lib/lightbox";
 import { ROOT_ROUTE_ID, type HomeData, type PaneArtifactsData } from "@/lib/loaders";
 import type { ArtifactInfo } from "@/lib/types";
+import { useT } from "@/i18n";
 
 // Re-exported so existing importers keep spelling it from here; the caption lives with the
 // shared viewer both file surfaces render through.
@@ -53,11 +54,12 @@ export function ArtifactViewer({
   /** Every image artifact's path, for the lightbox swipe — passed by the route, absent in tests. */
   imagePaths?: string[];
 }) {
+  const t = useT();
   const url = paneArtifactUrl(paneId, artifact.path, session);
   const target = (imagePaths ?? []).indexOf(artifact.path);
 
   if (artifact.kind !== "image") {
-    return <DocViewer url={url} name={artifact.name} kind={artifact.kind} fromLabel="from the worktree" />;
+    return <DocViewer url={url} name={artifact.name} kind={artifact.kind} fromLabel={t("gallery.fromWorktree")} />;
   }
 
   return (
@@ -65,7 +67,7 @@ export function ArtifactViewer({
       <button
         type="button"
         onClick={() => (target < 0 ? openLightbox([artifact.path]) : openLightbox(imagePaths!, target))}
-        aria-label={`Open ${artifact.name} full-screen`}
+        aria-label={t("artifacts.openFullScreen", { name: artifact.name })}
         className="block max-w-full rounded-md border bg-muted/40 p-1"
       >
         <GalleryImg path={artifact.path} url={url} alt={artifact.name} className="max-h-full max-w-full object-contain" />
@@ -75,6 +77,7 @@ export function ArtifactViewer({
 }
 
 export function ArtifactsRoute() {
+  const t = useT();
   const data = useLoaderData() as PaneArtifactsData;
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { paneId = "" } = useParams();
@@ -103,7 +106,7 @@ export function ArtifactsRoute() {
             <button
               type="button"
               onClick={() => setSelected(null)}
-              aria-label="Close artifact"
+              aria-label={t("artifacts.close")}
               className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
             >
               <X className="size-4" />
@@ -121,20 +124,20 @@ export function ArtifactsRoute() {
               <h1 className="truncate font-semibold leading-tight">{selected.name}</h1>
             </div>
             <div className="truncate text-xs leading-tight text-muted-foreground">
-              {KIND_LABEL[selected.kind]} · {selected.rel}
+              {t(`gallery.kind.${selected.kind}`)} · {selected.rel}
             </div>
           </div>
         </AppHeader>
       ) : (
         <AppHeader
           onBack={back}
-          title="Artifacts"
-          subtitle={`${data.artifacts.length} file${data.artifacts.length === 1 ? "" : "s"} in the worktree · ${paneTitle}`}
+          title={t("artifacts.title")}
+          subtitle={t("artifacts.subtitle", { count: data.artifacts.length, pane: paneTitle })}
         />
       )}
 
       {/* The screen's one h1 — the header already shows it, so it just needed to say so. */}
-      {selected === null && <h1 className="sr-only">Artifacts</h1>}
+      {selected === null && <h1 className="sr-only">{t("artifacts.title")}</h1>}
 
       {selected !== null ? (
         // The viewer is keyed by path so switching artifacts remounts it fresh (a new fetch, a new
@@ -149,7 +152,7 @@ export function ArtifactsRoute() {
       ) : data.artifacts.length === 0 ? (
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
           <p className="px-2 py-16 text-center text-sm text-muted-foreground">
-            No artifacts yet. Images, reports and pages an agent writes into its worktree show up here.
+            {t("artifacts.empty")}
           </p>
         </main>
       ) : (
@@ -162,7 +165,7 @@ export function ArtifactsRoute() {
             className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium text-muted-foreground transition-colors active:bg-muted/50"
           >
             <ArrowLeft className="size-3.5" />
-            Back to the conversation
+            {t("artifacts.backToConversation")}
           </button>
           <ul className="space-y-1">
             {data.artifacts.map((artifact) => {

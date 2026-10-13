@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { CARD_CATEGORIES, fetchBoardPrefs, setBoardPrefs } from "@/lib/board";
-import type { BoardPrefs, CardCategory } from "@/lib/board";
+import type { BoardPrefs } from "@/lib/board";
 
 // The one board-wide switch: whether the copilot's review turns what it found still undone into
 // backlog cards. Off by default — a board that refills itself is opted into, not discovered — and
@@ -19,6 +20,7 @@ import type { BoardPrefs, CardCategory } from "@/lib/board";
 // bridge answers, and nothing at all if it never does — a settings row that can't be trusted to
 // reflect the real state is worse than no row.
 export function FollowUpsControl() {
+  const t = useT();
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -54,11 +56,9 @@ export function FollowUpsControl() {
         <div className="flex min-w-0 items-start gap-3">
           <ListPlus className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Follow-up cards</div>
+            <div className="font-medium">{t("settings.followUps.title")}</div>
             <p className="text-sm text-muted-foreground">
-              When a card is done, add what the review found still undone to the backlog. Those
-              cards are marked <span className="font-medium text-foreground">auto</span>, and the
-              board filters on it.
+              {t("settings.followUps.hint", { auto: "auto" })}
             </p>
           </div>
         </div>
@@ -69,7 +69,7 @@ export function FollowUpsControl() {
             checked={prefs.autoFollowUps}
             disabled={busy}
             onCheckedChange={(next) => void save({ autoFollowUps: next })}
-            aria-label="Follow-up cards"
+            aria-label={t("settings.followUps.title")}
           />
         )}
       </div>
@@ -80,7 +80,7 @@ export function FollowUpsControl() {
             const on = prefs.followUpCategories.includes(c);
             return (
               <div key={c} className="flex items-center justify-between gap-4 py-1.5 pl-12 pr-4">
-                <div className="min-w-0 text-sm">{CATEGORY_LABEL[c]}</div>
+                <div className="min-w-0 text-sm">{t(`settings.followUps.${c}`)}</div>
                 <Switch
                   checked={on}
                   disabled={busy || !prefs.autoFollowUps}
@@ -91,7 +91,7 @@ export function FollowUpsControl() {
                         : prefs.followUpCategories.filter((x) => x !== c),
                     })
                   }
-                  aria-label={CATEGORY_LABEL[c]}
+                  aria-label={t(`settings.followUps.${c}`)}
                 />
               </div>
             );
@@ -111,12 +111,3 @@ const taken = (p: BoardPrefs): Prefs => ({
   followUpCategories: p.followUpCategories,
 });
 
-/** The vocabulary reads as bare words on the wire; these are what they mean on a settings row. */
-const CATEGORY_LABEL: Record<CardCategory, string> = {
-  test: "Testing to do",
-  feature: "Missing feature",
-  bug: "Bug found",
-  docs: "Docs to write",
-  chore: "Chore",
-  explore: "Question to explore",
-};

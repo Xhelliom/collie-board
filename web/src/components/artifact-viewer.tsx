@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FileCode, FileText, Images, Loader2, ShieldCheck } from "lucide-react";
 
 import { MarkdownText } from "@/components/markdown-text";
+import { useT } from "@/i18n";
 import type { ArtifactKind } from "@/lib/types";
 
 // The shared document reader both file surfaces use — the card-worktree artifact list
@@ -15,12 +16,6 @@ export const KIND_ICON: Record<ArtifactKind, typeof FileText> = {
   image: Images,
   markdown: FileText,
   html: FileCode,
-};
-
-export const KIND_LABEL: Record<ArtifactKind, string> = {
-  image: "Image",
-  markdown: "Markdown",
-  html: "HTML",
 };
 
 /** A phone-sized size caption: "12 KB" / "1.2 MB" / "430 B". Pure. */
@@ -53,20 +48,21 @@ export function DocViewer({
   kind: Exclude<ArtifactKind, "image">;
   fromLabel: string;
 }) {
+  const t = useT();
   if (kind === "html") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {/* sandbox without allowances: no scripts, no forms, no top navigation, no popups — and the
             bridge already scrubbed the bytes server-side. The one lock that web security agrees on. */}
         <iframe
-          title={`${name} (sandboxed)`}
+          title={t("gallery.sandboxedTitle", { name })}
           sandbox=""
           src={url}
           className="size-full rounded-md border bg-muted/10"
         />
         <p className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5 shrink-0" />
-          Sandboxed — scripts and external content are disabled.
+          {t("gallery.sandboxedNote")}
         </p>
       </div>
     );
@@ -85,6 +81,7 @@ function MarkdownViewer({
   name: string;
   fromLabel: string;
 }) {
+  const t = useT();
   const [text, setText] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -111,14 +108,14 @@ function MarkdownViewer({
   if (failed) {
     return (
       <p className="px-3 py-16 text-center text-sm text-muted-foreground">
-        Couldn't load {name} {fromLabel}.
+        {t("gallery.loadFailed", { name, from: fromLabel })}
       </p>
     );
   }
   if (text === null) {
     return (
       <p className="flex items-center gap-2 px-3 py-16 text-sm text-muted-foreground">
-        <Loader2 className="size-3.5 animate-spin" /> Loading…
+        <Loader2 className="size-3.5 animate-spin" /> {t("common.loading")}
       </p>
     );
   }

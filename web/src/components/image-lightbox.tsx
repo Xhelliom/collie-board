@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { useT } from "@/i18n";
 import { X } from "lucide-react";
 
 import { GalleryImg } from "@/components/gallery-img";
@@ -48,6 +49,7 @@ export function ImageLightbox({
   index: number;
   onClose: () => void;
 }) {
+  const t = useT();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(index);
@@ -69,7 +71,7 @@ export function ImageLightbox({
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      aria-label="Image viewer"
+      aria-label={t("lightbox.label")}
       // The UA stylesheet centres a dialog in a box; this one is the whole viewport.
       className="m-0 h-dvh max-h-none w-screen max-w-none bg-black/95 p-0 text-white backdrop:bg-black/80"
       // ← / → step a pane on a desktop keyboard. Touch needs nothing: the scroller IS the gesture.
@@ -92,7 +94,7 @@ export function ImageLightbox({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.close")}
             className="-mr-1 shrink-0 rounded-full p-2 text-white/80 hover:bg-white/10"
           >
             <X className="size-5" />

@@ -1,3 +1,4 @@
+import { useT, type MessageKey } from "@/i18n";
 import { Monitor, Moon, Palette, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,13 +6,14 @@ import { Card } from "@/components/ui/card";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import type { ThemeMode } from "@/lib/theme";
 
-const OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string; icon: typeof Sun }> = [
-  { mode: "light", label: "Light", icon: Sun },
-  { mode: "dark", label: "Dark", icon: Moon },
-  { mode: "system", label: "System", icon: Monitor },
+const OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: MessageKey; icon: typeof Sun }> = [
+  { mode: "light", label: "settings.theme.light", icon: Sun },
+  { mode: "dark", label: "settings.theme.dark", icon: Moon },
+  { mode: "system", label: "settings.theme.system", icon: Monitor },
 ];
 
 export function ThemeControl() {
+  const t = useT();
   const { mode, setMode } = useThemeMode();
 
   return (
@@ -20,8 +22,8 @@ export function ThemeControl() {
         <div className="flex min-w-0 items-start gap-3">
           <Palette className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Appearance</div>
-            <p className="text-sm text-muted-foreground">Light, dark, or follow your device.</p>
+            <div className="font-medium">{t("settings.theme.title")}</div>
+            <p className="text-sm text-muted-foreground">{t("settings.theme.hint")}</p>
           </div>
         </div>
       </div>
@@ -36,7 +38,7 @@ export function ThemeControl() {
             onClick={() => setMode(m)}
           >
             <Icon className="size-4" />
-            {label}
+            {t(label)}
           </Button>
         ))}
       </div>

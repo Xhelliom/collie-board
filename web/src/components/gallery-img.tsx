@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { galleryImageUrl } from "@/lib/api";
 import { imageName } from "@/lib/lightbox";
+import { useT } from "@/i18n";
 
 // The one <img> every gallery surface uses — the transcript thumbnail, the grid tile, the viewer's
 // pane. It exists for a single behaviour that none of them can have on their own: RETRY.
@@ -38,6 +39,7 @@ export function GalleryImg({
    */
   url?: string;
 }) {
+  const t = useT();
   const [attempt, setAttempt] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,7 +58,7 @@ export function GalleryImg({
   return (
     <img
       src={attempt === 0 ? src : `${src}&retry=${attempt}`}
-      alt={alt ?? imageName(path) ?? "image"}
+      alt={alt ?? imageName(path) ?? t("gallery.imageAlt")}
       // Only ever loads what's on screen — these are full-size renders over a phone link.
       loading="lazy"
       className={className}

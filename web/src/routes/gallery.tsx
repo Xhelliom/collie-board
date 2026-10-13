@@ -3,10 +3,11 @@ import { useLoaderData } from "react-router";
 import { X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { DocViewer, KIND_ICON, KIND_LABEL, byteSize } from "@/components/artifact-viewer";
+import { DocViewer, KIND_ICON, byteSize } from "@/components/artifact-viewer";
 import { GalleryImg } from "@/components/gallery-img";
 import { galleryFileUrl } from "@/lib/api";
 import { openLightbox } from "@/lib/lightbox";
+import { getLocale, useT } from "@/i18n";
 import type { GalleryDoc, GalleryImage, GalleryListing } from "@/lib/types";
 
 // Every file sitting in a harness scratchpad, grouped by the session that made it.
@@ -41,7 +42,7 @@ export function groupBySession<T extends { project: string; session: string }>(
 /** A group's heading: the project and when its newest file landed — the session id means nothing on a phone. */
 export function groupTitle(items: { project: string; mtime: number }[]): string {
   const newest = Math.max(...items.map((i) => i.mtime));
-  return `${items[0]?.project} · ${new Date(newest).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+  return `${items[0]?.project} · ${new Date(newest).toLocaleString(getLocale(), { dateStyle: "medium", timeStyle: "short" })}`;
 }
 
 export function filterByProject<T extends { project: string }>(items: T[], project: string | null): T[] {
@@ -49,6 +50,7 @@ export function filterByProject<T extends { project: string }>(items: T[], proje
 }
 
 export function GalleryRoute() {
+  const t = useT();
   const listing = useLoaderData() as GalleryListing;
   const [project, setProject] = useState<string | null>(null);
   const projects = [...new Set([...listing.images, ...listing.docs].map((i) => i.project))].sort();
@@ -58,10 +60,7 @@ export function GalleryRoute() {
   const docGroups = groupBySession(docs);
   const [selected, setSelected] = useState<GalleryDoc | null>(null);
 
-  const subtitleParts = [
-    `${images.length} image${images.length === 1 ? "" : "s"}`,
-    `${docs.length} document${docs.length === 1 ? "" : "s"}`,
-  ];
+  const subtitleParts = [t("gallery.images", { count: images.length }), t("gallery.documents", { count: docs.length })];
 
   if (selected !== null) {
     const Icon = KIND_ICON[selected.kind];
@@ -73,7 +72,7 @@ export function GalleryRoute() {
             <button
               type="button"
               onClick={() => setSelected(null)}
-              aria-label="Close document"
+              aria-label={t("gallery.closeDocument")}
               className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
             >
               <X className="size-4" />
@@ -88,7 +87,7 @@ export function GalleryRoute() {
               <h1 className="truncate font-semibold leading-tight">{selected.name}</h1>
             </div>
             <div className="truncate text-xs leading-tight text-muted-foreground">
-              {KIND_LABEL[selected.kind]} · {selected.project} · {selected.session.slice(0, 8)}
+              {t(`gallery.kind.${selected.kind}`)} · {selected.project} · {selected.session.slice(0, 8)}
             </div>
           </div>
         </AppHeader>
@@ -98,7 +97,7 @@ export function GalleryRoute() {
           url={galleryFileUrl(selected.path)}
           name={selected.name}
           kind={selected.kind}
-          fromLabel="from the scratchpad"
+          fromLabel={t("gallery.fromScratchpad")}
         />
       </div>
     );
@@ -106,12 +105,12 @@ export function GalleryRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      <AppHeader title="Gallery" subtitle={subtitleParts.join(" · ")} />
-      <h1 className="sr-only">Gallery</h1>
+      <AppHeader title={t("gallery.title")} subtitle={subtitleParts.join(" · ")} />
+      <h1 className="sr-only">{t("gallery.title")}</h1>
 
       <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-3">
         {projects.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label="Filter by project">
+          <div className="flex gap-1.5 overflow-x-auto" role="group" aria-label={t("gallery.filterByProject")}>
             {[null, ...projects].map((p) => (
               <button
                 key={p ?? "all"}
@@ -120,15 +119,14 @@ export function GalleryRoute() {
                 onClick={() => setProject(p)}
                 className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${project === p ? "bg-primary text-primary-foreground" : "bg-muted/40"}`}
               >
-                {p ?? "All"}
+                {p ?? t("gallery.all")}
               </button>
             ))}
           </div>
         )}
         {imageGroups.length === 0 && docGroups.length === 0 ? (
           <p className="px-2 py-16 text-center text-sm text-muted-foreground">
-            Nothing yet. Anything an agent writes into its scratchpad — pictures, pages, reports —
-            shows up here.
+            {t("gallery.empty")}
           </p>
         ) : (
           <>
@@ -161,7 +159,7 @@ export function GalleryRoute() {
             {docGroups.map((group) => (
               <section key={`docs-${group.key}`}>
                 <h2 className="mb-1.5 truncate font-mono text-xs text-muted-foreground">
-                  {groupTitle(group.items)} · documents
+                  {groupTitle(group.items)} · {t("gallery.documentsSuffix")}
                 </h2>
                 <ul className="space-y-1">
                   {group.items.map((doc: GalleryDoc) => {
@@ -179,7 +177,7 @@ export function GalleryRoute() {
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-mono text-sm">{doc.name}</span>
                             <span className="block truncate text-xs text-muted-foreground">
-                              {KIND_LABEL[doc.kind]}
+                              {t(`gallery.kind.${doc.kind}`)}
                             </span>
                           </span>
                           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">

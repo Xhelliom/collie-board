@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fetchConfig } from "@/lib/api";
 import { BUILD, buildLabel, isStaleBuild } from "@/lib/build";
@@ -14,6 +15,7 @@ import { checkForUpdate } from "@/lib/pwa";
 // one-tap update — appearing/disappearing in real time as the server rebuilds. See README →
 // Troubleshooting.
 export function BuildStamp({ className }: { className?: string }) {
+  const t = useT();
   const serverBuild = useServerBuild();
   const [updating, setUpdating] = useState(false);
   useEffect(() => {
@@ -63,10 +65,10 @@ export function BuildStamp({ className }: { className?: string }) {
             {updating ? (
               <span className="inline-flex items-center gap-1 align-middle">
                 <Loader2 className="size-3 animate-spin" />
-                updating…
+                {t("settings.build.updating")}
               </span>
             ) : (
-              "new build — tap to update"
+              t("settings.build.stale")
             )}
           </button>
         </>

@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, Outlet, RouterProvider } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { setPreference } from "@/i18n";
 
 import { HistoryRoute } from "./history";
 import { ROOT_ROUTE_ID, type HistoryData, type HomeData } from "@/lib/loaders";
@@ -68,7 +70,17 @@ function mount() {
   render(<RouterProvider router={router} />);
 }
 
+afterEach(() => setPreference("en"));
+
 describe("HistoryRoute header", () => {
+  it("speaks French when asked to", async () => {
+    setPreference("fr");
+    mount();
+    for (const name of ["Chercher dans l'historique", "Fermer l'historique", "Plus", "Message envoyé suivant"]) {
+      expect(await screen.findByRole("button", { name })).toBeTruthy();
+    }
+  });
+
   it("keeps three 44 px targets and folds the secondary icons into a menu", async () => {
     mount();
     for (const name of ["Find in history", "Close history", "More"]) {

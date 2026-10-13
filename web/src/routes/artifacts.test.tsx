@@ -9,6 +9,7 @@ import type { HomeData, PaneArtifactsData } from "@/lib/loaders";
 import { ROOT_ROUTE_ID } from "@/lib/loaders";
 import type { AgentView, ArtifactInfo } from "@/lib/types";
 import { server } from "@/test/setup";
+import { setPreference } from "@/i18n";
 
 // Fixtures: a real worktree's worth of session artifacts — the same kinds the bridge serves.
 const renderPng: ArtifactInfo = {
@@ -199,5 +200,21 @@ describe("ArtifactsRoute — the list from the loader", () => {
     mount([]);
     expect(await screen.findByText(/no artifacts yet/i)).toBeTruthy();
     expect(screen.getByText(/0 files in the worktree/)).toBeTruthy();
+  });
+});
+describe("ArtifactViewer — in French", () => {
+  it("translates the sandbox note and the load error", async () => {
+    setPreference("fr");
+    try {
+      serveBytes();
+      const { unmount } = render(<ArtifactViewer paneId="w1:p1" artifact={pageHtml} />);
+      expect(screen.getByText(/Isolé — les scripts/)).toBeTruthy();
+      unmount();
+      server.use(http.get("*/api/pane/*/artifact", () => HttpResponse.error()));
+      render(<ArtifactViewer paneId="w1:p1" artifact={reportMd} />);
+      expect(await screen.findByText(/Impossible de charger/)).toBeTruthy();
+    } finally {
+      setPreference("en");
+    }
   });
 });

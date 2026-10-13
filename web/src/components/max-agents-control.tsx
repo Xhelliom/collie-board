@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Gauge, Loader2, Minus, Plus } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fetchBoardPrefs, setBoardPrefs, MAX_AGENTS_CAP } from "@/lib/board";
@@ -20,6 +21,7 @@ import { fetchBoardPrefs, setBoardPrefs, MAX_AGENTS_CAP } from "@/lib/board";
 const STEPPER_MAX = 8;
 
 export function MaxAgentsControl() {
+  const t = useT();
   const [value, setValue] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -61,9 +63,9 @@ export function MaxAgentsControl() {
         <div className="flex min-w-0 items-start gap-3">
           <Gauge className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Agents at once</div>
+            <div className="font-medium">{t("settings.maxAgents.title")}</div>
             <p className="text-sm text-muted-foreground">
-              Starting a card past this limit is refused until one finishes or is handed off.
+              {t("settings.maxAgents.hint")}
             </p>
           </div>
         </div>
@@ -76,7 +78,7 @@ export function MaxAgentsControl() {
               size="icon"
               disabled={busy || value <= 1}
               onClick={() => void bump(-1)}
-              aria-label="One agent fewer"
+              aria-label={t("settings.maxAgents.fewer")}
             >
               <Minus />
             </Button>
@@ -91,7 +93,7 @@ export function MaxAgentsControl() {
               size="icon"
               disabled={busy || value >= STEPPER_MAX}
               onClick={() => void bump(1)}
-              aria-label="One agent more"
+              aria-label={t("settings.maxAgents.more")}
             >
               <Plus />
             </Button>

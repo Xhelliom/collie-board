@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
@@ -31,15 +32,6 @@ import type { TranscriptEntry } from "@/lib/types";
 // The loader is deliberately not revalidated (`shouldRevalidate: false` in router.tsx), so the 1.5 s
 // poll never re-pulls a several-hundred-turn transcript out from under the reader.
 
-/** Why the strip is empty, in the user's terms. Each is an ordinary state, not an error. */
-const UNAVAILABLE_COPY: Record<NonNullable<HistoryData["unavailable"]>, string> = {
-  disabled: "Transcript history is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
-  "no-session": "This pane has no agent session, so there's no transcript to read.",
-  "no-log": "No transcript file was found for this pane's session yet.",
-  unsupported: "This agent keeps no transcript Collie can read, so there's no history to show.",
-  error: "Couldn't read the transcript. Pull back and try again.",
-};
-
 /** Turns rendered on open — a few screens, so first paint stays instant on the longest threads. */
 const INITIAL_RENDER = 60;
 /** Turns added per upward growth step. */
@@ -51,6 +43,7 @@ const HEADER_BTN =
   "flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60";
 
 export function HistoryRoute() {
+  const t = useT();
   const data = useLoaderData() as HistoryData;
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { paneId = "" } = useParams();
@@ -120,11 +113,11 @@ export function HistoryRoute() {
       setRenderCount((c) => c + res.entries.length); // keep the newly-fetched turns visible
       setHasMore(res.hasMore);
     } catch {
-      setStatus("Couldn't load older history", "error");
+      setStatus(t("history.loadFailed"), "error");
     } finally {
       setLoading(false);
     }
-  }, [entries, hasMore, loading, paneId, session]);
+  }, [entries, hasMore, loading, paneId, session, t]);
 
   /** Reveal more of what we already hold; only hit the network once nothing is left in memory. */
   const growUpward = useCallback(() => {
@@ -224,7 +217,7 @@ export function HistoryRoute() {
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
-                aria-label="More"
+                aria-label={t("history.more")}
                 className={HEADER_BTN}
               >
                 <EllipsisVertical className="size-4" />
@@ -234,7 +227,7 @@ export function HistoryRoute() {
             <button
               type="button"
               onClick={() => setFindOpen(true)}
-              aria-label="Find in history"
+              aria-label={t("history.find")}
               className={HEADER_BTN}
             >
               <Search className="size-4" />
@@ -248,7 +241,7 @@ export function HistoryRoute() {
           <button
             type="button"
             onClick={() => navigate(panePath(paneId, session))}
-            aria-label="Close history"
+            aria-label={t("history.close")}
             className={HEADER_BTN}
           >
             <X className="size-4" />
@@ -259,7 +252,7 @@ export function HistoryRoute() {
           <div className="flex items-center gap-1.5">
             <ScrollText className="size-3.5 shrink-0 text-muted-foreground" />
             {/* The screen's one h1 — it's already the visible title, so it just needed to say so. */}
-            <h1 className="truncate font-semibold leading-tight">History</h1>
+            <h1 className="truncate font-semibold leading-tight">{t("history.title")}</h1>
           </div>
           <div className="truncate text-xs leading-tight text-muted-foreground">
             {data.total > 0 && <span className="tabular-nums">{shown.length}/{data.total} · </span>}
@@ -268,12 +261,12 @@ export function HistoryRoute() {
         </div>
       </AppHeader>
 
-      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="History">
+      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={t("history.title")}>
         <div className="flex flex-col gap-1">
           {sessionImages.length > 0 && (
             <ActionRow
               icon={<Images className="size-4 shrink-0 text-muted-foreground" />}
-              label={`Images in this session (${sessionImages.length})`}
+              label={t("history.images", { count: sessionImages.length })}
               onClick={() => {
                 setMenuOpen(false);
                 openLightbox(sessionImages);
@@ -283,7 +276,7 @@ export function HistoryRoute() {
           {agent?.cardId && (
             <ActionRow
               icon={<FileCode2 className="size-4 shrink-0 text-muted-foreground" />}
-              label="Session artifacts"
+              label={t("history.artifacts")}
               onClick={() => {
                 setMenuOpen(false);
                 navigate(paneArtifactsPath(paneId, session));
@@ -297,7 +290,7 @@ export function HistoryRoute() {
         <ChatMessageList ref={listRef} className="px-3 py-3">
           {entries.length === 0 ? (
             <div className="px-2 py-16 text-center text-sm text-muted-foreground">
-              {UNAVAILABLE_COPY[data.unavailable ?? "no-log"]}
+              {t(`history.unavailable.${data.unavailable ?? "no-log"}`)}
             </div>
           ) : (
             <>
@@ -315,13 +308,13 @@ export function HistoryRoute() {
                   ) : (
                     <ArrowUpToLine className="size-3.5" />
                   )}
-                  {loading ? "Loading…" : "Load older"}
+                  {loading ? t("history.loading") : t("history.loadOlder")}
                 </button>
               ) : (
                 <div className="mb-3 text-center text-xs text-muted-foreground">
                   {data.fileTruncated
-                    ? "Start of the readable transcript (the log was clipped at the read cap)"
-                    : "Start of the conversation"}
+                    ? t("history.startClipped")
+                    : t("history.start")}
                 </div>
               )}
               <TranscriptView
@@ -345,7 +338,7 @@ export function HistoryRoute() {
             <button
               type="button"
               onClick={() => jumpTo(step(userTurns, cursor, -1))}
-              aria-label="Previous message you sent"
+              aria-label={t("history.prevUser")}
               className="flex size-11 items-center justify-center text-muted-foreground transition-colors active:bg-muted"
             >
               <ChevronUp className="size-4" />
@@ -353,7 +346,7 @@ export function HistoryRoute() {
             <button
               type="button"
               onClick={() => jumpTo(step(userTurns, cursor, 1))}
-              aria-label="Next message you sent"
+              aria-label={t("history.nextUser")}
               className="flex size-11 items-center justify-center border-t text-muted-foreground transition-colors active:bg-muted"
             >
               <ChevronDown className="size-4" />

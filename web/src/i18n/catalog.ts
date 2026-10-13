@@ -9,7 +9,10 @@ import { languageMessages } from "./messages/language";
 import { templates } from "./messages/templates";
 import { flows } from "./messages/flows";
 import { home } from "./messages/home";
+import { settings } from "./messages/settings";
+import { gallery } from "./messages/gallery";
+import { history } from "./messages/history";
 
 // One file per area, so two people (or agents) never edit the same one. Adding an area is one line here.
-export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...flows, ...home };
+export const CATALOG = { ...common, ...board, ...card, ...project, ...prs, ...sheets, ...orchestrator, ...languageMessages, ...templates, ...flows, ...home, ...settings, ...gallery, ...history };
 export type MessageKey = keyof typeof CATALOG;

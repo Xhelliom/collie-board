@@ -12,13 +12,16 @@ import { sheets } from "./messages/sheets";
 import { templates } from "./messages/templates";
 import { flows } from "./messages/flows";
 import { home } from "./messages/home";
+import { settings } from "./messages/settings";
+import { gallery } from "./messages/gallery";
+import { history } from "./messages/history";
 
 const forms = (v: string | { one: string; other: string }) => (typeof v === "string" ? [v] : [v.one, v.other]);
 const params = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
 
 describe("the message catalog", () => {
   it("has no key defined in two areas — the spread would let the last one win silently", () => {
-    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates, flows, home].flatMap((a) => Object.keys(a));
+    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates, flows, home, settings, gallery, history].flatMap((a) => Object.keys(a));
     expect(all.filter((k, i) => all.indexOf(k) !== i)).toEqual([]);
     expect(Object.keys(CATALOG).length).toBe(all.length);
   });

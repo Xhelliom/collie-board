@@ -19,9 +19,9 @@ const KEY = "collie:locale";
 const read = (): Preference => {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "en" || v === "fr" ? v : "auto";
+    return v === "auto" || v === "fr" ? v : "en";
   } catch {
-    return "auto";
+    return "en";
   }
 };
 
@@ -43,8 +43,7 @@ export function setPreference(p: Preference): void {
   preference = p;
   current = resolveLocale(p, browserLanguage());
   try {
-    if (p === "auto") localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, p);
+    localStorage.setItem(KEY, p);
   } catch {
     /* private window: the choice lasts for this visit only */
   }

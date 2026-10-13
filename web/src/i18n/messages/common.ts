@@ -11,6 +11,9 @@ export const common = defineMessages({
     en: { one: "Show {count} more", other: "Show {count} more" },
     fr: { one: "Voir {count} autre", other: "Voir les {count} autres" },
   },
+  "common.back": { en: "Back", fr: "Retour" },
+  "common.close": { en: "Close", fr: "Fermer" },
+  "lightbox.label": { en: "Image viewer", fr: "Visionneuse d'images" },
   "fold.less": { en: "Show less", fr: "Voir moins" },
   // A card's column. Lane names below must repeat a column's name only on the lane's FIRST column
   // (lib/board.test.ts), so "Actives" is not "En cours".
