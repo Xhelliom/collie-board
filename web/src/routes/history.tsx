@@ -260,13 +260,11 @@ export function HistoryRoute() {
             <ScrollText className="size-3.5 shrink-0 text-muted-foreground" />
             {/* The screen's one h1 — it's already the visible title, so it just needed to say so. */}
             <h1 className="truncate font-semibold leading-tight">History</h1>
-            {data.total > 0 && (
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {shown.length}/{data.total}
-              </span>
-            )}
           </div>
-          <div className="truncate text-xs leading-tight text-muted-foreground">{title}</div>
+          <div className="truncate text-xs leading-tight text-muted-foreground">
+            {data.total > 0 && <span className="tabular-nums">{shown.length}/{data.total} · </span>}
+            {title}
+          </div>
         </div>
       </AppHeader>
 

@@ -33,4 +33,13 @@ describe("touch targets ≥ 44 px", () => {
       expect(src.slice(at, at + 200)).toMatch(/flex size-11 /);
     }
   });
+
+  it("AppHeader Back and NotificationBell", () => {
+    // ponytail: both need router context; assert the source classes like the AgentChat toggle.
+    for (const [file, label] of [["app-header.tsx", 'aria-label="Back"'], ["notification-bell.tsx", "aria-label={count"]]) {
+      const src = readFileSync(resolve(__dirname, file), "utf8");
+      const at = src.indexOf(label);
+      expect(src.slice(at, at + 250)).toMatch(/flex size-11 /);
+    }
+  });
 });
