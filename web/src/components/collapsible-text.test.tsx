@@ -34,4 +34,17 @@ describe("CollapsibleText", () => {
     expect(less).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("long").style.maxHeight).toBe("");
   });
+
+  it("forceOpen on short text shows no button", () => {
+    measure(40, 40);
+    render(<CollapsibleText forceOpen>court</CollapsibleText>);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  it("forceOpen on long text unfolds with no dead toggle", () => {
+    measure(400, 100);
+    render(<CollapsibleText lines={4} forceOpen>long</CollapsibleText>);
+    expect(screen.getByText("long").style.maxHeight).toBe("");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 });

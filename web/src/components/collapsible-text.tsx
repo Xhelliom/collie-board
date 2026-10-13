@@ -28,10 +28,10 @@ export function CollapsibleText({
   // Height limit in px once overflow is confirmed; null = fits, nothing is clamped.
   const [limit, setLimit] = useState<number | null>(null);
 
-  // Re-measure on every render of the content. Short text is never clamped, so it renders as before.
+  // Re-measure on every render, open or not (overflow is still known when unfolded). Short text is never clamped, so it renders as before.
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || open) return;
+    if (!el) return;
     const cs = getComputedStyle(el);
     const lh = parseFloat(cs.lineHeight) || 1.5 * (parseFloat(cs.fontSize) || 16);
     setLimit(el.scrollHeight > lines * lh + 1 ? lines * lh : null);
@@ -47,7 +47,8 @@ export function CollapsibleText({
       >
         {children}
       </div>
-      {(limit !== null || open) && (
+      {/* Nothing to toggle while a search forces it open, or when the content fits. */}
+      {limit !== null && !forceOpen && (
         <button
           type="button"
           aria-expanded={open}

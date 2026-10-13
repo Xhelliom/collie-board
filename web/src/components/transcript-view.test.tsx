@@ -407,7 +407,11 @@ describe("TranscriptView — long tool output", () => {
 
   it("a find hit inside the output opens the call and its fold", () => {
     render(<TranscriptView entries={entries} query="ligne 39" />);
-    expect(screen.getByRole("button", { name: "Voir moins" })).toHaveAttribute("aria-expanded", "true");
+    const head = screen.getByRole("button", { name: /Bash/ });
+    expect(head).toHaveAttribute("aria-expanded", "true");
+    expect(head).toBeDisabled();
+    expect(screen.getByText(/ligne 0/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Voir/ })).toBeNull();
   });
 });
 
@@ -420,7 +424,8 @@ describe("TranscriptView — find in output only", () => {
     ];
     expect(matchingEntries(entries, "aiguille")).toEqual([0]);
     render(<TranscriptView entries={entries} query="aiguille" focusedUuid="a1" />);
-    expect(screen.getByRole("button", { name: "Voir moins" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /Bash/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryByRole("button", { name: /Voir/ })).toBeNull();
     vi.restoreAllMocks();
   });
 });

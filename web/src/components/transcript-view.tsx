@@ -116,7 +116,7 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        disabled={!result}
+        disabled={!result || hit}
         aria-expanded={result ? open : undefined}
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left disabled:opacity-100"
       >
