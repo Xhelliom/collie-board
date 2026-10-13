@@ -17,7 +17,7 @@ import type { HomeData } from "@/lib/loaders";
 // The nav shell (redesign §Navigation). Mounted once in RootLayout, above the route tree, so it
 // owns the two things that used to live in every AppHeader: the Collie mark's connection animation,
 // and "where am I in the app". Below `lg` it renders as a bottom tab bar (mobile), shown ONLY on the
-// four root screens (a card/pane/space-detail has a back chevron in its toolbar instead — a third
+// four root screens plus a card (a pane/space-detail has a back chevron in its toolbar instead — a third
 // bar under an open composer + keyboard is unusable). At `lg` and up it renders as a persistent
 // 248px sidebar instead, on every screen (the pane screen shrinks it to a 64px icon rail — see
 // agent-chat.tsx, Phase 7).
@@ -53,7 +53,8 @@ const SETTINGS_ITEM = NAV_ITEMS.find((item) => item.key === "settings")!;
 function rootKeyFor(pathname: string): string | undefined {
   if (pathname === "/") return "herd";
   // Board, Project and Open PRs are views of one thing: the Board tab stays lit (and the bar visible).
-  if (pathname === "/board" || pathname.startsWith("/board/")) return "board";
+  // A card is the board's own detail view: same tab lit, and the bar stays (it has no sticky composer).
+  if (pathname === "/board" || pathname.startsWith("/board/") || pathname.startsWith("/card/")) return "board";
   if (pathname === "/spaces") return "spaces";
   if (pathname === "/settings") return "settings";
   return undefined;
@@ -310,7 +311,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
   // mounted across a root ↔ entered-screen navigation (AppNav renders it at a fixed position), so a
   // hook after a conditional return would violate the rules of hooks the moment `active` flips.
   const { gallop, lost } = useNavDogState(data);
-  // Only on the four root screens — an entered screen (card, pane, space detail) gives its full
+  // Only on the root screens and a card — an entered screen (pane, space detail) gives its full
   // height to content and offers a back chevron in its toolbar instead.
   if (!active) return null;
   const blocked = data.agents.filter((a) => a.status === "blocked").length;
