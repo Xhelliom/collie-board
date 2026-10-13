@@ -150,25 +150,32 @@ export async function boardRouteLoader({ request }: { request?: Request } = {}):
 
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
 export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
-  const base = await boardLoader({ request });
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
-  if (!repo) return { ...base, phases: [], lots: [], roadmap: null };
-  const [phases, lots, roadmap, orchestrator, templates, flows] = await Promise.all([
-    fetchPhases(repo, request?.signal).then((r) => r.phases, () => []),
-    fetchLots(repo, request?.signal).then((r) => r.runs, () => []),
-    fetchRoadmap(repo, request?.signal).then((r) => r.roadmap, () => null),
-    fetchOrchestrator(repo, request?.signal).catch(() => null),
-    fetchTemplates(request?.signal).catch(() => null),
-    fetchFlows(request?.signal).then((r) => r.flows).catch(() => null),
+  if (!repo) return { ...(await boardLoader({ request })), phases: [], lots: [], roadmap: null };
+  const signal = request?.signal;
+  // The repo is in the URL: its layer starts with the cards, and the orchestrator's history and memory
+  // start together once its pane is known — one round of waiting each, not four (audit perf #5).
+  const orchestratorLayer = fetchOrchestrator(repo, signal)
+    .catch(() => null)
+    .then(async (orchestrator) => {
+      if (!orchestrator?.paneId) return { orchestrator, orchestratorEntries: [], orchestratorMemory: null };
+      const [orchestratorEntries, orchestratorMemory] = await Promise.all([
+        fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, signal).then(
+          (r) => (r.available ? r.entries : []),
+          () => [],
+        ),
+        fetchOrchestratorMemory(repo, signal).then((r) => r.memory, () => null),
+      ]);
+      return { orchestrator, orchestratorEntries, orchestratorMemory };
+    });
+  const [base, phases, lots, roadmap, orch, templates, flows] = await Promise.all([
+    boardLoader({ request }),
+    fetchPhases(repo, signal).then((r) => r.phases, () => []),
+    fetchLots(repo, signal).then((r) => r.runs, () => []),
+    fetchRoadmap(repo, signal).then((r) => r.roadmap, () => null),
+    orchestratorLayer,
+    fetchTemplates(signal).catch(() => null),
+    fetchFlows(signal).then((r) => r.flows).catch(() => null),
   ]);
-  const orchestratorEntries = orchestrator?.paneId
-    ? await fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, request?.signal).then(
-        (r) => (r.available ? r.entries : []),
-        () => [],
-      )
-    : [];
-  const orchestratorMemory = orchestrator?.paneId
-    ? await fetchOrchestratorMemory(repo, request?.signal).then((r) => r.memory, () => null)
-    : null;
-  return { ...base, phases, lots, roadmap, orchestrator, orchestratorEntries, orchestratorMemory, templates, flows };
+  return { ...base, phases, lots, roadmap, ...orch, templates, flows };
 }
