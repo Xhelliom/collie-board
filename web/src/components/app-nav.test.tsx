@@ -60,8 +60,8 @@ describe("AppNav — sidebar (desktop, always mounted)", () => {
     expect(router.state.location.pathname).toBe("/board");
   });
 
-  it("stays mounted on an entered screen (a card), where the tab bar does not", () => {
-    const { sidebar, tabBar } = renderAt("/card/abc");
+  it("stays mounted on an entered screen (a pane), where the tab bar does not", () => {
+    const { sidebar, tabBar } = renderAt("/pane/w1%3Ap1");
     expect(within(sidebar).getByRole("button", { name: "Board" })).toBeInTheDocument();
     expect(tabBar).toBeUndefined();
   });
@@ -70,12 +70,16 @@ describe("AppNav — sidebar (desktop, always mounted)", () => {
 describe("AppNav — mobile tab bar", () => {
   beforeEach(() => __resetConnectionHealth());
 
-  it("renders only on the four root screens", () => {
+  it("keeps the tab bar on a card, Board lit", () => {
+    const { tabBar } = renderAt("/card/abc");
+    expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders on the root screens and a card, not on a pane", () => {
     expect(renderAt("/board").tabBar).toBeDefined();
     expect(renderAt("/").tabBar).toBeDefined();
     expect(renderAt("/spaces").tabBar).toBeDefined();
     expect(renderAt("/settings").tabBar).toBeDefined();
-    expect(renderAt("/card/abc").tabBar).toBeUndefined();
     expect(renderAt("/pane/w1%3Ap1").tabBar).toBeUndefined();
   });
 
