@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.190.5] - 2026-10-13
+
+### Changed
+
+- Accueil : Idle · done replié à 4 lignes, Projets à 3 tuiles (+ « Voir les n autres »), 2 phases par tuile (+n). (2a0b129)
+- Carte : liste de fichiers du diff repliée à 8 ; colonne Terminé du board repliée à 5. (2a0b129)
+- Projet : critères d'acceptation et vision repliés (« Voir plus »). (2a0b129)
+- Roadmap : journal des décisions en clair pour les ❓ et celles sans phase ; les autres derrière « Voir les n autres ». (2a0b129)
+
+### Fixed
+
+- Une carte dont l'agent a fini et reste idle (sans `done` vu) passe en review après 45 s (ADR 0037) (7d09558)
+
 ## [0.190.4] - 2026-10-12
 
 ### Fixed
