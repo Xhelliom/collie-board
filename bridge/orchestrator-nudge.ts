@@ -10,13 +10,15 @@ import { promptAndConfirm } from "./cards.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { endOfLot } from "./autonomy.ts";
 import type { NotifyLog } from "./notify-log.ts";
+import type { PrStatus } from "./git.ts";
+import { prStatusFor } from "./integrate.ts";
 
 const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
-/** The message for a lot that ended: its cards, merged ones apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null): string {
-  const ok = cards.filter((c) => FILED.has(c.status) && !blocked.has(c.id));
+/** The message for a lot that ended: its cards, merged ones (journal, or a PR GitHub says is merged) apart from those that were ever blocked. Pure. */
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null): string {
+  const ok = cards.filter((c) => merged.has(c.id) || (FILED.has(c.status) && !blocked.has(c.id)));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
     `Le lot « ${name ?? "sans nom"} » est terminé.`,
@@ -52,6 +54,8 @@ export class OrchestratorNudger {
     private readonly db: BoardDb,
     private readonly herdr: HerdrClient,
     private readonly log?: NotifyLog,
+    /** The PR's real state, read when the message is composed — injected so tests need no GitHub. */
+    private readonly prState: (card: Card) => Promise<PrStatus | null> = (c) => prStatusFor(c, Date.now, true),
   ) {
     this.cursor = db.lastEventId();
   }
@@ -60,16 +64,20 @@ export class OrchestratorNudger {
     if (snap.bridge === "disconnected") return;
     for (const e of this.db.eventsAfter(this.cursor)) {
       this.cursor = e.id;
-      const msg = this.messageFor(e);
-      if (!msg) continue;
-      const paneId = findOrchestrator(snap, msg.repoPath);
-      // No living orchestrator: nothing to say to, and nothing to complain about.
-      if (!paneId) this.db.armAutonomy(msg.repoPath, false); // no orchestrator to be woken: nobody holds the grant
-      if (paneId) void promptAndConfirm(this.herdr, paneId, msg.text).catch((err) => console.warn(`[orchestrator] nudge failed: ${(err as Error).message}`));
+      void this.messageFor(e)
+        .then((msg) => {
+          if (!msg) return;
+          const paneId = findOrchestrator(snap, msg.repoPath);
+          // No living orchestrator: nothing to say to, and nothing to complain about.
+          if (!paneId) this.db.armAutonomy(msg.repoPath, false); // no orchestrator to be woken: nobody holds the grant
+          else return promptAndConfirm(this.herdr, paneId, msg.text);
+        })
+        .catch((err) => console.warn(`[orchestrator] nudge failed: ${(err as Error).message}`));
     }
   }
 
-  private messageFor(e: BoardEvent): { repoPath: string; text: string } | null {
+  // Sync up to the first await: the `told` guard and cursor stay race-free.
+  private async messageFor(e: BoardEvent): Promise<{ repoPath: string; text: string } | null> {
     const p = (e.payload ?? {}) as { runId?: string; reason?: string; merged?: boolean };
     const run = p.runId ? this.db.getRun(p.runId) : null;
     if (!run) return null;
@@ -82,11 +90,18 @@ export class OrchestratorNudger {
       const ends = phase && phase.closedAt === null && inPhase.every((c) => FILED.has(c.status) || cards.some((m) => m.id === c.id));
       // Autonomy (ADR 0030): decided here, once, at the wake — the only place a launch is armed. A bound
       // reached disarms, and the operator hears it on the bell (nothing to retract: it states a stop).
+      // The journal only knows the merges the board did; a PR merged by hand is read from GitHub. Unreachable: journal alone.
+      const merged = new Set<string>();
+      await Promise.all(cards.map(async (c) => {
+        try {
+          if ((await this.prState(c))?.state === "merged") merged.add(c.id);
+        } catch {}
+      }));
       const v = endOfLot(this.db, run);
       this.db.armAutonomy(run.repoPath, v.go);
       if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}` });
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
+      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
     }
     const unmerged = e.type === "run.merge" && p.merged === false;
     if ((!unmerged && e.type !== "run.halted") || !e.cardId) return null;
