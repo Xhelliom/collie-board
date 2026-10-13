@@ -2,6 +2,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { Drawer } from "vaul";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -55,6 +56,7 @@ function SheetShell({
   children,
   className,
 }: SheetShellProps) {
+  const t = useT();
   const atBottom = direction === "bottom";
   // The content gets its own padding everywhere except the LEFT drawer, which is upstream's
   // full-bleed nav rail. Not a property of "is this a side sheet" — a right-side sheet is a bottom
@@ -127,7 +129,7 @@ function SheetShell({
               <div className="flex items-center gap-1">
                 {headerAction}
                 <Drawer.Close asChild>
-                  <Button variant="ghost" size="icon" className="size-8" aria-label="Close">
+                  <Button variant="ghost" size="icon" className="size-8" aria-label={t("common.close")}>
                     <X className="size-4" />
                   </Button>
                 </Drawer.Close>

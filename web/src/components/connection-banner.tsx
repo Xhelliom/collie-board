@@ -3,6 +3,7 @@ import { useRevalidator } from "react-router";
 import { CheckCircle2, Loader2, Plug, RefreshCw, RotateCw, TriangleAlert, WifiOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useConnectionLost, useConnectionTrouble } from "@/hooks/use-connection-lost";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
@@ -70,7 +71,7 @@ function AuthErrorBanner() {
         >
           <TriangleAlert className={cn("size-3.5 shrink-0", TINT.blocked.icon)} />
           <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-            Access refused. This is not a connection problem.
+            {t("conn.accessRefused")}
           </span>
           <Button
             size="sm"
@@ -78,7 +79,7 @@ function AuthErrorBanner() {
             onClick={() => window.location.reload()}
           >
             <RefreshCw className="size-3.5" />
-            Reload
+            {t("conn.reload")}
           </Button>
         </div>
       </div>
@@ -87,6 +88,7 @@ function AuthErrorBanner() {
 }
 
 function ConnectionStateBanner({ bridge, error }: Omit<ConnectionBannerProps, "authError">) {
+  useT(); // re-render on a language change: resolveView reads the catalog outside React
   const stalled = useLoadingStalled();
   const connecting = isConnecting({ bridge, error, stalled });
   const trouble = useConnectionTrouble(connecting);
@@ -219,12 +221,12 @@ function ConnectionStateBanner({ bridge, error }: Omit<ConnectionBannerProps, "a
                 ) : (
                   <RotateCw className="size-3.5" />
                 )}
-                Retry
+                {t("conn.retry")}
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label="Reload"
+                aria-label={t("conn.reload")}
                 className="size-6 text-muted-foreground"
                 onClick={() => window.location.reload()}
               >
@@ -242,19 +244,19 @@ function ConnectionStateBanner({ bridge, error }: Omit<ConnectionBannerProps, "a
 // Herdr is the outage, otherwise onLine decides between a true offline drop and an unreachable Collie.
 function resolveView(tone: Tone, online: boolean, probe: Probe) {
   if (tone === "green") {
-    return { copy: "Connected", Icon: CheckCircle2, row: TINT.done.row, icon: TINT.done.icon } as const;
+    return { copy: t("conn.connected"), Icon: CheckCircle2, row: TINT.done.row, icon: TINT.done.icon } as const;
   }
   if (tone === "amber") {
     // Static Plug (no spinner) — the galloping dog carries the motion, and a spinner would fight
     // prefers-reduced-motion. Ambient by design.
-    return { copy: "Reconnecting…", Icon: Plug, row: TINT.working.row, icon: TINT.working.icon } as const;
+    return { copy: t("conn.reconnecting"), Icon: Plug, row: TINT.working.row, icon: TINT.working.icon } as const;
   }
   const cause =
     probe === "reachable"
-      ? { copy: "Herdr is down on the host", Icon: TriangleAlert }
+      ? { copy: t("conn.herdrDown"), Icon: TriangleAlert }
       : probe === "unreachable" && !online
-        ? { copy: "Offline — can't reach Collie", Icon: WifiOff }
-        : { copy: "Can't reach Collie", Icon: TriangleAlert };
+        ? { copy: t("conn.offline"), Icon: WifiOff }
+        : { copy: t("conn.unreachable"), Icon: TriangleAlert };
   return { copy: cause.copy, Icon: cause.Icon, row: TINT.blocked.row, icon: TINT.blocked.icon } as const;
 }
 

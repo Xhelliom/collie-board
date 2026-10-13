@@ -132,7 +132,7 @@ export function PreviewSelectBlock({ preview, onAction, disabled }: PreviewSelec
                   aria-label={t("pane.dialog.sending")}
                 />
               ) : option.chosen ? (
-                <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label="Current answer" />
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label={t("preview.currentAnswer")} />
               ) : null}
             </button>
           );
