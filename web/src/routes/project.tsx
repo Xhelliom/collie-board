@@ -4,6 +4,7 @@ import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
+import { AutonomySettings } from "@/components/autonomy-settings";
 import { BoardTabs } from "@/components/board-tabs";
 import { BottomSheet } from "@/components/ui/sheet";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
@@ -300,6 +301,7 @@ export function ProjectRoute() {
               {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
               {repo && <RepoFlow repo={repo} flows={data.flows} />}
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
+              {repo && <AutonomySettings repo={repo} />}
 
               <nav aria-label={t("project.phases.aria")} className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
                 {v.phases.map((p) => (
@@ -459,7 +461,7 @@ export function ProjectRoute() {
           scrolled as a whole with the composer below the fold. */}
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[82dvh]">
         <div className="flex h-full min-h-0 flex-col">
-          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} onLeave={() => setChatOpen(false)} />
         </div>
       </BottomSheet>
     </div>

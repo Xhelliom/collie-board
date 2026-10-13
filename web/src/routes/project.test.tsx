@@ -385,4 +385,22 @@ describe("ProjectRoute", () => {
       expect(screen.getByText(/Tout est validé/)).toBeInTheDocument();
     });
   });
+  it("puts the autonomy settings in a block of the page, not in the orchestrator's chat", async () => {
+    let saved: unknown = null;
+    server.use(
+      http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })),
+      http.put("*/api/orchestrator/autonomy", async ({ request }) => {
+        saved = await request.json();
+        return HttpResponse.json({ autonomy: { enabled: true, maxChain: 1, stopOnRed: true } });
+      }),
+    );
+    mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
+    const block = await screen.findByRole("region", { name: "Autonomy" });
+    await userEvent.click(await within(block).findByRole("switch", { name: "Let it launch the next planned lot" }));
+    await waitFor(() => expect(saved).toEqual({ repoPath: "/r/app", enabled: true }));
+    // The panel keeps a link to the block, no longer the settings themselves.
+    const aside = screen.getByRole("complementary", { name: "Orchestrator" });
+    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "#project-autonomy");
+    expect(within(aside).queryByRole("switch")).toBeNull();
+  });
 });
