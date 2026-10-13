@@ -63,7 +63,8 @@ What was touched in upstream files, and why — this list is the thing to keep s
 | `CLAUDE.md` → *Versioning* · `CHANGELOG.md` (preamble) · `scripts/git-hooks/pre-commit` · `.github/workflows/release.yml` · `package.json` (test script) | the version is cut on `main` by CI from `changes/` fragments, never on a branch — [ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md), brick 34 in the ledger |
 | `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
 | `web/src/components/transcript-view.tsx` · `web/src/App.tsx` · `web/src/lib/nav.ts` | an image-bearing tool part renders as the picture; the viewer host mounted beside the router (unmounted while the idle cover is up); `galleryPath()` — brick 21 in the ledger |
-| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods |
+| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods; `asyncUtilTimeout` at 20 s (Testing Library's 1 s default starves under load) |
+| `web/vitest.config.ts` | `maxWorkers` 4, `testTimeout`/`hookTimeout` 30 s, so the pre-push holds when several agents push at once. Fork-only |
 | `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
 
 Rebasing means resolving those rows, not the whole tree. Keep it that way: if a change wants to

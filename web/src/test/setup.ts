@@ -1,10 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { setupServer } from "msw/node";
 
 import { handlers, resetTypedDraft } from "./handlers";
 import { __resetConnectionHealth } from "@/lib/connection-health";
+
+// findBy*/waitFor give up after 1 s by default: on a starved CPU (several agents pushing at once) a
+// route that renders late reads as "element not found". Headroom only; a missing element still fails.
+configure({ asyncUtilTimeout: 20_000 });
 
 // One MSW server for all tests; tests add per-case overrides with `server.use(...)`.
 export const server = setupServer(...handlers);

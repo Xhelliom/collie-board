@@ -28,5 +28,11 @@ export default defineConfig({
     css: false,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Several agents run this suite at once (pre-push). By default that is 16 jsdom workers per run,
+    // enough to starve and swap the machine, and the 5 s timeouts then fire on pure, fast tests.
+    // Cap the workers and give headroom; not a retry, a real hang still fails.
+    maxWorkers: 4,
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 });
