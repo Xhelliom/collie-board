@@ -166,6 +166,18 @@ describe("board drag and drop — desktop", () => {
     expect(patchCard).toHaveBeenCalledWith("Alpha", { position: 3 });
   });
 
+  it("reorders inside the folded Done column by the card's place in the whole column", async () => {
+    // The 5 visible are D0 D2 D4 D6 D8 — a visible tile's slot is not its place in the column.
+    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? 100 : 1 }));
+    await mount(cards);
+    lift(tileOf("D0"));
+    nextFrame();
+    const last = tileOf("D8").parentElement as HTMLElement;
+    act(() => void fireEvent.dragOver(last, { dataTransfer: dataTransfer(), clientY: 10 }));
+    act(() => void fireEvent.drop(columnOf("D8"), { dataTransfer: dataTransfer() }));
+    expect(patchCard).toHaveBeenCalledWith("D0", { position: 8.5 });
+  });
+
   it("arms nothing when the gesture dies before that frame", async () => {
     await mount(two);
     const tile = tileOf("Alpha");

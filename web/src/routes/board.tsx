@@ -641,7 +641,7 @@ export function BoardRoute() {
                           )}
                         >
                           {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
-                          {(status === "done" && !doneAll ? newestDone(column) : column).map((card, slot) => (
+                          {(status === "done" && !doneAll && !held ? newestDone(column) : column).map((card, slot) => (
                             <Fragment key={card.id}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
                               {/* The wrapper exists for one line: which HALF of a tile the pointer
