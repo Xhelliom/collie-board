@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.195.5] - 2026-10-13
+
+### Changed
+
+- Page projet : les requêtes du dépôt partent avec les cartes et les facts, l’historique et la mémoire de l’orchestrateur ensemble (2 attentes au lieu de 4) (548c8be)
+- Mobile : le tiroir Orchestrateur monte à 94  0e la hauteur, sans cadre dans le cadre (90d844e)
+
 ## [0.195.4] - 2026-10-13
 
 ### Changed
