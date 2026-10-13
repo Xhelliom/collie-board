@@ -38,6 +38,7 @@ import { ApiError } from "@/lib/api";
 import { AgentIcon } from "@/components/agent-icon";
 import { AppHeader } from "@/components/app-header";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
+import { ChatInput } from "@/components/ui/chat/chat-input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -1415,12 +1416,11 @@ export function PromptBox({
 
   return (
     <div className="flex flex-col gap-2">
-      <textarea
+      <ChatInput
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}
         placeholder={placeholder ?? t("card.prompt.placeholder")}
-        className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <Button onClick={send} disabled={!text.trim() || sending} className="h-11 gap-2 self-end px-5">
         <Send className="size-4" />

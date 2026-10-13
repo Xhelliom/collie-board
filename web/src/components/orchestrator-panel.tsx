@@ -6,6 +6,7 @@ import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
+import { ChatInput } from "@/components/ui/chat/chat-input";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
@@ -135,7 +136,7 @@ export function OrchestratorPanel({
   }
 
   return (
-    <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+    <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
           {t("orch.title")}
@@ -186,7 +187,7 @@ export function OrchestratorPanel({
           const el = e.currentTarget;
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
         }}
-        className="min-h-32 flex-1 overflow-y-auto rounded-lg border bg-card/40 p-2"
+        className="min-h-32 flex-1 overflow-y-auto"
         aria-label={t("orch.thread")}
       >
         {entries.length > 0 ? (
@@ -201,7 +202,7 @@ export function OrchestratorPanel({
       <a href="#project-autonomy" data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
         {t("orch.auto")}
       </a>
-      <details className="rounded-lg border bg-card/40 px-2.5 py-1.5 text-sm">
+      <details className="border-t border-border/60 py-1.5 text-sm">
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
           {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
         </summary>
@@ -218,7 +219,7 @@ export function OrchestratorPanel({
           void send();
         }}
       >
-        <textarea
+        <ChatInput
           aria-label={t("orch.message")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -228,11 +229,10 @@ export function OrchestratorPanel({
             e.preventDefault();
             void send();
           }}
-          rows={2}
+          rows={1}
           placeholder={t("orch.placeholder")}
-          className="min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         />
-        <Button type="submit" variant="brand" className="h-10 shrink-0 px-3" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
+        <Button type="submit" variant="brand" className="size-11 shrink-0 px-0" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
           <Send className="size-4" />
         </Button>
       </form>
