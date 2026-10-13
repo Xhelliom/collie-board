@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BellOff, Loader2 } from "lucide-react";
 import { useRevalidator } from "react-router";
 
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { setSnooze } from "@/lib/api";
@@ -22,6 +23,7 @@ function formatTime(ts: number): string {
 }
 
 export function SnoozeControl({ snoozedUntil }: { snoozedUntil: number | null }) {
+  const t = useT();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
   const snoozed = snoozedUntil !== null && snoozedUntil > Date.now();
@@ -42,11 +44,11 @@ export function SnoozeControl({ snoozedUntil }: { snoozedUntil: number | null })
         <div className="flex min-w-0 items-start gap-3">
           <BellOff className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Do not disturb</div>
+            <div className="font-medium">{t("settings.snooze.title")}</div>
             <p className="text-sm text-muted-foreground">
               {snoozed
-                ? `Snoozed until ${formatTime(snoozedUntil)} — no pushes until then.`
-                : "Pause all push notifications for a while."}
+                ? t("settings.snooze.on", { time: formatTime(snoozedUntil) })
+                : t("settings.snooze.off")}
             </p>
           </div>
         </div>
@@ -56,7 +58,7 @@ export function SnoozeControl({ snoozedUntil }: { snoozedUntil: number | null })
       <div className="flex items-center gap-2 border-t border-border/60 p-3">
         {snoozed ? (
           <Button variant="secondary" size="sm" disabled={busy} onClick={() => apply(null)}>
-            Resume now
+            {t("settings.snooze.resume")}
           </Button>
         ) : (
           PRESETS.map((p) => (

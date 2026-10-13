@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 
 import type { PromptFamily, PromptModel, PromptOption } from "@/lib/blocks";
 import { OptionButton, OptionGroupCaption, PromptPanel } from "@/components/option-button";
+import { t } from "@/i18n";
 
 export interface PromptSelectBlockProps {
   /** The detected dialog: question (screen-reader label) + selectable options as buttons. */
@@ -19,11 +20,11 @@ export interface PromptSelectBlockProps {
 
 // Family-aware caption above the options — orients the reader ("the terminal is asking you
 // something") without repeating the question, which stays in the raw scrollback just above.
-const FAMILY_CAPTION: Record<PromptFamily, string> = {
-  select: "Choose an option",
-  permission: "Permission required",
-  trust: "Trust this folder?",
-  plan: "Review the plan",
+const FAMILY_CAPTION: Record<PromptFamily, () => string> = {
+  select: () => t("pane.dialog.select"),
+  permission: () => t("pane.dialog.permission"),
+  trust: () => t("pane.dialog.trust"),
+  plan: () => t("pane.dialog.plan"),
 };
 
 // Native, tappable rendering of a Claude single-choice dialog. Every visible string — the option
@@ -48,7 +49,7 @@ export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBl
 
   return (
     <PromptPanel ariaLabel={prompt.question}>
-      <OptionGroupCaption>{FAMILY_CAPTION[prompt.family]}</OptionGroupCaption>
+      <OptionGroupCaption>{FAMILY_CAPTION[prompt.family]()}</OptionGroupCaption>
       <div className="flex flex-col gap-1">
         {prompt.options.map((option, index) => {
           const busy = sending === index;
@@ -65,7 +66,7 @@ export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBl
                 busy ? (
                   <Loader2
                     className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground"
-                    aria-label="Sending"
+                    aria-label={t("pane.dialog.sending")}
                   />
                 ) : null
               }

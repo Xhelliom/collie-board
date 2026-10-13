@@ -9,6 +9,7 @@ import { shortCwd } from "@/lib/format";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
 import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface SpacePaneTreeProps {
   agents: AgentView[];
@@ -152,6 +153,7 @@ function SpaceSection({
   /** The parent rail's colour, which this section's connector continues. */
   parentTone?: string;
 }) {
+  const t = useT();
   const active = group.workspaceId === activeWorkspaceId;
   const spansTabs = new Set(group.panes.map((p) => p.tabId)).size > 1;
   const rail = railX(depth);
@@ -238,7 +240,7 @@ function SpaceSection({
         <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-status-blocked/15 px-1.5 py-px text-[11px] font-semibold tabular-nums text-status-blocked">
           <span aria-hidden="true" className="size-[5px] rounded-full bg-status-blocked" />
           {group.blocked}
-          <span className="sr-only">needing you</span>
+          <span className="sr-only">{t("spaces.needingYou")}</span>
         </span>
       ) : null}
     </>

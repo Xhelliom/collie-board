@@ -1,5 +1,6 @@
 import { ArrowUpCircle } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { checkForUpdate } from "@/lib/pwa";
 import { useSelfUpdate } from "@/lib/self-update";
 
@@ -15,6 +16,7 @@ import { useSelfUpdate } from "@/lib/self-update";
 // path as the footer button and the auto-path: checkForUpdate() reloads onto the fresh bundle
 // (SW update→activate→reload, or a plain reload when no SW controls the page).
 export function UpdateAvailableBanner() {
+  const t = useT();
   const show = useSelfUpdate();
   if (!show) return null;
 
@@ -25,7 +27,7 @@ export function UpdateAvailableBanner() {
       className="flex w-full shrink-0 items-center gap-2 border-b border-status-working/40 bg-status-working/15 px-4 py-1.5 text-left text-xs font-medium text-foreground [padding-top:calc(env(safe-area-inset-top)_+_0.375rem)]"
     >
       <ArrowUpCircle className="size-3.5 shrink-0 text-status-working" />
-      <span className="min-w-0 flex-1 truncate">New version — tap to update</span>
+      <span className="min-w-0 flex-1 truncate">{t("update.tapBanner")}</span>
     </button>
   );
 }

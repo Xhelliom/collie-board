@@ -1,5 +1,6 @@
 import { NavMark } from "@/components/app-nav";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 
 // The cover shown while the idle lock is engaged. It sits ABOVE a still-mounted router (see App), so
 // resuming returns you to the exact screen, draft and scroll position you left — nothing is unmounted
@@ -25,11 +26,12 @@ interface IdleLockProps {
 }
 
 export function IdleLock({ onUnlock, catchingUp = false }: IdleLockProps) {
+  const t = useT();
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Collie en pause"
+      aria-label={t("idle.label")}
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/40 px-6 backdrop-blur-[3px]"
     >
       {/* The panel carries its own, heavier blur so the copy stays readable over arbitrary pane text,
@@ -41,15 +43,14 @@ export function IdleLock({ onUnlock, catchingUp = false }: IdleLockProps) {
         </div>
         {catchingUp ? (
           <div className="space-y-1">
-            <p className="font-medium">Mise à jour…</p>
-            <p className="max-w-xs text-sm text-muted-foreground">Récupération de l'état de la meute.</p>
+            <p className="font-medium">{t("idle.catchingUp")}</p>
+            <p className="max-w-xs text-sm text-muted-foreground">{t("idle.catchingUpBody")}</p>
           </div>
         ) : (
           <div className="space-y-1">
-            <p className="font-medium">En pause</p>
+            <p className="font-medium">{t("idle.paused")}</p>
             <p className="max-w-xs text-sm text-muted-foreground">
-              Les mises à jour se sont arrêtées pendant que cet écran restait inactif — ce qu'il y a
-              derrière est figé. La reprise repart exactement où vous en étiez.
+              {t("idle.pausedBody")}
             </p>
           </div>
         )}
@@ -57,7 +58,7 @@ export function IdleLock({ onUnlock, catchingUp = false }: IdleLockProps) {
             there's nothing to press twice and no dead control to look at. */}
         {!catchingUp && (
           <Button size="lg" onClick={onUnlock}>
-            Toucher pour reprendre
+            {t("idle.resume")}
           </Button>
         )}
       </div>

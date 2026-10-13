@@ -9,6 +9,7 @@ import { StatusArea } from "@/components/status-area";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath, spacePath } from "@/lib/nav";
+import { useT } from "@/i18n";
 
 // Spaces — a root tab (redesign §9). Extracted from the dashboard (see home.tsx, Phase 3), and
 // since the space regrouping it renders the SAME `SpacePaneTree` as the pane column and the pane
@@ -16,6 +17,7 @@ import { panePath, spacePath } from "@/lib/nav";
 // space header drills in (that screen owns tab selection and tab creation); tapping a row opens
 // that pane.
 export function SpacesRoute() {
+  const t = useT();
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const navigate = useNavigate();
   const { newSpace } = useSpaceActions();
@@ -31,12 +33,12 @@ export function SpacesRoute() {
           this you'd see another session's spaces only by going back to Herd. It self-hides on a
           single-session install. */}
       <AppHeader
-        title="Spaces"
+        title={t("spaces.title")}
         rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
       />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
-        <h1 className="sr-only">Spaces</h1>
+        <h1 className="sr-only">{t("spaces.title")}</h1>
         <main className="flex-1">
           <SpaceOverview
             workspaces={data.workspaces}

@@ -2,6 +2,7 @@ import { GitBranch } from "lucide-react";
 
 import { ctxTone } from "@/components/ctx-bar";
 import type { AgentView } from "@/lib/types";
+import { t } from "@/i18n";
 
 interface ContextRailColumnProps {
   agent: AgentView | undefined;
@@ -39,7 +40,7 @@ export function ContextRailColumn({
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-2">
             <span className="text-[26px] font-semibold tabular-nums">{Math.round(pct)}%</span>
-            <span className="text-xs text-muted-foreground">Contexte</span>
+            <span className="text-xs text-muted-foreground">{t("pane.rail.context")}</span>
             {agent.ctxTokens != null && (
               <span className="text-xs tabular-nums text-muted-foreground">
                 {Math.round(agent.ctxTokens / 1000)}k tokens
@@ -63,7 +64,7 @@ export function ContextRailColumn({
       {agent.cardId && (
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Carte portée
+            {t("pane.cardCarried")}
           </span>
           {agent.cardTitle && (
             <span className="text-sm font-semibold leading-[1.3]">{agent.cardTitle}</span>
@@ -80,14 +81,14 @@ export function ContextRailColumn({
               onClick={() => onOpenCard(agent.cardId!)}
               className="h-8 flex-1 rounded-lg border border-border text-xs font-medium transition-colors hover:bg-muted/60"
             >
-              Ouvrir la carte
+              {t("pane.rail.openCard")}
             </button>
             <button
               type="button"
               onClick={() => onHandoff(agent.cardId!)}
               className="h-8 flex-1 rounded-lg border border-border text-xs font-medium transition-colors hover:bg-muted/60"
             >
-              Handoff
+              {t("pane.rail.handoff")}
             </button>
           </div>
         </div>
@@ -96,7 +97,7 @@ export function ContextRailColumn({
       {statusLines.length > 0 && (
         <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Statusline de l'agent
+            {t("rail.statusline")}
           </span>
           <div className="flex flex-col gap-1 font-mono text-[11px] leading-tight text-muted-foreground/80">
             {statusLines.map((line, i) => (

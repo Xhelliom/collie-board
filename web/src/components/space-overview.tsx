@@ -2,6 +2,7 @@ import { FolderPlus } from "lucide-react";
 
 import { SpacePaneTree } from "@/components/space-pane-tree";
 import type { AgentView, TabView, WorkspaceView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface SpaceOverviewProps {
   workspaces: WorkspaceView[];
@@ -34,16 +35,17 @@ export function SpaceOverview({
   onOpenPane,
   onNewSpace,
 }: SpaceOverviewProps) {
+  const t = useT();
   return (
     <section className="flex flex-col px-2 py-3 lg:px-3">
       <div className="flex items-center justify-between px-2">
         <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-          Spaces <span className="opacity-60">({workspaces.length})</span>
+          {t("spaces.title")} <span className="opacity-60">({workspaces.length})</span>
         </h2>
         <button
           type="button"
           onClick={onNewSpace}
-          aria-label="New space"
+          aria-label={t("spaces.new")}
           className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
         >
           <FolderPlus className="size-4" />
@@ -51,7 +53,7 @@ export function SpaceOverview({
       </div>
 
       {workspaces.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">No spaces yet.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{t("spaces.none")}</p>
       ) : (
         <SpacePaneTree
           agents={agents}

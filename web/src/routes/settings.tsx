@@ -20,6 +20,7 @@ import { SnoozeControl } from "@/components/snooze-control";
 import { ThemeControl } from "@/components/theme-control";
 import { UpdateCheckControl } from "@/components/update-check-control";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n";
 import { fetchConfig } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useDisplayPrefs } from "@/hooks/use-display-prefs";
@@ -28,16 +29,17 @@ import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
 import type { PushAvailability } from "@/lib/push";
 
-const TABS = ["Display", "Notifications", "Agents", "System"] as const;
+const TABS = ["display", "notifications", "agents", "system"] as const;
 type Tab = (typeof TABS)[number];
 
 // Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
 // Lives under the root route, so the snapshot polling/push-setup in RootLayout keeps running behind it.
 export function SettingsRoute() {
+  const t = useT();
   const { state, busy, setEnabled } = usePushControl();
   const [error, setError] = useState<string | null>(null);
   // One tab at a time: the page grew too long to scroll. Not remembered — it is a visit, not a mode.
-  const [tab, setTab] = useState<Tab>("Display");
+  const [tab, setTab] = useState<Tab>("display");
 
   // Settings lives under the root route, so the live snapshot (bridge + device auth) is right here.
   const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
@@ -63,23 +65,23 @@ export function SettingsRoute() {
   async function toggle(next: boolean) {
     setError(null);
     const res = await setEnabled(next);
-    if (next && !res.ok) setError(reasonText(res.reason));
+    if (next && !res.ok) setError(reasonText(res.reason, t));
   }
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
-      <AppHeader title="Settings" />
+      <AppHeader title={t("settings.title")} />
 
       {/* The screen's one h1 — the header already says "Settings", but as a SectionLabel span. Kept
           outside <main>, whose space-y-4 would otherwise hand its first real child a stray margin. */}
-      <h1 className="sr-only">Settings</h1>
+      <h1 className="sr-only">{t("settings.title")}</h1>
 
       {/* No page-level ceiling above `lg` (same as the other routes) — but settings rows are
           label-on-the-left / control-on-the-right, not a grid, so the column caps ITSELF at a
           reading width rather than stretching a switch 2000px away from its label. The cap is on
           the ROWS, not on <main>: capping the scroller put its scrollbar 700px in from the right
           edge of the window, which reads as a broken page rather than a narrow column. */}
-      <div role="tablist" aria-label="Settings sections" className="flex shrink-0 gap-1.5 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-5">
+      <div role="tablist" aria-label={t("settings.tabs")} className="flex shrink-0 gap-1.5 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-5">
         {TABS.map((name) => (
           <button
             key={name}
@@ -92,13 +94,13 @@ export function SettingsRoute() {
               tab === name ? "border-foreground/50 bg-accent" : "bg-card/70 text-muted-foreground hover:border-foreground/25",
             )}
           >
-            {name}
+            {t(`settings.tab.${name}`)}
           </button>
         ))}
       </div>
 
       <main className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 lg:px-5 lg:py-6 lg:[&>*]:max-w-3xl">
-        {tab === "Display" && (
+        {tab === "display" && (
           <>
             <ThemeControl />
             <LanguageControl />
@@ -110,9 +112,9 @@ export function SettingsRoute() {
               <Link to={galleryPath()} className="flex items-center gap-3 p-4">
                 <Images className="size-5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium">Gallery</div>
+                  <div className="font-medium">{t("settings.gallery.title")}</div>
                   <p className="text-sm text-muted-foreground">
-                    Images your agents left in their scratchpads.
+                    {t("settings.gallery.hint")}
                   </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -121,16 +123,16 @@ export function SettingsRoute() {
           </>
         )}
 
-        {tab === "Notifications" && (
+        {tab === "notifications" && (
           <>
             <Card className="gap-0 py-0">
               <div className="flex items-center justify-between gap-4 p-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <Bell className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="font-medium">Push notifications</div>
+                    <div className="font-medium">{t("settings.push.title")}</div>
                     <p className="text-sm text-muted-foreground">
-                      Get a notification when an agent needs you.
+                      {t("settings.push.hint")}
                     </p>
                   </div>
                 </div>
@@ -139,7 +141,7 @@ export function SettingsRoute() {
                     checked={on}
                     disabled={toggleDisabled}
                     onCheckedChange={toggle}
-                    aria-label="Push notifications"
+                    aria-label={t("settings.push.title")}
                   />
                 ) : (
                   <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
@@ -148,7 +150,7 @@ export function SettingsRoute() {
 
               {state && blocked && (
                 <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
-                  {availabilityNote(state.availability)}
+                  {availabilityNote(state.availability, t)}
                 </p>
               )}
               {error && (
@@ -167,7 +169,7 @@ export function SettingsRoute() {
           </>
         )}
 
-        {tab === "Agents" && (
+        {tab === "agents" && (
           <>
             <MaxAgentsControl />
             <FollowUpsControl />
@@ -178,7 +180,7 @@ export function SettingsRoute() {
           </>
         )}
 
-        {tab === "System" && (
+        {tab === "system" && (
           <>
             {/* On-demand upstream update check (independent of push) — drives the footer UpdateBanner. */}
             <UpdateCheckControl />
@@ -201,6 +203,7 @@ export function SettingsRoute() {
 
 /** Per-device display pref: the agent's statusline strip above the composer on the pane screen. */
 function StatusLineControl() {
+  const t = useT();
   const { prefs, setStatusLine } = useDisplayPrefs();
   return (
     <Card className="gap-0 py-0">
@@ -208,43 +211,40 @@ function StatusLineControl() {
         <div className="flex min-w-0 items-start gap-3">
           <SquareTerminal className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Agent status line</div>
+            <div className="font-medium">{t("settings.statusLine.title")}</div>
             <p className="text-sm text-muted-foreground">
-              The agent's status lines above the reply box (mode, hooks…). On this device.
+              {t("settings.statusLine.hint")}
             </p>
           </div>
         </div>
-        <Switch checked={prefs.statusLine} onCheckedChange={setStatusLine} aria-label="Agent status line" />
+        <Switch checked={prefs.statusLine} onCheckedChange={setStatusLine} aria-label={t("settings.statusLine.title")} />
       </div>
     </Card>
   );
 }
 
-function reasonText(reason: PushAvailability | undefined): string {
+type T = ReturnType<typeof useT>;
+
+function reasonText(reason: PushAvailability | undefined, t: T): string {
   switch (reason) {
     case "insecure":
-      return "Push needs an HTTPS connection.";
     case "server-off":
-      return "Push isn't configured on the bridge (no VAPID keys).";
     case "denied":
-      return "Notifications are blocked — enable them in your browser settings.";
     case "unsupported":
-      return "This browser doesn't support push notifications.";
+      return t(`settings.push.err.${reason}`);
     default:
-      return "Couldn't enable push notifications.";
+      return t("settings.push.err.default");
   }
 }
 
-function availabilityNote(a: PushAvailability): string {
+function availabilityNote(a: PushAvailability, t: T): string {
   switch (a) {
     case "insecure":
-      return "Unavailable over plain HTTP — serve Collie over HTTPS to enable push.";
     case "server-off":
-      return "The bridge has no VAPID keys configured, so push is disabled server-side.";
     case "denied":
-      return "Notifications are blocked for this site. Re-enable them in your browser settings.";
+      return t(`settings.push.note.${a}`);
     case "unsupported":
-      return "This browser doesn't support push notifications.";
+      return t("settings.push.err.unsupported");
     case "ready":
       return "";
   }

@@ -1,5 +1,6 @@
 import { SpacePaneTree } from "@/components/space-pane-tree";
 import type { AgentView, TabView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface ThreadSidebarProps {
   agents: AgentView[];
@@ -27,9 +28,10 @@ export function ThreadSidebar({
   onSelect,
   className,
 }: ThreadSidebarProps) {
+  const t = useT();
   if (agents.length === 0 && shellPanes.length === 0) {
     return (
-      <div className="px-4 py-12 text-center text-sm text-muted-foreground">No agents running.</div>
+      <div className="px-4 py-12 text-center text-sm text-muted-foreground">{t("sidebar.empty")}</div>
     );
   }
 

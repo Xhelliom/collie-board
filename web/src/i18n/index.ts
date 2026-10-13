@@ -2,10 +2,11 @@ import { useSyncExternalStore } from "react";
 
 import { CATALOG, type MessageKey } from "./catalog";
 
-// The board speaks the operator's language (ADR 0024). English is the source and the fallback; a
+// The board speaks the operator's language (ADR 0024, 0038). English is the source, the fallback and
+// the default at first launch; "auto" (follow the browser) is an explicit choice, stored as such. A
 // message is written ONCE, with both languages side by side, so a missing translation is a type error
-// rather than a hole found on a phone. Upstream's own screens stay hard-coded English and never go
-// through here — this is the fork's layer, not a rewrite of Altan's.
+// rather than a hole found on a phone. Every screen goes through here, upstream's included (Settings,
+// gallery, history, artifacts, pane, Spaces): the routes and the chrome around them (idle cover, connection bars, toasts, shared aria-labels) have no hard-coded UI string; a few leaf widgets and the notification markers still do (see ADR 0038, "Not done").
 
 export type Locale = "en" | "fr";
 export const LOCALES: readonly Locale[] = ["en", "fr"];
@@ -19,9 +20,9 @@ const KEY = "collie:locale";
 const read = (): Preference => {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "en" || v === "fr" ? v : "auto";
+    return v === "auto" || v === "fr" ? v : "en";
   } catch {
-    return "auto";
+    return "en";
   }
 };
 
@@ -43,8 +44,7 @@ export function setPreference(p: Preference): void {
   preference = p;
   current = resolveLocale(p, browserLanguage());
   try {
-    if (p === "auto") localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, p);
+    localStorage.setItem(KEY, p);
   } catch {
     /* private window: the choice lasts for this visit only */
   }

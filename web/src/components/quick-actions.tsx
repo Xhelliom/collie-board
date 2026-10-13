@@ -2,12 +2,19 @@ import { useState } from "react";
 import { Shuffle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useT, type MessageKey } from "@/i18n";
 
 // Common one-tap replies, grouped. Each sends its text and submits (then closes the dock).
 // Numbered options live in the keyboard quick-key row, not here; the textual set is deduped to
 // distinct intents (no yes/ok/approve/go-ahead pile-up, no "stop" that just duplicates Esc).
-const CONFIRM = ["yes", "no"];
-const COMMON = ["continue", "commit and push", "retry", "skip"];
+// `text` is what the agent receives (English, whatever the UI language); `label` is the button.
+const CONFIRM: [string, MessageKey][] = [["yes", "pane.quick.yes"], ["no", "pane.quick.no"]];
+const COMMON: [string, MessageKey][] = [
+  ["continue", "pane.quick.continue"],
+  ["commit and push", "pane.quick.commitPush"],
+  ["retry", "pane.quick.retry"],
+  ["skip", "pane.quick.skip"],
+];
 
 interface QuickActionsContentProps {
   onSend: (text: string) => void;
@@ -26,25 +33,26 @@ function Group({
   onFire,
 }: {
   title: string;
-  items: string[];
+  items: [string, MessageKey][];
   cols: string;
   disabled?: boolean;
   onFire: (text: string) => void;
 }) {
+  const t = useT();
   return (
     <div>
       <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">{title}</p>
       <div className={`grid gap-2 ${cols}`}>
-        {items.map((t) => (
+        {items.map(([text, label]) => (
           <Button
-            key={t}
+            key={text}
             type="button"
             variant="outline"
             disabled={disabled}
-            onClick={() => onFire(t)}
+            onClick={() => onFire(text)}
             className="h-12 text-sm font-medium"
           >
-            {t}
+            {t(label)}
           </Button>
         ))}
       </div>
@@ -61,6 +69,7 @@ export function QuickActionsContent({
   onHandoff,
   disabled,
 }: QuickActionsContentProps) {
+  const t = useT();
   const [handingOff, setHandingOff] = useState(false);
   const fire = (text: string) => {
     if (disabled) return;
@@ -70,8 +79,8 @@ export function QuickActionsContent({
 
   return (
     <div className="space-y-4 border-t border-border/60 bg-muted/30 px-3 py-2.5">
-      <Group title="confirm" items={CONFIRM} cols="grid-cols-2" disabled={disabled} onFire={fire} />
-      <Group title="common" items={COMMON} cols="grid-cols-2" disabled={disabled} onFire={fire} />
+      <Group title={t("pane.quick.confirm")} items={CONFIRM} cols="grid-cols-2" disabled={disabled} onFire={fire} />
+      <Group title={t("pane.quick.common")} items={COMMON} cols="grid-cols-2" disabled={disabled} onFire={fire} />
       {/* The one action here that isn't a reply — it calls the card's handoff endpoint, not the pane.
           Unconditional on ctx%: the gauge's "worth handing off" is a nudge, and the reason you reach
           for this is usually the harness's own "context is running low" line, which arrives with no
@@ -79,7 +88,7 @@ export function QuickActionsContent({
           runHandoff) — one implementation, two entry points. */}
       {onHandoff && (
         <div>
-          <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">session</p>
+          <p className="mb-1.5 text-xs uppercase tracking-wide text-muted-foreground">{t("pane.quick.session")}</p>
           <Button
             type="button"
             variant="outline"
@@ -96,7 +105,7 @@ export function QuickActionsContent({
             className="h-12 w-full gap-2 text-sm font-medium"
           >
             <Shuffle className="size-4" />
-            {handingOff ? "Asking…" : "Hand off to a fresh session"}
+            {handingOff ? t("pane.quick.asking") : t("pane.quick.handoff")}
           </Button>
         </div>
       )}

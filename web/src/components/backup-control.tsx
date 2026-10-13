@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Download, Loader2, Upload } from "lucide-react";
 
+import { Rich } from "@/i18n/rich";
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { downloadBackup, restoreBackup, type RestoreResult } from "@/lib/backup";
@@ -18,6 +20,7 @@ import type { DeviceAuth } from "@/lib/types";
 // let the tap 403.
 
 export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
+  const t = useT();
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [restored, setRestored] = useState<RestoreResult | null>(null);
@@ -39,7 +42,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
     try {
       setSaved(await downloadBackup());
     } catch {
-      setError("Couldn't back up.");
+      setError(t("settings.backup.failed"));
     } finally {
       setBusy(null);
     }
@@ -68,7 +71,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
       setRestored(await restoreBackup(file));
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't restore.");
+      setError(err instanceof Error ? err.message : t("settings.backup.restoreFailed"));
     } finally {
       setBusy(null);
     }
@@ -80,9 +83,9 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
         <div className="flex min-w-0 items-start gap-3">
           <Download className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Backup</div>
+            <div className="font-medium">{t("settings.backup.title")}</div>
             <p className="text-sm text-muted-foreground">
-              Download your cards, history and preferences as one JSON file — or restore from one.
+              {t("settings.backup.hint")}
             </p>
           </div>
         </div>
@@ -93,10 +96,10 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
           {busy === "export" ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              Preparing…
+              {t("settings.backup.preparing")}
             </>
           ) : (
-            "Download backup"
+            t("settings.backup.download")
           )}
         </Button>
 
@@ -110,21 +113,21 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
             {busy === "import" ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Restoring…
+                {t("settings.backup.restoring")}
               </>
             ) : pending === "restore" ? (
-              "Tap again to replace"
+              t("settings.backup.confirm")
             ) : (
               <>
                 <Upload className="size-4" />
-                Restore {file.name}
+                {t("settings.backup.restoreFile", { name: file.name })}
               </>
             )}
           </Button>
         ) : (
           <Button variant="ghost" size="sm" disabled={busy !== null || readOnly} onClick={pickFile}>
             <Upload className="size-4" />
-            Restore…
+            {t("settings.backup.restore")}
           </Button>
         )}
         <input
@@ -137,41 +140,40 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
 
         {readOnly && (
           <span className="text-xs text-muted-foreground">
-            This device isn't allowed to export or restore.
+            {t("settings.backup.readOnly")}
           </span>
         )}
         {!busy && error && <span className="text-xs text-status-blocked">{error}</span>}
         {!busy && !error && saved && (
-          <span className="truncate text-xs text-muted-foreground">Saved {saved}</span>
+          <span className="truncate text-xs text-muted-foreground">{t("settings.backup.saved", { name: saved })}</span>
         )}
       </div>
 
       {file && !busy && !restored && (
         <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
-          This replaces the board and every stored preference. The bridge exports the current state
-          to its <code>backups/</code> folder first.
+          <Rich id="settings.backup.warn" />
         </p>
       )}
 
       {restored && (
         <div className="space-y-1.5 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
           <p>
-            Restored {Object.values(restored.tables).reduce((a, b) => a + b, 0)} rows,{" "}
-            {restored.files} files and {restored.clientPrefs} local preferences.
+            {t("settings.backup.restored", {
+              rows: Object.values(restored.tables).reduce((a, b) => a + b, 0),
+              files: restored.files,
+              prefs: restored.clientPrefs,
+            })}
           </p>
           <p>
-            Previous state saved on the host at <code className="break-all">{restored.safetyBackup}</code>.
+            <Rich id="settings.backup.previous" params={{ path: restored.safetyBackup }} />
           </p>
           {restored.restartRequired && (
             <p>
-              Restart the bridge to pick up the notification settings:{" "}
-              <code className="break-all">
-                herdr plugin action invoke restart --plugin herdr.collie-board
-              </code>
+              <Rich id="settings.backup.restart" params={{ command: "herdr plugin action invoke restart --plugin herdr.collie-board" }} />
             </p>
           )}
           <Button variant="outline" size="sm" onClick={() => location.reload()}>
-            Reload the app
+            {t("settings.backup.reload")}
           </Button>
         </div>
       )}

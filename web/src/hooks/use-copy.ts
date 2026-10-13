@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
+import { t } from "@/i18n";
+
 // Shown as the `title` of a disabled copy button — one string so every copy affordance in the app
 // explains itself identically.
-export const COPY_UNAVAILABLE_TITLE = "Copy unavailable — requires a secure context (HTTPS)";
+export const copyUnavailableTitle = () => t("pane.copy.unavailable");
 
 // Copy-to-clipboard with a brief ✓ confirmation, shared by the transcript's code-block copy button,
 // the terminal mirror's copy-buffer button, and the update banner's copy-command button.

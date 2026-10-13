@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { ctxTone } from "@/components/ctx-bar";
+import { useT } from "@/i18n";
 
 // How full the agent's context window is, read off its own transcript (bridge/context.ts).
 //
@@ -17,6 +18,7 @@ export function ContextGauge({
   pct: number | null | undefined;
   tokens?: number | null;
 }) {
+  const t = useT();
   if (pct == null) return null;
 
   const tone = ctxTone(pct);
@@ -24,12 +26,12 @@ export function ContextGauge({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
-        <span>Context</span>
+        <span>{t("gauge.context")}</span>
         <span className="tabular-nums text-foreground">{pct}%</span>
         {tokens != null && (
-          <span className="tabular-nums">{Math.round(tokens / 1000)}k tokens</span>
+          <span className="tabular-nums">{t("gauge.tokens", { count: Math.round(tokens / 1000) })}</span>
         )}
-        {pct >= 70 && <span className="ml-auto text-status-working">worth handing off</span>}
+        {pct >= 70 && <span className="ml-auto text-status-working">{t("gauge.handoff")}</span>}
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full transition-all", tone)} style={{ width: `${pct}%` }} />

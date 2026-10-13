@@ -1,3 +1,4 @@
+import { useT, type MessageKey } from "@/i18n";
 import { BellRing, Loader2 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -17,20 +18,10 @@ import type { NotifyPrefs } from "@/lib/api";
 // about spending copilot quota on polish, not about having a subtitle at all.
 // Optimistic toggle with revert on failure — see useNotifyPrefs.
 
-const ROWS: ReadonlyArray<{ key: keyof NotifyPrefs; label: string; hint: string }> = [
-  { key: "blocked", label: "Needs input", hint: "an agent is waiting on you" },
-  { key: "done", label: "Finished", hint: "an agent completes its task" },
-  { key: "board", label: "Board alerts", hint: "a card's agent vanished, or a handoff never landed" },
-  { key: "ready", label: "Unblocked", hint: "a card can start — whatever it waited on is finished" },
-  { key: "updates", label: "App updates", hint: "a new Collie version is available" },
-  {
-    key: "copilotSubtitle",
-    label: "Copilot rephrase",
-    hint: "the copilot rewrites the subtitle in one sentence — spends its quota",
-  },
-];
+const ROWS: ReadonlyArray<keyof NotifyPrefs> = ["blocked", "done", "board", "ready", "updates", "copilotSubtitle"];
 
 export function NotifyPrefsControl() {
+  const t = useT();
   const { prefs, busy, toggle } = useNotifyPrefs();
 
   return (
@@ -39,31 +30,34 @@ export function NotifyPrefsControl() {
         <div className="flex min-w-0 items-start gap-3">
           <BellRing className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Notify when</div>
-            <p className="text-sm text-muted-foreground">Applies to all devices.</p>
+            <div className="font-medium">{t("settings.notify.title")}</div>
+            <p className="text-sm text-muted-foreground">{t("settings.notify.hint")}</p>
           </div>
         </div>
         {!prefs && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
       </div>
 
       {prefs &&
-        ROWS.map((row) => (
+        ROWS.map((key) => {
+        const label = t(`settings.notify.${key}` as MessageKey);
+        return (
           <div
-            key={row.key}
+            key={key}
             className="flex items-center justify-between gap-4 border-t border-border/60 px-4 py-3"
           >
             <div className="min-w-0">
-              <div className="text-sm font-medium">{row.label}</div>
-              <p className="text-xs text-muted-foreground">{row.hint}</p>
+              <div className="text-sm font-medium">{label}</div>
+              <p className="text-xs text-muted-foreground">{t(`settings.notify.${key}.hint` as MessageKey)}</p>
             </div>
             <Switch
-              checked={prefs[row.key]}
+              checked={prefs[key]}
               disabled={busy}
-              onCheckedChange={(next) => void toggle(row.key, next)}
-              aria-label={row.label}
+              onCheckedChange={(next) => void toggle(key, next)}
+              aria-label={label}
             />
           </div>
-        ))}
+        );
+      })}
     </Card>
   );
 }

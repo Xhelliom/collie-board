@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 
+import { useT } from "@/i18n";
+
 import { NotificationBell } from "@/components/notification-bell";
 
 interface AppHeaderProps {
@@ -44,6 +46,7 @@ export function AppHeader({
   rightTrail,
   override,
 }: AppHeaderProps) {
+  const t = useT();
   return (
     <header className="sticky top-0 z-20 flex min-h-14 flex-none items-center gap-3 border-b border-border bg-background px-4 [padding-top:calc(env(safe-area-inset-top)_+_0.5rem)] lg:px-5">
       {override ?? (
@@ -52,7 +55,7 @@ export function AppHeader({
             <button
               type="button"
               onClick={onBack}
-              aria-label="Back"
+              aria-label={t("common.back")}
               className="-ml-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted"
             >
               <ArrowLeft className="size-5" />

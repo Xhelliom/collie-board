@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent }
 import { X } from "lucide-react";
 import { useNavigate } from "react-router";
 
+import { useT } from "@/i18n";
 import { cardPath } from "@/lib/board";
 import { panePath } from "@/lib/nav";
 import type { AgentToast } from "@/hooks/use-transitions";
@@ -52,6 +53,7 @@ export function AgentToasts({
 
 function Toast({ toast, onDismiss }: { toast: AgentToast; onDismiss: (id: number) => void }) {
   const navigate = useNavigate();
+  const t = useT();
   // Swipe-to-dismiss, either direction. Touch pointers are implicitly captured to their target, so
   // no setPointerCapture is needed for the gesture that matters; `touch-pan-y` keeps the page's own
   // vertical scroll while claiming the horizontal axis. `dragged` suppresses the click that a
@@ -140,7 +142,7 @@ function Toast({ toast, onDismiss }: { toast: AgentToast; onDismiss: (id: number
         <button
           type="button"
           onClick={() => onDismiss(toast.id)}
-          aria-label="Dismiss"
+          aria-label={t("toast.dismiss")}
           className="mr-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
         >
           <X className="size-3.5" />

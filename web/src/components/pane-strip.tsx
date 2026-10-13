@@ -8,6 +8,7 @@ import { PaneActionsSheet } from "@/components/pane-actions-sheet";
 import { useLongPress } from "@/hooks/use-long-press";
 import { paneDisplayName } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface PaneStripProps {
   /** The panes that share the current tab (agents + shells), in stable order. */
@@ -38,6 +39,7 @@ export function PaneStrip({
   onRenamed,
   onClosed,
 }: PaneStripProps) {
+  const t = useT();
   const [sheetPane, setSheetPane] = useState<AgentView | null>(null);
   // Actions need both callbacks wired (revalidate on rename, navigate on close); without them the
   // pills stay plain tap-to-switch — long-press is inert.
@@ -48,7 +50,7 @@ export function PaneStrip({
   return (
     <>
       <div className="flex snap-x snap-mandatory scroll-px-3 items-center gap-2 overflow-x-auto border-t border-border/40 bg-muted/20 px-3 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
-        <SectionLabel>Panes</SectionLabel>
+        <SectionLabel>{t("spaces.panes")}</SectionLabel>
         {panes.map((p) => (
           <PanePill
             key={p.paneId}
@@ -92,6 +94,7 @@ function PanePill({
   /** A plain tap on the pill when it's already `active` — opens actions instead of a no-op re-select. */
   onTapActive?: () => void;
 }) {
+  const t = useT();
   const isShell = pane.kind === "shell";
   // The "pN" suffix of the pane id disambiguates same-named panes (two claudes in one tab).
   const tag = pane.paneId.split(":").pop();
@@ -116,7 +119,7 @@ function PanePill({
       onClick={onClick}
       {...longPress}
       aria-current={active ? "true" : undefined}
-      title={active && onTapActive ? "Tap for pane actions" : undefined}
+      title={active && onTapActive ? t("spaces.paneActionsHint") : undefined}
       className={cn(
         // select-none + -webkit-touch-callout:none stop iOS Safari's selection loupe / touch callout,
         // whose native long-press gesture otherwise fires pointercancel and kills our hold timer.

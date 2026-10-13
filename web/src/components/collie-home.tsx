@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { DogGallop } from "@/components/dog-gallop";
+import { useT } from "@/i18n";
 
 interface CollieHomeProps {
   /** Return to the dashboard. */
@@ -28,6 +29,7 @@ interface CollieHomeProps {
 // inside a pane the mark stands alone (the breadcrumb carries the context). Both headers render THIS
 // component — the consistency is structural, not a convention two files have to keep agreeing on.
 export function CollieHome({ onHome, trouble, lost = false, wordmark = false, className }: CollieHomeProps) {
+  const t = useT();
   const gallop = trouble && !lost;
   return (
     <button
@@ -35,7 +37,7 @@ export function CollieHome({ onHome, trouble, lost = false, wordmark = false, cl
       onClick={onHome}
       // The gallop conveys connection state visually; fold it into the button's accessible name too,
       // so screen-reader and reduced-motion users get it (inside a pane there's no other cue).
-      aria-label={!trouble ? "Collie home" : lost ? "Collie home — not connected" : "Collie home — reconnecting"}
+      aria-label={!trouble ? t("homeBtn.aria") : lost ? t("homeBtn.ariaLost") : t("homeBtn.ariaReconnecting")}
       className={cn(
         "-mx-1 flex items-center gap-2 rounded px-1 transition-opacity active:opacity-70",
         className,

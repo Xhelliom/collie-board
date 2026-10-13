@@ -180,7 +180,7 @@ describe("AgentChat — the card this pane backs", () => {
 
     // Named with the card, which also tells it apart from the desktop rail's own plain
     // "Ouvrir la carte" — jsdom renders both breakpoints, a real browser only ever one.
-    await user.click(screen.getByRole("button", { name: "Ouvrir la carte : Ship the thing" }));
+    await user.click(screen.getByRole("button", { name: "Open card: Ship the thing" }));
     expect(await screen.findByText("card:c-42")).toBeInTheDocument();
   });
 
@@ -201,7 +201,7 @@ describe("AgentChat — read-only device", () => {
     renderChat({ device: { enforced: true, device: "spare-phone", authorized: false } });
 
     // The banner names the read-only state (and the device id), and the composer is locked.
-    expect(screen.getByText("Lecture seule")).toBeInTheDocument();
+    expect(screen.getByText("Read-only")).toBeInTheDocument();
     expect(screen.getByText(/spare-phone/)).toBeInTheDocument();
     const box = screen.getByPlaceholderText(/read-only — device not authorised/i);
     expect(box).toBeDisabled();

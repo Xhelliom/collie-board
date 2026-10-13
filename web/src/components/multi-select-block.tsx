@@ -7,6 +7,7 @@ import type { MultiSelectIntent } from "@/lib/multi-select-action";
 import { KeyBadge, optionSurface, PromptPanel, QuestionHeading } from "@/components/option-button";
 import { WizardStepper } from "@/components/wizard-stepper";
 import { WIZARD_BACK_KEYS, WIZARD_NEXT_KEYS } from "@/lib/harness/claude/wizard";
+import { t } from "@/i18n";
 
 export interface MultiSelectBlockProps {
   /** The detected multi-select dialog (checkbox screen or review screen). */
@@ -49,10 +50,10 @@ export function MultiSelectBlock({ multi, onAction, disabled }: MultiSelectBlock
 }
 
 const spinnerSm = (
-  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label={t("pane.dialog.sending")} />
 );
 const spinnerMd = (
-  <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+  <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" aria-label={t("pane.dialog.sending")} />
 );
 
 function CheckboxPhase({
@@ -170,14 +171,14 @@ function ReviewPhase({
   onPress: (id: string, action: MultiSelectIntent) => void;
 }) {
   return (
-    <PromptPanel ariaLabel="Ready to submit your answers?">
-      <QuestionHeading>Ready to submit your answers?</QuestionHeading>
+    <PromptPanel ariaLabel={t("pane.dialog.ready")}>
+      <QuestionHeading>{t("pane.dialog.ready")}</QuestionHeading>
       {incomplete ? (
         // role="alert" so a screen reader announces the incomplete-answers warning when the review
         // screen mounts — otherwise a user could confirm a partial set without ever hearing it.
         <div role="alert" className="flex items-center gap-1.5 text-xs text-status-working">
           <AlertTriangle className="size-3.5 shrink-0" />
-          You have not answered all questions
+          {t("pane.dialog.incomplete")}
         </div>
       ) : null}
       <div className="flex flex-col gap-1.5">
@@ -188,7 +189,7 @@ function ReviewPhase({
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/60 bg-primary/15 px-3 py-2 text-sm font-medium text-foreground transition-colors active:bg-primary/25 disabled:opacity-60"
         >
           {sending === "confirm" ? spinnerSm : null}
-          Submit answers
+          {t("pane.dialog.submit")}
         </button>
         <button
           type="button"
@@ -197,7 +198,7 @@ function ReviewPhase({
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/70 px-3 py-1.5 text-xs text-muted-foreground transition-colors active:bg-muted disabled:opacity-60"
         >
           {sending === "cancel" ? spinnerSm : null}
-          Cancel
+          {t("pane.dialog.cancel")}
         </button>
       </div>
     </PromptPanel>

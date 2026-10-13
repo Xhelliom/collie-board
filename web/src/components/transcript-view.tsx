@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { AgentIcon } from "@/components/agent-icon";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { GalleryImg } from "@/components/gallery-img";
@@ -103,6 +104,7 @@ function ImagePart({ path, images }: { path: string; images: string[] }) {
 const TOOL_OUTPUT_LINES = 12;
 
 function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool" }>; query: string }) {
+  const t = useT();
   const [tapped, setOpen] = useState(false);
   const result = part.result;
   // A find hit in the output unfolds the call AND its long-output fold: nothing matched stays hidden.
@@ -139,10 +141,10 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
         )}
       </button>
       {open && result && (
-        <CollapsibleText lines={TOOL_OUTPUT_LINES} moreLabel="Voir tout" lessLabel="Voir moins" forceOpen={hit} className="border-t px-2 py-1.5">
+        <CollapsibleText lines={TOOL_OUTPUT_LINES} moreLabel={t("transcript.more")} lessLabel={t("transcript.less")} forceOpen={hit} className="border-t px-2 py-1.5">
           <pre className="overflow-x-auto font-mono text-xs leading-snug whitespace-pre-wrap">
             <Highlight text={result.text} query={query} />
-            {result.truncated && <span className="text-muted-foreground">{"\n… output truncated"}</span>}
+            {result.truncated && <span className="text-muted-foreground">{"\n" + t("transcript.outputTruncated")}</span>}
           </pre>
         </CollapsibleText>
       )}
@@ -151,6 +153,7 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
 }
 
 function Part({ part, query }: { part: TranscriptPart; query: string }) {
+  const t = useT();
   const images = useContext(ThreadImagesContext);
   // Tool output is COMMAND output, not prose — it stays verbatim in a monospace block (see ToolPart).
   if (part.kind === "tool") {
@@ -174,10 +177,10 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
       <details open={query.trim() !== ""} className="group">
         <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1 text-xs text-muted-foreground italic">
           <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
-          Thinking
+          {t("transcript.thinking")}
         </summary>
         <MarkdownText text={part.text} query={query} className="italic text-muted-foreground" />
-        {part.truncated && <div className="text-xs text-muted-foreground">… truncated</div>}
+        {part.truncated && <div className="text-xs text-muted-foreground">{t("transcript.truncated")}</div>}
       </details>
     );
   }
@@ -186,7 +189,7 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
   return (
     <div>
       <MarkdownText text={part.text} query={query} />
-      {part.truncated && <div className="text-xs text-muted-foreground">… truncated</div>}
+      {part.truncated && <div className="text-xs text-muted-foreground">{t("transcript.truncated")}</div>}
     </div>
   );
 }
@@ -203,6 +206,7 @@ function Turn({
   showHeader: boolean;
   query: string;
 }) {
+  const t = useT();
   const time = clockTime(entry.ts);
 
   // Neither of these is speech, so both render dashed-and-muted — visibly set apart from the
@@ -213,7 +217,7 @@ function Turn({
       <details open={query.trim() !== ""} className="group rounded-lg border border-dashed bg-muted/30 px-3 py-2">
         <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
-          Context compacted
+          {t("transcript.compacted")}
           {time && ` · ${time}`}
         </summary>
         <div className="mt-1">
@@ -229,7 +233,7 @@ function Turn({
       <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2">
         <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           <Info className="size-3" />
-          System
+          {t("transcript.system")}
           {time && ` · ${time}`}
         </div>
         {entry.parts.map((part, i) => (
@@ -250,7 +254,7 @@ function Turn({
             <AgentIcon agent={agent ?? "claude"} className="size-4" />
           )}
           <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {isUser ? "You" : (agent ?? "agent")}
+            {isUser ? t("transcript.you") : (agent ?? "agent")}
           </span>
           {time && <span className="text-xs text-muted-foreground">{time}</span>}
         </div>
@@ -294,6 +298,7 @@ export function TranscriptView({
    */
   images?: string[];
 }) {
+  const t = useT();
   const derived = useMemo(() => collectImages(entries), [entries]);
   const threadImages = images ?? derived;
   // Consecutive turns from the same speaker are GROUPED — only the first of a run carries the
@@ -346,7 +351,7 @@ export function TranscriptView({
           <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1 text-xs text-muted-foreground">
             <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
             <Wrench className="size-3" />
-            {run.length} steps
+            {t("transcript.steps", { count: run.length })}
           </summary>
           <div className="mt-2 space-y-3">{run.map(renderRow)}</div>
         </details>,

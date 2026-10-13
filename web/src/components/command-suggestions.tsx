@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { commandsFor } from "@/lib/agent-commands";
+import { useT } from "@/i18n";
 
 interface CommandSuggestionsProps {
   /** The pane's agent — picks the same catalog the Agent-commands button opens. */
@@ -20,6 +21,7 @@ const MAX = 6;
 // a slash command is one at the start of the line, and the first space means the user is writing
 // arguments, not still choosing a command.
 export function CommandSuggestions({ agent, value, onPick }: CommandSuggestionsProps) {
+  const t = useT();
   if (!/^\/\S*$/.test(value)) return null;
   const q = value.toLowerCase();
   const list = commandsFor(agent)
@@ -34,7 +36,7 @@ export function CommandSuggestions({ agent, value, onPick }: CommandSuggestionsP
     <div
       className="mb-2 max-h-56 overflow-y-auto rounded-md border border-border/60 bg-muted/40"
       role="group"
-      aria-label="Command suggestions"
+      aria-label={t("pane.cmd.suggestions")}
     >
       {list.map((c) => (
         <button

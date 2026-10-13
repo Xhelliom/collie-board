@@ -26,6 +26,7 @@ import { setStatus } from "@/lib/status";
  * bridge never answers, since a row that can't show the real state is worse than none.
  */
 export function AutoHandoffControl() {
+  const t = useT();
   const [on, setOn] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -59,11 +60,9 @@ export function AutoHandoffControl() {
         <div className="flex min-w-0 items-start gap-3">
           <Hourglass className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <div className="font-medium">Auto handoff</div>
+            <div className="font-medium">{t("settings.autoHandoff.title")}</div>
             <p className="text-sm text-muted-foreground">
-              When a Claude card session has sat idle for 4 minutes, have it write its handoff note
-              before its prompt cache expires. Coming back later, start fresh from the note instead of
-              reloading the whole conversation. Each card can override this.
+              {t("settings.autoHandoff.hint")}
             </p>
           </div>
         </div>
@@ -74,7 +73,7 @@ export function AutoHandoffControl() {
             checked={on}
             disabled={busy}
             onCheckedChange={(next) => void save(next)}
-            aria-label="Auto handoff"
+            aria-label={t("settings.autoHandoff.title")}
           />
         )}
       </div>
@@ -133,6 +132,7 @@ export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChang
 // was still warm. Replying here reloads the whole conversation uncached; a fresh session opened on
 // the note costs a page. The operator picks — declining leaves the session exactly as it was.
 export function ResumeOffer({ cardId }: { cardId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
@@ -154,15 +154,14 @@ export function ResumeOffer({ cardId }: { cardId: string }) {
   return (
     <div role="status" className="border-t border-border/40 px-3 py-2">
       <p className="text-xs leading-[1.55] text-muted-foreground">
-        Cache expiré : le prochain message rechargera toute la conversation. Un handoff a été écrit
-        avant l'expiration.
+        {t("settings.resume.notice")}
       </p>
       <div className="mt-1.5 flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={() => void answer(true)}>
-          Repartir du handoff
+          {t("settings.resume.accept")}
         </Button>
         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void answer(false)}>
-          Continuer ici
+          {t("settings.resume.decline")}
         </Button>
       </div>
     </div>

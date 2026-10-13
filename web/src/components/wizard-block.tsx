@@ -10,6 +10,7 @@ import {
   WIZARD_NEXT_KEYS,
   WIZARD_SUBMIT_KEYS,
 } from "@/lib/harness/claude/wizard";
+import { t } from "@/i18n";
 
 export interface WizardBlockProps {
   /** The detected wizard step (question or Submit review) with its stepper state. */
@@ -47,7 +48,7 @@ export function WizardBlock({ wizard, onAction, disabled }: WizardBlockProps) {
   const review = wizard.phase === "review";
 
   return (
-    <PromptPanel ariaLabel={review ? "Review your answers" : wizard.question}>
+    <PromptPanel ariaLabel={review ? t("pane.dialog.review") : wizard.question}>
       {/* Stepper: one chip per question plus the fixed Submit step, flanked by the same back/next
           navigation the TUI drives with ←/→ (each tap sends exactly that one key). */}
       <WizardStepper
@@ -108,9 +109,9 @@ function QuestionStep({
               onClick={() => onPress(id, option.keys)}
               trailing={
                 busy ? (
-                  <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+                  <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" aria-label={t("pane.dialog.sending")} />
                 ) : option.chosen ? (
-                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label="Current answer" />
+                  <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-label={t("pane.dialog.current")} />
                 ) : null
               }
             />
@@ -134,7 +135,7 @@ function QuestionStep({
               <span className="text-muted-foreground/70"> — ends the questions</span>
             </span>
             {sendingId === id ? (
-              <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label="Sending" />
+              <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label={t("pane.dialog.sending")} />
             ) : null}
           </button>
         );
@@ -156,7 +157,7 @@ function ReviewStep({
 }) {
   return (
     <>
-      <div className="text-sm font-medium text-foreground">Review your answers</div>
+      <div className="text-sm font-medium text-foreground">{t("pane.dialog.review")}</div>
       {wizard.answers.length > 0 && (
         <dl className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
           {wizard.answers.map((qa, i) => (
@@ -170,7 +171,7 @@ function ReviewStep({
       {wizard.incomplete && (
         <div className="flex items-center gap-1.5 text-xs text-status-working">
           <AlertTriangle className="size-3.5 shrink-0" />
-          You have not answered all questions
+          {t("pane.dialog.incomplete")}
         </div>
       )}
       <div className="flex flex-col gap-1.5">
@@ -181,9 +182,9 @@ function ReviewStep({
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/60 bg-primary/15 px-3 py-2 text-sm font-medium text-foreground transition-colors active:bg-primary/25 disabled:opacity-60"
         >
           {sendingId === "submit" ? (
-            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label={t("pane.dialog.sending")} />
           ) : null}
-          Submit answers
+          {t("pane.dialog.submit")}
         </button>
         <button
           type="button"
@@ -192,9 +193,9 @@ function ReviewStep({
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/70 px-3 py-1.5 text-xs text-muted-foreground transition-colors active:bg-muted disabled:opacity-60"
         >
           {sendingId === "cancel" ? (
-            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label="Sending" />
+            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label={t("pane.dialog.sending")} />
           ) : null}
-          Cancel
+          {t("pane.dialog.cancel")}
         </button>
       </div>
     </>

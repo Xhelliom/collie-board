@@ -10,6 +10,7 @@ import { AgentToasts } from "@/components/agent-toasts";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
 import { AppNav } from "@/components/app-nav";
+import { useT } from "@/i18n";
 import { homePath, panePath } from "@/lib/nav";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type { HomeData } from "@/lib/loaders";
@@ -64,18 +65,19 @@ export function RootLayout() {
 // router's HydrateFallback, so it stays mounted until the FIRST loader run settles — and over a dead
 // tailnet that initial fetch can hang well past its timeout (or forever on a WebView without
 // AbortSignal.timeout). Left as-is, a PWA reopened while the host is unreachable would gallop the dog
-// on "Connecting to the herd…" indefinitely, with no way to retry. So once we've been stuck here for
+// on "{t("boot.connecting")}" indefinitely, with no way to retry. So once we've been stuck here for
 // CONNECTION_LOST_MS (the same wall-clock threshold as the in-app prompt — `connecting` is trivially
 // true the whole time we're mounted), the splash escalates to an honest, actionable "Not connected"
 // state: the dog rests, the copy says we can't reach Collie, and a Retry re-runs the loaders from
 // scratch (a full reload clears most transient failures). Below the threshold it's unchanged.
 export function BootSplash() {
+  const t = useT();
   const stuck = useConnectionLost(true);
   if (!stuck) {
     return (
       <div className="flex h-[100dvh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <DogGallop running size="4rem" label="Loading" />
-        <span className="text-sm">Connecting to the herd…</span>
+        <DogGallop running size="4rem" label={t("boot.loading")} />
+        <span className="text-sm">{t("boot.connecting")}</span>
       </div>
     );
   }
@@ -85,16 +87,16 @@ export function BootSplash() {
           rest-frame, whose full-stretch mid-stride pose looks frozen mid-run. The "Not connected"
           copy below carries the accessible meaning, so the icon is decorative. */}
       <img src="/favicon.svg" alt="" className="size-16 opacity-40 grayscale" />
-      <p className="font-medium text-foreground">Not connected</p>
+      <p className="font-medium text-foreground">{t("boot.notConnected")}</p>
       <p className="max-w-xs text-sm text-muted-foreground">
-        Can&rsquo;t reach Collie — check your connection to the host, then try again.
+        {t("boot.unreachable")}
       </p>
       <button
         type="button"
         onClick={() => window.location.reload()}
         className="text-sm underline underline-offset-4"
       >
-        Retry
+        {t("conn.retry")}
       </button>
     </div>
   );
@@ -110,19 +112,20 @@ export function BootSplash() {
 export function RootError({ to }: { to?: string }) {
   const error = useRouteError();
   const navigate = useNavigate();
-  const message = error instanceof Error ? error.message : "Unknown error";
+  const t = useT();
+  const message = error instanceof Error ? error.message : t("error.unknown");
   // h-[100dvh] is for the root barrier (it replaces the whole app); flex-1 min-h-0 is for the leaf
   // ones, which render inside RootLayout's viewport column and must not push it past the screen.
   return (
     <div className="flex h-[100dvh] min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      <h1 className="font-medium text-destructive">Something went wrong</h1>
+      <h1 className="font-medium text-destructive">{t("error.title")}</h1>
       <p className="max-w-xs text-sm text-muted-foreground">{message}</p>
       <button
         type="button"
         onClick={() => navigate(to ?? homePath(sessionFromUrl()))}
         className="text-sm underline underline-offset-4"
       >
-        Go back
+        {t("error.back")}
       </button>
     </div>
   );
