@@ -701,7 +701,7 @@ export function AgentChat({
                 onClick={openFind}
                 aria-label="Find in output"
                 title="Find in output"
-                className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+                className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
               >
                 <Search className="size-4" />
               </button>
@@ -710,7 +710,7 @@ export function AgentChat({
               type="button"
               onClick={() => setDrawer("more")}
               aria-label="More"
-              className="-mr-1 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+              className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
             >
               <EllipsisVertical className="size-4" />
             </button>
@@ -818,7 +818,7 @@ export function AgentChat({
                   aria-pressed={!reading}
                   aria-label="Terminal view"
                   title="Terminal"
-                  className={`flex h-7 w-8 items-center justify-center transition-colors ${
+                  className={`flex size-11 items-center justify-center transition-colors ${
                     reading ? "text-muted-foreground hover:bg-muted/60" : "bg-muted text-foreground"
                   }`}
                 >
@@ -830,7 +830,7 @@ export function AgentChat({
                   aria-pressed={reading}
                   aria-label="Reading view"
                   title="Reading"
-                  className={`flex h-7 w-8 items-center justify-center border-l transition-colors ${
+                  className={`flex size-11 items-center justify-center border-l transition-colors ${
                     reading ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
                   }`}
                 >
@@ -844,7 +844,7 @@ export function AgentChat({
                 onClick={openFind}
                 aria-label="Find in output"
                 title="Find in output"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <Search className="size-4" />
               </button>
@@ -854,7 +854,7 @@ export function AgentChat({
                 type="button"
                 onClick={() => navigate(historyPath(paneId, session))}
                 aria-label="Conversation history"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <ScrollText className="size-4" />
               </button>
@@ -869,7 +869,7 @@ export function AgentChat({
                 onClick={() => navigate(paneArtifactsPath(paneId, session))}
                 aria-label="Session artifacts"
                 title="Artifacts"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <FileCode2 className="size-4" />
               </button>
@@ -878,7 +878,7 @@ export function AgentChat({
               type="button"
               onClick={() => setDrawer("more")}
               aria-label="More"
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+              className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
             >
               <EllipsisVertical className="size-4" />
             </button>

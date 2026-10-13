@@ -63,7 +63,7 @@ export function SpaceStrip({
         type="button"
         onClick={onNewSpace}
         aria-label="New space"
-        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-accent active:scale-95"
+        className="flex size-11 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-accent active:scale-95"
       >
         <Plus className="size-4" />
       </button>

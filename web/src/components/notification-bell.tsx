@@ -49,7 +49,7 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={count > 0 ? `Notifications (${count})` : "Notifications"}
-        className="relative flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
+        className="relative flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
       >
         <Bell className="size-[18px]" />
         {count > 0 && (

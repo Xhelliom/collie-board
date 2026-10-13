@@ -53,7 +53,7 @@ export function AppHeader({
               type="button"
               onClick={onBack}
               aria-label="Back"
-              className="-ml-1.5 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted"
+              className="-ml-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted"
             >
               <ArrowLeft className="size-5" />
             </button>
@@ -73,7 +73,7 @@ export function AppHeader({
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             {rightLead}
             {rightTrail}
             {/* The bell closes the right cluster on every screen. In a right-aligned row the anchored
