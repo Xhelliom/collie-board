@@ -11,16 +11,20 @@ export function CollapsibleText({
   moreLabel = "Voir plus",
   lessLabel = "Voir moins",
   className,
+  forceOpen = false,
 }: {
   children: ReactNode;
   lines?: number;
   moreLabel?: string;
   lessLabel?: string;
   className?: string;
+  /** Unfolds without touching the user's own toggle — a search hit must never sit behind a fold. */
+  forceOpen?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = openState || forceOpen;
   // Height limit in px once overflow is confirmed; null = fits, nothing is clamped.
   const [limit, setLimit] = useState<number | null>(null);
 
@@ -48,7 +52,7 @@ export function CollapsibleText({
           type="button"
           aria-expanded={open}
           aria-controls={id}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => setOpen(!open)}
           className="mt-1 text-sm text-primary underline-offset-2 hover:underline"
         >
           {open ? lessLabel : moreLabel}

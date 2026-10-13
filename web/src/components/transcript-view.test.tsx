@@ -380,3 +380,32 @@ describe("TranscriptView images", () => {
     expect(steps).not.toContainElement(screen.getByText("Looking."));
   });
 });
+
+describe("TranscriptView — long tool output", () => {
+  const long = Array.from({ length: 40 }, (_, i) => `ligne ${i}`).join("\n");
+  const entries = [
+    turn({
+      role: "assistant",
+      parts: [{ kind: "tool", name: "Bash", summary: "cat f", result: { text: long } }],
+    }),
+  ];
+
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(1000);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("folds output past N lines by default, Voir tout unfolds it", async () => {
+    render(<TranscriptView entries={entries} />);
+    await userEvent.click(screen.getByRole("button", { name: /Bash/ }));
+    const more = screen.getByRole("button", { name: "Voir tout" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(more);
+    expect(screen.getByRole("button", { name: "Voir moins" })).toBeInTheDocument();
+  });
+
+  it("a find hit inside the output opens the call and its fold", () => {
+    render(<TranscriptView entries={entries} query="ligne 39" />);
+    expect(screen.getByRole("button", { name: "Voir moins" })).toHaveAttribute("aria-expanded", "true");
+  });
+});
