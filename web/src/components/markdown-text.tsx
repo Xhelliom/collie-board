@@ -3,7 +3,8 @@ import { Check, Copy } from "lucide-react";
 
 import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
 import { splitHighlight } from "@/lib/transcript-search";
-import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
+import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
+import { useT } from "@/i18n";
 
 // Renders the Markdown AST as React elements. Every string from the log reaches the DOM as a TEXT
 // NODE — there is no `dangerouslySetInnerHTML` here and there must never be one. That is the repo's
@@ -91,6 +92,7 @@ const Spans = ({ spans }: { spans: MdSpan[] }) => (
 // running under the button; the button sits on the outer wrapper (not the scrolling <pre>), so it
 // stays put regardless of horizontal scroll.
 function CodeBlock({ text }: { text: string }) {
+  const t = useT();
   const { canCopy, copied, copy } = useCopy();
   return (
     <div className="relative">
@@ -101,8 +103,8 @@ function CodeBlock({ text }: { text: string }) {
         type="button"
         disabled={!canCopy}
         onClick={() => copy(text)}
-        aria-label={copied ? "Copied" : "Copy code block"}
-        title={canCopy ? "Copy" : COPY_UNAVAILABLE_TITLE}
+        aria-label={copied ? t("pane.copy.done") : t("pane.copy.code")}
+        title={canCopy ? t("pane.copy.code") : copyUnavailableTitle()}
         className="absolute right-1 top-1 flex size-6 items-center justify-center rounded text-muted-foreground/70 transition-colors active:bg-muted disabled:pointer-events-none disabled:opacity-50"
       >
         {copied ? (

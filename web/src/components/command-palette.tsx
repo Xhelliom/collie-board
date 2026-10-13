@@ -6,6 +6,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { AgentIcon } from "@/components/agent-icon";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { commandsFor, type AgentCommand } from "@/lib/agent-commands";
+import { useT } from "@/i18n";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface CommandPaletteProps {
 // command list — that is a centred ⌘K palette, and it is its own card if we ever want it. Nothing
 // here presumes one.
 export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: CommandPaletteProps) {
+  const t = useT();
   const all = commandsFor(agent);
   const [query, setQuery] = useState("");
   const { pending, confirm, reset } = usePendingConfirm();
@@ -57,7 +59,7 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
   return (
     // No max-height override here: the sheet's own 82dvh is within a hair of the 85 this asked for,
     // and the override clipped the right-hand variant, whose height comes from inset-y-0.
-    <BottomSheet open={open} onClose={onClose} title="Agent commands">
+    <BottomSheet open={open} onClose={onClose} title={t("pane.agent.title")}>
       {agent && (
         <div className="mb-3 flex items-center gap-2">
           <AgentIcon agent={agent} className="size-6" />
@@ -82,13 +84,13 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
 
       {!q && (
         <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-          Common · type to search all {all.length}
+          {t("pane.cmd.hint", { count: all.length })}
         </p>
       )}
 
       <div className="flex flex-col gap-1">
         {list.length === 0 && (
-          <p className="py-8 text-center text-sm text-muted-foreground">No commands match “{query}”.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{t("pane.cmd.none", { query })}</p>
         )}
         {list.map((c) => {
           const isPending = pending === c.command;
@@ -119,7 +121,7 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
                 <p className="truncate text-xs text-muted-foreground">{c.description}</p>
               </div>
               {isPending ? (
-                <span className="shrink-0 text-xs font-medium text-destructive">Confirm?</span>
+                <span className="shrink-0 text-xs font-medium text-destructive">{t("pane.confirm")}</span>
               ) : c.takesArg ? (
                 <Pencil className="size-4 shrink-0 text-muted-foreground" />
               ) : (

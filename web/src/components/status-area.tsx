@@ -2,6 +2,7 @@ import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react"
 
 import { cn } from "@/lib/utils";
 import { clearStatus, useStatus, type StatusTone } from "@/lib/status";
+import { useT } from "@/i18n";
 
 // A slim, self-contained status line. Rendered inside a pointer-events-none positioning wrapper (an
 // overlay above the composer / at the bottom of home), it shows the latest status with a tone colour
@@ -30,6 +31,7 @@ const ICONS = {
 } as const;
 
 export function StatusArea({ className }: { className?: string }) {
+  const t = useT();
   const status = useStatus();
   if (!status) return null;
   const Icon = ICONS[status.tone];
@@ -52,7 +54,7 @@ export function StatusArea({ className }: { className?: string }) {
         <button
           type="button"
           onClick={() => clearStatus()}
-          aria-label="Dismiss"
+          aria-label={t("spaces.dismiss")}
           className="pointer-events-auto -mr-1 flex size-5 shrink-0 items-center justify-center rounded opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
         >
           <X className="size-3.5" />

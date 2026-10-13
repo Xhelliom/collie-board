@@ -28,8 +28,8 @@ describe("touch targets ≥ 44 px", () => {
   it("AgentChat desktop View mode toggle", () => {
     const src = readFileSync(resolve(__dirname, "agent-chat.tsx"), "utf8");
     // ponytail: AgentChat is too heavy to mount; assert the source classes of both toggle buttons.
-    for (const label of ["Terminal view", "Reading view"]) {
-      const at = src.indexOf(`aria-label="${label}"`);
+    for (const label of ["pane.terminalView", "pane.readingView"]) {
+      const at = src.indexOf(`aria-label={tr("${label}")}`);
       expect(src.slice(at, at + 200)).toMatch(/flex size-11 /);
     }
   });

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Download, Loader2, Upload } from "lucide-react";
 
+import { Rich } from "@/i18n/rich";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -150,7 +151,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
 
       {file && !busy && !restored && (
         <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
-          {t("settings.backup.warn", { folder: "backups/" })}
+          <Rich id="settings.backup.warn" />
         </p>
       )}
 
@@ -164,13 +165,11 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
             })}
           </p>
           <p>
-            {t("settings.backup.previous", { path: restored.safetyBackup })}
+            <Rich id="settings.backup.previous" params={{ path: restored.safetyBackup }} />
           </p>
           {restored.restartRequired && (
             <p>
-              {t("settings.backup.restart", {
-                command: "herdr plugin action invoke restart --plugin herdr.collie-board",
-              })}
+              <Rich id="settings.backup.restart" params={{ command: "herdr plugin action invoke restart --plugin herdr.collie-board" }} />
             </p>
           )}
           <Button variant="outline" size="sm" onClick={() => location.reload()}>

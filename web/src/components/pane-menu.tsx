@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { AgentIcon } from "@/components/agent-icon";
 import { paneDisplayName } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface PaneMenuProps {
   /** The panes of the CURRENT space (agents + shells), in snapshot order. */
@@ -23,6 +24,7 @@ interface PaneMenuProps {
 // closes it too (the layer can't catch keys). The trigger's ancestor must not be `truncate`
 // (overflow:hidden would clip the list) — see the desktop toolbar in agent-chat.tsx.
 export function PaneMenu({ panes, currentPaneId, onSelect }: PaneMenuProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // Nothing to switch between — render the chip as plain text rather than a dead affordance.
@@ -51,7 +53,7 @@ export function PaneMenu({ panes, currentPaneId, onSelect }: PaneMenuProps) {
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Pane ${label}. Switch pane in this space`}
+        aria-label={t("spaces.paneMenu", { label: label ?? "" })}
         className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-[7px] py-0.5 font-semibold text-foreground transition-colors hover:bg-muted/70"
       >
         {label}

@@ -4,6 +4,7 @@ import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 import { blockedCount } from "@/lib/spaces";
 import type { AgentView, WorkspaceView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface SpaceStripProps {
   workspaces: WorkspaceView[];
@@ -32,6 +33,7 @@ export function SpaceStrip({
   onNewSpace,
   onBack,
 }: SpaceStripProps) {
+  const t = useT();
   return (
     <div className="flex snap-x snap-mandatory scroll-px-3 items-center gap-2 overflow-x-auto px-3 py-2 lg:flex-wrap lg:overflow-x-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:snap-start">
       {onBack ? (
@@ -41,12 +43,12 @@ export function SpaceStrip({
           className="flex shrink-0 items-center gap-0.5 rounded-full border border-border bg-background py-1 pl-1.5 pr-3 text-sm font-medium text-foreground transition-colors hover:bg-muted active:scale-95"
         >
           <ChevronLeft className="size-4" />
-          Back
+          {t("spaces.back")}
         </button>
       ) : (
         <>
-          <SectionLabel>Spaces</SectionLabel>
-          <Chip label="All" active={selected === null} onClick={() => onSelect(null)} />
+          <SectionLabel>{t("spaces.title")}</SectionLabel>
+          <Chip label={t("spaces.all")} active={selected === null} onClick={() => onSelect(null)} />
         </>
       )}
       {workspaces.map((w) => (
@@ -62,7 +64,7 @@ export function SpaceStrip({
       <button
         type="button"
         onClick={onNewSpace}
-        aria-label="New space"
+        aria-label={t("spaces.new")}
         className="flex size-11 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:bg-accent active:scale-95"
       >
         <Plus className="size-4" />

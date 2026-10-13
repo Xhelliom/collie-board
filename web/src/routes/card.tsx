@@ -59,7 +59,7 @@ import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
 import { Switch } from "@/components/ui/switch";
-import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
+import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
@@ -1151,7 +1151,7 @@ export function CopyPromptButton({ cardId }: { cardId: string }) {
       disabled={!canCopy}
       onClick={() => void copy(prompt)}
       aria-label={t("card.copyPrompt", { prompt })}
-      title={canCopy ? prompt : COPY_UNAVAILABLE_TITLE}
+      title={canCopy ? prompt : copyUnavailableTitle()}
       className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
     >
       {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}

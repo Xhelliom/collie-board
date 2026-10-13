@@ -15,12 +15,14 @@ import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath, spacePath, spacesPath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { isReadOnly } from "@/lib/types";
+import { useT } from "@/i18n";
 
 // Space detail route: one space's tabs + panes, with the space/tab strips for in-space navigation.
 // Shares the root snapshot (no own loader), reading :spaceId from the URL — a deep-linkable,
 // back-button-friendly drill-in. The SpaceStrip's "All" chip returns to the Spaces list (redesign
 // §9 — the dashboard no longer carries a spaces widget to come back to).
 export function SpaceRoute() {
+  const t = useT();
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { spaceId = "" } = useParams();
   const navigate = useNavigate();
@@ -63,16 +65,16 @@ export function SpaceRoute() {
   if (selectedWs) everExisted.current = true;
   useEffect(() => {
     if (gone && data.bridge === "connected" && !data.error) {
-      setStatus(everExisted.current ? "Space closed" : "Space not found", "info");
+      setStatus(t(everExisted.current ? "spaces.closed" : "spaces.notFound"), "info");
       navigate(spacesPath(data.session), { replace: true });
     }
-  }, [gone, data.bridge, data.error, data.session, navigate]);
+  }, [gone, data.bridge, data.error, data.session, navigate, t]);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
       {/* A drilled-into screen (reached from a space card/chip, not a nav tab), so it gets the back
           chevron rather than the nav treatment. */}
-      <AppHeader title={selectedWs?.label ?? "Space"} onBack={toSpaces} />
+      <AppHeader title={selectedWs?.label ?? t("spaces.space")} onBack={toSpaces} />
 
       {/* Content region below the header: the viewport-clipped scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">

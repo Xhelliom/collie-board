@@ -10,6 +10,7 @@ import { PreviewSelectBlock, type PreviewBlockAction } from "@/components/previe
 import { MultiSelectBlock } from "@/components/multi-select-block";
 import type { MultiSelectIntent } from "@/lib/multi-select-action";
 import { fetchHistory } from "@/lib/api";
+import { t, useT, type MessageKey } from "@/i18n";
 import type { TranscriptEntry } from "@/lib/types";
 import type {
   Block,
@@ -62,14 +63,8 @@ const MAX_HELD = 300;
 const NO_READING = new Set(["disabled", "no-session", "no-log", "unsupported"]);
 
 /** Why the view is empty, in the user's terms. Each is an ordinary state, not an error. */
-const UNAVAILABLE_COPY: Record<string, string> = {
-  disabled: "Transcript reading is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
-  "no-session": "This pane has no agent session, so there's nothing to read.",
-  "no-log": "No transcript file was found for this pane's session yet.",
-  unsupported: "This agent keeps no transcript Collie can read — switch to Terminal for this pane.",
-  error: "Couldn't read the transcript. Switch to Terminal, or try again in a moment.",
-  empty: "Nothing in the transcript yet.",
-};
+const unavailableCopy = (reason: string) =>
+  t(`pane.reading.${["disabled", "no-session", "no-log", "unsupported", "empty"].includes(reason) ? reason : "error"}` as MessageKey);
 
 /**
  * Fold a freshly-fetched tail into what we already hold.
@@ -133,6 +128,7 @@ export function ReadingView({
    *  parent shows the terminal instead. `error` and `empty` are transient, so they stay here. */
   onUnavailable?: () => void;
 }) {
+  const t = useT();
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [note, setNote] = useState<string | null>(null);
   // Messages sitting in Claude Code's OWN input queue right now — submitted while the agent was busy,
@@ -164,7 +160,7 @@ export function ReadingView({
         held.current = [];
         setEntries([]);
         setQueued([]);
-        setNote(UNAVAILABLE_COPY[res.reason] ?? UNAVAILABLE_COPY.error!);
+        setNote(unavailableCopy(res.reason));
         if (NO_READING.has(res.reason)) onUnavailable?.();
         return;
       }
@@ -172,10 +168,10 @@ export function ReadingView({
       held.current = next;
       setEntries(next);
       setQueued(res.queued);
-      setNote(next.length === 0 ? UNAVAILABLE_COPY.empty! : null);
+      setNote(next.length === 0 ? unavailableCopy("empty") : null);
     } catch {
       // Keep whatever is on screen — a poll that failed is not a conversation that vanished.
-      if (held.current.length === 0) setNote(UNAVAILABLE_COPY.error!);
+      if (held.current.length === 0) setNote(unavailableCopy("error"));
     } finally {
       busy.current = false;
     }
@@ -199,7 +195,7 @@ export function ReadingView({
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {entries.length === 0 ? (
             <div className="px-2 py-16 text-center text-sm text-muted-foreground">
-              {note ?? "Loading…"}
+              {note ?? t("common.loading")}
             </div>
           ) : (
             <TranscriptView entries={entries} agent={agent} />
@@ -248,7 +244,7 @@ export function ReadingView({
           {working && !dialogBlock && (
             <div className="flex items-center gap-2 px-1 pt-3 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
-              Still writing — this turn appears when the agent finishes it.
+              {t("pane.reading.writing")}
             </div>
           )}
           {/* The one state that never reaches the transcript at all if it's cleared (recalled, or
@@ -260,7 +256,7 @@ export function ReadingView({
               <summary className="flex cursor-pointer list-none [&::-webkit-details-marker]:hidden items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                 <ChevronRight className="size-3 transition-transform group-open:rotate-90" />
                 <Clock className="size-3" />
-                Queue ({queued.length})
+                {t("pane.reading.queue", { count: queued.length })}
               </summary>
               <div className="mt-1 space-y-1.5">
                 {queued.map((text, i) => (

@@ -14,6 +14,13 @@ export const common = defineMessages({
   "common.back": { en: "Back", fr: "Retour" },
   "common.close": { en: "Close", fr: "Fermer" },
   "lightbox.label": { en: "Image viewer", fr: "Visionneuse d'images" },
+  "notifications.title": { en: "Notifications", fr: "Notifications" },
+  "notifications.titleCount": { en: "Notifications ({count})", fr: "Notifications ({count})" },
+  "notifications.failed": { en: "Couldn't read the history.", fr: "Impossible de lire l'historique." },
+  "notifications.empty": {
+    en: "Nothing has pinged yet. Alerts land here as they fire — including the ones you slept through.",
+    fr: "Rien n'a encore sonné. Les alertes arrivent ici au fil de l'eau — y compris celles que tu as dormies.",
+  },
   "fold.less": { en: "Show less", fr: "Voir moins" },
   // A card's column. Lane names below must repeat a column's name only on the lane's FIRST column
   // (lib/board.test.ts), so "Actives" is not "En cours".

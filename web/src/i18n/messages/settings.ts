@@ -89,8 +89,8 @@ export const settings = defineMessages({
 
   "settings.followUps.title": { en: "Follow-up cards", fr: "Cartes de suite" },
   "settings.followUps.hint": {
-    en: "When a card is done, add what the review found still undone to the backlog. Those cards are marked {auto}, and the board filters on it.",
-    fr: "Quand une carte est terminée, ajoute au backlog ce que la relecture a trouvé encore à faire. Ces cartes sont marquées {auto}, et le plateau filtre dessus.",
+    en: "When a card is done, add what the review found still undone to the backlog. Those cards are marked <b>auto</b>, and the board filters on it.",
+    fr: "Quand une carte est terminée, ajoute au backlog ce que la relecture a trouvé encore à faire. Ces cartes sont marquées <b>auto</b>, et le plateau filtre dessus.",
   },
   "settings.followUps.test": { en: "Testing to do", fr: "Tests à faire" },
   "settings.followUps.feature": { en: "Missing feature", fr: "Fonctionnalité manquante" },
@@ -127,17 +127,17 @@ export const settings = defineMessages({
   "settings.backup.readOnly": { en: "This device isn't allowed to export or restore.", fr: "Cet appareil n'a pas le droit d'exporter ni de restaurer." },
   "settings.backup.saved": { en: "Saved {name}", fr: "Enregistré : {name}" },
   "settings.backup.warn": {
-    en: "This replaces the board and every stored preference. The bridge exports the current state to its {folder} folder first.",
-    fr: "Cela remplace le plateau et toutes les préférences enregistrées. Le pont exporte d'abord l'état actuel dans son dossier {folder}.",
+    en: "This replaces the board and every stored preference. The bridge exports the current state to its <c>backups/</c> folder first.",
+    fr: "Cela remplace le plateau et toutes les préférences enregistrées. Le pont exporte d'abord l'état actuel dans son dossier <c>backups/</c>.",
   },
   "settings.backup.restored": {
     en: "Restored {rows} rows, {files} files and {prefs} local preferences.",
     fr: "{rows} lignes, {files} fichiers et {prefs} préférences locales restaurés.",
   },
-  "settings.backup.previous": { en: "Previous state saved on the host at {path}.", fr: "État précédent sauvegardé sur l'hôte dans {path}." },
+  "settings.backup.previous": { en: "Previous state saved on the host at <c>{path}</c>.", fr: "État précédent sauvegardé sur l'hôte dans <c>{path}</c>." },
   "settings.backup.restart": {
-    en: "Restart the bridge to pick up the notification settings: {command}",
-    fr: "Redémarrez le pont pour prendre en compte les réglages de notification : {command}",
+    en: "Restart the bridge to pick up the notification settings: <c>{command}</c>",
+    fr: "Redémarrez le pont pour prendre en compte les réglages de notification : <c>{command}</c>",
   },
   "settings.backup.reload": { en: "Reload the app", fr: "Recharger l'app" },
 

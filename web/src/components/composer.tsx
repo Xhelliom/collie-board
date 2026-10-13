@@ -5,7 +5,7 @@ import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, Panels
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
-import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
+import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { QuickActionsContent } from "@/components/quick-actions";
 import { SectionLabel } from "@/components/ui/section-label";
 import * as api from "@/lib/api";
 import { commandsFor } from "@/lib/agent-commands";
+import { useT } from "@/i18n";
 import { isDestructiveInput } from "@/lib/destructive";
 import { useHoldReload } from "@/lib/reload-guard";
 import { isSelfEcho, normalizeDraft } from "@/hooks/use-terminal-draft";
@@ -132,6 +133,7 @@ function ComposerDock({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const tr = useT();
   return (
     <div className="-mx-3 mb-2 flex flex-col border-t border-border bg-background">
       <div className="flex items-center justify-between px-3 pt-2">
@@ -141,7 +143,7 @@ function ComposerDock({
           size="icon"
           className="size-7 text-muted-foreground"
           onClick={onClose}
-          aria-label={`Close ${title}`}
+          aria-label={tr("pane.dock.close", { title })}
         >
           <X className="size-4" />
         </Button>
@@ -155,6 +157,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff },
   ref,
 ) {
+  const tr = useT();
   const revalidator = useRevalidator();
   // Every write affordance is off when the pane is gone OR this device is read-only.
   const locked = gone || readOnly;
@@ -338,7 +341,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     // queue-and-auto-send, because the text may be a reaction to state the dialog just changed —
     // sending is consent, and the conditions moved.
     if (dialogPresent) {
-      setStatus("A dialog is waiting — answer it first, then send.", "error");
+      setStatus(tr("pane.send.dialog"), "error");
       return;
     }
     setSending(true);
@@ -361,7 +364,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           session,
         );
         if (!clearRes.ok) {
-          setStatus(clearRes.error ?? "Couldn't clear the terminal input", "error");
+          setStatus(clearRes.error ?? tr("pane.send.clearFailed"), "error");
           return;
         }
         scheduleKeyRevalidate();
@@ -390,7 +393,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         setJustSent(true);
         if (sentTimer.current) clearTimeout(sentTimer.current);
         sentTimer.current = setTimeout(() => setJustSent(false), 1500);
-        setStatus("Sent ✓", "success");
+        setStatus(tr("pane.send.sent"), "success");
         const preview = t.length > 60 ? `${t.slice(0, 57)}…` : t;
         setLastSent(preview);
         if (lastSentTimerRef.current) clearTimeout(lastSentTimerRef.current);
@@ -417,7 +420,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   function onSendClick() {
     const reason = isDestructiveInput(input);
     if (reason && !sendConfirm.confirm("send")) {
-      setStatus(`Destructive: ${reason} — tap Send again to confirm`, "info");
+      setStatus(tr("pane.send.destructive", { reason }), "info");
       return;
     }
     sendConfirm.reset();
@@ -441,7 +444,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     api
       .sendKeys(paneId, k, session)
       .then((res) => {
-        if (!res.ok) setStatus(res.error ?? "Key send failed", "error");
+        if (!res.ok) setStatus(res.error ?? tr("pane.keys.failed"), "error");
         else scheduleKeyRevalidate();
       })
       .catch((e) => setStatus(e instanceof Error ? e.message : String(e), "error"));
@@ -472,7 +475,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <div className="mb-2 flex items-center gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
             <Loader2 className="size-3 shrink-0 animate-spin" />
             <span className="truncate">
-              <span className="font-medium">You sent:</span> {lastSent}
+              <span className="font-medium">{tr("pane.sent")}</span> {lastSent}
             </span>
           </div>
         )}
@@ -490,12 +493,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             used to sit in their own permanent row (UI_AUDIT C1) — settings you touch once, not every
             message. Agent stays a covering BottomSheet below (it's a palette, not a pad). */}
         {drawer === "keys" && (
-          <ComposerDock title="Keys" onClose={closeDrawer}>
+          <ComposerDock title={tr("pane.keys")} onClose={closeDrawer}>
             <NavTray onSend={pressKeys} disabled={locked} />
           </ComposerDock>
         )}
         {drawer === "quick" && (
-          <ComposerDock title="Quick" onClose={closeDrawer}>
+          <ComposerDock title={tr("pane.quick")} onClose={closeDrawer}>
             <QuickActionsContent
               onSend={(t) => send(t, false)}
               onClose={closeDrawer}
@@ -505,7 +508,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </ComposerDock>
         )}
         {drawer === "view" && (
-          <ComposerDock title="View" onClose={closeDrawer}>
+          <ComposerDock title={tr("pane.view")} onClose={closeDrawer}>
             <div className="flex flex-wrap items-center gap-2 p-3">
               {/* Raw-terminal escape hatch: turns off the block renderer (native prompt buttons, chrome
                   strip, status strip) so a mis-parsed dialog can always be driven by hand with the keys
@@ -517,12 +520,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11"
                 onClick={() => setRawTerminal(!prefs.rawTerminal)}
                 aria-label={
-                  prefs.rawTerminal
-                    ? "Raw terminal on — tap for the enhanced view"
-                    : "Raw terminal off — tap to show the plain terminal"
+                  prefs.rawTerminal ? tr("pane.view.rawOn") : tr("pane.view.rawOff")
                 }
                 aria-pressed={prefs.rawTerminal}
-                title="Toggle raw terminal (disable native prompt buttons)"
+                title={tr("pane.view.rawTitle")}
               >
                 <Terminal className="size-4" />
               </Button>
@@ -531,9 +532,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 size="icon"
                 className="size-11"
                 onClick={() => setWrap(!prefs.wrap)}
-                aria-label={prefs.wrap ? "Wrap on — tap to disable" : "Wrap off — tap to enable"}
+                aria-label={prefs.wrap ? tr("pane.view.wrapOn") : tr("pane.view.wrapOff")}
                 aria-pressed={prefs.wrap}
-                title="Toggle line wrap"
+                title={tr("pane.view.wrapTitle")}
               >
                 <WrapText className="size-4" />
               </Button>
@@ -543,8 +544,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11"
                 disabled={prefs.fontSize <= 9}
                 onClick={() => stepFontSize(-1)}
-                aria-label="Decrease font size"
-                title="Smaller text"
+                aria-label={tr("pane.view.smaller")}
+                title={tr("pane.view.smallerTitle")}
               >
                 <AArrowDown className="size-4" />
               </Button>
@@ -554,8 +555,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11"
                 disabled={prefs.fontSize >= 16}
                 onClick={() => stepFontSize(1)}
-                aria-label="Increase font size"
-                title="Larger text"
+                aria-label={tr("pane.view.larger")}
+                title={tr("pane.view.largerTitle")}
               >
                 <AArrowUp className="size-4" />
               </Button>
@@ -567,8 +568,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11"
                 disabled={!canCopyMirror || !mirrorText}
                 onClick={() => copyMirror(mirrorText)}
-                aria-label={mirrorCopied ? "Copied" : "Copy terminal buffer"}
-                title={canCopyMirror ? "Copy terminal buffer" : COPY_UNAVAILABLE_TITLE}
+                aria-label={mirrorCopied ? tr("pane.copy.done") : tr("pane.view.copy")}
+                title={canCopyMirror ? tr("pane.view.copy") : copyUnavailableTitle()}
               >
                 {mirrorCopied ? (
                   <Check className="size-4 text-status-working" />
@@ -624,19 +625,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               onPaste={onPasteImage}
               placeholder={
                 gone
-                  ? "Pane is gone"
+                  ? tr("pane.input.gone")
                   : readOnly
-                    ? "Read-only — device not authorised"
+                    ? tr("pane.input.readOnly")
                     : isShell
-                      ? "Type a shell command…"
-                      : "Type a reply…"
+                      ? tr("pane.input.shell")
+                      : tr("pane.input.reply")
               }
               disabled={locked}
               rows={1}
               className="mb-2 lg:mb-0 lg:pr-24"
             />
             <span className="pointer-events-none absolute bottom-2.5 right-3 hidden text-[11px] opacity-70 lg:block">
-              ⌘⏎ pour envoyer
+              {tr("pane.input.hint")}
             </span>
           </div>
           {/* Action row — the composer's one permanent control row (UI_AUDIT C1), replacing the old
@@ -655,8 +656,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   variant="ghost"
                   size="icon"
                   className="size-11 text-muted-foreground lg:hidden"
-                  aria-label="Switch pane"
-                  title="Switch pane"
+                  aria-label={tr("pane.switch")}
+                  title={tr("pane.switch")}
                   onClick={onSwitchPane}
                 >
                   <PanelsTopLeft className="size-4" />
@@ -668,8 +669,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11 text-muted-foreground"
                 disabled={locked}
                 aria-expanded={drawer === "keys"}
-                aria-label="Keys"
-                title="Keys"
+                aria-label={tr("pane.keys")}
+                title={tr("pane.keys")}
                 onClick={() => setDrawer(drawer === "keys" ? null : "keys")}
               >
                 <Keyboard className="size-4" />
@@ -680,8 +681,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 className="size-11 text-muted-foreground"
                 disabled={locked}
                 aria-expanded={drawer === "quick"}
-                aria-label="Quick"
-                title="Quick replies"
+                aria-label={tr("pane.quick")}
+                title={tr("pane.quick.title")}
                 onClick={() => setDrawer(drawer === "quick" ? null : "quick")}
               >
                 <Zap className="size-4" />
@@ -692,8 +693,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   size="icon"
                   className="size-11 text-muted-foreground"
                   disabled={locked}
-                  aria-label="Agent"
-                  title="Agent commands"
+                  aria-label={tr("pane.agent")}
+                  title={tr("pane.agent.title")}
                   onClick={() => setDrawer("cmd")}
                 >
                   <Slash className="size-4" />
@@ -710,7 +711,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 disabled={uploading || locked}
                 onPointerDown={(e) => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
-                aria-label="Attach image"
+                aria-label={tr("pane.attach")}
               >
                 {uploading ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -723,8 +724,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 size="icon"
                 className="size-11 text-muted-foreground"
                 aria-expanded={drawer === "view"}
-                aria-label="View"
-                title="View settings"
+                aria-label={tr("pane.view")}
+                title={tr("pane.view.title")}
                 onClick={() => setDrawer(drawer === "view" ? null : "view")}
               >
                 <SlidersHorizontal className="size-4" />
@@ -735,9 +736,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   className="ml-auto h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
-                  aria-label="Really send?"
+                  aria-label={tr("pane.send.really")}
                 >
-                  Really send?
+                  {tr("pane.send.really")}
                 </Button>
               ) : (
                 <Button
@@ -746,7 +747,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   className="ml-auto size-11 shrink-0 rounded-full"
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
-                  aria-label="Send"
+                  aria-label={tr("pane.send")}
                 >
                   {sending ? (
                     <Loader2 className="size-4 animate-spin" />

@@ -8,6 +8,7 @@ import type { Modifier } from "@/lib/key-queue";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useKeyQueue } from "@/hooks/use-key-queue";
 import { KeyQueueStrip } from "@/components/key-queue-strip";
+import { useT } from "@/i18n";
 
 // The inline navigation tray: the keys you need to drive an interactive agent prompt (selection
 // menus, multi-select forms, numbered choices) WITHOUT covering the terminal mirror — it docks
@@ -52,6 +53,7 @@ const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 type Tab = "keys" | "digits";
 
 export function NavTray({ onSend, disabled }: NavTrayProps) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("keys");
   const [ctrlOpen, setCtrlOpen] = useState(false);
   const { queue, mods, activeMods, composing, arm, press, pushBase, removeAt, clear, take } =
@@ -142,7 +144,7 @@ export function NavTray({ onSend, disabled }: NavTrayProps) {
           aria-pressed={tab === "keys"}
           className="h-8 text-sm font-medium"
         >
-          Keys
+          {t("pane.keys")}
         </Button>
         <Button
           type="button"
@@ -202,7 +204,7 @@ export function NavTray({ onSend, disabled }: NavTrayProps) {
               onClick={() => setCtrlOpen((o) => !o)}
               className="flex items-center gap-1 px-1 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground"
             >
-              Presets
+              {t("pane.nav.presets")}
               <ChevronDown className={cn("size-3 transition-transform", ctrlOpen && "rotate-180")} />
             </button>
             {ctrlOpen && (
@@ -219,7 +221,7 @@ export function NavTray({ onSend, disabled }: NavTrayProps) {
                       onClick={() => pressCtrl(item)}
                       className={cn("h-10 text-sm font-medium", item.danger && !isPending && "text-destructive")}
                     >
-                      {isPending ? "Confirm?" : item.label}
+                      {isPending ? t("pane.confirm") : item.label}
                     </Button>
                   );
                 })}

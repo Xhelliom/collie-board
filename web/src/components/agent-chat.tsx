@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useT } from "@/i18n";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useNavigate, useRevalidator } from "react-router";
 import {
@@ -124,6 +125,7 @@ export function AgentChat({
   onBack,
   onSelect,
 }: AgentChatProps) {
+  const tr = useT();
   const revalidator = useRevalidator();
   const navigate = useNavigate();
   // Poll-truth "is the data on screen not live". The header (AppHeader) reads the same inputs to drive
@@ -176,7 +178,7 @@ export function AgentChat({
         closeDrawer();
         onBack();
       } else {
-        setStatus(res.error ?? "Close failed", "error");
+        setStatus(res.error ?? tr("pane.closeFailed"), "error");
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e), "error");
@@ -325,14 +327,14 @@ export function AgentChat({
       const res = await fetchHistory(paneId, { limit: HISTORY_PAGE_SIZE }, session);
       const images = res.available ? collectImages(res.entries) : [];
       if (images.length === 0) {
-        setStatus("No images in this session");
+        setStatus(tr("pane.images.none"));
         return;
       }
       openLightbox(images);
     } catch {
-      setStatus("Couldn't read this session's images", "error");
+      setStatus(tr("pane.images.failed"), "error");
     }
-  }, [paneId, session]);
+  }, [paneId, session, tr]);
 
   // READING MODE — the second mode of this screen (see components/reading-view.tsx). Gated on a
   // transcript existing at all, so the toggle never leads somewhere empty: a shell pane, or an agent
@@ -426,7 +428,7 @@ export function AgentChat({
   const handlePromptAction = useCallback(
     async (option: PromptOption, prompt: PromptModel) => {
       if (readOnly) {
-        setStatus("Read-only — device not authorised", "error");
+        setStatus(tr("pane.readOnlyStatus"), "error");
         return;
       }
       const result = await submitPromptOption({
@@ -438,15 +440,15 @@ export function AgentChat({
         option,
       });
       if (result.status === "sent") {
-        setStatus("Sent", "success");
+        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
       } else if (result.status === "changed") {
-        setStatus("Menu changed — refreshing", "warn");
+        setStatus(tr("pane.changed.menu"), "warn");
         revalidator.revalidate();
       } else {
-        setStatus(result.error || "Send failed", "error");
+        setStatus(result.error || tr("pane.sendFailed"), "error");
       }
     },
     [readOnly, paneId, session, requestedLines, shown.revision, revalidator],
@@ -460,7 +462,7 @@ export function AgentChat({
   const handleWizardAction = useCallback(
     async (keys: string[], wizard: WizardModel) => {
       if (readOnly) {
-        setStatus("Read-only — device not authorised", "error");
+        setStatus(tr("pane.readOnlyStatus"), "error");
         return;
       }
       const result = await submitWizardKeys({
@@ -472,15 +474,15 @@ export function AgentChat({
         keys,
       });
       if (result.status === "sent") {
-        setStatus("Sent", "success");
+        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
       } else if (result.status === "changed") {
-        setStatus("Wizard changed — refreshing", "warn");
+        setStatus(tr("pane.changed.wizard"), "warn");
         revalidator.revalidate();
       } else {
-        setStatus(result.error || "Send failed", "error");
+        setStatus(result.error || tr("pane.sendFailed"), "error");
       }
     },
     [readOnly, paneId, session, requestedLines, shown.revision, revalidator],
@@ -494,7 +496,7 @@ export function AgentChat({
   const handlePreviewAction = useCallback(
     async (action: PreviewBlockAction, preview: PreviewSelectModel) => {
       if (readOnly) {
-        setStatus("Read-only — device not authorised", "error");
+        setStatus(tr("pane.readOnlyStatus"), "error");
         return;
       }
       const base = {
@@ -512,17 +514,17 @@ export function AgentChat({
             : await submitPreviewKeys({ ...base, keys: action.keys });
       if (result.status === "sent") {
         setStatus(
-          action.kind === "note" ? (action.text ? "Note saved" : "Note removed") : "Sent",
+          action.kind === "note" ? (action.text ? tr("pane.note.saved") : tr("pane.note.removed")) : tr("pane.sentShort"),
           "success",
         );
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
       } else if (result.status === "changed") {
-        setStatus("Dialog changed — refreshing", "warn");
+        setStatus(tr("pane.changed.dialog"), "warn");
         revalidator.revalidate();
       } else {
-        setStatus(result.error || "Send failed", "error");
+        setStatus(result.error || tr("pane.sendFailed"), "error");
         revalidator.revalidate();
       }
     },
@@ -537,7 +539,7 @@ export function AgentChat({
   const handleMultiSelectAction = useCallback(
     async (action: MultiSelectIntent, multi: MultiSelectModel) => {
       if (readOnly) {
-        setStatus("Read-only — device not authorised", "error");
+        setStatus(tr("pane.readOnlyStatus"), "error");
         return;
       }
       const result = await submitMultiSelectIntent({
@@ -549,15 +551,15 @@ export function AgentChat({
         intent: action,
       });
       if (result.status === "sent") {
-        setStatus("Sent", "success");
+        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
       } else if (result.status === "changed") {
-        setStatus("Selection changed — refreshing", "warn");
+        setStatus(tr("pane.changed.selection"), "warn");
         revalidator.revalidate();
       } else {
-        setStatus(result.error || "Send failed", "error");
+        setStatus(result.error || tr("pane.sendFailed"), "error");
       }
     },
     [readOnly, paneId, session, requestedLines, shown.revision, revalidator],
@@ -616,12 +618,12 @@ export function AgentChat({
     ? (agent.paneLabel ??
       agent.sessionName ??
       `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`)
-    : "(agent gone)";
+    : tr("pane.agentGone");
 
   // The card this pane backs — undefined for a hand-launched pane (`withCardFields` resolves none).
   // A `const`, so the narrowing survives into the row's onClick below.
   const cardId = agent?.cardId;
-  const cardLabel = agent?.cardTitle ?? "Carte portée";
+  const cardLabel = agent?.cardTitle ?? tr("pane.cardCarried");
 
   // The ONE handoff call this screen makes — the desktop rail's button and the composer's Quick dock
   // both fire it, so "hand off from the session" can't drift into two behaviours. Same request the
@@ -629,7 +631,7 @@ export function AgentChat({
   const runHandoff = async (id: string) => {
     try {
       await handoffCard(id);
-      setStatus("Handoff asked for — the card swaps sessions when the note lands.", "info");
+      setStatus(tr("pane.handoffAsked"), "info");
     } catch (e) {
       setStatus((e as Error).message, "error", null);
     }
@@ -706,8 +708,8 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={openFind}
-                aria-label="Find in output"
-                title="Find in output"
+                aria-label={tr("find.label.output")}
+                title={tr("find.label.output")}
                 className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
               >
                 <Search className="size-4" />
@@ -716,7 +718,7 @@ export function AgentChat({
             <button
               type="button"
               onClick={() => setDrawer("more")}
-              aria-label="More"
+              aria-label={tr("pane.more")}
               className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
             >
               <EllipsisVertical className="size-4" />
@@ -736,7 +738,7 @@ export function AgentChat({
           <button
             type="button"
             onClick={() => openSpace(agent.workspaceId)}
-            aria-label={`Open ${agent.workspaceLabel} overview`}
+            aria-label={tr("pane.openOverview", { space: agent.workspaceLabel })}
             className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/60"
           >
             {isShell ? (
@@ -816,15 +818,15 @@ export function AgentChat({
             {historyAvailable && (
               <div
                 role="group"
-                aria-label="View mode"
+                aria-label={tr("pane.viewMode")}
                 className="flex items-center overflow-hidden rounded-lg border"
               >
                 <button
                   type="button"
                   onClick={() => setReading(false)}
                   aria-pressed={!reading}
-                  aria-label="Terminal view"
-                  title="Terminal"
+                  aria-label={tr("pane.terminalView")}
+                  title={tr("pane.terminal")}
                   className={`flex size-11 items-center justify-center transition-colors ${
                     reading ? "text-muted-foreground hover:bg-muted/60" : "bg-muted text-foreground"
                   }`}
@@ -838,8 +840,8 @@ export function AgentChat({
                     setReading(true);
                   }}
                   aria-pressed={reading}
-                  aria-label="Reading view"
-                  title="Reading"
+                  aria-label={tr("pane.readingView")}
+                  title={tr("pane.reading")}
                   className={`flex size-11 items-center justify-center border-l transition-colors ${
                     reading ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
                   }`}
@@ -852,8 +854,8 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={openFind}
-                aria-label="Find in output"
-                title="Find in output"
+                aria-label={tr("find.label.output")}
+                title={tr("find.label.output")}
                 className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <Search className="size-4" />
@@ -863,7 +865,7 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={() => navigate(historyPath(paneId, session))}
-                aria-label="Conversation history"
+                aria-label={tr("pane.history.label")}
                 className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <ScrollText className="size-4" />
@@ -877,8 +879,8 @@ export function AgentChat({
               <button
                 type="button"
                 onClick={() => navigate(paneArtifactsPath(paneId, session))}
-                aria-label="Session artifacts"
-                title="Artifacts"
+                aria-label={tr("pane.artifacts.label")}
+                title={tr("pane.artifacts")}
                 className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <FileCode2 className="size-4" />
@@ -887,7 +889,7 @@ export function AgentChat({
             <button
               type="button"
               onClick={() => setDrawer("more")}
-              aria-label="More"
+              aria-label={tr("pane.more")}
               className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
             >
               <EllipsisVertical className="size-4" />
@@ -959,7 +961,7 @@ export function AgentChat({
                 <button
                   type="button"
                   onClick={() => setCtxShowTokens((v) => !v)}
-                  aria-label="Toggle context units"
+                  aria-label={tr("pane.ctxUnits")}
                   className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
                 >
                   <CtxBar pct={agent.ctxPct} className="w-[34px]" />
@@ -1038,7 +1040,7 @@ export function AgentChat({
                     className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium text-muted-foreground transition-colors active:bg-muted/50"
                   >
                     <ScrollText className="size-3.5" />
-                    Show entire history
+                    {tr("pane.history.all")}
                   </button>
                 ) : moreScrollback ? (
                   <button
@@ -1052,7 +1054,7 @@ export function AgentChat({
                     ) : (
                       <ArrowUpToLine className="size-3.5" />
                     )}
-                    {loadingOlder ? "Loading…" : "Load older"}
+                    {loadingOlder ? tr("common.loading") : tr("pane.loadOlder")}
                   </button>
                 ) : null}
                 <AnsiOutput
@@ -1097,7 +1099,7 @@ export function AgentChat({
             <button
               type="button"
               onClick={() => navigate(cardPath(cardId))}
-              aria-label={`Ouvrir la carte : ${cardLabel}`}
+              aria-label={tr("pane.openCard", { title: cardLabel })}
               className="flex w-full items-center gap-2 border-t border-border/40 px-3 py-1.5 text-left transition-colors active:bg-muted/50 lg:hidden"
             >
               <Columns3 className="size-3.5 shrink-0 text-muted-foreground" />
@@ -1161,7 +1163,7 @@ export function AgentChat({
 
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
           Switch-only: pane closing lives in the pane pill's long-press sheet, not here. */}
-      <BottomSheet open={drawer === "switcher"} onClose={closeDrawer} title="Switch pane">
+      <BottomSheet open={drawer === "switcher"} onClose={closeDrawer} title={tr("pane.switch")}>
         <ThreadSidebar
           agents={agents}
           shellPanes={shellPanes}
@@ -1175,7 +1177,7 @@ export function AgentChat({
       {/* The context row's tab segment — the SAME TabStrip, just moved off an always-visible strip
           into a sheet (redesign §5). Its own create/rename/close logic is untouched. */}
       {agent && (
-        <BottomSheet open={drawer === "tabs"} onClose={closeDrawer} title="Tabs">
+        <BottomSheet open={drawer === "tabs"} onClose={closeDrawer} title={tr("pane.tabs")}>
           <TabStrip
             workspaceId={agent.workspaceId}
             tabs={tabs}
@@ -1220,7 +1222,7 @@ export function AgentChat({
                   <BookOpenText className="size-4 shrink-0 text-muted-foreground" />
                 )
               }
-              label={reading ? "Switch to Terminal" : "Switch to Reading"}
+              label={reading ? tr("pane.toTerminal") : tr("pane.toReading")}
               onClick={() => {
                 if (!reading) setNoReading(null);
                 setReading(!reading);
@@ -1231,7 +1233,7 @@ export function AgentChat({
           {agent && historyAvailable && (
             <ActionRow
               icon={<ScrollText className="size-4 shrink-0 text-muted-foreground" />}
-              label="History"
+              label={tr("pane.history")}
               onClick={() => {
                 closeDrawer();
                 navigate(historyPath(paneId, session));
@@ -1241,7 +1243,7 @@ export function AgentChat({
           {agent && historyAvailable && (
             <ActionRow
               icon={<Images className="size-4 shrink-0 text-muted-foreground" />}
-              label="Images"
+              label={tr("pane.images")}
               onClick={() => {
                 closeDrawer();
                 void openSessionImages();
@@ -1254,7 +1256,7 @@ export function AgentChat({
           {cardId && (
             <ActionRow
               icon={<FileCode2 className="size-4 shrink-0 text-muted-foreground" />}
-              label="Artifacts"
+              label={tr("pane.artifacts")}
               onClick={() => {
                 closeDrawer();
                 navigate(paneArtifactsPath(paneId, session));
@@ -1264,9 +1266,9 @@ export function AgentChat({
           {agent && (
             <DestructiveActionRow
               icon={<XCircle className="size-4 shrink-0" />}
-              label="Close pane"
-              confirmLabel="Tap again to close"
-              closingLabel="Closing…"
+              label={tr("pane.close")}
+              confirmLabel={tr("pane.close.confirm")}
+              closingLabel={tr("pane.close.closing")}
               armed={closePending === agent.paneId}
               closing={closingPane}
               onClick={() => void requestClosePane()}

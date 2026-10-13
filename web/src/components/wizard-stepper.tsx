@@ -2,6 +2,7 @@ import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 import type { WizardStepChip } from "@/lib/harness/claude/wizard";
 import { cn } from "@/lib/utils";
+import { t } from "@/i18n";
 
 // The chip pill, identical for a question and for the trailing Submit — the only difference is which
 // one is current, which the callers know and this component does not infer.
@@ -15,7 +16,7 @@ const CHEVRON_CLASS =
 // The in-flight spinner. Every caller wants the same one — the blocks' own spinners are separate
 // because they sit on differently-sized controls, not because a stepper could want another icon.
 const SPINNER = (
-  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Sending" />
+  <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label={t("pane.dialog.sending")} />
 );
 
 /**
@@ -65,14 +66,14 @@ export function WizardStepper({
       </span>
       <button
         type="button"
-        aria-label="Previous step"
+        aria-label={t("pane.dialog.prev")}
         disabled={locked || atFirstQuestion}
         onClick={onBack}
         className={CHEVRON_CLASS}
       >
         {busyBack ? SPINNER : <ChevronLeft className="size-4" />}
       </button>
-      <ol aria-label="Questions" className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+      <ol aria-label={t("pane.dialog.questions")} className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {steps.map((step, i) => (
           <li
             key={i}
@@ -80,7 +81,7 @@ export function WizardStepper({
             className={cn(CHIP_CLASS, step.current ? CHIP_CURRENT : CHIP_IDLE)}
           >
             {step.answered ? (
-              <Check className="size-3 shrink-0 text-primary" aria-label="Answered" />
+              <Check className="size-3 shrink-0 text-primary" aria-label={t("pane.dialog.answered")} />
             ) : null}
             <span className="truncate">{step.label}</span>
           </li>
@@ -91,12 +92,12 @@ export function WizardStepper({
           aria-current={submitCurrent ? "step" : undefined}
           className={cn(CHIP_CLASS, submitCurrent ? CHIP_CURRENT : CHIP_IDLE)}
         >
-          <span>Submit</span>
+          <span>{t("pane.dialog.submitShort")}</span>
         </li>
       </ol>
       <button
         type="button"
-        aria-label="Next step"
+        aria-label={t("pane.dialog.next")}
         disabled={locked || submitCurrent}
         onClick={onNext}
         className={CHEVRON_CLASS}

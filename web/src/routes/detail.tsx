@@ -6,6 +6,7 @@ import { AgentChat } from "@/components/agent-chat";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { ROOT_ROUTE_ID, type HomeData, type PaneData } from "@/lib/loaders";
 import { homePath, panePath } from "@/lib/nav";
+import { t } from "@/i18n";
 import { setStatus } from "@/lib/status";
 import type { AgentView } from "@/lib/types";
 
@@ -61,7 +62,7 @@ export function DetailRoute() {
   // transient poll failure or reconnect doesn't evict a still-valid pane.
   useEffect(() => {
     if (gone && root.bridge === "connected" && !root.error) {
-      setStatus("Pane closed", "info");
+      setStatus(t("pane.closed"), "info");
       navigate(homePath(session), { replace: true });
     }
   }, [gone, root.bridge, root.error, navigate, session]);

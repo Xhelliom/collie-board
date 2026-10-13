@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 
+import { Rich } from "@/i18n/rich";
 import { useT } from "@/i18n";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -58,7 +59,7 @@ export function FollowUpsControl() {
           <div className="min-w-0">
             <div className="font-medium">{t("settings.followUps.title")}</div>
             <p className="text-sm text-muted-foreground">
-              {t("settings.followUps.hint", { auto: "auto" })}
+              <Rich id="settings.followUps.hint" />
             </p>
           </div>
         </div>

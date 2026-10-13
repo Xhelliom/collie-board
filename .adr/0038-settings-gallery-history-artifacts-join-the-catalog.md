@@ -6,11 +6,11 @@
 ## Decision
 
 The operator wants one language per screen, English by default with French as a translation. So
-Settings, the gallery, the pane history and the pane artifacts go through the catalog (`settings`,
-`gallery`, `history` message files), and 0024's "Settings stays hard-coded English" no longer holds.
+Settings, the gallery, the pane (chat, composer, history, artifacts), Spaces and the notification bell go through the catalog (`settings`,
+`gallery`, `history`, `pane`, `spaces` message files), and 0024's "Settings stays hard-coded English" no longer holds.
 The default preference is `en`; `auto` (follow the browser) is now an explicit choice.
 
 ## Cost
 
 These files are upstream's, so each is a rebase conflict risk ([`UPSTREAM.md`](../UPSTREAM.md)).
-Herd, Spaces and the panes' own chrome stay out for now.
+Formatting inside a message uses `<c>`/`<b>` rendered by `i18n/rich.tsx`.

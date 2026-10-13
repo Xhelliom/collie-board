@@ -1,5 +1,6 @@
 import { SpacePaneTree } from "@/components/space-pane-tree";
 import type { AgentView, TabView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface PaneListColumnProps {
   agents: AgentView[];
@@ -23,14 +24,15 @@ export function PaneListColumn({
   currentPaneId,
   onSelect,
 }: PaneListColumnProps) {
+  const t = useT();
   const total = agents.length + shellPanes.length;
   return (
     <nav
-      aria-label="Panes"
+      aria-label={t("spaces.panes")}
       className="hidden w-[296px] flex-none flex-col overflow-y-auto border-r bg-muted dark:bg-[oklch(0.165_0.006_250)] lg:flex"
     >
       <div className="flex h-14 flex-none items-center gap-2 border-b border-border/60 px-4">
-        <span className="text-sm font-semibold">Panes</span>
+        <span className="text-sm font-semibold">{t("spaces.panes")}</span>
         <span className="text-xs tabular-nums text-muted-foreground">{total}</span>
       </div>
       <SpacePaneTree

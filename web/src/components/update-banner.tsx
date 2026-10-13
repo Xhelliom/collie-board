@@ -3,7 +3,7 @@ import { useRouteLoaderData } from "react-router";
 
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { COPY_UNAVAILABLE_TITLE, useCopy } from "@/hooks/use-copy";
+import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import type { UpdateInfo } from "@/lib/types";
 
@@ -85,7 +85,7 @@ export function UpdateBanner({ className }: { className?: string }) {
             disabled={!canCopy}
             onClick={() => copy(command)}
             aria-label={t("settings.updates.copy", { command })}
-            title={canCopy ? undefined : COPY_UNAVAILABLE_TITLE}
+            title={canCopy ? undefined : copyUnavailableTitle()}
             className="inline-flex items-center gap-1 align-middle rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground/80 disabled:pointer-events-none disabled:opacity-50"
           >
             <code>{command}</code>

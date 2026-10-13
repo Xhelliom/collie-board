@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Bell, X } from "lucide-react";
 import { useNavigate, useRevalidator, useRouteLoaderData } from "react-router";
 
+import { useT } from "@/i18n";
 import { BottomSheet } from "@/components/ui/sheet";
 import { deleteNotifyLogEntry, getNotifyLog, markAllNotifyLogRead, markNotifyLogEntryRead } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
@@ -37,6 +38,7 @@ const DOT: Record<NotifyLogEntry["status"], string> = {
 };
 
 export function NotificationBell() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   // The badge count rides the snapshot poll (bridge sends notifications.count — unread only) rather
   // than fetching the history: 50 entries every 1.5s to render one number.
@@ -48,7 +50,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={count > 0 ? `Notifications (${count})` : "Notifications"}
+        aria-label={count > 0 ? t("notifications.titleCount", { count }) : t("notifications.title")}
         className="relative flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
       >
         <Bell className="size-[18px]" />
@@ -61,7 +63,7 @@ export function NotificationBell() {
           </span>
         )}
       </button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Notifications">
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={t("notifications.title")}>
         {open && <NotifyLogList onPick={() => setOpen(false)} />}
       </BottomSheet>
     </>
@@ -70,6 +72,7 @@ export function NotificationBell() {
 
 /** Mounted only while the sheet is open, so its fetch runs on open and its state resets on close. */
 function NotifyLogList({ onPick }: { onPick: () => void }) {
+  const t = useT();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const [entries, setEntries] = useState<NotifyLogEntry[] | null>(null);
@@ -86,15 +89,15 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
   }, []);
 
   if (failed) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">Couldn't read the history.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">{t("notifications.failed")}</p>;
   }
   if (entries === null) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</p>;
   }
   if (entries.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        Nothing has pinged yet. Alerts land here as they fire — including the ones you slept through.
+        {t("notifications.empty")}
       </p>
     );
   }

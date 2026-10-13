@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { BottomSheet } from "@/components/ui/sheet";
 import { homePath } from "@/lib/nav";
 import type { SessionSummary } from "@/lib/types";
+import { useT } from "@/i18n";
 
 interface SessionSwitcherProps {
   /** The bridge's session registry (primary-first). */
@@ -20,6 +21,7 @@ interface SessionSwitcherProps {
 // The sheet lists every session; unreachable ones (crashed / stale socket) are greyed out and
 // non-clickable. Selecting one navigates home in that session (primary → no `?s=`).
 export function SessionSwitcher({ sessions, current }: SessionSwitcherProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -28,7 +30,7 @@ export function SessionSwitcher({ sessions, current }: SessionSwitcherProps) {
   if (reachableCount <= 1 && !onNonPrimary) return null;
 
   // The name to show on the trigger: the current session, or the primary's registry name when on it.
-  const currentName = current ?? sessions.find((s) => s.isPrimary)?.name ?? "default";
+  const currentName = current ?? sessions.find((s) => s.isPrimary)?.name ?? t("spaces.session.default");
   const isActive = (s: SessionSummary): boolean =>
     current === undefined ? s.isPrimary : s.name === current;
 
@@ -45,7 +47,7 @@ export function SessionSwitcher({ sessions, current }: SessionSwitcherProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label={`Session: ${currentName}. Switch session`}
+        aria-label={t("spaces.session.trigger", { name: currentName })}
         className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 active:scale-95"
       >
         <Layers className="size-3.5" />
@@ -56,7 +58,7 @@ export function SessionSwitcher({ sessions, current }: SessionSwitcherProps) {
           against the viewport — no ancestor transform / filter / backdrop-filter on the app header can
           become its containing block and clip it to the header band. This used to need a createPortal
           here; it doesn't any more. */}
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Sessions">
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={t("spaces.sessions")}>
         <ul className="flex flex-col gap-1">
           {sessions.map((s) => {
             const active = isActive(s);
@@ -81,23 +83,23 @@ export function SessionSwitcher({ sessions, current }: SessionSwitcherProps) {
                       <span className="truncate text-sm font-medium">{s.name}</span>
                       {s.isPrimary && (
                         <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          primary
+                          {t("spaces.session.primary")}
                         </span>
                       )}
                       {!s.reachable && (
-                        <span className="text-xs text-muted-foreground">unreachable</span>
+                        <span className="text-xs text-muted-foreground">{t("spaces.session.unreachable")}</span>
                       )}
                     </div>
                     {s.reachable && (s.blocked > 0 || s.working > 0) && (
                       <div className="mt-1 flex items-center gap-1.5">
                         {s.blocked > 0 && (
                           <span className="rounded-full border border-status-blocked/30 bg-status-blocked/15 px-1.5 py-0.5 text-xs font-medium text-status-blocked">
-                            {s.blocked} needs you
+                            {t("spaces.session.needsYou", { count: s.blocked })}
                           </span>
                         )}
                         {s.working > 0 && (
                           <span className="rounded-full border border-status-working/30 bg-status-working/15 px-1.5 py-0.5 text-xs font-medium text-status-working">
-                            {s.working} working
+                            {t("spaces.session.working", { count: s.working })}
                           </span>
                         )}
                       </div>
