@@ -28,7 +28,7 @@ Ordre actuel à l'écran : en-tête (Herd · n panes · n spaces · cloche) → 
 L'accueil n'affiche **ni spec, ni journal, ni bilan, ni raison** : seuls des titres d'une ligne, tous `truncate`. Rien ne monopolise la page par sa longueur de texte ; ce sont les **listes** qui la rallongent (#5, #6). Le détail du quota est déjà replié (tap sur l'anneau).
 
 ## Ce qui est bien
-Données dérivées des cartes déjà chargées (pas de poll en plus), `truncate` partout, `pb-24` du scroller qui dégage la nav, `<h1>` `sr-only`, anneaux et compteurs immobiles avec `prefers-reduced-motion`, sections vides masquées (Projets, Quota).
+Données dérivées des cartes déjà chargées (pas de poll en plus) — mais l'accueil poll aussi `/api/project/facts` sans le lire, voir [performance-percue.md](./performance-percue.md) #1, `truncate` partout, `pb-24` du scroller qui dégage la nav, `<h1>` `sr-only`, anneaux et compteurs immobiles avec `prefers-reduced-motion`, sections vides masquées (Projets, Quota).
 
 ## Recommandation
 Une carte « accueil mobile » pour #1-#4 et #7-#11 : toutes en effort S, presque toutes dans `home.tsx` et `home-dashboard.tsx`. Une seconde carte pour replier les listes (#5, #6).
