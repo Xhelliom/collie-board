@@ -6,6 +6,7 @@ import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
+import { ChatInput } from "@/components/ui/chat/chat-input";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
@@ -218,7 +219,7 @@ export function OrchestratorPanel({
           void send();
         }}
       >
-        <textarea
+        <ChatInput
           aria-label={t("orch.message")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -228,11 +229,10 @@ export function OrchestratorPanel({
             e.preventDefault();
             void send();
           }}
-          rows={2}
+          rows={1}
           placeholder={t("orch.placeholder")}
-          className="min-h-10 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         />
-        <Button type="submit" variant="brand" className="h-10 shrink-0 px-3" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
+        <Button type="submit" variant="brand" className="size-11 shrink-0 px-0" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
           <Send className="size-4" />
         </Button>
       </form>
