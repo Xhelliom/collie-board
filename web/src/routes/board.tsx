@@ -43,7 +43,7 @@ import {
   type CardStatus,
   type CardView,
 } from "@/lib/board";
-import type { ProjectData } from "@/lib/board-loaders";
+import type { BoardRouteData } from "@/lib/board-loaders";
 import { templateFor, templateName } from "@/lib/templates";
 import { setStatus } from "@/lib/status";
 
@@ -106,7 +106,7 @@ function newestDone(column: CardView[]): CardView[] {
 
 export function BoardRoute() {
   const t = useT();
-  const data = useLoaderData() as ProjectData;
+  const data = useLoaderData() as BoardRouteData;
   const facts = data.facts;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
