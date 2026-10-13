@@ -44,7 +44,7 @@ export function SpaceOverview({
           type="button"
           onClick={onNewSpace}
           aria-label="New space"
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
+          className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
         >
           <FolderPlus className="size-4" />
         </button>

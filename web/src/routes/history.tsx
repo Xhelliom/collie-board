@@ -1,10 +1,12 @@
 import { useBack } from "@/hooks/use-back";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData, useNavigate, useParams, useRouteLoaderData } from "react-router";
-import { ArrowUpToLine, ChevronDown, ChevronUp, FileCode2, Images, Loader2, ScrollText, Search, X } from "lucide-react";
+import { ArrowUpToLine, ChevronDown, ChevronUp, EllipsisVertical, FileCode2, Images, Loader2, ScrollText, Search, X } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
+import { BottomSheet } from "@/components/ui/sheet";
+import { ActionRow } from "@/components/action-sheet-rows";
 import { FindBar } from "@/components/find-bar";
 import { TranscriptView } from "@/components/transcript-view";
 import { fetchHistory } from "@/lib/api";
@@ -44,6 +46,9 @@ const INITIAL_RENDER = 60;
 const RENDER_STEP = 120;
 /** Distance from the top of the scroller that triggers growth, in px. */
 const GROW_THRESHOLD = 800;
+/** Header icon button: a 44 px target around a 16 px icon. */
+const HEADER_BTN =
+  "flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60";
 
 export function HistoryRoute() {
   const data = useLoaderData() as HistoryData;
@@ -74,6 +79,7 @@ export function HistoryRoute() {
   );
   const allRendered = renderCount >= entries.length;
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
   const [query, setQuery] = useState("");
   // Index into `entries` (not `shown`) of the turn a find/jump landed on; -1 = nowhere yet.
@@ -211,30 +217,17 @@ export function HistoryRoute() {
         }
         rightLead={
           <>
-            {/* Every image this session touched, in one swipeable set. Hidden when it produced none,
-                which is most sessions — an always-there button for an empty viewer is just noise. */}
-            {sessionImages.length > 0 && (
+            {/* Images and artifacts are occasional: folded into one "⋯" so the title keeps its room
+                at 390 px. Hidden when neither applies (most sessions). Artifacts are card-backed panes
+                only: the artifact reader is confined to the CARD's worktree. */}
+            {(sessionImages.length > 0 || agent?.cardId) && (
               <button
                 type="button"
-                onClick={() => openLightbox(sessionImages)}
-                aria-label={`Images in this session (${sessionImages.length})`}
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+                onClick={() => setMenuOpen(true)}
+                aria-label="More"
+                className={HEADER_BTN}
               >
-                <Images className="size-4" />
-              </button>
-            )}
-            {/* The session's worktree artifacts — screenshots, reports and pages the agent WROTE to
-                disk (docs/hero-recette/*.png, *.md, a validation *.html), which the scratchpad
-                gallery can't see. Card-backed panes only: the artifact reader is confined to the
-                CARD's worktree, so a hand-launched pane has no root. */}
-            {agent?.cardId && (
-              <button
-                type="button"
-                onClick={() => navigate(paneArtifactsPath(paneId, session))}
-                aria-label="Session artifacts"
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
-              >
-                <FileCode2 className="size-4" />
+                <EllipsisVertical className="size-4" />
               </button>
             )}
             {/* A PWA has no browser find, so the view has to provide its own. */}
@@ -242,15 +235,10 @@ export function HistoryRoute() {
               type="button"
               onClick={() => setFindOpen(true)}
               aria-label="Find in history"
-              className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+              className={HEADER_BTN}
             >
               <Search className="size-4" />
             </button>
-            {data.total > 0 && (
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {shown.length}/{data.total}
-              </span>
-            )}
           </>
         }
         // Explicit exit from reading mode. The Collie mark also returns to the pane, but this is a
@@ -261,7 +249,7 @@ export function HistoryRoute() {
             type="button"
             onClick={() => navigate(panePath(paneId, session))}
             aria-label="Close history"
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors active:bg-muted/60"
+            className={HEADER_BTN}
           >
             <X className="size-4" />
           </button>
@@ -272,10 +260,40 @@ export function HistoryRoute() {
             <ScrollText className="size-3.5 shrink-0 text-muted-foreground" />
             {/* The screen's one h1 — it's already the visible title, so it just needed to say so. */}
             <h1 className="truncate font-semibold leading-tight">History</h1>
+            {data.total > 0 && (
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {shown.length}/{data.total}
+              </span>
+            )}
           </div>
           <div className="truncate text-xs leading-tight text-muted-foreground">{title}</div>
         </div>
       </AppHeader>
+
+      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="History">
+        <div className="flex flex-col gap-1">
+          {sessionImages.length > 0 && (
+            <ActionRow
+              icon={<Images className="size-4 shrink-0 text-muted-foreground" />}
+              label={`Images in this session (${sessionImages.length})`}
+              onClick={() => {
+                setMenuOpen(false);
+                openLightbox(sessionImages);
+              }}
+            />
+          )}
+          {agent?.cardId && (
+            <ActionRow
+              icon={<FileCode2 className="size-4 shrink-0 text-muted-foreground" />}
+              label="Session artifacts"
+              onClick={() => {
+                setMenuOpen(false);
+                navigate(paneArtifactsPath(paneId, session));
+              }}
+            />
+          )}
+        </div>
+      </BottomSheet>
 
       <div className="relative min-h-0 min-w-0 flex-1">
         <ChatMessageList ref={listRef} className="px-3 py-3">
