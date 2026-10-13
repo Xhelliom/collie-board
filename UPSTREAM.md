@@ -136,3 +136,16 @@ not possible at all, which is the other half of why this way round is the safer 
 - [ ] Set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board` in the plugin `.env` so the in-app update
       banner works. It is opt-in precisely because pointing it at upstream would nag about versions
       this tree isn't.
+
+## i18n migration — a wide upstream diff (ADR 0038)
+
+Settings, gallery, history, artifacts, pane and Spaces now read their text from the catalog
+(`web/src/i18n/`), English by default, French as the translation. That touches **~60 upstream files**
+under `web/src/components/`, `web/src/routes/` and `web/src/hooks/use-copy.ts`: each hard-coded
+string became a `t("key")` call (no layout or logic change).
+
+- **Rebase risk:** any upstream edit to a UI string in those files conflicts on that line.
+- **Resolving:** take upstream's version of the file, then redo the swap — move the new string into
+  `web/src/i18n/messages/` (both `en` and `fr`) and replace it with `t(...)`. `bun run test` in `web/`
+  fails on an incomplete catalog, so a forgotten key shows up.
+- **Not PR-able:** the catalog is the fork's layer; upstream has no i18n.
