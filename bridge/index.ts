@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { loadAdapters } from "./adapters.ts";
 import { AuditLog, fileAuditAppender } from "./audit.ts";
 import { AutoHandoff } from "./auto-handoff.ts";
+import { IdleLanding } from "./idle-landing.ts";
 import { BoardNotifier } from "./board-notify.ts";
 import { reconcile, withCardFields } from "./cards.ts";
 import { ReviewGuard } from "./review-guard.ts";
@@ -298,6 +299,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   if (isPrimary) {
     snapshotRef = () => engine.current();
     engine.onUpdate((snap) => reconcile(board, snap));
+    // A turn that ended without the pane ever showing `done` (ADR 0037) — after reconcile, same tick.
+    const idleLanding = new IdleLanding(board);
+    engine.onUpdate((snap) => idleLanding.update(snap));
     // A card landing in review with an empty branch goes back, said on the card (review-guard.ts).
     const reviewGuard = new ReviewGuard(board);
     engine.onUpdate((snap) => void reviewGuard.onUpdate(snap).catch(() => {}));
