@@ -605,13 +605,13 @@ export function CardRoute() {
             {/* The card's two halves: what the card IS (spec, acceptance, what happened to it) and
                 what is happening to it RIGHT NOW (its pane, its context budget, the box that talks
                 to it). Document first, live state second — on a phone that is top-to-bottom, on
-                `lg` it is the grid's two columns — the SAME `order` on both, not a `lg:`-only one:
-                simpler than making mobile and desktop disagree about which half reads first. */}
+                `lg` it is the grid's two columns — on `lg` the doc stays left. A card in flight (`liveFirst`) flips the
+                order on mobile only: its live half is what the phone is opened for. */}
             <div className="flex flex-col gap-7 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-7">
               {/* `empty:hidden` + an `auto` track, not a fixed one: a filed card has no pane, no
                   context gauge and no Start button, so this half renders NOTHING — and a reserved
                   340px of blank column next to the spec is worse than no column at all. */}
-              <div className="flex min-w-0 flex-col gap-3.5 empty:hidden order-2 lg:w-[340px]">
+              <div className={cn("flex min-w-0 flex-col gap-3.5 empty:hidden lg:order-2 lg:w-[340px]", liveFirst(card.status) ? "order-1" : "order-2")}>
                 <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
 
                 <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
@@ -777,7 +777,7 @@ export function CardRoute() {
                 </Section>
               </div>
 
-              <div className="flex min-w-0 flex-col gap-[22px] order-1">
+              <div className={cn("flex min-w-0 flex-col gap-[22px] lg:order-1", liveFirst(card.status) ? "order-2" : "order-1")}>
                 {/* Right under the title, because it is a question about THIS card's right to exist,
                     and it has to be answerable before anyone reads the spec below it. */}
                 {detail?.duplicate && (
@@ -1176,6 +1176,10 @@ function busyKey(reviewId: string, title: string): string {
  * so past that point it stops being a two-tap gesture and stays in the "⋯", where the decision is
  * deliberate. Pure + exported so the cut-off is pinned by a test rather than by a JSX condition.
  */
+export function liveFirst(status: CardStatus): boolean {
+  return status === "starting" || status === "working" || status === "blocked" || status === "review" || status === "orphaned";
+}
+
 export function convertible(status: CardStatus): boolean {
   return status === "backlog" || status === "ready";
 }
