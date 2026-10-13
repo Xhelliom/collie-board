@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.191.1] - 2026-10-13
+
+### Changed
+
+- Cibles tactiles à 44 px (icônes inchangées) : en-têtes pane et historique, `+` des strips d'onglets/espaces, `+` de l'aperçu des espaces (839efe0)
+- Historique : images et artefacts regroupés dans un menu « ⋯ », compteur déplacé à côté du titre (plus de titre tronqué à 390 px) (839efe0)
+
 ## [0.191.0] - 2026-10-13
 
 ### Changed
