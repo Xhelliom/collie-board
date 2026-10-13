@@ -18,7 +18,7 @@ export interface DisplayPrefs {
    */
   rawTerminal: boolean;
   /**
-   * Reading mode (default: false). The pane screen has two modes of the same screen, not two screens:
+   * Reading mode (default: true — the pane opens on the last agent message; Terminal is one tap away and the choice is remembered). The pane screen has two modes of the same screen, not two screens:
    * TERMINAL is the mirror — faithful to the TUI, native dialog buttons, the mode you PILOT in — and
    * READING renders the agent's own transcript as prose, which is the mode you READ in. Per device,
    * because it's about the screen in your hand: the same conversation is worth mirroring on a laptop
@@ -51,10 +51,15 @@ const WRAP_BELOW_PX = 640;
  */
 const NARROW_VIEWPORT = `(width < ${WRAP_BELOW_PX}px)`;
 
-/** What storage actually holds: `wrap` is ABSENT until the user picks one, so it can stay reactive. */
-type StoredPrefs = Omit<DisplayPrefs, "wrap"> & { wrap?: boolean };
+/**
+ * What storage actually holds: `wrap` and `readingPick` are ABSENT until the user picks one. Only their
+ * own setter writes them, so no other setter can freeze a default into storage as a "choice".
+ * The reading choice lives under `readingPick`, not `reading`: older builds wrote `reading: false` on
+ * every setter, so that legacy key is ignored at load and cannot cancel the reading default.
+ */
+type StoredPrefs = Omit<DisplayPrefs, "wrap" | "reading"> & { wrap?: boolean; readingPick?: boolean };
 
-const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, reading: false, statusLine: true };
+const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, statusLine: true };
 
 function clampFont(n: number): number {
   return Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(n)));
@@ -69,9 +74,9 @@ function loadPrefs(): StoredPrefs {
     const p = parsed as Record<string, unknown>;
     return {
       ...(typeof p.wrap === "boolean" ? { wrap: p.wrap } : {}),
+      ...(typeof p.readingPick === "boolean" ? { readingPick: p.readingPick } : {}),
       fontSize: typeof p.fontSize === "number" ? clampFont(p.fontSize) : DEFAULTS.fontSize,
       rawTerminal: typeof p.rawTerminal === "boolean" ? p.rawTerminal : DEFAULTS.rawTerminal,
-      reading: typeof p.reading === "boolean" ? p.reading : DEFAULTS.reading,
       statusLine: typeof p.statusLine === "boolean" ? p.statusLine : DEFAULTS.statusLine,
     };
   } catch {
@@ -118,7 +123,10 @@ export interface UseDisplayPrefsReturn {
 export function useDisplayPrefs(): UseDisplayPrefsReturn {
   const [stored, setPrefs] = useState<StoredPrefs>(loadPrefs);
   const narrow = useMediaQuery(NARROW_VIEWPORT);
-  const prefs = useMemo<DisplayPrefs>(() => ({ ...stored, wrap: stored.wrap ?? narrow }), [stored, narrow]);
+  const prefs = useMemo<DisplayPrefs>(() => {
+    const { readingPick, ...rest } = stored;
+    return { ...rest, wrap: stored.wrap ?? narrow, reading: readingPick ?? true };
+  }, [stored, narrow]);
 
   const setWrap = useCallback((wrap: boolean) => {
     setPrefs((p) => {
@@ -154,7 +162,7 @@ export function useDisplayPrefs(): UseDisplayPrefsReturn {
 
   const setReading = useCallback((reading: boolean) => {
     setPrefs((p) => {
-      const next: StoredPrefs = { ...p, reading };
+      const next: StoredPrefs = { ...p, readingPick: reading };
       savePrefs(next);
       return next;
     });
