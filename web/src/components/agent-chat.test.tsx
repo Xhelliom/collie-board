@@ -604,6 +604,23 @@ describe("AgentChat — terminal / reading toggle", () => {
     expect(stored === null || JSON.parse(stored).readingPick !== false).toBe(true);
   });
 
+  it("lets the More sheet leave the terminal fallback for Reading", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get(/\/api\/pane\/[^/]+\/history/, () =>
+        HttpResponse.json({ available: false, reason: "unsupported" }),
+      ),
+    );
+    const agent = withTranscript();
+    renderChat({ agent, agents: [agent], text: "recent pane output" });
+    await screen.findByText(/recent pane output/);
+
+    server.resetHandlers();
+    await user.click(screen.getAllByRole("button", { name: "More" })[0]!);
+    await user.click(await screen.findByText("Switch to Reading"));
+    expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
+  });
+
   it("persists the mode per device, so a remount comes back reading", async () => {
     const user = userEvent.setup();
     const agent = withTranscript();

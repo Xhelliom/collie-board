@@ -1222,6 +1222,7 @@ export function AgentChat({
               }
               label={reading ? "Switch to Terminal" : "Switch to Reading"}
               onClick={() => {
+                if (!reading) setNoReading(null);
                 setReading(!reading);
                 closeDrawer();
               }}
