@@ -14,7 +14,7 @@ import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
 import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
-import { boardLoader, cardLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
+import { cardLoader, homeLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
@@ -49,7 +49,7 @@ export const router = createBrowserRouter([
     HydrateFallback: BootSplash,
     children: [
       // The board's cards ride along for the dashboard's figures; the root's poll revalidates them.
-      { index: true, loader: boardLoader, element: <HomeRoute /> },
+      { index: true, loader: homeLoader, element: <HomeRoute /> },
       // The board and a card's page. Both are children of the root, so the root's poll tick
       // revalidates them for free — no board-specific polling.
       {

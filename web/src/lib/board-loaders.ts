@@ -52,11 +52,18 @@ export interface BoardData {
 
 let lastCards: CardView[] | null = null;
 
-export async function boardLoader({ request }: { request?: Request } = {}): Promise<BoardData> {
+export const boardLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, true);
+
+/** The home screen's cards, without the facts: it never reads them, and they are its heaviest poll (audit perf #1). */
+export const homeLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, false);
+
+async function loadBoard(request: Request | undefined, withFacts: boolean): Promise<BoardData> {
   try {
     const [{ cards }, facts] = await Promise.all([
       fetchCards(request?.signal),
-      fetchFacts(undefined, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined),
+      withFacts
+        ? fetchFacts(undefined, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined)
+        : undefined,
     ]);
     lastCards = cards;
     return { cards, error: false, authError: false, facts };
