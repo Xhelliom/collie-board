@@ -18,7 +18,7 @@ export interface DisplayPrefs {
    */
   rawTerminal: boolean;
   /**
-   * Reading mode (default: false). The pane screen has two modes of the same screen, not two screens:
+   * Reading mode (default: true — the pane opens on the last agent message; Terminal is one tap away and the choice is remembered). The pane screen has two modes of the same screen, not two screens:
    * TERMINAL is the mirror — faithful to the TUI, native dialog buttons, the mode you PILOT in — and
    * READING renders the agent's own transcript as prose, which is the mode you READ in. Per device,
    * because it's about the screen in your hand: the same conversation is worth mirroring on a laptop
@@ -54,7 +54,7 @@ const NARROW_VIEWPORT = `(width < ${WRAP_BELOW_PX}px)`;
 /** What storage actually holds: `wrap` is ABSENT until the user picks one, so it can stay reactive. */
 type StoredPrefs = Omit<DisplayPrefs, "wrap"> & { wrap?: boolean };
 
-const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, reading: false, statusLine: true };
+const DEFAULTS: StoredPrefs = { fontSize: 12, rawTerminal: false, reading: true, statusLine: true };
 
 function clampFont(n: number): number {
   return Math.max(FONT_MIN, Math.min(FONT_MAX, Math.round(n)));
