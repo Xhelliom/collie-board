@@ -73,6 +73,58 @@ export function HomeKpis({ dash }: { dash: DashboardView }) {
   );
 }
 
+// The card blocks' stand-ins while a cold start's cards are on the wire (audit perf #3): the same boxes,
+// so nothing below moves when the figures land. Still for people who asked for less motion.
+const pulse = "animate-pulse rounded bg-muted motion-reduce:animate-none";
+
+export function HomeKpisSkeleton() {
+  const t = useT();
+  return (
+    <section className="flex flex-col gap-2.5" aria-label={t("home.kpi.title")} aria-busy="true" data-testid="kpis-skeleton">
+      <h2 className={sectionTitle}>{t("home.kpi.title")}</h2>
+      <div className="grid grid-cols-4 gap-2 [&>*]:min-w-0">
+        {(["home.kpi.review", "home.kpi.stuck", "home.kpi.ready", "home.kpi.delivered"] as const).map((k) => (
+          <div key={k} className="rounded-xl border bg-card/70 p-2.5">
+            <span className="block truncate text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t(k)}</span>
+            {/* text-2xl leading-none: the figure is exactly h-6. */}
+            <div className={cn("mt-1.5 h-6 w-8", pulse)} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** ponytail: three tiles of one phase each, the usual fold — a herd of one repo shrinks once, at arrival. */
+export function ProjectTilesSkeleton() {
+  const t = useT();
+  return (
+    <section className="flex flex-col gap-2.5" aria-label={t("home.projects")} aria-busy="true" data-testid="projects-skeleton">
+      <h2 className={sectionTitle}>{t("home.projects")}</h2>
+      <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex h-[7.25rem] flex-col gap-2.5 rounded-xl border bg-card/70 p-3.5">
+            <div className={cn("h-4 w-1/3", pulse)} />
+            <div className={cn("h-3 w-2/3", pulse)} />
+            <div className={cn("h-[5px] w-full", pulse)} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** A card block whose cold-start fetch failed: said in its own slot, the triage untouched. */
+export function CardsError({ label }: { label: string }) {
+  const t = useT();
+  return (
+    <section className="flex flex-col gap-2.5" aria-label={label}>
+      <h2 className={sectionTitle}>{label}</h2>
+      <p role="alert" className="text-sm text-status-blocked">{t("home.cards.error")}</p>
+    </section>
+  );
+}
+
 /** One segment per step while they fit; past that, one per status sized by its count — 150 slivers read as noise. */
 const BAR_MAX = 24;
 function PhaseBar({ steps }: { steps: CardView[] }) {
