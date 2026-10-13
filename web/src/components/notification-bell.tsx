@@ -135,7 +135,7 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
             onClick={markAllRead}
             className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground active:bg-muted"
           >
-            Mark all read
+            {t("bell.markAllRead")}
           </button>
         </div>
       )}

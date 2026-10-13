@@ -1,3 +1,4 @@
+import { t, useT } from "@/i18n";
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 /**
@@ -8,8 +9,8 @@ import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 export function CollapsibleText({
   children,
   lines = 6,
-  moreLabel = "Voir plus",
-  lessLabel = "Voir moins",
+  moreLabel = t("common.showMore"),
+  lessLabel = t("common.showLess"),
   className,
   forceOpen = false,
 }: {
@@ -21,6 +22,7 @@ export function CollapsibleText({
   /** Unfolds without touching the user's own toggle — a search hit must never sit behind a fold. */
   forceOpen?: boolean;
 }) {
+  useT(); // re-render on a language change: the default labels are read from the catalog
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
   const [openState, setOpen] = useState(false);

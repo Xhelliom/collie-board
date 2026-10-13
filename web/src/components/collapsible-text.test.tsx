@@ -25,12 +25,12 @@ describe("CollapsibleText", () => {
   it("folds long text and toggles with aria-expanded", async () => {
     measure(400, 100);
     render(<CollapsibleText lines={4}>long</CollapsibleText>);
-    const btn = screen.getByRole("button", { name: "Voir plus" });
+    const btn = screen.getByRole("button", { name: "Show more" });
     expect(btn).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("long").style.maxHeight).toBe("96px");
 
     await userEvent.setup().click(btn);
-    const less = screen.getByRole("button", { name: "Voir moins" });
+    const less = screen.getByRole("button", { name: "Show less" });
     expect(less).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("long").style.maxHeight).toBe("");
   });

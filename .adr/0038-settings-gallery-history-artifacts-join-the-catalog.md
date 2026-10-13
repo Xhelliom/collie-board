@@ -17,4 +17,4 @@ Formatting inside a message uses `<c>`/`<b>` rendered by `i18n/rich.tsx`.
 
 ## Not done
 
-The chrome around every route (idle cover, connection bars, boot splash, error screen, update banner, toasts, shared aria-labels) is in the `shell` file. Still English-only: the notification markers (`Needs you`, `Review`… in toast and bell titles — `web/src/lib/notify-content.ts` is a byte-identical mirror of the bridge's, which composes the push), and a few leaf widgets (context gauge, agent sidebar, "Mark all read", statusline label).
+The chrome around every route (idle cover, connection bars, boot splash, error screen, update banner, toasts, shared aria-labels) and the pane leaves (context gauge, agent sidebar, bell, statusline label, fold toggle) are in the catalog. Still English-only: the notification markers (`Needs you`, `Review`… in toast and bell titles) — `web/src/lib/notify-content.ts` is a byte-identical mirror of the bridge's, which composes the push. Brand names ("Collie", "Collie Board") are not translated.

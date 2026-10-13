@@ -97,7 +97,7 @@ export function ContextRailColumn({
       {statusLines.length > 0 && (
         <div className="flex flex-col gap-1.5 border-t border-border/60 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Statusline de l'agent
+            {t("rail.statusline")}
           </span>
           <div className="flex flex-col gap-1 font-mono text-[11px] leading-tight text-muted-foreground/80">
             {statusLines.map((line, i) => (

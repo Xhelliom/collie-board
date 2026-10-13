@@ -67,9 +67,9 @@ describe("long roadmap item detail", () => {
     mount(facts);
     // The spec's own fold — "Who did what" also folds, so look from the spec's text outwards.
     const fold = screen.getByText("Letters on the recipe page.").closest("div")!.parentElement!.parentElement!;
-    const more = within(fold).getByRole("button", { name: "Voir plus" });
+    const more = within(fold).getByRole("button", { name: "Show more" });
     expect(more).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(more);
-    expect(within(fold).getByRole("button", { name: "Voir moins" })).toBeInTheDocument();
+    expect(within(fold).getByRole("button", { name: "Show less" })).toBeInTheDocument();
   });
 });

@@ -28,7 +28,7 @@ it("folds a long roadmap item detail", async () => {
     </MemoryRouter>,
   );
   await userEvent.setup().click(screen.getByRole("button", { name: "Roadmap1" }));
-  expect(screen.getAllByRole("button", { name: "Voir plus" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole("button", { name: "Show more" }).length).toBeGreaterThan(0);
 });
 
 it("keeps open and phase-less decisions in clear, the phase-filed ones behind a count", async () => {
