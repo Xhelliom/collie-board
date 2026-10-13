@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Copy } from "lucide-react";
 
+import { useFold } from "@/components/fold";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { useT, type MessageKey } from "@/i18n";
@@ -84,6 +85,11 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set((roadmap?.items ?? []).filter((i) => i.status === "active").map((i) => i.id)));
   const items = roadmap?.items ?? [];
   const decisions = roadmap?.decisions ?? [];
+  // A decided/leaning decision filed under a phase already reads under that phase: the journal keeps
+  // the open ones and the phase-less ones in clear, the rest behind a count.
+  const inClear = (d: Decision) => d.status === "open" || !items.some((i) => i.id === d.itemId);
+  const ordered = [...ORDER.flatMap((s) => decisions.filter((d) => d.status === s && inClear(d))), ...ORDER.flatMap((s) => decisions.filter((d) => d.status === s && !inClear(d)))];
+  const { shown: shownDecisions, toggle: foldDecisions } = useFold(ordered, decisions.filter(inClear).length);
   const toggle = (id: string) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -169,26 +175,21 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
                     </span>
                   ))}
                 </div>
-                {ORDER.map((s) => {
-                  const group = decisions.filter((d) => d.status === s);
-                  if (!group.length) return null;
-                  return (
-                    <ul key={s} aria-label={t(DECISION[s].label)} className="flex flex-col gap-1 text-sm">
-                      {group.map((d) => {
-                        const phase = items.find((i) => i.id === d.itemId);
-                        return (
-                          <li key={d.id} className="flex gap-2">
-                            <span aria-hidden="true">{DECISION[s].mark}</span>
-                            <span className="min-w-0">
-                              {d.text}
-                              {phase && <span className="text-muted-foreground"> — {phase.name}</span>}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  );
-                })}
+                <ul className="flex flex-col gap-1 text-sm">
+                  {shownDecisions.map((d) => {
+                    const phase = items.find((i) => i.id === d.itemId);
+                    return (
+                      <li key={d.id} className="flex gap-2">
+                        <span aria-hidden="true">{DECISION[d.status].mark}</span>
+                        <span className="min-w-0">
+                          {d.text}
+                          {phase && <span className="text-muted-foreground"> — {phase.name}</span>}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {foldDecisions}
               </div>
             )}
           </div>
