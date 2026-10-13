@@ -337,7 +337,14 @@ export function AgentChat({
   // READING MODE — the second mode of this screen (see components/reading-view.tsx). Gated on a
   // transcript existing at all, so the toggle never leads somewhere empty: a shell pane, or an agent
   // whose harness keeps no session log, simply has no reading mode to offer.
-  const reading = prefs.reading && historyAvailable;
+  // `noReading`: ReadingView said this pane has no transcript to read. The terminal shows meanwhile,
+  // but the stored pref is left alone — it's the user's choice, and other panes may well have a log.
+  // ponytail: cleared on pane/session change or an explicit tap on Reading; a log appearing later
+  // on the same pane isn't picked up until then.
+  const [noReading, setNoReading] = useState<string | null>(null);
+  const readingKey = `${paneId}|${session ?? ""}`;
+  const markNoReading = useCallback(() => setNoReading(readingKey), [readingKey]);
+  const reading = prefs.reading && historyAvailable && noReading !== readingKey;
   // Reading mode still depends on the mirror — the dialog probe, the statusline and the terminal-draft
   // preview are all derived from `display`, which stops tracking the live text while the mirror is
   // frozen. Nothing can un-freeze it once the mirror is unmounted (freezing is a scroll gesture), so a
@@ -826,7 +833,10 @@ export function AgentChat({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setReading(true)}
+                  onClick={() => {
+                    setNoReading(null);
+                    setReading(true);
+                  }}
                   aria-pressed={reading}
                   aria-label="Reading view"
                   title="Reading"
@@ -977,6 +987,7 @@ export function AgentChat({
             // The poll's own heartbeat, NOT the pane's `revision` — herdr 0.7.x returns 0 for every
             // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
             poll={revalidator.state}
+            onUnavailable={markNoReading}
             working={agent?.status === "working"}
             dialogBlock={dialogBlock}
             dialogDisabled={readOnly || gone}

@@ -588,6 +588,22 @@ describe("AgentChat — terminal / reading toggle", () => {
   });
 
 
+  it("falls back to the terminal when the agent has no readable transcript, keeping the pref", async () => {
+    server.use(
+      http.get(/\/api\/pane\/[^/]+\/history/, () =>
+        HttpResponse.json({ available: false, reason: "unsupported" }),
+      ),
+    );
+    const agent = withTranscript();
+    renderChat({ agent, agents: [agent], text: "recent pane output" });
+
+    expect(await screen.findByText(/recent pane output/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /terminal view/i })).toHaveAttribute("aria-pressed", "true");
+    // Never written back: the choice is the user's, not this pane's.
+    const stored = localStorage.getItem("collie:display-prefs:v3");
+    expect(stored === null || JSON.parse(stored).reading !== false).toBe(true);
+  });
+
   it("persists the mode per device, so a remount comes back reading", async () => {
     const user = userEvent.setup();
     const agent = withTranscript();

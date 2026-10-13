@@ -58,6 +58,9 @@ export const READING_TURNS = 40;
 /** Ceiling on turns kept in memory, so a session left open on this mode can't grow without bound. */
 const MAX_HELD = 300;
 
+/** Reasons that mean no transcript will appear by waiting. */
+const NO_READING = new Set(["disabled", "no-session", "no-log", "unsupported"]);
+
 /** Why the view is empty, in the user's terms. Each is an ordinary state, not an error. */
 const UNAVAILABLE_COPY: Record<string, string> = {
   disabled: "Transcript reading is switched off on this bridge (COLLIE_BOARD_TRANSCRIPT).",
@@ -104,6 +107,7 @@ export function ReadingView({
   onWizardAction,
   onPreviewAction,
   onMultiSelectAction,
+  onUnavailable,
 }: {
   paneId: string;
   session?: string;
@@ -125,6 +129,9 @@ export function ReadingView({
   onWizardAction?: (keys: string[], wizard: WizardModel) => void | Promise<void>;
   onPreviewAction?: (action: PreviewBlockAction, preview: PreviewSelectModel) => void | Promise<void>;
   onMultiSelectAction?: (action: MultiSelectIntent, multi: MultiSelectModel) => void | Promise<void>;
+  /** The transcript can't exist for this pane (no session / no log / unsupported / disabled) — the
+   *  parent shows the terminal instead. `error` and `empty` are transient, so they stay here. */
+  onUnavailable?: () => void;
 }) {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -158,6 +165,7 @@ export function ReadingView({
         setEntries([]);
         setQueued([]);
         setNote(UNAVAILABLE_COPY[res.reason] ?? UNAVAILABLE_COPY.error!);
+        if (NO_READING.has(res.reason)) onUnavailable?.();
         return;
       }
       const next = cursor ? mergeTail(held.current, res.entries) : res.entries.slice(-MAX_HELD);
@@ -171,7 +179,7 @@ export function ReadingView({
     } finally {
       busy.current = false;
     }
-  }, [paneId, session]);
+  }, [paneId, session, onUnavailable]);
 
   // One pull per completed poll: the effect re-runs on every state change, and "idle" is the settle.
   // A pull skipped because one was still in flight is retried by the next beat, so the view converges
