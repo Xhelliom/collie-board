@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.192.0] - 2026-10-13
+
+### Changed
+
+- Autonomie (ADR 0030) : réglage du projet, bloc de la page projet au lieu d'un `<details>` dans le chat de l'orchestrateur ; le panneau n'y garde qu'un lien (c16767f)
+
 ## [0.191.1] - 2026-10-13
 
 ### Changed
