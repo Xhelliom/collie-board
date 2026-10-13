@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { FoldToggle } from "@/components/fold";
 import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
@@ -93,6 +94,16 @@ const LANE_PHONE_ORDER: Record<LaneKey, string> = {
   done: "order-4",
 };
 
+/** Finished cards a column lists before « Voir les n autres »; Done is the only column that only grows. */
+const DONE_SHOWN = 5;
+
+/** The DONE_SHOWN most recently updated (≈ finished) cards, kept in the column's manual order (the sort only picks). */
+function newestDone(column: CardView[]): CardView[] {
+  // ponytail: CardView has no doneAt; updatedAt is the closest "finished when" (an edit after Done also bumps it).
+  const keep = new Set([...column].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, DONE_SHOWN));
+  return column.filter((c) => keep.has(c));
+}
+
 export function BoardRoute() {
   const t = useT();
   const data = useLoaderData() as ProjectData;
@@ -158,6 +169,8 @@ export function BoardRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: this seeds, it doesn't sync.
   }, []);
   const [newOpen, setNewOpen] = useState(false);
+  // 323 finished cards were 55 000 px of board: the newest few, the rest behind a count.
+  const [doneAll, setDoneAll] = useState(false);
   // The filter sheet — RepoFilter + TagFilter moved off the always-visible strips and behind one
   // toolbar chip (redesign §2), so a common board (one repo, few tags) shows no filter chrome by
   // default. Desktop keeps a SECOND, always-visible way to scope by repo (the sidebar list,
@@ -628,7 +641,7 @@ export function BoardRoute() {
                           )}
                         >
                           {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
-                          {column.map((card, slot) => (
+                          {(status === "done" && !doneAll && !held ? newestDone(column) : column).map((card, slot) => (
                             <Fragment key={card.id}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
                               {/* The wrapper exists for one line: which HALF of a tile the pointer
@@ -712,6 +725,14 @@ export function BoardRoute() {
                             </Fragment>
                           ))}
                           {ghostAt >= column.length && heldCard && ghost(heldCard)}
+                          {status === "done" && column.length > DONE_SHOWN && (
+                            <FoldToggle
+                              open={doneAll}
+                              label={t("fold.more", { count: column.length - DONE_SHOWN })}
+                              lessLabel={t("fold.less")}
+                              onClick={() => setDoneAll((o) => !o)}
+                            />
+                          )}
                         </section>
                       );
                     })}

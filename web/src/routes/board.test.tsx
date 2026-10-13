@@ -166,6 +166,18 @@ describe("board drag and drop — desktop", () => {
     expect(patchCard).toHaveBeenCalledWith("Alpha", { position: 3 });
   });
 
+  it("reorders inside the folded Done column by the card's place in the whole column", async () => {
+    // The 5 visible are D0 D2 D4 D6 D8 — a visible tile's slot is not its place in the column.
+    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? 100 : 1 }));
+    await mount(cards);
+    lift(tileOf("D0"));
+    nextFrame();
+    const last = tileOf("D8").parentElement as HTMLElement;
+    act(() => void fireEvent.dragOver(last, { dataTransfer: dataTransfer(), clientY: 10 }));
+    act(() => void fireEvent.drop(columnOf("D8"), { dataTransfer: dataTransfer() }));
+    expect(patchCard).toHaveBeenCalledWith("D0", { position: 8.5 });
+  });
+
   it("arms nothing when the gesture dies before that frame", async () => {
     await mount(two);
     const tile = tileOf("Alpha");
@@ -326,5 +338,19 @@ describe("board filters — header", () => {
     expect(screen.getByRole("button", { name: /Lot 6/ })).toBeTruthy();
     expect(screen.getByText(/Aucune carte.*dans la phase « Lot 6 »/)).toBeTruthy();
     expect(screen.queryByText(/Le board est vide/i)).toBeNull();
+  });
+});
+
+describe("board — Done column", () => {
+  it("lists the 5 most recently finished cards, wherever they sit in the column", async () => {
+    // D11 sits last by position but was finished long ago; D0 sits first but was finished today.
+    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: 100 + (11 - i) }));
+    cards[11] = { ...cards[11], updatedAt: 1 };
+    cards[7] = { ...cards[7], updatedAt: 999 };
+    await mount(cards);
+    expect(screen.getByText("D7")).toBeInTheDocument();
+    expect(screen.queryByText("D11")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Voir les 7 autres" }));
+    expect(screen.getByText("D11")).toBeInTheDocument();
   });
 });

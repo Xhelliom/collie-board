@@ -2,6 +2,7 @@ import { useT } from "@/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronRight, FileDiff, FileText, RefreshCw } from "lucide-react";
 
+import { useFold } from "@/components/fold";
 import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -34,6 +35,9 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
   const [notStarted, setNotStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<DiffFile | null>(null);
+
+  // 57 files were ~2200 px in the middle of the card: the first eight, the rest behind a count.
+  const { shown, toggle } = useFold(stat?.files ?? [], 8);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,7 +99,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
         <p className="text-xs text-muted-foreground">{t("diff.empty")}</p>
       ) : (
         <div className="flex flex-col gap-1">
-          {stat?.files.map((f) => (
+          {shown.map((f) => (
             <button
               key={f.path}
               type="button"
@@ -118,6 +122,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>
           ))}
+          {toggle}
         </div>
       )}
 

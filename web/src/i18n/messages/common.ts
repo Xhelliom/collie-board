@@ -7,6 +7,11 @@ export const common = defineMessages({
     en: { one: "{count} card", other: "{count} cards" },
     fr: { one: "{count} carte", other: "{count} cartes" },
   },
+  "fold.more": {
+    en: { one: "Show {count} more", other: "Show {count} more" },
+    fr: { one: "Voir {count} autre", other: "Voir les {count} autres" },
+  },
+  "fold.less": { en: "Show less", fr: "Voir moins" },
   // A card's column. Lane names below must repeat a column's name only on the lane's FIRST column
   // (lib/board.test.ts), so "Actives" is not "En cours".
   "status.blocked": { en: "Needs you", fr: "À toi" },

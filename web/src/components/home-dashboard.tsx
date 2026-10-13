@@ -5,6 +5,7 @@ import { ChevronRight, GitPullRequest, RefreshCw } from "lucide-react";
 import { Kpi } from "@/components/kpi";
 import { Ring } from "@/components/ring";
 import { STEP_TONE } from "@/components/project-step";
+import { useFold } from "@/components/fold";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
 import { boardPath, cardPath, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Phase, type ProviderUsage } from "@/lib/board";
@@ -90,6 +91,9 @@ function PhaseBar({ steps }: { steps: CardView[] }) {
   );
 }
 
+/** Phases a tile lists before « +n »: a repo with five in flight must not take a screen on a phone. */
+const PHASES_SHOWN = 2;
+
 function ProjectTile({ repo }: { repo: RepoTile }) {
   const t = useT();
   return (
@@ -101,7 +105,7 @@ function ProjectTile({ repo }: { repo: RepoTile }) {
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
         <span className="shrink-0 text-xs text-muted-foreground">{ago(repo.updatedAt)}</span>
       </div>
-      {repo.current.map((p) => (
+      {repo.current.slice(0, PHASES_SHOWN).map((p) => (
         <div key={p.key} className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-2 text-xs">
             <span className="min-w-0 flex-1 truncate text-muted-foreground">{p.title || t("home.project.loose")}</span>
@@ -111,6 +115,7 @@ function ProjectTile({ repo }: { repo: RepoTile }) {
         </div>
       ))}
       <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+        {repo.current.length > PHASES_SHOWN && <span>+{repo.current.length - PHASES_SHOWN}</span>}
         {repo.current.length === 0 && <span>{t("home.project.idle", { count: repo.closedCount })}</span>}
         {repo.active > 0 && <span className="text-status-working">{t("home.project.flight", { count: repo.active })}</span>}
         {repo.waiting > 0 && <span className="font-semibold text-brand">{t("home.project.waiting", { count: repo.waiting })}</span>}
@@ -138,15 +143,17 @@ export function useRepoPhases(paths: string[]): Record<string, Phase[]> {
 
 export function ProjectTiles({ repos }: { repos: RepoTile[] }) {
   const t = useT();
+  const { shown, toggle } = useFold(repos, 3);
   if (repos.length === 0) return null;
   return (
     <section className="flex flex-col gap-2.5" aria-label={t("home.projects")}>
       <h2 className={sectionTitle}>{t("home.projects")}</h2>
       <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
-        {repos.map((r) => (
+        {shown.map((r) => (
           <ProjectTile key={r.path} repo={r} />
         ))}
       </div>
+      {toggle}
     </section>
   );
 }

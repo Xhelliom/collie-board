@@ -1173,6 +1173,19 @@ and failed the push. The suite now unsets every `COLLIE_BOARD_*` / `HERDR_*` bef
 
 ---
 
+## 36. 🟡 Long lists fold to their newest few, with a « Voir les n autres » toggle
+
+`useFold(items, limit)` + `FoldToggle`: a list that grows with use (Idle · done) shows its first
+`limit` entries and a counted toggle for the rest. Generic — it knows no card.
+
+| | |
+|---|---|
+| Commit | `1cfc6f8e` *Replis : Idle · done, Projets, fichiers du diff, colonne Terminé, boîtes de texte du projet* (the upstream half only) |
+| Files | `web/src/components/fold.tsx` (+ test), `web/src/components/agent-list.tsx` (`IdleList`), the `fold.more`/`fold.less` strings in `web/src/i18n/messages/common.ts` |
+| Extraction | **Needs a filter**: the commit also folds fork-only screens (board column, project, diff, dashboard); keep the three files above. |
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately
