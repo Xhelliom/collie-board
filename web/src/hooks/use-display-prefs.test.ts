@@ -49,6 +49,23 @@ describe("useDisplayPrefs", () => {
     expect(reloaded.current.prefs.reading).toBe(false);
   });
 
+  it("a legacy stored reading=false stays a terminal choice (accepted ambiguity, no migration)", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ fontSize: 14, reading: false }));
+    const { result } = renderHook(() => useDisplayPrefs());
+    expect(result.current.prefs.reading).toBe(false);
+  });
+
+  it("never freezes the reading default into storage when another setting changes", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ fontSize: 14 }));
+    const { result } = renderHook(() => useDisplayPrefs());
+    expect(result.current.prefs.reading).toBe(true);
+    act(() => result.current.setFontSize(15));
+    expect(result.current.prefs.reading).toBe(true);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).not.toHaveProperty("reading");
+    const { result: reloaded } = renderHook(() => useDisplayPrefs());
+    expect(reloaded.current.prefs.reading).toBe(true);
+  });
+
   it("persists rawTerminal and reloads it on mount (the escape hatch survives a reload)", () => {
     const { result } = renderHook(() => useDisplayPrefs());
     expect(result.current.prefs.rawTerminal).toBe(false);
