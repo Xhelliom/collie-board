@@ -37,7 +37,7 @@ describe("useDisplayPrefs", () => {
   it("persists reading mode and reloads it on mount (the mode is per device)", () => {
     const { result } = renderHook(() => useDisplayPrefs());
     act(() => result.current.setReading(true));
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).reading).toBe(true);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).readingPick).toBe(true);
     const { result: reloaded } = renderHook(() => useDisplayPrefs());
     expect(reloaded.current.prefs.reading).toBe(true);
   });
@@ -49,10 +49,13 @@ describe("useDisplayPrefs", () => {
     expect(reloaded.current.prefs.reading).toBe(false);
   });
 
-  it("a legacy stored reading=false stays a terminal choice (accepted ambiguity, no migration)", () => {
+  it("a legacy stored reading=false is ignored: the reading default applies", () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ fontSize: 14, reading: false }));
     const { result } = renderHook(() => useDisplayPrefs());
-    expect(result.current.prefs.reading).toBe(false);
+    expect(result.current.prefs.reading).toBe(true);
+    act(() => result.current.setReading(false));
+    const { result: reloaded } = renderHook(() => useDisplayPrefs());
+    expect(reloaded.current.prefs.reading).toBe(false);
   });
 
   it("never freezes the reading default into storage when another setting changes", () => {
@@ -61,7 +64,7 @@ describe("useDisplayPrefs", () => {
     expect(result.current.prefs.reading).toBe(true);
     act(() => result.current.setFontSize(15));
     expect(result.current.prefs.reading).toBe(true);
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).not.toHaveProperty("reading");
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!)).not.toHaveProperty("readingPick");
     const { result: reloaded } = renderHook(() => useDisplayPrefs());
     expect(reloaded.current.prefs.reading).toBe(true);
   });

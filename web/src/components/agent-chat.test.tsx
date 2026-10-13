@@ -36,7 +36,7 @@ beforeAll(() => {
 beforeEach(() => {
   clearStatus();
   // Reading is the default view; most of these tests pilot the terminal mirror.
-  localStorage.setItem("collie:display-prefs:v3", JSON.stringify({ reading: false }));
+  localStorage.setItem("collie:display-prefs:v3", JSON.stringify({ readingPick: false }));
 });
 
 function renderChat(overrides: Partial<ComponentProps<typeof AgentChat>> = {}) {
@@ -230,7 +230,7 @@ describe("AgentChat — raw-terminal escape hatch", () => {
   it("shows the plain mirror (no buttons, menu as raw text) when raw terminal is on", () => {
     localStorage.setItem(
       "collie:display-prefs:v3",
-      JSON.stringify({ wrap: true, fontSize: 11, rawTerminal: true, reading: false }),
+      JSON.stringify({ wrap: true, fontSize: 11, rawTerminal: true, readingPick: false }),
     );
     renderChat({ text: MENU_TEXT });
     // No native prompt buttons — the escape hatch bypasses the block grammars entirely…
@@ -250,7 +250,7 @@ describe("AgentChat — raw-terminal escape hatch", () => {
   it("raw terminal bypasses the wizard too — the dialog shows verbatim, keys-pad drivable", () => {
     localStorage.setItem(
       "collie:display-prefs:v3",
-      JSON.stringify({ wrap: true, fontSize: 11, rawTerminal: true, reading: false }),
+      JSON.stringify({ wrap: true, fontSize: 11, rawTerminal: true, readingPick: false }),
     );
     renderChat({ text: WIZARD_TEXT });
     expect(screen.queryByRole("button", { name: /Parser/ })).not.toBeInTheDocument();
@@ -584,7 +584,7 @@ describe("AgentChat — terminal / reading toggle", () => {
 
     await user.click(screen.getByRole("button", { name: /terminal/i }));
     expect(screen.getByText(/recent pane output/)).toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem("collie:display-prefs:v3")!).reading).toBe(false);
+    expect(JSON.parse(localStorage.getItem("collie:display-prefs:v3")!).readingPick).toBe(false);
   });
 
 
@@ -601,7 +601,7 @@ describe("AgentChat — terminal / reading toggle", () => {
     expect(screen.getByRole("button", { name: /terminal view/i })).toHaveAttribute("aria-pressed", "true");
     // Never written back: the choice is the user's, not this pane's.
     const stored = localStorage.getItem("collie:display-prefs:v3");
-    expect(stored === null || JSON.parse(stored).reading !== false).toBe(true);
+    expect(stored === null || JSON.parse(stored).readingPick !== false).toBe(true);
   });
 
   it("persists the mode per device, so a remount comes back reading", async () => {
