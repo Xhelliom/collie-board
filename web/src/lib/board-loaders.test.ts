@@ -1,0 +1,31 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { boardLoader, homeLoader } from "./board-loaders";
+
+// The home screen never reads the facts, and they are the heaviest thing on its poll: its loader must not ask.
+function stubFetch() {
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", (url: string) => {
+    urls.push(url);
+    const body = url.includes("/api/project/facts") ? { facts: [{ cardId: "c1" }] } : { cards: [] };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }));
+  });
+  return urls;
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("home vs board loader", () => {
+  it("the home loader never requests /api/project/facts", async () => {
+    const urls = stubFetch();
+    const data = await homeLoader();
+    expect(urls.some((u) => u.includes("/api/project/facts"))).toBe(false);
+    expect(data.facts).toBeUndefined();
+  });
+
+  it("the board loader still requests the facts and returns them by card id", async () => {
+    const urls = stubFetch();
+    const data = await boardLoader();
+    expect(urls.some((u) => u.includes("/api/project/facts"))).toBe(true);
+    expect(data.facts?.c1).toBeDefined();
+  });
+});
