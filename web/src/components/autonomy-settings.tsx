@@ -7,7 +7,7 @@ import { setStatus } from "@/lib/status";
 
 // How far the project's orchestrator may go without the operator (ADR 0030). The operator's screen
 // alone: the bridge refuses this write from any agent pane. Off by default; the bounds are prudent
-// (one lot, stop on red). Data below the header is `data-vaul-no-drag` like the rest of the panel.
+// (one lot, stop on red). A block of the project page — a setting of the project, not of the chat.
 export function AutonomySettings({ repo }: { repo: string }) {
   const t = useT();
   const [a, setA] = useState<Autonomy | null>(null);
@@ -33,10 +33,8 @@ export function AutonomySettings({ repo }: { repo: string }) {
   }
 
   return (
-    <details data-vaul-no-drag className="rounded-lg border bg-card/40 px-2.5 py-1.5 text-sm">
-      <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
-        {t("orch.auto")}
-      </summary>
+    <section id="project-autonomy" aria-label={t("orch.auto")} className="scroll-mt-4 rounded-2xl border bg-card/40 p-3.5 text-sm">
+      <h2 className="text-xs font-semibold text-muted-foreground">{t("orch.auto")}</h2>
       <div className="mt-2 flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span>{t("orch.autoOn")}</span>
@@ -69,6 +67,6 @@ export function AutonomySettings({ repo }: { repo: string }) {
           <Switch checked={a.stopOnRed} onCheckedChange={(stopOnRed) => void save({ stopOnRed })} aria-label={t("orch.autoRed")} />
         </div>
       </div>
-    </details>
+    </section>
   );
 }
