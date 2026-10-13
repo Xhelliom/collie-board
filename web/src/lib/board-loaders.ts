@@ -135,6 +135,19 @@ export interface ProjectData extends BoardData {
   flows?: Flow[] | null;
 }
 
+export type BoardRouteData = BoardData & Pick<ProjectData, "phases" | "templates">;
+
+/** The Board's own loader: cards, facts, phases, templates — what BoardRoute reads, nothing of the project page's (audit perf #2). */
+export async function boardRouteLoader({ request }: { request?: Request } = {}): Promise<BoardRouteData> {
+  const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
+  const [base, phases, templates] = await Promise.all([
+    boardLoader({ request }),
+    repo ? fetchPhases(repo, request?.signal).then((r) => r.phases, () => []) : [],
+    repo ? fetchTemplates(request?.signal).catch(() => null) : undefined,
+  ]);
+  return { ...base, phases, templates };
+}
+
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
 export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
   const base = await boardLoader({ request });

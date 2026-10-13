@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { boardLoader, homeLoader } from "./board-loaders";
+import { boardLoader, boardRouteLoader, homeLoader } from "./board-loaders";
 
 // The home screen never reads the facts, and they are the heaviest thing on its poll: its loader must not ask.
 function stubFetch() {
@@ -27,5 +27,18 @@ describe("home vs board loader", () => {
     const data = await boardLoader();
     expect(urls.some((u) => u.includes("/api/project/facts"))).toBe(true);
     expect(data.facts?.c1).toBeDefined();
+  });
+});
+
+describe("board route loader", () => {
+  it("asks for cards, facts, phases and templates — none of the project page's layer", async () => {
+    const urls = stubFetch();
+    await boardRouteLoader({ request: new Request("http://x/board?repo=/r") });
+    for (const path of ["/api/cards", "/api/project/facts", "/api/phases", "/api/templates"]) {
+      expect(urls.some((u) => u.includes(path)), path).toBe(true);
+    }
+    for (const path of ["lots", "runs", "roadmap", "orchestrator", "flows", "history", "memory"]) {
+      expect(urls.some((u) => u.includes(path)), path).toBe(false);
+    }
   });
 });
