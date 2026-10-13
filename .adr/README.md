@@ -69,3 +69,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0033](./0033-a-report-is-read-from-the-journal-the-narrative-is-the-only-thing-stored.md) | A report is read from the journal; the narrative is the only thing stored | Accepted |
 | [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) | A card after a merged predecessor forks from the base, not from its branch | Accepted |
 | [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) | "GitHub has not answered yet" is a wait, and only a landing files the card | Accepted |
+| [0037](./0037-a-finished-turn-is-read-at-the-passage-not-at-done.md) | Un tour fini se lit au passage working→idle, pas à l'état `done` | Accepted |
