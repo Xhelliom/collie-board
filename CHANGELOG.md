@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.195.0] - 2026-10-13
+
+### Changed
+
+- Settings, galerie, historique, artefacts, pane, Spaces et cloche passent par le catalogue i18n (EN référence, FR traduction) (468223f)
+- Langue par défaut : anglais (« Automatique » reste un choix explicite) (468223f)
+- Cover de pause, bandeaux de connexion, splash, écran d'erreur, bannière de mise à jour, toasts et aria-labels partagés passent par le catalogue (`shell`) (468223f)
+- Balises `<c>`/`<b>` dans les messages (`i18n/rich.tsx`) (468223f)
+
+### Fixed
+
+- Tests web : plus de faux timeouts sous charge — `maxWorkers: 4`, `testTimeout`/`hookTimeout` 30 s, `asyncUtilTimeout` 20 s (f929bc5)
+
 ## [0.194.0] - 2026-10-13
 
 ### Changed
