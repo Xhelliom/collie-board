@@ -97,7 +97,7 @@ describe("ProjectRoute", () => {
     expect(await screen.findByText("50%")).toBeTruthy();
     expect(screen.getByText(/1 waiting for you/i)).toBeTruthy();
     expect(screen.queryByText("other")).toBeNull();
-  }, 15_000);
+  });
 
   it("puts what waits for you first, folds the steps that merely run, and lists « à toi » first in the filters", async () => {
     mount([card({ id: "a", status: "working" }), card({ id: "b", status: "blocked" }), card({ id: "c", status: "done" })]);
