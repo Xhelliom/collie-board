@@ -175,20 +175,26 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
                     </span>
                   ))}
                 </div>
-                <ul className="flex flex-col gap-1 text-sm">
-                  {shownDecisions.map((d) => {
-                    const phase = items.find((i) => i.id === d.itemId);
-                    return (
-                      <li key={d.id} className="flex gap-2">
-                        <span aria-hidden="true">{DECISION[d.status].mark}</span>
-                        <span className="min-w-0">
-                          {d.text}
-                          {phase && <span className="text-muted-foreground"> — {phase.name}</span>}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                {ORDER.map((st) => {
+                  const group = shownDecisions.filter((d) => d.status === st);
+                  if (!group.length) return null;
+                  return (
+                    <ul key={st} aria-label={t(DECISION[st].label)} className="flex flex-col gap-1 text-sm">
+                      {group.map((d) => {
+                        const phase = items.find((i) => i.id === d.itemId);
+                        return (
+                          <li key={d.id} className="flex gap-2">
+                            <span aria-hidden="true">{DECISION[st].mark}</span>
+                            <span className="min-w-0">
+                              {d.text}
+                              {phase && <span className="text-muted-foreground"> — {phase.name}</span>}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })}
                 {foldDecisions}
               </div>
             )}
