@@ -31,14 +31,14 @@ describe("searchableText", () => {
     expect(searchableText(e)).toContain("git push");
   });
 
-  // Matching inside a collapsed body would jump you to a turn where nothing on screen matches.
-  it("excludes collapsed tool result bodies", () => {
+  // The view unfolds a turn whose output matches, so the hit is visible once you land on it.
+  it("includes tool result bodies", () => {
     const e = entry({
       parts: [
         { kind: "tool", name: "Read", summary: "/a.ts", result: { text: "SECRET_TOKEN=abc" } },
       ],
     });
-    expect(searchableText(e)).not.toContain("SECRET_TOKEN");
+    expect(searchableText(e)).toContain("SECRET_TOKEN");
   });
 });
 

@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import { ChevronRight, Info, TriangleAlert, User, Wrench } from "lucide-react";
 
 import { AgentIcon } from "@/components/agent-icon";
+import { CollapsibleText } from "@/components/collapsible-text";
 import { GalleryImg } from "@/components/gallery-img";
 import { MarkdownText } from "@/components/markdown-text";
 import { collectImages, imageName, openLightbox } from "@/lib/lightbox";
@@ -98,17 +99,24 @@ function ImagePart({ path, images }: { path: string; images: string[] }) {
  * thread is mostly tool traffic (705 of 914 turns in a real session) and expanding it all would bury
  * the prose you opened the history to read.
  */
+/** Tool output longer than this many lines is folded behind « Voir tout ». */
+const TOOL_OUTPUT_LINES = 12;
+
 function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool" }>; query: string }) {
-  const [open, setOpen] = useState(false);
+  const [tapped, setOpen] = useState(false);
   const result = part.result;
+  // A find hit in the output unfolds the call AND its long-output fold: nothing matched stays hidden.
+  const q = query.trim().toLowerCase();
+  const hit = q !== "" && !!result && result.text.toLowerCase().includes(q);
+  const open = tapped || hit;
   const isError = result?.isError === true;
 
   return (
     <div className="rounded-md border bg-muted/40">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        disabled={!result}
+        onClick={() => setOpen(!open)}
+        disabled={!result || hit}
         aria-expanded={result ? open : undefined}
         className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left disabled:opacity-100"
       >
@@ -131,10 +139,12 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
         )}
       </button>
       {open && result && (
-        <pre className="overflow-x-auto border-t px-2 py-1.5 font-mono text-xs leading-snug whitespace-pre-wrap">
-          {result.text}
-          {result.truncated && <span className="text-muted-foreground">{"\n… output truncated"}</span>}
-        </pre>
+        <CollapsibleText lines={TOOL_OUTPUT_LINES} moreLabel="Voir tout" lessLabel="Voir moins" forceOpen={hit} className="border-t px-2 py-1.5">
+          <pre className="overflow-x-auto font-mono text-xs leading-snug whitespace-pre-wrap">
+            <Highlight text={result.text} query={query} />
+            {result.truncated && <span className="text-muted-foreground">{"\n… output truncated"}</span>}
+          </pre>
+        </CollapsibleText>
       )}
     </div>
   );
