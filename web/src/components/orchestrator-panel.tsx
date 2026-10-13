@@ -135,7 +135,7 @@ export function OrchestratorPanel({
   }
 
   return (
-    <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+    <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
           {t("orch.title")}
@@ -186,7 +186,7 @@ export function OrchestratorPanel({
           const el = e.currentTarget;
           stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
         }}
-        className="min-h-32 flex-1 overflow-y-auto rounded-lg border bg-card/40 p-2"
+        className="min-h-32 flex-1 overflow-y-auto"
         aria-label={t("orch.thread")}
       >
         {entries.length > 0 ? (
@@ -201,7 +201,7 @@ export function OrchestratorPanel({
       <a href="#project-autonomy" data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
         {t("orch.auto")}
       </a>
-      <details className="rounded-lg border bg-card/40 px-2.5 py-1.5 text-sm">
+      <details className="border-t border-border/60 py-1.5 text-sm">
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
           {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
         </summary>

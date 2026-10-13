@@ -459,7 +459,7 @@ export function ProjectRoute() {
       {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
           the height left to the content the sheet was half-empty on a short thread and, on a long one,
           scrolled as a whole with the composer below the fold. */}
-      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[82dvh]">
+      <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[94dvh] max-h-[94dvh]">
         <div className="flex h-full min-h-0 flex-col">
           <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} onLeave={() => setChatOpen(false)} />
         </div>
