@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { boardLoader, boardRouteLoader, homeLoader } from "./board-loaders";
+import { boardLoader, boardRouteLoader, homeLoader, projectLoader } from "./board-loaders";
 
 // The home screen never reads the facts, and they are the heaviest thing on its poll: its loader must not ask.
 function stubFetch() {
@@ -40,5 +40,30 @@ describe("board route loader", () => {
     for (const path of ["lots", "runs", "roadmap", "orchestrator", "flows", "history", "memory"]) {
       expect(urls.some((u) => u.includes(path)), path).toBe(false);
     }
+  });
+});
+
+describe("project loader", () => {
+  it("sends the repo's requests without waiting for cards and facts, and memory with history", async () => {
+    const urls: string[] = [];
+    let releaseCards!: () => void;
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    vi.stubGlobal("fetch", (url: string) => {
+      urls.push(url);
+      if (url.includes("/api/cards")) return new Promise<Response>((r) => (releaseCards = () => r(json({ cards: [] }))));
+      if (url.includes("/api/orchestrator?")) return Promise.resolve(json({ paneId: "p1" }));
+      return Promise.resolve(new Response("nope", { status: 500 }));
+    });
+    const pending = projectLoader({ request: new Request("http://x/project?repo=/r") });
+    await vi.waitFor(() => {
+      for (const path of ["/api/phases", "/api/runs", "/api/roadmap", "/api/orchestrator?", "/api/templates", "/api/flows", "history", "memory"]) {
+        expect(urls.some((u) => u.includes(path)), path).toBe(true);
+      }
+    });
+    releaseCards();
+    // A failed project fetch still degrades to "none", not an error page.
+    const data = await pending;
+    expect(data.error).toBe(false);
+    expect(data).toMatchObject({ phases: [], lots: [], roadmap: null, orchestratorEntries: [], orchestratorMemory: null, templates: null, flows: null });
   });
 });
