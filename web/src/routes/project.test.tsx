@@ -94,8 +94,7 @@ describe("ProjectRoute", () => {
       card({ id: "other", repoPath: "/r/else", status: "done" }),
     ]);
     expect((await screen.findAllByText("Phase one")).length).toBeGreaterThan(0);
-    // Generous: under a loaded machine (several gates at once) this render alone has taken > 3 s.
-    expect(await screen.findByText("50%", {}, { timeout: 10_000 })).toBeTruthy();
+    expect(await screen.findByText("50%")).toBeTruthy();
     expect(screen.getByText(/1 waiting for you/i)).toBeTruthy();
     expect(screen.queryByText("other")).toBeNull();
   }, 15_000);
