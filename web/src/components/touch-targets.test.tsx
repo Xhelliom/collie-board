@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 
 import { SpaceOverview } from "./space-overview";
@@ -21,5 +23,14 @@ describe("touch targets ≥ 44 px", () => {
   it("SpaceOverview +", () => {
     render(<SpaceOverview workspaces={[]} tabs={[]} agents={[]} shellPanes={[]} onOpen={vi.fn()} onOpenPane={vi.fn()} onNewSpace={vi.fn()} />);
     expect(is44(screen.getByRole("button", { name: "New space" }))).toBe(true);
+  });
+
+  it("AgentChat desktop View mode toggle", () => {
+    const src = readFileSync(resolve(__dirname, "agent-chat.tsx"), "utf8");
+    // ponytail: AgentChat is too heavy to mount; assert the source classes of both toggle buttons.
+    for (const label of ["Terminal view", "Reading view"]) {
+      const at = src.indexOf(`aria-label="${label}"`);
+      expect(src.slice(at, at + 200)).toMatch(/flex size-11 /);
+    }
   });
 });

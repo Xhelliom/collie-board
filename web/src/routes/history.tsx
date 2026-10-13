@@ -348,7 +348,7 @@ export function HistoryRoute() {
               type="button"
               onClick={() => jumpTo(step(userTurns, cursor, -1))}
               aria-label="Previous message you sent"
-              className="flex size-9 items-center justify-center text-muted-foreground transition-colors active:bg-muted"
+              className="flex size-11 items-center justify-center text-muted-foreground transition-colors active:bg-muted"
             >
               <ChevronUp className="size-4" />
             </button>
@@ -356,7 +356,7 @@ export function HistoryRoute() {
               type="button"
               onClick={() => jumpTo(step(userTurns, cursor, 1))}
               aria-label="Next message you sent"
-              className="flex size-9 items-center justify-center border-t text-muted-foreground transition-colors active:bg-muted"
+              className="flex size-11 items-center justify-center border-t text-muted-foreground transition-colors active:bg-muted"
             >
               <ChevronDown className="size-4" />
             </button>

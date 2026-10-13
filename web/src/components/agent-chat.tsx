@@ -818,7 +818,7 @@ export function AgentChat({
                   aria-pressed={!reading}
                   aria-label="Terminal view"
                   title="Terminal"
-                  className={`flex h-7 w-8 items-center justify-center transition-colors ${
+                  className={`flex size-11 items-center justify-center transition-colors ${
                     reading ? "text-muted-foreground hover:bg-muted/60" : "bg-muted text-foreground"
                   }`}
                 >
@@ -830,7 +830,7 @@ export function AgentChat({
                   aria-pressed={reading}
                   aria-label="Reading view"
                   title="Reading"
-                  className={`flex h-7 w-8 items-center justify-center border-l transition-colors ${
+                  className={`flex size-11 items-center justify-center border-l transition-colors ${
                     reading ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/60"
                   }`}
                 >

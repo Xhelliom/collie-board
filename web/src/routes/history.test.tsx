@@ -37,7 +37,10 @@ const root = {
 const history: HistoryData = {
   paneId: "w1:p1",
   session: undefined,
-  entries: [],
+  entries: [
+    { uuid: "u1", role: "user", parts: [] },
+    { uuid: "u2", role: "user", parts: [] },
+  ] as unknown as HistoryData["entries"],
   hasMore: false,
   total: 0,
   fileTruncated: false,
@@ -76,5 +79,12 @@ describe("HistoryRoute header", () => {
     await userEvent.click(screen.getByRole("button", { name: "More" }));
     await userEvent.click(await screen.findByRole("button", { name: "Session artifacts" }));
     expect(await screen.findByText("ARTIFACTS")).toBeTruthy();
+  });
+
+  it("floating prev/next message buttons are 44 px", async () => {
+    mount();
+    for (const name of ["Previous message you sent", "Next message you sent"]) {
+      expect((await screen.findByRole("button", { name })).className).toMatch(/(^|\s)size-11(\s|$)/);
+    }
   });
 });
