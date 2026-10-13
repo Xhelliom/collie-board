@@ -156,6 +156,7 @@ export function StepItem({
               </CollapsibleText>
             )}
             {card.acceptance.length > 0 && (
+              <CollapsibleText lines={4}>
               <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
                 {card.acceptance.map((a, i) => (
                   <li key={i} className="flex gap-2">
@@ -167,6 +168,7 @@ export function StepItem({
                   </li>
                 ))}
               </ul>
+              </CollapsibleText>
             )}
             {predecessor && (
               <p className="text-xs text-muted-foreground">

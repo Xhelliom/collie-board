@@ -142,7 +142,11 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
       {open &&
         (roadmap ? (
           <div className="flex flex-col gap-3">
-            {roadmap.vision && <MarkdownText text={roadmap.vision} className="text-sm text-muted-foreground" />}
+            {roadmap.vision && (
+              <CollapsibleText lines={3}>
+                <MarkdownText text={roadmap.vision} className="text-sm text-muted-foreground" />
+              </CollapsibleText>
+            )}
             <ol className="flex flex-col gap-1.5">
               {items.map((it, i) => (
                 <Phase

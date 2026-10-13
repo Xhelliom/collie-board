@@ -4,6 +4,7 @@ import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AGENT_GROUPS, groupMembers, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
+import { useFold } from "./fold";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
 
 interface AgentListProps {
@@ -64,11 +65,7 @@ export function AgentList({
           </h2>
           {g.key === "other" ? (
             // The quiet list: no grid, no cards — a settled pane earns the least ink of the three.
-            <div className="flex flex-col lg:max-w-[720px]">
-              {members.map((a) => (
-                <IdleDoneRow key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
-              ))}
-            </div>
+            <IdleList members={members} onOpen={onOpen} />
           ) : (
             // `[&>*]:min-w-0`: a grid item defaults to min-width:auto, i.e. it never shrinks below
             // its min-content — and a card full of `truncate` text has a min-content as wide as the
@@ -85,6 +82,19 @@ export function AgentList({
           )}
         </section>
       ))}
+    </div>
+  );
+}
+
+/** Idle · done grows with every finished pane: the newest few, the rest a tap away (members come newest first). */
+function IdleList({ members, onOpen }: { members: AgentView[]; onOpen: (paneId: string) => void }) {
+  const { shown, toggle } = useFold(members, 4);
+  return (
+    <div className="flex flex-col lg:max-w-[720px]">
+      {shown.map((a) => (
+        <IdleDoneRow key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
+      ))}
+      {toggle}
     </div>
   );
 }

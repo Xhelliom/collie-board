@@ -328,3 +328,12 @@ describe("board filters — header", () => {
     expect(screen.queryByText(/Le board est vide/i)).toBeNull();
   });
 });
+
+describe("board — Done column", () => {
+  it("lists the newest 5 finished cards, the rest behind a count", async () => {
+    await mount(Array.from({ length: 12 }, (_, i) => card(`D${i}`, "done", i)));
+    expect(screen.queryByText("D5")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Voir les 7 autres" }));
+    expect(screen.getByText("D11")).toBeInTheDocument();
+  });
+});
