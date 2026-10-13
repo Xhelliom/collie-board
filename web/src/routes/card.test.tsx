@@ -9,6 +9,7 @@ import { server } from "@/test/setup";
 import { useStatus } from "@/lib/status";
 import {
   convertible,
+  liveFirst,
   CardRoute,
   ConvertNowButton,
   CopyPromptButton,
@@ -144,6 +145,13 @@ describe("ConvertNowButton", () => {
     );
     await user.click(screen.getByRole("button", { name: "Sending…" }));
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("liveFirst", () => {
+  it("puts the live half first for a card in flight only", () => {
+    for (const s of ["starting", "working", "blocked", "review", "orphaned"] as const) expect(liveFirst(s)).toBe(true);
+    for (const s of ["backlog", "ready", "done", "archived"] as const) expect(liveFirst(s)).toBe(false);
   });
 });
 
