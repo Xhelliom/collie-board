@@ -18,7 +18,7 @@ import { TemplateChip } from "@/components/template-chip";
 import { CtxBar } from "@/components/ctx-bar";
 import { MilestoneDots } from "@/components/milestone-dots";
 import { paneDisplayName } from "@/lib/types";
-import { CARD_STATUS_LABEL, type BoardEvent, type CardStatus, type CardView } from "@/lib/board";
+import { CARD_STATUS_LABEL, criteriaCount, type BoardEvent, type CardStatus, type CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
@@ -159,7 +159,7 @@ export function CardTile({
       : null;
   const ctxPct = card.session?.ctxPct;
   const hasMeta = Boolean(
-    card.runtime || card.branch || ctxPct != null || card.sessionCount > 1 || card.acceptance.length > 0,
+    card.runtime || card.branch || ctxPct != null || card.sessionCount > 1 || criteriaCount(card) > 0,
   );
   return (
     <button
@@ -345,10 +345,10 @@ export function CardTile({
             )}
             {/* A quick "how much is riding on this" stat — the count only, not the criteria
                 themselves; opening the card is what "the details" is for. */}
-            {card.acceptance.length > 0 && (
+            {criteriaCount(card) > 0 && (
               <span className="flex shrink-0 items-center gap-1">
                 <ListChecks className="size-3 shrink-0" />
-                {card.acceptance.length}
+                {criteriaCount(card)}
               </span>
             )}
             <span className="ml-auto flex shrink-0 items-center gap-1.5">

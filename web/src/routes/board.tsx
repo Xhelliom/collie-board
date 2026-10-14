@@ -134,7 +134,7 @@ export function BoardRoute() {
   const statuses = known?.length ? known : null;
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
-  const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status", value: string | null) =>
+  const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status" | "done", value: string | null) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -169,8 +169,9 @@ export function BoardRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: this seeds, it doesn't sync.
   }, []);
   const [newOpen, setNewOpen] = useState(false);
-  // 323 finished cards were 55 000 px of board: the newest few, the rest behind a count.
-  const [doneAll, setDoneAll] = useState(false);
+  // 323 finished cards were 55 000 px of board: the newest few, the rest behind a count. In the URL
+  // because unfolding it is what makes the loader fetch the finished cards the summary leaves out.
+  const doneAll = params.has("done");
   // The filter sheet — RepoFilter + TagFilter moved off the always-visible strips and behind one
   // toolbar chip (redesign §2), so a common board (one repo, few tags) shows no filter chrome by
   // default. Desktop keeps a SECOND, always-visible way to scope by repo (the sidebar list,
@@ -240,7 +241,7 @@ export function BoardRoute() {
   const showRepo = !activeRepo && repos.length > 1;
   // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
   // self-hiding rule, so the chip never opens onto an empty sheet.
-  const progress = phaseProgress(data.cards, data.phases);
+  const progress = phaseProgress(data.cards, data.phases, data.counts?.doneByPhase);
   // The chip names the role a card will start with; only a repo's board knows its phases, so only it can show an inherited one.
   const templateOf = (card: CardView) => {
     const found = data.templates ? templateFor(card, data.phases, data.templates.templates) : null;
@@ -260,6 +261,14 @@ export function BoardRoute() {
   // the drop's re-read — all of which are about cards the filter may well be hiding.
   const byId = new Map(data.cards.map((c) => [c.id, c]));
   const empty = cards.length === 0;
+  // The summary view lists only the newest finished cards; its counts know how many there are. Unfiltered
+  // only — a filter loads the full list (boardRouteLoader), where the column is the count.
+  const doneCount = (column: CardView[]) =>
+    data.counts
+      ? activeRepo
+        ? (data.counts.doneByRepo[activeRepo] ?? 0)
+        : Object.values(data.counts.doneByRepo).reduce((a, b) => a + b, 0)
+      : column.length;
   /** A card can join a run: this repo's, in no run yet, and not yet started. */
   const selectable = (c: CardView) =>
     c.repoPath === activeRepo && !c.runId && (c.status === "backlog" || c.status === "ready");
@@ -725,12 +734,12 @@ export function BoardRoute() {
                             </Fragment>
                           ))}
                           {ghostAt >= column.length && heldCard && ghost(heldCard)}
-                          {status === "done" && column.length > DONE_SHOWN && (
+                          {status === "done" && doneCount(column) > DONE_SHOWN && (
                             <FoldToggle
                               open={doneAll}
-                              label={t("fold.more", { count: column.length - DONE_SHOWN })}
+                              label={t("fold.more", { count: doneCount(column) - DONE_SHOWN })}
                               lessLabel={t("fold.less")}
-                              onClick={() => setDoneAll((o) => !o)}
+                              onClick={() => setParam("done", doneAll ? null : "all")}
                             />
                           )}
                         </section>

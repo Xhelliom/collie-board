@@ -73,3 +73,24 @@ describe("project loader", () => {
     expect(data).toMatchObject({ phases: [], lots: [], roadmap: null, orchestratorEntries: [], orchestratorMemory: null, templates: null, flows: null });
   });
 });
+
+// Audit perf #4: the list screens read the summary view; the full list only where a screen needs what it leaves out.
+describe("which view of the cards", () => {
+  const cardsUrl = (urls: string[]) => urls.find((u) => u.startsWith("/api/cards"));
+  it("home and an unfiltered Board read the summary; a filtered Board and the project page the full list", async () => {
+    let urls = stubFetch();
+    await (await homeLoader()).board;
+    expect(cardsUrl(urls)).toBe("/api/cards?view=summary");
+    urls = stubFetch();
+    await boardRouteLoader({ request: new Request("http://x/board?repo=/r&status=done") });
+    expect(cardsUrl(urls)).toBe("/api/cards?view=summary");
+    for (const q of ["tag=x", "origin=auto", "phase=p1", "done=all"]) {
+      urls = stubFetch();
+      await boardRouteLoader({ request: new Request(`http://x/board?${q}`) });
+      expect(cardsUrl(urls), q).toBe("/api/cards");
+    }
+    urls = stubFetch();
+    await projectLoader({ request: new Request("http://x/project?repo=/r") });
+    expect(cardsUrl(urls)).toBe("/api/cards");
+  });
+});

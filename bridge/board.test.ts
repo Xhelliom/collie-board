@@ -4918,3 +4918,32 @@ describe("requestCommit — ask this card's agent to commit", () => {
     expect(sent!.status).toBe(200);
   });
 });
+
+describe("GET /api/cards?view=summary", () => {
+  it("drops the bulky text and the old finished cards, counts them, and leaves the plain list alone", async () => {
+    const store = db();
+    store.createCard({ title: "live", spec: "# Goal\nmore", acceptance: ["a", "b"], repoPath: "/r" });
+    for (let i = 0; i < 7; i++) store.createCard({ title: `done ${i}`, spec: "x", status: "done", repoPath: "/r" });
+    const get = (q: string) => handleBoardRoute("/api/cards", new Request(`http://x/api/cards${q}`), routeCtx(store));
+
+    const plain = (await (await get(""))!.json()) as { cards: { spec: string | null }[]; counts?: unknown };
+    expect(plain.cards).toHaveLength(8);
+    expect(plain.counts).toBeUndefined();
+
+    const sum = (await (await get("?view=summary"))!.json()) as {
+      cards: Record<string, unknown>[];
+      counts: { delivered: number; doneByRepo: Record<string, number> };
+    };
+    expect(sum.cards).toHaveLength(6); // the live card + the 5 newest done
+    const live = sum.cards.find((c) => c.title === "live")!;
+    expect(live).not.toHaveProperty("spec");
+    expect(live).not.toHaveProperty("acceptance");
+    expect(live).not.toHaveProperty("rawInput");
+    expect(live.specLine).toBe("Goal");
+    expect(live.acceptanceCount).toBe(2);
+    expect(sum.counts.delivered).toBe(7);
+    expect(sum.counts.doneByRepo).toEqual({ "/r": 7 });
+
+    expect((await get("?view=bogus"))!.status).toBe(400);
+  });
+});

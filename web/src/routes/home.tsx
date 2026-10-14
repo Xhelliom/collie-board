@@ -116,7 +116,7 @@ function CardBlock({ board, fallback, label, children }: { board: HomeBoardData[
 }
 
 function Kpis({ board }: { board: BoardData }) {
-  const dash = useMemo(() => dashboardOf(board.cards), [board.cards]);
+  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), {}, board.counts?.delivered), [board]);
   return <HomeKpis dash={dash} />;
 }
 

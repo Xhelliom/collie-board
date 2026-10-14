@@ -80,4 +80,10 @@ describe("the collie-board skill and the bridge's routes", () => {
     const stale = Object.keys(OPERATOR_ONLY).filter((l) => !declared.has(l) || [...documented].some((d) => d === l || d.startsWith(`${l}/`)));
     expect(stale).toEqual([]);
   });
+
+  // A query view is invisible to the path scan above, so the one the bridge serves is pinned by hand.
+  it("documents the cards list's summary view", () => {
+    expect(allSource).toContain(`v !== "summary"`);
+    expect(SKILL).toContain("/api/cards?view=summary");
+  });
 });

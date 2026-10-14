@@ -40,7 +40,8 @@ export interface DashboardView {
   repos: RepoTile[];
 }
 
-export function dashboardOf(cards: CardView[], now = Date.now(), phases: Record<string, Phase[]> = {}): DashboardView {
+/** `delivered`: the summary view's count — its list leaves most finished cards out (audit perf #4). */
+export function dashboardOf(cards: CardView[], now = Date.now(), phases: Record<string, Phase[]> = {}, delivered?: number): DashboardView {
   const live = cards.filter((c) => c.status !== "archived");
   const count = (...st: CardView["status"][]) => live.filter((c) => st.includes(c.status)).length;
   const byRepo = new Map<string, CardView[]>();
@@ -67,7 +68,7 @@ export function dashboardOf(cards: CardView[], now = Date.now(), phases: Record<
     review: count("review"),
     stuck: count("blocked", "orphaned"),
     ready: count("ready"),
-    delivered: live.filter((c) => c.status === "done" && now - c.updatedAt < WEEK).length,
+    delivered: delivered ?? live.filter((c) => c.status === "done" && now - c.updatedAt < WEEK).length,
     // A repo with something waiting for you first, then the most recently touched.
     repos: repos.sort((a, b) => Number(b.waiting > 0) - Number(a.waiting > 0) || b.updatedAt - a.updatedAt),
   };

@@ -41,6 +41,7 @@ rather than retrying.
 
 ```bash
 curl -s http://127.0.0.1:8788/api/cards            # every card, with live agent state
+curl -s 'http://127.0.0.1:8788/api/cards?view=summary'  # the light list (below)
 curl -s http://127.0.0.1:8788/api/cards/<id>       # one card + journal, sessions, reviews, children
 curl -s http://127.0.0.1:8788/api/repos            # repos the board knows about (for repoPath)
 ```
@@ -51,6 +52,12 @@ board and grows with it:
 ```bash
 curl -s http://127.0.0.1:8788/api/cards | jq -r '.cards[] | "\(.status)\t\(.title)"'
 ```
+
+`/api/cards?view=summary` is the same list, lighter: no `spec`, `acceptance` or `rawInput` (a
+`specLine` — the spec's first line — and an `acceptanceCount` stand in), and of the `done` cards only
+the 5 newest per repo plus those still tied to open work (an open phase, the parent or `dependsOn` of
+an unfinished card). `counts` covers every done card: `delivered` (last 7 days), `doneByRepo`,
+`doneByPhase`. Read one card's spec with `/api/cards/<id>`.
 
 ## Create a card
 
