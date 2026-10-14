@@ -1,6 +1,8 @@
 import { createContext, useContext, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 
+import { BoardLinkCard, useCanLinkCards } from "@/components/board-link-card";
+import { parseBoardLink } from "@/lib/board-link";
 import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
 import { splitHighlight } from "@/lib/transcript-search";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
@@ -62,21 +64,29 @@ function Span({ span }: { span: MdSpan }) {
         </code>
       );
     case "link":
-      // `href` was scheme-checked in the parser. noreferrer/noopener because these URLs come from
-      // agent output, and target=_blank keeps the PWA shell alive behind the tap.
-      return (
-        <a
-          href={span.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary underline underline-offset-2 break-all"
-        >
-          <Spans spans={span.spans} />
-        </a>
-      );
+      return <LinkSpan span={span} />;
     default:
       return <Hit text={span.text} />;
   }
+}
+
+// A link to the board's own card/session becomes a live card; every other link stays a link.
+function LinkSpan({ span }: { span: Extract<MdSpan, { kind: "link" }> }) {
+  const canLink = useCanLinkCards();
+  const board = canLink ? parseBoardLink(span.href) : null;
+  if (board) return <BoardLinkCard link={board} label={<Spans spans={span.spans} />} />;
+  // `href` was scheme-checked in the parser. noreferrer/noopener because these URLs come from
+  // agent output, and target=_blank keeps the PWA shell alive behind the tap.
+  return (
+    <a
+      href={span.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-primary underline underline-offset-2 break-all"
+    >
+      <Spans spans={span.spans} />
+    </a>
+  );
 }
 
 const Spans = ({ spans }: { spans: MdSpan[] }) => (
