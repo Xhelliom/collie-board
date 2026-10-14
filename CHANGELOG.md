@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.199.1] - 2026-10-14
+
+### Changed
+
+- Accueil : les phases de tous les dépôts en une seule requête `/api/phases` au lieu d'une par dépôt (audit perf #11) (5bd16a6)
+- Assets web précompressés en gzip au build et servis tels quels (JS 963 → 268 Ko) (3076e9d)
+
+### Fixed
+
+- Premier passage : la page ne se recharge plus quand le tout premier service worker s'installe (audit perf #10) (4d5d469)
+
 ## [0.199.0] - 2026-10-14
 
 ### Added
