@@ -69,7 +69,7 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
 
   const repoOf = (s: string) => s.replace(/\/+$/, "");
 
-  const tools: { name: string; description: string; readOnly: boolean; destructive?: boolean; props: Json; required?: string[]; run: (a: Json) => Promise<string> }[] = [
+  const all: { name: string; description: string; readOnly: boolean; destructive?: boolean; props: Json; required?: string[]; run: (a: Json) => Promise<string> }[] = [
     {
       name: "list_projects", readOnly: true,
       description: "Liste les projets (dépôts) connus du board, avec leur chemin.",
@@ -152,6 +152,17 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
       run: async (a) => { await api("POST", `/api/pane/${id(a.paneId)}/reply`, { text: a.text }); return `Réponse envoyée à ${a.paneId}.`; },
     },
     {
+      name: "message_orchestrator", readOnly: false, destructive: false,
+      description: "Parle à l'orchestrateur vivant d'un projet : tape le texte dans son terminal, préfixé « [vocal] », et valide. Pour « dis à l'orchestrateur de X ». Ne démarre rien s'il n'y en a pas.",
+      props: { repoPath: { type: "string", description: "Chemin absolu du dépôt (voir list_projects)" }, text: { type: "string" } }, required: ["repoPath", "text"],
+      run: async (a) => {
+        const { paneId } = await api("GET", `/api/orchestrator${q({ repo: repoOf(a.repoPath) })}`);
+        if (!paneId) throw new Refusal("Aucun orchestrateur ne vit sur ce projet ; je n'en démarre pas.");
+        await api("POST", `/api/pane/${id(paneId)}/reply`, { text: `[vocal] ${a.text}` });
+        return "Message transmis à l'orchestrateur.";
+      },
+    },
+    {
       name: "create_card", readOnly: false, destructive: false,
       description: "Crée une carte (backlog) dans un projet ; elle ne démarre pas toute seule.",
       props: { repoPath: { type: "string" }, title: { type: "string" }, spec: { type: "string" }, phaseId: { type: "string", description: "Optionnel" } }, required: ["repoPath", "title"],
@@ -219,11 +230,14 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
     },
     {
       name: "notify", readOnly: false, destructive: false,
-      description: "Envoie une notification à l'opérateur (une ligne). Réservé à un agent du board : le bridge exige un pane.",
+      description: "Envoie une notification au téléphone de l'opérateur (une ligne). Réservé à un agent du board : absent sans HERDR_PANE_ID. Pour parler à l'orchestrateur, voir message_orchestrator.",
       props: { message: { type: "string" } }, required: ["message"],
       run: async (a) => { await api("POST", "/api/board/notify", { message: a.message }); return "Notification envoyée."; },
     },
   ];
+
+  // ponytail: notify needs a pane (the bridge refuses otherwise), so a paneless client never sees it.
+  const tools = all.filter((t) => t.name !== "notify" || pane);
 
   async function handle(req: Req): Promise<Json | null> {
     const reply = (result: unknown) => ({ jsonrpc: "2.0", id: req.id, result });

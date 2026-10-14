@@ -33,7 +33,7 @@ function setup(env: McpEnv, routes: Record<string, { status?: number; body?: unk
 
 describe("mcp: protocol", () => {
   it("initialize + tools/list; actions are not read-only", async () => {
-    const { mcp } = setup({});
+    const { mcp } = setup({ HERDR_PANE_ID: "w:p1" });
     const init = (await mcp.handle({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })) as { result: { capabilities: { tools: unknown } } };
     expect(init.result.capabilities.tools).toBeDefined();
     expect(await mcp.handle({ jsonrpc: "2.0", method: "notifications/initialized" })).toBeNull();
@@ -42,7 +42,7 @@ describe("mcp: protocol", () => {
     };
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
     for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
-    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
+    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
     for (const n of ["launch_lot", "finish_card"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
   });
@@ -67,6 +67,34 @@ describe("mcp: the pane header (an agent stays an agent)", () => {
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/réservé à l'opérateur/);
     expect(r.text.split("\n").length).toBe(1);
+  });
+});
+
+describe("mcp: message_orchestrator + notify", () => {
+  it("types « [vocal] texte » in the live orchestrator's pane", async () => {
+    const { call, calls } = setup({}, { "GET /api/orchestrator": { body: { paneId: "w:p7", running: true } } });
+    const r = await call("message_orchestrator", { repoPath: "/r/", text: "fais X" });
+    expect(r.isError).toBe(false);
+    expect(calls[0]!.url).toBe("/api/orchestrator?repo=%2Fr");
+    expect(calls[1]!.url).toBe("/api/pane/w%3Ap7/reply");
+    expect(calls[1]!.body).toEqual({ text: "[vocal] fais X" });
+  });
+  it("refuses clearly and starts nothing when no orchestrator lives", async () => {
+    const { call, calls } = setup({}, { "GET /api/orchestrator": { body: { paneId: null, running: false } } });
+    const r = await call("message_orchestrator", { repoPath: "/r", text: "x" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/aucun orchestrateur/i);
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+  });
+  it("notify is offered only to a client with a pane", async () => {
+    const names = async (env: McpEnv) => {
+      const l = (await setup(env).mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string }[] } };
+      return l.result.tools.map((t) => t.name);
+    };
+    expect(await names({})).not.toContain("notify");
+    expect(await names({ HERDR_PANE_ID: "w:p1" })).toContain("notify");
+    const r = (await setup({}).mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "notify", arguments: { message: "x" } } })) as { error?: unknown };
+    expect(r.error).toBeDefined();
   });
 });
 
