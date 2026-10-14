@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.196.0] - 2026-10-14
+
+### Changed
+
+- Accueil : le triage des agents s'affiche dès le snapshot ; KPI et projets sous squelette au démarrage à froid, erreur des cartes limitée à leurs blocs (3466e50)
+
 ## [0.195.5] - 2026-10-13
 
 ### Changed
