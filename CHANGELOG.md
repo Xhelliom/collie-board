@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.198.0] - 2026-10-14
+
+### Added
+
+- Les liens Collie Board (`/card/…`, `/pane/…`) s'affichent en cartes vivantes dans la lecture (a36e0cf)
+- Panneau de l'orchestrateur (desktop) redimensionnable à la souris, largeur mémorisée (a36e0cf)
+- Skill : routes pour lire/répondre à un agent et lire les PR (a36e0cf)
+
+### Changed
+
+- Orchestrateur : liens directs au lieu d'ids, agit lui-même, prend l'initiative, ton de collègue (a36e0cf)
+- Lecture : vos messages longs (collage, skill chargé) se replient sur 3 lignes (a36e0cf)
+
 ## [0.197.0] - 2026-10-14
 
 ### Added
