@@ -32,6 +32,7 @@ export const home = defineMessages({
   "home.kpi.ready": { en: "Ready", fr: "Prêtes" },
   "home.kpi.delivered": { en: "Delivered · 7 d", fr: "Livrées · 7 j" },
   "home.projects": { en: "Projects", fr: "Projets" },
+  "home.cards.error": { en: "Cards unavailable.", fr: "Cartes indisponibles." },
   "home.project.loose": { en: "No phase", fr: "Hors phase" },
   "home.project.idle": {
     en: { one: "Nothing in progress · {count} phase delivered", other: "Nothing in progress · {count} phases delivered" },

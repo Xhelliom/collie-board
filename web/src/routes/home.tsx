@@ -1,5 +1,5 @@
-import { useLoaderData, useNavigate, useRouteLoaderData } from "react-router";
-import { useMemo } from "react";
+import { Await, useLoaderData, useNavigate, useRouteLoaderData } from "react-router";
+import { Suspense, useMemo, type ReactNode } from "react";
 
 import { AppHeader } from "@/components/app-header";
 import { NavMark } from "@/components/app-nav";
@@ -9,8 +9,19 @@ import { useT } from "@/i18n";
 import { AgentList } from "@/components/agent-list";
 import { StatusArea } from "@/components/status-area";
 import { UpdateBanner } from "@/components/update-banner";
-import { HomeActivity, HomeHero, HomeKpis, OpenPrs, ProjectTiles, UsageRings, useRepoPhases } from "@/components/home-dashboard";
-import type { BoardData } from "@/lib/board-loaders";
+import {
+  CardsError,
+  HomeActivity,
+  HomeHero,
+  HomeKpis,
+  HomeKpisSkeleton,
+  OpenPrs,
+  ProjectTiles,
+  ProjectTilesSkeleton,
+  UsageRings,
+  useRepoPhases,
+} from "@/components/home-dashboard";
+import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
 import { reposOf } from "@/lib/board";
 import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -23,9 +34,7 @@ import { panePath } from "@/lib/nav";
 // the ranking itself is the design.
 export function HomeRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
-  const board = useLoaderData() as BoardData;
-  const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
-  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), phases), [board.cards, phases]);
+  const { board } = useLoaderData() as HomeBoardData;
   const navigate = useNavigate();
   const t = useT();
 
@@ -66,10 +75,14 @@ export function HomeRoute() {
               <div className="flex flex-col gap-6">
                 {/* The hero already says "no agent running": no second empty block. */}
                 <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} emptyState={false} />
-                <HomeKpis dash={dash} />
+                <CardBlock board={board} fallback={<HomeKpisSkeleton />} label={t("home.kpi.title")}>
+                  {(b) => <Kpis board={b} />}
+                </CardBlock>
               </div>
               <aside className="flex flex-col gap-6">
-                <ProjectTiles repos={dash.repos} />
+                <CardBlock board={board} fallback={<ProjectTilesSkeleton />} label={t("home.projects")}>
+                  {(b) => <Projects board={b} />}
+                </CardBlock>
                 <OpenPrs />
                 <UsageRings />
                 <HomeActivity session={data.session} />
@@ -88,4 +101,27 @@ export function HomeRoute() {
       </div>
     </div>
   );
+}
+
+// The two blocks that read the cards. On a cold start `board` is a promise: each block waits under its own
+// skeleton and fails in its own slot, while the triage above renders from the snapshot (audit perf #3).
+function CardBlock({ board, fallback, label, children }: { board: HomeBoardData["board"]; fallback: ReactNode; label: string; children: (b: BoardData) => ReactNode }) {
+  return (
+    <Suspense fallback={fallback}>
+      <Await resolve={board} errorElement={<CardsError label={label} />}>
+        {children}
+      </Await>
+    </Suspense>
+  );
+}
+
+function Kpis({ board }: { board: BoardData }) {
+  const dash = useMemo(() => dashboardOf(board.cards), [board.cards]);
+  return <HomeKpis dash={dash} />;
+}
+
+function Projects({ board }: { board: BoardData }) {
+  const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
+  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), phases), [board.cards, phases]);
+  return <ProjectTiles repos={dash.repos} />;
 }

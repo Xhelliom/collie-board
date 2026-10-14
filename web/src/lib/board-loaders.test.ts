@@ -17,9 +17,15 @@ afterEach(() => vi.unstubAllGlobals());
 describe("home vs board loader", () => {
   it("the home loader never requests /api/project/facts", async () => {
     const urls = stubFetch();
-    const data = await homeLoader();
+    const data = await (await homeLoader()).board;
     expect(urls.some((u) => u.includes("/api/project/facts"))).toBe(false);
     expect(data.facts).toBeUndefined();
+  });
+
+  it("defers the cards only on a cold start: once a list is known a poll hands <Await> data, not a promise", async () => {
+    stubFetch();
+    await (await homeLoader()).board;
+    expect((await homeLoader()).board).not.toBeInstanceOf(Promise);
   });
 
   it("the board loader still requests the facts and returns them by card id", async () => {

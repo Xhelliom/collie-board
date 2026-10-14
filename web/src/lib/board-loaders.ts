@@ -54,8 +54,22 @@ let lastCards: CardView[] | null = null;
 
 export const boardLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, true);
 
-/** The home screen's cards, without the facts: it never reads them, and they are its heaviest poll (audit perf #1). */
-export const homeLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, false);
+export interface HomeBoardData {
+  /** A promise only on a cold start: there the triage renders from the snapshot alone, the card blocks under a skeleton. */
+  board: BoardData | Promise<BoardData>;
+}
+
+/** The home screen's cards, without the facts: it never reads them, and they are its heaviest poll (audit perf #1).
+ *  Cold start: the cards are not awaited, so the triage shows at the snapshot's pace (audit perf #3). Once a list
+ *  is known, they are — a poll that handed `<Await>` a fresh promise every tick would flash the skeletons. */
+export async function homeLoader({ request }: { request?: Request } = {}): Promise<HomeBoardData> {
+  const board = loadBoard(request, false);
+  if (lastCards) return { board: await board };
+  // No last-good list to fall back on: an error is the block's to show, not zeros dressed as figures.
+  const first = board.then((b) => (b.error ? Promise.reject(new Error("cards unavailable")) : b));
+  first.catch(() => {}); // <Await> renders the rejection; this only keeps it from being reported as unhandled
+  return { board: first };
+}
 
 async function loadBoard(request: Request | undefined, withFacts: boolean): Promise<BoardData> {
   try {
