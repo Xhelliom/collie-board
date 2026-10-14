@@ -220,3 +220,28 @@ describe("NotificationCoordinator → hold (lots)", () => {
     expect(renders).toEqual([]);
   });
 });
+
+describe("NotificationCoordinator → hold pendant le beforeFire", () => {
+  test("une alerte retenue encore en attente n'entre pas dans le digest d'une sœur qui tire", async () => {
+    const timers: Array<() => void> = [];
+    const clock: NotifyClock<number> = { schedule: (fn) => timers.push(fn) - 1, cancel: () => {} };
+    const renders: string[] = [];
+    const sink: NotifySink = { render: (s) => renders.push(`${s.title}|${s.body}`), clear: () => {} };
+    let release!: () => void;
+    const slow = new Promise<void>((r) => (release = r));
+    const coord = new NotificationCoordinator(
+      clock, sink, 10, () => true, undefined,
+      async (a) => { if (a.cardTitle === "tenue") await slow; return {}; },
+      (k) => k === "card:held",
+    );
+    coord.arm("card:held", { cwd: "/r", status: "done", cardTitle: "tenue" });
+    coord.arm("card:free", { cwd: "/r", status: "blocked", cardTitle: "libre" });
+    timers.splice(0).forEach((fn) => fn());
+    await Promise.resolve(); await Promise.resolve();
+    release();
+    await Promise.resolve(); await Promise.resolve();
+    expect(renders).toHaveLength(1);
+    expect(renders[0]).not.toContain("tenue");
+    expect(renders[0]).not.toContain("done");
+  });
+});

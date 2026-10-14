@@ -205,6 +205,8 @@ export class NotificationCoordinator<H = unknown> {
   private readonly pending = new Map<string, { handle: H; status: NotifiableStatus }>();
   /** key → alert that has fired and is reflected in the current summary (insertion-ordered). */
   private readonly outstanding = new Map<string, Alert>();
+  /** key → alert held back from the push, only while its `beforeFire` wait lasts (never rendered). */
+  private readonly holding = new Map<string, Alert>();
 
   constructor(
     private readonly clock: NotifyClock<H>,
@@ -313,6 +315,7 @@ export class NotificationCoordinator<H = unknown> {
     for (const id of [...this.pending.keys()]) this.cancelPending(id);
     const had = this.outstanding.size > 0;
     this.outstanding.clear();
+    this.holding.clear();
     if (had) this.sink.clear();
   }
 
@@ -324,15 +327,17 @@ export class NotificationCoordinator<H = unknown> {
    */
   private async fire(id: string, alert: Alert): Promise<void> {
     this.pending.delete(id);
-    this.outstanding.set(id, alert);
+    // Decided BEFORE the wait: a held alert must never sit in `outstanding`, or a sibling firing
+    // during the wait would render a digest that counts it and push it (bridge/lot-push.ts).
+    const held = this.hold?.(id, alert) ?? false;
+    (held ? this.holding : this.outstanding).set(id, alert);
     const learned = this.beforeFire ? await this.beforeFire(alert).catch(() => null) : null;
     // ponytail: resolved while we waited — the retraction already emitted, so just stand down. It
     // may have emitted a clear for a slot that never showed; harmless, and the window is ~ms.
-    if (!this.outstanding.has(id)) return;
+    if (!(held ? this.holding : this.outstanding).has(id)) return;
     if (learned?.subtitle) alert.subtitle = learned.subtitle;
     if (learned?.cardStatus) alert.cardStatus = learned.cardStatus;
-    const held = this.hold?.(id, alert) ?? false;
-    if (held) this.outstanding.delete(id);
+    this.holding.delete(id);
     this.onFire?.(alert, !held);
     if (!held) this.emit(true);
   }
@@ -344,6 +349,7 @@ export class NotificationCoordinator<H = unknown> {
    */
   retract(key: string): void {
     this.cancelPending(key);
+    this.holding.delete(key);
     if (this.outstanding.delete(key)) this.emit(false);
   }
 
