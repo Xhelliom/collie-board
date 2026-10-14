@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { vi } from "vitest";
 
@@ -83,7 +83,7 @@ describe("HomeRoute cold start", () => {
 
   it("keeps a cards failure in the card blocks, the triage untouched", async () => {
     await coldHome(async () => HttpResponse.json({ error: "boom" }, { status: 500 }));
-    expect(await screen.findAllByText("Cards unavailable.")).toHaveLength(2);
+    await waitFor(() => expect(screen.getAllByText("Cards unavailable.")).toHaveLength(2));
     expect(screen.getByText("Needs you")).toBeInTheDocument();
     expect(screen.getByText("Working")).toBeInTheDocument();
   });
