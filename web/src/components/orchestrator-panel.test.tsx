@@ -97,7 +97,7 @@ describe("OrchestratorPanel", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("from 50 %: alerts, and the hand-over is two taps — ask for the note, then start fresh once it moved", async () => {
+  it("from 50 %: alerts, and asking for the note never gates starting afresh", async () => {
     const calls: unknown[] = [];
     server.use(
       http.post("*/api/orchestrator/renew", async ({ request }) => {
@@ -111,13 +111,13 @@ describe("OrchestratorPanel", () => {
     const router = createMemoryRouter([{ path: "/p", loader: () => null, element: view(100) }], { initialEntries: ["/p"] });
     render(<RouterProvider router={router} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/le contexte se remplit/i);
-    // Restarting is not offered before the note was asked for.
-    expect(screen.queryByRole("button", { name: "Repartir à neuf" })).toBeNull();
+    // Restarting is always on offer: a note that was not needed must not block it.
+    expect(screen.getByRole("button", { name: "Repartir à neuf" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Lui demander de noter" }));
     expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }]);
-    // …and once asked, it stays closed while the note has not moved.
-    expect(await screen.findByRole("button", { name: "Repartir à neuf" })).toBeDisabled();
-    expect(screen.getByText(/en attente de sa note/i)).toBeInTheDocument();
+    // …and asking changes nothing about it, only shows that the note is awaited.
+    expect(await screen.findByText(/en attente de sa note/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Repartir à neuf" })).toBeEnabled();
   });
 
   it("opens the second tap once the note's date has advanced past the one at the ask", async () => {
