@@ -171,16 +171,11 @@ export function OrchestratorPanel({
             <Button variant="outline" className="h-8 px-3 text-xs" disabled={busy || asked !== null} onClick={() => void renew("ask")}>
               {t("orch.askNote")}
             </Button>
-            {asked !== null && (
-              <Button
-                variant="brand"
-                className="h-8 px-3 text-xs"
-                disabled={busy || (state.memoryUpdatedAt ?? 0) <= asked.base}
-                onClick={() => void renew("restart")}
-              >
-                {t("orch.restart")}
-              </Button>
-            )}
+            {/* Never gated on the note: an orchestrator with nothing new to record writes nothing, and the
+                last note it wrote is then what its successor reads. */}
+            <Button variant="brand" className="h-8 px-3 text-xs" disabled={busy} onClick={() => void renew("restart")}>
+              {t("orch.restart")}
+            </Button>
             {asked !== null && (state.memoryUpdatedAt ?? 0) <= asked.base && (
               <span className="text-xs text-muted-foreground">{t("orch.waitingNote")}</span>
             )}
