@@ -17,8 +17,8 @@ description: >-
 
 # Collie Board — cards over the local HTTP API
 
-The bridge already exposes everything. There is no CLI and no MCP server: use
-`curl`. Works **only on the machine running the bridge** — the API is bound to
+The bridge already exposes everything. There is no CLI: use `curl`. (An MCP server, `bridge/mcp.ts`, wraps this same API for
+MCP clients; same guards, `HERDR_PANE_ID` relayed as `x-collie-pane`.) Works **only on the machine running the bridge** — the API is bound to
 loopback, and a loopback request with no `Origin` header is what the gate lets
 write.
 
