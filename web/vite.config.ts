@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { gzipPlugin } from "./vite-gzip";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -160,6 +161,7 @@ export default defineConfig({
       // Over plain HTTP (insecure context) the SW can't register; in dev we don't want it anyway.
       devOptions: { enabled: false },
     }),
+    gzipPlugin(),
   ],
   resolve: {
     alias: { "@": resolve(import.meta.dirname, "src") },

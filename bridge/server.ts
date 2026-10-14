@@ -12,6 +12,7 @@ import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
+import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import { DEFAULT_NOTIFY_PREFS, type NotifyPrefs, type NotifyPrefsStore } from "./notify-prefs.ts";
@@ -505,7 +506,7 @@ export function startServer(opts: {
       }
 
       // ── Static PWA (with SPA fallback) ───────────────────────────────────
-      return serveStatic(pathname);
+      return serveStatic(pathname, req.headers.get("accept-encoding"));
     },
   });
 
@@ -1462,7 +1463,7 @@ export function resolveStaticPath(
   return { rel, full };
 }
 
-async function serveStatic(pathname: string): Promise<Response> {
+async function serveStatic(pathname: string, acceptEncoding: string | null): Promise<Response> {
   const resolved = resolveStaticPath(pathname);
   if (!resolved) return text("forbidden", 403);
   let { rel, full } = resolved;
@@ -1490,7 +1491,8 @@ async function serveStatic(pathname: string): Promise<Response> {
   };
   if (ext === ".html") headers["content-security-policy"] = CSP;
   if (rel === "sw.js") headers["service-worker-allowed"] = "/";
-  return secure(new Response(file, { headers }));
+  const sent = await precompressed(full, file, acceptEncoding);
+  return secure(new Response(sent.file, { headers: { ...headers, ...sent.headers } }));
 }
 
 /**
