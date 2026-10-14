@@ -7,6 +7,8 @@ import { Database } from "bun:sqlite";
 
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
+import { conditionalJson } from "./http-cache.ts";
+import { handleFactsRoute } from "./project-facts.ts";
 import { parseRoadmapBody, roadmapMarkdown } from "./roadmap.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -257,6 +259,32 @@ describe("GET /api/project/facts", () => {
     // no repo: every live card (the board's tiles read their milestone dots from it)
     expect((await call(db, "GET", "/api/project/facts")).body.facts).toHaveLength(2);
     expect((await call(db, "POST", "/api/project/facts?repo=%2Fr")).status).toBe(405);
+  });
+});
+
+describe("GET /api/project/facts is a conditional GET (audit perf #6)", () => {
+  // The same `json` the bridge hands the board for a GET: the route's ETag is the one it really sends.
+  const get = (db: BoardDb, etag?: string) => {
+    const req = new Request("http://x/api/project/facts?repo=%2Fr", { headers: etag ? { "if-none-match": etag } : {} });
+    return handleFactsRoute("/api/project/facts", req, { ...(ctx(db) as object), json: (d: unknown) => conditionalJson(d, req) } as never)!;
+  };
+
+  it("keeps its ETag while nothing moves, answers 304 to it, and changes it when a card moves", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "working" });
+    const first = get(db);
+    const etag = first.headers.get("etag")!;
+    expect(first.status).toBe(200);
+    expect(etag).toBeTruthy();
+    expect(get(db).headers.get("etag")).toBe(etag);
+    const again = get(db, etag);
+    expect(again.status).toBe(304);
+    expect(await again.text()).toBe("");
+    db.recordRunEvent(a.id, "run.gate", { runId: "r1", command: "make", ok: false });
+    const moved = get(db, etag);
+    expect(moved.status).toBe(200);
+    expect(moved.headers.get("etag")).not.toBe(etag);
+    db.close();
   });
 });
 

@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 
 import { getLocale, t } from "@/i18n";
-import { apiRequest } from "@/lib/api";
-import type { BoardEvent, CardView } from "@/lib/board";
+import { conditionalGet, type BoardEvent, type CardView } from "@/lib/board";
 
 // What the project view shows on a step beyond the card itself — read off the journal by the bridge
 // (bridge/project-facts.ts), one request per repo. Optional everywhere: a step with no facts is just a card.
@@ -25,7 +24,7 @@ export interface CardFacts {
 }
 
 export const fetchFacts = (repo?: string, signal?: AbortSignal): Promise<{ facts: CardFacts[] }> =>
-  apiRequest(`/api/project/facts${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`, { signal });
+  conditionalGet(`/api/project/facts${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`, signal);
 
 /**
  * "5 min ago" / "il y a 5 min" in the current language — the platform's own formatter, so no table to

@@ -77,13 +77,14 @@ export async function homeLoader({ request }: { request?: Request } = {}): Promi
   return { board: first };
 }
 
-async function loadBoard(request: Request | undefined, withFacts: boolean, summary: boolean): Promise<BoardData> {
+/** `factsRepo` narrows the facts to one repo's cards — the project page shows no other (audit perf #6). */
+async function loadBoard(request: Request | undefined, withFacts: boolean, summary: boolean, factsRepo?: string): Promise<BoardData> {
   const view = summary ? "summary" : "full";
   try {
     const [{ cards, counts }, facts] = await Promise.all([
       summary ? fetchCardsSummary(request?.signal) : fetchCards(request?.signal).then((r) => ({ ...r, counts: undefined })),
       withFacts
-        ? fetchFacts(undefined, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined)
+        ? fetchFacts(factsRepo, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined)
         : undefined,
     ]);
     const data = { cards, error: false, authError: false, facts, counts };
@@ -198,7 +199,7 @@ export async function projectLoader({ request }: { request?: Request } = {}): Pr
       return { orchestrator, orchestratorEntries, orchestratorMemory };
     });
   const [base, phases, lots, roadmap, orch, templates, flows] = await Promise.all([
-    boardLoader({ request }),
+    loadBoard(request, true, false, repo),
     fetchPhases(repo, signal).then((r) => r.phases, () => []),
     fetchLots(repo, signal).then((r) => r.runs, () => []),
     fetchRoadmap(repo, signal).then((r) => r.roadmap, () => null),

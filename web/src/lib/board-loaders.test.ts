@@ -92,5 +92,7 @@ describe("which view of the cards", () => {
     urls = stubFetch();
     await projectLoader({ request: new Request("http://x/project?repo=/r") });
     expect(cardsUrl(urls)).toBe("/api/cards");
+    // Audit perf #6: the project page reads its own repo's facts, not the whole herd's.
+    expect(urls.find((u) => u.startsWith("/api/project/facts"))).toBe("/api/project/facts?repo=%2Fr");
   });
 });

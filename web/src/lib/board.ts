@@ -548,8 +548,8 @@ export function cardPrompt(cardId: string): string {
 
 // ── api ──────────────────────────────────────────────────────────────────────
 
-// Conditional GET for the two board reads that POLL — the card list on every board screen, the
-// card detail on every card screen. Both re-transfer their whole body every 1.5 s otherwise, and
+// Conditional GET for the board reads that POLL — the card list on every board screen, the
+// card detail on every card screen, the project page's facts. Both re-transfer their whole body every 1.5 s otherwise, and
 // most of those bodies are identical to the last one.
 //
 // Same client-managed scheme as `fetchPane` in api.ts, INCLUDING ITS TWO INVARIANTS — see the
@@ -561,7 +561,7 @@ const etagCache = new Map<string, { etag: string; body: unknown }>();
 /** Bounded so opening many cards over a long session can't grow it forever. FIFO is plenty. */
 const ETAG_CACHE_MAX = 20;
 
-async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+export async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
   const cached = etagCache.get(url);
   // The timeout is the point, not a nicety: the poller only fires again once the revalidator is
   // idle (use-polling.ts), so ONE fetch left pending by a black-holed link — a phone waking up, a
