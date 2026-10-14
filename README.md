@@ -196,8 +196,30 @@ derived, never claimed ([ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-
 
 Anything that wants what the board knows — a voice assistant, a script — integrates by polling
 `/api/notifications/log` and writing back through the card routes. The bridge never calls out to a
-consumer, and there is no MCP server: `curl` is the client
+consumer. `curl` is a client, and so is the MCP server below
 ([ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md)).
+
+### MCP server (stdio)
+
+`bridge/mcp.ts` lets any MCP client read and drive the board — what blocks, a project's state, a card,
+reply to an agent, file a card, launch a planned lot. It is a thin translator over the local API: the
+board's guards apply as for `curl` ([ADR 0039](./.adr/0039-the-mcp-server-is-stdio-and-the-callers-pane-header-says-who-it-is.md)).
+stdio only: the client launches it **on the bridge's machine**.
+
+```bash
+claude mcp add collie-board -- bun run /path/to/collie-board/bridge/mcp.ts
+# a deployment with the device gate:
+claude mcp add collie-board -e COLLIE_BOARD_DEVICE_HEADER=x-device -e COLLIE_BOARD_DEVICE=laptop -- bun run /path/to/collie-board/bridge/mcp.ts
+```
+
+| env | meaning |
+|---|---|
+| `COLLIE_BOARD_URL` | the bridge, default `http://127.0.0.1:$COLLIE_BOARD_PORT` (8788) |
+| `COLLIE_BOARD_DEVICE_HEADER` + `COLLIE_BOARD_DEVICE` | the device header name and value, if the deployment has `COLLIE_BOARD_DEVICE_HEADER` — without it writes answer 403 |
+| `HERDR_PANE_ID` | inherited from the client, sent as `x-collie-pane` on every call: a client launched from a herdr pane is an **agent** (lot launch and phase validation refused). Unset (a client outside herdr): the operator's call. A convention, not an authentication |
+
+Read tools: `list_projects`, `project_status`, `get_card`, `whats_blocking`, `recent_notifications`. Action
+tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `notify` (needs a pane).
 
 ### What is deliberately NOT built
 
