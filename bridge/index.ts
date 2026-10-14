@@ -271,7 +271,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       subtitle: await firstSubtitle(subtitleSources(alert)),
       cardStatus: alert.cardId ? (board.getCard(alert.cardId)?.status ?? undefined) : undefined,
     }),
-    // A launched lot's orchestrator speaks for its cards (ADR 0039). Primary only: cards live there.
+    // A launched lot's orchestrator speaks for its cards (ADR 0040). Primary only: cards live there.
     (key, alert) =>
       isPrimary &&
       lotHoldsPush(key, alert, {

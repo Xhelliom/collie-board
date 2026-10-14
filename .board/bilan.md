@@ -6,11 +6,11 @@
 - `NotifyPrefs.lots` (défaut true) + ligne dans Réglages (i18n fr/en).
 - `pushed: boolean` sur chaque entrée du log (requis) ; faits bell-only (`tell()`, arrêt d'autonomie) = false.
 - Brief de l'orchestrateur : UNE notif de bilan en fin de lot, UNE question par carte bloquée.
-- ADR 0039 (+ note dans 0013), fragment `changes/` minor.
+- ADR 0040 (+ note dans 0013), fragment `changes/` minor.
 - Tests : `lot-push.test.ts`, `notify-log.test.ts` (hold), prefs, prompt. Bridge 1407 pass, web 1750 pass, build/typecheck OK.
 
 ## Non fait / à savoir
-- Snooze non compté dans `pushed` (le sink coupe après la décision) — documenté ADR 0039.
+- Snooze non compté dans `pushed` (le sink coupe après la décision) — documenté ADR 0040.
 - Les « Copilot review » sont déjà bell-only dans le code (`tell()`), donc `pushed=false` toujours, lot ou non ; le constat de 14/10 les voyait dans la cloche.
 - Une note d'un worker (POST /api/board/notify) n'est pas retenue pendant un lot (indistinguable de celle de l'orchestrateur côté coordinateur sans critère de plus) — à trancher si gênant.
 - `UPSTREAM.md` (liste des fichiers upstream touchés) non mis à jour : notifications.ts, notify-log.ts, index.ts touchés.

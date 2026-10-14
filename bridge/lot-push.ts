@@ -1,6 +1,6 @@
 // Pendant un lot lancé, l'orchestrateur du dépôt reçoit déjà chaque fin de carte (orchestrator-nudge.ts)
 // et en fait le bilan : le push revient à lui (POST /api/board/notify). Cette règle décide, pour une
-// alerte qui vient de tirer, si elle part au téléphone ou reste dans la cloche (ADR 0039). Pure : le
+// alerte qui vient de tirer, si elle part au téléphone ou reste dans la cloche (ADR 0040). Pure : le
 // coordinateur la reçoit en crochet (index.ts), rien ne passe par server.ts.
 
 import type { Alert } from "./notifications.ts";

@@ -58,7 +58,7 @@ configuration section named after a consumer; no "is it connected?" state. A req
   notifies.
 - **Each entry says whether it pushed.** `pushed: boolean` — `true` if it left as a push, `false` if
   it stayed in the bell (held during a lot, or a bell-only fact —
-  [ADR 0039](./0039-a-lot-with-an-orchestrator-is-pushed-by-the-orchestrator.md)). The bridge
+  [ADR 0040](./0040-a-lot-with-an-orchestrator-is-pushed-by-the-orchestrator.md)). The bridge
   publishes the fact; a consumer that wants to say out loud only what the phone was told reads it
   rather than recomputing the rule.
 - **The 50-entry in-RAM log is the deduplication boundary.** A cursor held in the consumer's own

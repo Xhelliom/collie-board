@@ -44,7 +44,7 @@ export interface NotifyPrefs {
   ready: boolean;
   /** « Lots : laisser l'orchestrateur notifier ». While a launched lot runs and its repo's
    *  orchestrator lives, the alerts of the lot's cards stay in the bell and the push is the
-   *  orchestrator's (bridge/lot-push.ts, ADR 0039). Default on. Not an event kind: it never flows
+   *  orchestrator's (bridge/lot-push.ts, ADR 0040). Default on. Not an event kind: it never flows
    *  through {@link NotifyPrefsStore.isNotifiable}, it only decides who speaks. */
   lots: boolean;
 }

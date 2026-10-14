@@ -1,4 +1,4 @@
-# 0039 — A lot with a living orchestrator is pushed by the orchestrator
+# 0040 — A lot with a living orchestrator is pushed by the orchestrator
 
 **Status:** Accepted — applies [ADR 0011](./0011-the-board-may-raise-an-alert-that-can-retract.md), amends nothing
 
