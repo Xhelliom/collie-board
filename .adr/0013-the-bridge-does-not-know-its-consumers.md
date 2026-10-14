@@ -56,6 +56,11 @@ configuration section named after a consumer; no "is it connected?" state. A req
   therefore **re-reads the card (`GET /api/cards/<id>`) before acting on an entry**, which is what
   [ADR 0011](./0011-the-board-may-raise-an-alert-that-can-retract.md) asks of anything that
   notifies.
+- **Each entry says whether it pushed.** `pushed: boolean` — `true` if it left as a push, `false` if
+  it stayed in the bell (held during a lot, or a bell-only fact —
+  [ADR 0040](./0040-a-lot-with-an-orchestrator-is-pushed-by-the-orchestrator.md)). The bridge
+  publishes the fact; a consumer that wants to say out loud only what the phone was told reads it
+  rather than recomputing the rule.
 - **The 50-entry in-RAM log is the deduplication boundary.** A cursor held in the consumer's own
   memory is enough within one run; across a restart, the same entry can be seen twice.
 - **Writes cross the device gate like any other.** With `COLLIE_BOARD_DEVICE_HEADER` set, a write

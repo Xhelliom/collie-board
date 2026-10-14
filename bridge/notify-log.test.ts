@@ -5,7 +5,7 @@ import { NotificationCoordinator, type NotifyClock, type NotifySink } from "./no
 import type { AgentStatus, AgentView } from "./types.ts";
 
 function entry(n: number) {
-  return { agent: `a${n}`, workspaceLabel: "demo", cwd: "/tmp", status: "blocked" as const, paneId: `w1:p${n}` };
+  return { agent: `a${n}`, workspaceLabel: "demo", cwd: "/tmp", status: "blocked" as const, paneId: `w1:p${n}`, pushed: true };
 }
 
 describe("NotifyLog", () => {
@@ -188,5 +188,60 @@ describe("NotificationCoordinator → history", () => {
     coord.onTransition(agent("w1:p1", "working"), "blocked", "working");
     fire();
     expect(fired).toEqual([]);
+  });
+});
+
+describe("NotificationCoordinator → hold (lots)", () => {
+  function setup(held: (key: string) => boolean) {
+    const timers: Array<() => void> = [];
+    const clock: NotifyClock<number> = { schedule: (fn) => timers.push(fn) - 1, cancel: () => {} };
+    const renders: string[] = [];
+    const sink: NotifySink = { render: (s) => renders.push(s.title), clear: () => renders.push("clear") };
+    const fired: string[] = [];
+    const coord = new NotificationCoordinator(clock, sink, 10, () => true, (a, pushed) => fired.push(`${a.status}:${pushed}`), undefined, held);
+    return { coord, fired, renders, fire: async () => { timers.splice(0).forEach((fn) => fn()); await Promise.resolve(); } };
+  }
+
+  test("une alerte retenue entre au log (pushed=false) et ne part pas au sink", async () => {
+    const { coord, fired, renders, fire } = setup((k) => k === "card:c1");
+    coord.arm("card:c1", { cwd: "/r", status: "done" });
+    coord.arm("card:c2", { cwd: "/r", status: "blocked" });
+    await fire();
+    expect(fired).toEqual(["done:false", "blocked:true"]);
+    expect(renders).toHaveLength(1); // seule c2 pousse, et le digest ne compte pas c1
+    expect(renders[0]).not.toContain("done");
+  });
+
+  test("retracter une alerte retenue n'émet rien", async () => {
+    const { coord, renders, fire } = setup(() => true);
+    coord.arm("card:c1", { cwd: "/r", status: "done" });
+    await fire();
+    coord.retract("card:c1");
+    expect(renders).toEqual([]);
+  });
+});
+
+describe("NotificationCoordinator → hold pendant le beforeFire", () => {
+  test("une alerte retenue encore en attente n'entre pas dans le digest d'une sœur qui tire", async () => {
+    const timers: Array<() => void> = [];
+    const clock: NotifyClock<number> = { schedule: (fn) => timers.push(fn) - 1, cancel: () => {} };
+    const renders: string[] = [];
+    const sink: NotifySink = { render: (s) => renders.push(`${s.title}|${s.body}`), clear: () => {} };
+    let release!: () => void;
+    const slow = new Promise<void>((r) => (release = r));
+    const coord = new NotificationCoordinator(
+      clock, sink, 10, () => true, undefined,
+      async (a) => { if (a.cardTitle === "tenue") await slow; return {}; },
+      (k) => k === "card:held",
+    );
+    coord.arm("card:held", { cwd: "/r", status: "done", cardTitle: "tenue" });
+    coord.arm("card:free", { cwd: "/r", status: "blocked", cardTitle: "libre" });
+    timers.splice(0).forEach((fn) => fn());
+    await Promise.resolve(); await Promise.resolve();
+    release();
+    await Promise.resolve(); await Promise.resolve();
+    expect(renders).toHaveLength(1);
+    expect(renders[0]).not.toContain("tenue");
+    expect(renders[0]).not.toContain("done");
   });
 });

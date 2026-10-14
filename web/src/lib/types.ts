@@ -342,6 +342,9 @@ export interface NotifyPrefs {
    *  opens a possibility instead of reporting a problem, so nothing is late because it never came.
    *  Its own switch, because it is its own marker: `Ready`, never `Needs you`. */
   ready: boolean;
+  /** « Lots : laisser l'orchestrateur notifier » — during a launched lot whose repo has a live
+   *  orchestrator, the lot's alerts stay in the bell and the orchestrator does the pushing. Default on. */
+  lots: boolean;
 }
 
 /**
@@ -372,6 +375,8 @@ export interface NotifyLogEntry {
    *  same "Review · <card>" the push sent, and taps through to the same card. */
   cardId?: string;
   cardStatus?: string;
+  /** Whether it left as a push (true) or stayed in the bell only (false). */
+  pushed: boolean;
   /** The copilot-authored account of what actually happened, patched in after the fact once it
    *  answers — absent when the copilot subtitle is off, disabled, or hadn't answered yet when this
    *  entry aged out of the bridge's 50-entry ring. */

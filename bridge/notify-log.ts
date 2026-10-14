@@ -43,6 +43,11 @@ export interface NotifyLogEntry {
   /** Set the moment you tap the entry — the badge counts what is still unread. Lives with the rest
    *  of the entry, so it survives a page reload and dies with the bridge, like everything else here. */
   read?: boolean;
+  /** Whether the alert left as a push (true) or stayed in the bell — held back by a lot's
+   *  orchestrator (bridge/lot-push.ts), or a bell-only fact that never pushes. A fact for a consumer
+   *  of the log to follow the same decision without recomputing it (ADR 0013). Snooze is not
+   *  counted: it mutes the sink after this is decided. */
+  pushed: boolean;
 }
 
 /** Entries kept. Two screens' worth of history — past that, the ping stopped being findable anyway. */

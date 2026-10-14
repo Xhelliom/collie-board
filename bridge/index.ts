@@ -28,7 +28,8 @@ import { enrichNotification, firstSubtitle, type SubtitleSources } from "./notif
 import { NotifyLog } from "./notify-log.ts";
 import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
-import { isOrchestratorAgent } from "./orchestrator.ts";
+import { findOrchestrator, isOrchestratorAgent } from "./orchestrator.ts";
+import { lotHoldsPush } from "./lot-push.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
 import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
@@ -232,8 +233,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // Every alert also lands in the bell's history, tagged with the session it came from so the
     // deep-link scopes correctly (primary omits the name, like the push payload). The alert reaching
     // here already carries the subtitle the push went out with, so the history reads the same.
-    (alert) => {
-      notifyLog.add({ ...alert, ...(isPrimary ? {} : { session: name }) });
+    (alert, pushed) => {
+      notifyLog.add({ ...alert, pushed, ...(isPrimary ? {} : { session: name }) });
+      // A held alert is bell-only: nothing pushed, so nothing for the copilot to rephrase.
+      if (!pushed) return;
       // The copilot's rephrase is the ONLY second, silent push (§N10) — never awaited here, and
       // never allowed to hold up the alert it rides on. `notifications` is the coordinator being
       // constructed right now; the callback only ever runs later, once the assignment below has
@@ -268,6 +271,14 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
       subtitle: await firstSubtitle(subtitleSources(alert)),
       cardStatus: alert.cardId ? (board.getCard(alert.cardId)?.status ?? undefined) : undefined,
     }),
+    // A launched lot's orchestrator speaks for its cards (ADR 0040). Primary only: cards live there.
+    (key, alert) =>
+      isPrimary &&
+      lotHoldsPush(key, alert, {
+        enabled: () => notifyPrefs.current().lots,
+        db: board,
+        orchestratorAlive: (repo) => findOrchestrator(engine.current(), repo) !== null,
+      }),
   );
   // The raw AgentView a transition fires with never carries card fields — withCardFields is
   // otherwise only applied in server.ts, for the /api/snapshot response. Without this, an alert's

@@ -42,6 +42,11 @@ export interface NotifyPrefs {
    *  the push never came. Its own switch and not `board`'s, because it is its own marker —
    *  `Ready`, never `Needs you` (NOTIFY_AUDIT.md §6.3, note de priorité sur B4). */
   ready: boolean;
+  /** « Lots : laisser l'orchestrateur notifier ». While a launched lot runs and its repo's
+   *  orchestrator lives, the alerts of the lot's cards stay in the bell and the push is the
+   *  orchestrator's (bridge/lot-push.ts, ADR 0040). Default on. Not an event kind: it never flows
+   *  through {@link NotifyPrefsStore.isNotifiable}, it only decides who speaks. */
+  lots: boolean;
 }
 
 export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
@@ -51,6 +56,7 @@ export const DEFAULT_NOTIFY_PREFS: NotifyPrefs = {
   copilotSubtitle: false,
   board: true,
   ready: false,
+  lots: true,
 };
 
 /**
@@ -67,6 +73,7 @@ export function coerceNotifyPrefs(raw: unknown): NotifyPrefs {
       typeof o.copilotSubtitle === "boolean" ? o.copilotSubtitle : DEFAULT_NOTIFY_PREFS.copilotSubtitle,
     board: typeof o.board === "boolean" ? o.board : DEFAULT_NOTIFY_PREFS.board,
     ready: typeof o.ready === "boolean" ? o.ready : DEFAULT_NOTIFY_PREFS.ready,
+    lots: typeof o.lots === "boolean" ? o.lots : DEFAULT_NOTIFY_PREFS.lots,
   };
 }
 

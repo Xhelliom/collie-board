@@ -589,7 +589,7 @@ describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)",
     notifier.update(pane("working"));
     // What the coordinator's onFire writes, 30 s later.
     now = 30_000;
-    log.add({ ...alerts.armed.get("note:p1")!, cwd: "/src/app" });
+    log.add({ ...alerts.armed.get("note:p1")!, cwd: "/src/app", pushed: true });
     now = NOTE_TTL_MS * 3;
     notifier.update(pane("done"));
     expect(alerts.log).toEqual(["arm note:p1"]);

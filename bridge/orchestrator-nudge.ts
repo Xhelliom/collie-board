@@ -99,7 +99,7 @@ export class OrchestratorNudger {
       }));
       const v = endOfLot(this.db, run);
       this.db.armAutonomy(run.repoPath, v.go);
-      if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}` });
+      if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}`, pushed: false });
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
     }

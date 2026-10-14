@@ -66,6 +66,11 @@ export const settings = defineMessages({
     en: "a card can start — whatever it waited on is finished",
     fr: "une carte peut démarrer — ce qu'elle attendait est terminé",
   },
+  "settings.notify.lots": { en: "Lots: let the orchestrator notify", fr: "Lots : laisser l'orchestrateur notifier" },
+  "settings.notify.lots.hint": {
+    en: "during a lot, its cards stay in the bell; the orchestrator sends the one push",
+    fr: "pendant un lot, ses cartes restent dans la cloche ; l'orchestrateur envoie le seul push",
+  },
   "settings.notify.updates": { en: "App updates", fr: "Mises à jour de l'app" },
   "settings.notify.updates.hint": { en: "a new Collie version is available", fr: "une nouvelle version de Collie est disponible" },
   "settings.notify.copilotSubtitle": { en: "Copilot rephrase", fr: "Reformulation par le copilote" },

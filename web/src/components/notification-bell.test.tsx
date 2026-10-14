@@ -17,6 +17,7 @@ const entries: NotifyLogEntry[] = [
   {
     id: 2,
     ts: Date.now() - 60_000,
+    pushed: true,
     agent: "claude",
     workspaceLabel: "webapp",
     cwd: "/home/you/webapp",
@@ -26,6 +27,7 @@ const entries: NotifyLogEntry[] = [
   {
     id: 1,
     ts: Date.now() - 3_600_000,
+    pushed: true,
     agent: "codex",
     workspaceLabel: "collie",
     cwd: "/home/you/collie",
@@ -113,6 +115,7 @@ describe("NotificationBell", () => {
     const review: NotifyLogEntry = {
       id: 4,
       ts: Date.now() - 1_000,
+      pushed: true,
       agent: "claude",
       workspaceLabel: "collie",
       cwd: "/home/you/collie",
@@ -138,6 +141,7 @@ describe("NotificationBell", () => {
     const boardEntry: NotifyLogEntry = {
       id: 5,
       ts: Date.now() - 1_000,
+      pushed: true,
       cwd: "/home/you/collie",
       status: "done",
       cardTitle: "Ship 0.86",
@@ -160,6 +164,7 @@ describe("NotificationBell", () => {
     const stalledEntry: NotifyLogEntry = {
       id: 6,
       ts: Date.now() - 1_000,
+      pushed: true,
       cwd: "/home/you/.herdr/worktrees/collie-board/board/ship-it",
       status: "stalled",
       cardTitle: "Ship 0.86",
@@ -182,6 +187,7 @@ describe("NotificationBell", () => {
     const rich: NotifyLogEntry = {
       id: 3,
       ts: Date.now() - 1_000,
+      pushed: true,
       agent: "claude",
       workspaceLabel: "collie",
       cwd: "/home/you/collie",
@@ -207,6 +213,7 @@ describe("NotificationBell", () => {
     const rich: NotifyLogEntry = {
       id: 4,
       ts: Date.now() - 1_000,
+      pushed: true,
       agent: "claude",
       workspaceLabel: "collie",
       cwd: "/home/you/collie",
