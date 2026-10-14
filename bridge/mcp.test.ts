@@ -116,6 +116,12 @@ describe("mcp: tools", () => {
     expect(r.text).not.toContain("w:p2");
     expect(calls.some((c) => c.url.includes("w:p2"))).toBe(false);
   });
+  it("whats_blocking does not claim 'nothing blocks' when herdr is disconnected", async () => {
+    const { call } = setup({}, { "GET /api/snapshot": { body: { bridge: "disconnected", agents: [] } } });
+    const r = await call("whats_blocking");
+    expect(r.text).toMatch(/coupé/);
+    expect(r.text).not.toMatch(/rien ne bloque/i);
+  });
   it("whats_blocking says so when nothing waits", async () => {
     const { call } = setup({}, { "GET /api/snapshot": { body: { agents: [] } } });
     expect((await call("whats_blocking")).text).toMatch(/rien/i);
@@ -142,11 +148,13 @@ describe("mcp: tools", () => {
     expect(r.text).not.toContain("SECRET-SPEC");
   });
   it("get_card: spec and a short journal, not the whole card", async () => {
-    const events = Array.from({ length: 30 }, (_, i) => ({ id: i, type: "card.status", payload: { to: "working" }, ts: i }));
+    const events = Array.from({ length: 30 }, (_, i) => 29 - i).map((i) => ({ id: i, type: "card.status", payload: { to: `etape${i}x` }, ts: i })); // récent d'abord, comme db.listEvents
     const { call } = setup({}, { "GET /api/cards/c1": { body: { card: { id: "c1", title: "T", status: "review", spec: "Faire X.", acceptance: ["a", "b"], rawInput: "RAW" }, events } } });
     const r = await call("get_card", { cardId: "c1" });
     expect(r.text).toContain("Faire X.");
     expect(r.text).not.toContain("RAW");
+    expect(r.text).toContain("etape29x");
+    expect(r.text).not.toContain("etape0x");
     expect(r.text.split("\n").length).toBeLessThan(25);
   });
   it("recent_notifications: last entries only", async () => {

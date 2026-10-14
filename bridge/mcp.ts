@@ -112,7 +112,7 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
         const { card, events = [] } = await api("GET", `/api/cards/${id(a.cardId)}`);
         const out = [`${card.title} — ${card.status}`, `Spec : ${clip(String(card.spec ?? "(vide)"), 800)}`];
         if (card.acceptance?.length) out.push(`Critères : ${card.acceptance.map((x: string) => oneLine(x, 100)).join(" ; ")}`);
-        for (const e of events.slice(-8)) out.push(`· ${e.type} ${oneLine(JSON.stringify(e.payload ?? {}), 90)}`);
+        for (const e of events.slice(0, 8)) out.push(`· ${e.type} ${oneLine(JSON.stringify(e.payload ?? {}), 90)}`);
         return out.join("\n");
       },
     },
@@ -121,7 +121,8 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
       description: "Ce qui bloque maintenant : les agents qui attendent une réponse, avec la fin de leur sortie.",
       props: {},
       run: async () => {
-        const { agents = [] } = await api("GET", "/api/snapshot");
+        const { agents = [], bridge } = await api("GET", "/api/snapshot");
+        if (bridge === "disconnected") return "Le lien avec herdr est coupé, je ne peux pas dire ce qui bloque.";
         const waiting: Json[] = agents.filter((x: Json) => x.status === "blocked");
         if (!waiting.length) return "Rien ne bloque : aucun agent n'attend de réponse.";
         const outs = await Promise.all(waiting.map((w) => api("GET", `/api/pane/${id(w.paneId)}`).catch(() => ({ text: "" }))));
