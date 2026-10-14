@@ -203,6 +203,7 @@ curl -s "$B/api/roadmap?repo=/abs/repo&format=md"             # Markdown, for th
 # phases
 curl -s -X POST "$B/api/phases" "${H[@]}" -d '{"repoPath":"/abs/repo","name":"Foundations","goal":"…","roadmapItemId":"<item id>"}'
 curl -s "$B/api/phases?repo=/abs/repo"
+curl -s "$B/api/phases"                                        # every repo's phases at once (each has its repoPath)
 curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"name":"…","goal":"…","position":0}'
 curl -s -X DELETE "$B/api/phases/<id>" "${H[@]}"              # releases its cards and lots, deletes neither
 

@@ -176,17 +176,19 @@ function ProjectTile({ repo }: { repo: RepoTile }) {
   );
 }
 
-/** Each repo's phase table, read once per set of repos — not on the poll: a milestone changes by hand, and
- *  one request per repo every 1.5 s would be the cost the tile is not worth. */
+/** Each repo's phase table, read once per set of repos — not on the poll: a milestone changes by hand.
+ *  One request for every repo (audit perf #11), grouped here by `repoPath`. */
 export function useRepoPhases(paths: string[]): Record<string, Phase[]> {
   const [phases, setPhases] = useState<Record<string, Phase[]>>({});
   const key = paths.join("\n");
   useEffect(() => {
+    if (!key) return setPhases({});
     const ac = new AbortController();
-    void Promise.all(
-      key.split("\n").filter(Boolean).map((p) => fetchPhases(p, ac.signal).then((r) => [p, r.phases] as const, () => [p, []] as const)),
-    ).then((rows) => {
-      if (!ac.signal.aborted) setPhases(Object.fromEntries(rows));
+    void fetchPhases(undefined, ac.signal).then((r) => r.phases, () => [] as Phase[]).then((all) => {
+      if (ac.signal.aborted) return;
+      const byRepo: Record<string, Phase[]> = Object.fromEntries(key.split("\n").map((p) => [p, []]));
+      for (const ph of all) byRepo[ph.repoPath]?.push(ph);
+      setPhases(byRepo);
     });
     return () => ac.abort();
   }, [key]);

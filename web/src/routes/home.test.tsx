@@ -81,6 +81,15 @@ describe("HomeRoute cold start", () => {
     expect(screen.getByRole("link", { name: /to review/i })).toBeInTheDocument();
   });
 
+  it("reads every repo's phases in one request (audit perf #11)", async () => {
+    const urls: string[] = [];
+    await coldHome(async () => HttpResponse.json({ cards: [card, { ...card, id: "c2", repoPath: "/home/me/other" }] }));
+    server.use(http.get("/api/phases", ({ request }) => (urls.push(request.url), HttpResponse.json({ phases: [] }))));
+    expect(await screen.findByText("other")).toBeInTheDocument();
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
+  });
+
   it("keeps a cards failure in the card blocks, the triage untouched", async () => {
     await coldHome(async () => HttpResponse.json({ error: "boom" }, { status: 500 }));
     await waitFor(() => expect(screen.getAllByText("Cards unavailable.")).toHaveLength(2));
