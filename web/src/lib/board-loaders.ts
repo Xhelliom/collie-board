@@ -178,34 +178,61 @@ export async function boardRouteLoader({ request }: { request?: Request } = {}):
   return { ...base, phases, templates };
 }
 
+/** What the project page does not poll (audit perf #7): the last good value of each, with the key it was read under.
+ *  Templates and flows are read once per visit; the roadmap and the memory again when the orchestrator's state says
+ *  they moved — that state rides the poll anyway. */
+const settled = new Map<string, { key: string; value: unknown }>();
+
+/** Forget them: the page's next load reads them all again. On leaving the page, and after a change made from it. */
+export function forgetProjectSettled(): void {
+  settled.clear();
+}
+
+async function settledRead<T>(name: string, key: string, load: () => Promise<T>): Promise<T | null> {
+  const hit = settled.get(name);
+  if (hit?.key === key) return hit.value as T;
+  try {
+    const value = await load();
+    settled.set(name, { key, value });
+    return value;
+  } catch (e) {
+    if (isAbortError(e)) throw e;
+    return null; // not kept: the next tick asks again
+  }
+}
+
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
 export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { ...(await boardLoader({ request })), phases: [], lots: [], roadmap: null };
   const signal = request?.signal;
-  // The repo is in the URL: its layer starts with the cards, and the orchestrator's history and memory
-  // start together once its pane is known — one round of waiting each, not four (audit perf #5).
+  // The repo is in the URL: its layer starts with the cards, and what hangs on the orchestrator (its history, its
+  // memory, the roadmap) starts together once its state is known — one round of waiting each (audit perf #5).
   const orchestratorLayer = fetchOrchestrator(repo, signal)
     .catch(() => null)
     .then(async (orchestrator) => {
-      if (!orchestrator?.paneId) return { orchestrator, orchestratorEntries: [], orchestratorMemory: null };
+      const roadmap = settledRead("roadmap", `${repo}:${orchestrator?.roadmapRevision}`, () =>
+        fetchRoadmap(repo, signal).then((r) => r.roadmap),
+      );
+      if (!orchestrator?.paneId) return { orchestrator, orchestratorEntries: [], orchestratorMemory: null, roadmap: await roadmap };
       const [orchestratorEntries, orchestratorMemory] = await Promise.all([
         fetchHistory(orchestrator.paneId, { limit: ORCHESTRATOR_TURNS }, undefined, signal).then(
           (r) => (r.available ? r.entries : []),
           () => [],
         ),
-        fetchOrchestratorMemory(repo, signal).then((r) => r.memory, () => null),
+        settledRead("memory", `${repo}:${orchestrator.memoryUpdatedAt}`, () =>
+          fetchOrchestratorMemory(repo, signal).then((r) => r.memory),
+        ),
       ]);
-      return { orchestrator, orchestratorEntries, orchestratorMemory };
+      return { orchestrator, orchestratorEntries, orchestratorMemory, roadmap: await roadmap };
     });
-  const [base, phases, lots, roadmap, orch, templates, flows] = await Promise.all([
+  const [base, phases, lots, orch, templates, flows] = await Promise.all([
     loadBoard(request, true, false, repo),
     fetchPhases(repo, signal).then((r) => r.phases, () => []),
     fetchLots(repo, signal).then((r) => r.runs, () => []),
-    fetchRoadmap(repo, signal).then((r) => r.roadmap, () => null),
     orchestratorLayer,
-    fetchTemplates(signal).catch(() => null),
-    fetchFlows(signal).then((r) => r.flows).catch(() => null),
+    settledRead("templates", repo, () => fetchTemplates(signal)),
+    settledRead("flows", repo, () => fetchFlows(signal).then((r) => r.flows)),
   ]);
-  return { ...base, phases, lots, roadmap, ...orch, templates, flows };
+  return { ...base, phases, lots, ...orch, templates, flows };
 }
