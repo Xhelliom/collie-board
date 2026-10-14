@@ -81,8 +81,14 @@ registerSW({
   onRegisteredSW(_swUrl, r) {
     registration = r;
     if (!r) return;
-    // Any newly-found worker (from the poll below or a manual check) → reload when it activates.
-    r.addEventListener("updatefound", () => watchWorker(r.installing));
+    // A newly-found worker that REPLACES an active one (from the poll below or a manual check) →
+    // reload when it activates. On a first-ever visit `updatefound` also fires — after this
+    // listener is attached — for the very first install, with no active worker yet: that is not an
+    // update, and watching it was the first-load reload (perf audit #10). `r.active` is read at
+    // event time, so it is null exactly then.
+    r.addEventListener("updatefound", () => {
+      if (r.active) watchWorker(r.installing);
+    });
     // A new SW taking control is the other reliable "we're updated now" signal — but only when it
     // *replaces* a prior controller (see onControllerChange); the first-visit initial claim is not
     // an update and must not reload.
