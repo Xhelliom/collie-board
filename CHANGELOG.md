@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.199.0] - 2026-10-14
+
+### Added
+
+- `GET /api/orchestrator` renvoie `roadmapRevision` (4eee488)
+
+### Changed
+
+- Page projet : le poll ne relit plus roadmap, templates, flows ni mémoire ; roadmap et mémoire sont relues quand l'orchestrateur les modifie (audit perf #7) (4eee488)
+
 ## [0.198.1] - 2026-10-14
 
 ### Changed
