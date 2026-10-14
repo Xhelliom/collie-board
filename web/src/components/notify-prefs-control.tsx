@@ -18,7 +18,7 @@ import type { NotifyPrefs } from "@/lib/api";
 // about spending copilot quota on polish, not about having a subtitle at all.
 // Optimistic toggle with revert on failure — see useNotifyPrefs.
 
-const ROWS: ReadonlyArray<keyof NotifyPrefs> = ["blocked", "done", "board", "ready", "updates", "copilotSubtitle"];
+const ROWS: ReadonlyArray<keyof NotifyPrefs> = ["blocked", "done", "board", "ready", "lots", "updates", "copilotSubtitle"];
 
 export function NotifyPrefsControl() {
   const t = useT();

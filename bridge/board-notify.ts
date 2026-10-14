@@ -303,6 +303,7 @@ export class BoardNotifier {
           cardId: card.id,
           cardTitle: card.title,
           cardStatus: card.status,
+          pushed: false, // bell-only fact: no coordinator behind it
         });
       }
       // The bell entry for an alarm is not written here: it comes from the coordinator's `onFire`

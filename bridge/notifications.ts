@@ -217,7 +217,7 @@ export class NotificationCoordinator<H = unknown> {
     // (bridge/notify-log.ts) records what pinged, including during quiet hours, which is precisely
     // the ping you go looking for afterwards. A retraction never reaches it: the summary changes,
     // what happened doesn't.
-    private readonly onFire?: (alert: FiredAlert) => void,
+    private readonly onFire?: (alert: FiredAlert, pushed: boolean) => void,
     // Awaited between the debounce expiring and the alert being rendered: everything the alert can
     // only learn NOW, after 30 seconds of waiting.
     //   • `subtitle` — what actually happened, if it can be had cheaply (notify-subtitle.ts's free
@@ -228,6 +228,9 @@ export class NotificationCoordinator<H = unknown> {
     //     reason this is read here rather than at the transition (§4.2).
     // The producer owns the deadline; a hook that hangs must cost the body, never the alert.
     private readonly beforeFire?: (alert: FiredAlert) => Promise<{ subtitle?: string | null; cardStatus?: string }>,
+    // Asked once the alert has fired: true keeps it in the history only — it never enters the slot or
+    // the digest (bridge/lot-push.ts). The bell is the only trace of it, and it said so (`pushed`).
+    private readonly hold?: (key: string, alert: Alert) => boolean,
   ) {}
 
   /** Wire to `StateEngine.onTransition`. */
@@ -328,8 +331,10 @@ export class NotificationCoordinator<H = unknown> {
     if (!this.outstanding.has(id)) return;
     if (learned?.subtitle) alert.subtitle = learned.subtitle;
     if (learned?.cardStatus) alert.cardStatus = learned.cardStatus;
-    this.onFire?.(alert);
-    this.emit(true);
+    const held = this.hold?.(id, alert) ?? false;
+    if (held) this.outstanding.delete(id);
+    this.onFire?.(alert, !held);
+    if (!held) this.emit(true);
   }
 
   /**

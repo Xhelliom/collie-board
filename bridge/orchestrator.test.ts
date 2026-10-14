@@ -68,6 +68,13 @@ describe("the orchestrator's identity", () => {
     expect(p).toContain("JAMAIS");
     expect(p).toContain("x-collie-pane");
   });
+
+  it("is told to send ONE bilan at the end of a lot, and one question for a stuck card", () => {
+    const p = orchestratorPrompt("/g/app");
+    expect(p).toContain("UNE notification de bilan");
+    expect(p).toContain("/api/board/notify");
+    expect(p).toContain('kind: "question"');
+  });
 });
 
 describe("startOrchestrator", () => {
