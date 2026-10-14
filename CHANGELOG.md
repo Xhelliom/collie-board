@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.197.0] - 2026-10-14
+
+### Added
+
+- API : `GET /api/cards?view=summary`, la liste sans spec, critères ni dictée, et seulement les cartes done encore utiles à l'écran, avec les compteurs (livrées sur 7 jours, done par dépôt et par phase) ; la route sans paramètre est inchangée (1254ab5)
+
+### Changed
+
+- Accueil et Board lisent la vue résumée (236 → 26 Ko gzip sur 433 cartes) ; le Board charge la liste complète pour un filtre tag / auto / phase ou « Voir les n autres » (1254ab5)
+
 ## [0.196.0] - 2026-10-14
 
 ### Changed
