@@ -1228,8 +1228,9 @@ export interface Roadmap {
   revision: number;
 }
 
-export const fetchPhases = (repo: string, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
-  apiRequest(`/api/phases?repo=${encodeURIComponent(repo)}`, { signal });
+/** No repo: every repo's phases in one request. */
+export const fetchPhases = (repo: string | undefined, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
+  apiRequest(repo ? `/api/phases?repo=${encodeURIComponent(repo)}` : "/api/phases", { signal });
 export const fetchLots = (repo: string, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
   apiRequest(`/api/runs?repo=${encodeURIComponent(repo)}`, { signal });
 /** Null `roadmap`: nothing written yet for this repo. */
