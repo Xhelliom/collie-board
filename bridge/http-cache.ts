@@ -63,3 +63,17 @@ export function gzipJsonResponse(
 
   return new Response(body, { headers });
 }
+
+/**
+ * A polled GET's JSON: a 304 with no body when the client's `If-None-Match` already names this
+ * body, else the gzip-aware JSON carrying its ETag. The tag is derived from the body, so a mutation
+ * needs no invalidation — the next poll simply gets a different tag.
+ */
+export function conditionalJson(data: unknown, req: Request): Response {
+  const etag = computeEtag(JSON.stringify(data));
+  if (notModified(req.headers.get("if-none-match"), etag)) {
+    // RFC 7232 §4.1: a 304 MUST echo the ETag; its body MUST be empty.
+    return new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } });
+  }
+  return gzipJsonResponse(data, req.headers.get("accept-encoding"), { etag });
+}

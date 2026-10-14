@@ -12,7 +12,7 @@ import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient, PaneRead } from "./herdr-client.ts";
-import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
+import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import { DEFAULT_NOTIFY_PREFS, type NotifyPrefs, type NotifyPrefsStore } from "./notify-prefs.ts";
 import type { Push, PushSubscription } from "./push.ts";
@@ -246,13 +246,7 @@ export function startServer(opts: {
             // Same client-managed scheme as `fetchPane`: `no-store` stands (privacy), and the
             // client keeps the (etag, body) pair itself rather than leaning on the browser cache.
             if (req.method !== "GET") return json(data, req.headers.get("accept-encoding"));
-            const etag = computeEtag(JSON.stringify(data));
-            if (notModified(req.headers.get("if-none-match"), etag)) {
-              return secure(
-                new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } }),
-              );
-            }
-            return secure(gzipJsonResponse(data, req.headers.get("accept-encoding"), { etag }));
+            return secure(conditionalJson(data, req));
           },
           text,
         });
