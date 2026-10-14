@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.201.0] - 2026-10-14
+
+### Added
+
+- Pendant un lot lancé avec orchestrateur vivant, les alertes de ses cartes restent dans la cloche : le push revient à l'orchestrateur (réglage « Lots : laisser l'orchestrateur notifier », activé par défaut) (d65e463)
+- `pushed` sur chaque entrée de `/api/notifications/log` (d65e463)
+
+### Changed
+
+- Le brief de l'orchestrateur : une notification de bilan en fin de lot, une question si une carte reste bloquée (d65e463)
+
 ## [0.200.1] - 2026-10-14
 
 ### Fixed
