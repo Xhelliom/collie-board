@@ -24,6 +24,6 @@
   },
   // src/sw.ts runs in a service-worker (not DOM) context — type-checked separately via
   // tsconfig.worker.json (both run under `bun run typecheck`).
-  "include": ["src", "vite.config.ts"],
+  "include": ["src", "vite.config.ts", "vite-gzip.ts"],
   "exclude": ["src/sw.ts"]
 }
