@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setPreference } from "@/i18n";
 import { BoardRoute } from "./board";
 import type { ProjectData } from "@/lib/board-loaders";
-import type { CardStatus, CardView, Phase } from "@/lib/board";
+import type { CardCounts, CardStatus, CardView, Phase } from "@/lib/board";
 
 // The board's desktop drag, end to end — and above all the ONE thing about it that no amount of
 // reading the component tells you: a drag dies if the card it started on loses its layout box while
@@ -84,12 +84,12 @@ function viewport(wide: boolean) {
 // jsdom gives a DragEvent no dataTransfer, and the tile writes to it on dragstart.
 const dataTransfer = () => ({ setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "", dropEffect: "" });
 
-async function mount(cards: CardView[], url = "/board", phases: Phase[] = []) {
+async function mount(cards: CardView[], url = "/board", phases: Phase[] = [], counts?: CardCounts) {
   const router = createMemoryRouter(
     [
       {
         path: "/board",
-        loader: (): ProjectData => ({ cards, phases, lots: [], roadmap: null, error: false, authError: false }),
+        loader: (): ProjectData => ({ cards, phases, lots: [], roadmap: null, error: false, authError: false, counts }),
         element: <BoardRoute />,
       },
     ],
@@ -351,6 +351,12 @@ describe("board — Done column", () => {
     expect(screen.getByText("D7")).toBeInTheDocument();
     expect(screen.queryByText("D11")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Voir les 7 autres" }));
-    expect(screen.getByText("D11")).toBeInTheDocument();
+    expect(await screen.findByText("D11")).toBeInTheDocument();
+  });
+
+  it("counts the finished cards the summary view leaves out", async () => {
+    const cards = Array.from({ length: 5 }, (_, i) => card(`D${i}`, "done", i));
+    await mount(cards, "/board", [], { delivered: 0, doneByRepo: { "": 12 }, doneByPhase: {} });
+    expect(screen.getByRole("button", { name: "Voir les 7 autres" })).toBeInTheDocument();
   });
 });

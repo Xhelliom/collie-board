@@ -28,6 +28,7 @@ import {
   startCard,
   wouldCycle,
 } from "./cards.ts";
+import { cardsSummary } from "./cards-summary.ts";
 import type { Config } from "./config.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type {
@@ -743,7 +744,13 @@ async function route(
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      return json({ cards: cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }).map(withNext) });
+      const all = cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }).map(withNext);
+      const v = new URL(req.url).searchParams.get("view");
+      if (v === null) return json({ cards: all });
+      if (v !== "summary") return text("bad view", 400);
+      // The list screens' view (audit perf #4): no spec, few finished cards, counts over all of them.
+      const open = new Set(db.listPhases().filter((p) => p.closedAt == null).map((p) => p.id));
+      return json(cardsSummary(all, open));
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");

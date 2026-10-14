@@ -76,6 +76,11 @@ describe("phaseProgress", () => {
     expect(p.get("p1")).toEqual({ name: "One", done: 1, total: 2 });
     expect(p.get("p2")).toEqual({ name: "Two", done: 0, total: 1 });
   });
+
+  it("takes the done count from the summary view's counts, the listed done cards being only some of them", () => {
+    const cards = [card("a", { phaseId: "p1", status: "done" }), card("b", { phaseId: "p1", status: "working" })];
+    expect(phaseProgress(cards, [{ id: "p1", name: "One" }], { p1: 9 }).get("p1")).toEqual({ name: "One", done: 9, total: 10 });
+  });
 });
 
 describe("dependencyMet", () => {

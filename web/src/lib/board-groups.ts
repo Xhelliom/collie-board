@@ -25,12 +25,15 @@ export function containerIds(cards: CardView[]): Set<string> {
 export function phaseProgress(
   cards: CardView[],
   phases: { id: string; name: string }[],
+  /** The summary view's done count per phase, whose list leaves most finished cards out. */
+  doneByPhase?: Record<string, number>,
 ): Map<string, { name: string; done: number; total: number }> {
   const containers = containerIds(cards);
-  const out = new Map(phases.map((p) => [p.id, { name: p.name, done: 0, total: 0 }]));
+  const out = new Map(phases.map((p) => [p.id, { name: p.name, done: doneByPhase?.[p.id] ?? 0, total: doneByPhase?.[p.id] ?? 0 }]));
   for (const c of cards) {
     const p = c.phaseId ? out.get(c.phaseId) : undefined;
     if (!p || containers.has(c.id) || c.status === "archived") continue;
+    if (c.status === "done" && doneByPhase) continue;
     p.total++;
     if (c.status === "done") p.done++;
   }

@@ -15,12 +15,14 @@ import {
   loadRepoScope,
   fetchCard,
   fetchCards,
+  fetchCardsSummary,
   fetchLots,
   fetchOpenPrs,
   fetchOrchestrator,
   fetchPhases,
   fetchOrchestratorMemory,
   fetchRoadmap,
+  type CardCounts,
   type CardDetail,
   type CardView,
   type Lot,
@@ -48,11 +50,15 @@ export interface BoardData {
   authError: boolean;
   /** What the journal knows of each card, keyed by card id — the tiles' milestone dots. Garnish: undefined when it can't be read. */
   facts?: Record<string, CardFacts>;
+  /** Set when `cards` is the summary view: the counts over every finished card, most of which it leaves out. */
+  counts?: CardCounts;
 }
 
-let lastCards: CardView[] | null = null;
+/** Last-good list per view, so a failed refresh never hands one screen the other view's cards. */
+const lastBoard: { full?: BoardData; summary?: BoardData } = {};
 
-export const boardLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, true);
+/** The full list, with facts — what the project page reads (the spec of an unfolded step, the closed phases' steps). */
+export const boardLoader = ({ request }: { request?: Request } = {}) => loadBoard(request, true, false);
 
 export interface HomeBoardData {
   /** A promise only on a cold start: there the triage renders from the snapshot alone, the card blocks under a skeleton. */
@@ -63,27 +69,30 @@ export interface HomeBoardData {
  *  Cold start: the cards are not awaited, so the triage shows at the snapshot's pace (audit perf #3). Once a list
  *  is known, they are — a poll that handed `<Await>` a fresh promise every tick would flash the skeletons. */
 export async function homeLoader({ request }: { request?: Request } = {}): Promise<HomeBoardData> {
-  const board = loadBoard(request, false);
-  if (lastCards) return { board: await board };
+  const board = loadBoard(request, false, true);
+  if (lastBoard.summary) return { board: await board };
   // No last-good list to fall back on: an error is the block's to show, not zeros dressed as figures.
   const first = board.then((b) => (b.error ? Promise.reject(new Error("cards unavailable")) : b));
   first.catch(() => {}); // <Await> renders the rejection; this only keeps it from being reported as unhandled
   return { board: first };
 }
 
-async function loadBoard(request: Request | undefined, withFacts: boolean): Promise<BoardData> {
+async function loadBoard(request: Request | undefined, withFacts: boolean, summary: boolean): Promise<BoardData> {
+  const view = summary ? "summary" : "full";
   try {
-    const [{ cards }, facts] = await Promise.all([
-      fetchCards(request?.signal),
+    const [{ cards, counts }, facts] = await Promise.all([
+      summary ? fetchCardsSummary(request?.signal) : fetchCards(request?.signal).then((r) => ({ ...r, counts: undefined })),
       withFacts
         ? fetchFacts(undefined, request?.signal).then((r) => Object.fromEntries(r.facts.map((f) => [f.cardId, f])), () => undefined)
         : undefined,
     ]);
-    lastCards = cards;
-    return { cards, error: false, authError: false, facts };
+    const data = { cards, error: false, authError: false, facts, counts };
+    lastBoard[view] = data;
+    return data;
   } catch (e) {
     if (isAbortError(e)) throw e;
-    return { cards: lastCards ?? [], error: true, authError: isAuthError(e) };
+    const last = lastBoard[view];
+    return { cards: last?.cards ?? [], counts: last?.counts, error: true, authError: isAuthError(e) };
   }
 }
 
@@ -151,11 +160,17 @@ export interface ProjectData extends BoardData {
 
 export type BoardRouteData = BoardData & Pick<ProjectData, "phases" | "templates">;
 
-/** The Board's own loader: cards, facts, phases, templates — what BoardRoute reads, nothing of the project page's (audit perf #2). */
+/** The Board's filters that need every finished card: a filtered Done column, or all of it unfolded (`?done=all`). */
+const FULL_LIST_PARAMS = ["tag", "origin", "phase", "done"];
+
+/** The Board's own loader: cards, facts, phases, templates — what BoardRoute reads, nothing of the project page's (audit perf #2).
+ *  The summary view unless a filter needs the finished cards it leaves out (audit perf #4). */
 export async function boardRouteLoader({ request }: { request?: Request } = {}): Promise<BoardRouteData> {
-  const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
+  const params = request ? new URL(request.url).searchParams : null;
+  const repo = params?.get("repo") ?? loadRepoScope();
+  const summary = !FULL_LIST_PARAMS.some((k) => params?.has(k));
   const [base, phases, templates] = await Promise.all([
-    boardLoader({ request }),
+    loadBoard(request, true, summary),
     repo ? fetchPhases(repo, request?.signal).then((r) => r.phases, () => []) : [],
     repo ? fetchTemplates(request?.signal).catch(() => null) : undefined,
   ]);

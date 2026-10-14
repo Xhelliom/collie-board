@@ -169,6 +169,23 @@ export interface CardView {
   keepWorktree: boolean;
   /** This card's answer to the automatic handoff: forced `on`, refused `off`, or null = the board pref. */
   autoHandoff: "on" | "off" | null;
+  /** Set only by the summary view ({@link fetchCardsSummary}): the spec's first line, which stands in for it. */
+  specLine?: string | null;
+  /** Set only by the summary view: how many criteria, `acceptance` being left out. Read it with {@link criteriaCount}. */
+  acceptanceCount?: number;
+}
+
+/** How many acceptance criteria a card has — from either view of the list. */
+export const criteriaCount = (c: CardView): number => c.acceptanceCount ?? c.acceptance.length;
+
+/** The summary view's counts over EVERY finished card, kept in its list or not (bridge/cards-summary.ts). */
+export interface CardCounts {
+  /** Done in the last 7 days — the home KPI. */
+  delivered: number;
+  /** Done steps (containers excluded) per repo; `""` for a card with none. */
+  doneByRepo: Record<string, number>;
+  /** Done steps per phase id. */
+  doneByPhase: Record<string, number>;
 }
 
 /** Just enough of a linked card to name it on screen — the bridge resolves these on the detail. */
@@ -577,6 +594,19 @@ async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> 
 
 export function fetchCards(signal?: AbortSignal): Promise<{ cards: CardView[] }> {
   return conditionalGet<{ cards: CardView[] }>("/api/cards", signal);
+}
+
+/**
+ * The list screens' cards (audit perf #4): no spec, no criteria, no raw input, and only the finished
+ * cards still on screen — `counts` covers the rest. The text fields come back empty so the screens
+ * keep one card type; ponytail: they are not the card's — read the detail (`fetchCard`) for those.
+ */
+export async function fetchCardsSummary(signal?: AbortSignal): Promise<{ cards: CardView[]; counts: CardCounts }> {
+  const r = await conditionalGet<{ cards: Omit<CardView, "spec" | "acceptance" | "rawInput">[]; counts: CardCounts }>(
+    "/api/cards?view=summary",
+    signal,
+  );
+  return { cards: r.cards.map((c) => ({ ...c, spec: null, acceptance: [], rawInput: null })), counts: r.counts };
 }
 
 export function fetchCard(id: string, signal?: AbortSignal): Promise<CardDetail> {
