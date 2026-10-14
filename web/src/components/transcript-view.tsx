@@ -152,6 +152,8 @@ function ToolPart({ part, query }: { part: Extract<TranscriptPart, { kind: "tool
   );
 }
 
+const USER_TURN_LINES = 3;
+
 function Part({ part, query }: { part: TranscriptPart; query: string }) {
   const t = useT();
   const images = useContext(ThreadImagesContext);
@@ -259,11 +261,15 @@ function Turn({
           {time && <span className="text-xs text-muted-foreground">{time}</span>}
         </div>
       )}
-      <div className="space-y-1.5">
-        {entry.parts.map((part, i) => (
-          <Part key={i} part={part} query={query} />
-        ))}
-      </div>
+      {/* What you sent — a pasted file, a loaded skill — is the long part of a thread and the part you
+          already know: folded to three lines, a tap reads it all. A find query unfolds it. */}
+      <CollapsibleText lines={isUser ? USER_TURN_LINES : Infinity} forceOpen={query.trim() !== ""}>
+        <div className="space-y-1.5">
+          {entry.parts.map((part, i) => (
+            <Part key={i} part={part} query={query} />
+          ))}
+        </div>
+      </CollapsibleText>
     </div>
   );
 }

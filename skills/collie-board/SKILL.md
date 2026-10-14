@@ -215,6 +215,25 @@ by `dependsOn`. **State lives in the board, not in this conversation**: when you
 roadmap, `/api/phases` and `/api/runs` rather than relying on what you remember. Tell the user
 what you prepared and let them launch it.
 
+## Watch and answer the herd
+
+An agent stuck on a question, or a PR that no longer merges, is yours to look at — and to unblock.
+
+```bash
+B=http://127.0.0.1:8788
+curl -s "$B/api/snapshot"                     # every agent: paneId, status (blocked = waiting on someone), cwd
+curl -s "$B/api/pane/<paneId>"                # that pane's recent output — read it before you answer
+curl -s -X POST "$B/api/pane/<paneId>/reply" -H 'content-type: application/json' \
+  -d '{"text":"yes, go ahead"}'               # types the text and submits it (`"submit":false` only types)
+curl -s "$B/api/board/prs"                    # the cards whose PR is still open (journal only, free)
+curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
+```
+
+- Answer a pane only for what the user already decided or what is plainly safe (a "continue", a
+  fact in the roadmap). A real choice is theirs: put it to them first.
+- Never type into your own pane, and never `reply` to something that is not an agent waiting.
+- Tell the user what you answered, with a link: `[title](/pane/<paneId>)`.
+
 ## What to confirm with the user first
 
 These spend quota or drive a real terminal. Never fire one unasked:

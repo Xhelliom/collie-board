@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/app-header";
 import { AutonomySettings } from "@/components/autonomy-settings";
 import { BoardTabs } from "@/components/board-tabs";
 import { BottomSheet } from "@/components/ui/sheet";
+import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseTemplate } from "@/components/phase-template";
 import { templateFor, templateName } from "@/lib/templates";
@@ -105,6 +106,7 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
 }
 
 export function ProjectRoute() {
+  const panel = usePanelWidth();
   const t = useT();
   const data = useLoaderData() as ProjectData;
   const revalidator = useRevalidator();
@@ -434,7 +436,13 @@ export function ProjectRoute() {
           )}
         </div>
       </main>
-      <aside aria-label={t("orch.title")} className="hidden w-[22rem] shrink-0 flex-col border-l lg:flex xl:w-96">
+      <aside aria-label={t("orch.title")} style={{ width: panel.width }} className="relative hidden shrink-0 flex-col border-l lg:flex">
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          onPointerDown={panel.onPointerDown}
+          className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/30 active:bg-primary/40"
+        />
         <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
       </aside>
       </div>

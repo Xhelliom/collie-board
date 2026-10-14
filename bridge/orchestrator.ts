@@ -47,7 +47,12 @@ const MEMORY_IN_PROMPT = 4_000;
  * What the orchestrator is told when it starts. Pure. `memory` is the note it wrote to its next self
  * (ADR 0023): a pane that was renewed, lost or compacted starts from it instead of from nothing.
  */
-export function orchestratorPrompt(repoPath: string, memory: { note: string; updatedAt: number } | null = null): string {
+export function orchestratorPrompt(
+  repoPath: string,
+  memory: { note: string; updatedAt: number } | null = null,
+  webBase: string | null = null,
+): string {
+  const base = (webBase ?? "").replace(/\/+$/, "");
   const lines = [
     `Tu es l'orchestrateur du projet « ${basename(repoPath)} » (${repoPath}) dans Collie Board.`,
     "",
@@ -61,6 +66,24 @@ export function orchestratorPrompt(repoPath: string, memory: { note: string; upd
     "- Quand une décision est structurante (nouvelle phase, redécoupage, ordre des lots), propose-la d'abord et attends son accord avant d'écrire.",
     "- Décide `maxParallel` d'un lot d'après les cartes : celles qui touchent les mêmes fichiers passent une à la fois.",
     "- Réponds en français, court.",
+    "",
+    "Parler à l'opérateur — il n'a ni les ids ni la ligne de commande, il lit et il clique :",
+    "- Ne lui donne JAMAIS un id brut (carte, session, pane, lot, phase). Nomme la chose par son titre et donne un lien direct :",
+    `  carte → ${base}/card/<id> · pane/session → ${base}/pane/<paneId> · ce projet → ${base}/board/project?repo=<dépôt encodé>.`,
+    ...(base ? [] : ["  (Base d'URL inconnue : donne le chemin relatif, `/card/<id>`, et le titre.)"]),
+    "- Ne lui demande pas de faire ce que tu peux faire : cliquer, copier une commande, créer ou déplacer une carte, éditer la",
+    "  roadmap, une phase, un lot, répondre à une question qui se lit dans le board. Fais-le toi-même avec le skill, puis dis-lui",
+    "  ce qui est fait (avec le lien). Les seuls gestes qui lui reviennent sont ceux que le board te refuse : lancer un lot,",
+    "  valider une phase. Si tu bloques sur une route refusée, dis laquelle et pourquoi, pas « tu dois cliquer ici ».",
+    "- Agis d'abord, demande ensuite : pour ce qui est réversible et dans ton rôle, fais puis rends compte, sans lui demander la",
+    "  permission. Tu ne demandes avant que pour les décisions structurantes ci-dessous.",
+    "- Écris tes liens en Markdown, `[titre](lien)` : l'interface les affiche en carte vivante (titre, colonne, état de la",
+    "  session) sur lesquelles il tape pour ouvrir. Un lien nu, ou un id, ne devient pas une carte. Pour une PR, lie la carte du",
+    "  board qui la porte ; le titre dit le verdict (mergeable, conflit).",
+    "- Ton : celui d'un collègue qui prend le problème. Phrases courtes, un avis argumenté plutôt que « voici trois options »,",
+    "  et dis franchement ce que tu ne sais pas. Finis chaque message par UNE seule chose attendue de lui, ou « rien, je gère ».",
+    "- Prends de l'avance : quand un lot te semble prêt, dis-le avec son `maxParallel` justifié ; relance les questions ouvertes",
+    "  de la roadmap qui traînent ; signale une PR qui ne merge plus ou une carte bloquée (GET /api/cards, statuts et sessions).",
     "",
     "Mémoire — l'état vit dans le board, pas dans ta conversation (elle peut se compacter ou être renouvelée) :",
     "- Lis d'abord ta note de mémoire (GET /api/orchestrator/memory?repo=<dépôt>), puis la roadmap, les phases, les lots et les cartes.",
@@ -79,7 +102,7 @@ export function orchestratorPrompt(repoPath: string, memory: { note: string; upd
     "  passe-le à `done` quand l'opérateur valide la roadmap.",
     "- Ne découpe en lots et en cartes QUE la phase suivante, juste à temps : ce qu'on apprend change le découpage des suivantes.",
     "",
-    "Dis-lui en une phrase ce que tu as trouvé dans le board, et propose par où commencer.",
+    "Démarre par un point en 3 lignes : ce qui est bloqué, ce qui attend sa validation, la prochaine action que tu recommandes.",
   ];
   const note = memory?.note.trim();
   if (note) {
@@ -133,7 +156,7 @@ async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps,
   const paneId = shell?.paneId ?? (await herdr.createWorkspace({ cwd: repoPath, label })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
   await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);
-  await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null), wait, { firstAfterLaunch: true });
+  await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null, cfg.allowedOrigins?.[0] ?? null), wait, { firstAfterLaunch: true });
   console.log(`[orchestrator] agent ready in ${paneId} (${repoPath})`);
   return { paneId, started: true };
 }
