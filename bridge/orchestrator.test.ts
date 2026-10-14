@@ -128,7 +128,7 @@ describe("/api/orchestrator", () => {
 
   it("GET: no orchestrator yet → paneId null, not running; refuses a path that is not a repo root", async () => {
     const db = new BoardDb(":memory:");
-    expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, ctx(db))).body).toEqual({ paneId: null, running: false, ctxPct: null, memoryUpdatedAt: null });
+    expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(repo)}`, ctx(db))).body).toEqual({ paneId: null, running: false, ctxPct: null, memoryUpdatedAt: null, roadmapRevision: null });
     expect((await call("GET", `/api/orchestrator?repo=${encodeURIComponent(tmpdir())}`, ctx(db))).status).toBe(400);
     expect((await call("GET", "/api/orchestrator", ctx(db))).status).toBe(400);
   });

@@ -1243,6 +1243,8 @@ export interface OrchestratorState {
   ctxPct?: number | null;
   /** When it last wrote its memory note, or null. */
   memoryUpdatedAt?: number | null;
+  /** The roadmap's revision, or null when none is written. */
+  roadmapRevision?: number | null;
 }
 /** How far the orchestrator may go without the operator (ADR 0030). `maxChain` null: unlimited. */
 export interface Autonomy {

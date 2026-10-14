@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { boardLoader, boardRouteLoader, homeLoader, projectLoader } from "./board-loaders";
+import { boardLoader, boardRouteLoader, forgetProjectSettled, homeLoader, projectLoader } from "./board-loaders";
 
 // The home screen never reads the facts, and they are the heaviest thing on its poll: its loader must not ask.
 function stubFetch() {
@@ -12,7 +12,10 @@ function stubFetch() {
   return urls;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  forgetProjectSettled();
+});
 
 describe("home vs board loader", () => {
   it("the home loader never requests /api/project/facts", async () => {
@@ -71,6 +74,51 @@ describe("project loader", () => {
     const data = await pending;
     expect(data.error).toBe(false);
     expect(data).toMatchObject({ phases: [], lots: [], roadmap: null, orchestratorEntries: [], orchestratorMemory: null, templates: null, flows: null });
+  });
+});
+
+// Audit perf #7: a poll tick on the project page follows the cards, facts, lots and orchestrator — not what only moves on an action.
+describe("project loader, poll tick", () => {
+  it("asks again for the roadmap and memory only when the orchestrator's state says they moved", async () => {
+    let urls: string[] = [];
+    const orch = { paneId: "p1", memoryUpdatedAt: 1, roadmapRevision: 1 };
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    vi.stubGlobal("fetch", (url: string) => {
+      urls.push(url);
+      if (url.includes("/api/orchestrator?")) return Promise.resolve(json(orch));
+      if (url.includes("/api/orchestrator/memory")) return Promise.resolve(json({ memory: { note: `n${orch.memoryUpdatedAt}`, updatedAt: orch.memoryUpdatedAt } }));
+      if (url.includes("/api/roadmap")) return Promise.resolve(json({ roadmap: { repoPath: "/r", vision: "", items: [], revision: orch.roadmapRevision } }));
+      if (url.includes("/api/templates")) return Promise.resolve(json({ templates: [] }));
+      if (url.includes("/api/flows")) return Promise.resolve(json({ flows: [] }));
+      return Promise.resolve(json({ cards: [], facts: [], phases: [], runs: [], entries: [], available: true }));
+    });
+    const load = () => projectLoader({ request: new Request("http://x/project?repo=/r") });
+    const paths = () => urls.map((u) => u.split("?")[0]).sort();
+
+    await load();
+    urls = [];
+    const tick = await load();
+    expect(paths()).toEqual(["/api/cards", "/api/orchestrator", "/api/pane/p1/history", "/api/phases", "/api/project/facts", "/api/runs"]);
+    expect(tick.roadmap?.revision).toBe(1);
+    expect(tick.orchestratorMemory?.note).toBe("n1");
+    expect(tick.templates).toEqual({ templates: [] });
+
+    // The orchestrator, from the page's chat, writes the roadmap and its memory: the next tick shows them.
+    orch.roadmapRevision = 2;
+    orch.memoryUpdatedAt = 2;
+    urls = [];
+    const after = await load();
+    expect(urls.some((u) => u.startsWith("/api/roadmap"))).toBe(true);
+    expect(urls.some((u) => u.startsWith("/api/orchestrator/memory"))).toBe(true);
+    expect(after.roadmap?.revision).toBe(2);
+    expect(after.orchestratorMemory?.note).toBe("n2");
+
+    // A change of template from the page forgets them: the next load reads the templates and flows again.
+    forgetProjectSettled();
+    urls = [];
+    await load();
+    expect(urls.some((u) => u.startsWith("/api/templates"))).toBe(true);
+    expect(urls.some((u) => u.startsWith("/api/flows"))).toBe(true);
   });
 });
 

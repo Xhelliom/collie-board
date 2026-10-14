@@ -18,7 +18,7 @@ import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-mil
 import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
 import { boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
-import type { ProjectData } from "@/lib/board-loaders";
+import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
@@ -114,6 +114,8 @@ export function ProjectRoute() {
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  // Templates and flows are read once per visit (audit perf #7): the next visit, or a change made here, reads them again.
+  useEffect(() => forgetProjectSettled, []);
 
   const [filter, setFilter] = useState<Filter>(() => {
     const m = store.get();
@@ -396,7 +398,10 @@ export function ProjectRoute() {
                         </div>
                         {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
                         {p.phase && !p.phase.closedAt && (
-                          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => void revalidator.revalidate()} />
+                          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => {
+                            forgetProjectSettled();
+                            void revalidator.revalidate();
+                          }} />
                         )}
                         {visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
                         <PhaseLots
