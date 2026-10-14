@@ -86,6 +86,9 @@ export function OrchestratorPanel({
     }
   }
 
+  // Renewing is always on offer (a new prompt, a drifted thread); past the threshold it is a warning.
+  const full = typeof state?.ctxPct === "number" && state.ctxPct >= HANDOVER_PCT;
+
   async function renew(step: "ask" | "restart") {
     setBusy(true);
     try {
@@ -158,9 +161,12 @@ export function OrchestratorPanel({
           {t("orch.fullscreen")}
         </Link>
       </div>
-      {typeof state.ctxPct === "number" && state.ctxPct >= HANDOVER_PCT && (
-        <div role="alert" className="flex flex-col gap-2 rounded-lg border border-status-working/50 bg-status-working/10 p-2.5 text-sm">
-          <span>{t("orch.handover")}</span>
+      {state.paneId && (
+        <div
+          role={full ? "alert" : undefined}
+          className={cn("flex flex-col gap-2 text-sm", full && "rounded-lg border border-status-working/50 bg-status-working/10 p-2.5")}
+        >
+          {full && <span>{t("orch.handover")}</span>}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" className="h-8 px-3 text-xs" disabled={busy || asked !== null} onClick={() => void renew("ask")}>
               {t("orch.askNote")}
