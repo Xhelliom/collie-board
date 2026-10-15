@@ -116,6 +116,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
 // ── route ──────────────────────────────────────────────────────────────────────
 
 import type { BoardContext } from "./board-routes.ts";
+import { lotView } from "./lot.ts";
 
 /** How much of a card's journal is read: its newest entries are the story; a card is rarely older. */
 const JOURNAL_LIMIT = 300;
@@ -134,9 +135,24 @@ export function handleFactsRoute(pathname: string, req: Request, ctx: BoardConte
   if (denied) return denied;
   // No repo: every live card — the board's tiles read their dots from here (one request per poll).
   const repo = new URL(req.url).searchParams.get("repo");
+  // The launched lot that still drives a card, once per lot: the board's tiles say "the lead has it"
+  // from here, without loading the lots themselves (audit perf #2).
+  const lots = new Map<string, ReturnType<typeof lotView> | null>();
+  const lotOf = (runId: string) => {
+    if (!lots.has(runId)) {
+      const run = ctx.db.getRun(runId);
+      const view = run && run.launchedAt !== null ? lotView(ctx.db, run) : null;
+      lots.set(runId, view && !view.finished ? view : null);
+    }
+    return lots.get(runId)!;
+  };
   const facts = ctx.db
     .listCards()
     .filter((c) => !repo || c.repoPath === repo)
-    .map((c) => foldFacts(c.id, withMilestones(ctx.db.listEvents(c.id, JOURNAL_LIMIT), ctx.db.listMilestoneEvents(c.id))));
+    .map((c) => {
+      const f = foldFacts(c.id, withMilestones(ctx.db.listEvents(c.id, JOURNAL_LIMIT), ctx.db.listMilestoneEvents(c.id)));
+      const lot = c.runId ? lotOf(c.runId) : null;
+      return lot ? { ...f, lot } : f;
+    });
   return ctx.json({ facts });
 }

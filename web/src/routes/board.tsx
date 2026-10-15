@@ -44,6 +44,7 @@ import {
   type CardView,
 } from "@/lib/board";
 import type { BoardRouteData } from "@/lib/board-loaders";
+import { holdOf } from "@/lib/lot-hold";
 import { templateFor, templateName } from "@/lib/templates";
 import { setStatus } from "@/lib/status";
 
@@ -687,6 +688,7 @@ export function BoardRoute() {
                                     dependency={dependencyInfo(card, byId)}
                                     repo={repoLabel(card)}
                                     milestones={facts?.[card.id]?.milestoneEvents}
+                                    lot={holdOf(card, facts?.[card.id]?.lot, facts?.[card.id]?.pr?.state === "open")}
                                     // The dictation this was split from, on every screen (ADR 0022):
                                     // the container takes no tile, so this is where it is named.
                                     parent={card.parentId ? byId.get(card.parentId)?.title : undefined}

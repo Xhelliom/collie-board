@@ -219,6 +219,8 @@ export interface CardDetail {
   events: BoardEvent[];
   /** The events the timeline derives from — uncapped, unlike `events`. Absent on an older bridge. */
   milestoneEvents?: BoardEvent[];
+  /** The lot this card is in, or null. Absent on an older bridge. */
+  lot?: Lot | null;
 }
 
 /**
@@ -1212,6 +1214,12 @@ export interface Lot {
   launchedAt: number | null;
   maxParallel?: number | null;
   cardIds: string[];
+  /** ADR 0041: `lot` folds its cards into one branch and opens ONE PR. Absent on an older bridge. */
+  integration?: "card" | "lot";
+  /** Launched and journaled `run.finished`: its cards are back to their own display. */
+  finished?: boolean;
+  /** One PR for the lot, while it runs: that PR's url once opened (journaled on its last card). */
+  prUrl?: string | null;
 }
 
 export type RoadmapStatus = "planned" | "active" | "done" | "dropped";

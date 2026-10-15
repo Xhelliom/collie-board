@@ -262,6 +262,21 @@ describe("GET /api/project/facts", () => {
   });
 });
 
+describe("GET /api/project/facts carries the lot that drives a card", () => {
+  it("only while the lot is launched and not over", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "review" });
+    const b = db.createCard({ title: "b", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0, name: "Auth" });
+    const lotOf = async (id: string) =>
+      ((await call(db, "GET", "/api/project/facts?repo=%2Fr")).body.facts as { cardId: string; lot?: unknown }[]).find((f) => f.cardId === id)!.lot;
+    expect(await lotOf(a.id)).toMatchObject({ id: run.id, name: "Auth", finished: false });
+    expect(await lotOf(b.id)).toBeUndefined();
+    db.recordRunEvent(null, "run.finished", { runId: run.id });
+    expect(await lotOf(a.id)).toBeUndefined();
+  });
+});
+
 describe("GET /api/project/facts is a conditional GET (audit perf #6)", () => {
   // The same `json` the bridge hands the board for a GET: the route's ETag is the one it really sends.
   const get = (db: BoardDb, etag?: string) => {

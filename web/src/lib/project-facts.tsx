@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { getLocale, t } from "@/i18n";
-import { conditionalGet, type BoardEvent, type CardView } from "@/lib/board";
+import { conditionalGet, type BoardEvent, type CardView, type Lot } from "@/lib/board";
 
 // What the project view shows on a step beyond the card itself — read off the journal by the bridge
 // (bridge/project-facts.ts), one request per repo. Optional everywhere: a step with no facts is just a card.
@@ -21,6 +21,8 @@ export interface CardFacts {
   template?: { name: string; key: string | null; model: string | null } | null;
   /** The slimmed milestone events; `cardMilestones` turns them into the dots. Absent on an older bridge. */
   milestoneEvents?: BoardEvent[];
+  /** Its launched lot while it is not over — absent otherwise, and on an older bridge. */
+  lot?: Lot;
 }
 
 export const fetchFacts = (repo?: string, signal?: AbortSignal): Promise<{ facts: CardFacts[] }> =>
@@ -51,14 +53,17 @@ export function duration(ms: number): string {
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`;
 }
 
-/** The one-glance chips of a step: the journal's headline facts, most telling first. Pure. */
-export function factChips(card: Pick<CardView, "session">, f: CardFacts | undefined, now = Date.now()): FactChip[] {
+/**
+ * The one-glance chips of a step: the journal's headline facts, most telling first. Pure.
+ * `inRunningLot`: a running lot will merge it — "merge it yourself" would be a false alarm.
+ */
+export function factChips(card: Pick<CardView, "session">, f: CardFacts | undefined, now = Date.now(), inRunningLot = false): FactChip[] {
   const chips: FactChip[] = [];
   if (f?.gate) chips.push({ label: t(f.gate.ok ? "facts.gateOk" : "facts.gateKo"), tone: f.gate.ok ? "good" : "bad" });
   if (f?.pr) {
     const merged = f.pr.state === "merged";
     chips.push({ label: t(`facts.pr.${f.pr.state}`), tone: merged ? "good" : f.pr.state === "closed" ? "bad" : "plain" });
-    if (f.pr.state === "open" && f.pr.autoMerge === "refused") chips.push({ label: t("facts.mergeYourself"), tone: "warn" });
+    if (f.pr.state === "open" && f.pr.autoMerge === "refused" && !inRunningLot) chips.push({ label: t("facts.mergeYourself"), tone: "warn" });
   }
   if (f?.review) chips.push({ label: t("facts.review", { verdict: f.review }), tone: f.review === "complete" ? "good" : "warn" });
   if (f && f.sentBack > 0) chips.push({ label: t("facts.sentBack", { count: f.sentBack }), tone: "warn" });

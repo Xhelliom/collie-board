@@ -111,7 +111,8 @@ export function PhaseLots({
       <div className="flex flex-col gap-5">
         {visible.map(({ pl, own }) => {
           const planned = pl.lot.launchedAt === null;
-          const finished = pl.cards.length > 0 && pl.done === pl.cards.length;
+          // The bridge's word when it has one: a one-PR lot files its cards before its PR lands.
+          const finished = pl.lot.finished ?? (pl.cards.length > 0 && pl.done === pl.cards.length);
           const pct = pl.cards.length ? (100 * pl.done) / pl.cards.length : 0;
           return (
             <section
