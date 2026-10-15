@@ -219,7 +219,7 @@ claude mcp add collie-board -e COLLIE_BOARD_DEVICE_HEADER=x-device -e COLLIE_BOA
 | `HERDR_PANE_ID` | inherited from the client, sent as `x-collie-pane` on every call: a client launched from a herdr pane is an **agent** (lot launch and phase validation refused). Unset (a client outside herdr): the operator's call. A convention, not an authentication |
 
 Read tools: `list_projects`, `project_status`, `get_card`, `whats_blocking`, `recent_notifications`. Action
-tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `notify` (needs a pane).
+tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `finish_card` (mode `pr` | `merge` | `done`, the card screen's three finishing taps), `notify` (needs a pane).
 
 ### What is deliberately NOT built
 
