@@ -1841,6 +1841,15 @@ export class BoardDb {
       .map(toRun);
   }
 
+  /** Whether the coordinator journaled `run.finished` for this run — the end of {@link listOpenRuns}. */
+  runFinished(id: string): boolean {
+    return (
+      this.db
+        .query<{ n: number }, [string]>("SELECT 1 AS n FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ? LIMIT 1")
+        .get(id) != null
+    );
+  }
+
   /** A follow-up the lead folded into the run: it becomes a member. */
   joinRun(cardId: string, runId: string): void {
     this.db.query("UPDATE card SET run_id = ? WHERE id = ?").run(runId, cardId);

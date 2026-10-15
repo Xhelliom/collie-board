@@ -6,7 +6,7 @@ import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import { BoardDb } from "./db.ts";
 import { baseOf } from "./git.ts";
-import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard, prepareLot } from "./lot.ts";
+import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard, lotView, prepareLot } from "./lot.ts";
 
 const sh = (cwd: string, ...args: string[]) => {
   const p = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
@@ -116,5 +116,26 @@ describe("prepareLot — what startCard forks from", () => {
     expect(await prepareLot(db, lot, db.getCard(b!.id)!)).toEqual({ ok: true });
     expect(await baseOf(db.getCard(b!.id)!)).toBe(lot.lotBranch);
     expect(db.getRun(run.id)!.lotBase).toBe("main");
+  });
+});
+
+describe("lotView", () => {
+  it("says a launched lot is over once run.finished is journaled, and carries the lot's PR while it runs", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/repo" });
+    const b = db.createCard({ title: "b", repoPath: "/repo" });
+    const run = db.createRun({ repoPath: "/repo", cardIds: [a.id, b.id], foldInCap: 0, integration: "lot" });
+    expect(lotView(db, run)).toMatchObject({ finished: false, prUrl: null });
+    db.recordEvent(b.id, "card.pr_opened", { url: "https://github.com/o/r/pull/7" });
+    expect(lotView(db, run).prUrl).toBe("https://github.com/o/r/pull/7");
+    db.recordRunEvent(null, "run.finished", { runId: run.id });
+    expect(lotView(db, run)).toMatchObject({ finished: true, prUrl: null });
+  });
+
+  it("never calls a planned lot finished", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/repo" });
+    const run = db.createRun({ repoPath: "/repo", cardIds: [a.id], foldInCap: 0, planned: true });
+    expect(lotView(db, run).finished).toBe(false);
   });
 });

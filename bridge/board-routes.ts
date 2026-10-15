@@ -42,7 +42,7 @@ import type {
   TinyTodo,
 } from "./db.ts";
 import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, type Integration } from "./db.ts";
-import { lotPrCard } from "./lot.ts";
+import { lotPrCard, lotView } from "./lot.ts";
 import {
   baseOf,
   cardDiffStat,
@@ -823,6 +823,7 @@ async function route(
       const parent = detail.parentId ? db.getCard(detail.parentId) : null;
       const duplicate = detail.duplicateOf ? db.getCard(detail.duplicateOf) : null;
       const originCard = detail.originCardId ? db.getCard(detail.originCardId) : null;
+      const run = detail.runId ? db.getRun(detail.runId) : null;
       return json({
         card: detail,
         predecessor: predecessor ? linkSummary(predecessor) : null,
@@ -840,6 +841,8 @@ async function route(
         events: db.listEvents(id).map(trimEvent),
         // The timeline reads these, not `events`: the journal above stops at 100, the story must not.
         milestoneEvents: db.listMilestoneEvents(id).map(trimEvent),
+        // Its lot, so the screen can say "the lead has this" while the lot runs (null: not in one).
+        lot: run ? lotView(db, run) : null,
       });
     }
     if (req.method === "PATCH" || req.method === "POST") {

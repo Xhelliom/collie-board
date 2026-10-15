@@ -150,6 +150,18 @@ export const project = defineMessages({
   "lot.oneAtATime": { en: "one at a time", fr: "une à la fois" },
   "lot.nAtATime": { en: "{count} at a time", fr: "{count} à la fois" },
   "lot.launch": { en: "Launch this lot", fr: "Lancer ce lot" },
+  "lot.chip": { en: "Lot · {name}", fr: "Lot · {name}" },
+  "lot.step.running": { en: "in progress", fr: "en cours" },
+  "lot.step.review": { en: "review", fr: "relecture" },
+  "lot.step.merge": { en: "merge", fr: "merge" },
+  "lot.held": {
+    en: "In the lot {name}: the lead has it (review, PR, merge).",
+    fr: "Dans le lot {name} : le lead s'en occupe (relecture, PR, merge).",
+  },
+  "lot.open": { en: "Open the lot", fr: "Voir le lot" },
+  "lot.pr": { en: "The lot's PR", fr: "PR du lot" },
+  "lot.takeOver": { en: "Take over", fr: "Reprendre la main" },
+  "lot.handBack": { en: "Leave it to the lead", fr: "Laisser au lead" },
   "lot.notIn": { en: "Not in a lot · {count}", fr: "Hors lot · {count}" },
 
   // The roadmap block

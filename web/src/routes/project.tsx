@@ -22,6 +22,7 @@ import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
+import { lotHold } from "@/lib/lot-hold";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -424,6 +425,7 @@ export function ProjectRoute() {
                                 return f ? { name: templateName(f.template), inherited: f.inherited } : undefined;
                               })()}
                               inLot={inLot}
+                              hold={lotHold(s, data.lots, data.facts?.[s.id]?.pr?.state === "open")}
                               onToggle={() => toggle(s.id)}
                               phases={data.phases}
                               onMove={(phaseId) => void move(s.id, phaseId)}

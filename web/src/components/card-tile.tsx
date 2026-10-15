@@ -20,6 +20,7 @@ import { MilestoneDots } from "@/components/milestone-dots";
 import { paneDisplayName } from "@/lib/types";
 import { CARD_STATUS_LABEL, criteriaCount, type BoardEvent, type CardStatus, type CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
+import type { LotHold } from "@/lib/lot-hold";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
 // the board is a second lens on the same herd, not a different app.
@@ -87,7 +88,10 @@ export function CardTile({
   drag,
   selected,
   milestones,
+  lot,
 }: {
+  /** Its launched lot, while it runs: "Lot · name" and the lot's step stand in for "review". */
+  lot?: LotHold | null;
   /** The card's journal milestones (from the facts), drawn as dots under the title. */
   milestones?: BoardEvent[];
   card: CardView;
@@ -141,7 +145,8 @@ export function CardTile({
 }) {
   const t = useT();
   const loud = LOUD_STATUS[card.status];
-  const named = !loud ? NAMED_STATUS[card.status] : undefined;
+  // A lot's step replaces a NAMED status (review means "the lead's", not "yours"); a loud one stays.
+  const named = !loud && !lot?.step ? NAMED_STATUS[card.status] : undefined;
   // Whether row 1 has a real status/repo signal to show. Without one, a lone tag chip floating
   // `ml-auto` in an otherwise-empty row reads as a blank gap — so with nothing else on it, the tag
   // rides the title row instead (row 2) rather than getting a row of its own.
@@ -150,7 +155,7 @@ export function CardTile({
   // where this used to live and therefore never showed.
   // `origin` counts for the same reason as `copilotBusy`: an automatic card is a fresh backlog card
   // with no pane, no branch and no repo shown, i.e. exactly the tile whose row 1 doesn't render.
-  const statusRow = Boolean(loud || named || repo || card.copilotBusy || card.origin);
+  const statusRow = Boolean(loud || named || lot || repo || card.copilotBusy || card.origin);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
@@ -216,6 +221,12 @@ export function CardTile({
                 {CARD_STATUS_LABEL[card.status]}
               </span>
             ) : null}
+            {lot && (
+              <span className="flex shrink-0 items-center gap-1.5 text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-brand">
+                {lot.label}
+                {lot.step && <span className="text-status-working">· {t(`lot.step.${lot.step}`)}</span>}
+              </span>
+            )}
             {/* The repo, always — next to the status chip on a live card, alone in the row on a
                 quiet one. A "To review" column that says four cards are waiting but not WHICH repo
                 they came out of makes you open each one to find out; the chip and the repo answer

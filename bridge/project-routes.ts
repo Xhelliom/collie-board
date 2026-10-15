@@ -5,8 +5,9 @@
 
 import { basename } from "node:path";
 
-import { isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict, type Run } from "./db.ts";
+import { isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
+import { lotView } from "./lot.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
 
 const MAX_NAME = 200;
@@ -35,7 +36,6 @@ const goal = (v: unknown) => (typeof v === "string" && v.length <= MAX_GOAL ? v.
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** A run with the ids of its cards — what a planner needs to read a lot. */
-const lotView = (ctx: BoardContext, run: Run) => ({ ...run, cardIds: ctx.db.runMembers(run.id).map((c) => c.id) });
 
 /** `pane` is the caller's `x-collie-pane`, read once by the dispatcher. Null: not ours. */
 export async function handleProjectRoute(
@@ -193,7 +193,7 @@ export async function handleProjectRoute(
     const denied = guard("read");
     if (denied) return denied;
     const repo = new URL(req.url).searchParams.get("repo") ?? undefined;
-    return ctx.json({ runs: db.listRuns(repo).map((r) => lotView(ctx, r)) });
+    return ctx.json({ runs: db.listRuns(repo).map((r) => lotView(db, r)) });
   }
 
   const runMatch = RUN.exec(pathname);
@@ -259,7 +259,7 @@ export async function handleProjectRoute(
         return ctx.text((err as Error).message, 409);
       }
       audit("run.patch", { runId: id, ...patch });
-      return ctx.json({ run: lotView(ctx, db.getRun(id)!) });
+      return ctx.json({ run: lotView(db, db.getRun(id)!) });
     }
     if (req.method === "DELETE") {
       const denied = guard("write");

@@ -97,3 +97,23 @@ export async function prepareLot(
   if (card.baseRef !== lot) db.patchCard(card.id, { baseRef: lot }, "forks from the lot");
   return { ok: true };
 }
+
+/**
+ * Un lot tel que les écrans le lisent : ses cartes, s'il est terminé (`run.finished` journalisé), et —
+ * lot à une PR — l'url de cette PR, journalisée sur la dernière carte (ADR 0041). Tant que le lot tourne,
+ * ses cartes disent « le lead s'en occupe » ; terminé, elles reprennent leur affichage normal.
+ */
+export function lotView(db: Pick<BoardDb, "runMembers" | "runFinished" | "listEvents">, run: Run) {
+  const members = db.runMembers(run.id);
+  const finished = run.launchedAt !== null && db.runFinished(run.id);
+  let prUrl: string | null = null;
+  if (run.integration === "lot" && !finished) {
+    let ts = -1;
+    for (const m of members) {
+      const e = db.listEvents(m.id, 200).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+      const url = (e?.payload as { url?: unknown } | undefined)?.url;
+      if (e && typeof url === "string" && e.ts > ts) [prUrl, ts] = [url, e.ts];
+    }
+  }
+  return { ...run, cardIds: members.map((c) => c.id), finished, prUrl };
+}

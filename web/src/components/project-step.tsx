@@ -10,6 +10,7 @@ import { useT, type MessageKey } from "@/i18n";
 import { MilestoneDots } from "@/components/milestone-dots";
 import { duration, factChips, rich, specLine, type CardFacts, type Tone } from "@/lib/project-facts";
 import { stepGroup } from "@/lib/project";
+import type { LotHold } from "@/lib/lot-hold";
 import { cn } from "@/lib/utils";
 
 // One step of the project view: a row that opens on what the card says and who has the ball. Every
@@ -68,6 +69,7 @@ export function StepItem({
   facts,
   template,
   inLot = false,
+  hold = null,
   onToggle,
   phases = [],
   onMove,
@@ -84,6 +86,8 @@ export function StepItem({
   template?: { name: string; inherited: boolean };
   /** Drawn inside its lot's group: the group already says "in a run", so the chip is dropped. */
   inLot?: boolean;
+  /** Its launched lot, while it runs: the lot and its step stand in for "review" and the manual asks. */
+  hold?: LotHold | null;
   onToggle: () => void;
   /** The repo's phases; with `onMove`, the step can be filed under another one. */
   phases?: Phase[];
@@ -92,9 +96,9 @@ export function StepItem({
   const t = useT();
   const group = stepGroup(card);
   const agent = card.runtime?.agent ?? card.session?.agentKind ?? card.agentKind;
-  const ask = ASK[card.status] ? t(ASK[card.status]!) : undefined;
+  const ask = ASK[card.status] && !hold?.step ? t(ASK[card.status]!) : undefined;
   const body = `step-${card.id}-body`;
-  const chips = factChips(card, facts);
+  const chips = factChips(card, facts, undefined, !!hold);
   const line = specLine(card.spec);
   return (
     <li
@@ -132,8 +136,16 @@ export function StepItem({
           <span className="flex flex-wrap items-center gap-1.5">
           {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("step.next")}</span>}
           {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-xs py-0.5" />}
-          {card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>}
-          <CardStatusChip status={card.status} />
+          {hold ? (
+            <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>
+          ) : (
+            card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>
+          )}
+          {hold?.step ? (
+            <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
+          ) : (
+            <CardStatusChip status={card.status} />
+          )}
           <MilestoneDots events={facts?.milestoneEvents} />
           {chips.map((c) => (
             <span key={c.label} className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", CHIP_TONE[c.tone])}>
@@ -207,7 +219,14 @@ export function StepItem({
                   {facts.triage ? t(facts.triage.accept ? "step.review.accepted" : "step.review.rejected", { reason: facts.triage.reason }) : ""}
                 </Who>
               )}
-              {facts?.pr && (
+              {hold?.prUrl && (
+                <Who label={t("step.who.pr")} tone={WHO.script}>
+                  <a href={hold.prUrl} target="_blank" rel="noreferrer" className="text-brand underline-offset-2 hover:underline">
+                    {t("lot.pr")} — {hold.prUrl.replace(/^https?:\/\/github\.com\//, "")}
+                  </a>
+                </Who>
+              )}
+              {facts?.pr && !hold?.prUrl && (
                 <Who label={t("step.who.pr")} tone={WHO.script}>
                   {facts.pr.url ? (
                     <a href={facts.pr.url} target="_blank" rel="noreferrer" className="text-brand underline-offset-2 hover:underline">
@@ -217,7 +236,7 @@ export function StepItem({
                     t("step.pr.opened")
                   )}{" "}
                   — {t(`step.pr.${facts.pr.state}`)}
-                  {facts.pr.state === "open" && facts.pr.autoMerge === "refused" ? t("step.pr.refused") : ""}
+                  {facts.pr.state === "open" && facts.pr.autoMerge === "refused" && !hold ? t("step.pr.refused") : ""}
                   {facts.pr.state === "open" && facts.pr.autoMerge === "armed" ? t("step.pr.armed") : ""}
                 </Who>
               )}

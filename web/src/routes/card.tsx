@@ -56,6 +56,7 @@ import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardTimeline } from "@/components/card-timeline";
 import { CardStatusChip } from "@/components/card-status-chip";
+import { holdOf } from "@/lib/lot-hold";
 import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
@@ -66,6 +67,7 @@ import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import {
   boardPath,
   cardPath,
+  projectPath,
   cardPrompt,
   CARD_STATUS_LABEL,
   boardErrorMessage,
@@ -156,9 +158,13 @@ export function CardRoute() {
   // the branch still holds commits. Filing first is the order everybody reaches for and it is the
   // broken one — it ends the session, so the agent that could settle a merge conflict is gone.
   const [integration, setIntegration] = useState<Integration | null | undefined>(undefined);
+  /** "Take over" tapped on a card its lot drives: the manual integration gestures come back out. */
+  const [takeOver, setTakeOver] = useState(false);
 
   const detail = data.detail;
   const card = detail?.card;
+  // A launched lot that is not over has this card: the lead reviews, opens the PR and merges.
+  const hold = card ? holdOf(card, detail?.lot, !!integrationHistory(detail?.events ?? []).pr) : null;
 
   // Full CardView objects for a container's sub-tasks — `detail.children` is only `CardLink[]` (id,
   // title, status), too thin for the dense row (tag, dependency, branch, ctx, drag position) the
@@ -204,6 +210,7 @@ export function CardRoute() {
     // just left would otherwise show its own button as busy on the next one.
     setReviewing(false);
     setCommitting(false);
+    setTakeOver(false);
   }, [card?.id]);
 
   async function move(status: CardStatus) {
@@ -554,9 +561,18 @@ export function CardRoute() {
                 </button>
               )}
               <div className="flex flex-wrap items-center gap-2">
-                <CardStatusChip status={card.status}>
-                  {CARD_STATUS_LABEL[card.status]}
-                </CardStatusChip>
+                {hold && (
+                  <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>
+                )}
+                {hold?.step ? (
+                  <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">
+                    {t(`lot.step.${hold.step}`)}
+                  </span>
+                ) : (
+                  <CardStatusChip status={card.status}>
+                    {CARD_STATUS_LABEL[card.status]}
+                  </CardStatusChip>
+                )}
                 {card.tag && <TagChip tag={card.tag} />}
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
                 <CopyPromptButton cardId={card.id} />
@@ -725,7 +741,35 @@ export function CardRoute() {
                 {/* Action rail, not document — "what can I DO with this card" belongs beside its live
                     state, not buried mid-document between Spec and Journal (redesign follow-up: the
                     board-card mockup puts Intégration and Classer here). */}
-                {card.branch && (
+                {/* Its lot has it: say so, point at the lot (and its one PR), and keep the manual
+                    gestures one tap away rather than first — they would race the lead. */}
+                {hold && (
+                  <div className="flex flex-col gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3 text-sm">
+                    <p>{t("lot.held", { name: hold.lot.name ?? t("lot.fallbackName") })}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => navigate(projectPath(card.repoPath))}>
+                        {t("lot.open")}
+                      </Button>
+                      {hold.prUrl && (
+                        <a
+                          href={hold.prUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-sm font-medium"
+                        >
+                          <GitPullRequest className="size-4" />
+                          {t("lot.pr")}
+                        </a>
+                      )}
+                      {card.branch && (
+                        <Button variant="ghost" size="sm" className="h-9 rounded-full" aria-expanded={takeOver} onClick={() => setTakeOver((v) => !v)}>
+                          {takeOver ? t("lot.handBack") : t("lot.takeOver")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {card.branch && (!hold || takeOver) && (
                   <IntegrationSection
                     card={card}
                     events={detail?.events ?? []}
