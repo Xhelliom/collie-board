@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.205.0] - 2026-10-15
+
+### Added
+
+- Réglages › Système : carte « Serveur MCP » — commande `claude mcp add` avec le vrai chemin, copiable, variante en-tête d'appareil si configuré, liste des outils lecture / action (34bfb33)
+
 ## [0.204.0] - 2026-10-15
 
 ### Added
