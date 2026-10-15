@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { gitFreeEnv } from "../scripts/test-env.ts";
+import { handleBoardRoute } from "./board-routes.ts";
+import { BoardDb } from "./db.ts";
 import { createMcp, type McpEnv } from "./mcp.ts";
 
 // A fake bridge: records every request, answers from a route table.
@@ -36,7 +42,8 @@ describe("mcp: protocol", () => {
     };
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
     for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
-    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
+    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
+    for (const n of ["launch_lot", "finish_card"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
   });
 });
@@ -188,5 +195,119 @@ describe("mcp: tools", () => {
     });
     await call("launch_lot", { repoPath: "/r" });
     expect(calls.at(-1)!.url).toBe("/api/runs/a/launch");
+  });
+});
+
+describe("mcp: finish_card — the card screen's buttons, by the same request", () => {
+  const card = (status = "review") => ({ "GET /api/cards/c1": { body: { card: { id: "c1", title: "Ma carte", status } } } });
+  it("pr (default) and merge post the button's body; done is the « Classer → Terminé » PATCH", async () => {
+    const { call, calls } = setup({}, { ...card(), "POST /api/cards/c1/integration": { body: { ok: true, url: "https://x/pull/7", base: "main" } } });
+    expect((await call("finish_card", { cardId: "c1" })).text).toMatch(/PR ouverte et suivie.*pull\/7.*fusionnée/);
+    expect(calls[1]!.body).toEqual({ action: "pr", andDone: true });
+    expect((await call("finish_card", { card_id: "c1", mode: "merge" })).text).toMatch(/fusionnée dans main et classée terminée/);
+    expect(calls[3]!.body).toEqual({ action: "merge", andDone: true });
+    await call("finish_card", { cardId: "c1", mode: "done" });
+    expect(calls[5]).toMatchObject({ method: "PATCH", url: "/api/cards/c1", body: { status: "done" } });
+  });
+  it("a card already filed gets the integration alone, like the buttons' `filing`", async () => {
+    const { call, calls } = setup({}, { ...card("done"), "POST /api/cards/c1/integration": { body: { ok: true, base: "main" } } });
+    expect((await call("finish_card", { cardId: "c1", mode: "merge" })).text).not.toMatch(/classée/);
+    expect(calls[1]!.body).toEqual({ action: "merge", andDone: false });
+  });
+  it("every refusal is one plain sentence, never a JSON body or a throw", async () => {
+    for (const [kind, status, re] of [
+      ["in-progress", 409, /déjà en cours/],
+      ["conflict", 409, /Conflit de fusion.*rien n'a été modifié/],
+      ["refused", 409, /Refusé.*no branch/],
+      ["git", 502, /Échec \(git\)/],
+    ] as const) {
+      const { call } = setup({}, { ...card(), "POST /api/cards/c1/integration": { status, body: { ok: false, error: "this card has no branch", kind } } });
+      const r = await call("finish_card", { cardId: "c1", mode: "merge" });
+      expect(r.isError).toBe(true);
+      expect(r.text).toMatch(re);
+      expect(r.text).not.toContain("{");
+    }
+    const { call } = setup({});
+    expect((await call("finish_card", { cardId: "c1", mode: "squash" })).text).toMatch(/Mode inconnu/);
+  });
+});
+
+// The real route, real git: the acceptance criteria are about what the BRIDGE does with the request.
+describe("mcp: finish_card end to end, against the bridge's own route", () => {
+  function git(cwd: string, ...args: string[]): string {
+    const r = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+    return r.stdout.toString().trim();
+  }
+  function world() {
+    const root = mkdtempSync(join(tmpdir(), "collie-mcp-"));
+    const repo = join(root, "repo");
+    git(root, "init", "-q", "-b", "main", repo);
+    for (const [k, v] of [["user.name", "t"], ["user.email", "t@t"], ["commit.gpgsign", "false"]]) git(repo, "config", k!, v!);
+    writeFileSync(join(repo, "README"), "x\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "init");
+    git(root, "clone", "-q", "--bare", repo, join(root, "origin.git"));
+    git(repo, "remote", "add", "origin", join(root, "origin.git"));
+    git(repo, "fetch", "-q", "origin");
+    git(repo, "checkout", "-q", "-b", "board/x");
+    writeFileSync(join(repo, "x.ts"), "export {};\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "x");
+    git(repo, "checkout", "-q", "main");
+    const store = new BoardDb(":memory:");
+    const c = store.createCard({ title: "x", repoPath: repo, baseRef: "main", status: "review" });
+    store.patchCard(c.id, { branch: "board/x" });
+    const ctx = {
+      db: store, herdr: {}, engine: { current: () => ({ bridge: "connected", agents: [] }) },
+      copilot: { busy: () => new Set<string>(), reformulate: () => {} }, cfg: {}, audit: { record: () => {} },
+      session: "default", guard: () => null, device: null,
+      json: (data: unknown, status = 200) => new Response(JSON.stringify(data), { status }),
+      text: (body: string, status: number) => new Response(body, { status }),
+    } as never;
+    const bridge = (async (url: string, init?: RequestInit) =>
+      (await handleBoardRoute(new URL(url).pathname, new Request(url, init), ctx)) ?? new Response("no route", { status: 404 })) as unknown as typeof fetch;
+    return { root, repo, store, id: c.id, mcp: createMcp({}, bridge) };
+  }
+  const call = async (mcp: ReturnType<typeof createMcp>, args: Record<string, unknown>) =>
+    ((await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "finish_card", arguments: args } })) as {
+      result: { content: { text: string }[]; isError?: boolean };
+    }).result;
+
+  it("merge lands the branch in main and files the card, as « Merge et terminé »", async () => {
+    const { repo, store, id, mcp } = world();
+    const r = await call(mcp, { cardId: id, mode: "merge" });
+    expect(r.content[0]!.text).toMatch(/fusionnée dans main et classée terminée/);
+    expect(git(repo, "ls-tree", "--name-only", "main")).toContain("x.ts");
+    expect(store.getCard(id)!.status).toBe("done");
+  });
+
+  it("pr opens the PR and journals card.pr_follow, without filing the card", async () => {
+    const { root, store, id, mcp } = world();
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gh"), "#!/bin/sh\necho https://github.com/o/r/pull/1\n");
+    chmodSync(join(bin, "gh"), 0o755);
+    const path = process.env.PATH;
+    process.env.PATH = `${bin}:${path}`;
+    try {
+      const r = await call(mcp, { cardId: id });
+      expect(r.content[0]!.text).toMatch(/PR ouverte et suivie.*pull\/1/);
+    } finally {
+      process.env.PATH = path;
+    }
+    expect(store.listEvents(id).some((e) => e.type === "card.pr_follow")).toBe(true);
+    expect(store.getCard(id)!.status).toBe("review");
+  });
+
+  it("a merge conflict is refused in plain words, the card left as it was", async () => {
+    const { repo, store, id, mcp } = world();
+    writeFileSync(join(repo, "x.ts"), "clash\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "clash on main");
+    const r = await call(mcp, { cardId: id, mode: "merge" });
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toMatch(/^Conflit de fusion/);
+    expect(store.getCard(id)!.status).toBe("review");
   });
 });

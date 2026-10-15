@@ -19,7 +19,9 @@ interface Req { jsonrpc: "2.0"; id?: number | string; method: string; params?: J
 type Out = { text: string; isError?: boolean };
 
 /** A bridge answer that is not a success, in one sentence a voice can read. */
-class Refusal extends Error {}
+class Refusal extends Error {
+  constructor(message: string, readonly body = "") { super(message); }
+}
 
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -30,12 +32,12 @@ function refusal(status: number, action: string, body: string): Refusal {
   if (status === 403) {
     return new Refusal(/launch|validat|phase/i.test(`${action} ${body}`) && /launch|operator/i.test(body)
       ? "Le lancement de lot est réservé à l'opérateur : refusé pour un agent."
-      : `Action refusée par le board (${why || "droits insuffisants"}).`);
+      : `Action refusée par le board (${why || "droits insuffisants"}).`, body);
   }
-  if (status === 409) return new Refusal(`Conflit : ${why || "l'état de la ressource ne le permet pas"} (déjà fait ou pas le moment).`);
-  if (status === 404) return new Refusal(`Introuvable : ${action}.`);
-  if (status === 400) return new Refusal(`Requête refusée : ${why}.`);
-  return new Refusal(`Le board a répondu ${status} (${why}).`);
+  if (status === 409) return new Refusal(`Conflit : ${why || "l'état de la ressource ne le permet pas"} (déjà fait ou pas le moment).`, body);
+  if (status === 404) return new Refusal(`Introuvable : ${action}.`, body);
+  if (status === 400) return new Refusal(`Requête refusée : ${why}.`, body);
+  return new Refusal(`Le board a répondu ${status} (${why}).`, body);
 }
 
 export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
@@ -175,6 +177,44 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
         }
         await api("POST", `/api/runs/${id(runId!)}/launch`, {});
         return `Lot ${runId} lancé.`;
+      },
+    },
+    {
+      // The card screen's three ways to end a card, each by the same request as its button (card.tsx:
+      // IntegrationSection's merge / PR, "Classer → Terminé"): no decision here, the bridge's gate and lock apply.
+      name: "finish_card", readOnly: false, destructive: true,
+      description: "Termine une carte comme l'écran carte. mode « pr » (défaut) : ouvre ou met à jour la PR, la carte est classée quand la PR est fusionnée. « merge » : fusionne la branche directement dans sa base (main) et classe la carte. « done » : classe la carte sans intégrer.",
+      props: { cardId: { type: "string" }, mode: { type: "string", enum: ["pr", "merge", "done"], description: "Défaut pr" } }, required: ["cardId"],
+      run: async (a) => {
+        const cardId = String(a.cardId ?? a.card_id ?? "");
+        const mode = a.mode ?? "pr";
+        if (!["pr", "merge", "done"].includes(mode)) throw new Refusal("Mode inconnu : pr, merge ou done.");
+        const { card } = await api("GET", `/api/cards/${id(cardId)}`);
+        const title = `« ${oneLine(card?.title, 80)} »`;
+        if (mode === "done") {
+          await api("PATCH", `/api/cards/${id(cardId)}`, { status: "done" });
+          return `Carte ${title} classée terminée, sans intégration.`;
+        }
+        // The buttons' `filing`: a card already filed gets the integration alone.
+        const filing = card?.status !== "done" && card?.status !== "archived";
+        let res: Json;
+        try {
+          res = await api("POST", `/api/cards/${id(cardId)}/integration`, { action: mode, andDone: filing });
+        } catch (e) {
+          let err: Json;
+          try { err = JSON.parse((e as Refusal).body); } catch { throw e; }
+          const why = oneLine(err.error, 160);
+          throw new Refusal(
+            err.kind === "in-progress" ? `Une intégration est déjà en cours sur ${title} : rien n'a été relancé.`
+            : err.kind === "conflict" ? `Conflit de fusion sur ${title}, rien n'a été modifié : ${why}.`
+            : err.kind === "refused" ? `Refusé pour ${title} : ${why}.`
+            : `Échec (${err.kind}) sur ${title} : ${why}.`,
+          );
+        }
+        if (mode === "pr") return filing
+          ? `PR ouverte et suivie pour ${title} : ${res.url} — la carte sera classée une fois la PR fusionnée.`
+          : `PR à jour pour ${title} : ${res.url}.`;
+        return `${title} fusionnée dans ${res.base}${filing ? " et classée terminée" : ""}.`;
       },
     },
     {
