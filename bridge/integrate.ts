@@ -747,7 +747,9 @@ export async function cleanupCard(
   // Read before the branch goes: merged locally (`--no-ff` or not), its commits are already ancestors
   // of the base, and a dependent forked from it has nothing to merge. Squash-merged or only pushed, it does.
   const landed = !opts.discard && (await isAncestor(card.repoPath!, branch, state!.base));
-  const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard);
+  // `-d` asks for a branch merged into HEAD; a card folded into a lot's branch (ADR 0041) is merged into
+  // that one. Reachable from its base is the same guarantee that nothing is lost.
+  const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard || landed);
   if (!deleted.ok) {
     // The checkout is already gone, so say what actually happened rather than claiming a clean run.
     db.recordEvent(card.id, "card.cleanup_failed", { stage: "branch", error: deleted.error });

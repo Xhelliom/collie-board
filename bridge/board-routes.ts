@@ -41,7 +41,8 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isMaxParallel, MAX_AGENTS_CAP } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, type Integration } from "./db.ts";
+import { lotPrCard } from "./lot.ts";
 import {
   baseOf,
   cardDiffStat,
@@ -624,7 +625,7 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position, maxParallel } = (body ?? {}) as {
+    const { cardIds, foldInCap, leadAgent, planned, phaseId, name, position, maxParallel, integration } = (body ?? {}) as {
       cardIds?: unknown;
       foldInCap?: unknown;
       leadAgent?: unknown;
@@ -633,6 +634,7 @@ async function route(
       name?: unknown;
       position?: unknown;
       maxParallel?: unknown;
+      integration?: unknown;
     };
     // Without `planned` this IS the launch (ADR 0017's gesture), so it is the operator's: an agent
     // pane can plan a lot but never start one (ADR 0021).
@@ -645,6 +647,7 @@ async function route(
       return ctx.text("bad position", 400);
     if (maxParallel !== undefined && maxParallel !== null && !isMaxParallel(maxParallel))
       return ctx.text("maxParallel must be a whole number from 1 to 16, or null", 400);
+    if (integration !== undefined && !isIntegration(integration)) return ctx.text('integration must be "card" or "lot"', 400);
     if (!Array.isArray(cardIds) || cardIds.length === 0 || !cardIds.every((c) => typeof c === "string"))
       return ctx.text("cardIds must be a non-empty list of card ids", 400);
     if (new Set(cardIds).size !== cardIds.length) return ctx.text("cardIds has a duplicate", 400);
@@ -672,6 +675,7 @@ async function route(
       name: typeof name === "string" ? name.trim() : null,
       position: position as number | undefined,
       maxParallel: (maxParallel as number | null | undefined) ?? null,
+      integration: integration as Integration | undefined,
     });
     ctx.audit.record({
       action: "run.create",
@@ -1260,7 +1264,8 @@ async function route(
     if (denied) return denied;
     const card = db.getCard(id);
     if (!card) return text("card not found", 404);
-    const pr = await prStatusFor(card);
+    // A card of a one-PR lot (ADR 0041) has no PR of its own: it answers with the lot's.
+    const pr = await prStatusFor(lotPrCard(card.runId ? db.getRun(card.runId) : null, card));
     notePrOutcome(db, card.id, pr);
     return json({ pr });
   }

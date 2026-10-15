@@ -378,7 +378,18 @@ export interface Run {
    * (the coordinator reads `listOpenRuns`, which skips it). Launching is the operator's gesture.
    */
   launchedAt: number | null;
+  /**
+   * `card` (default): every card opens its own PR. `lot`: the cards fold into one lot branch and the
+   * lot opens ONE PR — ADR 0041. Set while the lot is planned.
+   */
+  integration: Integration;
+  /** The lot branch and the base it was cut from, written when the first card starts (`lot` only). */
+  lotBranch: string | null;
+  lotBase: string | null;
 }
+
+export type Integration = "card" | "lot";
+export const isIntegration = (v: unknown): v is Integration => v === "card" || v === "lot";
 
 /** A phase — ADR 0021. Not a container: it groups cards, it doesn't split one. Progress is derived. */
 export interface Phase {
@@ -644,6 +655,9 @@ interface RunRow {
   position: number;
   launched_at: number | null;
   max_parallel: number | null;
+  integration: string | null;
+  lot_branch: string | null;
+  lot_base: string | null;
 }
 
 function toRun(r: RunRow): Run {
@@ -658,6 +672,9 @@ function toRun(r: RunRow): Run {
     position: r.position ?? 0,
     launchedAt: r.launched_at ?? null,
     maxParallel: r.max_parallel ?? null,
+    integration: r.integration === "lot" ? "lot" : "card",
+    lotBranch: r.lot_branch ?? null,
+    lotBase: r.lot_base ?? null,
   };
 }
 
@@ -1390,6 +1407,10 @@ export class BoardDb {
       { table: "run", column: "position", ddl: "INTEGER NOT NULL DEFAULT 0" },
       { table: "run", column: "launched_at", ddl: "INTEGER" },
       { table: "run", column: "max_parallel", ddl: "INTEGER" },
+      // ADR 0041: one PR for a whole lot.
+      { table: "run", column: "integration", ddl: "TEXT NOT NULL DEFAULT 'card'" },
+      { table: "run", column: "lot_branch", ddl: "TEXT" },
+      { table: "run", column: "lot_base", ddl: "TEXT" },
       // ADR 0025: a validated phase is a milestone. Null closed_at = still the work in progress.
       { table: "phase", column: "closed_at", ddl: "INTEGER" },
       { table: "phase", column: "closed_note", ddl: "TEXT NOT NULL DEFAULT ''" },
@@ -1708,14 +1729,15 @@ export class BoardDb {
     name?: string | null;
     position?: number;
     maxParallel?: number | null;
+    integration?: Integration;
   }): Run {
     const id = crypto.randomUUID();
     this.db.transaction(() => {
       const ts = this.now();
       this.db
         .query(
-          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel, integration)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -1728,6 +1750,7 @@ export class BoardDb {
           input.position ?? 0,
           input.planned ? null : ts,
           input.maxParallel ?? null,
+          input.integration ?? "card",
         );
       const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
       for (const cardId of input.cardIds) {
@@ -1737,6 +1760,11 @@ export class BoardDb {
       }
     })();
     return this.getRun(id)!;
+  }
+
+  /** The lot branch and its base, written once when the first card of a `lot` run starts. */
+  setLotBranch(id: string, branch: string, base: string): void {
+    this.db.query("UPDATE run SET lot_branch = ?, lot_base = ? WHERE id = ?").run(branch, base, id);
   }
 
   /** Launch a planned lot. False when it is missing or already launched — launching is once. */
@@ -1751,7 +1779,7 @@ export class BoardDb {
    */
   updateLot(
     id: string,
-    patch: { name?: string | null; position?: number; phaseId?: string | null; cardIds?: string[]; maxParallel?: number | null },
+    patch: { name?: string | null; position?: number; phaseId?: string | null; cardIds?: string[]; maxParallel?: number | null; integration?: Integration },
   ): Run | null {
     const run = this.getRun(id);
     if (!run || run.launchedAt !== null) return null;
@@ -1760,6 +1788,7 @@ export class BoardDb {
       if (patch.position !== undefined) this.db.query("UPDATE run SET position = ? WHERE id = ?").run(patch.position, id);
       if (patch.phaseId !== undefined) this.db.query("UPDATE run SET phase_id = ? WHERE id = ?").run(patch.phaseId, id);
       if (patch.maxParallel !== undefined) this.db.query("UPDATE run SET max_parallel = ? WHERE id = ?").run(patch.maxParallel, id);
+      if (patch.integration !== undefined) this.db.query("UPDATE run SET integration = ? WHERE id = ?").run(patch.integration, id);
       if (patch.cardIds) {
         const want = new Set(patch.cardIds);
         for (const m of this.runMembers(id)) {
