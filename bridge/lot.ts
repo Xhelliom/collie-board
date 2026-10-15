@@ -7,8 +7,8 @@
 // deux fusions concurrentes ne s'écrasent pas — la perdante rend "busy" et redemande au tick suivant.
 
 import { boardBranchPrefix } from "./config.ts";
-import type { Card, Run } from "./db.ts";
-import { branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
+import type { BoardDb, Card, Run } from "./db.ts";
+import { baseOf, branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 
 /** `board/lot-<slug>-<id6>` : le nom aide l'œil, l'id garde deux lots du même nom distincts. Pur. */
 export function lotBranchOf(run: Pick<Run, "id" | "name">): string {
@@ -73,4 +73,27 @@ export async function foldIntoLot(repoPath: string, lot: string, branch: string,
   // Gardé par l'ancien sha : si le lot a bougé entre-temps, rien n'est écrit et on redemande.
   const moved = await git(["update-ref", `refs/heads/${lot}`, commit.stdout.trim(), lotSha], repoPath);
   return moved.ok ? { ok: true, merged: true } : fail("busy", moved);
+}
+
+/**
+ * Avant chaque démarrage d'une carte d'un lot `lot` : la branche de lot existe (coupée depuis la base de
+ * la 1re carte) et la carte la prend pour base — c'est ce que `startCard` lit pour forker sa branche.
+ */
+export async function prepareLot(
+  db: Pick<BoardDb, "setLotBranch" | "patchCard">,
+  run: Pick<Run, "id" | "name" | "lotBranch">,
+  card: Card,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; kind: "base" | "git"; error: string }> {
+  let lot = run.lotBranch;
+  if (!lot) {
+    const base = await baseOf(card, git);
+    if (!base) return { ok: false, kind: "base", error: "no base to cut the lot branch from" };
+    lot = lotBranchOf(run);
+    const r = await ensureLotBranch(card.repoPath!, lot, base, git);
+    if (!r.ok) return { ok: false, kind: "git", error: r.error };
+    db.setLotBranch(run.id, lot, base);
+  }
+  if (card.baseRef !== lot) db.patchCard(card.id, { baseRef: lot }, "forks from the lot");
+  return { ok: true };
 }

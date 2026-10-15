@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
-import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard } from "./lot.ts";
+import { BoardDb } from "./db.ts";
+import { baseOf } from "./git.ts";
+import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard, prepareLot } from "./lot.ts";
 
 const sh = (cwd: string, ...args: string[]) => {
   const p = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
@@ -94,5 +96,25 @@ describe("lotPrCard — the lot's PR is read through any of its cards", () => {
     expect(lotPrCard({ integration: "card", lotBranch: null, lotBase: null }, c)).toBe(c);
     expect(lotPrCard(null, c)).toBe(c);
     expect(lotPrCard({ integration: "lot", lotBranch: null, lotBase: null }, c)).toBe(c);
+  });
+});
+
+describe("prepareLot — what startCard forks from", () => {
+  it("cuts the lot from the first card's base, and every card of the lot then forks from the lot", async () => {
+    const dir = repo();
+    const db = new BoardDb(":memory:");
+    const [a, b] = ["a", "b"].map((t, i) => db.createCard({ title: t, repoPath: dir, status: "ready", position: i, baseRef: "main" }));
+    const run = db.createRun({ repoPath: dir, cardIds: [a!.id, b!.id], foldInCap: 0, integration: "lot", name: "L" });
+
+    expect(await prepareLot(db, db.getRun(run.id)!, db.getCard(a!.id)!)).toEqual({ ok: true });
+    const lot = db.getRun(run.id)!;
+    expect(lot.lotBranch).toBe(lotBranchOf(run));
+    expect(lot.lotBase).toBe("main");
+    // startCard forks from baseOf(card): the lot, not main.
+    expect(await baseOf(db.getCard(a!.id)!)).toBe(lot.lotBranch);
+
+    expect(await prepareLot(db, lot, db.getCard(b!.id)!)).toEqual({ ok: true });
+    expect(await baseOf(db.getCard(b!.id)!)).toBe(lot.lotBranch);
+    expect(db.getRun(run.id)!.lotBase).toBe("main");
   });
 });

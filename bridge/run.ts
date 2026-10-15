@@ -22,7 +22,7 @@ import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } 
 import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
-import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard } from "./lot.ts";
+import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -600,14 +600,8 @@ export function runHook(
     start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     prepareLot: async (run, card) => {
-      if (run.lotBranch) return { ok: true };
-      const base = await baseOf(card);
-      if (!base) return { ok: false, error: { kind: "base", message: "no base to cut the lot branch from" } };
-      const lot = lotBranchOf(run);
-      const r = await ensureLotBranch(card.repoPath!, lot, base);
-      if (!r.ok) return { ok: false, error: { kind: "git", message: r.error } };
-      db.setLotBranch(run.id, lot, base);
-      return { ok: true };
+      const r = await prepareLot(db, run, card);
+      return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };
     },
     fold: async (run, card) => {
       // The card forks from the lot, whatever it was filed against.
