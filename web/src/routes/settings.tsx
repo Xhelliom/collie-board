@@ -8,6 +8,7 @@ import { BackupControl } from "@/components/backup-control";
 import { BuildStamp } from "@/components/build-stamp";
 import { UpdateBanner } from "@/components/update-banner";
 import { ConnectionInfo } from "@/components/connection-info";
+import { McpSetupCard } from "@/components/mcp-setup";
 import { FollowUpsControl } from "@/components/follow-ups-control";
 import { GateControl } from "@/components/gate-control";
 import { LanguageControl } from "@/components/language-control";
@@ -188,6 +189,8 @@ export function SettingsRoute() {
             <BackupControl device={root?.device} />
 
             <ConnectionInfo bridge={root?.bridge} device={root?.device} build={serverBuild} />
+
+            <McpSetupCard />
           </>
         )}
 

@@ -1173,6 +1173,17 @@ export function fetchUsage(
   });
 }
 
+/** How to plug the MCP server into a client (bridge/mcp-setup.ts). */
+export interface McpSetup {
+  command: string;
+  deviceCommand: string | null;
+  tools: { name: string; readOnly: boolean }[];
+}
+
+export function fetchMcpSetup(signal?: AbortSignal): Promise<McpSetup> {
+  return apiRequest<McpSetup>("/api/board/mcp", { signal: withTimeout(signal, GET_TIMEOUT_MS) });
+}
+
 // ── projects: phases, lots, roadmap (ADR 0021) ────────────────────────────────
 
 export interface Phase {

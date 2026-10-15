@@ -164,6 +164,21 @@ export const settings = defineMessages({
   "settings.conn.roBare": { en: "Read-only", fr: "Lecture seule" },
   "settings.conn.build": { en: "Server build", fr: "Build du serveur" },
 
+  "settings.mcp.title": { en: "MCP server", fr: "Serveur MCP" },
+  "settings.mcp.hint": {
+    en: "stdio, to run on the bridge's machine; a remote client goes through the Multi-machine phase.",
+    fr: "stdio, à lancer sur la machine du bridge ; un client distant passe par la phase Multi-machine.",
+  },
+  "settings.mcp.device": {
+    en: "This deployment gates writes on a device header — replace my-laptop with an authorised device:",
+    fr: "Ce déploiement filtre les écritures par en-tête d'appareil — remplacez my-laptop par un appareil autorisé :",
+  },
+  "settings.mcp.copy": { en: "Copy command: {command}", fr: "Copier la commande : {command}" },
+  "settings.mcp.copied": { en: "Copied", fr: "Copié" },
+  "settings.mcp.read": { en: "Read", fr: "Lecture" },
+  "settings.mcp.action": { en: "Action", fr: "Action" },
+  "settings.mcp.failed": { en: "Couldn't load the MCP setup.", fr: "Impossible de charger la configuration MCP." },
+
   "settings.updates.title": { en: "Updates", fr: "Mises à jour" },
   "settings.updates.none": { en: "Check whether a new Collie version is available.", fr: "Vérifier si une nouvelle version de Collie est disponible." },
   "settings.updates.running": { en: "Running v{version}", fr: "Version v{version} en cours" },

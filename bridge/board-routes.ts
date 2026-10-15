@@ -61,6 +61,7 @@ import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./
 import { handleTemplateRoute } from "./template-routes.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
+import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -366,6 +367,8 @@ async function route(
   if (flows) return flows;
   const facts = handleFactsRoute(pathname, req, ctx);
   if (facts) return facts;
+  const mcp = await handleMcpSetupRoute(pathname, req, ctx);
+  if (mcp) return mcp;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {

@@ -34,6 +34,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/backup/restore": "the operator's restore, which restarts the bridge",
   "/api/board/prefs": "the board's switches (settings screen)",
   "/api/board/usage": "the quota gauge",
+  "/api/board/mcp": "the settings screen's MCP setup card",
   "/api/config": "the app's own config for the client",
   "/api/gallery": "the image gallery screen",
   "/api/gallery/file": "the image gallery screen",
