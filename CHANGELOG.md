@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.204.0] - 2026-10-15
+
+### Added
+
+- MCP : outil `message_orchestrator` — parler à l'orchestrateur vivant d'un projet (« [vocal] … ») (2b978a2)
+
+### Changed
+
+- MCP : `notify` n'est plus proposé à un client sans pane (2b978a2)
+
 ## [0.203.0] - 2026-10-15
 
 ### Added
