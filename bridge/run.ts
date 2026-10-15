@@ -22,6 +22,7 @@ import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } 
 import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
+import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -48,14 +49,18 @@ export interface RunPorts {
   start(cardId: string): Promise<Outcome>;
   /** `promptAndConfirm` to the worker's pane. */
   prompt(paneId: string, text: string): Promise<void>;
-  /** `prForCard` with auto-merge armed. */
+  /** ADR 0041, a `lot` run: the lot branch exists and the card will fork from it. Called before each start. */
+  prepareLot(run: Run, card: Card): Promise<Outcome>;
+  /** ADR 0041: the card's branch into the lot's, locally. "busy": the lot moved under it — ask again next tick. */
+  fold(run: Run, card: Card): Promise<Outcome>;
+  /** `prForCard` with auto-merge armed — for a `lot` run, the lot's one PR. */
   openPr(card: Card, gate: MergeGate): Promise<Outcome>;
   /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). "busy": a gesture holds the card (integration-lock.ts) — not asked, ask again next tick. */
   land(card: Card, gate: MergeGate): Promise<void | "busy">;
   /** Ask GitHub, fresh, what a card's PR became and journal it (`notePrOutcome`): a merge, a close, or nothing. */
   refreshPr(card: Card): Promise<void>;
-  /** `resolveConflict` against origin's base, to the card's own agent. */
-  resolveConflict(card: Card): Promise<Outcome>;
+  /** `resolveConflict` against origin's base, to the card's own agent — `withLot`: against the lot's local branch (ADR 0041). */
+  resolveConflict(card: Card, withLot?: true): Promise<Outcome>;
   /** `fileAsDone`: close the session, file the card, ask for the wrapup. */
   fileAsDone(card: Card): void;
   /** What the lead reads: the worker's checkout and its base. Null when there is no checkout. */
@@ -90,6 +95,7 @@ export type Step =
   | { kind: "recheck"; conflicts: string[] }
   | { kind: "triage"; sessionId: string }
   | { kind: "advance"; role: AgentTemplate }
+  | { kind: "fold" }
   | { kind: "pr" }
   | { kind: "land" }
   | { kind: "file" }
@@ -140,6 +146,8 @@ export function stepFor(
     review: "done" | "failed" | "pending";
     /** The next role of the card's pipeline (ADR 0031), or null on its last step. */
     next?: AgentTemplate | null;
+    /** A `lot` run (ADR 0041): every other card of the lot is filed — this one opens, and waits on, the lot's PR. */
+    closer?: boolean;
   },
 ): Step {
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
@@ -189,6 +197,11 @@ export function stepFor(
     if (ctx.review === "done") return { kind: "triage", sessionId: ctx.session.id };
   }
   const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  // ADR 0041: a card of a one-PR lot lands in the lot branch first. Only the last one to land has a PR to open.
+  if (run.integration === "lot") {
+    if (!after(newest(events, (e) => e.type === "card.lot_merged"), decision)) return { kind: "fold" };
+    if (!ctx.closer && !after(pr, decision)) return { kind: "file" };
+  }
   // INTEGRATE FIRST, FILE SECOND — as the route does: filing ends the session that could settle a conflict.
   if (!after(pr, decision)) return { kind: "pr" };
   // Filed once landed, nothing less (ADR 0036): merged, or GitHub's auto-merge armed. Until then the
@@ -234,6 +247,8 @@ export class RunCoordinator {
   private starting = 0;
   /** …and per run, for a lot's own parallelism ceiling. */
   private readonly startingBy = new Map<string, number>();
+  /** Lots with a fold, a filing or a PR in flight: who closes a one-PR lot is read from who is filed, so those go one at a time. */
+  private readonly lotBusy = new Set<string>();
 
   constructor(
     private readonly db: BoardDb,
@@ -275,8 +290,11 @@ export class RunCoordinator {
           reviewing: this.ports.reviewing(),
           review: reviews.length ? "done" : failed ? "failed" : "pending",
           next: nextRole(pipelineOf(this.db, card), events),
+          closer: run.integration === "lot" && members.every((m) => m.card.id === card.id || FILED.has(m.card.status)),
         });
         if (!step) continue;
+        const serial = run.integration === "lot" && (step.kind === "fold" || step.kind === "file" || step.kind === "pr");
+        if (serial && this.lotBusy.has(run.id)) continue;
         const start = step.kind === "start";
         if (start) {
           if (slots <= 0) continue;
@@ -285,10 +303,12 @@ export class RunCoordinator {
           this.startingBy.set(run.id, (this.startingBy.get(run.id) ?? 0) + 1);
         }
         this.busy.add(card.id);
+        if (serial) this.lotBusy.add(run.id);
         void this.act(run, card, session, step)
           .catch((err) => this.halt(run, card.id, (err as Error).message))
           .finally(() => {
             this.busy.delete(card.id);
+            if (serial) this.lotBusy.delete(run.id);
             if (start) {
               this.starting--;
               this.startingBy.set(run.id, (this.startingBy.get(run.id) ?? 1) - 1);
@@ -304,6 +324,10 @@ export class RunCoordinator {
       case "halt":
         { if (step.limit) await this.haltEmpty(run, card, session, step.reason); else this.halt(run, card.id, step.reason); return; }
       case "start": {
+        if (run.integration === "lot") {
+          const lot = await this.ports.prepareLot(run, card);
+          if (!lot.ok) return this.halt(run, card.id, `lot branch: ${lot.error.message}`);
+        }
         const r = await this.ports.start(card.id);
         // `busy` / `blocked-by` are the gates racing a tick; anything else would fail again every tick.
         if (!r.ok && r.error.kind !== "busy" && r.error.kind !== "blocked-by") this.halt(run, card.id, `start failed: ${r.error.message}`);
@@ -347,6 +371,15 @@ export class RunCoordinator {
       }
       case "triage":
         return this.triage(run, card, step.sessionId);
+      case "fold": {
+        const r = await this.ports.fold(run, card);
+        if (r.ok) return void this.db.recordEvent(card.id, "card.lot_merged", { runId, lot: this.db.getRun(runId)?.lotBranch });
+        if (r.error.kind === "busy") return;
+        if (r.error.kind !== "conflict") return this.halt(run, card.id, `lot merge: ${r.error.message}`);
+        const settled = await this.ports.resolveConflict(card, true);
+        if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
+        return;
+      }
       case "pr": {
         const r = await this.ports.openPr(card, this.mergeGate(run, card));
         if (r.ok) return this.landed(run, card, session!);
@@ -561,14 +594,34 @@ export function runHook(
   // ponytail: the lead runs cfg.boardCopilotKind, not `run.leadAgent` — one lead pane for every run.
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
   leadPane = () => lead.paneId;
+  const prView = (card: Card): Card => lotPrCard(card.runId ? db.getRun(card.runId) : null, card);
   const coordinator = new RunCoordinator(db, {
     lead,
     start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
-    openPr: (card, gate) => prForCard(db, card, { autoMerge: true, gate }),
-    land: async (card, gate) => ((await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, card.repoPath!, card.branch!, gate))).busy ? "busy" : undefined),
-    refreshPr: async (card) => notePrOutcome(db, card.id, await prStatusFor(card, Date.now, true)),
-    resolveConflict: (card) => resolveConflict(db, herdr, card, "pr"),
+    prepareLot: async (run, card) => {
+      const r = await prepareLot(db, run, card);
+      return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };
+    },
+    fold: async (run, card) => {
+      // The card forks from the lot, whatever it was filed against.
+      if (card.baseRef !== run.lotBranch) db.patchCard(card.id, { baseRef: run.lotBranch }, "folded into the lot");
+      const r = await foldIntoLot(card.repoPath!, run.lotBranch!, card.branch!);
+      return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };
+    },
+    openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
+    land: async (card, gate) => {
+      const view = prView(card);
+      return (await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, view.repoPath!, view.branch!, gate))).busy ? "busy" : undefined;
+    },
+    refreshPr: async (card) => notePrOutcome(db, card.id, await prStatusFor(prView(card), Date.now, true)),
+    resolveConflict: (card, withLot) => {
+      // ADR 0041. With the lot's branch: merge it in, locally. The lot's PR against origin's base: the card
+      // merges that base in and folds again — the lot picks it up from there.
+      const run = card.runId ? db.getRun(card.runId) : null;
+      if (run?.integration !== "lot" || !run.lotBranch) return resolveConflict(db, herdr, card, "pr");
+      return withLot ? resolveConflict(db, herdr, { ...card, baseRef: run.lotBranch }, "merge") : resolveConflict(db, herdr, { ...card, baseRef: run.lotBase }, "pr");
+    },
     fileAsDone: (card) => fileAsDone(db, herdr, card),
     brief: async (card) => {
       const worktree = card.repoPath && card.branch ? await worktreePathFor(card.repoPath, card.branch) : null;

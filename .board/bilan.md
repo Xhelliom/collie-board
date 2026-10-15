@@ -1,19 +1,20 @@
-# Bilan — finish_card (serveur MCP)
+# Bilan — review « une PR pour le lot », puis correctif
 
-## Fait
-- `bridge/mcp.ts` : outil `finish_card(cardId, mode = "pr" | "merge" | "done")`, `readOnlyHint: false`,
-  `destructiveHint: true` (comme `launch_lot`). `card_id` accepté aussi.
-  - `pr` → `POST /api/cards/:id/integration {action:"pr", andDone}` : le bouton « Ouvrir / Mettre à jour la PR et terminer ».
-  - `merge` → `{action:"merge", andDone}` : « Fusionner dans {base} et terminer », le merge direct dans main.
-  - `done` → `PATCH /api/cards/:id {status:"done"}` : « Classer → Terminé », sans intégrer.
-  - `andDone` = le `filing` des boutons (faux si la carte est déjà done/archived).
-  - Résultat en une phrase ; refus rendus en clair selon `kind` (in-progress, conflict, refused, git/herdr), jamais de JSON brut.
-- `bridge/mcp.test.ts` : tests unitaires (requêtes, annotations, refus) + bout en bout contre la vraie
-  route `handleBoardRoute` et un vrai dépôt git : merge → main contient la branche et carte `done` ;
-  pr (faux `gh` dans le PATH) → `card.pr_follow` journalisé, carte non classée ; conflit → refus en clair, carte intacte.
-- README (liste des outils MCP), fragment `changes/board-serveur-mcp-ajouter-pr-et-termine-finish-card.md` (minor).
+## Review (6504e3ab contre main)
+- Verdict : CHANGES. `prepareLot` créait la branche de lot sans poser `card.baseRef` dessus ;
+  `startCard` forke depuis `baseOf(card)`, donc la carte 2 partait de main et ne voyait pas la carte 1.
+  Les tests ne le voyaient pas (fork fait à la main dans lot.test.ts, faux `prepareLot` dans run.test.ts).
+
+## Correctif fait
+- `bridge/lot.ts` : nouvelle `prepareLot(db, run, card)` — coupe la branche de lot depuis la base de la
+  1re carte si elle n'existe pas, puis pose `baseRef = lotBranch` sur chaque carte avant son démarrage.
+- `bridge/run.ts` : le port `prepareLot` délègue à cette fonction (logique sortie de `runHook` pour être testable).
+- `bridge/lot.test.ts` : test sur vrai git + `BoardDb` en mémoire — après `prepareLot`, `baseOf(carte)`
+  vaut la branche de lot pour la 1re et la 2e carte, `lotBase` reste `main`.
+
+## Checks
+- `tsc --noEmit` vert, `bun test bridge` : 1430 pass, 0 fail.
 
 ## Pas fait
-- ADR 0039 non retouché (liste d'outils datée ; un ADR ne se réécrit pas).
-- « Archiver » n'est pas un mode : c'est ranger une carte, pas la terminer.
-- Pas testé en vrai depuis Loquivox (nécessite redémarrage du client MCP, pas du bridge : `mcp.ts` est lancé par le client).
+- Pas de commit (non demandé) ; le fragment `changes/lot-une-pr.md` de la branche couvre déjà ce changement.
+- `startCard` lui-même n'est pas exercé (il lui faut herdr) : le test s'arrête à `baseOf(card)`, ce qu'il lit.

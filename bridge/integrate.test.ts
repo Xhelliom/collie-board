@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import {
+  branchExists,
   cardDiffSummary,
   deleteBranch,
   ensureBoardExcluded,
@@ -25,6 +26,7 @@ import {
   type Integration,
 } from "./git.ts";
 import { BoardDb, type CardSession } from "./db.ts";
+import { foldIntoLot } from "./lot.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { Config } from "./config.ts";
 import {
@@ -660,6 +662,35 @@ describe("a landed card keeps the diff its review reads", () => {
       expect(t.moved()).toBe(false);
       await rm(t.repo, { recursive: true, force: true });
     });
+  });
+
+  it("a card folded into a lot's branch is cleaned up whole: checkout and branch gone, the lot keeps the work (ADR 0041)", async () => {
+    const repo = join(tmpdir(), `collie-lotclean-${Math.random().toString(36).slice(2)}`);
+    const checkout = `${repo}-wt`;
+    await mkdir(repo, { recursive: true });
+    git(repo, "init", "-q", "-b", "main");
+    git(repo, "config", "user.name", "t");
+    git(repo, "config", "user.email", "t@t");
+    git(repo, "config", "commit.gpgsign", "false");
+    await Bun.write(join(repo, "README"), "x\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "init");
+    git(repo, "branch", "board/lot-x");
+    git(repo, "worktree", "add", "-q", "-b", "board/x", checkout, "board/lot-x");
+    await Bun.write(join(checkout, "x.ts"), "export {};\n");
+    git(checkout, "add", ".");
+    git(checkout, "commit", "-qm", "x");
+    expect(await foldIntoLot(repo, "board/lot-x", "board/x")).toEqual({ ok: true, merged: true });
+
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "x", repoPath: repo, baseRef: "board/lot-x" });
+    store.patchCard(card.id, { branch: "board/x" });
+    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
+    expect(await worktreePathFor(repo, "board/x")).toBeNull();
+    expect(await branchExists(repo, "board/x")).toBe(false);
+    expect(await branchExists(repo, "board/lot-x")).toBe(true);
+    await rm(repo, { recursive: true, force: true });
+    await rm(checkout, { recursive: true, force: true });
   });
 
   it("still has nothing to say for a card that never recorded a landing", async () => {

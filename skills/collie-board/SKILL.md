@@ -189,6 +189,12 @@ user's quota — and its pane id is what `$HERDR_PANE_ID` carries when it plans.
   Set `maxParallel` (1 to 16, or null for the board's own cap) when you plan it: **1 is sequential**.
   Decide it from the cards — ones that touch the same files, or build on each other's output, get 1
   (or a `dependsOn` chain); independent ones can run side by side. Patchable while the lot is planned.
+  Set `integration` (`"card"`, the default, or `"lot"`) too: with `"lot"` the cards fork from a shared
+  lot branch, fold into it locally once the lead accepts them, and the lot opens **one PR** for all of
+  them — one CI instead of one per card. Pick it when CI is billed or the cards belong together; keep
+  `"card"` for independent changes. Patchable while the lot is planned
+  (`curl -X PATCH $B/api/runs/<id> -d '{"integration":"lot"}'`). `GET /api/cards/<id>/pr` of such a
+  card answers with the lot's PR.
 
 ```bash
 B=http://127.0.0.1:8788; H=(-H 'content-type: application/json' -H "x-collie-pane: $HERDR_PANE_ID")

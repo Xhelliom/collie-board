@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -519,5 +519,42 @@ describe("milestones: validating a phase (ADR 0025)", () => {
     expect(md).toContain("## Validated phases");
     expect(md).toMatch(/\*\*P1\*\* — validated \d{4}-\d\d-\d\d, 1 step — shipped/);
     expect(md).not.toContain("**done** —");
+  });
+});
+
+describe("one PR for the lot over the routes (ADR 0041)", () => {
+  it("is set on a planned lot at creation or by PATCH, and refused otherwise", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const lot = (await call(db, "POST", "/api/runs", { cardIds: [a.id], foldInCap: 0, planned: true })).body.run;
+    expect(lot.integration).toBe("card");
+    expect((await call(db, "PATCH", `/api/runs/${lot.id}`, { integration: "lot" })).body.run.integration).toBe("lot");
+    expect((await call(db, "PATCH", `/api/runs/${lot.id}`, { integration: "both" })).status).toBe(400);
+    expect((await call(db, "PATCH", `/api/runs/${lot.id}`, { integration: "card" })).body.run.integration).toBe("card");
+    const b = db.createCard({ title: "b", repoPath: "/r", status: "ready" });
+    expect((await call(db, "POST", "/api/runs", { cardIds: [b.id], foldInCap: 0, planned: true, integration: "lot" })).body.run.integration).toBe("lot");
+    expect((await call(db, "POST", "/api/runs", { cardIds: [b.id], foldInCap: 0, planned: true, integration: "x" })).status).toBe(400);
+    db.launchRun(lot.id);
+    expect((await call(db, "PATCH", `/api/runs/${lot.id}`, { integration: "lot" })).status).toBe(409);
+  });
+
+  it("GET /api/cards/:id/pr of a card in a lot answers with the lot's PR", async () => {
+    // a fake `gh` that names the PR after the branch it is asked about
+    const bin = mkdtempSync(join(tmpdir(), "collie-gh-"));
+    const gh = join(bin, "gh");
+    writeFileSync(gh, `#!/bin/sh\necho "{\\"state\\":\\"OPEN\\",\\"url\\":\\"https://x/pull/for/$3\\",\\"mergeable\\":\\"MERGEABLE\\",\\"createdAt\\":\\"2026-01-01T00:00:00Z\\"}"\n`, { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = `${bin}:${path}`;
+    try {
+      const db = new BoardDb(":memory:");
+      const repo = mkdtempSync(join(tmpdir(), "collie-lotpr-"));
+      const a = db.createCard({ title: "a", repoPath: repo, status: "working", branch: "board/a" });
+      const lot = db.createRun({ repoPath: repo, cardIds: [a.id], foldInCap: 0, integration: "lot" });
+      expect((await call(db, "GET", `/api/cards/${a.id}/pr`)).body.pr.url).toBe("https://x/pull/for/board/a"); // lot not started yet
+      db.setLotBranch(lot.id, "board/lot-x", "main");
+      expect((await call(db, "GET", `/api/cards/${a.id}/pr`)).body.pr.url).toBe("https://x/pull/for/board/lot-x");
+    } finally {
+      process.env.PATH = path;
+    }
   });
 });

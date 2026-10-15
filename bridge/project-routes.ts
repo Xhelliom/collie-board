@@ -5,7 +5,7 @@
 
 import { basename } from "node:path";
 
-import { isMaxParallel, PHASE_NOTE_MAX, RevisionConflict, type Run } from "./db.ts";
+import { isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict, type Run } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
 
@@ -238,6 +238,10 @@ export async function handleProjectRoute(
       if ("maxParallel" in b) {
         if (b.maxParallel !== null && !isMaxParallel(b.maxParallel)) return ctx.text("maxParallel must be a whole number from 1 to 16, or null", 400);
         patch.maxParallel = b.maxParallel as number | null;
+      }
+      if ("integration" in b) {
+        if (!isIntegration(b.integration)) return ctx.text('integration must be "card" or "lot"', 400);
+        patch.integration = b.integration;
       }
       if ("phaseId" in b) {
         if (b.phaseId !== null && (typeof b.phaseId !== "string" || db.getPhase(b.phaseId)?.repoPath !== run.repoPath))

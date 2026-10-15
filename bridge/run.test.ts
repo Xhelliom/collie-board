@@ -37,6 +37,8 @@ function world(
   let gate: string | null = null;
   let commits: number | null = 1;
   const gates: GateResult[] = [];
+  /** What `fold` answers, oldest first; empty = it folded. */
+  const folds: Awaited<ReturnType<RunPorts["fold"]>>[] = [];
   /** What GitHub says of a predecessor's PR when the coordinator asks (`refreshPr`). */
   let predPr: PrStatus | null = null;
   const clock = opts.clock ?? { now: 1_000_000_000_000 };
@@ -51,6 +53,12 @@ function world(
       db.openSession({ cardId: id, paneId: `p-${db.getCard(id)!.title}` });
       db.setStatus(id, "working", "agent working");
       return { ok: true };
+    },
+    prepareLot: async (_run, c) => (calls.push(`lot ${c.title}`), { ok: true }),
+    fold: async (_run, c) => {
+      const r = folds.shift() ?? { ok: true };
+      calls.push(`fold ${c.title}${r.ok ? "" : " " + r.error.kind}`);
+      return r;
     },
     prompt: async (pane, text) => void calls.push(`prompt ${pane} ${text}`),
     openPr: async (c) => {
@@ -118,6 +126,7 @@ function world(
     setPredPr: (p: PrStatus | null) => (predPr = p),
     clock,
     gates,
+    folds,
     coord: new RunCoordinator(db, ports, () => clock.now),
     ports,
   };
@@ -881,3 +890,68 @@ describe("the repo's gate (ADR 0020)", () => {
   });
 });
 
+
+describe("one PR for the lot (ADR 0041)", () => {
+  const titles = ["a", "b", "c"];
+  async function lotOf(integration: "card" | "lot") {
+    const db = new BoardDb(":memory:");
+    const cards = titles.map((t, i) => db.createCard({ title: t, repoPath: "/r", status: "ready", position: i }));
+    const run = db.createRun({ repoPath: "/r", cardIds: cards.map((c) => c.id), foldInCap: 0, integration });
+    const w = world(db);
+    w.coord.update(snap());
+    await flush();
+    cards.forEach((c) => land(db, c));
+    return { db, cards, run, w };
+  }
+  const panes = Object.fromEntries(titles.map((t) => [`p-${t}`, "idle"]));
+  /** Ticks until the world is quiet. A card's landing is the worker's; the rest is the coordinator's. */
+  const settle = async (w: Awaited<ReturnType<typeof lotOf>>["w"], n = 14) => {
+    for (let i = 0; i < n; i++) {
+      w.coord.update(snap(panes));
+      await flush();
+    }
+  };
+
+  it("3 cards: each starts from the lot, folds into it, and exactly ONE PR is opened", async () => {
+    const { db, cards, run, w } = await lotOf("lot");
+    expect(db.getRun(run.id)!.integration).toBe("lot");
+    expect(w.calls.filter((c) => c.startsWith("lot "))).toEqual(["lot a", "lot b", "lot c"]);
+    // the lot is prepared before the card starts
+    expect(w.calls.indexOf("lot a")).toBeLessThan(w.calls.indexOf("start a"));
+    await settle(w);
+    expect(w.calls.filter((c) => c.startsWith("fold "))).toEqual(["fold a", "fold b", "fold c"]);
+    expect(w.calls.filter((c) => c.startsWith("pr "))).toHaveLength(1);
+    expect(w.calls.filter((c) => c.startsWith("land "))).toHaveLength(0); // armed: nothing to ask
+    // the PR is opened only after every card is in the lot, and by the last one to land
+    expect(w.calls.indexOf("pr c")).toBeGreaterThan(w.calls.indexOf("fold c"));
+    // a, b are filed as soon as they are in the lot; c — the PR's anchor — once the PR is armed
+    expect(w.calls.filter((c) => c.startsWith("done "))).toEqual(["done a", "done b", "done c"]);
+    expect(w.calls.indexOf("done c")).toBeGreaterThan(w.calls.indexOf("pr c"));
+    expect(cards.map((c) => db.getCard(c.id)!.status)).toEqual(["done", "done", "done"]);
+    expect(db.listEvents(cards[0]!.id, 50).some((e) => e.type === "card.lot_merged")).toBe(true);
+  });
+
+  it("without the setting a lot behaves as before: one PR per card, nothing folded", async () => {
+    const { w } = await lotOf("card");
+    await settle(w);
+    expect(w.calls.filter((c) => c.startsWith("pr "))).toEqual(["pr a", "pr b", "pr c"]);
+    expect(w.calls.some((c) => c.startsWith("fold ") || c.startsWith("lot "))).toBe(false);
+  });
+
+  it("a card that conflicts with the lot is handed back to its agent, then folds on its next landing", async () => {
+    const { db, cards, w } = await lotOf("lot");
+    w.folds.push({ ok: true }, { ok: false, error: { kind: "conflict", message: "same.txt" } });
+    await settle(w, 4);
+    expect(w.calls).toContain("fold b conflict");
+    expect(w.calls).toContain("resolve b");
+    expect(w.calls.filter((c) => c.startsWith("pr "))).toHaveLength(0);
+    // b settles on its branch and lands again
+    const b = cards[1]!;
+    db.setStatus(b.id, "working", "agent working");
+    land(db, b);
+    w.rechecks.push({ decision: "resolved", reason: "settled" });
+    await settle(w);
+    expect(w.calls.filter((c) => c === "fold b")).toHaveLength(1);
+    expect(w.calls.filter((c) => c.startsWith("pr "))).toHaveLength(1);
+  });
+});
