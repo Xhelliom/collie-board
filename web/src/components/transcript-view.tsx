@@ -5,6 +5,7 @@ import { useT } from "@/i18n";
 import { AgentIcon } from "@/components/agent-icon";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { GalleryImg } from "@/components/gallery-img";
+import { ButtonsPaneContext, useButtonsPane } from "@/components/action-buttons";
 import { MarkdownText } from "@/components/markdown-text";
 import { collectImages, imageName, openLightbox } from "@/lib/lightbox";
 import { splitHighlight } from "@/lib/transcript-search";
@@ -181,7 +182,9 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
           <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
           {t("transcript.thinking")}
         </summary>
-        <MarkdownText text={part.text} query={query} className="italic text-muted-foreground" />
+        <ButtonsPaneContext.Provider value={null}>
+          <MarkdownText text={part.text} query={query} className="italic text-muted-foreground" />
+        </ButtonsPaneContext.Provider>
         {part.truncated && <div className="text-xs text-muted-foreground">{t("transcript.truncated")}</div>}
       </details>
     );
@@ -196,7 +199,18 @@ function Part({ part, query }: { part: TranscriptPart; query: string }) {
   );
 }
 
-function Turn({
+// Only the agent's own words may carry buttons (ADR 0042): a user turn — the operator's, or a
+// `[vocal]` message typed in for them — a compaction summary or a system note never does.
+function Turn(props: Parameters<typeof TurnBody>[0]) {
+  const pane = useButtonsPane();
+  return (
+    <ButtonsPaneContext.Provider value={props.entry.role === "assistant" ? pane : null}>
+      <TurnBody {...props} />
+    </ButtonsPaneContext.Provider>
+  );
+}
+
+function TurnBody({
   entry,
   agent,
   showHeader,

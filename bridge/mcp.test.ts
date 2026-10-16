@@ -7,6 +7,7 @@ import { gitFreeEnv } from "../scripts/test-env.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import { createMcp, type McpEnv } from "./mcp.ts";
+import { createTools, invalidArgs } from "../web/src/lib/board-tools.ts";
 
 // A fake bridge: records every request, answers from a route table.
 type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
@@ -337,5 +338,26 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).toMatch(/^Conflit de fusion/);
     expect(store.getCard(id)!.status).toBe("review");
+  });
+});
+
+describe("mcp: the catalog is the buttons' catalog (ADR 0042)", () => {
+  it("tools/list is createTools, schemas included", async () => {
+    const { mcp } = setup({ HERDR_PANE_ID: "w:p1" });
+    const list = (await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string; inputSchema: { properties: unknown } }[] } };
+    const catalog = createTools(async () => ({}));
+    expect(list.result.tools.map((t) => t.name)).toEqual(catalog.map((t) => t.name));
+    for (const t of catalog) expect(list.result.tools.find((x) => x.name === t.name)!.inputSchema.properties).toEqual(t.props);
+    // Typing into another agent's pane is never a button.
+    expect(catalog.filter((t) => t.button === false).map((t) => t.name)).toEqual(["reply_to_agent", "notify"]);
+  });
+  it("invalidArgs checks required, unknown keys, types and enums", () => {
+    const fin = createTools(async () => ({})).find((t) => t.name === "finish_card")!;
+    expect(invalidArgs(fin, { cardId: "c", mode: "merge" })).toBeNull();
+    expect(invalidArgs(fin, { mode: "merge" })).toContain("cardId");
+    expect(invalidArgs(fin, { cardId: "c", mode: "yolo" })).toContain("mode");
+    expect(invalidArgs(fin, { cardId: 3 })).toContain("string");
+    expect(invalidArgs(fin, { cardId: "c", rm: true })).toContain("rm");
+    expect(invalidArgs(fin, [])).not.toBeNull();
   });
 });

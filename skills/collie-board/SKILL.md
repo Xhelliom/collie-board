@@ -287,6 +287,31 @@ curl -s "$B/api/roadmap?repo=<repo>&format=steps"   # step by step — rendered 
 The user hands you over (`/api/orchestrator/renew`) when your context fills: the route refuses your own
 pane header. Write your note when asked.
 
+### Buttons in your messages — orchestrator only (ADR 0042)
+
+When a question settles in one gesture (yes/no, merge this card, launch that lot), **end the message
+with its buttons**: a fenced block tagged `collie-buttons` holding a JSON array. The board's
+orchestrator panel turns it into buttons; anywhere else (another agent's output, a user turn) it stays
+code.
+
+````
+```collie-buttons
+[{ "label": "Oui, fusionne", "tone": "primary", "action": "finish_card", "args": { "cardId": "<card>", "mode": "merge" } },
+ { "label": "Non", "tone": "neutral", "action": "say", "args": { "text": "non" } }]
+```
+````
+
+- **Look is yours**: `label`, `tone` (`primary` · `neutral` · `secondary` · `ghost` · `danger` ·
+  `success` · `warning`, mapped on the theme), `size` (`sm` · `md` · `lg`), `wide: true` for a full row.
+- **`action` is a tool of the MCP server** (`bridge/mcp.ts` → `web/src/lib/board-tools.ts`), `args`
+  checked against its schema — or `say {text}`, which types `text` into YOUR pane and submits.
+  `reply_to_agent` and `notify` are not buttons. An unknown action or bad args: the button is greyed with
+  the reason and nothing runs.
+- The button shows what it will do from `action`+`args` (« Fusionner « titre » dans main »), not from
+  your label; a destructive tool (`finish_card`, `launch_lot`) asks for confirmation. The tap is the
+  user's, with the user's rights: writing the block runs nothing, and what refuses you still does.
+- No buttons for an open question that wants a sentence — ask for the sentence.
+
 - `POST /api/runs/<id>/launch`, and `POST /api/runs` **without** `planned:true` — both start work;
   they are the user's, and refuse your `x-collie-pane` — with one exception (ADR 0030): if the user
   turned **autonomy** on for this repo (`GET /api/orchestrator/autonomy?repo=`; only the user can change
