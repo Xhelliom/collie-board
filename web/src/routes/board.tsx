@@ -689,6 +689,7 @@ export function BoardRoute() {
                                     repo={repoLabel(card)}
                                     milestones={facts?.[card.id]?.milestoneEvents}
                                     lot={holdOf(card, facts?.[card.id]?.lot, facts?.[card.id]?.pr?.state === "open")}
+                                    awaiting={facts?.[card.id]?.awaiting}
                                     // The dictation this was split from, on every screen (ADR 0022):
                                     // the container takes no tile, so this is where it is named.
                                     parent={card.parentId ? byId.get(card.parentId)?.title : undefined}

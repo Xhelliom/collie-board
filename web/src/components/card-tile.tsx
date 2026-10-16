@@ -21,6 +21,8 @@ import { paneDisplayName } from "@/lib/types";
 import { CARD_STATUS_LABEL, criteriaCount, type BoardEvent, type CardStatus, type CardView } from "@/lib/board";
 import type { DependencyInfo } from "@/lib/board-groups";
 import type { LotHold } from "@/lib/lot-hold";
+import { AwaitingTag } from "@/components/awaiting-tag";
+import type { Awaiting } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
 // the board is a second lens on the same herd, not a different app.
@@ -89,7 +91,10 @@ export function CardTile({
   selected,
   milestones,
   lot,
+  awaiting,
 }: {
+  /** The orchestrator's open question about this card: the tag that opens its conversation. */
+  awaiting?: Awaiting;
   /** Its launched lot, while it runs: "Lot · name" and the lot's step stand in for "review". */
   lot?: LotHold | null;
   /** The card's journal milestones (from the facts), drawn as dots under the title. */
@@ -155,7 +160,7 @@ export function CardTile({
   // where this used to live and therefore never showed.
   // `origin` counts for the same reason as `copilotBusy`: an automatic card is a fresh backlog card
   // with no pane, no branch and no repo shown, i.e. exactly the tile whose row 1 doesn't render.
-  const statusRow = Boolean(loud || named || lot || repo || card.copilotBusy || card.origin);
+  const statusRow = Boolean(loud || named || lot || awaiting || repo || card.copilotBusy || card.origin);
   // Only when the pane has a name distinct from its bare agent slug — an icon already says "claude";
   // a real label or /rename name is the part worth repeating (UI_AUDIT.md G2: card title AND pane name).
   const paneName =
@@ -227,6 +232,7 @@ export function CardTile({
                 {lot.step && <span className="text-status-working">· {t(`lot.step.${lot.step}`)}</span>}
               </span>
             )}
+            {awaiting && card.repoPath && <AwaitingTag awaiting={awaiting} repo={card.repoPath} nested />}
             {/* The repo, always — next to the status chip on a live card, alone in the row on a
                 quiet one. A "To review" column that says four cards are waiting but not WHICH repo
                 they came out of makes you open each one to find out; the chip and the repo answer

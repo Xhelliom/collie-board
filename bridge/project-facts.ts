@@ -2,7 +2,7 @@
 // (gate, the lead's verdict and reason, the review, the PR, how many times it was sent back…).
 // Derived on every read from the cards' own journals, stored nowhere: it cannot drift from the board.
 
-import { MILESTONE_TYPES as MILESTONES, type BoardEvent } from "./db.ts";
+import { MILESTONE_TYPES as MILESTONES, type BoardEvent, type Card, type Decision } from "./db.ts";
 
 export interface CardFacts {
   cardId: string;
@@ -117,6 +117,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
 
 import type { BoardContext } from "./board-routes.ts";
 import { lotView } from "./lot.ts";
+import { awaitingOn } from "./roadmap.ts";
 
 /** How much of a card's journal is read: its newest entries are the story; a card is rarely older. */
 const JOURNAL_LIMIT = 300;
@@ -146,13 +147,21 @@ export function handleFactsRoute(pathname: string, req: Request, ctx: BoardConte
     }
     return lots.get(runId)!;
   };
+  // The roadmap of each repo once, for the cards the orchestrator waits on the operator about.
+  const decisions = new Map<string, Decision[] | undefined>();
+  const awaiting = (c: Card) => {
+    if (!c.repoPath) return null;
+    if (!decisions.has(c.repoPath)) decisions.set(c.repoPath, ctx.db.getRoadmap(c.repoPath)?.decisions);
+    return awaitingOn(decisions.get(c.repoPath), c.id);
+  };
   const facts = ctx.db
     .listCards()
     .filter((c) => !repo || c.repoPath === repo)
     .map((c) => {
       const f = foldFacts(c.id, withMilestones(ctx.db.listEvents(c.id, JOURNAL_LIMIT), ctx.db.listMilestoneEvents(c.id)));
       const lot = c.runId ? lotOf(c.runId) : null;
-      return lot ? { ...f, lot } : f;
+      const wait = awaiting(c);
+      return { ...f, ...(lot ? { lot } : {}), ...(wait ? { awaiting: wait } : {}) };
     });
   return ctx.json({ facts });
 }

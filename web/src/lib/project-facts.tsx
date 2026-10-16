@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { getLocale, t } from "@/i18n";
-import { conditionalGet, type BoardEvent, type CardView, type Lot } from "@/lib/board";
+import { conditionalGet, type BoardEvent, type Awaiting, type CardView, type Lot } from "@/lib/board";
 
 // What the project view shows on a step beyond the card itself — read off the journal by the bridge
 // (bridge/project-facts.ts), one request per repo. Optional everywhere: a step with no facts is just a card.
@@ -23,6 +23,8 @@ export interface CardFacts {
   milestoneEvents?: BoardEvent[];
   /** Its launched lot while it is not over — absent otherwise, and on an older bridge. */
   lot?: Lot;
+  /** The open question the orchestrator asked about it — absent once settled, and on an older bridge. */
+  awaiting?: Awaiting;
 }
 
 export const fetchFacts = (repo?: string, signal?: AbortSignal): Promise<{ facts: CardFacts[] }> =>

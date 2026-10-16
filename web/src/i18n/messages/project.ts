@@ -150,6 +150,7 @@ export const project = defineMessages({
   "lot.oneAtATime": { en: "one at a time", fr: "une à la fois" },
   "lot.nAtATime": { en: "{count} at a time", fr: "{count} à la fois" },
   "lot.launch": { en: "Launch this lot", fr: "Lancer ce lot" },
+  "awaiting.tag": { en: "The orchestrator awaits your decision", fr: "L'orchestrateur attend ta décision" },
   "lot.chip": { en: "Lot · {name}", fr: "Lot · {name}" },
   "lot.step.running": { en: "in progress", fr: "en cours" },
   "lot.step.review": { en: "review", fr: "relecture" },

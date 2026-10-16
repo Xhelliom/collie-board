@@ -221,6 +221,8 @@ export interface CardDetail {
   milestoneEvents?: BoardEvent[];
   /** The lot this card is in, or null. Absent on an older bridge. */
   lot?: Lot | null;
+  /** The open question the orchestrator asked about this card, or null. Absent on an older bridge. */
+  awaiting?: Awaiting | null;
 }
 
 /**
@@ -528,6 +530,11 @@ export function boardPath(): string {
 
 export function projectPath(repo?: string | null): string {
   return repo ? `/board/project?repo=${encodeURIComponent(repo)}` : "/board/project";
+}
+
+/** The project's view with its orchestrator's conversation open (`chat=1`, read once by the project route). */
+export function orchestratorPath(repo: string): string {
+  return `${projectPath(repo)}&chat=1`;
 }
 
 export function prsPath(): string {
@@ -1238,6 +1245,13 @@ export interface Decision {
   text: string;
   status: DecisionStatus;
   itemId: string | null;
+  /** The card it is about: open, that card says "the orchestrator waits on your decision". */
+  cardId?: string;
+}
+/** An open decision as a card carries it (bridge `awaitingOn`): gone once leaning or decided (ADR 0011). */
+export interface Awaiting {
+  id: string;
+  text: string;
 }
 export interface Roadmap {
   repoPath: string;

@@ -63,6 +63,7 @@ import type { AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
+import { awaitingOn } from "./roadmap.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
 import {
@@ -846,6 +847,8 @@ async function route(
         milestoneEvents: db.listMilestoneEvents(id).map(trimEvent),
         // Its lot, so the screen can say "the lead has this" while the lot runs (null: not in one).
         lot: run ? lotView(db, run) : null,
+        // The open question the orchestrator asked the operator about this card (null: none).
+        awaiting: detail.repoPath ? awaitingOn(db.getRoadmap(detail.repoPath)?.decisions, id) : null,
       });
     }
     if (req.method === "PATCH" || req.method === "POST") {

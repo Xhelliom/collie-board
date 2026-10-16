@@ -522,6 +522,8 @@ export interface Decision {
   status: DecisionStatus;
   /** The roadmap item it concerns, or null for the project as a whole. */
   itemId: string | null;
+  /** The card it is about (absent: none). Open, it is "the orchestrator waits on you" on that card. */
+  cardId?: string;
 }
 
 /** The ceilings a roadmap document keeps to — an unbounded one would be an unbounded row. */
@@ -2388,18 +2390,16 @@ export class BoardDb {
    */
   upsertDecision(
     repoPath: string,
-    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null },
+    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null; cardId?: string | null },
   ): { roadmap: Roadmap; decision: Decision } {
     return this.db.transaction(() => {
       const before = this.getRoadmap(repoPath);
       const decisions = [...(before?.decisions ?? [])];
-      const decision: Decision = {
-        id: input.id ?? crypto.randomUUID().slice(0, 8),
-        text: input.text,
-        status: input.status,
-        itemId: input.itemId ?? null,
-      };
-      const at = decisions.findIndex((d) => d.id === decision.id);
+      const id = input.id ?? crypto.randomUUID().slice(0, 8);
+      const at = decisions.findIndex((d) => d.id === id);
+      // A question settled without restating its card keeps it: the journal still says what it was about.
+      const cardId = input.cardId ?? (at >= 0 ? decisions[at]!.cardId : undefined);
+      const decision: Decision = { id, text: input.text, status: input.status, itemId: input.itemId ?? null, ...(cardId ? { cardId } : {}) };
       if (at >= 0) decisions[at] = decision;
       else if (decisions.length >= ROADMAP_MAX_DECISIONS) throw new Error(`a roadmap keeps at most ${ROADMAP_MAX_DECISIONS} decisions`);
       else decisions.push(decision);

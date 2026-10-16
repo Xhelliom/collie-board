@@ -272,6 +272,10 @@ curl -s -X PUT "$B/api/roadmap" "${H[@]}" -d '{"repoPath":"<repo>","revision":<r
 # write EACH decision the moment it is taken; reuse its id to settle an open question
 curl -s -X POST "$B/api/roadmap/decision" "${H[@]}" -d '{"repoPath":"<repo>","text":"Équipes de 16","status":"decided","itemId":"p0"}'
 #   status: decided (✅) | leaning (🟡) | open (❓)
+# a question about ONE card: add its cardId (same repo). While open, that card shows « L'orchestrateur
+# attend ta décision », which opens your conversation; it goes when the decision is leaning or decided.
+# Link the card in the question you ask, `[titre](<base>/card/<id>)`. No extra notification.
+curl -s -X POST "$B/api/roadmap/decision" "${H[@]}" -d '{"repoPath":"<repo>","text":"SQLite ou Postgres ?","status":"open","cardId":"<card>"}'
 # your memory: one short note (≤ 4000 chars) to your next self — update it at every milestone
 curl -s "$B/api/orchestrator/memory?repo=<repo>" "${H[@]}"
 curl -s -X PUT "$B/api/orchestrator/memory" "${H[@]}" -d '{"repoPath":"<repo>","note":"où on en est · écarté · prochaine question"}'
