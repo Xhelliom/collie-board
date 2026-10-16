@@ -287,9 +287,10 @@ export async function handleProjectRoute(
     if (!d.ok) return ctx.text(d.error, 400);
     if (d.value.itemId && !db.getRoadmap(b.repoPath)?.items.some((i) => i.id === d.value.itemId))
       return ctx.text("itemId: no such roadmap item", 400);
+    if (d.value.cardId && db.getCard(d.value.cardId)?.repoPath !== b.repoPath) return ctx.text("cardId: no such card in this repo", 400);
     try {
       const { roadmap, decision } = db.upsertDecision(b.repoPath, d.value);
-      audit("roadmap.decision", { repoPath: b.repoPath, id: decision.id, status: decision.status });
+      audit("roadmap.decision", { repoPath: b.repoPath, id: decision.id, status: decision.status, ...(decision.cardId ? { cardId: decision.cardId } : {}) });
       return ctx.json({ decision, revision: roadmap.revision });
     } catch (err) {
       return ctx.text((err as Error).message, 409);

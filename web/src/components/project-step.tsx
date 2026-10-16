@@ -11,6 +11,7 @@ import { MilestoneDots } from "@/components/milestone-dots";
 import { duration, factChips, rich, specLine, type CardFacts, type Tone } from "@/lib/project-facts";
 import { stepGroup } from "@/lib/project";
 import type { LotHold } from "@/lib/lot-hold";
+import { AwaitingTag } from "@/components/awaiting-tag";
 import { cn } from "@/lib/utils";
 
 // One step of the project view: a row that opens on what the card says and who has the ball. Every
@@ -134,6 +135,7 @@ export function StepItem({
         <span className="col-span-2 flex flex-col gap-1.5">
           {line && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{line}</span>}
           <span className="flex flex-wrap items-center gap-1.5">
+          {facts?.awaiting && card.repoPath && <AwaitingTag awaiting={facts.awaiting} repo={card.repoPath} nested />}
           {next && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("step.next")}</span>}
           {template && <TemplateChip name={template.name} inherited={template.inherited} className="text-xs py-0.5" />}
           {hold ? (

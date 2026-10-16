@@ -36,6 +36,7 @@ export function parseDecision(v: unknown): Parsed<Omit<Decision, "id"> & { id?: 
   if (!DECISION_STATUSES.includes(o.status as DecisionStatus)) return { ok: false, error: `status must be one of ${DECISION_STATUSES.join(", ")}` };
   if (o.id !== undefined && (typeof o.id !== "string" || o.id.trim() === "")) return { ok: false, error: "bad decision id" };
   if (o.itemId !== undefined && o.itemId !== null && typeof o.itemId !== "string") return { ok: false, error: "itemId must be a roadmap item id or null" };
+  if (o.cardId !== undefined && o.cardId !== null && typeof o.cardId !== "string") return { ok: false, error: "cardId must be a card id or null" };
   return {
     ok: true,
     value: {
@@ -43,8 +44,18 @@ export function parseDecision(v: unknown): Parsed<Omit<Decision, "id"> & { id?: 
       text: o.text.trim(),
       status: o.status as DecisionStatus,
       itemId: (o.itemId as string | null | undefined) ?? null,
+      ...(typeof o.cardId === "string" && o.cardId !== "" ? { cardId: o.cardId } : {}),
     },
   };
+}
+
+/**
+ * The open question the orchestrator asked about a card, or null — the card's "waits on your decision"
+ * tag. It retracts by itself: the decision moving to leaning or decided is the readable predicate (ADR 0011).
+ */
+export function awaitingOn(decisions: readonly Decision[] | undefined, cardId: string): { id: string; text: string } | null {
+  const d = decisions?.findLast((d) => d.cardId === cardId && d.status === "open");
+  return d ? { id: d.id, text: d.text } : null;
 }
 
 /** Shape of `PUT /api/roadmap`: `vision`, `items`, optional `decisions`, and the `revision` the caller read (0 for none). */

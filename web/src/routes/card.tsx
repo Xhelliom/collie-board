@@ -57,6 +57,7 @@ import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardTimeline } from "@/components/card-timeline";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { holdOf } from "@/lib/lot-hold";
+import { AwaitingTag } from "@/components/awaiting-tag";
 import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
@@ -573,6 +574,7 @@ export function CardRoute() {
                     {CARD_STATUS_LABEL[card.status]}
                   </CardStatusChip>
                 )}
+                {detail?.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
                 {card.tag && <TagChip tag={card.tag} />}
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
                 <CopyPromptButton cardId={card.id} />

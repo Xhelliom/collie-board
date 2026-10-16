@@ -337,6 +337,28 @@ describe("the roadmap as a document (ADR 0023)", () => {
     expect(db.getRoadmap(repo)!.decisions).toHaveLength(1);
   });
 
+  it("an open decision on a card is that card's awaiting tag until it is leaning or decided (ADR 0011)", async () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "c", repoPath: repo });
+    const other = db.createCard({ title: "o", repoPath: "/elsewhere" });
+    const awaiting = async () =>
+      ((await call(db, "GET", `/api/project/facts?repo=${encodeURIComponent(repo)}`)).body.facts as { cardId: string; awaiting?: unknown }[]).find(
+        (f) => f.cardId === card.id,
+      )!.awaiting;
+    const detail = async () => (await call(db, "GET", `/api/cards/${card.id}`)).body.awaiting;
+    expect((await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", cardId: other.id })).status).toBe(400);
+    expect((await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", cardId: 7 })).status).toBe(400);
+    const a = await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "SQLite ou Postgres ?", status: "open", cardId: card.id });
+    const id = a.body.decision.id as string;
+    expect(await awaiting()).toEqual({ id, text: "SQLite ou Postgres ?" });
+    expect(await detail()).toEqual({ id, text: "SQLite ou Postgres ?" });
+    await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, id, text: "SQLite", status: "leaning" });
+    expect(await awaiting()).toBeUndefined();
+    expect(await detail()).toBeNull();
+    // Settled without restating the card, the journal still says which card it was about.
+    expect(db.getRoadmap(repo)!.decisions[0]!.cardId).toBe(card.id);
+  });
+
   it("refuses a bad decision, an unknown item, a body without a repo, and the 301st", async () => {
     const db = new BoardDb(":memory:");
     const d = (o: object) => call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", ...o });

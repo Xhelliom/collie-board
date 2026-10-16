@@ -187,6 +187,7 @@ describe("the orchestrator's memory (ADR 0023)", () => {
     expect(p).toContain("2026-10-09 12:30 UTC");
     expect(p).toContain("écarté : le mode coop");
     expect(p).toContain("POST /api/roadmap/decision");
+    expect(p).toContain("cardId");
     expect(p).toContain("UN thème à la fois");
     expect(orchestratorPrompt("/g/app", { note: "x".repeat(9000), updatedAt: 0 }).length).toBeLessThan(orchestratorPrompt("/g/app").length + 4_200);
     expect(orchestratorPrompt("/g/app")).not.toContain("<<<");

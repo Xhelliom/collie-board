@@ -111,7 +111,8 @@ export function ProjectRoute() {
   const t = useT();
   const data = useLoaderData() as ProjectData;
   const revalidator = useRevalidator();
-  const repo = useSearchParams()[0].get("repo") ?? loadRepoScope();
+  const [params, setParams] = useSearchParams();
+  const repo = params.get("repo") ?? loadRepoScope();
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
@@ -130,6 +131,12 @@ export function ProjectRoute() {
   const [flash, setFlash] = useState<string | null>(null);
   // The orchestrator is docked on a wide screen and a sheet on a phone (ADR 0021).
   const [chatOpen, setChatOpen] = useState(false);
+  // `chat=1` (an "awaits your decision" tag): open the conversation once, then drop the flag.
+  useEffect(() => {
+    if (params.get("chat") !== "1") return;
+    setChatOpen(true);
+    setParams((p) => (p.delete("chat"), p), { replace: true });
+  }, [params, setParams]);
   // Validating a phase (ADR 0025): the section being validated, or the "seal the finished steps" sheet.
   const [validating, setValidating] = useState<ProjectPhase | null>(null);
   // The "validate the finished steps" sheet: all of them, or one old dictation's (cardIds + its title).
