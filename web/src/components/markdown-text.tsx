@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 
+import { ActionButtons, parseButtons, useButtonsPane } from "@/components/action-buttons";
 import { BoardLinkCard, useCanLinkCards } from "@/components/board-link-card";
 import { parseBoardLink } from "@/lib/board-link";
 import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
@@ -127,6 +128,14 @@ function CodeBlock({ text }: { text: string }) {
   );
 }
 
+// The orchestrator's buttons (ADR 0042) — only where its panel said so; anywhere else, and for a block
+// that isn't a button array, the same text stays a code block.
+function ButtonsBlock({ text }: { text: string }) {
+  const pane = useButtonsPane();
+  const buttons = useMemo(() => (pane ? parseButtons(text) : null), [pane, text]);
+  return pane && buttons ? <ActionButtons buttons={buttons} pane={pane} /> : <CodeBlock text={text} />;
+}
+
 /**
  * Widest table that still reads as a table on a phone.
  *
@@ -212,7 +221,7 @@ function Block({ block }: { block: MdBlock }) {
       );
     }
     case "code":
-      return <CodeBlock text={block.text} />;
+      return block.lang === "collie-buttons" ? <ButtonsBlock text={block.text} /> : <CodeBlock text={block.text} />;
     case "table":
       return <TableBlock block={block} />;
     case "list": {

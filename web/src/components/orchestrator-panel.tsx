@@ -4,6 +4,7 @@ import { Maximize2, Send } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
+import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -194,7 +195,10 @@ export function OrchestratorPanel({
         {entries.length > 0 ? (
           // justify-end: a short conversation sits against the composer, not at the top of an empty box.
           <div className="flex min-h-full flex-col justify-end">
-            <TranscriptView entries={entries} />
+            {/* Its own messages may end on buttons (ADR 0042); this panel is the only place that says so. */}
+            <ButtonsPaneContext.Provider value={state.paneId}>
+              <TranscriptView entries={entries} />
+            </ButtonsPaneContext.Provider>
           </div>
         ) : (
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
