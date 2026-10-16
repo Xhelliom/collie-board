@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.207.0] - 2026-10-16
+
+### Added
+
+- `POST /api/roadmap/decision` accepte un `cardId` : une question de l'orchestrateur rattachée à une carte. (02c59b1)
+- Tuile, étape et écran carte : tag « L'orchestrateur attend ta décision » tant que la décision est `open` ; il ouvre la conversation de l'orchestrateur du projet. (02c59b1)
+
 ## [0.206.0] - 2026-10-15
 
 ### Added
