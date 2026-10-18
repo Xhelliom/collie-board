@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useLocation, useRevalidator, useSearchParams } from "react-router";
 
 import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 
@@ -17,12 +17,13 @@ import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
+import { AUTONOMY_SECTION, boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
+import { revealWhenRendered } from "@/lib/reveal";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -161,6 +162,14 @@ export function ProjectRoute() {
     store.set(f);
   };
   const go = (el: HTMLElement | null) => el?.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
+  // `#project-autonomy` (the orchestrator's link): scroll there once the block is rendered and the sheet
+  // gone — on every arrival, the link pushes a new entry — and say so if it never shows up.
+  const location = useLocation();
+  useEffect(() => {
+    if (location.hash !== `#${AUTONOMY_SECTION}`) return;
+    return revealWhenRendered(AUTONOMY_SECTION, go, () => setStatus(t("orch.autoMissing"), "error", null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival, not per render
+  }, [location.key, location.hash]);
 
   const steps = v.phases.flatMap((p) => p.steps);
   const counts: Record<Filter, number> = {

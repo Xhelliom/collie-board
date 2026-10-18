@@ -532,6 +532,14 @@ export function projectPath(repo?: string | null): string {
   return repo ? `/board/project?repo=${encodeURIComponent(repo)}` : "/board/project";
 }
 
+/** The id of the autonomy block on the project page (components/autonomy-settings.tsx). */
+export const AUTONOMY_SECTION = "project-autonomy";
+
+/** The project's view scrolled to its autonomy block, once that block is rendered (routes/project.tsx). */
+export function autonomyPath(repo: string): string {
+  return `${projectPath(repo)}#${AUTONOMY_SECTION}`;
+}
+
 /** The project's view with its orchestrator's conversation open (`chat=1`, read once by the project route). */
 export function orchestratorPath(repo: string): string {
   return `${projectPath(repo)}&chat=1`;

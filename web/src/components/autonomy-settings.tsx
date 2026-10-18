@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useT } from "@/i18n";
 import { Switch } from "@/components/ui/switch";
-import { boardErrorMessage, fetchAutonomy, saveAutonomy, type Autonomy } from "@/lib/board";
+import { AUTONOMY_SECTION, boardErrorMessage, fetchAutonomy, saveAutonomy, type Autonomy } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 
 // How far the project's orchestrator may go without the operator (ADR 0030). The operator's screen
@@ -33,7 +33,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   }
 
   return (
-    <section id="project-autonomy" aria-label={t("orch.auto")} className="scroll-mt-4 rounded-2xl border bg-card/40 p-3.5 text-sm">
+    <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-2xl border bg-card/40 p-3.5 text-sm">
       <h2 className="text-xs font-semibold text-muted-foreground">{t("orch.auto")}</h2>
       <div className="mt-2 flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">

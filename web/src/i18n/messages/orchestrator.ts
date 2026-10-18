@@ -49,4 +49,8 @@ export const orchestrator = defineMessages({
   "orch.autoUnlimited": { en: "Unlimited", fr: "Illimité" },
   "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
   "orch.autoSaved": { en: "Autonomy saved.", fr: "Autonomie enregistrée." },
+  "orch.autoMissing": {
+    en: "The autonomy settings could not be shown on this page.",
+    fr: "Les réglages d'autonomie n'ont pas pu être affichés sur cette page.",
+  },
 });

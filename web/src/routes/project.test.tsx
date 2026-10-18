@@ -3,7 +3,7 @@ import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CardView, Lot, Phase, Roadmap } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
@@ -399,7 +399,15 @@ describe("ProjectRoute", () => {
     await waitFor(() => expect(saved).toEqual({ repoPath: "/r/app", enabled: true }));
     // The panel keeps a link to the block, no longer the settings themselves.
     const aside = screen.getByRole("complementary", { name: "Orchestrator" });
-    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "#project-autonomy");
+    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "/board/project?repo=%2Fr%2Fapp#project-autonomy");
     expect(within(aside).queryByRole("switch")).toBeNull();
+  });
+  it("scrolls to the autonomy block once it is rendered, from the orchestrator's link", async () => {
+    server.use(http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })));
+    const scroll = vi.mocked(Element.prototype.scrollIntoView);
+    scroll.mockClear();
+    mount([card({ id: "a" })], {}, "/board/project?repo=%2Fr%2Fapp#project-autonomy");
+    const block = await screen.findByRole("region", { name: "Autonomy" });
+    await waitFor(() => expect(scroll.mock.contexts).toContain(block));
   });
 });

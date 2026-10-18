@@ -8,7 +8,7 @@ import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
-import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
+import { autonomyPath, boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
@@ -27,7 +27,8 @@ import type { TranscriptEntry } from "@/lib/types";
 /** The context occupancy from which the panel proposes a hand-over (ADR 0023). */
 export const HANDOVER_PCT = 50;
 
-// Autonomy is a setting of the project (ADR 0030): the panel only points at its block on the page.
+// Autonomy is a setting of the project (ADR 0030): the panel only points at its block on the page —
+// through the project's URL, so the right repo's page is the one that scrolls (routes/project.tsx).
 const AUTONOMY_LINK = "inline-flex min-h-11 items-center self-start text-xs font-semibold text-muted-foreground underline underline-offset-2";
 
 export function OrchestratorPanel({
@@ -132,9 +133,9 @@ export function OrchestratorPanel({
         <Button variant="brand" className="self-start" disabled={busy} onClick={() => void start()}>
           {busy ? t("orch.starting") : t("orch.start")}
         </Button>
-        <a href="#project-autonomy" data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
+        <Link to={autonomyPath(repo)} data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
           {t("orch.auto")}
-        </a>
+        </Link>
       </div>
     );
   }
@@ -204,9 +205,9 @@ export function OrchestratorPanel({
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
         )}
       </div>
-      <a href="#project-autonomy" data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
+      <Link to={autonomyPath(repo)} data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
         {t("orch.auto")}
-      </a>
+      </Link>
       <details className="border-t border-border/60 py-1.5 text-sm">
         <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
           {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
