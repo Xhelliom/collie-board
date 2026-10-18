@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.209.1] - 2026-10-18
+
+### Fixed
+
+- The orchestrator's « Autonomie » link reaches the right repo's project page and scrolls to the block once it is rendered and the sheet is closed; if the block never shows up, an error says so. (120e67a)
+
 ## [0.209.0] - 2026-10-18
 
 ### Added
