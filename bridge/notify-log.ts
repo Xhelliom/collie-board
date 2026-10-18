@@ -8,9 +8,11 @@
 
 /** One fired alert, newest first in {@link NotifyLog.recent}. */
 export interface NotifyLogEntry {
-  /** Monotonic within this bridge process — a stable list key, nothing more. */
+  /** Monotonic within this bridge process only — restarts at 1 with the bridge. A stable list key and
+   *  a tie-break between two entries of the same millisecond, never a cursor (ADR 0013). */
   id: number;
-  /** When the alert fired (epoch ms). */
+  /** When the alert fired (epoch ms). THE cursor for a consumer of `GET /api/notifications/log`: it
+   *  survives a bridge restart, `id` does not (ADR 0013). */
   ts: number;
   /** The pane that pinged, and where it lived. Absent on a BOARD entry (board-notify.ts): a fact the
    *  board journalled has no terminal behind it. Neither is rendered anywhere — since N9 no

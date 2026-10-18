@@ -195,8 +195,8 @@ that pane is working in. `origin` and `originCardId` are refused in the body, so
 derived, never claimed ([ADR 0010](./.adr/0010-an-agent-filed-card-is-traced-on-the-card.md)).
 
 Anything that wants what the board knows — a voice assistant, a script — integrates by polling
-`/api/notifications/log` and writing back through the card routes. The bridge never calls out to a
-consumer. `curl` is a client, and so is the MCP server below
+`/api/notifications/log` and writing back through the card routes — cursor on `ts` (epoch ms), not on
+`id`, which restarts at 1 with the bridge. The bridge never calls out to a consumer. `curl` is a client, and so is the MCP server below
 ([ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md)).
 
 ### MCP server (stdio)
