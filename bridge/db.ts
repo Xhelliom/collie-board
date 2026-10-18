@@ -2728,6 +2728,18 @@ export class BoardDb {
     return this.db.query<{ id: number | null }, []>("SELECT MAX(id) AS id FROM event").get()?.id ?? 0;
   }
 
+  /** One repo's journal entries of `types` newer than `ts`, oldest first — « quoi de neuf depuis » (since.ts). */
+  repoEventsSince(repoPath: string, ts: number, types: string[], limit = 200): BoardEvent[] {
+    const marks = types.map(() => "?").join(",");
+    return this.db
+      .query<EventRow, (string | number)[]>(
+        `SELECT e.* FROM event e JOIN card c ON c.id = e.card_id
+          WHERE c.repo_path = ? AND e.ts > ? AND e.type IN (${marks}) ORDER BY e.id LIMIT ?`,
+      )
+      .all(repoPath, ts, ...types, limit)
+      .map(toEvent);
+  }
+
   /**
    * Journal entries newer than `after`, OLDEST first — the board tailer's range scan, and the reason
    * it is cheap: `id > ?` on an AUTOINCREMENT primary key walks the rowid from the cursor and

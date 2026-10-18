@@ -150,7 +150,7 @@ export interface BoardContext {
   /** The primary session's socket client — starting a card and handing it off both drive Herdr. */
   herdr: HerdrClient;
   cfg: Config;
-  audit: AuditLog;
+  audit: Pick<AuditLog, "record">;
   /** The session name this board is bound to — recorded in the audit trail. */
   session: string;
   /** Returns a 403 Response to short-circuit, or null to proceed (server.ts's `guard`). */
@@ -341,6 +341,13 @@ export async function handleBoardRoute(
   req: Request,
   ctx: BoardContext,
 ): Promise<Response | null> {
+  // Every audit line of a board write names the agent pane that sent it, so « quoi de neuf depuis »
+  // (since.ts) can leave out what the orchestrator did itself.
+  const pane = req.headers.get(PANE_HEADER)?.trim();
+  if (pane) {
+    const { audit } = ctx;
+    ctx = { ...ctx, audit: { record: (e) => audit.record({ ...e, detail: { ...e.detail, pane } }) } };
+  }
   try {
     return await route(pathname, req, ctx);
   } catch (err) {
@@ -889,13 +896,15 @@ async function route(
     if (req.method === "DELETE") {
       const denied = ctx.guard("write");
       if (denied) return denied;
-      if (!db.getCard(id)) return text("card not found", 404);
+      const gone = db.getCard(id);
+      if (!gone) return text("card not found", 404);
       db.deleteCard(id);
       ctx.audit.record({
         action: "card.delete",
         session: ctx.session,
         device: ctx.device,
-        detail: { cardId: id },
+        // Its repo and title: once deleted, nothing else can say where it was (since.ts).
+        detail: { cardId: id, repoPath: gone.repoPath, title: gone.title },
       });
       return json({ ok: true });
     }

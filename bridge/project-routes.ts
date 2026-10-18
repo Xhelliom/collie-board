@@ -185,8 +185,9 @@ export async function handleProjectRoute(
     if (req.method === "DELETE") {
       const denied = guard("write");
       if (denied) return denied;
-      if (!db.deletePhase(id)) return ctx.text("phase not found", 404);
-      audit("phase.delete", { phaseId: id });
+      const phase = db.getPhase(id);
+      if (!phase || !db.deletePhase(id)) return ctx.text("phase not found", 404);
+      audit("phase.delete", { phaseId: id, repoPath: phase.repoPath, name: phase.name });
       return ctx.json({ ok: true });
     }
     return ctx.text("method not allowed", 405);
@@ -272,7 +273,7 @@ export async function handleProjectRoute(
       const run = db.getRun(id);
       if (!run) return ctx.text("run not found", 404);
       if (!db.deleteLot(id)) return ctx.text("a launched run is not deleted", 409);
-      audit("run.delete", { runId: id });
+      audit("run.delete", { runId: id, repoPath: run.repoPath, name: run.name });
       return ctx.json({ ok: true });
     }
     return ctx.text("method not allowed", 405);

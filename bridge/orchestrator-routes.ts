@@ -2,7 +2,7 @@
 // orchestrator lives; POST starts (or adopts) it. Only that POST ever starts one: its cost is the
 // operator's quota, so nothing starts it on its own.
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 import type { BoardContext } from "./board-routes.ts";
@@ -10,11 +10,27 @@ import { MEMORY_MAX_CHARS } from "./db.ts";
 import { askOrchestratorNote, findOrchestrator, restartOrchestrator, startOrchestrator, type OrchestratorDeps } from "./orchestrator.ts";
 import { PANE_HEADER } from "./board-routes.ts";
 import { isMaxChain } from "./autonomy.ts";
+import { SINCE_EVENT_TYPES, sinceChanges } from "./since.ts";
 
 export const ORCHESTRATOR_ROUTE = "/api/orchestrator";
 const MEMORY_ROUTE = `${ORCHESTRATOR_ROUTE}/memory`;
 const RENEW_ROUTE = `${ORCHESTRATOR_ROUTE}/renew`;
 const AUTONOMY_ROUTE = `${ORCHESTRATOR_ROUTE}/autonomy`;
+const SINCE_ROUTE = `${ORCHESTRATOR_ROUTE}/since`;
+
+/** How much of audit.log one read looks at. ponytail: a tail, not an index — a gap longer than this many bytes of gestures loses its oldest lines. */
+const AUDIT_TAIL = 512 * 1024;
+
+function auditTail(path: string): string[] {
+  let buf: Buffer;
+  try {
+    buf = readFileSync(path);
+  } catch {
+    return [];
+  }
+  const lines = buf.subarray(Math.max(0, buf.length - AUDIT_TAIL)).toString("utf8").split("\n");
+  return buf.length > AUDIT_TAIL ? lines.slice(1) : lines; // the first line of a cut is partial
+}
 
 /** The root of a repository — the same bar as `/api/repos/gate/suggest`: the path lands in a prompt. */
 const isRepoRoot = (p: unknown): p is string => typeof p === "string" && isAbsolute(p) && existsSync(join(p, ".git"));
@@ -36,6 +52,44 @@ async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 export async function handleOrchestratorRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
+  // ── « quoi de neuf depuis » : read at the top of a turn, by a hook or by the agent ──────────
+  // The caller is the orchestrator its pane header says it is, or nothing is answered (204): the
+  // repo is derived from that pane, never named, and a hook installed for every session stays silent.
+  if (pathname === SINCE_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const pane = req.headers.get(PANE_HEADER)?.trim();
+    const snap = ctx.engine.current();
+    const me = pane && snap.bridge !== "disconnected" ? snap.agents.find((a) => a.paneId === pane) : undefined;
+    if (!me?.cwd || findOrchestrator(snap, me.cwd) !== pane) return new Response(null, { status: 204 });
+    const repo = me.cwd;
+    const raw = new URL(req.url).searchParams.get("since");
+    // No cursor yet: start from now — the start prompt already told it the past.
+    if (!raw || !/^\d+$/.test(raw)) return ctx.json({ cursor: Date.now(), count: 0, summary: "" });
+    const since = Number(raw);
+    const { db } = ctx;
+    return ctx.json(
+      sinceChanges({
+        auditLines: auditTail(join(ctx.cfg.stateDir, "audit.log")),
+        events: db.repoEventsSince(repo, since, SINCE_EVENT_TYPES),
+        repo,
+        pane,
+        since,
+        repoOf: (d) =>
+          (typeof d.cardId === "string" ? db.getCard(d.cardId)?.repoPath : undefined) ??
+          (typeof d.phaseId === "string" ? db.getPhase(d.phaseId)?.repoPath : undefined) ??
+          (typeof d.runId === "string" ? db.getRun(d.runId)?.repoPath : undefined) ??
+          null,
+        labelOf: (d) =>
+          (typeof d.cardId === "string" ? db.getCard(d.cardId)?.title : undefined) ??
+          (typeof d.phaseId === "string" ? db.getPhase(d.phaseId)?.name : undefined) ??
+          (typeof d.runId === "string" ? db.getRun(d.runId)?.name : undefined) ??
+          null,
+      }),
+    );
+  }
+
   // ── how far it may go without the operator (ADR 0030) ───────────────────────
   if (pathname === AUTONOMY_ROUTE) {
     if (req.method === "GET") {
