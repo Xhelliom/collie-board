@@ -45,6 +45,14 @@ export function cardMessage(card: Card, why: string): string {
   return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\nDis à l'opérateur ce que tu proposes ; ne relance rien toi-même.`;
 }
 
+/** The message for a phase the operator validated, sealed or reopened. `to`: where its open steps went (null: no phase). Pure. */
+export function phaseMessage(kind: "closed" | "sealed" | "reopened", name: string, to: string | null): string {
+  if (kind === "reopened")
+    return `La phase « ${name} » a été rouverte par l'opérateur. Mets la roadmap et ta note à jour, puis propose ce qu'il reste à y faire.`;
+  const where = to ? `la phase « ${to} »` : "le backlog (sans phase)";
+  return `La phase « ${name} » a été ${kind === "closed" ? "validée" : "scellée"} par l'opérateur ; les étapes ouvertes sont allées dans ${where}. Mets la roadmap et ta note à jour, puis propose le découpage de la phase suivante.`;
+}
+
 export class OrchestratorNudger {
   private cursor: number;
   /** `runId:cardId` already reported: the lead may say it twice (unmerged, then halted) — the orchestrator hears it once. */
@@ -78,7 +86,14 @@ export class OrchestratorNudger {
 
   // Sync up to the first await: the `told` guard and cursor stay race-free.
   private async messageFor(e: BoardEvent): Promise<{ repoPath: string; text: string } | null> {
-    const p = (e.payload ?? {}) as { runId?: string; reason?: string; merged?: boolean };
+    const p = (e.payload ?? {}) as { runId?: string; reason?: string; merged?: boolean; phaseId?: string; moveOpenTo?: string | null };
+    // A phase gesture: journaled by project-routes.ts, which refuses an agent pane — so never the orchestrator's own.
+    if (e.type === "phase.closed" || e.type === "phase.sealed" || e.type === "phase.reopened") {
+      const phase = p.phaseId ? this.db.getPhase(p.phaseId) : null;
+      if (!phase) return null;
+      const to = p.moveOpenTo ? (this.db.getPhase(p.moveOpenTo)?.name ?? null) : null;
+      return { repoPath: phase.repoPath, text: phaseMessage(e.type.slice(6) as "closed" | "sealed" | "reopened", phase.name, to) };
+    }
     const run = p.runId ? this.db.getRun(p.runId) : null;
     if (!run) return null;
     if (e.type === "run.finished") {
