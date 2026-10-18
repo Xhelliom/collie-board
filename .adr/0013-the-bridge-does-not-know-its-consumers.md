@@ -24,7 +24,7 @@ Three forces decide it, none of them about voice:
    § The board says *"No new poll loop"* and *"Keep the upstream surface narrow"*. A consumer, by
    contrast, already has a loop of its own; that is what makes it a consumer.
 3. **The front door already exposes all of it** — [ADR 0001](./0001-one-managed-front-door.md).
-   `GET /api/notifications/log` carries a monotonic `id`, which is a cursor by construction;
+   `GET /api/notifications/log` carries a monotonic `id`, which is a cursor by construction *(wrong — the cursor is `ts`, see Correction below)*;
    `POST /api/cards/<id>/prompt` types into the real pane; `/start`, `PATCH /api/cards/<id>`,
    `POST /api/pane/<id>/reply` and `POST /api/cards` cover the rest. Nothing had to be added to the
    bridge for the first consumer — that is the evidence the surface is already the right one.
@@ -72,3 +72,19 @@ configuration section named after a consumer; no "is it connected?" state. A req
 - **What would justify revisiting:** the board needing to *initiate* toward a consumer, a mode
   where a notification wakes something that was not already listening. Force 1 falls the moment the
   target is durable too. That is a new decision, not one implied by this one.
+
+## Correction (2026-10-18) — the cursor is `ts`, not `id`
+
+Force 3 above says the log's `id` is *"a cursor by construction"*. It is not: `NotifyLog` numbers
+its entries from `nextId = 1` per instance, in a 50-entry ring held in RAM, so **`id` restarts at 1
+every time the bridge restarts**. A consumer that persists a cursor on `id` goes deaf after a
+restart — it swallows every new entry until the count climbs past its stale value.
+
+- **The cursor is `ts`** (epoch ms): it carries across restarts.
+- **`id` is local to the bridge process**: a stable list key, and the tie-break between two entries
+  of the same millisecond *within one run* — never compared across runs.
+- A consumer keeps `ts` (and, to be exact, the ids already seen at that `ts`) and takes the entries
+  strictly newer. Loquivox (`services/board.py`) does so.
+
+The decision is unchanged — the surface still needed no new route — so this is a correction of
+fact, not a superseding ADR.
