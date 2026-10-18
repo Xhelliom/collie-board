@@ -287,6 +287,32 @@ curl -s "$B/api/roadmap?repo=<repo>&format=steps"   # step by step — rendered 
 The user hands you over (`/api/orchestrator/renew`) when your context fills: the route refuses your own
 pane header. Write your note when asked.
 
+### What moved without you — at the start of each turn
+
+The user creates and edits cards, settles decisions, launches or deletes lots, merges PRs by hand — none
+of it reaches your conversation. `GET /api/orchestrator/since?since=<ts>` lists it: the repo's audited
+gestures (yours, i.e. your pane's, left out) and the PRs merged or closed, newer than `since` (ms epoch).
+It answers only the orchestrator's own pane (`204` for any other) and derives the repo from it.
+
+```bash
+curl -s "$B/api/orchestrator/since?since=<cursor>" "${H[@]}"   # {cursor, count, summary}
+#   no `since` yet: {cursor: now, count: 0} — keep `cursor`, send it next time.
+```
+
+- **Claude Code** — a `UserPromptSubmit` hook injects `summary` at the top of each turn: nothing when
+  nothing moved, never an interruption, silent in every pane that is not an orchestrator. Install it
+  once in `~/.claude/settings.json` (needs `curl` and `jq`; the cursor sits in
+  `~/.local/state/collie-board/since-<pane>`):
+
+  ```json
+  { "hooks": { "UserPromptSubmit": [ { "hooks": [
+      { "type": "command", "command": "~/.claude/skills/collie-board/since-hook.sh" } ] } ] } }
+  ```
+
+  A turn that starts with « Depuis ton dernier tour… » is that hook: read it as the board's word.
+- **Without hooks** (another agent) — make the call yourself as the first thing of each turn where the
+  user speaks, keep the returned `cursor` for the next one, and say nothing of it when `count` is 0.
+
 ### Buttons in your messages — orchestrator only (ADR 0042)
 
 When a question settles in one gesture (yes/no, merge this card, launch that lot), **end the message

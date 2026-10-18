@@ -1,8 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { AuditLog } from "./audit.ts";
 import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import {
@@ -178,6 +179,26 @@ describe("/api/orchestrator", () => {
     expect((await call("POST", `/api/runs/${lot.id}/launch`, ctx(db), undefined, h)).status).toBe(403);
     expect((await call("POST", "/api/runs", ctx(db), { cardIds: [a.id], foldInCap: 0 }, h)).status).toBe(403);
     expect(db.getRun(lot.id)!.launchedAt).toBeNull();
+  });
+
+  it("since: answers its own pane only, and leaves out what that pane did", async () => {
+    const db = new BoardDb(":memory:");
+    const stateDir = mkdtempSync(join(tmpdir(), "collie-since-"));
+    const audit = new AuditLog((l) => appendFileSync(join(stateDir, "audit.log"), l));
+    const c = { ...(ctx(db, { agents: [agent("orch", orchestratorLabel(repo), repo), agent("p2", "w", repo)] }) as object), cfg: { stateDir }, audit, copilot: { busy: () => new Set<string>() } } as never;
+    const card = db.createCard({ title: "Ma carte", repoPath: repo, status: "backlog" });
+    const me = { "x-collie-pane": "orch" };
+    expect((await call("GET", "/api/orchestrator/since", c, undefined, { "x-collie-pane": "p2" })).status).toBe(204);
+    expect((await call("GET", "/api/orchestrator/since", c)).status).toBe(204);
+    const first = (await call("GET", "/api/orchestrator/since", c, undefined, me)).body;
+    expect(first.count).toBe(0);
+    const since = (first.cursor as number) - 1;
+    expect((await call("PATCH", `/api/cards/${card.id}`, c, { title: "Par moi" }, me)).status).toBe(200);
+    expect((await call("PATCH", `/api/cards/${card.id}`, c, { status: "ready" })).status).toBe(200);
+    const got = (await call("GET", `/api/orchestrator/since?since=${since}`, c, undefined, me)).body;
+    expect(got.count).toBe(1);
+    expect(got.summary).toContain('card.patch « Par moi » {"status":"ready"}');
+    expect((await call("GET", `/api/orchestrator/since?since=${got.cursor}`, c, undefined, me)).body.count).toBe(0);
   });
 });
 
