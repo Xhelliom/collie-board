@@ -82,6 +82,20 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     expect(w.sent[0]).toContain("pas à toi");
   });
 
+  it("tells the orchestrator when the operator validates or reopens a phase, and where the open steps went", async () => {
+    const w = world();
+    const ph = w.db.createPhase({ repoPath: "/g/r", name: "Phase 1" });
+    const next = w.db.createPhase({ repoPath: "/g/r", name: "Phase 2" });
+    w.db.recordEvent(null, "phase.closed", { phaseId: ph.id, moveOpenTo: next.id });
+    w.db.recordEvent(null, "phase.reopened", { phaseId: ph.id });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent[0]).toContain("« Phase 1 » a été validée par l'opérateur");
+    expect(w.sent[0]).toContain("allées dans la phase « Phase 2 »");
+    expect(w.sent[0]).toContain("découpage de la phase suivante");
+    expect(w.sent[1]).toContain("rouverte");
+  });
+
   it("sends nothing, and does not throw, with no live orchestrator or on a disconnected snapshot", async () => {
     const w = world();
     w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });

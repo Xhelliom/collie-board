@@ -116,6 +116,8 @@ export async function handleProjectRoute(
       const sealed = db.sealPhase({ repoPath: b.repoPath, name: n, goal: g, note, moveOpenTo: to.id, cardIds: b.cardIds as string[] | undefined });
       if (!sealed.phase) return ctx.text("no finished card without a phase to file", 400);
       audit("phase.seal", { phaseId: sealed.phase.id, name: n, moved: sealed.moved });
+      // Journaled for the orchestrator nudger (ADR 0028): the gesture is the operator's (agent panes are refused above).
+      db.recordEvent(null, "phase.sealed", { phaseId: sealed.phase.id, moveOpenTo: to.id, moved: sealed.moved });
       return ctx.json({ phase: sealed.phase, moved: sealed.moved }, 201);
     }
 
@@ -125,7 +127,9 @@ export async function handleProjectRoute(
     if (milestone === "reopen") {
       if (phase.closedAt === null) return ctx.text("phase is not validated", 409);
       audit("phase.reopen", { phaseId: id });
-      return ctx.json({ phase: db.reopenPhase(id) });
+      const reopened = db.reopenPhase(id);
+      db.recordEvent(null, "phase.reopened", { phaseId: id });
+      return ctx.json({ phase: reopened });
     }
     if (phase.closedAt !== null) return ctx.text("phase is already validated", 409);
     const to = target(phase.repoPath, id);
@@ -133,6 +137,7 @@ export async function handleProjectRoute(
     if (db.phaseHasUnfinishedLot(id)) return ctx.text("the phase has a lot that is not over — finish or delete it first", 409);
     const closed = db.closePhase(id, { moveOpenTo: to.id, note });
     audit("phase.close", { phaseId: id, moveOpenTo: to.id });
+    db.recordEvent(null, "phase.closed", { phaseId: id, moveOpenTo: to.id });
     return ctx.json({ phase: closed });
   }
 
