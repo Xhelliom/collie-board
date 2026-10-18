@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.210.0] - 2026-10-18
+
+### Added
+
+- `GET /api/orchestrator/since?since=<ts>` : ce qui a bougé dans le dépôt sans l'orchestrateur (gestes audités hors son pane, PR mergées ou fermées), pour son seul pane. (d6386b9)
+- Hook Claude Code `UserPromptSubmit` (`skills/collie-board/since-hook.sh`) qui l'injecte au début de chaque tour, muet quand rien n'a bougé ; installation et consigne sans hook dans SKILL.md. (d6386b9)
+
+### Changed
+
+- L'audit des routes du board porte le pane appelant ; la suppression d'une carte, d'une phase ou d'un lot y garde son dépôt et son nom. (d6386b9)
+
 ## [0.209.1] - 2026-10-18
 
 ### Fixed
