@@ -14,6 +14,7 @@
 import { join } from "node:path";
 
 import type { AgentAdapter } from "./adapters.ts";
+import { COPILOT_DOWN_AFTER, copilotDown, REVIEW_OUTCOMES } from "./board-notify.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
@@ -74,7 +75,8 @@ export interface RunPorts {
   gateCommand(card: Card): string | null;
   /** Run it in the worker's checkout. */
   runGate(command: string, worktree: string): Promise<GateResult>;
-  /** Whether the copilot reviews — off, there is no review to triage and the lead goes straight to the PR. */
+  /** Whether the copilot reviews — off, or down (`copilotDown`: no member waits on a review that will
+   *  time out like the last ones), there is no review to triage and the lead goes straight to the PR. */
   reviewing(): boolean;
   /** Commits the card's branch has over its base; null when it cannot be told (never blocks). */
   commits(card: Card): Promise<number | null>;
@@ -279,6 +281,7 @@ export class RunCoordinator {
   update(snap: EngineSnapshot): void {
     if (snap.bridge === "disconnected") return;
     const panes = new Map([...snap.agents, ...snap.shellPanes].map((p) => [p.paneId, p.status as string]));
+    const reviewing = this.ports.reviewing();
 
     for (const run of this.db.listOpenRuns()) {
       const members = this.db.runMembers(run.id).map((card) => ({ card, events: this.db.listEvents(card.id, 200) }));
@@ -306,7 +309,7 @@ export class RunCoordinator {
           depsDone: !pred || FILED.has(pred.status),
           predecessorArmed: pred !== null && FILED.has(pred.status) && awaitsMerge(this.db.listEvents(pred.id, 200)),
           gated: this.ports.gateCommand(card) !== null,
-          reviewing: this.ports.reviewing(),
+          reviewing,
           review: reviews.length ? "done" : failed ? "failed" : "pending",
           next: nextRole(pipelineOf(this.db, card), events),
           closer: run.integration === "lot" && members.every((m) => m.card.id === card.id || FILED.has(m.card.status)),
@@ -659,7 +662,7 @@ export function runHook(
       return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });
     },
     freeSlots: () => (db.maxAgents() ?? cfg.boardMaxAgents) - runningCards(db),
-    reviewing: () => cfg.boardCopilot,
+    reviewing: () => cfg.boardCopilot && !copilotDown(db.latestEventTypes(REVIEW_OUTCOMES, COPILOT_DOWN_AFTER)),
     commits: async (card) => {
       if (!card.repoPath || !card.branch) return null;
       return (await integrationOf(card.repoPath, card.branch, await baseOf(card)))?.ahead ?? null;
