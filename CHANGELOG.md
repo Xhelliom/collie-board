@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.213.2] - 2026-10-19
+
+### Fixed
+
+- Lot « une PR » : une carte déjà repliée dans le lot n'est plus mesurée vide contre la branche de lot — plus d'arrêt « no commit » ni de boucle working↔review « review refused » (1495886)
+- Lot « une PR » : un check rouge où le worker ne trouve rien à corriger arrête le lot comme échec d'infra, et la PR du lot est fusionnée dès que le check repasse au vert (1495886)
+
 ## [0.213.1] - 2026-10-19
 
 ### Fixed
