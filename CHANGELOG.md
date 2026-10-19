@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.213.1] - 2026-10-19
+
+### Fixed
+
+- Lot `integration: lot` à `maxParallel` > 1 : la branche de lot n'est coupée qu'une fois, depuis la base à jour d'origin — plus de carte arrêtée sur « already exists » (5a60605)
+- Transcript : les heures et les jours passent par un formateur Intl créé une fois, plus un par tour à chaque poll (≈ 4 % du CPU de la page projet sur téléphone) (107b314)
+- Les derniers textes en dur des écrans (nav, pane, questions, palette, cloche, icônes d'agent) passent par le catalogue (a54f01b)
+- Un test refuse désormais tout texte d'interface écrit en dur dans un `.tsx` (a54f01b)
+
 ## [0.213.0] - 2026-10-19
 
 ### Added
