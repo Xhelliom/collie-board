@@ -487,7 +487,8 @@ export function parseTranscript(
 export function pendingQueue(text: string): string[] {
   const queue: string[] = [];
   for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
+    // Only two row kinds matter; skip JSON.parse on the rest (it dominated the bridge's CPU).
+    if (!line.includes("queue-operation") && !line.includes("turn_duration")) continue;
     let row: { type?: unknown; subtype?: unknown; operation?: unknown; content?: unknown };
     try {
       row = JSON.parse(line) as typeof row;
@@ -1094,6 +1095,8 @@ interface CacheEntry {
   mtimeMs: number;
   complete: boolean;
   entries: TranscriptEntry[];
+  /** {@link pendingQueue} of the same text — a pure function of it, so it caches with the parse. */
+  queued: string[];
 }
 
 /**
@@ -1138,11 +1141,13 @@ export class TranscriptStore {
     const { text, complete, size, mtimeMs } = await this.source.load(path);
     const cached = this.cache.get(path);
     let entries: TranscriptEntry[];
+    let queued: string[];
     if (cached && cached.size === size && cached.mtimeMs === mtimeMs) {
-      entries = cached.entries;
+      ({ entries, queued } = cached);
     } else {
       entries = parseTranscript(text);
-      this.cache.set(path, { size, mtimeMs, complete, entries });
+      queued = pendingQueue(text);
+      this.cache.set(path, { size, mtimeMs, complete, entries, queued });
       if (this.cache.size > CACHE_MAX) {
         const oldest = this.cache.keys().next().value;
         if (oldest !== undefined) this.cache.delete(oldest);
@@ -1156,9 +1161,7 @@ export class TranscriptStore {
       hasMore: hasMore || (!complete && window.length > 0 && window[0] === entries[0]),
       total: entries.length,
       fileTruncated: !complete,
-      // Not cached alongside `entries`: cheap (one more pass over text already in hand), and its
-      // whole point is to reflect the tail of the log at THIS instant, not whenever it last changed.
-      queued: pendingQueue(text),
+      queued,
     };
   }
 }
@@ -1208,8 +1211,11 @@ function num(v: unknown): number {
  */
 export function latestUsage(text: string): ContextUsage | null {
   let found: ContextUsage | null = null;
-  for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
+  // Newest row wins, so walk from the end and stop at the first hit instead of parsing the whole log.
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0 && found === null; i--) {
+    const line = lines[i]!;
+    if (!line.includes('"usage"')) continue; // no usage key, nothing to read — skip the parse
     let row: { type?: unknown; isSidechain?: unknown; message?: unknown };
     try {
       row = JSON.parse(line) as typeof row;
@@ -1239,8 +1245,11 @@ export function latestUsage(text: string): ContextUsage | null {
  */
 export function latestModel(text: string): string | null {
   let found: string | null = null;
-  for (const line of text.split("\n")) {
-    if (line.trim() === "") continue;
+  // Newest row wins, so walk from the end and stop at the first hit instead of parsing the whole log.
+  const lines = text.split("\n");
+  for (let i = lines.length - 1; i >= 0 && found === null; i--) {
+    const line = lines[i]!;
+    if (!line.includes('"model"')) continue; // no model key, nothing to read — skip the parse
     let row: { type?: unknown; isSidechain?: unknown; message?: unknown };
     try {
       row = JSON.parse(line) as typeof row;
