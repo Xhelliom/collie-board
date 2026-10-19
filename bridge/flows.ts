@@ -75,8 +75,11 @@ export function resolvePipeline(
 /**
  * A pipeline step whose launch failed (`swapRole`, pipeline.ts) and is still owed: the card is back in
  * `ready` with no session, and a plain start would run role 0 again. The newest of the words that
- * settle it wins — a step taken, a first start (`card.template`), an agent adopted. `prompt` is what
- * the step was to be told. Pure, over a journal listed newest first.
+ * settle it wins — a step taken, a first start (`card.template`), an agent adopted, and the card
+ * leaving `ready` for good or for a start: `done`/`archived` (filed without the step), `starting` (a
+ * start that did not resume it — its pipeline gone or shorter — so a flow assigned later starts over).
+ * `prompt` is what the step was to be told; absent on the ones #77 journaled. Pure, over a journal
+ * listed newest first.
  */
 export function owedStep(events: readonly { type: string; payload: unknown }[]): { index: number; prompt: string | null } | null {
   const last = events.find(
@@ -84,6 +87,7 @@ export function owedStep(events: readonly { type: string; payload: unknown }[]):
       e.type === "card.pipeline_step" ||
       e.type === "card.template" ||
       e.type === "card.agent_adopted" ||
+      (e.type === "card.status" && ["starting", "done", "archived"].includes((e.payload as { to?: unknown } | null)?.to as string)) ||
       (e.type === "card.start_failed" && (e.payload as { stage?: unknown } | null)?.stage === "pipeline"),
   );
   if (last?.type !== "card.start_failed") return null;

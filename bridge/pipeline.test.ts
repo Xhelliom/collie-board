@@ -175,6 +175,20 @@ describe("advancing a pipeline", () => {
     expect(owedStep([{ type: "card.start_failed", payload: { stage: "agent.start" } }])).toBeNull();
   });
 
+  it("a step owed is settled by the card filed done or archived, and by a start that did not resume it", () => {
+    const failed = { type: "card.start_failed", payload: { stage: "pipeline", step: 1, prompt: "P" } };
+    const to = (status: string) => ({ type: "card.status", payload: { from: "ready", to: status } });
+    // Merge & done / done by hand, then a reopen: role 0, not the stale step.
+    expect(owedStep([to("done"), failed])).toBeNull();
+    expect(owedStep([to("archived"), failed])).toBeNull();
+    // Pipeline removed, card started anyway: a flow assigned later does not resurrect the old failure.
+    expect(owedStep([to("working"), to("starting"), failed])).toBeNull();
+    // A move that is neither leaves it owed.
+    expect(owedStep([to("ready"), to("backlog"), failed])).toEqual({ index: 1, prompt: "P" });
+    // #77's journal had no prompt: the step is owed with none, and the caller keeps the bilan.
+    expect(owedStep([{ type: "card.start_failed", payload: { stage: "pipeline", step: 1 } }])).toEqual({ index: 1, prompt: null });
+  });
+
   it("a send-back goes to the worker role's own kind", async () => {
     const { db, card, session } = pipelineCard();
     db.recordEvent(card.id, "card.pipeline_step", { index: 1 });

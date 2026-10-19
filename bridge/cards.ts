@@ -840,9 +840,10 @@ export async function startCard(
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
     if (step && template) {
-      // Journaled once up, as `swapRole` does; the previous bilan is spent (its report is in the prompt).
+      // Journaled once up, as `swapRole` does. The previous bilan is spent only when its report is in
+      // the prompt — a step journaled without one (#77) falls back to brief + card, so the bilan stays.
       db.recordEvent(cardId, "card.pipeline_step", { index: step.index, to: session.id, templateId: template.id, name: template.name, kind, ...(args.length ? { args, model: template.model } : {}) });
-      await Bun.file(join(worktree.checkoutPath, BILAN_REL_PATH)).delete().catch(() => {});
+      if (step.prompt) await Bun.file(join(worktree.checkoutPath, BILAN_REL_PATH)).delete().catch(() => {});
     }
   } catch (err) {
     // The agent never came up, so this session never existed in any meaningful sense — close it and
