@@ -188,6 +188,17 @@ describe("lots", () => {
     expect((await call(db, "POST", `/api/runs/${lot.id}/launch`)).status).toBe(409);
     expect((await call(db, "POST", "/api/runs/ghost/launch")).status).toBe(404);
   });
+
+  it("resume is the operator's: refused with an agent pane's header, 409 when nothing is halted", async () => {
+    const { db, a } = await setup();
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.recordRunEvent(a.id, "run.halted", { runId: run.id, reason: "triage malformed" });
+    expect((await call(db, "GET", "/api/runs?repo=/r")).body.runs.find((r: { id: string }) => r.id === run.id).halted).toBe("triage malformed");
+    expect((await call(db, "POST", `/api/runs/${run.id}/resume`, undefined, { "x-collie-pane": "w1:p2" })).status).toBe(403);
+    expect((await call(db, "POST", `/api/runs/${run.id}/resume`)).body).toEqual({ resumed: 1 });
+    expect((await call(db, "POST", `/api/runs/${run.id}/resume`)).status).toBe(409);
+    expect((await call(db, "POST", "/api/runs/ghost/resume")).status).toBe(404);
+  });
 });
 
 describe("roadmap", () => {

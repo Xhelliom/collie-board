@@ -346,7 +346,8 @@ code.
   withdraws it and you launch nothing. `POST /api/runs` without `planned` stays refused in every case.
 - `POST /api/runs/<id>/resume` — lifts a lot's halts (`run.halted`): each halted card picks up at the
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
-  your `x-collie-pane`; when a lot is halted, tell the user why and let them resume it.
+  your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
+  user why and let them resume it.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
 

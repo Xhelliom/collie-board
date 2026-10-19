@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Rocket } from "lucide-react";
+import { Play, Rocket } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
-import { boardErrorMessage, launchLot, type CardView } from "@/lib/board";
+import { boardErrorMessage, launchLot, resumeLot, type CardView } from "@/lib/board";
 import type { ProjectLot } from "@/lib/project";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,21 @@ export function PhaseLots({
 }) {
   const t = useT();
   const [launching, setLaunching] = useState<ProjectLot | null>(null);
+  const [resuming, setResuming] = useState<string | null>(null);
+  // A halted lot is the operator's: resuming picks each halted card up at the step it stopped on.
+  async function resume(pl: ProjectLot) {
+    const name = pl.lot.name ?? t("lot.fallbackName");
+    setResuming(pl.lot.id);
+    try {
+      await resumeLot(pl.lot.id);
+      setStatus(t("lot.resumed", { name }), "success");
+      onLaunched();
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setResuming(null);
+    }
+  }
   const shown = new Set(steps.map((s) => s.id));
   const taken = new Set(lots.flatMap((pl) => pl.lot.cardIds));
   const loose = steps.filter((s) => !taken.has(s.id));
@@ -114,6 +129,7 @@ export function PhaseLots({
           // The bridge's word when it has one: a one-PR lot files its cards before its PR lands.
           const finished = pl.lot.finished ?? (pl.cards.length > 0 && pl.done === pl.cards.length);
           const pct = pl.cards.length ? (100 * pl.done) / pl.cards.length : 0;
+          const halted = !planned && !finished && pl.lot.halted != null;
           return (
             <section
               key={pl.lot.id}
@@ -125,10 +141,16 @@ export function PhaseLots({
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-semibold",
-                    planned ? "bg-muted text-muted-foreground" : finished ? "bg-status-done/15 text-status-done" : "bg-status-working/15 text-status-working",
+                    planned
+                      ? "bg-muted text-muted-foreground"
+                      : finished
+                        ? "bg-status-done/15 text-status-done"
+                        : halted
+                          ? "bg-status-blocked/15 text-status-blocked"
+                          : "bg-status-working/15 text-status-working",
                   )}
                 >
-                  {planned ? t("lot.planned") : finished ? t("lot.finished") : t("lot.running")}
+                  {planned ? t("lot.planned") : finished ? t("lot.finished") : halted ? t("lot.halted") : t("lot.running")}
                 </span>
                 {pl.lot.maxParallel ? (
                   <span className="font-mono text-xs text-muted-foreground">
@@ -149,7 +171,19 @@ export function PhaseLots({
                     {t("lot.launch")}
                   </Button>
                 )}
+                {halted && (
+                  <Button
+                    variant="brand"
+                    className="h-8 gap-1.5 rounded-[10px] px-3 text-sm font-semibold"
+                    disabled={resuming === pl.lot.id}
+                    onClick={() => void resume(pl)}
+                  >
+                    <Play className="size-4" />
+                    {resuming === pl.lot.id ? t("lot.resuming") : t("lot.resume")}
+                  </Button>
+                )}
               </div>
+              {halted && pl.lot.halted && <p className="px-0.5 text-sm text-status-blocked">{pl.lot.halted}</p>}
               {!planned && (
                 <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
                   <i className="block h-full bg-status-done transition-[width] duration-700" style={{ width: `${pct}%` }} />

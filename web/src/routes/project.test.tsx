@@ -188,6 +188,25 @@ describe("ProjectRoute", () => {
     await waitFor(() => expect(launched).toBe("L1"));
   });
 
+  it("a halted lot shows why, and Resume posts the operator's gesture", async () => {
+    let resumed = "";
+    server.use(
+      http.post("*/api/runs/:id/resume", ({ params }) => {
+        resumed = String(params.id);
+        return HttpResponse.json({ resumed: 1 });
+      }),
+    );
+    mount([card({ id: "one", phaseId: "P1", runId: "L1" })], {
+      phases: [phase("P1")],
+      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["one"], launchedAt: 1, halted: "PR: push rejected" })],
+    });
+    const group = await screen.findByRole("region", { name: "Lot Lot A" });
+    expect(group).toHaveTextContent("halted");
+    expect(group).toHaveTextContent("PR: push rejected");
+    await userEvent.click(within(group).getByRole("button", { name: /resume/i }));
+    await waitFor(() => expect(resumed).toBe("L1"));
+  });
+
   it("files a step under another phase", async () => {
     let body: unknown = null;
     server.use(

@@ -7,6 +7,7 @@ import { mergeWhenReady, notePrOutcome } from "./integrate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
+import { lotView } from "./lot.ts";
 import { briefOf, MAX_ROUNDS, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -983,6 +984,23 @@ describe("one PR for the lot (ADR 0041)", () => {
     expect(w.calls.indexOf("done c")).toBeGreaterThan(w.calls.indexOf("pr c"));
     expect(cards.map((c) => db.getCard(c.id)!.status)).toEqual(["done", "done", "done"]);
     expect(db.listEvents(cards[0]!.id, 50).some((e) => e.type === "card.lot_merged")).toBe(true);
+  });
+
+  it("a lot halted on its PR, every card folded, resumes at the PR: opened, no worker relaunched", async () => {
+    const { db, cards, run, w } = await lotOf("lot");
+    w.setPr({ ok: false, error: { kind: "git", message: "push rejected" } });
+    await settle(w);
+    expect(w.calls.filter((c) => c.startsWith("fold "))).toEqual(["fold a", "fold b", "fold c"]);
+    const view = lotView(db, db.getRun(run.id)!);
+    expect(view.halted).toBe("PR: push rejected");
+    expect(db.getCard(cards[2]!.id)!.status).toBe("review");
+
+    w.calls.length = 0;
+    w.setPr({ ok: true });
+    expect(resumeRun(db, db.getRun(run.id)!)).toBe(1);
+    expect(lotView(db, db.getRun(run.id)!).halted).toBeNull();
+    await settle(w);
+    expect(w.calls).toEqual(["pr c", "done c"]); // no start, no fold again, no prompt
   });
 
   it("without the setting a lot behaves as before: one PR per card, nothing folded", async () => {
