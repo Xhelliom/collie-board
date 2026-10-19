@@ -948,11 +948,11 @@ describe("the repo's gate (ADR 0020)", () => {
 
 describe("one PR for the lot (ADR 0041)", () => {
   const titles = ["a", "b", "c"];
-  async function lotOf(integration: "card" | "lot") {
+  async function lotOf(integration: "card" | "lot", opts: Parameters<typeof world>[1] = {}) {
     const db = new BoardDb(":memory:");
     const cards = titles.map((t, i) => db.createCard({ title: t, repoPath: "/r", status: "ready", position: i }));
     const run = db.createRun({ repoPath: "/r", cardIds: cards.map((c) => c.id), foldInCap: 0, integration });
-    const w = world(db);
+    const w = world(db, opts);
     w.coord.update(snap());
     await flush();
     cards.forEach((c) => land(db, c));
@@ -1001,6 +1001,57 @@ describe("one PR for the lot (ADR 0041)", () => {
     expect(lotView(db, db.getRun(run.id)!).halted).toBeNull();
     await settle(w);
     expect(w.calls).toEqual(["pr c", "done c"]); // no start, no fold again, no prompt
+  });
+
+  it("a red check the folded closer finds nothing to fix in: an infra halt, never « no commit », and the PR merges once green", async () => {
+    let green = false;
+    const { db, cards, run, w } = await lotOf("lot", {
+      merge: { ci: { name: "DB Migrations", log: "port 5432 already in use" } },
+      onLand: (c) => {
+        if (green) db.recordEvent(c.id, "card.pr_merged", {});
+        else db.recordRunEvent(c.id, "run.merge", { runId: run.id, merged: false, reason: "red", ci: { name: "DB Migrations", log: "" } });
+      },
+    });
+    await settle(w);
+    const c = cards[2]!;
+    expect(w.calls.some((x) => x.startsWith("prompt p-c The GitHub check `DB Migrations`"))).toBe(true);
+    // The worker finds nothing to fix and lands again: nothing new over the lot it is folded into.
+    w.setCommits(0);
+    db.setStatus(c.id, "working", "agent working");
+    land(db, c);
+    w.calls.length = 0;
+    await settle(w);
+    const halts = events(db, c, "run.halted");
+    expect(halts).toHaveLength(1);
+    expect(halts[0]!.payload).toMatchObject({ infra: true });
+    expect(String((halts[0]!.payload as { reason: string }).reason)).not.toMatch(/no commit/);
+    expect(lotView(db, db.getRun(run.id)!).halted).toMatch(/infrastructure/);
+    // Still red: asked again, nobody prompted, the card stays where it is.
+    w.clock.now += 60_000;
+    await settle(w);
+    expect(w.calls.filter((x) => x === "land c").length).toBeGreaterThan(0);
+    expect(w.calls.some((x) => x.startsWith("prompt"))).toBe(false);
+    expect(db.getCard(c.id)!.status).toBe("review");
+    // The runner is fixed, the check goes green: merged, filed, the lot finishes — no « Reprendre » needed.
+    green = true;
+    w.clock.now += 60 * 60_000;
+    await settle(w);
+    expect(db.getCard(c.id)!.status).toBe("done");
+    expect(runState(db.getRun(run.id)!, cards.map((k) => ({ card: db.getCard(k.id)!, events: db.listEvents(k.id, 200) })))).toBe("finished");
+  });
+
+  it("a folded card is never halted for « no commit »: measured against the lot it can only look empty", async () => {
+    const { db, cards, w } = await lotOf("lot", { merge: { ci: { name: "lint", log: "" } } });
+    await settle(w);
+    const c = cards[2]!;
+    // Sent back for red CI, the worker lands again with nothing new; the lead calls it finished.
+    // The CI word is gone (the operator resumed after an older board halted it): the empty guard alone is left.
+    db.recordRunEvent(c.id, "run.decision", { runId: c.runId!, decision: "prompt", prompt: "x", reason: "the lead's" });
+    w.setCommits(0);
+    db.setStatus(c.id, "working", "agent working");
+    land(db, c);
+    await settle(w, 2);
+    expect(events(db, c, "run.halted").some((e) => /no commit/.test(String((e.payload as { reason: string }).reason)))).toBe(false);
   });
 
   it("without the setting a lot behaves as before: one PR per card, nothing folded", async () => {

@@ -50,7 +50,8 @@ export class ReviewGuard {
       if (!cwd) continue;
       const base = await baseOf(card, this.git);
       const work = await branchWork(cwd, base, this.git);
-      if (work === "committed") continue;
+      // ADR 0041: a card folded into its lot measures empty against the lot's branch — it delivered.
+      if (work === "committed" || (work === "nothing" && this.db.listEvents(card.id, 200).some((e) => e.type === "card.lot_merged"))) continue;
       this.db.setStatus(card.id, "working", refusalReason(work, card.branch, base ?? "HEAD"));
     }
   }
