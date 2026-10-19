@@ -119,6 +119,56 @@ describe("prepareLot — what startCard forks from", () => {
   });
 });
 
+describe("prepareLot — two cards of a maxParallel 2 lot starting in the same tick", () => {
+  /** `dir`'s main is one commit behind its origin — someone merged a PR on GitHub. */
+  const behindOrigin = () => {
+    const dir = repo();
+    const origin = `${dir}-origin.git`;
+    sh(dir, "clone", "-q", "--bare", dir, origin);
+    sh(dir, "remote", "add", "origin", origin);
+    sh(dir, "fetch", "-q", "origin");
+    const other = `${dir}-other`;
+    sh(dir, "clone", "-q", origin, other);
+    sh(other, "config", "user.email", "t@t"), sh(other, "config", "user.name", "t");
+    writeFileSync(join(other, "merged.txt"), "landed on GitHub\n");
+    sh(other, "add", "."), sh(other, "commit", "-qm", "#875"), sh(other, "push", "-q", "origin", "main");
+    return { dir, head: sh(other, "rev-parse", "HEAD") };
+  };
+
+  it("cuts the lot branch once, from origin's up-to-date base, and both cards fork from it", async () => {
+    const { dir, head } = behindOrigin();
+    const db = new BoardDb(":memory:");
+    const [a, b] = ["a", "b"].map((t, i) => db.createCard({ title: t, repoPath: dir, status: "ready", position: i, baseRef: "main" }));
+    const run = db.createRun({ repoPath: dir, cardIds: [a!.id, b!.id], foldInCap: 0, integration: "lot", name: "D" });
+    const cuts: string[][] = [];
+    const git = async (args: string[], cwd: string) => {
+      if (args[0] === "branch") cuts.push(args);
+      const p = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
+      return { ok: p.exitCode === 0, stdout: p.stdout.toString(), stderr: p.stderr.toString() };
+    };
+    // The coordinator hands both the same snapshot of the run: no lot branch yet.
+    const snap = db.getRun(run.id)!;
+    const results = await Promise.all([a, b].map((c) => prepareLot(db, snap, db.getCard(c!.id)!, git)));
+
+    expect(results).toEqual([{ ok: true }, { ok: true }]);
+    expect(cuts).toHaveLength(1);
+    const lot = lotBranchOf(run);
+    expect(sh(dir, "rev-parse", lot)).toBe(head);
+    expect([a, b].map((c) => db.getCard(c!.id)!.baseRef)).toEqual([lot, lot]);
+  });
+
+  it("a halted lot relaunched with its branch already there reuses it", async () => {
+    const dir = repo();
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: dir, status: "ready", baseRef: "main" });
+    const run = db.createRun({ repoPath: dir, cardIds: [a.id], foldInCap: 0, integration: "lot", name: "D" });
+    sh(dir, "branch", lotBranchOf(run), "main"); // left by the first launch, never recorded on the run
+    expect(await prepareLot(db, db.getRun(run.id)!, db.getCard(a.id)!)).toEqual({ ok: true });
+    expect(db.getRun(run.id)!.lotBranch).toBe(lotBranchOf(run));
+    expect(await prepareLot(db, db.getRun(run.id)!, db.getCard(a.id)!)).toEqual({ ok: true });
+  });
+});
+
 describe("lotView", () => {
   it("says a launched lot is over once run.finished is journaled, and carries the lot's PR while it runs", () => {
     const db = new BoardDb(":memory:");
