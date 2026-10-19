@@ -2744,6 +2744,16 @@ export class BoardDb {
       .map(toEvent);
   }
 
+  /** The types of the newest `limit` journal entries among `types`, NEWEST first — the copilot's
+   *  recent review outcomes, from which board-notify.ts's `copilotDown` derives the failure streak. */
+  latestEventTypes(types: string[], limit: number): string[] {
+    const marks = types.map(() => "?").join(",");
+    return this.db
+      .query<{ type: string }, (string | number)[]>(`SELECT type FROM event WHERE type IN (${marks}) ORDER BY id DESC LIMIT ?`)
+      .all(...types, limit)
+      .map((r) => r.type);
+  }
+
   /**
    * Journal entries newer than `after`, OLDEST first — the board tailer's range scan, and the reason
    * it is cheap: `id > ?` on an AUTOINCREMENT primary key walks the rowid from the cursor and
