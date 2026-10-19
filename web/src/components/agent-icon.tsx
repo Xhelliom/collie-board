@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/format";
 import { AGENT_BRANDS } from "@/components/agent-icon-data";
+import { t } from "@/i18n";
 
 // Resolve a Herdr-detected agent name (`pane.agent`) to a brand key, tolerating variants like
 // "claude-code" / "opencode-dev". Mirrors the matching in lib/agent-commands.ts.
@@ -38,7 +39,7 @@ export function AgentIcon({
           className,
         )}
         role="img"
-        aria-label={agent ? `${agent} icon` : "agent icon"}
+        aria-label={agent ? t("icon.agent", { agent }) : t("icon.unknown")}
       >
         {initials(agent ?? "")}
       </span>
@@ -51,7 +52,7 @@ export function AgentIcon({
       viewBox="0 0 24 24"
       className={cn("shrink-0", className)}
       role="img"
-      aria-label={`${agent} logo`}
+      aria-label={t("icon.logo", { agent: agent ?? "" })}
     >
       <rect width="24" height="24" rx="5.3" fill={brand.bg} />
       {/* Inset the 24×24 mark to ~62% so every logo carries uniform app-icon padding. */}

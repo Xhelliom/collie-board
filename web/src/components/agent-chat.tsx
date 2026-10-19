@@ -757,7 +757,7 @@ export function AgentChat({
           </button>
         ) : (
           <div className="min-w-0 flex-1">
-            <span className="truncate font-semibold">(agent gone)</span>
+            <span className="truncate font-semibold">{tr("pane.agentGone")}</span>
           </div>
         )}
         </AppHeader>
@@ -812,7 +812,7 @@ export function AgentChat({
               </div>
             </>
           ) : (
-            <span className="min-w-0 flex-1 truncate font-semibold">(agent gone)</span>
+            <span className="min-w-0 flex-1 truncate font-semibold">{tr("pane.agentGone")}</span>
           )}
           <div className="flex shrink-0 items-center gap-2">
             {historyAvailable && (
@@ -1073,7 +1073,7 @@ export function AgentChat({
                 />
               </>
             ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">(no recent output)</div>
+              <div className="py-16 text-center text-sm text-muted-foreground">{tr("pane.noRecentOutput")}</div>
             )}
           </ChatMessageList>
         </div>

@@ -176,7 +176,7 @@ function NotifyLogList({ onPick }: { onPick: () => void }) {
             <button
               type="button"
               onClick={() => dismiss(e)}
-              aria-label={`Delete notification: ${content(e).title}`}
+              aria-label={t("bell.delete", { title: content(e).title })}
               className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:bg-muted/60"
             >
               <X className="size-3.5" />

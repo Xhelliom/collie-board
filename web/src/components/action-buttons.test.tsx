@@ -44,7 +44,7 @@ describe("collie-buttons", () => {
     expect(screen.queryByText(/c1/)).toBeNull(); // never an id on screen
     await user.click(screen.getByRole("button", { name: "Oui, fusionne" }));
     expect(calls.some((c) => c.method === "POST")).toBe(false); // destructive: asks first
-    await user.click(screen.getByRole("button", { name: "Confirmer : Oui, fusionne" }));
+    await user.click(screen.getByRole("button", { name: "Confirm: Oui, fusionne" }));
     expect(await screen.findByRole("status")).toHaveTextContent("« Mon titre » fusionnée dans main et classée terminée.");
     expect(calls.find((c) => c.method === "POST")).toEqual({ method: "POST", url: "/api/cards/c1/integration", body: { action: "merge", andDone: true } });
     expect(screen.getByRole("button", { name: "Non" })).toBeDisabled(); // the block is spent

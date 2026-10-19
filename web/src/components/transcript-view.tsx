@@ -270,7 +270,7 @@ function TurnBody({
             <AgentIcon agent={agent ?? "claude"} className="size-4" />
           )}
           <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {isUser ? t("transcript.you") : (agent ?? "agent")}
+            {isUser ? t("transcript.you") : (agent ?? t("pane.agent"))}
           </span>
           {time && <span className="text-xs text-muted-foreground">{time}</span>}
         </div>

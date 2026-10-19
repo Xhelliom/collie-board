@@ -138,4 +138,8 @@ export const pane = defineMessages({
   "pane.rail.context": { en: "Context", fr: "Contexte" },
   "pane.rail.openCard": { en: "Open card", fr: "Ouvrir la carte" },
   "pane.rail.handoff": { en: "Hand off", fr: "Passer le relais" },
+  "pane.noRecentOutput": { en: "(no recent output)", fr: "(aucune sortie récente)" },
+  "pane.action.confirm": { en: "Confirm: {label}", fr: "Confirmer : {label}" },
+  "pane.dialog.endsQuestions": { en: "— ends the questions", fr: "— met fin aux questions" },
+  "pane.dialog.previewOf": { en: "Preview · {label}", fr: "Aperçu · {label}" },
 });

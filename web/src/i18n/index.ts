@@ -6,7 +6,7 @@ import { CATALOG, type MessageKey } from "./catalog";
 // the default at first launch; "auto" (follow the browser) is an explicit choice, stored as such. A
 // message is written ONCE, with both languages side by side, so a missing translation is a type error
 // rather than a hole found on a phone. Every screen goes through here, upstream's included (Settings,
-// gallery, history, artifacts, pane, Spaces): the routes and the chrome around them (idle cover, connection bars, toasts, shared aria-labels) have no hard-coded UI string; a few leaf widgets and the notification markers still do (see ADR 0038, "Not done").
+// gallery, history, artifacts, pane, Spaces): no .tsx shows a literal string — i18n/no-literal-text.test.ts fails on one; only the notification markers (lib/notify-content.ts) stay English (see ADR 0038, "Not done").
 
 export type Locale = "en" | "fr";
 export const LOCALES: readonly Locale[] = ["en", "fr"];
