@@ -44,15 +44,32 @@ export class Lead extends Copilot {
     return "lead";
   }
 
-  async check(input: Omit<CheckInput, "outPath">): Promise<CheckDecision> {
-    return toCheckDecision(await this.answer((outPath) => checkPrompt({ ...input, outPath })));
+  check(input: Omit<CheckInput, "outPath">): Promise<CheckDecision> {
+    return this.decide("check", (outPath) => checkPrompt({ ...input, outPath }), toCheckDecision);
   }
-  async triage(input: Omit<TriageInput, "outPath">): Promise<TriageDecision> {
-    const answer = await this.answer((outPath) => triagePrompt({ ...input, outPath }));
-    return toTriageDecision(answer, input.followUps.length);
+  triage(input: Omit<TriageInput, "outPath">): Promise<TriageDecision> {
+    return this.decide("triage", (outPath) => triagePrompt({ ...input, outPath }), (a) => toTriageDecision(a, input.followUps.length));
   }
-  async recheckConflict(input: Omit<ConflictInput, "outPath">): Promise<ConflictDecision> {
-    return toConflictDecision(await this.answer((outPath) => conflictPrompt({ ...input, outPath })));
+  recheckConflict(input: Omit<ConflictInput, "outPath">): Promise<ConflictDecision> {
+    return this.decide("conflict re-check", (outPath) => conflictPrompt({ ...input, outPath }), toConflictDecision);
+  }
+
+  /**
+   * Ask, parse — and a malformed answer is asked again with what was wrong with it, up to
+   * {@link LEAD_ATTEMPTS} times, before it becomes the operator's. A missing field is a slip, not a
+   * judgement: halting a lot on the first one throws away a whole run for a typo.
+   */
+  private async decide<T>(what: string, build: (outPath: string) => string, parse: (answer: unknown) => T): Promise<T> {
+    let problem = "";
+    for (let attempt = 1; ; attempt++) {
+      const answer = await this.answer((outPath) => build(outPath) + (problem ? rejected(problem) : ""));
+      try {
+        return parse(answer);
+      } catch (err) {
+        problem = (err as Error).message.replace(/^lead: /, "");
+        if (attempt >= LEAD_ATTEMPTS) throw new Error(`the lead's ${what} answer was malformed ${attempt} times in a row — ${problem}`);
+      }
+    }
   }
 
   /** `ask`, but no answer at all is the lead's pane gone quiet, not a malformed answer — say so. */
@@ -62,6 +79,13 @@ export class Lead extends Copilot {
     return parsed;
   }
 }
+
+/** How many times one question is asked before a malformed answer halts the card: once, then twice again. */
+export const LEAD_ATTEMPTS = 3;
+
+/** Appended to a question asked again: what the last answer got wrong. Pure. */
+const rejected = (problem: string) =>
+  `\n\nYOUR PREVIOUS ANSWER WAS REJECTED: ${problem}. Write the whole JSON again, complete, with that fixed.`;
 
 /**
  * The lead wrote no answer — its pane is most likely waiting on a gesture (a modal, a quota). Not a
@@ -285,9 +309,9 @@ function obj(v: unknown, what: string): Record<string, unknown> {
   return v as Record<string, unknown>;
 }
 
-function text(o: Record<string, unknown>, key: string): string {
+function text(o: Record<string, unknown>, key: string, where = ""): string {
   const v = o[key];
-  if (typeof v !== "string" || !v.trim()) throw new Error(`lead: missing or empty "${key}"`);
+  if (typeof v !== "string" || !v.trim()) throw new Error(`lead: missing or empty "${key}"${where && ` in ${where}`}`);
   return v.trim();
 }
 
@@ -322,7 +346,7 @@ export function toTriageDecision(parsed: unknown, followUpCount: number): Triage
   const o = obj(parsed, "the triage answer");
   const v = obj(o.verdict, "verdict");
   if (typeof v.accept !== "boolean") throw new Error('lead: verdict "accept" is not a boolean');
-  const verdict = { accept: v.accept, reason: text(v, "reason") };
+  const verdict = { accept: v.accept, reason: text(v, "reason", "the verdict") };
 
   if (!Array.isArray(o.followUps)) throw new Error('lead: "followUps" is not a list');
   const followUps: TriageDecision["followUps"] = [];
@@ -337,7 +361,7 @@ export function toTriageDecision(parsed: unknown, followUpCount: number): Triage
     if (action !== "keep" && action !== "fold" && action !== "drop") {
       throw new Error(`lead: unknown follow-up action ${JSON.stringify(action)}`);
     }
-    followUps.push({ index: index as number, action, reason: text(f, "reason") });
+    followUps.push({ index: index as number, action, reason: text(f, "reason", `follow-up ${index}`) });
   }
   if (followUps.length !== followUpCount) {
     throw new Error(`lead: ${followUpCount - followUps.length} follow-up(s) left undecided`);

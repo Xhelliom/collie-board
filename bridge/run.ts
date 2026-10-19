@@ -151,11 +151,12 @@ export function stepFor(
   },
 ): Step {
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
+  const held = holding(events, run.id);
   const landed = newest(events, (e) => e.type === "card.status" && (e.payload as { to?: string }).to === "review");
 
   if (STARTABLE.has(card.status)) {
-    // A halt on a card never started (its start failed) holds until the operator moves it.
-    if (halted) return null;
+    // A halt on a card never started (its start failed) holds until the operator moves it, or resumes the run.
+    if (held) return null;
     if (!ctx.depsDone) return null;
     // ADR 0036: started now, it would fork from — and open its PR against — a branch not merged yet.
     return ctx.predecessorArmed ? { kind: "predecessor" } : { kind: "start" };
@@ -164,8 +165,9 @@ export function stepFor(
   if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
   // Busy with the board's own handoff or wrapup ask.
   if (!ctx.session || ctx.session.handoffRequestedAt !== null || isAutoHandoffPending(ctx.session)) return null;
-  // Halted since this landing: the operator's until the worker lands again.
-  if (after(halted, landed)) return null;
+  // Halted since this landing: the operator's until the worker lands again, or the run is resumed —
+  // which picks up at the step that halted (a triage asked again, not the worker).
+  if (after(held, landed)) return null;
 
   const decision = newest(events, (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
   const resolve = newest(events, (e) => e.type === "card.resolve_requested");
@@ -225,17 +227,34 @@ const isVerdict = (e: BoardEvent) => {
   return d === "finished" || d === "prompt";
 };
 
+/** The halt that still holds on a card: its newest, unless the operator resumed the run after it. Pure. */
+const holding = (events: BoardEvent[], runId: string) => {
+  const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, runId));
+  return after(newest(events, (e) => e.type === "run.resumed" && isRun(e, runId)), halted) ? null : halted;
+};
+
+/**
+ * The operator resumes a halted run: each member still held gets a `run.resumed`, and the next tick
+ * picks it up where it stopped — a halted triage is asked again, the worker is not. Returns how many
+ * cards it lifted; 0 means nothing was halted.
+ */
+export function resumeRun(db: BoardDb, run: Run): number {
+  const held = db.runMembers(run.id).filter((c) => stuck(run, c, db.listEvents(c.id, 200)));
+  for (const c of held) db.recordRunEvent(c.id, "run.resumed", { runId: run.id });
+  return held.length;
+}
+
 /** A run's readable state (ADR 0017, *How a run ends*). Pure over the members and their journals. */
 export function runState(run: Run, members: { card: Card; events: BoardEvent[] }[]): "finished" | "halted" | "running" {
   if (members.every((m) => FILED.has(m.card.status))) return "finished";
-  const stuck = members.some(({ card, events }) => {
-    if (FILED.has(card.status)) return false;
-    const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
-    const moved = newest(events, (e) => e.type === "card.status");
-    // A halt holds until the card moves after it — the operator acting on it.
-    return halted !== null && !after(moved, halted);
-  });
-  return stuck ? "halted" : "running";
+  return members.some(({ card, events }) => stuck(run, card, events)) ? "halted" : "running";
+}
+
+/** A member waiting on the operator. A halt holds until the card moves after it, or the run is resumed — the operator acting on it. */
+function stuck(run: Run, card: Card, events: BoardEvent[]): boolean {
+  if (FILED.has(card.status)) return false;
+  const halted = holding(events, run.id);
+  return halted !== null && !after(newest(events, (e) => e.type === "card.status"), halted);
 }
 
 export class RunCoordinator {

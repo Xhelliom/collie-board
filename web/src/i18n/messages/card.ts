@@ -100,6 +100,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   },
   "journal.leadPane": { en: "Open the lead's pane", fr: "Ouvrir le pane du lead" },
   "journal.halted": { en: "Run halted, needs you — {reason}", fr: "Run arrêté, il a besoin de toi — {reason}" },
+  "journal.resumed": { en: "Run resumed — picking up where it stopped", fr: "Run repris — il reprend là où il s'était arrêté" },
   "journal.runFinished": { en: "Run finished — every card is filed", fr: "Run terminé — toutes les cartes sont classées" },
   "journal.splitKept": { en: "Split kept — {started} has already started", fr: "Découpage conservé — {started} a déjà démarré" },
   "journal.aSubtask": { en: "a sub-task", fr: "une sous-tâche" },

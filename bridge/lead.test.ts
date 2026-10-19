@@ -7,6 +7,8 @@ import {
   conflictPrompt,
   toCheckDecision,
   toConflictDecision,
+  Lead,
+  LEAD_ATTEMPTS,
   toTriageDecision,
   triagePrompt,
 } from "./lead.ts";
@@ -138,5 +140,31 @@ describe("the lead has no path to act", () => {
     const src = await Bun.file(new URL("./lead.ts", import.meta.url)).text();
     const imports = [...src.matchAll(/from "(\.[^"]+)"/g)].map((m) => m[1]);
     expect(imports).toEqual(["./copilot.ts"]);
+  });
+});
+
+describe("a malformed answer is asked again", () => {
+  /** A Lead whose `ask` answers from a queue and records the prompts it was given. */
+  function lead(answers: unknown[]) {
+    const l = new Lead(...([null, null, "/tmp/unused", () => null] as unknown as ConstructorParameters<typeof Lead>));
+    const prompts: string[] = [];
+    (l as unknown as { ask: (b: (o: string) => string) => Promise<unknown> }).ask = async (b) => (prompts.push(b("out.json")), answers.shift());
+    return { l, prompts };
+  }
+  const input = { ...brief, verdict: "ok", notes: null, followUps: [] };
+  const valid = { verdict: { accept: true, reason: "fine" }, followUps: [] };
+
+  it("a triage without a reason is asked again with the error, and a valid second answer goes on", async () => {
+    const { l, prompts } = lead([{ verdict: { accept: true }, followUps: [] }, valid]);
+    expect(await l.triage(input)).toEqual(valid);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[0]).not.toContain("REJECTED");
+    expect(prompts[1]).toContain('REJECTED: missing or empty "reason" in the verdict');
+  });
+
+  it(`after ${LEAD_ATTEMPTS} malformed answers it throws, saying what is missing`, async () => {
+    const { l, prompts } = lead(Array.from({ length: LEAD_ATTEMPTS }, () => ({ verdict: { accept: true }, followUps: [] })));
+    await expect(l.triage(input)).rejects.toThrow(`the lead's triage answer was malformed ${LEAD_ATTEMPTS} times in a row — missing or empty "reason" in the verdict`);
+    expect(prompts).toHaveLength(LEAD_ATTEMPTS);
   });
 });
