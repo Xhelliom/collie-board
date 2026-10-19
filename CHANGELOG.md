@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.211.0] - 2026-10-19
+
+### Added
+
+- `POST /api/runs/<id>/resume` : l'opérateur reprend un lot arrêté là où il s'est arrêté (un triage est redemandé, le worker n'est pas relancé) (0604eee)
+
+### Fixed
+
+- Réponse mal formée du lead (champ manquant, JSON invalide) : redemandée deux fois avec l'erreur avant d'arrêter le lot, en disant ce qui manque (0604eee)
+
 ## [0.210.2] - 2026-10-19
 
 ### Fixed
