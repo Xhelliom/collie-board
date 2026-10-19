@@ -1202,6 +1202,22 @@ cache headers are untouched. Generic — it knows no card.
 
 ---
 
+## 38. 🔵 The transcript's timestamps reuse one formatter
+
+`clockTime`/`dayKey` called `toLocaleTimeString`/`toLocaleDateString`, which build a fresh Intl
+formatter on every call — twice per turn, on every poll that re-renders the conversation. Measured on
+a 40-turn transcript at 1.5 s polling, phone throttling (CPU ×4): ≈ 450 ms of main thread per 12 s,
+a third of React's render phase. Two module-level `Intl.DateTimeFormat`, same options, same output.
+Generic — it knows no card.
+
+| | |
+|---|---|
+| Commit | *Transcript : un formateur de date par module, plus un par tour et par poll (audit perf #8)* |
+| Files | `web/src/components/transcript-view.tsx` |
+| Extraction | **Clean cherry-pick**. |
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately

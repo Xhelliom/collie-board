@@ -28,19 +28,23 @@ const ThreadImagesContext = createContext<string[]>([]);
 // AST which the renderer maps to React elements, so no HTML string is ever constructed. Do not
 // "improve" this by swapping in a markdown→HTML library without re-deriving that boundary.
 
+// One formatter each, built once: `toLocale*String` builds a fresh Intl formatter per call, and the
+// orchestrator panel re-renders its 40 turns on every poll — ≈ 4 % of the main thread [4G, CPU ×4],
+// docs/ui-audit/performance-percue.md #8.
+const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const DAY_FMT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
 /** Times only — the date lives on the day divider, and a phone row has no width to spare. */
 function clockTime(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(d.getTime()) ? "" : TIME_FMT.format(d);
 }
 
 function dayKey(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { dateStyle: "medium" });
+  return Number.isNaN(d.getTime()) ? "" : DAY_FMT.format(d);
 }
 
 /** Plain text with find hits marked — for strings that are NOT Markdown (shell commands, output). */
