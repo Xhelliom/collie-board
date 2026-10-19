@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.213.0] - 2026-10-19
+
+### Added
+
+- Un lot arrêté affiche sa raison et un bouton « Reprendre » (`POST /api/runs/<id>/resume`) (e535993)
+- `GET /api/runs` : champ `halted` (raison de l'arrêt qui tient encore, `null` sinon) (e535993)
+
 ## [0.212.0] - 2026-10-19
 
 ### Added
