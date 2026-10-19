@@ -45,14 +45,31 @@ export class Lead extends Copilot {
   }
 
   async check(input: Omit<CheckInput, "outPath">): Promise<CheckDecision> {
-    return toCheckDecision(await this.ask((outPath) => checkPrompt({ ...input, outPath })));
+    return toCheckDecision(await this.answer((outPath) => checkPrompt({ ...input, outPath })));
   }
   async triage(input: Omit<TriageInput, "outPath">): Promise<TriageDecision> {
-    const answer = await this.ask((outPath) => triagePrompt({ ...input, outPath }));
+    const answer = await this.answer((outPath) => triagePrompt({ ...input, outPath }));
     return toTriageDecision(answer, input.followUps.length);
   }
   async recheckConflict(input: Omit<ConflictInput, "outPath">): Promise<ConflictDecision> {
-    return toConflictDecision(await this.ask((outPath) => conflictPrompt({ ...input, outPath })));
+    return toConflictDecision(await this.answer((outPath) => conflictPrompt({ ...input, outPath })));
+  }
+
+  /** `ask`, but no answer at all is the lead's pane gone quiet, not a malformed answer — say so. */
+  private async answer(build: (outPath: string) => string): Promise<unknown> {
+    const parsed = await this.ask(build);
+    if (parsed === null) throw new LeadSilent(this.lastPane);
+    return parsed;
+  }
+}
+
+/**
+ * The lead wrote no answer — its pane is most likely waiting on a gesture (a modal, a quota). Not a
+ * board bug, and not a malformed answer to ask again: the operator has to go and look at the pane.
+ */
+export class LeadSilent extends Error {
+  constructor(readonly paneId: string | null) {
+    super("the lead is not answering — its pane is probably waiting for an action (a modal, a quota)");
   }
 }
 

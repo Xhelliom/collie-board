@@ -1071,6 +1071,9 @@ export class Copilot {
     return this._paneId;
   }
 
+  /** The pane the last request went to — kept after a failure drops `paneId`, so a caller can name it. */
+  protected lastPane: string | null = null;
+
   /** Where the answers land on disk. */
   private outPathFor(id: string): { abs: string; rel: string } {
     return { abs: join(this.workDir, OUT_DIR, `${id}.json`), rel: `${OUT_DIR}/${id}.json` };
@@ -1096,6 +1099,7 @@ export class Copilot {
     try {
       await this.ensurePane();
       if (!this._paneId) return null;
+      this.lastPane = this._paneId;
       await mkdir(join(this.workDir, OUT_DIR), { recursive: true, mode: 0o700 });
       // Stale file from a previous run with the same id would be read as this answer.
       await rm(abs, { force: true });

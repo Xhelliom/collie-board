@@ -1,9 +1,11 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw, Sparkles, User } from "lucide-react";
+import { Link } from "react-router";
 
 import { CollapsibleText } from "@/components/collapsible-text";
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { panePath } from "@/lib/nav";
 import { ago as timeAgo } from "@/lib/project-facts";
 import type { BoardEvent } from "@/lib/board";
 
@@ -57,6 +59,7 @@ export function CardJournal({
           ) : (
             <JournalRow key={r.id} ts={r.ts} icon={<EventIcon type={r.type} />}>
               {describeEvent(r)}
+              <LeadPaneLink event={r} />
             </JournalRow>
           ),
         )}
@@ -121,6 +124,20 @@ function JournalRow({
         <CollapsibleText lines={2}>{children}</CollapsibleText>
       </span>
     </li>
+  );
+}
+
+/** A halt because the lead went quiet: the fix is in its pane (a modal, a quota), so link to it. */
+function LeadPaneLink({ event }: { event: BoardEvent }) {
+  const paneId = event.type === "run.halted" ? (event.payload as { paneId?: unknown } | null)?.paneId : undefined;
+  if (typeof paneId !== "string") return null;
+  return (
+    <>
+      {" · "}
+      <Link to={panePath(paneId)} className="text-primary underline underline-offset-2">
+        {t("journal.leadPane")}
+      </Link>
+    </>
   );
 }
 
@@ -380,7 +397,7 @@ export function describeEvent(event: BoardEvent): string {
     case "run.merge":
       return t(p.merged ? "journal.merged" : "journal.notMerged", { reason: reason() });
     case "run.halted":
-      return t("journal.halted", { reason: reason() });
+      return p.leadSilent ? t("journal.leadSilent") : t("journal.halted", { reason: reason() });
     case "run.finished":
       return t("journal.runFinished");
     case "copilot.split_kept":

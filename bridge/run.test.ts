@@ -5,7 +5,7 @@ import type { GateResult } from "./gate.ts";
 import type { GitRunner, PrStatus } from "./git.ts";
 import { mergeWhenReady, notePrOutcome } from "./integrate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
-import { checkPrompt } from "./lead.ts";
+import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
 import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -29,7 +29,7 @@ function world(
   opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void; clock?: { now: number } } = {},
 ) {
   const calls: string[] = [];
-  const checks: CheckDecision[] = [];
+  const checks: (CheckDecision | Error)[] = [];
   const triages: TriageDecision[] = [];
   const rechecks: ConflictDecision[] = [];
   const seen: { workerReport?: string | null }[] = [];
@@ -44,7 +44,12 @@ function world(
   const clock = opts.clock ?? { now: 1_000_000_000_000 };
   const ports: RunPorts = {
     lead: {
-      check: async (i) => (seen.push(i), checks.shift() ?? { decision: "finished", reason: "ok" }) ?? { decision: "finished", reason: "ok" },
+      check: async (i) => {
+        seen.push(i);
+        const d = checks.shift() ?? { decision: "finished", reason: "ok" };
+        if (d instanceof Error) throw d;
+        return d;
+      },
       triage: async () => triages.shift()!,
       recheckConflict: async () => rechecks.shift()!,
     },
@@ -303,6 +308,21 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(reason).toContain("rien n'est commité");
     expect(reason).toContain("bilan du worker");
     expect(db.getCard(a.id)!.status).not.toBe("done");
+  });
+
+  it("a lead that writes no answer halts naming its pane, not a parse error", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    land(db, a);
+    w.checks.push(new LeadSilent("lead:1"));
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    const p = events(db, a, "run.halted")[0]!.payload as { reason: string; leadSilent?: true; paneId?: string };
+    expect(p).toMatchObject({ leadSilent: true, paneId: "lead:1" });
+    expect(p.reason).not.toContain("not an object");
   });
 
   it("a finished verdict on a branch with no commit halts instead of filing", async () => {

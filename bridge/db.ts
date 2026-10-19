@@ -579,7 +579,8 @@ export interface RunEventPayloads {
   /** Every member is filed. Journaled with a null card: it is the run's, not one card's. */
   "run.finished": { runId: string };
   /** On the card that needs the operator. */
-  "run.halted": { runId: string; reason: string };
+  /** `leadSilent`: the lead wrote no answer (LeadSilent); `paneId` is its pane, which the journal links to. */
+  "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
