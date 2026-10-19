@@ -252,6 +252,17 @@ export function runState(run: Run, members: { card: Card; events: BoardEvent[] }
   return members.some(({ card, events }) => stuck(run, card, events)) ? "halted" : "running";
 }
 
+/** Why a run is halted: the newest halt still holding on a member, or null. Pure. */
+export function haltReason(run: Run, members: { card: Card; events: BoardEvent[] }[]): string | null {
+  let held: BoardEvent | null = null;
+  for (const { card, events } of members) {
+    if (!stuck(run, card, events)) continue;
+    const h = holding(events, run.id)!;
+    if (!held || h.ts > held.ts) held = h;
+  }
+  return held ? String((held.payload as { reason?: unknown }).reason ?? "") : null;
+}
+
 /** A member waiting on the operator. A halt holds until the card moves after it, or the run is resumed — the operator acting on it. */
 function stuck(run: Run, card: Card, events: BoardEvent[]): boolean {
   if (FILED.has(card.status)) return false;

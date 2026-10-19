@@ -8,6 +8,7 @@
 
 import { boardBranchPrefix } from "./config.ts";
 import type { BoardDb, Card, Run } from "./db.ts";
+import { haltReason } from "./run.ts";
 import { baseOf, branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 
 /** `board/lot-<slug>-<id6>` : le nom aide l'œil, l'id garde deux lots du même nom distincts. Pur. */
@@ -101,7 +102,8 @@ export async function prepareLot(
 /**
  * Un lot tel que les écrans le lisent : ses cartes, s'il est terminé (`run.finished` journalisé), et —
  * lot à une PR — l'url de cette PR, journalisée sur la dernière carte (ADR 0041). Tant que le lot tourne,
- * ses cartes disent « le lead s'en occupe » ; terminé, elles reprennent leur affichage normal.
+ * ses cartes disent « le lead s'en occupe » ; terminé, elles reprennent leur affichage normal. Arrêté,
+ * `halted` porte la raison de l'arrêt qui tient encore.
  */
 export function lotView(db: Pick<BoardDb, "runMembers" | "runFinished" | "listEvents">, run: Run) {
   const members = db.runMembers(run.id);
@@ -115,5 +117,7 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinished" | "listEv
       if (e && typeof url === "string" && e.ts > ts) [prUrl, ts] = [url, e.ts];
     }
   }
-  return { ...run, cardIds: members.map((c) => c.id), finished, prUrl };
+  // Halted: the reason sits beside the operator's « Reprendre » (POST /api/runs/<id>/resume).
+  const halted = run.launchedAt !== null && !finished ? haltReason(run, members.map((card) => ({ card, events: db.listEvents(card.id, 200) }))) : null;
+  return { ...run, cardIds: members.map((c) => c.id), finished, prUrl, halted };
 }

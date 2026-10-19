@@ -1235,6 +1235,8 @@ export interface Lot {
   finished?: boolean;
   /** One PR for the lot, while it runs: that PR's url once opened (journaled on its last card). */
   prUrl?: string | null;
+  /** Launched and halted: why (the newest halt still holding). Null while it runs. Absent on an older bridge. */
+  halted?: string | null;
 }
 
 export type RoadmapStatus = "planned" | "active" | "done" | "dropped";
@@ -1326,6 +1328,9 @@ export const sealPhase = (input: { repoPath: string; name: string; note?: string
   apiRequest("/api/phases/seal", { method: "POST", body: JSON.stringify(input) });
 export const launchLot = (id: string): Promise<{ run: Lot }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/launch`, { method: "POST" });
+/** The operator resumes a halted lot: each halted card picks up at the step it stopped on. */
+export const resumeLot = (id: string): Promise<{ resumed: number }> =>
+  apiRequest(`/api/runs/${encodeURIComponent(id)}/resume`, { method: "POST" });
 export const saveRoadmap = (
   r: { repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number },
 ): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });
