@@ -86,7 +86,7 @@ export class OrchestratorNudger {
 
   // Sync up to the first await: the `told` guard and cursor stay race-free.
   private async messageFor(e: BoardEvent): Promise<{ repoPath: string; text: string } | null> {
-    const p = (e.payload ?? {}) as { runId?: string; reason?: string; merged?: boolean; phaseId?: string; moveOpenTo?: string | null };
+    const p = (e.payload ?? {}) as { runId?: string; reason?: string; merged?: boolean; wait?: boolean; phaseId?: string; moveOpenTo?: string | null };
     // A phase gesture: journaled by project-routes.ts, which refuses an agent pane — so never the orchestrator's own.
     if (e.type === "phase.closed" || e.type === "phase.sealed" || e.type === "phase.reopened") {
       const phase = p.phaseId ? this.db.getPhase(p.phaseId) : null;
@@ -118,7 +118,9 @@ export class OrchestratorNudger {
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
     }
-    const unmerged = e.type === "run.merge" && p.merged === false;
+    // A wait (`wait: true` — no check registered yet, checks running, mergeability unknown) is not a
+    // verdict: the land step asks again and settles it at CHECKS_GRACE_MS. Only a real refusal wakes it.
+    const unmerged = e.type === "run.merge" && p.merged === false && !p.wait;
     if ((!unmerged && e.type !== "run.halted") || !e.cardId) return null;
     const key = `${run.id}:${e.cardId}`;
     const card = this.db.getCard(e.cardId);

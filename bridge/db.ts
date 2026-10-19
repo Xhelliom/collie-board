@@ -583,7 +583,7 @@ export interface RunEventPayloads {
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
-  "run.merge": { runId: string; merged: boolean; reason: string };
+  "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean };
 }
 
 export type RunEventKind = keyof RunEventPayloads;

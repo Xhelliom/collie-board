@@ -37,6 +37,19 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     expect(w.sent[0]).toContain("gate rouge");
   });
 
+  it("does not wake on a merge still waiting on GitHub, but does on the refusal that follows", async () => {
+    const w = world();
+    w.db.recordRunEvent(w.card.id, "run.merge", { runId: w.run.id, merged: false, wait: true, reason: "GitHub has registered no check on this PR yet — waiting" });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent).toHaveLength(0);
+    w.db.recordRunEvent(w.card.id, "run.merge", { runId: w.run.id, merged: false, reason: "the check ci failed — not merging" });
+    w.nudger.update(snap(true));
+    await flush();
+    expect(w.sent).toHaveLength(1);
+    expect(w.sent[0]).toContain("ci failed");
+  });
+
   it("reports the end of a lot with its merged and blocked cards", async () => {
     const w = world();
     w.db.recordRunEvent(null, "run.finished", { runId: w.run.id });
