@@ -144,3 +144,18 @@ describe("orchestrator autonomy (ADR 0030)", () => {
     expect((await launch(w)).status).toBe(403);
   });
 });
+
+describe("POST /api/runs/:id/resume", () => {
+  it("is the operator's: lifts a halt, refuses an agent pane, a planned lot, and a lot with nothing halted", async () => {
+    const w = world();
+    const c = w.db.createCard({ title: "c", repoPath: repo, status: "review" });
+    const run = w.db.createRun({ repoPath: repo, cardIds: [c.id], foldInCap: 0 });
+    const resume = (id: string, headers: Record<string, string> = {}) => call(w.db, "POST", `/api/runs/${id}/resume`, undefined, headers);
+    expect((await resume(run.id)).status).toBe(409);
+    w.db.recordRunEvent(c.id, "run.halted", { runId: run.id, reason: "x" });
+    expect((await resume(run.id, PANE)).status).toBe(403);
+    expect((await resume(w.lot2.id)).status).toBe(409);
+    expect(await resume(run.id)).toEqual({ status: 200, body: { resumed: 1 } });
+    expect(w.db.listEvents(c.id)[0]!.type).toBe("run.resumed");
+  });
+});

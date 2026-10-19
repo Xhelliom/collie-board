@@ -581,6 +581,8 @@ export interface RunEventPayloads {
   /** On the card that needs the operator. */
   /** `leadSilent`: the lead wrote no answer (LeadSilent); `paneId` is its pane, which the journal links to. */
   "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string };
+  /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
+  "run.resumed": { runId: string };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
@@ -594,6 +596,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.triaged",
   "run.finished",
   "run.halted",
+  "run.resumed",
   "run.gate",
   "run.merge",
 ];

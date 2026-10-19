@@ -398,6 +398,8 @@ export function describeEvent(event: BoardEvent): string {
       return t(p.merged ? "journal.merged" : "journal.notMerged", { reason: reason() });
     case "run.halted":
       return p.leadSilent ? t("journal.leadSilent") : t("journal.halted", { reason: reason() });
+    case "run.resumed":
+      return t("journal.resumed");
     case "run.finished":
       return t("journal.runFinished");
     case "copilot.split_kept":

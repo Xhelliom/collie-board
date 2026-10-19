@@ -7,7 +7,7 @@ import { mergeWhenReady, notePrOutcome } from "./integrate.ts";
 import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts";
 import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
-import { briefOf, MAX_ROUNDS, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { briefOf, MAX_ROUNDS, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -30,7 +30,7 @@ function world(
 ) {
   const calls: string[] = [];
   const checks: (CheckDecision | Error)[] = [];
-  const triages: TriageDecision[] = [];
+  const triages: (TriageDecision | Error)[] = [];
   const rechecks: ConflictDecision[] = [];
   const seen: { workerReport?: string | null }[] = [];
   let pr: Awaited<ReturnType<RunPorts["openPr"]>> = { ok: true };
@@ -50,7 +50,11 @@ function world(
         if (d instanceof Error) throw d;
         return d;
       },
-      triage: async () => triages.shift()!,
+      triage: async () => {
+        const d = triages.shift()!;
+        if (d instanceof Error) throw d;
+        return d;
+      },
       recheckConflict: async () => rechecks.shift()!,
     },
     start: async (id) => {
@@ -395,6 +399,36 @@ describe("RunCoordinator (ADR 0017)", () => {
     w.coord.update(snap({ p: "idle" })); // PR
     await flush();
     expect(w.calls).toContain("pr a");
+  });
+
+  it("a triage halted on a malformed answer resumes at the triage: the lead is asked again, the worker is not", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const s = db.openSession({ cardId: a.id, paneId: "p" });
+    db.createReview({ cardId: a.id, sessionId: s.id, verdict: "ok", todos: [] });
+    land(db, a);
+    const w = world(db, { reviewing: true });
+    w.coord.update(snap({ p: "idle" })); // check → finished
+    await flush();
+    w.triages.push(new Error(`the lead's triage answer was malformed 3 times in a row — missing or empty "reason" in the verdict`));
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toContain('missing or empty "reason" in the verdict');
+    expect(runState(run, [{ card: db.getCard(a.id)!, events: db.listEvents(a.id) }])).toBe("halted");
+    w.coord.update(snap({ p: "idle" })); // held: nothing
+    await flush();
+    expect(events(db, a, "run.triaged")).toHaveLength(0);
+
+    expect(resumeRun(db, db.getRun(run.id)!)).toBe(1);
+    expect(runState(run, [{ card: db.getCard(a.id)!, events: db.listEvents(a.id) }])).toBe("running");
+    w.triages.push({ verdict: { accept: true, reason: "fine" }, followUps: [] });
+    w.coord.update(snap({ p: "idle" })); // triage again
+    await flush();
+    expect(events(db, a, "run.triaged")).toHaveLength(1);
+    expect(events(db, a, "run.decision")).toHaveLength(1); // the check was not asked again
+    expect(w.calls).toEqual([]); // no start, no prompt to the worker
+    expect(resumeRun(db, db.getRun(run.id)!)).toBe(0);
   });
 
   it("a conflict goes to the worker, and its next landing is a re-check", async () => {
