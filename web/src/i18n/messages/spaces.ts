@@ -27,6 +27,10 @@ export const spaces = defineMessages({
     fr: { one: "{count} pane", other: "{count} panes" },
   },
   "spaces.panes": { en: "Panes", fr: "Panes" },
+  "spaces.sleeping": {
+    en: { one: "{count} without an agent", other: "{count} without an agent" },
+    fr: { one: "{count} sans agent", other: "{count} sans agent" },
+  },
   "spaces.needingYou": { en: "needing you", fr: "à traiter" },
   "spaces.paneActionsHint": { en: "Tap for pane actions", fr: "Toucher pour les actions du pane" },
   "spaces.paneMenu": { en: "Pane {label}. Switch pane in this space", fr: "Pane {label}. Changer de pane dans ce space" },

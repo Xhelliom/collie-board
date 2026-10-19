@@ -74,6 +74,7 @@ export function SpacePaneTree({
   surfaceRing = "ring-background",
   className,
 }: SpacePaneTreeProps) {
+  const t = useT();
   const groups = groupPanesBySpace(agents, shellPanes, workspaces);
   // The space you're reading, not the one Herdr's TUI happens to focus — this list is a phone's.
   const active =
@@ -114,7 +115,7 @@ export function SpacePaneTree({
             )}
           >
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/fold:rotate-90" />
-            {sleeping.length} without an agent
+            {t("spaces.sleeping", { count: sleeping.length })}
           </summary>
           <div className="mt-1 flex flex-col gap-2.5">{sleeping.map(section)}</div>
         </details>

@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { useLocation, useMatches, useNavigate, useSearchParams } from "react-router";
 
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 import { isConnecting } from "@/lib/connection";
 import { useConnectionLost, useConnectionTrouble } from "@/hooks/use-connection-lost";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
@@ -97,6 +98,7 @@ function Sidebar({ data }: { data: HomeData }) {
   const navigate = useNavigate();
   const location = useLocation();
   const active = rootKeyFor(location.pathname);
+  const t = useT();
   const { gallop, lost } = useNavDogState(data);
   const blocked = data.agents.filter((a) => a.status === "blocked").length;
   // The pane screen needs the width for the mirror — the sidebar compresses to a 64px icon rail
@@ -117,7 +119,7 @@ function Sidebar({ data }: { data: HomeData }) {
           "mb-4 flex items-center gap-2.5 rounded-lg text-left",
           compact ? "justify-center p-1" : "px-1 py-1",
         )}
-        aria-label={!gallop && !lost ? "Collie Board" : lost ? "Collie Board — not connected" : "Collie Board — reconnecting"}
+        aria-label={!gallop && !lost ? "Collie Board" : lost ? t("nav.mark.lost") : t("nav.mark.reconnecting")}
       >
         <NavMark gallop={gallop} lost={lost} size={32} />
         {!compact && <span className="text-[15px] font-semibold tracking-[-0.02em]">Collie Board</span>}
@@ -205,6 +207,7 @@ function Sidebar({ data }: { data: HomeData }) {
  * whichever one last wrote wins, and the other re-reads it from the same URL on its next render.
  */
 function BoardRepoList() {
+  const t = useT();
   const location = useLocation();
   const matches = useMatches();
   const [params, setParams] = useSearchParams();
@@ -238,7 +241,7 @@ function BoardRepoList() {
   return (
     <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
       <span className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-        Repos
+        {t("filter.repos")}
       </span>
       <button
         type="button"
@@ -250,7 +253,7 @@ function BoardRepoList() {
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         )}
       >
-        All
+        {t("filter.all")}
       </button>
       {repos.map((repo) => (
         <button
@@ -278,6 +281,7 @@ function BoardRepoList() {
  * detour, the root loader already carries every workspace.
  */
 function HomeSpacesList({ data }: { data: HomeData }) {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   if (location.pathname !== "/" || data.workspaces.length === 0) return null;
@@ -285,7 +289,7 @@ function HomeSpacesList({ data }: { data: HomeData }) {
   return (
     <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
       <span className="px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-        Spaces
+        {t("spaces.title")}
       </span>
       {data.workspaces.map((ws) => (
         <button

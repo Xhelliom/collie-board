@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 import { sendReply } from "@/lib/api";
 import { boardApi, createTools, invalidArgs, oneLine, Refusal, type BoardTool, type Json } from "@/lib/board-tools";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ function plan(spec: Spec, pane: string): Plan | Promise<Plan> {
 }
 
 function ActionButton({ spec, pane, spent, onRun }: { spec: Spec; pane: string; spent: boolean; onRun: (run: () => Promise<string>) => void }) {
+  const t = useT();
   const [p, setP] = useState<Plan | null>(null);
   const [armed, setArmed] = useState(false);
   const key = JSON.stringify(spec);
@@ -95,13 +97,13 @@ function ActionButton({ spec, pane, spent, onRun }: { spec: Spec; pane: string; 
           onRun(p.run);
         }}
       >
-        {armed ? `Confirmer : ${spec.label}` : spec.label}
+        {armed ? t("pane.action.confirm", { label: spec.label }) : spec.label}
       </Button>
       <span className={cn("text-xs", p && !p.ok ? "text-destructive" : "text-muted-foreground")}>
         {!p ? "…" : p.ok ? p.preview : p.why}
         {armed && (
           <button type="button" className="ml-2 underline" onClick={() => setArmed(false)}>
-            Annuler
+            {t("pane.dialog.cancel")}
           </button>
         )}
       </span>

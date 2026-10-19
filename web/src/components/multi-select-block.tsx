@@ -150,7 +150,7 @@ function CheckboxPhase({
         >
           <span className="min-w-0 flex-1">
             {multi.escape.label}
-            <span className="text-muted-foreground/70"> — ends the questions</span>
+            <span className="text-muted-foreground/70"> {t("pane.dialog.endsQuestions")}</span>
           </span>
           {sending === "escape" ? spinnerSm : null}
         </button>

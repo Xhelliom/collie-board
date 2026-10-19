@@ -132,7 +132,7 @@ function QuestionStep({
           >
             <span className="min-w-0 flex-1">
               {option.label}
-              <span className="text-muted-foreground/70"> — ends the questions</span>
+              <span className="text-muted-foreground/70"> {t("pane.dialog.endsQuestions")}</span>
             </span>
             {sendingId === id ? (
               <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label={t("pane.dialog.sending")} />

@@ -43,12 +43,12 @@ export function ContextRailColumn({
             <span className="text-xs text-muted-foreground">{t("pane.rail.context")}</span>
             {agent.ctxTokens != null && (
               <span className="text-xs tabular-nums text-muted-foreground">
-                {Math.round(agent.ctxTokens / 1000)}k tokens
+                {t("gauge.tokens", { count: Math.round(agent.ctxTokens / 1000) })}
               </span>
             )}
             {pct >= 70 && (
               <span className="ml-auto text-xs font-medium text-status-working">
-                worth handing off
+                {t("gauge.handoff")}
               </span>
             )}
           </div>
