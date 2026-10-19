@@ -573,6 +573,8 @@ export interface RunEventPayloads {
     prompt?: string;
     /** `drop` only: the deleted follow-up's title. */
     followUp?: string;
+    /** A send-back for a red GitHub check: its name. */
+    ci?: string;
   };
   /** The lead read the review's verdict with the code. Once per card: it is also the triage's marker. */
   "run.triaged": { runId: string; verdict: string | null; accept: boolean; reason: string };
@@ -580,13 +582,14 @@ export interface RunEventPayloads {
   "run.finished": { runId: string };
   /** On the card that needs the operator. */
   /** `leadSilent`: the lead wrote no answer (LeadSilent); `paneId` is its pane, which the journal links to. */
-  "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string };
+  /** `infra`: a red check with nothing to fix in the code — the land step keeps asking GitHub (ADR 0041). */
+  "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string; infra?: true };
   /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
   "run.resumed": { runId: string };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
-  "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean };
+  "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
 }
 
 export type RunEventKind = keyof RunEventPayloads;

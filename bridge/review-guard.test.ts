@@ -79,6 +79,13 @@ describe("ReviewGuard — the card in review with nothing to review", () => {
     expect(db.getCard(card.id)?.status).toBe("review");
   });
 
+  test("a card already folded into its lot stays in review: against the lot it can only look empty", async () => {
+    const { db, card } = make({ baseRef: "board/lot-x" });
+    db.recordEvent(card.id, "card.lot_merged", { runId: "r", lot: "board/lot-x" });
+    await new ReviewGuard(db, git({})).onUpdate(snap);
+    expect(db.getCard(card.id)?.status).toBe("review");
+  });
+
   test("an exploration or a card without a branch is never blocked", async () => {
     for (const patch of [{ category: "explore" }, { branch: null }]) {
       const { db, card } = make(patch);

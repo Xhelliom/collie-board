@@ -168,8 +168,13 @@ export function stepFor(
   // Busy with the board's own handoff or wrapup ask.
   if (!ctx.session || ctx.session.handoffRequestedAt !== null || isAutoHandoffPending(ctx.session)) return null;
   // Halted since this landing: the operator's until the worker lands again, or the run is resumed —
-  // which picks up at the step that halted (a triage asked again, not the worker).
-  if (after(held, landed)) return null;
+  // which picks up at the step that halted (a triage asked again, not the worker). An infra halt
+  // keeps asking GitHub: once the check is green again, the PR merges and the card is filed.
+  if (after(held, landed)) {
+    if (!infraHeld(events, run.id)) return null;
+    const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+    return after(landing(events), pr) ? { kind: "file" } : { kind: "land" };
+  }
 
   const decision = newest(events, (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
   const resolve = newest(events, (e) => e.type === "card.resolve_requested");
@@ -234,6 +239,20 @@ const holding = (events: BoardEvent[], runId: string) => {
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, runId));
   return after(newest(events, (e) => e.type === "run.resumed" && isRun(e, runId)), halted) ? null : halted;
 };
+
+/**
+ * The halt still holding on a card when it is an infra one — a red check the worker found nothing to
+ * fix in the code for (`run.halted` with `infra`). Its card is not moved after it. Pure.
+ */
+export function infraHeld(events: BoardEvent[], runId: string): BoardEvent | null {
+  const held = holding(events, runId);
+  if (!(held?.payload as { infra?: boolean } | undefined)?.infra) return null;
+  return after(newest(events, (e) => e.type === "card.status"), held) ? null : held;
+}
+
+/** ADR 0041: the card's branch is in its lot's — measured against the lot, a card with nothing new looks empty. */
+const folded = (events: BoardEvent[], runId: string) =>
+  events.some((e) => e.type === "card.lot_merged" && (e.payload as { runId?: string } | null)?.runId === runId);
 
 /**
  * The operator resumes a halted run: each member still held gets a `run.resumed`, and the next tick
@@ -370,6 +389,7 @@ export class RunCoordinator {
         return this.gate(run, card, session!);
       case "check":
       case "recheck": {
+        if (step.kind === "check" && (await this.infra(run, card))) return;
         const brief = await this.ports.brief(card);
         if (!brief) return this.halt(run, card.id, "the worker's checkout is gone");
         const gatePassed = this.ports.gateCommand(card) ?? undefined;
@@ -425,7 +445,10 @@ export class RunCoordinator {
         return this.awaitPredecessor(run, card);
       case "land": {
         // Throttled in memory: the tick is 1.5 s, GitHub's checks take minutes.
-        if (this.now() - (this.landAsked.get(card.id) ?? 0) < LAND_EVERY_MS) return;
+        // An infra halt waits on a human fixing the runner: slow down the longer it waits.
+        const infra = infraHeld(this.db.listEvents(card.id, 200), runId);
+        const every = infra ? askEvery(this.now() - infra.ts) : LAND_EVERY_MS;
+        if (this.now() - (this.landAsked.get(card.id) ?? 0) < every) return;
         this.landAsked.set(card.id, this.now());
         if ((await this.ports.land(card, this.mergeGate(run, card))) === "busy") {
           this.landAsked.delete(card.id); // nothing asked: the next tick asks
@@ -492,9 +515,11 @@ export class RunCoordinator {
     const p = merge!.payload as { wait?: boolean; reason?: string; conflict?: boolean; ci?: { name: string; log: string } };
     if (p.wait) return;
     if (p.ci) {
+      // Still red under an infra halt: the worker already found nothing to fix — wait for green.
+      if (infraHeld(events, run.id)) return;
       const prompt = ciPrompt(p.ci.name, p.ci.log);
       await this.sendFailure(card, session, prompt);
-      this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, reason: `the check ${p.ci.name} failed on GitHub` });
+      this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, ci: p.ci.name, reason: `the check ${p.ci.name} failed on GitHub` });
       return;
     }
     if (p.conflict) {
@@ -568,7 +593,8 @@ export class RunCoordinator {
    * `onlyEmpty` false (the round limit) halts regardless, just without the detail on a card with code.
    */
   private async haltEmpty(run: Run, card: Card, session: CardSession | null, leadReason: string, onlyEmpty = false): Promise<boolean> {
-    const empty = card.category !== "explore" && (await this.ports.commits(card)) === 0;
+    // A card folded into its lot has delivered: against the lot's branch it can only measure empty.
+    const empty = card.category !== "explore" && !folded(this.db.listEvents(card.id, 200), run.id) && (await this.ports.commits(card)) === 0;
     if (!empty) {
       if (!onlyEmpty) this.halt(run, card.id, leadReason);
       return false;
@@ -597,7 +623,21 @@ export class RunCoordinator {
     else await this.ports.prompt(session.paneId!, failure);
   }
 
-  private halt(run: Run, cardId: string, reason: string, silent: { leadSilent?: true; paneId?: string } = {}): void {
+  /**
+   * A card of a one-PR lot, already folded, sent back for a red check, lands with nothing new over the
+   * lot: the worker found nothing to fix in the code. Not the code, not a round — the runner, the
+   * operator's (ADR 0041). Halted as infra, the land step keeps asking GitHub. Returns whether it halted.
+   */
+  private async infra(run: Run, card: Card): Promise<boolean> {
+    const events = this.db.listEvents(card.id, 200);
+    const verdict = newest(events, (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
+    const ci = (verdict?.payload as { ci?: string } | undefined)?.ci;
+    if (!ci || !folded(events, run.id) || (await this.ports.commits(card)) !== 0) return false;
+    this.halt(run, card.id, `the check ${ci} is red, yet the worker found nothing to fix in the code — likely the CI infrastructure; re-run the check once fixed, the board merges the lot's PR when it turns green`, { infra: true });
+    return true;
+  }
+
+  private halt(run: Run, cardId: string, reason: string, silent: { leadSilent?: true; paneId?: string; infra?: true } = {}): void {
     this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason, ...silent });
   }
 }
