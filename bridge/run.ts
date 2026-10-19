@@ -23,7 +23,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
-import { bilanPrompt, BILAN_REL_PATH, Lead, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
+import { bilanPrompt, BILAN_REL_PATH, Lead, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -305,7 +305,7 @@ export class RunCoordinator {
         this.busy.add(card.id);
         if (serial) this.lotBusy.add(run.id);
         void this.act(run, card, session, step)
-          .catch((err) => this.halt(run, card.id, (err as Error).message))
+          .catch((err) => this.halt(run, card.id, (err as Error).message, err instanceof LeadSilent ? { leadSilent: true, ...(err.paneId && { paneId: err.paneId }) } : {}))
           .finally(() => {
             this.busy.delete(card.id);
             if (serial) this.lotBusy.delete(run.id);
@@ -564,8 +564,8 @@ export class RunCoordinator {
     else await this.ports.prompt(session.paneId!, failure);
   }
 
-  private halt(run: Run, cardId: string, reason: string): void {
-    this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason });
+  private halt(run: Run, cardId: string, reason: string, silent: { leadSilent?: true; paneId?: string } = {}): void {
+    this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason, ...silent });
   }
 }
 

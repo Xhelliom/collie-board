@@ -91,6 +91,9 @@ describe("describe", () => {
     expect(describeEvent(event("run.halted", { runId: "r1", reason: "merge conflict" }))).toBe(
       "Run halted, needs you — merge conflict",
     );
+    expect(describeEvent(event("run.halted", { runId: "r1", reason: "x", leadSilent: true, paneId: "w:1" }))).toContain(
+      "the lead is not answering",
+    );
     expect(describeEvent(event("run.finished", { runId: "r1" }))).toBe("Run finished — every card is filed");
   });
 

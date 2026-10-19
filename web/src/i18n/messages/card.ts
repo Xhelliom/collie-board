@@ -94,6 +94,11 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "journal.gate.red": { en: "Gate red ({command}) — worker sent back", fr: "Barrière rouge ({command}) — worker renvoyé" },
   "journal.merged": { en: "Board merged the PR — {reason}", fr: "Le board a mergé la PR — {reason}" },
   "journal.notMerged": { en: "PR left open — {reason}", fr: "PR laissée ouverte — {reason}" },
+  "journal.leadSilent": {
+    en: "Run halted, needs you — the lead is not answering: its pane is probably waiting for an action (a modal, a quota)",
+    fr: "Run arrêté, il a besoin de toi — le lead ne répond pas : son pane attend sans doute une action (modale, quota)",
+  },
+  "journal.leadPane": { en: "Open the lead's pane", fr: "Ouvrir le pane du lead" },
   "journal.halted": { en: "Run halted, needs you — {reason}", fr: "Run arrêté, il a besoin de toi — {reason}" },
   "journal.runFinished": { en: "Run finished — every card is filed", fr: "Run terminé — toutes les cartes sont classées" },
   "journal.splitKept": { en: "Split kept — {started} has already started", fr: "Découpage conservé — {started} a déjà démarré" },
