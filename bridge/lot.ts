@@ -76,15 +76,35 @@ export async function foldIntoLot(repoPath: string, lot: string, branch: string,
   return moved.ok ? { ok: true, merged: true } : fail("busy", moved);
 }
 
+/** Le `prepareLot` en cours par lot : les suivants l'attendent. En mémoire — un redémarrage n'a rien en vol. */
+const preparing = new Map<string, Promise<unknown>>();
+
 /**
  * Avant chaque démarrage d'une carte d'un lot `lot` : la branche de lot existe (coupée depuis la base de
  * la 1re carte) et la carte la prend pour base — c'est ce que `startCard` lit pour forker sa branche.
+ *
+ * Un à la fois par lot : un lot à `maxParallel` 2 démarre deux cartes dans le même tick, et deux
+ * coupes concurrentes se marchaient dessus — deux `git fetch` dont l'un rate son verrou (la branche
+ * part alors d'une base périmée) et deux `git branch` dont le second rend « already exists ». La
+ * suivante trouve la branche déjà là et la reprend.
  */
-export async function prepareLot(
+export function prepareLot(
   db: Pick<BoardDb, "setLotBranch" | "patchCard">,
   run: Pick<Run, "id" | "name" | "lotBranch">,
   card: Card,
   git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; kind: "base" | "git"; error: string }> {
+  const next = (preparing.get(run.id) ?? Promise.resolve()).then(() => prepareLotNow(db, run, card, git));
+  const tail = next.catch(() => {}).finally(() => preparing.get(run.id) === tail && preparing.delete(run.id));
+  preparing.set(run.id, tail);
+  return next;
+}
+
+async function prepareLotNow(
+  db: Pick<BoardDb, "setLotBranch" | "patchCard">,
+  run: Pick<Run, "id" | "name" | "lotBranch">,
+  card: Card,
+  git: GitRunner,
 ): Promise<{ ok: true } | { ok: false; kind: "base" | "git"; error: string }> {
   let lot = run.lotBranch;
   if (!lot) {
