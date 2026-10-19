@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.212.0] - 2026-10-19
+
+### Added
+
+- Alerte « copilot not answering » dans le créneau du troupeau après 3 revues expirées d'affilée, retirée dès qu'une revue aboutit (80723cc)
+
+### Changed
+
+- Un lot n'attend plus la revue d'un copilote en panne : la carte passe sans triage tant que la série d'échecs dure (80723cc)
+
 ## [0.211.0] - 2026-10-19
 
 ### Added
