@@ -178,6 +178,22 @@ describe("board drag and drop — desktop", () => {
     expect(patchCard).toHaveBeenCalledWith("D0", { position: 8.5 });
   });
 
+  it("drops into the folded Done column where the ghost shows, under the last visible tile", async () => {
+    const done = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? 100 : 1 }));
+    await mount([card("Alpha", "ready", 0), ...done]);
+    lift(tileOf("Alpha"));
+    nextFrame();
+    const below = tileOf("D8").parentElement as HTMLElement;
+    act(() => void fireEvent.dragOver(below, { dataTransfer: dataTransfer(), clientY: 10 }));
+    // The ghost is the next thing after D8's tile — it shows, and it shows right there.
+    const ghost = below.nextElementSibling as HTMLElement;
+    expect(ghost).toHaveAttribute("inert");
+    expect(ghost).toHaveTextContent("Alpha");
+    act(() => void fireEvent.drop(columnOf("D8"), { dataTransfer: dataTransfer() }));
+    // Between D8 and D9: the slot the ghost holds in the whole column.
+    expect(patchCard).toHaveBeenCalledWith("Alpha", { status: "done", position: 8.5 });
+  });
+
   it("arms nothing when the gesture dies before that frame", async () => {
     await mount(two);
     const tile = tileOf("Alpha");
