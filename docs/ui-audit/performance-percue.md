@@ -117,6 +117,43 @@ qu'une fois la revalidation finie.
   poll. Le CPU mesuré (7 à 14 % du thread principal) est **imputé, non prouvé** : la mesure CDP ne
   distingue pas le `JSON.parse` de 700 Ko du rendu React.
 
+## 5. Re-mesure du CPU du poll (#8), après #1-#7
+
+2026-10-19, build déployé `0.210.0+5461cf82` (même chemin de données que `HEAD`), 3 agents `working`,
+donc poll à 1,5 s. Protocole [4G] (CPU ×4), fenêtre de 12 s après 10 s de stabilisation. Deux jeux :
+
+- **[4G]** : le build déployé tel quel (`Performance.getMetrics`, deltas sur la fenêtre).
+- **[profil]** : **le même code compilé sans minification**, servi par interception CDP
+  (`Fetch.fulfillRequest`, SW contourné), et un `Profiler` V8 échantillonné à 200 µs : les noms des
+  composants restent lisibles. Le temps d'un composant est celui de son propre corps, pas de ses
+  enfants (React les appelle depuis sa boucle de travail).
+
+Sur le fil maintenant : `cards` et `facts` reviennent en **304** (corps mis en cache, **même
+référence** rendue par `conditionalGet`) ; seuls `snapshot`, `phases`, `templates` (board),
+`orchestrator`, `runs` et `history` (projet) reviennent en 200.
+
+| Écran | Tâches [4G] | dont script | Phase de rendu React [profil] | `CardTile` / `StepItem` [profil] | `projectOf` [profil] |
+|---|---:|---:|---:|---:|---:|
+| Accueil | 1,9 s | 0,56 s | 0,41 s (3 %) | — | 21 ms |
+| Board avec portée | 1,5 s | 0,71 s | 0,40 s (3 %) | `CardTile` **9 ms** | — |
+| Page projet | 3,2 s | 1,94 s | 1,1-1,4 s (9-12 %) | `StepItem` **34-46 ms** | 16-24 ms |
+
+- **Un `memo` sur `CardTile`/`StepItem` ne gagnerait rien** : leurs corps pèsent 9 et ≈ 40 ms sur 12 s
+  (moins de 0,4 % du thread). `projectOf()` : ≈ 20 ms. Non fait.
+- **`JSON.parse`** : n'est plus un sujet, les deux gros corps reviennent en 304 ; `Response.json` ≈ 4 ms. Une
+  carte qui bouge retélécharge `/api/cards` (318 Ko, vu une fois en 12 s) : rare.
+- **Ce qui dominait le rendu de la page projet** : `clockTime` + `dayKey` de `transcript-view.tsx`,
+  **≈ 350-470 ms sur 12 s** (≈ 4 % du thread). Le panneau orchestrateur re-rend ses 40 tours à
+  chaque poll (`history` en 200), et `toLocaleTimeString`/`toLocaleDateString` construisent un
+  formateur Intl à chaque appel. **Corrigé** : deux `Intl.DateTimeFormat` au niveau du module. Après
+  correction [profil, 2 passes contre 2] : phase de rendu 1,14-1,41 s → **0,79-0,83 s**, script
+  1,56-1,93 s → 1,22-1,34 s ; les deux fonctions sortent du profil.
+- Le reste du temps des tâches est surtout du `(program)` natif (style, peinture, réseau) ; sur
+  l'accueil il varie de 1,9 à 3,9 s d'une passe à l'autre, et n'est attribuable à aucun composant.
+  Pas étudié ici.
+
+Script de mesure : CDP brut (WebSocket de Bun), non versionné, comme au § 1.
+
 ## Constats
 
 | # | Prio | Effort | Constat (mesuré) | Correction proposée |
@@ -128,7 +165,7 @@ qu'une fois la revalidation finie.
 | 5 | P1 | S | `projectLoader` enchaîne 4 étapes (cartes → dépôt → historique → mémoire), ≈ 0,67 s de cascade pour 30 Ko [4G]. | **Charger en parallèle** : les requêtes du dépôt partent avec `boardLoader` (le `repo` est dans l'URL) ; la mémoire part avec l'historique. |
 | 6 | P2 | S | La page projet charge les `facts` de **tous** les dépôts (88 Ko gzip) au lieu de `?repo=` (54 Ko), et sans ETag, donc à chaque tick. Les `milestoneEvents` font 80 % de `facts` (4 420 événements bruts pour dessiner des points). | **Alléger** : `?repo=` sur la page projet ; ETag + `conditionalGet` comme `cards` ; à terme, les points calculés côté pont (31 Ko gzip sans les événements [calc]). |
 | 7 | P2 | M | En poll, la page projet relance 11 requêtes en 3 étapes (≈ 2,8 s par revalidation [4G], ≈ 43 % du lien) ; `templates`, `flows`, `roadmap` et la mémoire ne changent qu'au fil d'une action. | **Alléger le poll** : `shouldRevalidate` / données hors loader pour ce qui ne bouge pas au fil de l'eau (périmètre : Q4). |
-| 8 | P2 | S | Chaque poll re-rend toutes les tuiles et étapes et recalcule `projectOf()` (pas de `memo`, `facts`/`phases`/`lots` réidentifiés à chaque tick) ; 7-14 % du CPU [4G, CPU ×4]. | **Mémoïser** : `memo` sur `CardTile`/`ProjectStep` ; références stables via 304 (après #6). Mesurer à nouveau : l'imputation au rendu n'est pas prouvée. |
+| 8 | P2 | S | ~~Chaque poll re-rend toutes les tuiles et étapes et recalcule `projectOf()` ; 7-14 % du CPU.~~ **Re-mesuré (§ 5)** : tuiles, étapes et `projectOf()` pèsent moins de 1 % du thread ; le coût venait du transcript de l'orchestrateur (un formateur Intl par tour et par poll, ≈ 4 %). | **Fermé** : pas de `memo` (inutile, mesure à l'appui) ; formateurs Intl partagés dans `transcript-view.tsx`. |
 | 9 | P2 | S | Les assets statiques sont servis **sans compression** : JS 963 Ko (268 Ko en gzip [calc]), CSS 89 Ko (15 Ko). À froid ou après chaque release (le SW reprécharge), 5,5 s [froid] rien que pour le JS. | **Alléger** : gzip des assets (précompressés au build, ou dans `serveStatic`). Brique générique, candidate à `UPSTREAM_PRS.md` (Q5). |
 | 10 | P3 | S | Au premier passage, la page se **recharge** une fois (vu en [local] et [froid]) : les requêtes API lancées à 5,7 s sont abandonnées à 6,1 s puis relancées [froid]. **Le code dit l'inverse** : `lib/pwa.ts` affirme ignorer le premier `controllerchange`. | Trouver la cause avant de corriger ; la doc et le code ne concordent pas. |
 | 11 | P3 | S | `useRepoPhases` lance une requête `/api/phases` **par dépôt** (8) au montage de l'accueil. Non bloquant (≈ 0,3 s après le rendu [4G]), une seule fois. | **Alléger** : une requête pour tous les dépôts, ou les phases dans le résumé des cartes (#4). |
@@ -144,7 +181,7 @@ Pas de constat sur `/api/snapshot` (3 Ko gzip par tick, sans ETag : négligeable
 3. **#3**, puis **#4** une fois Q1-Q3 tranchées : le premier contenu de l'accueil passe de 1,9 s à
    ≈ 0,3 s [estim.], et chaque mouvement de carte coûte 93 Ko au lieu de 232.
 4. **#6, #7** : la page projet cesse d'occuper le lien en continu.
-5. **#9** (froid et releases), puis **#8** (re-mesurer le CPU après #6), **#11**, **#10**, **#12**.
+5. **#9** (froid et releases), puis **#8** (re-mesuré au § 5 : fermé), **#11**, **#10**, **#12**.
 
 ## Questions pour le propriétaire
 
