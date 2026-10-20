@@ -42,6 +42,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/notifications/log/read-all": "the bell",
   "/api/notifications/prefs": "notification settings",
   "/api/notifications/snooze": "notification settings",
+  "/api/project/quick": "the desktop sidebar's quick access",
   "/api/repos/flow": "the operator's default flow per repo (settings)",
   "/api/repos/gate/suggest": "the operator's gate screen asks the copilot (spends quota on a tap)",
   "/api/repos/hide": "the repo picker's own preference",

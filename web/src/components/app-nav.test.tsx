@@ -83,13 +83,22 @@ describe("AppNav — mobile tab bar", () => {
     expect(renderAt("/pane/w1%3Ap1").tabBar).toBeUndefined();
   });
 
-  it("stays visible, with Board lit, on the board's own views (Project, Open PRs)", () => {
-    for (const path of ["/board/project", "/board/prs"]) {
-      const { tabBar, sidebar } = renderAt(path);
-      expect(tabBar).toBeDefined();
-      expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
-      expect(within(sidebar).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
-    }
+  it("stays visible, with Board lit, on the board's own Open PRs view", () => {
+    const { tabBar, sidebar } = renderAt("/board/prs");
+    expect(tabBar).toBeDefined();
+    expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+    expect(within(sidebar).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("lights Projects on the project page, and the entry reopens the last project", async () => {
+    localStorage.setItem("collie:last-project", "/code/x");
+    const { tabBar, sidebar, router } = renderAt("/board/project");
+    expect(within(tabBar!).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+    expect(within(sidebar).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(within(sidebar).getByRole("button", { name: /Herd/ }));
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Projects" }));
+    expect(router.state.location.search).toBe("?repo=%2Fcode%2Fx");
+    localStorage.removeItem("collie:last-project");
   });
 
   it("marks the current root screen active", () => {
