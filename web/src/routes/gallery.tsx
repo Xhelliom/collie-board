@@ -9,6 +9,7 @@ import { galleryFileUrl } from "@/lib/api";
 import { openLightbox } from "@/lib/lightbox";
 import { getLocale, useT } from "@/i18n";
 import type { GalleryDoc, GalleryImage, GalleryListing } from "@/lib/types";
+import { ABOVE_TAB_BAR } from "@/components/app-nav";
 
 // Every file sitting in a harness scratchpad, grouped by the session that made it.
 //
@@ -65,7 +66,7 @@ export function GalleryRoute() {
   if (selected !== null) {
     const Icon = KIND_ICON[selected.kind];
     return (
-      <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
+      <div className={`mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none ${ABOVE_TAB_BAR}`}>
         <AppHeader
           onBack={() => setSelected(null)}
           rightTrail={
@@ -104,7 +105,7 @@ export function GalleryRoute() {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
+    <div className={`mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none ${ABOVE_TAB_BAR}`}>
       <AppHeader title={t("gallery.title")} subtitle={subtitleParts.join(" · ")} />
       <h1 className="sr-only">{t("gallery.title")}</h1>
 

@@ -72,12 +72,12 @@ export function SpaceRoute() {
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
-      {/* A drilled-into screen (reached from a space card/chip, not a nav tab), so it gets the back
-          chevron rather than the nav treatment. */}
+      {/* A drilled-into screen (reached from a space card/chip), so it gets the back chevron — on
+          top of the nav, which stays (the Spaces tab lit). */}
       <AppHeader title={selectedWs?.label ?? t("spaces.space")} onBack={toSpaces} />
 
       {/* Content region below the header: the viewport-clipped scroller. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
         <ReadOnlyBanner device={data.device} />
 
         {selectedWs && (
@@ -126,8 +126,8 @@ export function SpaceRoute() {
         <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
       </div>
 
-      {/* Status overlay at bottom-0: /space/:id has no tab bar (MobileTabBar only shows on /, /board, /spaces, /settings). Stays outside the scroller. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm px-3 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
+      {/* Status overlay, raised clear of the mobile tab bar (app-nav.tsx) like the root screens'. Stays outside the scroller. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 lg:bottom-0 mx-auto w-full max-w-screen-sm px-3 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
         <StatusArea />
       </div>
 
