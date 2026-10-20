@@ -1,10 +1,12 @@
 import { Inbox } from "lucide-react";
+import { useState } from "react";
 
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { AGENT_GROUPS, groupMembers, type AgentGroup } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers, isOrchestrator, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
 import { useFold } from "./fold";
+import { Chip } from "./ui/chip";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
 
 interface AgentListProps {
@@ -30,6 +32,10 @@ export function AgentList({
   emptyState = true,
 }: AgentListProps) {
   const t = useT();
+  // "All" / "Orchestrators": drawn only when the herd has one — and kept while on, so a list narrowed
+  // by a chip that isn't drawn never silently loses its panes.
+  const [orchOnly, setOrchOnly] = useState(false);
+  const hasOrch = agents.some(isOrchestrator);
   if (agents.length === 0) {
     if (!emptyState) return null;
     return (
@@ -44,13 +50,20 @@ export function AgentList({
 
   // Only render groups that actually have members — and nothing at all if every slice is empty, so
   // it adds no stray padding.
+  const shown = orchOnly ? agents.filter(isOrchestrator) : agents;
   const sections = groups
-    .map((g) => ({ g, members: groupMembers(agents, g) }))
+    .map((g) => ({ g, members: groupMembers(shown, g) }))
     .filter((s) => s.members.length > 0);
-  if (sections.length === 0) return null;
+  if (sections.length === 0 && !orchOnly) return null;
 
   return (
     <div className="flex flex-col gap-7">
+      {(hasOrch || orchOnly) && (
+        <div className="-mb-3 flex items-center gap-2">
+          <Chip label={t("filter.all")} active={!orchOnly} onClick={() => setOrchOnly(false)} />
+          <Chip label={t("home.filter.orch")} active={orchOnly} onClick={() => setOrchOnly(!orchOnly)} />
+        </div>
+      )}
       {sections.map(({ g, members }) => (
         <section key={g.key} className="flex flex-col gap-2.5">
           <h2

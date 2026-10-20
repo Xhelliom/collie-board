@@ -101,3 +101,18 @@ describe("AgentList — pane names", () => {
   });
 });
 
+
+describe("AgentList — orchestrators filter", () => {
+  it("narrows to the orchestrators, and draws no chip on a herd without one", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const orch = agent({ paneId: "o", workspaceLabel: "orchestrator-repo", paneLabel: "the-orch" });
+    const other = agent({ paneId: "w", paneLabel: "a-worker" });
+    const { unmount } = render(<AgentList agents={[other, orch]} onOpen={() => {}} />);
+    await userEvent.click(screen.getByRole("button", { name: "Orchestrators" }));
+    expect(screen.getByText("the-orch")).toBeInTheDocument();
+    expect(screen.queryByText("a-worker")).toBeNull();
+    unmount();
+    render(<AgentList agents={[other]} onOpen={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Orchestrators" })).toBeNull();
+  });
+});

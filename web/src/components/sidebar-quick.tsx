@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router";
 
 import { useT } from "@/i18n";
+import { isOrchestrator } from "@/lib/agent-groups";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cardPath, projectPath, repoName } from "@/lib/board";
 import { panePath } from "@/lib/nav";
@@ -10,7 +11,8 @@ import { paneDisplayName } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // The sidebar's quick access, on every screen (desktop): the projects — a lot in flight first, then a
-// lot that finished lately — and under them what waits for you. Fetched only where it shows (desktop).
+// lot that finished lately — and under them what waits for you. Above them, each live project's
+// orchestrator, the conversation the operator returns to most; its dot says it waits on you. Fetched only where it shows (desktop).
 export function SidebarQuick({ data }: { data: HomeData }) {
   const q = useQuickAccess(data, useIsDesktop());
   return <QuickList q={q} data={data} />;
@@ -22,12 +24,31 @@ const HEADING = "px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-
 export function QuickList({ q, data }: { q: QuickAccess | null; data: HomeData }) {
   const t = useT();
   const navigate = useNavigate();
-  const blocked = data.agents.filter((a) => a.status === "blocked");
+  const orchs = data.agents.filter(isOrchestrator);
+  // An orchestrator already wears its own dot up top: not listed a second time below.
+  const blocked = data.agents.filter((a) => a.status === "blocked" && !isOrchestrator(a));
   const waiting = q?.waiting ?? [];
-  if (!q?.projects.length && !waiting.length && !blocked.length) return null;
+  if (!orchs.length && !q?.projects.length && !waiting.length && !blocked.length) return null;
 
   return (
     <>
+      {orchs.length > 0 && (
+        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
+          <span className={HEADING}>{t("quick.orchestrators")}</span>
+          {orchs.map((a) => {
+            const waits = a.status === "blocked" || waiting.some((w) => w.repoPath === a.cwd);
+            return (
+              <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate font-medium text-foreground">{repoName(a.cwd)}</span>
+                  {waits && <span className="size-2 shrink-0 rounded-full bg-status-blocked" role="img" aria-label={t("quick.orchWaits")} />}
+                </span>
+                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>{t(`quick.orch.${a.status}`)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {!!q?.projects.length && (
         <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
           <span className={HEADING}>{t("quick.projects")}</span>

@@ -8,6 +8,7 @@ export const home = defineMessages({
   "home.group.needs": { en: "Needs you", fr: "À toi" },
   "home.group.working": { en: "Working", fr: "En cours" },
   "home.group.other": { en: "Idle · done", fr: "Au repos · terminés" },
+  "home.filter.orch": { en: "Orchestrators", fr: "Orchestrateurs" },
   "home.empty.none": { en: "No agents running.", fr: "Aucun agent en cours." },
   "home.empty.waiting": { en: "Waiting for Herdr…", fr: "En attente de Herdr…" },
   "home.kpi.title": { en: "Cards", fr: "Cartes" },
