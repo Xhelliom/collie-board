@@ -248,6 +248,16 @@ curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable,
 - Never type into your own pane, and never `reply` to something that is not an agent waiting.
 - Tell the user what you answered, with a link: `[title](/pane/<paneId>)`.
 
+```bash
+curl -s "$B/api/tidy?idleHours=2"             # « Ménage »: panes that no longer serve, by reason
+#   card-done | agent-done | idle (≥ idleHours, no card in progress) | shell — each with `since`.
+#   Never proposed: orchestrators, the board's lead/copilot, working/blocked agents, a running lot's cards.
+```
+
+`POST /api/tidy/close` (`{"paneIds":[…],"idleHours":2}`) closes the ones still proposed — the
+operator's gesture only: it answers 403 to any call carrying `x-collie-pane`. Point the user at the
+« Ménage » sheet of the agent list instead.
+
 ## What to confirm with the user first
 
 These spend quota or drive a real terminal. Never fire one unasked:

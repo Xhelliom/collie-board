@@ -1937,6 +1937,18 @@ export class BoardDb {
     return row ? toSession(row) : null;
   }
 
+  /**
+   * The newest session ever opened on this pane, ended or not — what « Ménage » (tidy.ts) reads to
+   * tell a filed card's pane, which outlives its session. Pane ids are reused after a herdr restart,
+   * so this is a hint shown to the operator, never a reason to act on its own.
+   */
+  lastSessionByPane(paneId: string): CardSession | null {
+    const row = this.db
+      .query<SessionRow, [string]>("SELECT * FROM session WHERE pane_id = ? ORDER BY started_at DESC LIMIT 1")
+      .get(paneId);
+    return row ? toSession(row) : null;
+  }
+
   /** Every session for a card, oldest first — the handoff chain, in the order it happened. */
   listSessions(cardId: string): CardSession[] {
     return this.db
