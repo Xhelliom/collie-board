@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.222.0] - 2026-10-20
+
+### Changed
+
+- La navigation reste présente partout : sidebar complète sur une session et un espace (desktop), barre d'onglets sur tous les écrans (mobile) (6e519df)
+- Mobile : le composeur d'une session et les overlays se posent au-dessus de la barre d'onglets ; Troupeau allumé sur une session, Espaces sur un espace (6e519df)
+- Desktop : la colonne des panes d'une session n'apparaît qu'à partir de `2xl`, pour garder la largeur du miroir (6e519df)
+
 ## [0.221.0] - 2026-10-20
 
 ### Added
