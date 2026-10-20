@@ -59,6 +59,14 @@ the 5 newest per repo plus those still tied to open work (an open phase, the par
 an unfinished card). `counts` covers every done card: `delivered` (last 7 days), `doneByRepo`,
 `doneByPhase`. Read one card's spec with `/api/cards/<id>`.
 
+What the bridge spends its CPU on, since it started — per route (method + path, ids as `:id`):
+calls, cumulated / average / max handler time in ms, bytes sent, 304s; plus the background loop
+as `engine poll` and `engine enrichSessionNames`. Busiest first:
+
+```bash
+curl -s http://127.0.0.1:8788/api/diag/routes | jq -r '.routes[] | "\(.totalMs)ms\t\(.calls)\t\(.route)"' | head
+```
+
 ## Create a card
 
 ```bash

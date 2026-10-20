@@ -22,6 +22,7 @@ import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
+import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
@@ -158,7 +159,7 @@ export function startServer(opts: {
     // Content-Length is absent or false. The upload handler still does its own precise check.
     maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
 
-    async fetch(req) {
+    fetch: (request) => metered(request, async (req) => {
       const url = new URL(req.url);
       const { pathname } = url;
 
@@ -495,6 +496,12 @@ export function startServer(opts: {
         }
         return text("method not allowed", 405);
       }
+      // What each route costs, since boot (route-cost.ts) — the fork's addition.
+      if (pathname === "/api/diag/routes" && req.method === "GET") {
+        const denied = guard(req, cfg, "read");
+        if (denied) return denied;
+        return json(routeCostSnapshot(), req.headers.get("accept-encoding"));
+      }
       if (pathname === "/api/update/check" && req.method === "POST") {
         // Force an immediate upstream check (the "check for updates" button), instead of waiting for
         // the periodic timer. Read-level — checking a version isn't terminal-driving — and idempotent
@@ -507,7 +514,7 @@ export function startServer(opts: {
 
       // ── Static PWA (with SPA fallback) ───────────────────────────────────
       return serveStatic(pathname, req.headers.get("accept-encoding"));
-    },
+    }),
   });
 
   console.log(`[bridge] listening on http://${cfg.host}:${cfg.port}  (poll ${cfg.pollMs}ms)`);

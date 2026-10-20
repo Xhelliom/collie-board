@@ -1,4 +1,5 @@
 import type { HerdrClient } from "./herdr-client.ts";
+import { record, timed } from "./route-cost.ts";
 import {
   type AgentStatus,
   type AgentView,
@@ -198,6 +199,7 @@ export class StateEngine {
     // ticks would otherwise stack overlapping in-flight polls.
     if (this.polling) return;
     this.polling = true;
+    const t0 = performance.now();
     try {
       const { workspaces, panes, tabs } = await this.fetchWire();
       const wsById = new Map(workspaces.map((w) => [w.workspace_id, w]));
@@ -307,7 +309,7 @@ export class StateEngine {
 
       // Enrich claude panes with their own `/rename` session name (read from pane text). Best-effort:
       // a failed read keeps the last-known name and never fails the poll.
-      await this.enrichSessionNames(agents);
+      await timed("engine enrichSessionNames", () => this.enrichSessionNames(agents));
 
       this.agents = agents;
       this.shellPanes = shellPanes;
@@ -325,6 +327,7 @@ export class StateEngine {
       this.bridge = "disconnected";
     } finally {
       this.polling = false;
+      record("engine poll", performance.now() - t0);
       // Run the single follow-up an event-poke asked for while this poll was in flight.
       if (this.queuedPoll) {
         this.queuedPoll = false;
