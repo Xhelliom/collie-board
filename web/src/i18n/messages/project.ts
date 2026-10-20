@@ -168,6 +168,16 @@ export const project = defineMessages({
   "lot.takeOver": { en: "Take over", fr: "Reprendre la main" },
   "lot.handBack": { en: "Leave it to the lead", fr: "Laisser au lead" },
   "lot.notIn": { en: "Not in a lot · {count}", fr: "Hors lot · {count}" },
+  "lot.live.aria": { en: "Lot in progress: {name}", fr: "Lot en cours : {name}" },
+  "lot.live.progress": { en: "{done}/{total} merged", fr: "{done}/{total} mergées" },
+  "lot.live.queued": { en: "queued", fr: "à venir" },
+  "lot.live.working": { en: "working", fr: "au travail" },
+  "lot.live.review": { en: "in review", fr: "en revue" },
+  "lot.live.pr": { en: "PR open", fr: "PR ouverte" },
+  "lot.live.merged": { en: "merged", fr: "mergée" },
+  "lot.live.blocked": { en: "blocked", fr: "bloquée" },
+  "lot.live.pane": { en: "Open its pane", fr: "Ouvrir son pane" },
+  "lot.live.prLink": { en: "Open its PR", fr: "Ouvrir sa PR" },
 
   // The roadmap block
   "roadmap.aria": { en: "Roadmap", fr: "Roadmap" },

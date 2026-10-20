@@ -12,6 +12,8 @@ import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { PhaseTemplate } from "@/components/phase-template";
 import { templateFor, templateName } from "@/lib/templates";
 import { PhaseLots } from "@/components/project-lots";
+import { LotBanner } from "@/components/lot-banner";
+import { liveLots } from "@/lib/lot-live";
 import { ProjectRoadmap } from "@/components/project-roadmap";
 import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
@@ -117,6 +119,7 @@ export function ProjectRoute() {
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
+  const running = liveLots(data.lots, byId, data.facts);
   // Templates and flows are read once per visit (audit perf #7): the next visit, or a change made here, reads them again.
   useEffect(() => forgetProjectSettled, []);
 
@@ -235,6 +238,9 @@ export function ProjectRoute() {
             </div>
           ) : (
             <>
+              {running.map((l) => (
+                <LotBanner key={l.lot.id} live={l} />
+              ))}
               {v.awaiting.length > 0 && (
                 <section
                   aria-label={t("project.waiting.aria")}
