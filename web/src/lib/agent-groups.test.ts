@@ -1,4 +1,4 @@
-import { AGENT_GROUPS, groupMembers } from "./agent-groups";
+import { AGENT_GROUPS, groupMembers, isOrchestrator } from "./agent-groups";
 import type { AgentStatus, AgentView } from "./types";
 
 const ALL_STATUSES: AgentStatus[] = ["idle", "working", "blocked", "done", "unknown"];
@@ -58,5 +58,27 @@ describe("groupMembers", () => {
   it("leaves the other groups in the order the bridge sent", () => {
     const panes = [pane("a", { status: "working", statusSince: 100 }), pane("b", { status: "working", statusSince: 300 })];
     expect(groupMembers(panes, working).map((p) => p.paneId)).toEqual(["a", "b"]);
+  });
+});
+
+describe("orchestrators", () => {
+  const pane = (paneId: string, workspaceLabel: string, cwd: string, status: AgentStatus = "idle") =>
+    ({ paneId, workspaceLabel, cwd, status }) as AgentView;
+
+  it("is derived from the workspace label AND the cwd, like bridge findOrchestrator", () => {
+    expect(isOrchestrator(pane("a", "orchestrator-app", "/code/app"))).toBe(true);
+    expect(isOrchestrator(pane("b", "orchestrator-app", "/code/other"))).toBe(false); // the operator's own session
+    expect(isOrchestrator(pane("c", "app", "/code/app"))).toBe(false);
+  });
+
+  it("leads its triage group, idle ones before a newer settled pane", () => {
+    const idle = AGENT_GROUPS.find((g) => g.key === "other")!;
+    const plain = { ...pane("p", "work", "/code/app"), statusSince: 9 };
+    const orch = { ...pane("o", "orchestrator-app", "/code/app"), statusSince: 1 };
+    expect(groupMembers([plain, orch], idle).map((a) => a.paneId)).toEqual(["o", "p"]);
+    const needs = AGENT_GROUPS.find((g) => g.key === "needs")!;
+    const b1 = pane("b1", "work", "/code/app", "blocked");
+    const b2 = pane("b2", "orchestrator-app", "/code/app", "blocked");
+    expect(groupMembers([b1, b2], needs).map((a) => a.paneId)).toEqual(["b2", "b1"]);
   });
 });

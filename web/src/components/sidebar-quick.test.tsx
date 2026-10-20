@@ -33,4 +33,17 @@ describe("QuickList", () => {
     await userEvent.click(screen.getByText("live"));
     expect(router.state.location.pathname + router.state.location.search).toBe("/board/project?repo=%2Fcode%2Flive");
   });
+
+  it("leads with each live orchestrator, its dot when it waits on you, and opens its conversation", async () => {
+    const orch = { ...fixtureAgents[0]!, paneId: "orch-1", workspaceLabel: "orchestrator-live", cwd: "/code/live", status: "idle" as const };
+    const router = createMemoryRouter(
+      [{ path: "*", element: <QuickList q={q} data={{ ...data, agents: [orch] } as HomeData} /> }],
+      { initialEntries: ["/settings"] },
+    );
+    render(<RouterProvider router={router} />);
+    expect(screen.getByText("Orchestrators")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Waiting for you" })).toBeInTheDocument(); // the decision on /code/live
+    await userEvent.click(screen.getAllByText("live")[0]!);
+    expect(router.state.location.pathname).toBe("/pane/orch-1");
+  });
 });
