@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.4] - 2026-10-20
+
+### Changed
+
+- `conditionalJson` ne sérialise plus qu'une fois (ETag et corps), gzip réutilisé (d063071)
+- `/api/cards` et `/api/project/facts` ne recalculent rien tant que ni la base ni les panes n'ont bougé (d063071)
+
 ## [0.223.3] - 2026-10-20
 
 ### Changed
