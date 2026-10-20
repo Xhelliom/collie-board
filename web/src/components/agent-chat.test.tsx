@@ -196,6 +196,25 @@ function CardSentinel() {
   return <div>card:{cardId ?? "none"}</div>;
 }
 
+describe("AgentChat — subagents in flight", () => {
+  // The line sits under the header, outside the terminal/reading switch: both views show it.
+  it.each([
+    ["terminal", false],
+    ["reading", true],
+  ])("shows the running subagents in the %s view", (_view, readingPick) => {
+    localStorage.setItem("collie:display-prefs:v3", JSON.stringify({ readingPick }));
+    renderChat({ agent: { ...fixtureAgents[0]!, subagents: ["Relecture", "Inventaire"] } });
+    expect(screen.getByText(/2 subagents running/)).toBeInTheDocument();
+    expect(screen.getByText(/Relecture · Inventaire/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute("aria-pressed", String(readingPick));
+  });
+
+  it("shows nothing once they are done", () => {
+    renderChat();
+    expect(screen.queryByText(/subagents? running/)).toBeNull();
+  });
+});
+
 describe("AgentChat — read-only device", () => {
   it("disables the composer and shows the banner when the device isn't authorised", () => {
     renderChat({ device: { enforced: true, device: "spare-phone", authorized: false } });
