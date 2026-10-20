@@ -65,6 +65,9 @@ type TransitionListener = (agent: AgentView, from: AgentStatus, to: AgentStatus)
 type RemoveListener = (paneId: string) => void;
 type UpdateListener = (snap: EngineSnapshot) => void;
 
+/** The longest an unreachable session waits between two polls (a stale socket left on disk). */
+export const MAX_BACKOFF_MS = 60_000;
+
 export class StateEngine {
   private agents: AgentView[] = [];
   private shellPanes: AgentView[] = [];
@@ -99,10 +102,15 @@ export class StateEngine {
   // session.snapshot is the fast path; flipped off PERMANENTLY once a server proves it predates the
   // method (see poll()), after which every tick uses the legacy three-call path.
   private supportsSnapshot = true;
+  // Reconnect backoff for an unreachable herdr: the gap since the last failed poll, doubled per
+  // failure up to MAX_BACKOFF_MS; 0 while connected. A timer tick before `retryAt` does nothing.
+  private backoffMs = 0;
+  private retryAt = 0;
 
   constructor(
     private readonly herdr: HerdrClient,
     private readonly pollMs: number,
+    private readonly now: () => number = Date.now,
   ) {
     this.cadenceMs = pollMs;
   }
@@ -139,7 +147,7 @@ export class StateEngine {
     this.started = true;
     this.cadenceMs = this.pollMs;
     void this.poll();
-    this.timer = setInterval(() => void this.poll(), this.cadenceMs);
+    this.timer = setInterval(() => this.tick(), this.cadenceMs);
   }
 
   stop(): void {
@@ -167,7 +175,13 @@ export class StateEngine {
     if (!this.started || ms === this.cadenceMs) return;
     this.cadenceMs = ms;
     if (this.timer) clearInterval(this.timer);
-    this.timer = setInterval(() => void this.poll(), ms);
+    this.timer = setInterval(() => this.tick(), ms);
+  }
+
+  /** A timer tick: polls unless a dead socket is still inside its backoff window. A poke bypasses it. */
+  private tick(): void {
+    if (this.now() < this.retryAt) return;
+    void this.poll();
   }
 
   /**
@@ -317,6 +331,8 @@ export class StateEngine {
       this.workspaces = workspaceViews;
       this.tabs = tabViews;
       this.bridge = "connected";
+      this.backoffMs = 0;
+      this.retryAt = 0;
 
       // After all transition/removal bookkeeping so listeners see a consistent, current snapshot.
       const snap = this.current();
@@ -331,6 +347,8 @@ export class StateEngine {
         console.warn(`[state] poll failed, marking disconnected: ${(err as Error).message}`);
       }
       this.bridge = "disconnected";
+      this.backoffMs = this.backoffMs ? Math.min(this.backoffMs * 2, MAX_BACKOFF_MS) : this.pollMs;
+      this.retryAt = this.now() + this.backoffMs;
     } finally {
       this.polling = false;
       record("engine poll", performance.now() - t0);

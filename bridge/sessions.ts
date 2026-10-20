@@ -114,6 +114,8 @@ interface SessionRegistryOpts {
   listSessionDirs: (dir: string) => string[];
   /** Whether a path exists (real fs in the bridge). */
   exists: (p: string) => boolean;
+  /** A directory's mtime (ms), or -1 when missing. Without it every refresh rescans. */
+  mtime?: (p: string) => number;
 }
 
 /**
@@ -128,7 +130,11 @@ export class SessionRegistry {
   private readonly multiSession: boolean;
   private readonly listSessionDirs: (dir: string) => string[];
   private readonly exists: (p: string) => boolean;
+  private readonly mtime?: (p: string) => number;
   private readonly primaryName: string;
+  // The session dir names the last scan listed, and the mtimes it saw — see refresh().
+  private knownDirs: string[] = [];
+  private lastStamp = "";
 
   constructor(opts: SessionRegistryOpts) {
     this.configRoot = opts.configRoot;
@@ -136,6 +142,7 @@ export class SessionRegistry {
     this.multiSession = opts.multiSession;
     this.listSessionDirs = opts.listSessionDirs;
     this.exists = opts.exists;
+    this.mtime = opts.mtime;
     this.primaryName = sessionNameFor(opts.primarySocketPath, opts.configRoot);
     // The primary comes up eagerly — it's the fallback for every session-less request.
     this.runtimes.set(this.primaryName, this.spawn(this.primaryName, opts.primarySocketPath, true));
@@ -194,7 +201,18 @@ export class SessionRegistry {
    */
   async refresh(): Promise<void> {
     if (!this.multiSession) return;
-    const discovered = discoverSessionSockets(this.configRoot, this.listSessionDirs, this.exists);
+    // A socket appears/vanishes in its parent dir, so the mtimes of the root (default herdr.sock),
+    // `sessions/` (a session dir added/removed) and each known session dir cover every change the
+    // scan below could see. Same stamp → nothing to redo.
+    if (this.mtime) {
+      const sessionsDir = join(this.configRoot, "sessions");
+      const dirs = [this.configRoot, sessionsDir, ...this.knownDirs.map((n) => join(sessionsDir, n))];
+      const stamp = dirs.map(this.mtime).join(",");
+      if (stamp === this.lastStamp) return;
+      this.lastStamp = stamp;
+    }
+    const list = (dir: string) => (this.knownDirs = this.listSessionDirs(dir));
+    const discovered = discoverSessionSockets(this.configRoot, list, this.exists);
     const seen = new Set<string>([this.primaryName]);
     for (const { name, socketPath } of discovered) {
       seen.add(name);
