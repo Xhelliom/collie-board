@@ -1,9 +1,9 @@
-import { Columns3, Dog, LayoutGrid, Settings } from "lucide-react";
+import { Columns3, Dog, FolderKanban, LayoutGrid, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useLocation, useMatches, useNavigate, useSearchParams } from "react-router";
 
 import { cn } from "@/lib/utils";
-import { useT } from "@/i18n";
+import { useT, type MessageKey } from "@/i18n";
 import { isConnecting } from "@/lib/connection";
 import { useConnectionLost, useConnectionTrouble } from "@/hooks/use-connection-lost";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
@@ -11,7 +11,9 @@ import { DogGallop } from "@/components/dog-gallop";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { BuildStamp } from "@/components/build-stamp";
 import { homePath, spacePath, spacesPath, settingsPath } from "@/lib/nav";
-import { boardPath, repoName, reposOf, saveRepoScope } from "@/lib/board";
+import { boardPath, loadRepoScope, projectPath, repoName, reposOf, saveRepoScope } from "@/lib/board";
+import { loadLastProject } from "@/lib/quick-access";
+import { SidebarQuick } from "@/components/sidebar-quick";
 import type { BoardData } from "@/lib/board-loaders";
 import type { HomeData } from "@/lib/loaders";
 
@@ -33,16 +35,18 @@ export function AppNav({ data }: { data: HomeData }) {
 
 interface NavItem {
   key: string;
-  label: string;
+  label: MessageKey;
   icon: LucideIcon;
   path: (session: string | undefined) => string;
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { key: "herd", label: "Herd", icon: Dog, path: homePath },
-  { key: "board", label: "Board", icon: Columns3, path: () => boardPath() },
-  { key: "spaces", label: "Spaces", icon: LayoutGrid, path: spacesPath },
-  { key: "settings", label: "Settings", icon: Settings, path: settingsPath },
+  { key: "herd", label: "home.title", icon: Dog, path: homePath },
+  { key: "board", label: "board.title", icon: Columns3, path: () => boardPath() },
+  // The project last opened; the board's repo scope before any was.
+  { key: "projects", label: "nav.projects", icon: FolderKanban, path: () => projectPath(loadLastProject() ?? loadRepoScope()) },
+  { key: "spaces", label: "spaces.title", icon: LayoutGrid, path: spacesPath },
+  { key: "settings", label: "settings.title", icon: Settings, path: settingsPath },
 ];
 // Desktop splits the four destinations: Herd/Board/Spaces are the sidebar's main nav rows, Settings
 // moves to the footer beside SessionSwitcher/BuildStamp (redesign's nav spec — "Bottom: SessionSwitcher
@@ -53,7 +57,8 @@ const SETTINGS_ITEM = NAV_ITEMS.find((item) => item.key === "settings")!;
 /** The four root paths the tab bar / sidebar active-state matches against (session query ignored). */
 function rootKeyFor(pathname: string): string | undefined {
   if (pathname === "/") return "herd";
-  // Board, Project and Open PRs are views of one thing: the Board tab stays lit (and the bar visible).
+  if (pathname === "/board/project") return "projects";
+  // Board and Open PRs are views of one thing: the Board tab stays lit (and the bar visible).
   // A card is the board's own detail view: same tab lit, and the bar stays (it has no sticky composer).
   if (pathname === "/board" || pathname.startsWith("/board/") || pathname.startsWith("/card/")) return "board";
   if (pathname === "/spaces") return "spaces";
@@ -138,8 +143,8 @@ function Sidebar({ data }: { data: HomeData }) {
               type="button"
               onClick={() => navigate(item.path(data.session))}
               aria-current={isActive ? "page" : undefined}
-              aria-label={compact ? item.label : undefined}
-              title={compact ? item.label : undefined}
+              aria-label={compact ? t(item.label) : undefined}
+              title={compact ? t(item.label) : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-[10px] text-sm transition-colors",
                 compact ? "size-11 justify-center" : "px-2.5 py-2.5",
@@ -156,7 +161,7 @@ function Sidebar({ data }: { data: HomeData }) {
                   </span>
                 )}
               </span>
-              {!compact && <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>}
+              {!compact && <span className="min-w-0 flex-1 truncate text-left">{t(item.label)}</span>}
               {!compact && (alertCount ?? infoCount) !== undefined && (
                 <span className="text-xs tabular-nums">{alertCount ?? infoCount}</span>
               )}
@@ -170,8 +175,11 @@ function Sidebar({ data }: { data: HomeData }) {
           {/* Screen-scoped list, below the nav rows — the sidebar's one nod to "where am I" beyond
               the four root destinations. Repos on /board (replaces RepoFilter's old always-visible
               strip), spaces on / (replaces the dashboard's own space cards) — nothing elsewhere. */}
-          <BoardRepoList />
-          <HomeSpacesList data={data} />
+          <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+            <SidebarQuick data={data} />
+            <BoardRepoList />
+            <HomeSpacesList data={data} />
+          </div>
 
           <div className="mt-auto flex flex-col gap-2 pt-4">
             <SessionSwitcher sessions={data.sessions ?? []} current={data.session} />
@@ -187,7 +195,7 @@ function Sidebar({ data }: { data: HomeData }) {
               )}
             >
               <SETTINGS_ITEM.icon className="size-[18px] shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-left">{SETTINGS_ITEM.label}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{t(SETTINGS_ITEM.label)}</span>
             </button>
             <BuildStamp className="text-[11px] font-mono text-muted-foreground/60" />
           </div>
@@ -309,6 +317,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
   const navigate = useNavigate();
   const location = useLocation();
   const active = rootKeyFor(location.pathname);
+  const t = useT();
   // The Herd tab's own Dog glyph doubles as the connection mark (collie-home.tsx's job, moved here):
   // it gallops on sustained trouble and rests muted once lost, instead of adding a fifth element to a
   // four-item bar. Called unconditionally, ABOVE the early return below — this component stays
@@ -333,7 +342,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
             aria-current={isActive ? "page" : undefined}
             aria-label={
               isHerd && (gallop || lost)
-                ? `${item.label} — ${lost ? "not connected" : "reconnecting"}`
+                ? `${t(item.label)} — ${lost ? "not connected" : "reconnecting"}`
                 : undefined
             }
             className="relative flex min-h-14 flex-1 flex-col items-center justify-center gap-1 pt-2"
@@ -368,7 +377,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
                 isActive ? "font-semibold text-brand" : "font-medium text-muted-foreground",
               )}
             >
-              {item.label}
+              {t(item.label)}
             </span>
           </button>
         );

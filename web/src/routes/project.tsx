@@ -25,6 +25,7 @@ import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
+import { saveLastProject } from "@/lib/quick-access";
 import { revealWhenRendered } from "@/lib/reveal";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -116,6 +117,10 @@ export function ProjectRoute() {
   const revalidator = useRevalidator();
   const [params, setParams] = useSearchParams();
   const repo = params.get("repo") ?? loadRepoScope();
+  // What the nav's « Projects » entry reopens.
+  useEffect(() => {
+    if (repo) saveLastProject(repo);
+  }, [repo]);
   const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
