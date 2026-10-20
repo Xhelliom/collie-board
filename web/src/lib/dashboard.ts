@@ -1,4 +1,4 @@
-import type { CardView, Phase } from "@/lib/board";
+import type { CardView, Lot, Phase } from "@/lib/board";
 import { repoName } from "@/lib/board";
 import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
 import { projectOf, stepGroup } from "@/lib/project";
@@ -8,6 +8,38 @@ import type { AgentView } from "@/lib/types";
 // its own, so it cannot disagree with the board (same rule as project.ts / repos.ts).
 
 const WEEK = 7 * 24 * 3600 * 1000;
+const DAY = 24 * 3600 * 1000;
+
+/** The lot a project tile leads with: one running, else one finished in the last 24 h. */
+export interface TileLot {
+  name: string | null;
+  done: number;
+  total: number;
+  blocked: number;
+  /** Null while it runs. */
+  finishedAt: number | null;
+}
+
+/** A repo's running lot (the first in plan order), else its most recently finished one within a day, else null. */
+export function tileLot(lots: Lot[], now = Date.now()): TileLot | null {
+  const view = (l: Lot): TileLot => ({ name: l.name, done: l.done ?? 0, total: l.cardIds.length, blocked: l.blocked ?? 0, finishedAt: l.finishedAt ?? null });
+  const running = lots.find((l) => l.launchedAt !== null && !l.finished);
+  if (running) return view(running);
+  const recent = lots
+    .filter((l) => l.finishedAt != null && now - l.finishedAt < DAY)
+    .sort((a, b) => b.finishedAt! - a.finishedAt!)[0];
+  return recent ? view(recent) : null;
+}
+
+/** Running lots first, then lots finished in the day (newest first), then the rest in their own order. */
+export function byLot<T extends { path: string }>(repos: T[], lots: Record<string, TileLot | null>): T[] {
+  const rank = (r: T) => {
+    const l = lots[r.path];
+    return l ? (l.finishedAt === null ? 0 : 1) : 2;
+  };
+  // sort is stable: the rest keep dashboardOf's order (waiting first, then most recent).
+  return [...repos].sort((a, b) => rank(a) - rank(b) || (lots[b.path]?.finishedAt ?? 0) - (lots[a.path]?.finishedAt ?? 0));
+}
 
 /** A milestone still in progress: what the tile draws, instead of every step the repo ever had. */
 export interface CurrentPhase {

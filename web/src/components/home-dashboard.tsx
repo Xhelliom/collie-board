@@ -8,8 +8,8 @@ import { STEP_TONE } from "@/components/project-step";
 import { useFold } from "@/components/fold";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
-import { boardPath, cardPath, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Phase, type ProviderUsage } from "@/lib/board";
-import { herdCounts, type DashboardView, type RepoTile } from "@/lib/dashboard";
+import { boardPath, cardPath, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
+import { byLot, herdCounts, tileLot, type DashboardView, type RepoTile, type TileLot } from "@/lib/dashboard";
 import { panePath } from "@/lib/nav";
 import { ago, rich } from "@/lib/project-facts";
 import type { AgentView, NotifyLogEntry } from "@/lib/types";
@@ -146,7 +146,26 @@ function PhaseBar({ steps }: { steps: CardView[] }) {
 /** Phases a tile lists before « +n »: a repo with five in flight must not take a screen on a phone. */
 const PHASES_SHOWN = 2;
 
-function ProjectTile({ repo }: { repo: RepoTile }) {
+/** The tile's lead line: the lot running (name, merged / total, blocked), or the one that just finished. */
+function LotLine({ lot }: { lot: TileLot }) {
+  const t = useT();
+  const name = lot.name ?? t("home.lot.unnamed");
+  const blocked = lot.blocked > 0 && <span className="font-semibold text-status-blocked">{t("home.lot.blocked", { count: lot.blocked })}</span>;
+  return lot.finishedAt === null ? (
+    <div className="flex items-baseline gap-2 text-xs">
+      <span className="min-w-0 flex-1 truncate font-medium text-status-working">{t("home.lot.running", { name })}</span>
+      {blocked}
+      <span className="shrink-0 tabular-nums text-muted-foreground">{t("home.lot.merged", { done: lot.done, total: lot.total })}</span>
+    </div>
+  ) : (
+    <div className="flex items-baseline gap-2 text-xs">
+      <span className="min-w-0 flex-1 truncate font-medium text-status-done">{t("home.lot.finished", { name, when: ago(lot.finishedAt) })}</span>
+      {blocked || <span className="shrink-0 tabular-nums text-muted-foreground">{t("home.lot.merged", { done: lot.done, total: lot.total })}</span>}
+    </div>
+  );
+}
+
+function ProjectTile({ repo, lot }: { repo: RepoTile; lot?: TileLot | null }) {
   const t = useT();
   return (
     <Link
@@ -157,6 +176,7 @@ function ProjectTile({ repo }: { repo: RepoTile }) {
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
         <span className="shrink-0 text-xs text-muted-foreground">{ago(repo.updatedAt)}</span>
       </div>
+      {lot && <LotLine lot={lot} />}
       {repo.current.slice(0, PHASES_SHOWN).map((p) => (
         <div key={p.key} className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-2 text-xs">
@@ -195,8 +215,26 @@ export function useRepoPhases(paths: string[]): Record<string, Phase[]> {
   return phases;
 }
 
-export function ProjectTiles({ repos }: { repos: RepoTile[] }) {
+/** Each repo's lead lot (tileLot), in one request for every repo. Re-read when `stamp` moves — the
+ *  cards the poll already brings — so a lot's progress follows the board without a timer of its own. */
+export function useRepoLots(paths: string[], stamp: string): Record<string, TileLot | null> {
+  const [lots, setLots] = useState<Record<string, TileLot | null>>({});
+  const key = paths.join("\n");
+  useEffect(() => {
+    if (!key) return setLots({});
+    const ac = new AbortController();
+    void fetchLots(undefined, ac.signal).then((r) => r.runs, () => [] as Lot[]).then((all) => {
+      if (ac.signal.aborted) return;
+      setLots(Object.fromEntries(key.split("\n").map((p) => [p, tileLot(all.filter((l) => l.repoPath === p))])));
+    });
+    return () => ac.abort();
+  }, [key, stamp]);
+  return lots;
+}
+
+export function ProjectTiles({ repos: all, lots = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null> }) {
   const t = useT();
+  const repos = byLot(all, lots);
   const { shown, toggle } = useFold(repos, 3);
   if (repos.length === 0) return null;
   return (
@@ -204,7 +242,7 @@ export function ProjectTiles({ repos }: { repos: RepoTile[] }) {
       <h2 className={sectionTitle}>{t("home.projects")}</h2>
       <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
         {shown.map((r) => (
-          <ProjectTile key={r.path} repo={r} />
+          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} />
         ))}
       </div>
       {toggle}

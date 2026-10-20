@@ -125,9 +125,11 @@ async function prepareLotNow(
  * ses cartes disent « le lead s'en occupe » ; terminé, elles reprennent leur affichage normal. Arrêté,
  * `halted` porte la raison de l'arrêt qui tient encore.
  */
-export function lotView(db: Pick<BoardDb, "runMembers" | "runFinished" | "listEvents">, run: Run) {
+export function lotView(db: Pick<BoardDb, "runMembers" | "runFinishedAt" | "listEvents">, run: Run) {
   const members = db.runMembers(run.id);
-  const finished = run.launchedAt !== null && db.runFinished(run.id);
+  // The journal's `run.finished` ts: what the home's « lot X finished 2 h ago » reads.
+  const finishedAt = run.launchedAt !== null ? db.runFinishedAt(run.id) : null;
+  const finished = finishedAt !== null;
   let prUrl: string | null = null;
   if (run.integration === "lot" && !finished) {
     let ts = -1;
@@ -139,5 +141,8 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinished" | "listEv
   }
   // Halted: the reason sits beside the operator's « Reprendre » (POST /api/runs/<id>/resume).
   const halted = run.launchedAt !== null && !finished ? haltReason(run, members.map((card) => ({ card, events: db.listEvents(card.id, 200) }))) : null;
-  return { ...run, cardIds: members.map((c) => c.id), finished, prUrl, halted };
+  // Counted here, not on the client: the home's summary card list keeps only a few done cards per repo.
+  const done = members.filter((c) => c.status === "done").length;
+  const blocked = members.filter((c) => c.status === "blocked" || c.status === "orphaned").length;
+  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, done, blocked, prUrl, halted };
 }

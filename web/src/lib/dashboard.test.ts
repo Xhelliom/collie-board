@@ -1,5 +1,5 @@
-import { dashboardOf, herdCounts } from "./dashboard";
-import type { CardView, Phase } from "./board";
+import { byLot, dashboardOf, herdCounts, tileLot } from "./dashboard";
+import type { CardView, Lot, Phase } from "./board";
 import type { AgentView } from "./types";
 
 const card = (id: string, status: string, repoPath: string | null, updatedAt = 0): CardView =>
@@ -41,5 +41,26 @@ describe("herdCounts", () => {
   it("splits needs / working / idle", () => {
     const a = (status: string) => ({ status }) as unknown as AgentView;
     expect(herdCounts([a("blocked"), a("working"), a("working"), a("idle"), a("done")])).toEqual([1, 2, 2]);
+  });
+});
+
+describe("tileLot / byLot", () => {
+  const H = 3600 * 1000;
+  const now = 100 * H;
+  const lot = (o: Partial<Lot>): Lot => ({ id: "l", repoPath: "/r", phaseId: null, name: "L", position: 0, launchedAt: 1, cardIds: ["a", "b", "c", "d"], ...o });
+
+  it("leads with a running lot, else one finished within a day", () => {
+    expect(tileLot([lot({ launchedAt: null }), lot({ name: "run", done: 2, blocked: 1 })], now)).toEqual({ name: "run", done: 2, total: 4, blocked: 1, finishedAt: null });
+    expect(tileLot([lot({ finished: true, finishedAt: now - 30 * H })], now)).toBeNull();
+    expect(tileLot([lot({ name: "old", finished: true, finishedAt: now - 5 * H }), lot({ name: "new", finished: true, finishedAt: now - 2 * H, done: 4 })], now))
+      .toMatchObject({ name: "new", done: 4, finishedAt: now - 2 * H });
+    expect(tileLot([lot({ launchedAt: null })], now)).toBeNull();
+  });
+
+  it("orders running, then recently finished (newest first), then the rest as given", () => {
+    const fin = (t: number) => ({ name: null, done: 0, total: 1, blocked: 0, finishedAt: t });
+    const repos = ["/a", "/b", "/c", "/d", "/e"].map((path) => ({ path }));
+    const lots = { "/b": fin(1), "/c": { ...fin(0), finishedAt: null }, "/d": fin(5) };
+    expect(byLot(repos, lots).map((r) => r.path)).toEqual(["/c", "/d", "/b", "/a", "/e"]);
   });
 });

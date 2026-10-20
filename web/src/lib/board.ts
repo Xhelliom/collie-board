@@ -1233,6 +1233,11 @@ export interface Lot {
   integration?: "card" | "lot";
   /** Launched and journaled `run.finished`: its cards are back to their own display. */
   finished?: boolean;
+  /** That `run.finished`'s ts, else null. Absent on an older bridge. */
+  finishedAt?: number | null;
+  /** Members done / blocked or orphaned, counted on the bridge. Absent on an older bridge. */
+  done?: number;
+  blocked?: number;
   /** One PR for the lot, while it runs: that PR's url once opened (journaled on its last card). */
   prUrl?: string | null;
   /** Launched and halted: why (the newest halt still holding). Null while it runs. Absent on an older bridge. */
@@ -1274,8 +1279,9 @@ export interface Roadmap {
 /** No repo: every repo's phases in one request. */
 export const fetchPhases = (repo: string | undefined, signal?: AbortSignal): Promise<{ phases: Phase[] }> =>
   apiRequest(repo ? `/api/phases?repo=${encodeURIComponent(repo)}` : "/api/phases", { signal });
-export const fetchLots = (repo: string, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
-  apiRequest(`/api/runs?repo=${encodeURIComponent(repo)}`, { signal });
+/** No repo: every repo's lots in one request. */
+export const fetchLots = (repo: string | undefined, signal?: AbortSignal): Promise<{ runs: Lot[] }> =>
+  apiRequest(repo ? `/api/runs?repo=${encodeURIComponent(repo)}` : "/api/runs", { signal });
 /** Null `roadmap`: nothing written yet for this repo. */
 export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ roadmap: Roadmap | null }> =>
   apiRequest(`/api/roadmap?repo=${encodeURIComponent(repo)}`, { signal });

@@ -19,6 +19,7 @@ import {
   ProjectTiles,
   ProjectTilesSkeleton,
   UsageRings,
+  useRepoLots,
   useRepoPhases,
 } from "@/components/home-dashboard";
 import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
@@ -123,5 +124,7 @@ function Kpis({ board }: { board: BoardData }) {
 function Projects({ board }: { board: BoardData }) {
   const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
   const dash = useMemo(() => dashboardOf(board.cards, Date.now(), phases), [board.cards, phases]);
-  return <ProjectTiles repos={dash.repos} />;
+  const stamp = useMemo(() => board.cards.map((c) => `${c.id}:${c.status}:${c.updatedAt}`).join(), [board.cards]);
+  const lots = useRepoLots(useMemo(() => dash.repos.map((r) => r.path), [dash.repos]), stamp);
+  return <ProjectTiles repos={dash.repos} lots={lots} />;
 }
