@@ -643,3 +643,41 @@ describe("StateEngine — pane capability fields", () => {
     expect(engine.current().agents[0]!.readableLines).toBeUndefined();
   });
 });
+
+describe("StateEngine — backoff on an unreachable session", () => {
+  test("doubles the gap between polls up to 60 s, and returns to every tick once herdr answers", async () => {
+    const herdr = new FakeHerdr();
+    let down = true;
+    let calls = 0;
+    herdr.sessionSnapshot = () => {
+      calls++;
+      return down ? Promise.reject(new Error("ECONNREFUSED")) : FakeHerdr.prototype.sessionSnapshot.call(herdr);
+    };
+    let clock = 0;
+    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500, () => clock);
+    const tick = async () => {
+      (engine as unknown as { tick(): void }).tick();
+      await Bun.sleep(0);
+    };
+    // Tick every 1.5 s for 5 min and note when a poll actually ran.
+    const polledAt: number[] = [];
+    for (; clock <= 300_000; clock += 1500) {
+      const before = calls;
+      await tick();
+      if (calls > before) polledAt.push(clock);
+    }
+    const gaps = polledAt.slice(1).map((t, i) => t - polledAt[i]!);
+    expect(gaps.slice(0, 6)).toEqual([1500, 3000, 6000, 12000, 24000, 48000]);
+    expect(Math.max(...gaps)).toBe(60_000);
+    expect(engine.current().bridge).toBe("disconnected");
+
+    // It answers again: the next allowed poll connects, and from then on every tick polls.
+    down = false;
+    clock += 60_000;
+    await tick();
+    expect(engine.current().bridge).toBe("connected");
+    const before = calls;
+    for (let i = 0; i < 3; i++, clock += 1500) await tick();
+    expect(calls - before).toBe(3);
+  });
+});

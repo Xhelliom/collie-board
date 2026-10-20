@@ -327,3 +327,38 @@ describe("every session outcome has its label on the card screen", () => {
     for (const o of SESSION_OUTCOMES) expect(messages, `card.outcome.${o}`).toContain(`"card.outcome.${o}":`);
   });
 });
+
+describe("SessionRegistry — refresh() skips an unchanged sessions dir", () => {
+  test("rescans only when a watched directory's mtime moves", async () => {
+    const mtimes = new Map<string, number>([
+      ["/cfg/herdr", 1],
+      ["/cfg/herdr/sessions", 1],
+      ["/cfg/herdr/sessions/demo", 1],
+    ]);
+    let lists = 0;
+    let present = new Set(["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"]);
+    const registry = new SessionRegistry({
+      configRoot: "/cfg/herdr",
+      primarySocketPath: "/cfg/herdr/herdr.sock",
+      factory: () => new FakeSession("connected", []).parts(),
+      multiSession: true,
+      listSessionDirs: () => (lists++, ["demo"]),
+      exists: (p) => present.has(p),
+      mtime: (p) => mtimes.get(p) ?? -1,
+    });
+    await registry.refresh();
+    await registry.refresh(); // knownDirs now includes demo → one more scan, then stable
+    const settled = lists;
+    await registry.refresh();
+    await registry.refresh();
+    expect(lists).toBe(settled); // nothing changed → nothing read
+    expect(registry.get("demo")).toBeDefined();
+
+    // demo's socket goes away: only its own dir's mtime moves — still caught.
+    present = new Set(["/cfg/herdr/herdr.sock"]);
+    mtimes.set("/cfg/herdr/sessions/demo", 2);
+    await registry.refresh();
+    expect(lists).toBe(settled + 1);
+    expect(registry.get("demo")).toBeUndefined();
+  });
+});

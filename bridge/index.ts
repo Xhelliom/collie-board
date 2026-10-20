@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -398,6 +398,7 @@ const registry = new SessionRegistry({
   multiSession: cfg.multiSession,
   listSessionDirs,
   exists: (p) => existsSync(p),
+  mtime: (p) => statSync(p, { throwIfNoEntry: false })?.mtimeMs ?? -1,
 });
 
 // Fail soft with a clear message if the PRIMARY Herdr isn't reachable at startup. Other sessions come
