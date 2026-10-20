@@ -38,6 +38,7 @@ import { FindBar } from "@/components/find-bar";
 import { PaneMenu } from "@/components/pane-menu";
 import { Composer, type ComposerHandle } from "@/components/composer";
 import { CtxBar } from "@/components/ctx-bar";
+import { SubagentsLine } from "@/components/subagents-line";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
 import { ContextRailColumn } from "@/components/context-rail-column";
@@ -978,6 +979,9 @@ export function AgentChat({
             </div>
           </div>
         )}
+
+        {/* Both breakpoints: the mobile header and the desktop toolbar each end above this strip. */}
+        <SubagentsLine subagents={agent?.subagents} className="shrink-0 border-b border-border/60 px-3 py-1" />
 
         {/* The screen's body: the terminal mirror, or the reading view over the same conversation.
             Everything below (statusline, gauge, composer) belongs to both and doesn't move. */}
