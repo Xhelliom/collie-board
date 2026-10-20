@@ -116,6 +116,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
 // ── route ──────────────────────────────────────────────────────────────────────
 
 import type { BoardContext } from "./board-routes.ts";
+import { memoOn } from "./http-cache.ts";
 import { lotView } from "./lot.ts";
 import { awaitingOn } from "./roadmap.ts";
 
@@ -136,6 +137,11 @@ export function handleFactsRoute(pathname: string, req: Request, ctx: BoardConte
   if (denied) return denied;
   // No repo: every live card — the board's tiles read their dots from here (one request per poll).
   const repo = new URL(req.url).searchParams.get("repo");
+  // Read from the db alone, so its revision is the whole key: an unchanged poll rebuilds nothing.
+  return ctx.json(memoOn(ctx.db, `facts:${repo}`, [ctx.db.revision()], () => buildFacts(ctx, repo)));
+}
+
+function buildFacts(ctx: BoardContext, repo: string | null): { facts: unknown[] } {
   // The launched lot that still drives a card, once per lot: the board's tiles say "the lead has it"
   // from here, without loading the lots themselves (audit perf #2).
   const lots = new Map<string, ReturnType<typeof lotView> | null>();
@@ -163,5 +169,5 @@ export function handleFactsRoute(pathname: string, req: Request, ctx: BoardConte
       const wait = awaiting(c);
       return { ...f, ...(lot ? { lot } : {}), ...(wait ? { awaiting: wait } : {}) };
     });
-  return ctx.json({ facts });
+  return { facts };
 }

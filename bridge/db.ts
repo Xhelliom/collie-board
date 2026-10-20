@@ -1552,6 +1552,18 @@ export class BoardDb {
   }
 
   /** Every card except `archived`, ordered for the board (column order, then manual position). */
+  /**
+   * Changes on every committed write: this connection's row-change count plus SQLite's
+   * `data_version`, which moves when another connection commits. A cache key, never persisted.
+   */
+  revision(): string {
+    const r = this.db.query("SELECT total_changes() AS t, (SELECT data_version FROM pragma_data_version) AS v").get() as {
+      t: number;
+      v: number;
+    };
+    return `${r.v}:${r.t}`;
+  }
+
   listCards(opts: { includeArchived?: boolean } = {}): Card[] {
     const sql = opts.includeArchived
       ? "SELECT * FROM card ORDER BY position, created_at"

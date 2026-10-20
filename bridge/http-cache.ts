@@ -42,7 +42,16 @@ export function gzipJsonResponse(
   acceptEncoding: string | null,
   extraHeaders: Record<string, string> = {},
 ): Response {
-  const body = JSON.stringify(data);
+  return gzipBodyResponse(JSON.stringify(data), acceptEncoding, extraHeaders);
+}
+
+/** {@link gzipJsonResponse} for a body already serialised — `gz` is reused when given. */
+function gzipBodyResponse(
+  body: string,
+  acceptEncoding: string | null,
+  extraHeaders: Record<string, string>,
+  entry?: Serialized,
+): Response {
   const useGzip =
     acceptEncoding !== null &&
     acceptEncoding.includes("gzip") &&
@@ -55,7 +64,7 @@ export function gzipJsonResponse(
   };
 
   if (useGzip) {
-    const compressed = Bun.gzipSync(body);
+    const compressed = entry ? (entry.gz ??= Bun.gzipSync(body)) : Bun.gzipSync(body);
     headers["content-encoding"] = "gzip";
     headers["vary"] = "accept-encoding";
     headers["content-length"] = String(compressed.byteLength);
@@ -73,10 +82,42 @@ export function gzipJsonResponse(
  * needs no invalidation — the next poll simply gets a different tag.
  */
 export function conditionalJson(data: unknown, req: Request): Response {
-  const etag = computeEtag(JSON.stringify(data));
+  // One stringify per data object: a memoised one (see `memoOn`) comes back with its body, tag and gzip.
+  let entry = typeof data === "object" && data !== null ? serialized.get(data) : undefined;
+  if (!entry) {
+    const body = JSON.stringify(data);
+    entry = { body, etag: computeEtag(body) };
+    if (typeof data === "object" && data !== null) serialized.set(data, entry);
+  }
+  const { etag } = entry;
   if (notModified(req.headers.get("if-none-match"), etag)) {
     // RFC 7232 §4.1: a 304 MUST echo the ETag; its body MUST be empty.
     return new Response(null, { status: 304, headers: { etag, "cache-control": "no-store" } });
   }
-  return gzipJsonResponse(data, req.headers.get("accept-encoding"), { etag });
+  return gzipBodyResponse(entry.body, req.headers.get("accept-encoding"), { etag }, entry);
+}
+
+interface Serialized {
+  body: string;
+  etag: string;
+  gz?: ReturnType<typeof Bun.gzipSync>;
+}
+const serialized = new WeakMap<object, Serialized>();
+
+const memos = new WeakMap<object, Map<string, { deps: readonly unknown[]; data: unknown }>>();
+
+/**
+ * The last `build()` of `owner`'s `slot`, handed back as long as every dep is `===` the last call's.
+ * The deps must be cheap and change on every write (`BoardDb.revision()`, the engine's pane arrays):
+ * an unchanged poll then costs neither the rebuild nor — through `conditionalJson` — the stringify.
+ * ponytail: one entry per slot, the newest; a slot per query variant keeps that bounded.
+ */
+export function memoOn<T>(owner: object, slot: string, deps: readonly unknown[], build: () => T): T {
+  let slots = memos.get(owner);
+  if (!slots) memos.set(owner, (slots = new Map()));
+  const last = slots.get(slot);
+  if (last && last.deps.length === deps.length && last.deps.every((d, i) => d === deps[i])) return last.data as T;
+  const data = build();
+  slots.set(slot, { deps, data });
+  return data;
 }
