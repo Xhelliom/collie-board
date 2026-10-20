@@ -86,7 +86,8 @@ export class StateEngine {
   private readonly sessionNameRead = new Set<string>();
   private readonly transitionListeners = new Set<TransitionListener>();
   private readonly removeListeners = new Set<RemoveListener>();
-  private readonly updateListeners = new Set<UpdateListener>();
+  // Each listener with the route-cost key its time is metered under (`GET /api/diag/routes`).
+  private readonly updateListeners = new Map<UpdateListener, string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private started = false;
   private polling = false;
@@ -118,8 +119,8 @@ export class StateEngine {
   }
 
   /** Fires after every successful poll (post-transition bookkeeping) with the fresh snapshot. */
-  onUpdate(fn: UpdateListener): () => void {
-    this.updateListeners.add(fn);
+  onUpdate(fn: UpdateListener, name = fn.name || "anonymous"): () => void {
+    this.updateListeners.set(fn, `onUpdate ${name}`);
     return () => this.updateListeners.delete(fn);
   }
 
@@ -319,7 +320,12 @@ export class StateEngine {
 
       // After all transition/removal bookkeeping so listeners see a consistent, current snapshot.
       const snap = this.current();
-      for (const fn of this.updateListeners) fn(snap);
+      // ponytail: times the synchronous part only — a fire-and-forget listener's awaited I/O is off-loop.
+      for (const [fn, key] of this.updateListeners) {
+        const t = performance.now();
+        fn(snap);
+        record(key, performance.now() - t);
+      }
     } catch (err) {
       if (this.bridge === "connected") {
         console.warn(`[state] poll failed, marking disconnected: ${(err as Error).message}`);

@@ -191,7 +191,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   const poker = new EventPoker(herdr);
   poker.onPoke(() => engine.pokeNow());
   poker.onHealth((h) => engine.setCadence(h ? cfg.pollIdleMs : cfg.pollMs));
-  engine.onUpdate((s) => poker.setAgentPanes(s.agents.map((a) => a.paneId)));
+  engine.onUpdate((s) => poker.setAgentPanes(s.agents.map((a) => a.paneId)), "poker");
 
   // Background notifications on lifecycle transitions (foreground toasts are computed client-side by
   // diffing snapshots). Each session gets its own coordinator + notification slot: the primary keeps
@@ -309,13 +309,13 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
   // Primary session only: a card's pane id is meaningless in another herdr server (see server.ts).
   if (isPrimary) {
     snapshotRef = () => engine.current();
-    engine.onUpdate((snap) => reconcile(board, snap));
+    engine.onUpdate((snap) => reconcile(board, snap), "reconcile");
     // A turn that ended without the pane ever showing `done` (ADR 0037) — after reconcile, same tick.
     const idleLanding = new IdleLanding(board);
-    engine.onUpdate((snap) => idleLanding.update(snap));
+    engine.onUpdate((snap) => idleLanding.update(snap), "idleLanding");
     // A card landing in review with an empty branch goes back, said on the card (review-guard.ts).
     const reviewGuard = new ReviewGuard(board);
-    engine.onUpdate((snap) => void reviewGuard.onUpdate(snap).catch(() => {}));
+    engine.onUpdate((snap) => void reviewGuard.onUpdate(snap).catch(() => {}), "reviewGuard");
     // Context telemetry rides it too, throttled per pane inside the tracker (a transcript read is
     // far too expensive for a 1.5s tick). Fire-and-forget: the gauge must never delay a poll.
     const context = new ContextTracker(
@@ -341,38 +341,38 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // Published so the server can overlay the figures onto the snapshot it serves — they live in the
     // tracker's memory, not in the database (see ContextTracker.enrich).
     contextTracker = context;
-    engine.onUpdate((snap) => void context.update(snap));
+    engine.onUpdate((snap) => void context.update(snap), "context");
     // Handoffs finish here too: the request only prompts the agent, and this notices when it has
     // gone quiet and swaps the pane. Guarded against re-entry inside the coordinator.
     const handoffs = new HandoffCoordinator(board, herdr, cfg);
-    engine.onUpdate((snap) => handoffs.update(snap));
+    engine.onUpdate((snap) => handoffs.update(snap), "handoffs");
     // …and the note taken on its own just before an idle session's prompt cache expires — asked for
     // only while the board pref is on (off by default), but always carried through once asked.
     const autoHandoff = new AutoHandoff(board, herdr);
-    engine.onUpdate((snap) => autoHandoff.update(snap));
+    engine.onUpdate((snap) => autoHandoff.update(snap), "autoHandoff");
     // The closing note a card asks for when it is filed as done, collected the same way — it lands
     // before the review below reads it. Costs one file read per pending wrapup, of which there is
     // normally none.
     const wrapups = new WrapupCoordinator(board, herdr);
-    engine.onUpdate((snap) => wrapups.update(snap));
+    engine.onUpdate((snap) => wrapups.update(snap), "wrapups");
     // Post-`done` review, and the todos it produces become the next cards. The stat is fetched
     // lazily so a disabled copilot costs no git subprocesses at all.
-    engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)));
+    engine.onUpdate((snap) => copilotBoard.update(snap, (cardId) => cardDiffSummary(board, cardId)), "copilot");
     // The board's own facts reach the bell AND the phone here: a tailer over the card journal,
     // cursored in memory from the newest id at startup. The sixth onUpdate of the list, one range
     // scan on a primary key per tick. Two of the facts it tails go through the herd's own
     // coordinator — same slot, same digest, same snooze — because each carries the predicate that
     // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
     const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
-    engine.onUpdate((snap) => boardNotifier.update(snap));
+    engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
-    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters));
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
-    engine.onUpdate(prFollowHook(board, herdr));
+    engine.onUpdate(prFollowHook(board, herdr), "prFollow");
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
-    engine.onUpdate((snap) => nudger.update(snap));
+    engine.onUpdate((snap) => nudger.update(snap), "nudger");
   }
 
   engine.start();

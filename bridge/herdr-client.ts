@@ -1,6 +1,7 @@
 import type { AgentStatus } from "./types.ts";
 import { dialHerdr, type DialMode, type SockHandle } from "./dial.ts";
 import { decodeReplyLine, decodeStreamLine } from "./wire.ts";
+import { record } from "./route-cost.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The Herdr socket adapter. THIS IS THE ONLY FILE that knows Herdr's method names
@@ -411,7 +412,9 @@ export class HerdrClient {
         while (nl >= 0 && !down) {
           const line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
+          const t = performance.now();
           handleLine(line);
+          record("events stream", performance.now() - t);
           nl = buf.indexOf("\n");
         }
       },

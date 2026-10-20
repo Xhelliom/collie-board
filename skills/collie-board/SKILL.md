@@ -61,7 +61,10 @@ an unfinished card). `counts` covers every done card: `delivered` (last 7 days),
 
 What the bridge spends its CPU on, since it started — per route (method + path, ids as `:id`):
 calls, cumulated / average / max handler time in ms, bytes sent, 304s; plus the background loop
-as `engine poll` and `engine enrichSessionNames`. Busiest first:
+as `engine poll` and `engine enrichSessionNames`, each `engine.onUpdate` subscriber as
+`onUpdate <name>` (its synchronous part), the herdr event stream as `events stream` (decode),
+`event <type>` (a count per type) and `events poke` (the polls it asked for, at most one a second).
+Busiest first:
 
 ```bash
 curl -s http://127.0.0.1:8788/api/diag/routes | jq -r '.routes[] | "\(.totalMs)ms\t\(.calls)\t\(.route)"' | head

@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { buildSubscriptions, EventPoker, sameIdSet, type Subscription } from "./event-poker.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 
-// EventPoker owns the stream lifecycle (ack → healthy, events → debounced poke, down → backoff
+// EventPoker owns the stream lifecycle (ack → healthy, events → throttled poke, down → backoff
 // reconnect). The socket itself lives in HerdrClient.subscribeEvents and stays untested; here we
 // fake it so tests drive ack/event/down synchronously and assert the decisions.
 
@@ -42,10 +42,10 @@ class FakeClient {
   }
 }
 
-function makePoker(opts?: { debounceMs?: number; backoffMs?: number[] }) {
+function makePoker(opts?: { windowMs?: number; backoffMs?: number[] }) {
   const client = new FakeClient();
   const poker = new EventPoker(client as unknown as HerdrClient, {
-    debounceMs: opts?.debounceMs ?? 10,
+    windowMs: opts?.windowMs ?? 10,
     backoffMs: opts?.backoffMs ?? [10, 20],
   });
   const pokes: number[] = [];
@@ -96,18 +96,45 @@ describe("EventPoker — health", () => {
   });
 });
 
-describe("EventPoker — debounced poke", () => {
-  test("coalesces a burst of events into a single trailing poke", async () => {
-    const { client, poker, pokes } = makePoker({ debounceMs: 10 });
+describe("EventPoker — throttled poke", () => {
+  test("a burst pokes once at once, then once more when the window closes", async () => {
+    const { client, poker, pokes } = makePoker({ windowMs: 30 });
     poker.start();
     client.last.onUp();
     client.last.onEvent("pane_created", {});
-    client.last.onEvent("pane_agent_detected", {});
-    client.last.onEvent("pane_agent_detected", {});
-    expect(pokes.length).toBe(0); // still within the debounce window
-    await sleep(25);
-    expect(pokes.length).toBe(1); // burst collapsed to one poke
+    expect(pokes.length).toBe(1); // the first event pokes immediately — no wait on a status flip
+    for (let i = 0; i < 20; i++) client.last.onEvent("pane_agent_status_changed", {});
+    expect(pokes.length).toBe(1); // the rest of the burst waits for the window
+    await sleep(45);
+    expect(pokes.length).toBe(2); // one catch-up for the whole burst, the last event not lost
+    await sleep(45);
+    expect(pokes.length).toBe(2); // quiet window after it: nothing owed, no extra poke
     poker.stop();
+  });
+
+  test("a steady stream polls at most once per window", async () => {
+    const { client, poker, pokes } = makePoker({ windowMs: 20 });
+    poker.start();
+    client.last.onUp();
+    for (let i = 0; i < 20; i++) {
+      client.last.onEvent("pane_agent_status_changed", {});
+      await sleep(5);
+    }
+    // ~100ms of events every 5ms → about one poke per 20ms window, not twenty.
+    expect(pokes.length).toBeGreaterThanOrEqual(3);
+    expect(pokes.length).toBeLessThanOrEqual(7);
+    poker.stop();
+  });
+
+  test("stop drops a pending catch-up", async () => {
+    const { client, poker, pokes } = makePoker({ windowMs: 15 });
+    poker.start();
+    client.last.onUp();
+    client.last.onEvent("pane_created", {});
+    client.last.onEvent("pane_created", {});
+    poker.stop();
+    await sleep(30);
+    expect(pokes.length).toBe(1);
   });
 });
 

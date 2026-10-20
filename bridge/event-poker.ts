@@ -1,8 +1,9 @@
 import type { HerdrClient } from "./herdr-client.ts";
+import { record } from "./route-cost.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Event-poked polling. A long-lived events.subscribe stream whose ONLY job is to
-// trigger immediate (debounced) re-polls. While the stream is healthy the engine
+// trigger immediate (throttled) re-polls. While the stream is healthy the engine
 // relaxes to a safety-net cadence; when it's down the engine falls back to fast
 // polling. Events are never state here — a missed event costs one interval, never
 // correctness — so the snapshot poll stays the single source of truth. See index.ts.
@@ -56,14 +57,17 @@ export function sameIdSet(a: string[], b: string[]): boolean {
 }
 
 interface EventPokerOpts {
-  /** Trailing-debounce window (ms) that coalesces a burst of events into one poke. */
-  debounceMs?: number;
+  /**
+   * Throttle window (ms): the first event pokes at once, the rest of the window's events collapse
+   * into one catch-up poke at its end — at most one poll per window, and never a lost last event.
+   */
+  windowMs?: number;
   /** Reconnect backoff schedule (ms); the last entry repeats indefinitely. */
   backoffMs?: number[];
 }
 
 export class EventPoker {
-  private readonly debounceMs: number;
+  private readonly windowMs: number;
   private readonly backoff: number[];
   private agentPanes: string[] = [];
   private started = false;
@@ -72,7 +76,9 @@ export class EventPoker {
   // The active stream handle; identity-compared in callbacks so a superseded stream's late `onDown`
   // (from a deliberate close during reconnect/stop) is ignored instead of flapping health.
   private stream: { close(): void } | null = null;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private windowTimer: ReturnType<typeof setTimeout> | null = null;
+  // An event landed inside the open window: owe one catch-up poke when it closes.
+  private pending = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly pokeListeners = new Set<() => void>();
   private readonly healthListeners = new Set<(healthy: boolean) => void>();
@@ -81,7 +87,7 @@ export class EventPoker {
     private readonly client: HerdrClient,
     opts: EventPokerOpts = {},
   ) {
-    this.debounceMs = opts.debounceMs ?? 200;
+    this.windowMs = opts.windowMs ?? 1000;
     this.backoff = opts.backoffMs ?? [1000, 2000, 5000, 15000];
   }
 
@@ -103,10 +109,11 @@ export class EventPoker {
 
   stop(): void {
     this.started = false;
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
+    if (this.windowTimer) {
+      clearTimeout(this.windowTimer);
+      this.windowTimer = null;
     }
+    this.pending = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -136,8 +143,9 @@ export class EventPoker {
         if (this.healthy) console.log(`[events] resubscribed (${subs.length} subscriptions)`);
         this.setHealthy(true, subs.length);
       },
-      onEvent: () => {
+      onEvent: (event) => {
         if (this.stream !== handle) return;
+        record(`event ${event}`, 0); // a count per type: which events flood the poll
         this.schedulePoke();
       },
       onDown: (reason) => {
@@ -172,11 +180,23 @@ export class EventPoker {
   }
 
   private schedulePoke(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      for (const cb of this.pokeListeners) cb();
-    }, this.debounceMs);
+    if (this.windowTimer) {
+      this.pending = true;
+      return;
+    }
+    this.fire();
+  }
+
+  /** Poke now and open a window; if events land in it, its close pokes once more (and reopens). */
+  private fire(): void {
+    record("events poke", 0);
+    for (const cb of this.pokeListeners) cb();
+    this.windowTimer = setTimeout(() => {
+      this.windowTimer = null;
+      if (!this.pending) return;
+      this.pending = false;
+      this.fire();
+    }, this.windowMs);
   }
 
   private setHealthy(healthy: boolean, subCount: number, reason?: string): void {

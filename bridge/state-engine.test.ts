@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { StateEngine, type EngineSnapshot } from "./state-engine.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { AgentStatus } from "./types.ts";
+import { resetRouteCost, routeCostSnapshot } from "./route-cost.ts";
 
 // The state engine polls Herdr, shapes the snapshot, and fires status transitions (which drive push
 // notifications). We exercise it with a fake HerdrClient whose returned panes change between polls.
@@ -499,6 +500,19 @@ describe("StateEngine — poke / cadence / onUpdate", () => {
     herdr.sessionSnapshot = () => Promise.reject(new Error("down"));
     await poll();
     expect(updates.length).toBe(1); // failed poll does not notify
+  });
+
+  test("each onUpdate listener is metered under its own name on /api/diag/routes", async () => {
+    resetRouteCost();
+    const { herdr, engine, poll } = makeEngine();
+    engine.onUpdate(() => {}, "context");
+    engine.onUpdate(() => {}, "nudger");
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];
+    await poll();
+    await poll();
+    const calls = (route: string) => routeCostSnapshot().routes.find((r) => r.route === route)?.calls;
+    expect(calls("onUpdate context")).toBe(2);
+    expect(calls("onUpdate nudger")).toBe(2);
   });
 
   // A snapshot call gated on a manual release, so a poke can land while a poll is in flight.
