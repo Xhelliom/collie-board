@@ -106,6 +106,7 @@ export class StateEngine {
   // failure up to MAX_BACKOFF_MS; 0 while connected. A timer tick before `retryAt` does nothing.
   private backoffMs = 0;
   private retryAt = 0;
+  private panesPrint = "";
 
   constructor(
     private readonly herdr: HerdrClient,
@@ -326,8 +327,14 @@ export class StateEngine {
       // a failed read keeps the last-known name and never fails the poll.
       await timed("engine enrichSessionNames", () => this.enrichSessionNames(agents));
 
-      this.agents = agents;
-      this.shellPanes = shellPanes;
+      // Same arrays while nothing in them moved, so a reader can key a cache on their identity
+      // (board-routes' `memoOn`) instead of rebuilding on every poll.
+      const panesPrint = JSON.stringify([agents, shellPanes]);
+      if (panesPrint !== this.panesPrint) {
+        this.agents = agents;
+        this.shellPanes = shellPanes;
+        this.panesPrint = panesPrint;
+      }
       this.workspaces = workspaceViews;
       this.tabs = tabViews;
       this.bridge = "connected";

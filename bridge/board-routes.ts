@@ -77,6 +77,7 @@ import {
   reopenForPr,
   resolveConflict,
 } from "./integrate.ts";
+import { memoOn } from "./http-cache.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -796,13 +797,21 @@ async function route(
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      const all = cardViews(db, engine.current(), { copilotBusy: ctx.copilot.busy() }).map(withNext);
       const v = new URL(req.url).searchParams.get("view");
-      if (v === null) return json({ cards: all });
-      if (v !== "summary") return text("bad view", 400);
-      // The list screens' view (audit perf #4): no spec, few finished cards, counts over all of them.
-      const open = new Set(db.listPhases().filter((p) => p.closedAt == null).map((p) => p.id));
-      return json(cardsSummary(all, open));
+      if (v !== null && v !== "summary") return text("bad view", 400);
+      // Polled by every board screen: rebuilt only when the db, the panes or the copilot moved.
+      const snap = engine.current();
+      const busy = ctx.copilot.busy();
+      const deps = [db.revision(), snap.agents, snap.shellPanes, [...busy].join()];
+      return json(
+        memoOn(db, `cards:${v}`, deps, () => {
+          const all = cardViews(db, snap, { copilotBusy: busy }).map(withNext);
+          if (v === null) return { cards: all };
+          // The list screens' view (audit perf #4): no spec, few finished cards, counts over all of them.
+          const open = new Set(db.listPhases().filter((p) => p.closedAt == null).map((p) => p.id));
+          return cardsSummary(all, open);
+        }),
+      );
     }
     if (req.method === "POST") {
       const denied = ctx.guard("write");
