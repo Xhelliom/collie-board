@@ -36,6 +36,7 @@ import { adapterFor } from "@/lib/harness";
 import { ActionRow, DestructiveActionRow } from "@/components/action-sheet-rows";
 import { FindBar } from "@/components/find-bar";
 import { PaneMenu } from "@/components/pane-menu";
+import { ABOVE_TAB_BAR } from "@/components/app-nav";
 import { Composer, type ComposerHandle } from "@/components/composer";
 import { CtxBar } from "@/components/ctx-bar";
 import { SubagentsLine } from "@/components/subagents-line";
@@ -641,9 +642,13 @@ export function AgentChat({
   };
 
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row">
-      {/* Desktop-only, 296px: every pane in the herd, grouped exactly as the pane switcher
-          groups them (redesign §5 "three panes"). Below `lg` this is the pane-switcher sheet instead. */}
+    // ABOVE_TAB_BAR: the mobile tab bar shows on this screen too — the composer, the column's in-flow
+    // bottom edge, sits on top of it instead of under it.
+    <div className={`flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row ${ABOVE_TAB_BAR}`}>
+      {/* 2xl-only, 296px: every pane in the herd, grouped exactly as the pane switcher groups them
+          (redesign §5 "three panes"). The full nav sidebar (248px) stays on this screen, so below
+          `2xl` this column would starve the mirror — there the toolbar's pane menu and the composer's
+          pane switcher do the job. */}
       <PaneListColumn
         agents={agents}
         shellPanes={shellPanes}
@@ -658,7 +663,7 @@ export function AgentChat({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Header — the SAME AppHeader toolbar shell every screen mounts, plus the back chevron (this
             is an entered screen). Mobile only from here (`lg:hidden`) — the desktop toolbar below
-            replaces it there, since the icon-rail sidebar (app-nav.tsx) is the way back on desktop,
+            replaces it there, since the nav sidebar (app-nav.tsx) is the way back on desktop,
             not a chevron. The pane's own bits ride in via slots: the `space › tab` breadcrumb as the
             center, the agent StatusBadge as the right-cluster lead, and the find bar as the full-row
             takeover while searching. bridge/error/stalled still drive `connecting` below (the
@@ -766,7 +771,7 @@ export function AgentChat({
         </div>
 
         {/* Desktop toolbar (redesign §5 "three panes") — replaces AppHeader entirely from `lg` up:
-            identity + breadcrumb on the left (no back chevron; the icon-rail sidebar is the way back
+            identity + breadcrumb on the left (no back chevron; the nav sidebar is the way back
             on desktop), the SAME view/find/history/more controls on the right, just always visible
             rather than folded into "⋯" (mobile has no room for both; desktop does). */}
         <div className="hidden h-14 flex-none items-center gap-3 border-b border-border px-5 lg:flex">

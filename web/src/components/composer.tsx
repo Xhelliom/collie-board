@@ -468,7 +468,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   return (
     <>
-      <div className="border-t border-border/60 bg-chrome px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)] pt-2.5">
+      {/* Below `lg` the tab bar under it already pays the safe area (agent-chat's ABOVE_TAB_BAR). */}
+      <div className="border-t border-border/60 bg-chrome px-3 pb-2 pt-2.5 lg:pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]">
         {/* Pending-send preview: visible from send until the mirror echoes back (or 6s). Shows the
             user what landed so they don't double-tap while waiting for the terminal to update. */}
         {lastSent && (

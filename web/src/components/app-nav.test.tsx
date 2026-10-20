@@ -37,7 +37,7 @@ function renderAt(path: string, data: HomeData = baseData()) {
     initialEntries: [path],
   });
   const result = render(<RouterProvider router={router} />);
-  // Sidebar renders first in AppNav's JSX, then the (possibly null) mobile tab bar — a stable way to
+  // Sidebar renders first in AppNav's JSX, then the mobile tab bar — a stable way to
   // scope a query to one or the other without relying on CSS, which jsdom doesn't apply.
   const navs = result.container.querySelectorAll("nav");
   return { router, sidebar: navs[0] as HTMLElement, tabBar: navs[1] as HTMLElement | undefined };
@@ -60,10 +60,13 @@ describe("AppNav — sidebar (desktop, always mounted)", () => {
     expect(router.state.location.pathname).toBe("/board");
   });
 
-  it("stays mounted on an entered screen (a pane), where the tab bar does not", () => {
-    const { sidebar, tabBar } = renderAt("/pane/w1%3Ap1");
-    expect(within(sidebar).getByRole("button", { name: "Board" })).toBeInTheDocument();
-    expect(tabBar).toBeUndefined();
+  it("stays full on an entered screen: labels and Herd lit on a pane, Spaces on a space", () => {
+    const pane = renderAt("/pane/w1%3Ap1");
+    expect(within(pane.sidebar).getByText("Collie Board")).toBeInTheDocument();
+    expect(within(pane.sidebar).getByRole("button", { name: /Herd/ })).toHaveAttribute("aria-current", "page");
+    pane.router.dispose();
+    const space = renderAt("/space/w1");
+    expect(within(space.sidebar).getByRole("button", { name: /Spaces/ })).toHaveAttribute("aria-current", "page");
   });
 });
 
@@ -75,12 +78,16 @@ describe("AppNav — mobile tab bar", () => {
     expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("renders on the root screens and a card, not on a pane", () => {
-    expect(renderAt("/board").tabBar).toBeDefined();
-    expect(renderAt("/").tabBar).toBeDefined();
-    expect(renderAt("/spaces").tabBar).toBeDefined();
-    expect(renderAt("/settings").tabBar).toBeDefined();
-    expect(renderAt("/pane/w1%3Ap1").tabBar).toBeUndefined();
+  it("renders on every screen, entered ones included", () => {
+    for (const path of ["/board", "/", "/spaces", "/settings", "/pane/w1%3Ap1", "/space/w1", "/gallery"]) {
+      expect(renderAt(path).tabBar).toBeDefined();
+    }
+  });
+
+  it("lights Herd on a pane, Spaces on a space, nothing on a screen of its own", () => {
+    expect(within(renderAt("/pane/w1%3Ap1").tabBar!).getByRole("button", { name: /Herd/ })).toHaveAttribute("aria-current", "page");
+    expect(within(renderAt("/space/w1").tabBar!).getByRole("button", { name: "Spaces" })).toHaveAttribute("aria-current", "page");
+    expect(within(renderAt("/gallery").tabBar!).queryByRole("button", { current: "page" })).toBeNull();
   });
 
   it("stays visible, with Board lit, on the board's own Open PRs view", () => {

@@ -12,6 +12,7 @@ import { openLightbox } from "@/lib/lightbox";
 import { ROOT_ROUTE_ID, type HomeData, type PaneArtifactsData } from "@/lib/loaders";
 import type { ArtifactInfo } from "@/lib/types";
 import { useT } from "@/i18n";
+import { ABOVE_TAB_BAR } from "@/components/app-nav";
 
 // Re-exported so existing importers keep spelling it from here; the caption lives with the
 // shared viewer both file surfaces render through.
@@ -63,7 +64,7 @@ export function ArtifactViewer({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+    <div className={`flex min-h-0 flex-1 items-center justify-center p-3 ${ABOVE_TAB_BAR}`}>
       <button
         type="button"
         onClick={() => (target < 0 ? openLightbox([artifact.path]) : openLightbox(imagePaths!, target))}
@@ -98,7 +99,7 @@ export function ArtifactsRoute() {
   const open = (artifact: ArtifactInfo) => setSelected(artifact);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className={`flex min-h-0 flex-1 flex-col ${ABOVE_TAB_BAR}`}>
       {selected !== null ? (
         <AppHeader
           onBack={() => setSelected(null)}
