@@ -34,7 +34,7 @@ describe("QuickList", () => {
     expect(router.state.location.pathname + router.state.location.search).toBe("/board/project?repo=%2Fcode%2Flive");
   });
 
-  it("leads with each live orchestrator, its dot when it waits on you, and opens its conversation", async () => {
+  it("lists each live orchestrator, its dot when it waits on you, and opens its conversation", async () => {
     const orch = { ...fixtureAgents[0]!, paneId: "orch-1", workspaceLabel: "orchestrator-live", cwd: "/code/live", status: "idle" as const };
     const router = createMemoryRouter(
       [{ path: "*", element: <QuickList q={q} data={{ ...data, agents: [orch] } as HomeData} /> }],
@@ -43,11 +43,11 @@ describe("QuickList", () => {
     render(<RouterProvider router={router} />);
     expect(screen.getByText("Orchestrators")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Waiting for you" })).toBeInTheDocument(); // the decision on /code/live
-    await userEvent.click(screen.getAllByText("live")[0]!);
+    await userEvent.click(screen.getAllByText("live")[1]!); // [0] is the project, listed above
     expect(router.state.location.pathname).toBe("/pane/orch-1");
   });
 
-  it("lists the pinned sessions under the orchestrators: live opens its pane, gone is greyed with its remove", async () => {
+  it("lists the pinned sessions: live opens its pane, gone is greyed with its remove", async () => {
     const live = { ...fixtureAgents[0]!, paneId: "p-chat", paneLabel: "chat infra", agentSessionId: "s-live", status: "idle" as const };
     const pins = [{ session: "s-live", name: "old name" }, { session: "s-gone", name: "ancienne · perso" }];
     const router = createMemoryRouter(
@@ -61,5 +61,16 @@ describe("QuickList", () => {
     expect(screen.getByRole("button", { name: "Unpin" })).toBeInTheDocument();
     await userEvent.click(screen.getByText("chat infra"));
     expect(router.state.location.pathname).toBe("/pane/p-chat");
+  });
+
+  it("orders the sections projects, then pins, then orchestrators, then what waits", () => {
+    const orch = { ...fixtureAgents[0]!, paneId: "orch-1", workspaceLabel: "orchestrator-live", agentSessionId: "s-o", cwd: "/code/live", status: "idle" as const };
+    const router = createMemoryRouter(
+      [{ path: "*", element: <QuickList q={q} data={{ ...data, agents: [orch] } as HomeData} pins={[{ session: "s-o", name: "o" }]} /> }],
+      { initialEntries: ["/settings"] },
+    );
+    render(<RouterProvider router={router} />);
+    const headings = ["Projects", "Pinned", "Orchestrators", "Waiting for you"].map((h) => screen.getByText(h));
+    headings.slice(1).forEach((h, i) => expect(headings[i]!.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
   });
 });
