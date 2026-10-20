@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -236,6 +236,43 @@ describe("ProjectRoute", () => {
     expect(screen.queryByRole("region", { name: /Lot in progress/ })).toBeNull();
   });
 
+  it("leads with the running lot, then what waits for you, then the phase in progress; the rest folds below", async () => {
+    mount(
+      [
+        card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "working" }),
+        card({ id: "b", title: "Beta", phaseId: "P1", status: "review" }),
+        card({ id: "c", title: "Loose one", status: "backlog" }),
+      ],
+      { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: 1 })] },
+    );
+    const order = [
+      await screen.findByRole("region", { name: "Lot in progress: Lot A" }),
+      screen.getByRole("region", { name: /waiting for you/i }),
+      screen.getByRole("heading", { name: "P1" }),
+      screen.getByRole("button", { name: "Outside a phase · 1 step" }),
+      screen.getByRole("button", { name: "Key figures" }),
+      screen.getByRole("button", { name: "Autonomy" }),
+    ];
+    for (let i = 1; i < order.length; i++) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("remembers a folded section on this device, and opens it for what you asked to see", async () => {
+    const cards = [card({ id: "a", phaseId: "P1" }), card({ id: "c", title: "Loose one", status: "blocked" })];
+    mount(cards, { phases: [phase("P1")] });
+    await userEvent.click(await screen.findByRole("button", { name: "Key figures" }));
+    await userEvent.click(screen.getByRole("button", { name: "Outside a phase · 1 step" }));
+    expect(screen.queryByRole("img", { name: /steps done/ })).toBeNull();
+    expect(document.getElementById("step-c")).toBeNull();
+    cleanup();
+    mount(cards, { phases: [phase("P1")] });
+    expect(await screen.findByRole("button", { name: "Key figures" })).toHaveAttribute("aria-expanded", "false");
+    // "See" on a step waiting outside a phase unfolds that section.
+    const waiting = screen.getByRole("region", { name: /waiting for you/i });
+    await userEvent.click(within(waiting).getByRole("button", { name: /Loose one/ }));
+    expect(screen.getByRole("button", { name: "Outside a phase · 1 step" })).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById("step-c")).not.toBeNull();
+  });
+
   it("files a step under another phase", async () => {
     let body: unknown = null;
     server.use(
@@ -454,6 +491,7 @@ describe("ProjectRoute", () => {
     server.use(http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })));
     const scroll = vi.mocked(Element.prototype.scrollIntoView);
     scroll.mockClear();
+    localStorage.setItem("collie-fold:project-autonomy", "0"); // folded: the link unfolds it
     mount([card({ id: "a" })], {}, "/board/project?repo=%2Fr%2Fapp#project-autonomy");
     const block = await screen.findByRole("region", { name: "Autonomy" });
     await waitFor(() => expect(scroll.mock.contexts).toContain(block));

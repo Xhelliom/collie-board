@@ -6,6 +6,7 @@ import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { AutonomySettings } from "@/components/autonomy-settings";
 import { BoardTabs } from "@/components/board-tabs";
+import { Fold, useStoredFold } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
@@ -168,8 +169,10 @@ export function ProjectRoute() {
   // `#project-autonomy` (the orchestrator's link): scroll there once the block is rendered and the sheet
   // gone — on every arrival, the link pushes a new entry — and say so if it never shows up.
   const location = useLocation();
+  const autoFold = useStoredFold("project-autonomy");
   useEffect(() => {
     if (location.hash !== `#${AUTONOMY_SECTION}`) return;
+    autoFold[1](true);
     return revealWhenRendered(AUTONOMY_SECTION, go, () => setStatus(t("orch.autoMissing"), "error", null));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival, not per render
   }, [location.key, location.hash]);
@@ -191,6 +194,86 @@ export function ProjectRoute() {
   // into its first milestone. This is what `POST /api/phases/seal` files when it is not given a list.
   const unfiled = v.phases.filter((p) => !p.phase).flatMap((p) => p.steps.filter((s) => s.status === "done"));
   const looseDone = unfiled.length;
+  // The page leads with the phases in progress; what no phase has taken folds below them — unless no phase
+  // exists at all, and then it is the work itself.
+  const phased = v.phases.some((p) => p.phase);
+  const current = phased ? v.phases.filter((p) => p.phase) : v.phases;
+  const loose = phased ? v.phases.filter((p) => !p.phase) : [];
+  const looseFold = useStoredFold("project-loose");
+  const figuresFold = useStoredFold("project-figures");
+  const unfold = (p: (s: ProjectPhase) => boolean) => loose.some(p) && looseFold[1](true);
+
+  // One section of the road map: its heading, its lots and its steps. `k` numbers the steps across the page.
+  let k = 0;
+  const section = (p: ProjectPhase) => {
+    const visible = p.steps.filter(shownIn);
+    if (visible.length === 0 && !(filter === "all" && p.phase)) return null;
+    return (
+      <li key={p.key} className="contents">
+        <div id={`phase-${p.key}`} className="flex scroll-mt-16 flex-wrap items-center gap-x-3 gap-y-1 pb-1 pt-4">
+          <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title || t("project.noPhase")}</h2>
+          <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
+          {p.phase && p.steps.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setValidating(p)}
+              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
+            >
+              {t("project.validate")}
+            </button>
+          )}
+          {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
+            <button
+              type="button"
+              onClick={() => {
+                const done = p.steps.filter((s) => s.status === "done");
+                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title });
+              }}
+              aria-label={p.container ? undefined : t("project.seal.aria")}
+              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
+            >
+              {p.container ? t("project.validate") : t("project.seal")}
+            </button>
+          )}
+        </div>
+        {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
+        {p.phase && !p.phase.closedAt && (
+          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => {
+            forgetProjectSettled();
+            void revalidator.revalidate();
+          }} />
+        )}
+        {visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
+        <PhaseLots
+          lots={p.lots}
+          steps={visible}
+          byId={byId}
+          onLaunched={() => void revalidator.revalidate()}
+          renderStep={(s, inLot) => (
+            <StepItem
+              key={s.id}
+              card={s}
+              index={k++}
+              next={s.id === v.next?.id}
+              open={openIds.has(s.id)}
+              flash={flash === s.id}
+              predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
+              facts={data.facts?.[s.id]}
+              template={(() => {
+                const f = data.templates ? templateFor(s, data.phases, data.templates.templates) : null;
+                return f ? { name: templateName(f.template), inherited: f.inherited } : undefined;
+              })()}
+              inLot={inLot}
+              hold={lotHold(s, data.lots, data.facts?.[s.id]?.pr?.state === "open")}
+              onToggle={() => toggle(s.id)}
+              phases={data.phases}
+              onMove={(phaseId) => void move(s.id, phaseId)}
+            />
+          )}
+        />
+      </li>
+    );
+  };
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
@@ -256,6 +339,7 @@ export function ProjectRoute() {
                           type="button"
                           onClick={() => {
                             pick("all");
+                            unfold((p) => p.steps.includes(c));
                             toggle(c.id, true);
                             requestAnimationFrame(() => go(document.getElementById(`step-${c.id}`)));
                             setFlash(c.id);
@@ -275,61 +359,6 @@ export function ProjectRoute() {
                 </section>
               )}
 
-              <header className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  {latest > 0 && (
-                    <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
-                      <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-                      {t("project.updated", { ago: ago(latest) })}
-                    </span>
-                  )}
-                  <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-                    {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
-                    <span className="hidden sm:inline">
-                      {v.total > 0 ? rich(t("project.sum.progress", { count: v.done, done: v.done, total: v.total })) : t("project.sum.none")}
-                      {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
-                      {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
-                      , {t("project.sum.flight", { count: v.active })}.
-                    </span>
-                    {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
-                    {v.closedCount > 0 && (
-                      <>
-                        {" "}
-                        {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
-                      </>
-                    )}
-                  </p>
-                </div>
-                <Ring done={v.done} active={v.active} total={v.total} />
-              </header>
-
-              <div className="hidden grid-cols-4 gap-2 sm:grid">
-                <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
-                <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
-                <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
-                <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
-              </div>
-
-              {/* The way to tidy an old project, on the page itself: the finished steps that sit in no validated phase
-                  (old dictations included) are the reason a figure reads 90 % of nothing in particular. */}
-              {repo && looseDone > 0 && (
-                <section aria-label={t("project.unfiled.aria")} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-dashed p-3.5">
-                  <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
-                  <button
-                    type="button"
-                    onClick={() => setSealing({ count: looseDone })}
-                    className="shrink-0 rounded-full border bg-card/70 px-3.5 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
-                  >
-                    {t("project.sealAll")}
-                  </button>
-                </section>
-              )}
-
-              {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
-              {repo && <RepoFlow repo={repo} flows={data.flows} />}
-              {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
-              {repo && <AutonomySettings repo={repo} />}
-
               <nav aria-label={t("project.phases.aria")} className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
                 {v.phases.map((p) => (
                   <button
@@ -337,6 +366,7 @@ export function ProjectRoute() {
                     type="button"
                     onClick={() => {
                       pick("all");
+                      unfold((l) => l.key === p.key);
                       requestAnimationFrame(() => go(document.getElementById(`phase-${p.key}`)));
                     }}
                     className={cn(
@@ -385,81 +415,75 @@ export function ProjectRoute() {
                 </button>
               </div>
 
-              <ol className="flex flex-col gap-2">
-                {(() => {
-                  let k = 0;
-                  return v.phases.map((p) => {
-                    const visible = p.steps.filter(shownIn);
-                    if (visible.length === 0 && !(filter === "all" && p.phase)) return null;
-                    return (
-                      <li key={p.key} className="contents">
-                        <div id={`phase-${p.key}`} className="flex scroll-mt-16 flex-wrap items-center gap-x-3 gap-y-1 pb-1 pt-4">
-                          <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title || t("project.noPhase")}</h2>
-                          <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
-                          {p.phase && p.steps.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => setValidating(p)}
-                              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
-                            >
-                              {t("project.validate")}
-                            </button>
-                          )}
-                          {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const done = p.steps.filter((s) => s.status === "done");
-                                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title });
-                              }}
-                              aria-label={p.container ? undefined : t("project.seal.aria")}
-                              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
-                            >
-                              {p.container ? t("project.validate") : t("project.seal")}
-                            </button>
-                          )}
-                        </div>
-                        {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
-                        {p.phase && !p.phase.closedAt && (
-                          <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => {
-                            forgetProjectSettled();
-                            void revalidator.revalidate();
-                          }} />
-                        )}
-                        {visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
-                        <PhaseLots
-                          lots={p.lots}
-                          steps={visible}
-                          byId={byId}
-                          onLaunched={() => void revalidator.revalidate()}
-                          renderStep={(s, inLot) => (
-                            <StepItem
-                              key={s.id}
-                              card={s}
-                              index={k++}
-                              next={s.id === v.next?.id}
-                              open={openIds.has(s.id)}
-                              flash={flash === s.id}
-                              predecessor={s.dependsOn ? byId.get(s.dependsOn) : undefined}
-                              facts={data.facts?.[s.id]}
-                              template={(() => {
-                                const f = data.templates ? templateFor(s, data.phases, data.templates.templates) : null;
-                                return f ? { name: templateName(f.template), inherited: f.inherited } : undefined;
-                              })()}
-                              inLot={inLot}
-                              hold={lotHold(s, data.lots, data.facts?.[s.id]?.pr?.state === "open")}
-                              onToggle={() => toggle(s.id)}
-                              phases={data.phases}
-                              onMove={(phaseId) => void move(s.id, phaseId)}
-                            />
-                          )}
-                        />
-                      </li>
-                    );
-                  });
-                })()}
-              </ol>
+              <ol className="flex flex-col gap-2">{current.map(section)}</ol>
               {v.total === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">{t("project.allValidated")}</p>}
+
+              {/* Below the phase in progress: what no phase has taken, then the figures and the settings — each folds, per device. */}
+              {loose.some((p) => p.steps.some(shownIn)) && (
+                <Fold title={t("project.fold.loose", { count: loose.reduce((n, p) => n + p.steps.length, 0) })} state={looseFold}>
+                  <ol className="flex flex-col gap-2">{loose.map(section)}</ol>
+                </Fold>
+              )}
+              {/* The way to tidy an old project, on the page itself: the finished steps that sit in no validated phase
+                  (old dictations included) are the reason a figure reads 90 % of nothing in particular. */}
+              {repo && looseDone > 0 && (
+                <section aria-label={t("project.unfiled.aria")} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-dashed p-3.5">
+                  <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSealing({ count: looseDone })}
+                    className="shrink-0 rounded-full border bg-card/70 px-3.5 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
+                  >
+                    {t("project.sealAll")}
+                  </button>
+                </section>
+              )}
+
+              <Fold title={t("project.fold.figures")} state={figuresFold}>
+                <header className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    {latest > 0 && (
+                      <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
+                        <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
+                        {t("project.updated", { ago: ago(latest) })}
+                      </span>
+                    )}
+                    <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
+                      {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
+                      <span className="hidden sm:inline">
+                        {v.total > 0 ? rich(t("project.sum.progress", { count: v.done, done: v.done, total: v.total })) : t("project.sum.none")}
+                        {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
+                        {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
+                        , {t("project.sum.flight", { count: v.active })}.
+                      </span>
+                      {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
+                      {v.closedCount > 0 && (
+                        <>
+                          {" "}
+                          {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <Ring done={v.done} active={v.active} total={v.total} />
+                </header>
+
+                <div className="hidden grid-cols-4 gap-2 sm:grid">
+                  <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
+                  <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
+                  <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
+                  <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
+                </div>
+              </Fold>
+
+              {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
+              {repo && <RepoFlow repo={repo} flows={data.flows} />}
+              {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
+              {repo && (
+                <Fold title={t("orch.auto")} state={autoFold}>
+                  <AutonomySettings repo={repo} />
+                </Fold>
+              )}
               <ClosedPhases closed={v.closed} onReopened={() => void revalidator.revalidate()} />
             </>
           )}

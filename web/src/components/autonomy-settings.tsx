@@ -34,8 +34,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
 
   return (
     <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-2xl border bg-card/40 p-3.5 text-sm">
-      <h2 className="text-xs font-semibold text-muted-foreground">{t("orch.auto")}</h2>
-      <div className="mt-2 flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span>{t("orch.autoOn")}</span>
           <Switch checked={a.enabled} onCheckedChange={(enabled) => void save({ enabled })} aria-label={t("orch.autoOn")} />

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, Copy } from "lucide-react";
 
-import { useFold } from "@/components/fold";
+import { useFold, useStoredFold } from "@/components/fold";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { useT, type MessageKey } from "@/i18n";
@@ -80,7 +80,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
 export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadmap | null }) {
   const t = useT();
   // Folded by default: the page is read to reach one phase, not to scroll past the whole document.
-  const [open, setOpen] = useState(!roadmap);
+  const [open, setOpen] = useStoredFold("project-roadmap", !roadmap);
   // The active phase opens by itself — that is where the brainstorm is; the rest stay folded.
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set((roadmap?.items ?? []).filter((i) => i.status === "active").map((i) => i.id)));
   const items = roadmap?.items ?? [];
