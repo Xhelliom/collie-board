@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.221.0] - 2026-10-20
+
+### Added
+
+- Épingler une session d'agent (tuile et en-tête du pane) : « Épinglées » sous les orchestrateurs dans la barre latérale, en tête de la liste sur mobile (bcfb8b2)
+- Route `/api/board/pins` : épingles stockées côté bridge, par `agent_session`, partagées téléphone/PC ; une session disparue reste grisée avec son bouton pour la retirer (bcfb8b2)
+
 ## [0.220.0] - 2026-10-20
 
 ### Added
