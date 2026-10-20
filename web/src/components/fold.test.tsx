@@ -45,6 +45,19 @@ describe("count folds", () => {
     expect(screen.getAllByText(/^repo\d$/)).toHaveLength(5);
   });
 
+  it("Projects: a running lot leads, then one finished in the day, the rest below", () => {
+    const lots = {
+      "/r/3": { name: "Pipeline", done: 1, total: 4, blocked: 1, finishedAt: null },
+      "/r/4": { name: "Auth", done: 4, total: 4, blocked: 0, finishedAt: Date.now() - 2 * 3600_000 },
+    };
+    render(<MemoryRouter><ProjectTiles repos={[repo(0), repo(1), repo(2), repo(3), repo(4)]} lots={lots} /></MemoryRouter>);
+    expect(screen.getAllByText(/^repo\d$/).map((e) => e.textContent)).toEqual(["repo3", "repo4", "repo0"]);
+    expect(screen.getByText("Lot Pipeline running")).toBeInTheDocument();
+    expect(screen.getByText("1 blocked")).toBeInTheDocument();
+    expect(screen.getByText("Lot Auth finished 2 hr. ago")).toBeInTheDocument();
+    expect(screen.getByText("4/4 merged")).toBeInTheDocument();
+  });
+
   it("the diff lists 8 files then a count", async () => {
     const files = Array.from({ length: 57 }, (_, i) => ({ path: `src/f${i}.ts`, added: 1, removed: 0, kind: "text" }));
     server.use(http.get("/api/cards/c1/diff", () => HttpResponse.json({ ok: true, base: "b", cwd: "/w", files, added: 57, removed: 0 })));

@@ -219,7 +219,7 @@ curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"phaseId":"<phase id>"}'
 # lots: a PLANNED run. `foldInCap` is required (0 = the lead folds nothing in).
 curl -s -X POST "$B/api/runs" "${H[@]}" -d '{"planned":true,"cardIds":["<id>","<id>"],"foldInCap":2,
   "phaseId":"<phase id>","name":"Lot 1","position":0}'
-curl -s "$B/api/runs?repo=/abs/repo"                          # lots and runs, with cardIds, finished, prUrl (one-PR lot)
+curl -s "$B/api/runs?repo=/abs/repo"                          # lots and runs, with cardIds, finished, finishedAt, done/blocked counts, prUrl (one-PR lot); no ?repo = every repo
 curl -s -X PATCH "$B/api/runs/<id>" "${H[@]}" -d '{"name":"…","position":1,"cardIds":["<id>"]}'  # planned only
 curl -s -X DELETE "$B/api/runs/<id>" "${H[@]}"                # planned only; releases the cards
 ```

@@ -1852,10 +1852,15 @@ export class BoardDb {
 
   /** Whether the coordinator journaled `run.finished` for this run — the end of {@link listOpenRuns}. */
   runFinished(id: string): boolean {
+    return this.runFinishedAt(id) !== null;
+  }
+
+  /** When `run.finished` was journaled for this run (its event's ts), or null — read, never stored. */
+  runFinishedAt(id: string): number | null {
     return (
       this.db
-        .query<{ n: number }, [string]>("SELECT 1 AS n FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ? LIMIT 1")
-        .get(id) != null
+        .query<{ ts: number }, [string]>("SELECT MIN(ts) AS ts FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ?")
+        .get(id)?.ts ?? null
     );
   }
 

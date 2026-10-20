@@ -182,6 +182,19 @@ describe("lotView", () => {
     expect(lotView(db, run)).toMatchObject({ finished: true, prUrl: null });
   });
 
+  it("dates the finish from the journal and counts done / blocked members", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/repo" });
+    const b = db.createCard({ title: "b", repoPath: "/repo" });
+    const run = db.createRun({ repoPath: "/repo", cardIds: [a.id, b.id], foldInCap: 0 });
+    db.setStatus(a.id, "done", "test");
+    db.setStatus(b.id, "blocked", "test");
+    expect(lotView(db, run)).toMatchObject({ finishedAt: null, done: 1, blocked: 1 });
+    const before = Date.now();
+    db.recordRunEvent(null, "run.finished", { runId: run.id });
+    expect(lotView(db, run).finishedAt).toBeGreaterThanOrEqual(before);
+  });
+
   it("never calls a planned lot finished", () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/repo" });
