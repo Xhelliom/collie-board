@@ -12,10 +12,10 @@ import type { HomeData } from "@/lib/loaders";
 import { paneDisplayName } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// The sidebar's quick access, on every screen (desktop): the projects — a lot in flight first, then a
-// lot that finished lately — and under them what waits for you. Above them, each live project's
-// orchestrator, the conversation the operator returns to most; its dot says it waits on you. Under them
-// the sessions the operator pinned (pins.ts). Fetched only where it shows (desktop).
+// The sidebar's quick access, on every screen (desktop): the projects first — a lot in flight, then a
+// lot that finished lately — then the sessions the operator pinned (pins.ts), then each live project's
+// orchestrator (its dot says it waits on you), and last what waits for you. Fetched only where it
+// shows (desktop).
 export function SidebarQuick({ data }: { data: HomeData }) {
   const q = useQuickAccess(data, useIsDesktop());
   return <QuickList q={q} data={data} pins={usePins(data)} />;
@@ -35,40 +35,6 @@ export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data:
 
   return (
     <>
-      {orchs.length > 0 && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.orchestrators")}</span>
-          {orchs.map((a) => {
-            const waits = a.status === "blocked" || waiting.some((w) => w.repoPath === a.cwd);
-            return (
-              <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{repoName(a.cwd)}</span>
-                  {waits && <span className="size-2 shrink-0 rounded-full bg-status-blocked" role="img" aria-label={t("quick.orchWaits")} />}
-                </span>
-                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>{t(`quick.orch.${a.status}`)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {pins.length > 0 && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.pinned")}</span>
-          {resolvePins(pins, data.agents).map(({ pin, agent: a }) =>
-            a ? (
-              <button key={pin.session} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
-                <span className="truncate font-medium text-foreground">{paneDisplayName(a)}</span>
-                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>
-                  {t(`quick.orch.${a.status}`)} · {a.workspaceLabel}
-                </span>
-              </button>
-            ) : (
-              <GonePin key={pin.session} pin={pin} className="py-1 pl-2.5 text-sm" />
-            ),
-          )}
-        </div>
-      )}
       {!!q?.projects.length && (
         <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
           <span className={HEADING}>{t("quick.projects")}</span>
@@ -88,6 +54,40 @@ export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data:
               </span>
             </button>
           ))}
+        </div>
+      )}
+      {pins.length > 0 && (
+        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
+          <span className={HEADING}>{t("quick.pinned")}</span>
+          {resolvePins(pins, data.agents).map(({ pin, agent: a }) =>
+            a ? (
+              <button key={pin.session} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+                <span className="truncate font-medium text-foreground">{paneDisplayName(a)}</span>
+                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>
+                  {t(`quick.orch.${a.status}`)} · {a.workspaceLabel}
+                </span>
+              </button>
+            ) : (
+              <GonePin key={pin.session} pin={pin} className="py-1 pl-2.5 text-sm" />
+            ),
+          )}
+        </div>
+      )}
+      {orchs.length > 0 && (
+        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
+          <span className={HEADING}>{t("quick.orchestrators")}</span>
+          {orchs.map((a) => {
+            const waits = a.status === "blocked" || waiting.some((w) => w.repoPath === a.cwd);
+            return (
+              <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate font-medium text-foreground">{repoName(a.cwd)}</span>
+                  {waits && <span className="size-2 shrink-0 rounded-full bg-status-blocked" role="img" aria-label={t("quick.orchWaits")} />}
+                </span>
+                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>{t(`quick.orch.${a.status}`)}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       {(waiting.length > 0 || blocked.length > 0) && (
