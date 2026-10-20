@@ -29,6 +29,8 @@ export interface AgentView {
    * here — the bridge re-derives it server-side and never accepts one from the client.
    */
   agentSessionId?: string;
+  /** The same session as a path (herdr `agent_session.kind === "path"`, a Codex rollout) — opaque here too. */
+  agentSessionPath?: string;
   /**
    * Upper bound on the lines a pane read can return (Herdr's scrollback depth + viewport). The only
    * reliable "is there more scrollback" signal — `PaneReadResponse.truncated` is always false even

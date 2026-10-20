@@ -95,6 +95,9 @@ const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
 
+/** `/api/board/pins` — the agent sessions pinned to the quick access (BoardDb `pins`). */
+const BOARD_PINS_ROUTE = "/api/board/pins";
+
 /** `/api/board/usage` — how much Claude Code quota is left (see usage.ts). */
 const BOARD_USAGE_ROUTE = "/api/board/usage";
 
@@ -494,6 +497,34 @@ async function route(
     if (denied) return denied;
     const check = new URL(req.url).searchParams.get("check") === "1";
     return ctx.json({ prs: await openPrs(ctx.db, check) });
+  }
+
+  // Pins: the operator's preference, shared by the phone and the PC. Keyed on herdr's agent session,
+  // not the pane id — a reboot renumbers panes, the session survives it.
+  if (pathname === BOARD_PINS_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      return ctx.json({ pins: ctx.db.pins() });
+    }
+    if (req.method === "POST") {
+      const denied = ctx.guard("write");
+      if (denied) return denied;
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return ctx.text("bad body", 400);
+      }
+      const { session, name, pinned } = (body ?? {}) as { session?: unknown; name?: unknown; pinned?: unknown };
+      if (typeof session !== "string" || !session.trim() || session.length > 1024) return ctx.text("session required", 400);
+      if (typeof pinned !== "boolean") return ctx.text("pinned must be a boolean", 400);
+      if (pinned && (typeof name !== "string" || !name.trim() || name.length > 200)) return ctx.text("name required", 400);
+      const pins = ctx.db.setPin(session, pinned ? (name as string).trim() : "", pinned);
+      ctx.audit.record({ action: "board.pin", session: ctx.session, device: ctx.device, detail: { agentSession: session, pinned } });
+      return ctx.json({ pins });
+    }
+    return ctx.text("method not allowed", 405);
   }
 
   if (pathname === BOARD_PREFS_ROUTE) {

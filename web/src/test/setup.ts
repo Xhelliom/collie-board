@@ -5,6 +5,7 @@ import { setupServer } from "msw/node";
 
 import { handlers, resetTypedDraft } from "./handlers";
 import { __resetConnectionHealth } from "@/lib/connection-health";
+import { __setPins } from "@/lib/pins";
 
 // findBy*/waitFor give up after 1 s by default: on a starved CPU (several agents pushing at once) a
 // route that renders late reads as "element not found". Headroom only; a missing element still fails.
@@ -18,7 +19,10 @@ beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 // to "now" before every test so a component rendered minutes after the file loaded never reads a stale
 // anchor as an escalated outage. Fake-timer escalation suites re-pin AFTER vi.useFakeTimers() so the
 // anchor equals the frozen clock exactly.
-beforeEach(() => __resetConnectionHealth());
+beforeEach(() => {
+  __resetConnectionHealth();
+  __setPins([]);
+});
 afterEach(() => {
   cleanup();
   server.resetHandlers();

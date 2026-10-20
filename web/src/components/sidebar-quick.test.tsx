@@ -46,4 +46,20 @@ describe("QuickList", () => {
     await userEvent.click(screen.getAllByText("live")[0]!);
     expect(router.state.location.pathname).toBe("/pane/orch-1");
   });
+
+  it("lists the pinned sessions under the orchestrators: live opens its pane, gone is greyed with its remove", async () => {
+    const live = { ...fixtureAgents[0]!, paneId: "p-chat", paneLabel: "chat infra", agentSessionId: "s-live", status: "idle" as const };
+    const pins = [{ session: "s-live", name: "old name" }, { session: "s-gone", name: "ancienne · perso" }];
+    const router = createMemoryRouter(
+      [{ path: "*", element: <QuickList q={null} data={{ ...data, agents: [live] } as HomeData} pins={pins} /> }],
+      { initialEntries: ["/settings"] },
+    );
+    render(<RouterProvider router={router} />);
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    expect(screen.getByText("ancienne · perso")).toBeInTheDocument();
+    expect(screen.getByText("session ended")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unpin" })).toBeInTheDocument();
+    await userEvent.click(screen.getByText("chat infra"));
+    expect(router.state.location.pathname).toBe("/pane/p-chat");
+  });
 });

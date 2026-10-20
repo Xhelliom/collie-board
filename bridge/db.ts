@@ -1136,6 +1136,17 @@ CREATE TABLE IF NOT EXISTS board_pref (
 );
 `;
 
+/** `board_pref` key for {@link BoardDb.pins}. */
+const PINS_KEY = "pinned_sessions";
+
+/** An agent session the operator pinned to the quick access. `session` is herdr's `agent_session`
+ *  (stable across a reboot, unlike the pane id); `name` is what it was called when pinned, so a pin
+ *  whose session is gone still says what it was. */
+export interface Pin {
+  session: string;
+  name: string;
+}
+
 /** `board_pref` key for {@link BoardDb.autoFollowUps}. */
 const AUTO_FOLLOW_UPS_KEY = "auto_follow_ups";
 
@@ -2646,6 +2657,28 @@ export class BoardDb {
 
   setMaxAgents(n: number): void {
     this.setPref(MAX_AGENTS_KEY, String(n));
+  }
+
+  /** The pinned agent sessions, in pin order. Junk in the row reads as no pins, never a throw. */
+  pins(): Pin[] {
+    const row = this.db
+      .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
+      .get(PINS_KEY);
+    try {
+      const v: unknown = row ? JSON.parse(row.value) : [];
+      return Array.isArray(v) ? v.filter((p): p is Pin => typeof p?.session === "string" && typeof p?.name === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Pin (or re-pin, refreshing its name) / unpin one session. A toggle, not a list replaced
+   *  wholesale: the phone and the PC each pin from a copy that may be stale. */
+  setPin(session: string, name: string, pinned: boolean): Pin[] {
+    const rest = this.pins().filter((p) => p.session !== session);
+    const next = pinned ? [...rest, { session, name }] : rest;
+    this.setPref(PINS_KEY, JSON.stringify(next));
+    return next;
   }
 
   private setPref(key: string, value: string): void {
