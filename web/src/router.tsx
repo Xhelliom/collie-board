@@ -16,6 +16,7 @@ import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
+import { attachNavCache } from "@/lib/nav-cache";
 
 // We don't use view transitions. React Router persists an "applied view transitions" map to
 // sessionStorage ("remix-router-transitions") and replays a phantom same-location transition on every
@@ -115,3 +116,7 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+// A screen already seen renders from its last data, then refreshes; a touched project or card link
+// starts loading before the tap lands (lib/nav-cache.ts).
+attachNavCache(router);

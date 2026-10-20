@@ -7,6 +7,7 @@
 // board-specific poll loop.
 
 import { fetchHistory, isApiErrorStatus } from "./api";
+import { navCached, urlKey } from "./nav-cache";
 import type { TranscriptEntry } from "./types";
 import { fetchFacts, type CardFacts } from "./project-facts";
 import { fetchFlows, type Flow } from "./flows";
@@ -68,7 +69,11 @@ export interface HomeBoardData {
 /** The home screen's cards, without the facts: it never reads them, and they are its heaviest poll (audit perf #1).
  *  Cold start: the cards are not awaited, so the triage shows at the snapshot's pace (audit perf #3). Once a list
  *  is known, they are — a poll that handed `<Await>` a fresh promise every tick would flash the skeletons. */
-export async function homeLoader({ request }: { request?: Request } = {}): Promise<HomeBoardData> {
+export function homeLoader({ request }: { request?: Request } = {}): Promise<HomeBoardData> {
+  return navCached(urlKey(request), () => loadHome(request));
+}
+
+async function loadHome(request: Request | undefined): Promise<HomeBoardData> {
   const board = loadBoard(request, false, true);
   if (lastBoard.summary) return { board: await board };
   // No last-good list to fall back on: an error is the block's to show, not zeros dressed as figures.
@@ -107,7 +112,7 @@ export interface CardData {
 // Keyed by card id so opening a second card doesn't show the first one's stale detail.
 const lastDetail = new Map<string, CardDetail>();
 
-export async function cardLoader({
+export function cardLoader({
   params,
   request,
 }: {
@@ -116,6 +121,10 @@ export async function cardLoader({
 }): Promise<CardData> {
   const { cardId } = params;
   if (!cardId) throw new Error("cardLoader: missing :cardId route param");
+  return navCached(urlKey(request), () => loadCard(cardId, request));
+}
+
+async function loadCard(cardId: string, request: Request | undefined): Promise<CardData> {
   try {
     const detail = await fetchCard(cardId, request?.signal);
     lastDetail.set(cardId, detail);
@@ -166,7 +175,11 @@ const FULL_LIST_PARAMS = ["tag", "origin", "phase", "done"];
 
 /** The Board's own loader: cards, facts, phases, templates — what BoardRoute reads, nothing of the project page's (audit perf #2).
  *  The summary view unless a filter needs the finished cards it leaves out (audit perf #4). */
-export async function boardRouteLoader({ request }: { request?: Request } = {}): Promise<BoardRouteData> {
+export function boardRouteLoader({ request }: { request?: Request } = {}): Promise<BoardRouteData> {
+  return navCached(urlKey(request), () => loadBoardRoute(request));
+}
+
+async function loadBoardRoute(request: Request | undefined): Promise<BoardRouteData> {
   const params = request ? new URL(request.url).searchParams : null;
   const repo = params?.get("repo") ?? loadRepoScope();
   const summary = !FULL_LIST_PARAMS.some((k) => params?.has(k));
@@ -202,7 +215,11 @@ async function settledRead<T>(name: string, key: string, load: () => Promise<T>)
 }
 
 /** The board's cards plus one repo's project layer. A failed project fetch degrades to "none", not an error page. */
-export async function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
+export function projectLoader({ request }: { request?: Request } = {}): Promise<ProjectData> {
+  return navCached(urlKey(request), () => loadProject(request));
+}
+
+async function loadProject(request: Request | undefined): Promise<ProjectData> {
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { ...(await boardLoader({ request })), phases: [], lots: [], roadmap: null };
   const signal = request?.signal;
