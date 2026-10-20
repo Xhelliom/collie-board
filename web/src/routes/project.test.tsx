@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CardView, Lot, Phase, Roadmap } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
+import type { CardFacts } from "@/lib/project-facts";
 import { server } from "@/test/setup";
 import { ProjectRoute } from "./project";
 
@@ -205,6 +206,34 @@ describe("ProjectRoute", () => {
     expect(group).toHaveTextContent("PR: push rejected");
     await userEvent.click(within(group).getByRole("button", { name: /resume/i }));
     await waitFor(() => expect(resumed).toBe("L1"));
+  });
+
+  it("a running lot gets a banner up top: progress, each card's state, its pane and its PR", async () => {
+    mount(
+      [
+        card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "done" }),
+        card({ id: "b", title: "Beta", phaseId: "P1", runId: "L1", status: "working", runtime: { paneId: "w1:p2" } as CardView["runtime"] }),
+      ],
+      {
+        phases: [phase("P1")],
+        lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a", "b"], launchedAt: 1 })],
+        facts: { b: { pr: { url: "https://github.com/o/r/pull/7", state: "open" } } as CardFacts },
+      },
+    );
+    const banner = await screen.findByRole("region", { name: "Lot in progress: Lot A" });
+    expect(banner).toHaveTextContent("1/2 merged");
+    expect(banner).toHaveTextContent("PR open");
+    expect(within(banner).getByRole("link", { name: "Open its pane" })).toHaveAttribute("href", "/pane/w1%3Ap2");
+    expect(within(banner).getByRole("link", { name: "Open its PR" })).toHaveAttribute("href", "https://github.com/o/r/pull/7");
+  });
+
+  it("no running lot, no banner", async () => {
+    mount([card({ id: "a", phaseId: "P1", runId: "L1" })], {
+      phases: [phase("P1")],
+      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: null })],
+    });
+    await screen.findByRole("region", { name: "Lot Lot A" });
+    expect(screen.queryByRole("region", { name: /Lot in progress/ })).toBeNull();
   });
 
   it("files a step under another phase", async () => {
