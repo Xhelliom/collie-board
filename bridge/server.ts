@@ -733,7 +733,8 @@ async function paneHistory(
   try {
     const page = await resolvePanePage(cfg, transcripts, herdr, adapters, pane, url);
     if (page === null) return unavailable("no-log");
-    return json({ paneId, available: true, ...page } satisfies PaneHistoryResponse, accept);
+    // ETag on the body: a followed idle pane answers 304 (the parse is cached by size/mtime).
+    return conditionalJson({ paneId, available: true, ...page } satisfies PaneHistoryResponse, req);
   } catch (err) {
     return text(`transcript read failed: ${(err as Error).message}`, 502);
   }

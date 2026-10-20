@@ -624,6 +624,8 @@ export interface TranscriptSource {
   resolveByCwd(cwd: string): Promise<string | null>;
   /** Tail-read a log. `complete` is false when the byte cap clipped the head. */
   load(path: string): Promise<{ text: string; complete: boolean; size: number; mtimeMs: number }>;
+  /** The log's size and mtime, without reading it — what tells a cached parse it is still current. */
+  stat(path: string): Promise<{ size: number; mtimeMs: number }>;
 }
 
 // ── resolution by CONTENT ─────────────────────────────────────────────────────
@@ -1001,6 +1003,11 @@ export class ClaudeTranscriptSource implements TranscriptSource {
       : await file.slice(size - MAX_TRANSCRIPT_BYTES).text();
     return { text, complete, size, mtimeMs: st.mtimeMs };
   }
+
+  async stat(path: string): Promise<{ size: number; mtimeMs: number }> {
+    const st = await stat(path);
+    return { size: st.size, mtimeMs: st.mtimeMs };
+  }
 }
 
 /**
@@ -1105,13 +1112,11 @@ interface CacheEntry {
  *
  * This route is no longer strictly on-demand: the reading view follows a live pane with `after` at
  * the pane poll's cadence. That is affordable because the answer is a handful of turns and the parse
- * is cached — but the READ is not: `load()` pulls the whole file every call, so an idle agent with a
- * large log still costs one re-read per tick.
+ * is cached.
  *
- * ponytail: whole-file re-read per call. Measured elsewhere in this repo at 10–23 ms for a typical
- * log and 110 ms for an 18 MB one — fine for one open pane on loopback, not fine as a pattern. If a
- * follower ever needs more than that: stat before load and reuse the cache when size/mtime are
- * unchanged, then read only the appended bytes (the parse is already line-at-a-time).
+ * An unchanged log is only stat'ed (see pageAt). ponytail: a CHANGED log is still re-read whole —
+ * 10–23 ms typical, 110 ms for an 18 MB one. If a growing log ever needs better: read only the
+ * appended bytes (the parse is already line-at-a-time).
  */
 export class TranscriptStore {
   private readonly cache = new Map<string, CacheEntry>();
@@ -1138,13 +1143,22 @@ export class TranscriptStore {
     path: string,
     opts: { limit: number; before?: string; after?: string },
   ): Promise<Omit<TranscriptPage, "paneId"> | null> {
-    const { text, complete, size, mtimeMs } = await this.source.load(path);
-    const cached = this.cache.get(path);
+    // Stat first: an unchanged log (the common case for a followed idle pane) costs neither a read
+    // nor a parse — only the window below.
+    let cached = this.cache.get(path);
+    if (cached) {
+      const { size, mtimeMs } = await this.source.stat(path);
+      if (cached.size !== size || cached.mtimeMs !== mtimeMs) cached = undefined;
+    }
     let entries: TranscriptEntry[];
     let queued: string[];
-    if (cached && cached.size === size && cached.mtimeMs === mtimeMs) {
-      ({ entries, queued } = cached);
+    let complete: boolean;
+    if (cached) {
+      ({ entries, queued, complete } = cached);
     } else {
+      const loaded = await this.source.load(path);
+      const { text, size, mtimeMs } = loaded;
+      complete = loaded.complete;
       entries = parseTranscript(text);
       queued = pendingQueue(text);
       this.cache.set(path, { size, mtimeMs, complete, entries, queued });
