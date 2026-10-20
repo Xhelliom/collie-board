@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.1] - 2026-10-20
+
+### Changed
+
+- Pokes du flux d'événements herdr regroupés : au plus un poll moteur par seconde, plus un rattrapage en fin de fenêtre (4ff0bfa)
+- `/api/diag/routes` mesure chaque abonné `engine.onUpdate` (`onUpdate <nom>`), le décodage du flux (`events stream`), les événements par type et les pokes (4ff0bfa)
+
 ## [0.223.0] - 2026-10-20
 
 ### Added
