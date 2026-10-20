@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.2] - 2026-10-20
+
+### Changed
+
+- Historique d'un pane : 304 par ETag quand le transcript n'a pas bougé, sans relire ni reparser le fichier (c468b57)
+- Poll rapide (1,5 s) seulement si le pane ouvert travaille ou bloque, ou sur la page projet d'un lot en cours ; 4 s sinon (c468b57)
+
 ## [0.223.1] - 2026-10-20
 
 ### Changed
