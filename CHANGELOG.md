@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.222.3] - 2026-10-20
+
+### Changed
+
+- Nom de session Claude (`/rename`) : un pane n'est relu qu'à un changement de statut, plus à chaque poll (322ec47)
+
 ## [0.222.2] - 2026-10-20
 
 ### Fixed
