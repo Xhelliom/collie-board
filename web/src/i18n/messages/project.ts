@@ -16,6 +16,11 @@ export const project = defineMessages({
     fr: "Aucune carte pour l'instant. Découpe une carte en sous-tâches pour faire une phase.",
   },
   "project.noPhase": { en: "No phase", fr: "Sans phase" },
+  "project.fold.figures": { en: "Key figures", fr: "Chiffres clés" },
+  "project.fold.loose": {
+    en: { one: "Outside a phase · {count} step", other: "Outside a phase · {count} steps" },
+    fr: { one: "Hors phase · {count} étape", other: "Hors phase · {count} étapes" },
+  },
 
   "project.sum.progress": {
     en: { one: "**{done}** of {total} steps done", other: "**{done}** of {total} steps done" },

@@ -15,6 +15,8 @@ const roadmap = {
 } as unknown as Roadmap;
 
 beforeEach(() => setPreference("en"));
+// The roadmap's fold is remembered per device: one test opening it must not open the next one's.
+beforeEach(() => localStorage.clear());
 afterEach(() => {
   setPreference("en");
   vi.restoreAllMocks();
