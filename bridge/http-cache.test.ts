@@ -71,6 +71,14 @@ describe("gzipJsonResponse", () => {
     expect(await res.json()).toEqual(data);
   });
 
+  test("sets content-length to the bytes actually sent, plain or gzipped", async () => {
+    const data = { text: "é".repeat(300) };
+    for (const enc of [null, "gzip"]) {
+      const res = gzipJsonResponse(data, enc);
+      expect(Number(res.headers.get("content-length"))).toBe((await res.bytes()).byteLength);
+    }
+  });
+
   test("gzips large bodies when Accept-Encoding includes gzip", async () => {
     const data = { text: "x".repeat(300) }; // well above 256-byte threshold
     const res = gzipJsonResponse(data, "gzip, deflate");

@@ -14,8 +14,9 @@ describe("route-cost", () => {
 
   it("counts calls, time, bytes and 304s per route", async () => {
     const req = (p: string) => new Request(`http://x${p}`);
-    const res = await metered(req("/api/cards/1"), async () => new Response("hello"));
-    expect(await res.text()).toBe("hello");
+    const sent = new Response("hello", { headers: { "content-length": "5" } });
+    const res = await metered(req("/api/cards/1"), async () => sent);
+    expect(res).toBe(sent);
     await metered(req("/api/cards/2"), async () => new Response(null, { status: 304 }));
     record("engine poll", 5);
     const { routes } = routeCostSnapshot();

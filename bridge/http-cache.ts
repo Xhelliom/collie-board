@@ -58,9 +58,12 @@ export function gzipJsonResponse(
     const compressed = Bun.gzipSync(body);
     headers["content-encoding"] = "gzip";
     headers["vary"] = "accept-encoding";
+    headers["content-length"] = String(compressed.byteLength);
     return new Response(compressed, { headers });
   }
 
+  // content-length is what route-cost.ts reads to count bytes without buffering the body.
+  headers["content-length"] = String(Buffer.byteLength(body));
   return new Response(body, { headers });
 }
 

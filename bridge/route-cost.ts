@@ -54,22 +54,15 @@ export async function timed<T>(key: string, work: () => Promise<T>): Promise<T> 
 }
 
 /**
- * The fetch handler, metered. An `/api` body is buffered to count its bytes — every one is already
- * an in-memory string or gzip buffer, nothing streams. A static file is left alone (it would lose
- * Bun's file fast path), so its bytes read 0.
+ * The fetch handler, metered. The body is never read: bytes come from `content-length` when the
+ * response carries one (`gzipJsonResponse` sets it), else they read 0 — a static file, a stream.
+ * The Response goes back untouched.
  */
 export async function metered(req: Request, handle: (req: Request) => Promise<Response>): Promise<Response> {
   const t0 = performance.now();
-  const pathname = new URL(req.url).pathname;
-  const key = routeKey(req.method, pathname);
-  let res = await handle(req);
-  let bytes = 0;
-  if (res.body && key !== `${req.method} (static)`) {
-    const body = await res.bytes();
-    bytes = body.byteLength;
-    res = new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
-  }
-  record(key, performance.now() - t0, bytes, res.status);
+  const key = routeKey(req.method, new URL(req.url).pathname);
+  const res = await handle(req);
+  record(key, performance.now() - t0, Number(res.headers.get("content-length")) || 0, res.status);
   return res;
 }
 
