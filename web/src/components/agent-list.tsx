@@ -1,4 +1,4 @@
-import { Inbox } from "lucide-react";
+import { Brush, Inbox } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
@@ -6,10 +6,12 @@ import { cn } from "@/lib/utils";
 import { AGENT_GROUPS, groupMembers, isOrchestrator, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
 import { useFold } from "./fold";
+import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
 import { usePins } from "@/lib/pins";
 import { GonePin, PinButton, resolvePins } from "./pin-button";
+import { TidySheet } from "./tidy-sheet";
 
 interface AgentListProps {
   agents: AgentView[];
@@ -37,6 +39,7 @@ export function AgentList({
   // "All" / "Orchestrators": drawn only when the herd has one — and kept while on, so a list narrowed
   // by a chip that isn't drawn never silently loses its panes.
   const [orchOnly, setOrchOnly] = useState(false);
+  const [tidy, setTidy] = useState(false);
   const hasOrch = agents.some(isOrchestrator);
   const pins = usePins(agents);
   if (agents.length === 0) {
@@ -78,12 +81,20 @@ export function AgentList({
           </div>
         </section>
       )}
-      {(hasOrch || orchOnly) && (
-        <div className="-mb-3 flex items-center gap-2">
-          <Chip label={t("filter.all")} active={!orchOnly} onClick={() => setOrchOnly(false)} />
-          <Chip label={t("home.filter.orch")} active={orchOnly} onClick={() => setOrchOnly(!orchOnly)} />
-        </div>
-      )}
+      <div className="-mb-3 flex items-center gap-2">
+        {(hasOrch || orchOnly) && (
+          <>
+            <Chip label={t("filter.all")} active={!orchOnly} onClick={() => setOrchOnly(false)} />
+            <Chip label={t("home.filter.orch")} active={orchOnly} onClick={() => setOrchOnly(!orchOnly)} />
+          </>
+        )}
+        {/* « Ménage »: mounted only while open — it reads the router, which a bare list doesn't need. */}
+        <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setTidy(true)}>
+          <Brush />
+          {t("tidy.open")}
+        </Button>
+        {tidy && <TidySheet open onClose={() => setTidy(false)} />}
+      </div>
       {sections.map(({ g, members }) => (
         <section key={g.key} className="flex flex-col gap-2.5">
           <h2
