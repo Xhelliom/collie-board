@@ -79,6 +79,10 @@ export class StateEngine {
   // when a pane momentarily hides its input box (a dialog / working spinner) — only cleared when the
   // pane itself vanishes (see the removal loop). Enriched from pane text each poll (see enrichSessionNames).
   private readonly sessionNames = new Map<string, string>();
+  // Panes whose text has been read for a session name since their last status change. A `/rename`
+  // shows up in the text and then the status moves, so a pane is re-read only on a transition (or
+  // after a failed read) — never on a quiet poll. Dropped with the pane.
+  private readonly sessionNameRead = new Set<string>();
   private readonly transitionListeners = new Set<TransitionListener>();
   private readonly removeListeners = new Set<RemoveListener>();
   private readonly updateListeners = new Set<UpdateListener>();
@@ -284,6 +288,7 @@ export class StateEngine {
         const prev = this.prevStatus.get(a.paneId);
         if (prev !== undefined && prev !== a.status) {
           this.statusSince.set(a.paneId, Date.now());
+          this.sessionNameRead.delete(a.paneId);
           for (const fn of this.transitionListeners) fn(a, prev, a.status);
         }
         this.prevStatus.set(a.paneId, a.status);
@@ -295,6 +300,7 @@ export class StateEngine {
         if (live.has(id)) continue;
         this.prevStatus.delete(id);
         this.statusSince.delete(id);
+        this.sessionNameRead.delete(id);
         this.sessionNames.delete(id); // drop the cached name so a reused pane id starts clean
         for (const fn of this.removeListeners) fn(id);
       }
@@ -335,17 +341,18 @@ export class StateEngine {
    * parallel and are individually best-effort: a read that fails or times out keeps the last-known
    * name (sticky cache) and never fails the poll. Claude-only; other harnesses never set it. A
    * herdr client without `readPane` (the unit-test fake) short-circuits, so it's a no-op there.
+   * Only panes not read since their last status change are read (see `sessionNameRead`).
    */
   private async enrichSessionNames(agents: AgentView[]): Promise<void> {
     if (typeof this.herdr.readPane !== "function") return;
-    const claude = agents.filter((a) => a.agent === "claude");
-    if (claude.length === 0) return;
+    const claude = agents.filter((a) => a.agent === "claude" && !this.sessionNameRead.has(a.paneId));
     await Promise.all(
       claude.map(async (a) => {
         try {
           const read = await this.herdr.readPane(a.paneId, "recent", SESSION_NAME_READ_LINES, "text");
           const name = extractClaudeSessionName(read.text);
           if (name) this.sessionNames.set(a.paneId, name);
+          this.sessionNameRead.add(a.paneId);
         } catch {
           // Keep whatever's cached (if anything) — a transient read failure must not blank the name.
         }

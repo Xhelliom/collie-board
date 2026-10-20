@@ -429,6 +429,7 @@ describe("StateEngine — session name enrichment", () => {
     herdr.texts.set("w1:p1", named("kept"));
     await poll(); // learns it
     herdr.texts.set("w1:p1", "● Working…\n  ⎿  no input box in view"); // extractor → undefined
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")]; // status moves → re-read
     await poll();
     expect(agent("w1:p1").sessionName).toBe("kept");
   });
@@ -452,9 +453,37 @@ describe("StateEngine — session name enrichment", () => {
     herdr.texts.set("w1:p1", named("safe"));
     await poll();
     herdr.readPane = () => Promise.reject(new Error("read down"));
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")]; // status moves → re-read
     await poll();
     expect(agent("w1:p1").sessionName).toBe("safe"); // last-known kept
     expect(engine.current().bridge).toBe("connected"); // the poll itself still succeeded
+  });
+
+  test("a poll with no status change reads no pane", async () => {
+    const { herdr, poll } = makeNameEngine();
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude"), pane("w1:p2", "w1", "working", "claude")];
+    herdr.texts.set("w1:p1", named("a"));
+    herdr.texts.set("w1:p2", plainBox); // unnamed: still not re-read every poll
+    await poll();
+    let reads = 0;
+    const read = herdr.readPane.bind(herdr);
+    herdr.readPane = (id: string) => (reads++, read(id));
+    await poll();
+    await poll();
+    expect(reads).toBe(0);
+  });
+
+  test("picks up a /rename once the status moves", async () => {
+    const { herdr, poll, agent } = makeNameEngine();
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    herdr.texts.set("w1:p1", plainBox);
+    await poll();
+    herdr.texts.set("w1:p1", named("renamed"));
+    await poll(); // same status → not read yet
+    expect(agent("w1:p1").sessionName).toBeUndefined();
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];
+    await poll();
+    expect(agent("w1:p1").sessionName).toBe("renamed");
   });
 });
 
