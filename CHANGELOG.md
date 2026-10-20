@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.220.0] - 2026-10-20
+
+### Added
+
+- Feuille « Ménage » depuis la liste des agents : panes à fermer groupés par raison (carte classée, agent terminé, au repos ≥ seuil, shell décoché), avec leur âge, fermés d'un geste confirmé (6f011b3)
+- Routes `GET /api/tidy` et `POST /api/tidy/close` (refuse `x-collie-pane`, chaque fermeture auditée `pane.close`) (6f011b3)
+
 ## [0.219.0] - 2026-10-20
 
 ### Added
