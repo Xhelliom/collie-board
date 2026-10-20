@@ -45,6 +45,9 @@ function fakeSource(byPath: Record<string, string>) {
       reads.push(path);
       return { text: byPath[path] ?? "", complete: true, size: 0, mtimeMs: 0 };
     },
+    async stat() {
+      return { size: 0, mtimeMs: 0 };
+    },
   };
   return { source, reads };
 }

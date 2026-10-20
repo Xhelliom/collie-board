@@ -6,7 +6,9 @@
 // in lib/nav.ts — none of these carry `?s=`.
 
 import { t } from "@/i18n";
-import { apiRequest, ApiError, GET_TIMEOUT_MS, INTEGRATION_TIMEOUT_MS, withTimeout } from "./api";
+import { apiRequest, conditionalGet, GET_TIMEOUT_MS, INTEGRATION_TIMEOUT_MS, withTimeout } from "./api";
+
+export { conditionalGet };
 import type { AgentStatus } from "./types";
 
 export type CardStatus =
@@ -564,46 +566,6 @@ export function cardPrompt(cardId: string): string {
 }
 
 // ── api ──────────────────────────────────────────────────────────────────────
-
-// Conditional GET for the board reads that POLL — the card list on every board screen, the
-// card detail on every card screen, the project page's facts. Both re-transfer their whole body every 1.5 s otherwise, and
-// most of those bodies are identical to the last one.
-//
-// Same client-managed scheme as `fetchPane` in api.ts, INCLUDING ITS TWO INVARIANTS — see the
-// comment there, which is the canonical explanation of why the tag is stored only together with its
-// body and only after that body parses. Restating them here would give the next person two versions
-// of a subtle rule to keep in step.
-const etagCache = new Map<string, { etag: string; body: unknown }>();
-
-/** Bounded so opening many cards over a long session can't grow it forever. FIFO is plenty. */
-const ETAG_CACHE_MAX = 20;
-
-export async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const cached = etagCache.get(url);
-  // The timeout is the point, not a nicety: the poller only fires again once the revalidator is
-  // idle (use-polling.ts), so ONE fetch left pending by a black-holed link — a phone waking up, a
-  // Tailscale route gone dark — stops the whole app polling, silently and for good.
-  const res = await fetch(url, {
-    signal: withTimeout(signal, GET_TIMEOUT_MS),
-    headers: cached ? { "if-none-match": cached.etag } : {},
-  });
-
-  if (res.status === 304 && cached) return cached.body as T;
-  // ApiError, not Error: the loaders detect an auth failure with an instanceof check, so a plain
-  // Error would turn a 403 from the same-origin gate into a generic "can't reach the board".
-  if (!res.ok) throw new ApiError(`${url} → ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
-
-  const body = (await res.json()) as T;
-  const etag = res.headers.get("etag");
-  if (etag) {
-    etagCache.set(url, { etag, body });
-    if (etagCache.size > ETAG_CACHE_MAX) {
-      const oldest = etagCache.keys().next().value;
-      if (oldest !== undefined) etagCache.delete(oldest);
-    }
-  }
-  return body;
-}
 
 // No invalidation hook, deliberately: the ETag is computed from the bridge's CURRENT data, so after
 // a mutation the next poll sends a stale If-None-Match, the server computes a different tag, and we

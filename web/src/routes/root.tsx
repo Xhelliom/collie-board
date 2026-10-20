@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData, useNavigate, useParams, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useMatches, useNavigate, useParams, useRouteError } from "react-router";
 
 import { usePolling } from "@/hooks/use-polling";
 import { usePollBusy } from "@/hooks/use-poll-busy";
@@ -14,6 +14,7 @@ import { useT } from "@/i18n";
 import { homePath, panePath } from "@/lib/nav";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type { HomeData } from "@/lib/loaders";
+import type { ProjectData } from "@/lib/board-loaders";
 
 // The data root: owns the snapshot loader, drives polling, and fans the herd out to the child
 // routes (home + pane detail) via the router's loader data. Mounted only while unlocked (the
@@ -25,7 +26,12 @@ export function RootLayout() {
   // pane you're already looking at.
   const { paneId } = useParams();
 
-  usePolling(data, paneId);
+  // The project page's lots, when it is the screen: a lot in flight is the one thing off a pane that
+  // still earns the fast cadence (use-polling.ts).
+  const lots = useMatches()
+    .map((m) => (m.data as Partial<ProjectData> | undefined)?.lots)
+    .find((l) => Array.isArray(l));
+  usePolling(data, paneId, lots);
   // Surface the busy bar when a navigation or a poll runs slow, each against its own threshold —
   // routine fast polls/navigations stay invisible. Mounted here so the whole app shares one
   // detector inside the router context.

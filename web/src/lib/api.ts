@@ -242,13 +242,53 @@ export async function fetchPane(
   return data;
 }
 
+// Conditional GET for the reads that POLL — the card list on every board screen, the card detail on
+// every card screen, the project page's facts, a followed pane's history. Both re-transfer their whole body every 1.5 s otherwise, and
+// most of those bodies are identical to the last one.
+//
+// Same client-managed scheme as `fetchPane` above, INCLUDING ITS TWO INVARIANTS — see the
+// comment there, which is the canonical explanation of why the tag is stored only together with its
+// body and only after that body parses. Restating them here would give the next person two versions
+// of a subtle rule to keep in step.
+const etagCache = new Map<string, { etag: string; body: unknown }>();
+
+/** Bounded so opening many cards over a long session can't grow it forever. FIFO is plenty. */
+const ETAG_CACHE_MAX = 20;
+
+export async function conditionalGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const cached = etagCache.get(url);
+  // The timeout is the point, not a nicety: the poller only fires again once the revalidator is
+  // idle (use-polling.ts), so ONE fetch left pending by a black-holed link — a phone waking up, a
+  // Tailscale route gone dark — stops the whole app polling, silently and for good.
+  const res = await fetch(url, {
+    signal: withTimeout(signal, GET_TIMEOUT_MS),
+    headers: cached ? { "if-none-match": cached.etag } : {},
+  });
+
+  if (res.status === 304 && cached) return cached.body as T;
+  // ApiError, not Error: the loaders detect an auth failure with an instanceof check, so a plain
+  // Error would turn a 403 from the same-origin gate into a generic "can't reach the board".
+  if (!res.ok) throw new ApiError(`${url} → ${res.status} ${(await res.text()).slice(0, 200)}`, res.status);
+
+  const body = (await res.json()) as T;
+  const etag = res.headers.get("etag");
+  if (etag) {
+    etagCache.set(url, { etag, body });
+    if (etagCache.size > ETAG_CACHE_MAX) {
+      const oldest = etagCache.keys().next().value;
+      if (oldest !== undefined) etagCache.delete(oldest);
+    }
+  }
+  return body;
+}
+
 /**
  * Fetch a page of the pane's conversation history — the scrollback its terminal can't hold (a Claude
  * pane runs on the alternate screen, which has no scrollback ring). Newest-anchored: no cursor gives
  * the most recent turns; `before` walks backwards from a turn already on screen.
  *
- * Deliberately NOT ETag-cached like fetchPane: history is fetched on navigation and on an explicit
- * "load older" tap, never on the poll loop, so there's no repeat-fetch to save.
+ * ETag-cached: the reading view follows a live pane with `after` on every poll, and an idle pane's
+ * answer is the same body each time — a 304.
  */
 export function fetchHistory(
   paneId: string,
@@ -263,7 +303,7 @@ export function fetchHistory(
   if (opts.after) q.set("after", opts.after);
   const qs = q.toString();
   const path = `/api/pane/${encodeURIComponent(paneId)}/history${qs ? `?${qs}` : ""}`;
-  return req<PaneHistoryResponse>(withSession(path, session), { signal });
+  return conditionalGet<PaneHistoryResponse>(withSession(path, session), signal);
 }
 
 export function sendReply(
