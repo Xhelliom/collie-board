@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.215.0] - 2026-10-20
+
+### Added
+
+- Navigation : entrée « Projets » (mobile et bureau) qui rouvre le dernier projet consulté (986bb4c)
+- Barre latérale bureau : accès rapides sur tous les écrans — projets avec lot en cours (n/m, pastille si bloqué) puis lots finis récemment, et ce qui t'attend (décisions de l'orchestrateur, agents bloqués) (986bb4c)
+- Bridge : `GET /api/project/quick`, la lecture unique de ces accès rapides (986bb4c)
+- Accueil : les tuiles projet mènent par le lot en cours (avancement mergées / total, bloquées), puis les lots terminés depuis moins de 24 h (0e89cb0)
+- `GET /api/runs` : `finishedAt` (lu dans le journal `run.finished`), `done` et `blocked` par lot (0e89cb0)
+
+### Changed
+
+- Libellés de la navigation passés par le catalogue i18n (986bb4c)
+
 ## [0.214.0] - 2026-10-20
 
 ### Added
