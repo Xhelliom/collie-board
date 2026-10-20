@@ -23,6 +23,7 @@ import {
   isApiErrorStatus,
 } from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
+import { navCached, urlKey } from "@/lib/nav-cache";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type {
   AgentView,
@@ -227,6 +228,11 @@ export async function rootLoader({ request }: { request?: Request } = {}): Promi
   // markLive clears the latch → the next run fetches live and replaces the stale herd).
   if (isNavigation && isLostLatched()) return staleHome(session);
 
+  // The snapshot is the same on every screen: a navigation shows the last one and refreshes behind it.
+  return navCached(`root:${session ?? ""}`, () => loadHome(session, request));
+}
+
+async function loadHome(session: string | undefined, request?: Request): Promise<HomeData> {
   try {
     const snap = await fetchSnapshot(session, request?.signal);
     lastSnapshot.set(session ?? "", snap);
@@ -341,7 +347,6 @@ export async function paneLoader({
   // — fail loudly to the error boundary rather than fetching `/api/pane/` and rendering an empty pane.
   if (!paneId) throw new Error("paneLoader: missing :paneId route param");
   const session = sessionFromRequest(request);
-  const key = paneKey(paneId, session);
   const lines = getRequestedLines(paneId, session);
   // Nav-vs-revalidate, as in rootLoader. `lastPaneUrl` also flips to undefined whenever rootLoader sees
   // a non-pane URL, so opening a pane (even one just left) reads as a navigation, and polling within it
@@ -354,6 +359,11 @@ export async function paneLoader({
   // empty degraded pane if never visited) INSTANTLY — never a 10s hang on a fetch that can't land.
   if (isNavigation && isLostLatched()) return stalePane(paneId, session, lines);
 
+  return navCached(urlKey(request), () => loadPane(paneId, session, lines, request));
+}
+
+async function loadPane(paneId: string, session: string | undefined, lines: number, request?: Request): Promise<PaneData> {
+  const key = paneKey(paneId, session);
   try {
     // On a 304 fetchPane returns the cached body, so `read.text` is populated either way; the
     // `?? lastPaneText` is just belt-and-suspenders. Both paths are a success (not the error

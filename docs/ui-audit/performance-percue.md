@@ -154,6 +154,57 @@ référence** rendue par `conditionalGet`) ; seuls `snapshot`, `phases`, `templa
 
 Script de mesure : CDP brut (WebSocket de Bun), non versionné, comme au § 1.
 
+## 6. Navigation in-app : du tap à l'écran utile (#13)
+
+2026-10-20, `HEAD` de `main` (`0.216.0`) contre la branche, chaque build servi par interception CDP
+sur le pont en service (SW contourné), données réelles. Protocole [4G] + CPU ×4, appliqués **après**
+le chargement de l'accueil : on mesure la navigation, pas le démarrage. **Tap** = `pointerdown`, puis
+`click` 100 ms plus tard (l'écart d'un vrai doigt), chrono depuis le `pointerdown`, donc **les 100 ms
+du doigt sont comptées** ; le retour est un `history.back()` (pas de doigt). **Écran utile** = URL
+cible atteinte (pour un retour : les phases de la page projet dans le DOM), puis deux frames peintes.
+Parcours accueil → projet `collie-board` → carte → retour → pane de l'orchestrateur, répété 3 fois :
+la 1ʳᵉ passe est une première visite, les deux suivantes des revisites (médiane). « Avant » : une
+série ; « après » : deux séries, d'où deux premières visites (fourchette) et quatre revisites. Script : CDP brut,
+non versionné, comme aux §§ 1 et 5.
+
+| Transition | Avant, 1ʳᵉ visite | Avant, revisite | Après, 1ʳᵉ visite | Après, revisite |
+|---|---:|---:|---:|---:|
+| accueil → projet | 3 306 ms | 675 ms (675, 660) | 2 536-2 855 ms | **217 ms** (216, 226, 217, 200) |
+| projet → carte | 369 ms | 340 ms (332, 340) | **209-214 ms** | **166 ms** (182, 162, 166, 150) |
+| carte → retour projet | 577 ms | 569 ms (569, 552) | **112-125 ms** | **98 ms** (126, 98, 98, 94) |
+| projet → pane | 401 ms | 337 ms (332, 337) | 329-334 ms | **156 ms** (155, 163, 156, 147) |
+
+Ce que la mesure « avant » montrait : React Router garde l'écran précédent tant que **tous** les
+loaders de la cible ne sont pas résolus, donc l'écran ne se vide jamais, mais il **gèle** : une revisite
+attend les mêmes allers-retours qu'une première visite (ETag ou pas, un 304 reste un RTT), et la page
+projet en enchaîne deux (orchestrateur → historique). Le retour arrière payait autant qu'une visite.
+
+Corrigé (`web/src/lib/nav-cache.ts`) :
+
+1. **Cache des loaders par URL, revalidation en arrière-plan.** Une **navigation** vers un écran déjà vu
+   rend sa dernière donnée tout de suite ; dès qu'elle est à l'écran, **une** `revalidate()` la relit
+   (vu à la mesure : `snapshot` + `pane` repartent dans la foulée). Un poll, lui, relit toujours et met
+   le cache à jour. Navigation et revalidation se distinguent par `router.state.navigation.state`
+   (vrai aussi pour un retour, où l'URL a déjà changé). Branché sur le loader racine (clé : la session,
+   le snapshot est le même sur tous les écrans), accueil, board, projet, carte et pane. Historique,
+   galerie, artefacts et PR restent hors cache : ils ne sont pas revalidés, une donnée affichée de
+   mémoire n'y serait jamais rafraîchie. Les 304/ETag sont intacts : ils sont sous `fetch*`, le cache
+   est au-dessus.
+2. **Préchargement au toucher ou au survol** des liens vers un projet ou une carte : un écouteur
+   `pointerover`/`pointerdown` délégué sur le document lance le loader de la cible ; la navigation qui
+   suit rejoint ce chargement au lieu d'en lancer un second. Pas les panes : leur loader tient le
+   discriminateur du chemin hors ligne (`lastPaneUrl`), qu'un préchargement fausserait.
+3. **Ne jamais vider l'écran** : déjà vrai à la navigation (l'écran précédent reste) ; le seul écran
+   vide restait le squelette de l'accueil au démarrage à froid, voulu (#3). Le cache ne change rien à
+   ça, sinon que l'écran affiché tout de suite est le bon.
+
+Aucune boucle de poll : la revalidation part d'un `router.subscribe` (fin de la navigation), une fois.
+
+**Reste lent : la première visite d'un projet** (2,5-3,3 s). Elle télécharge la liste **complète** des
+cartes (l'accueil n'a que le résumé, #4) ; le préchargement au toucher n'y gagne que les 100 ms du
+doigt. Pistes, non faites : précharger la liste complète quand l'accueil est au repos (c'est du poids
+sur le lien, à arbitrer), ou rendre la page projet depuis le résumé et compléter ensuite.
+
 ## Constats
 
 | # | Prio | Effort | Constat (mesuré) | Correction proposée |
@@ -170,6 +221,7 @@ Script de mesure : CDP brut (WebSocket de Bun), non versionné, comme au § 1.
 | 10 | P3 | S | Au premier passage, la page se **recharge** une fois (vu en [local] et [froid]) : les requêtes API lancées à 5,7 s sont abandonnées à 6,1 s puis relancées [froid]. **Le code dit l'inverse** : `lib/pwa.ts` affirme ignorer le premier `controllerchange`. | Trouver la cause avant de corriger ; la doc et le code ne concordent pas. |
 | 11 | P3 | S | `useRepoPhases` lance une requête `/api/phases` **par dépôt** (8) au montage de l'accueil. Non bloquant (≈ 0,3 s après le rendu [4G]), une seule fois. | **Alléger** : une requête pour tous les dépôts, ou les phases dans le résumé des cartes (#4). |
 | 12 | P3 | S | `/api/board/usage` met 5 s en cas d'échec de cache (TTL 15 min, `bridge/usage.ts`) ; 1 ms sinon [curl]. Non bloquant : le quota apparaît en retard. | Rien, ou un **squelette** pour l'anneau : c'est la seule donnée qui ne peut pas arriver plus vite. |
+| 13 | P1 | S | ~~Une revisite attend autant qu'une première visite (340-675 ms [4G]), et un retour arrière autant qu'un aller.~~ **Mesuré et corrigé (§ 6)** : revisites 98-217 ms, tap compris. | **Fait** : cache des loaders par URL + revalidation en arrière-plan, préchargement au toucher. Reste la première visite d'un projet (§ 6). |
 
 Pas de constat sur `/api/snapshot` (3 Ko gzip par tick, sans ETag : négligeable).
 
