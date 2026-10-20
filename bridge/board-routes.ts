@@ -56,6 +56,7 @@ import {
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
@@ -138,7 +139,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -378,6 +379,8 @@ async function route(
   if (facts) return facts;
   const quick = handleQuickRoute(pathname, req, ctx);
   if (quick) return quick;
+  const tidy = await handleTidyRoute(pathname, req, ctx);
+  if (tidy) return tidy;
   const mcp = await handleMcpSetupRoute(pathname, req, ctx);
   if (mcp) return mcp;
 
