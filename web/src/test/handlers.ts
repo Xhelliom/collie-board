@@ -139,6 +139,7 @@ export function paneTextWithDraft(base = "hello from the pane"): string {
 // Default happy-path handlers; individual tests can override via server.use(...).
 export const handlers = [
   http.get("/api/snapshot", () => HttpResponse.json(fixtureSnapshot)),
+  http.get("/api/board/pins", () => HttpResponse.json({ pins: [] })),
   http.get(/\/api\/pane\/[^/]+$/, () =>
     HttpResponse.json({ paneId: "w1:p1", text: paneTextWithDraft(), truncated: false, revision: 1 }),
   ),

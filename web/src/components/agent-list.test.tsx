@@ -2,6 +2,10 @@ import { render, screen, within } from "@testing-library/react";
 
 import type { AgentView } from "@/lib/types";
 import { AgentList } from "./agent-list";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/setup";
+import { __setPins } from "@/lib/pins";
 
 // The redesigned triage: three different amounts of ink for three urgencies, not one card reused at
 // three tints — see agent-card.tsx. This locks in which component each status group renders as.
@@ -114,5 +118,31 @@ describe("AgentList — orchestrators filter", () => {
     unmount();
     render(<AgentList agents={[other]} onOpen={() => {}} />);
     expect(screen.queryByRole("button", { name: "Orchestrators" })).toBeNull();
+  });
+});
+
+describe("AgentList — pins", () => {
+  it("pins a session from its tile, and the pinned ones lead the list", async () => {
+    let sent: unknown;
+    server.use(
+      http.post("/api/board/pins", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ pins: [{ session: "s1", name: "claude · proj" }] });
+      }),
+    );
+    render(<AgentList agents={[agent({ agentSessionId: "s1", status: "idle" })]} bridge="connected" onOpen={() => {}} />);
+    expect(screen.queryByText("Pinned")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Pin to quick access" }));
+    expect(sent).toEqual({ session: "s1", name: "claude · proj", pinned: true });
+    expect(await screen.findByText("Pinned")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Unpin" }).length).toBeGreaterThan(0);
+  });
+
+  it("shows a pin whose session is gone greyed, and no pin on a pane without a session", () => {
+    __setPins([{ session: "gone", name: "vieille session" }]);
+    render(<AgentList agents={[agent()]} bridge="connected" onOpen={() => {}} />);
+    expect(screen.getByText("vieille session")).toBeInTheDocument();
+    expect(screen.getByText("session ended")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pin to quick access" })).toBeNull();
   });
 });

@@ -2884,6 +2884,15 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     store.setMaxAgents(9999);
     expect(store.maxAgents()).toBe(null);
   });
+
+  it("pins and unpins a session, re-pinning refreshes its name without a duplicate", () => {
+    const store = db();
+    expect(store.pins()).toEqual([]);
+    store.setPin("s1", "chat", true);
+    store.setPin("s2", "infra", true);
+    expect(store.setPin("s1", "chat 2", true)).toEqual([{ session: "s2", name: "infra" }, { session: "s1", name: "chat 2" }]);
+    expect(store.setPin("s2", "", false)).toEqual([{ session: "s1", name: "chat 2" }]);
+  });
 });
 
 describe("the duplicate check", () => {

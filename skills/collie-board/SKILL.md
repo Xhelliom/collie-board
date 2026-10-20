@@ -241,6 +241,9 @@ curl -s -X POST "$B/api/pane/<paneId>/reply" -H 'content-type: application/json'
   -d '{"text":"yes, go ahead"}'               # types the text and submits it (`"submit":false` only types)
 curl -s "$B/api/board/prs"                    # the cards whose PR is still open (journal only, free)
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
+curl -s "$B/api/board/pins"                   # the sessions the user pinned: [{session, name}], session = agentSessionId
+curl -s -X POST "$B/api/board/pins" -H 'content-type: application/json' \
+  -d '{"session":"<agentSessionId>","name":"chat infra","pinned":true}'   # pin (false = unpin; ask first)
 ```
 
 - Answer a pane only for what the user already decided or what is plainly safe (a "continue", a

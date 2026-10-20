@@ -1,5 +1,5 @@
 import { Brush, Inbox } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ import { useFold } from "./fold";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 import { IdleDoneRow, NeedsYouCard, WorkingCard } from "./agent-card";
+import { usePins } from "@/lib/pins";
+import { GonePin, PinButton, resolvePins } from "./pin-button";
 import { TidySheet } from "./tidy-sheet";
 
 interface AgentListProps {
@@ -39,6 +41,7 @@ export function AgentList({
   const [orchOnly, setOrchOnly] = useState(false);
   const [tidy, setTidy] = useState(false);
   const hasOrch = agents.some(isOrchestrator);
+  const pins = usePins(agents);
   if (agents.length === 0) {
     if (!emptyState) return null;
     return (
@@ -61,6 +64,23 @@ export function AgentList({
 
   return (
     <div className="flex flex-col gap-7">
+      {/* Phone only: the desktop sidebar already lists them under the orchestrators. */}
+      {pins.length > 0 && (
+        <section className="flex flex-col gap-2.5 lg:hidden">
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            {t("quick.pinned")}
+          </h2>
+          <div className="flex flex-col">
+            {resolvePins(pins, agents).map(({ pin, agent: a }) =>
+              a ? (
+                <IdleDoneRow key={pin.session} agent={a} onClick={() => onOpen(a.paneId)} />
+              ) : (
+                <GonePin key={pin.session} pin={pin} className="px-3 py-1.5 text-sm" />
+              ),
+            )}
+          </div>
+        </section>
+      )}
       <div className="-mb-3 flex items-center gap-2">
         {(hasOrch || orchOnly) && (
           <>
@@ -95,13 +115,15 @@ export function AgentList({
             // its min-content — and a card full of `truncate` text has a min-content as wide as the
             // untruncated string, so the card grew past the viewport instead of ellipsising.
             <div className="grid gap-3 [&>*]:min-w-0 lg:grid-cols-[repeat(auto-fill,minmax(360px,1fr))]">
-              {members.map((a) =>
-                g.key === "needs" ? (
-                  <NeedsYouCard key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
-                ) : (
-                  <WorkingCard key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
-                ),
-              )}
+              {members.map((a) => (
+                <Pinnable key={a.paneId} agent={a}>
+                  {g.key === "needs" ? (
+                    <NeedsYouCard agent={a} onClick={() => onOpen(a.paneId)} />
+                  ) : (
+                    <WorkingCard agent={a} onClick={() => onOpen(a.paneId)} />
+                  )}
+                </Pinnable>
+              ))}
             </div>
           )}
         </section>
@@ -116,9 +138,21 @@ function IdleList({ members, onOpen }: { members: AgentView[]; onOpen: (paneId: 
   return (
     <div className="flex flex-col lg:max-w-[720px]">
       {shown.map((a) => (
-        <IdleDoneRow key={a.paneId} agent={a} onClick={() => onOpen(a.paneId)} />
+        <Pinnable key={a.paneId} agent={a}>
+          <IdleDoneRow agent={a} onClick={() => onOpen(a.paneId)} />
+        </Pinnable>
       ))}
       {toggle}
+    </div>
+  );
+}
+
+/** A tile with its pin beside it — a sibling, since a button can't hold another. */
+function Pinnable({ agent, children }: { agent: AgentView; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <div className="min-w-0 flex-1">{children}</div>
+      <PinButton agent={agent} />
     </div>
   );
 }

@@ -5,30 +5,33 @@ import { isOrchestrator } from "@/lib/agent-groups";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cardPath, projectPath, repoName } from "@/lib/board";
 import { panePath } from "@/lib/nav";
+import { usePins, type Pin } from "@/lib/pins";
 import { useQuickAccess, type QuickAccess } from "@/lib/quick-access";
+import { GonePin, resolvePins } from "./pin-button";
 import type { HomeData } from "@/lib/loaders";
 import { paneDisplayName } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // The sidebar's quick access, on every screen (desktop): the projects — a lot in flight first, then a
 // lot that finished lately — and under them what waits for you. Above them, each live project's
-// orchestrator, the conversation the operator returns to most; its dot says it waits on you. Fetched only where it shows (desktop).
+// orchestrator, the conversation the operator returns to most; its dot says it waits on you. Under them
+// the sessions the operator pinned (pins.ts). Fetched only where it shows (desktop).
 export function SidebarQuick({ data }: { data: HomeData }) {
   const q = useQuickAccess(data, useIsDesktop());
-  return <QuickList q={q} data={data} />;
+  return <QuickList q={q} data={data} pins={usePins(data)} />;
 }
 
 const ROW = "flex min-w-0 flex-col rounded-[10px] px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground";
 const HEADING = "px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70";
 
-export function QuickList({ q, data }: { q: QuickAccess | null; data: HomeData }) {
+export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data: HomeData; pins?: Pin[] }) {
   const t = useT();
   const navigate = useNavigate();
   const orchs = data.agents.filter(isOrchestrator);
   // An orchestrator already wears its own dot up top: not listed a second time below.
   const blocked = data.agents.filter((a) => a.status === "blocked" && !isOrchestrator(a));
   const waiting = q?.waiting ?? [];
-  if (!orchs.length && !q?.projects.length && !waiting.length && !blocked.length) return null;
+  if (!orchs.length && !pins.length && !q?.projects.length && !waiting.length && !blocked.length) return null;
 
   return (
     <>
@@ -47,6 +50,23 @@ export function QuickList({ q, data }: { q: QuickAccess | null; data: HomeData }
               </button>
             );
           })}
+        </div>
+      )}
+      {pins.length > 0 && (
+        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
+          <span className={HEADING}>{t("quick.pinned")}</span>
+          {resolvePins(pins, data.agents).map(({ pin, agent: a }) =>
+            a ? (
+              <button key={pin.session} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+                <span className="truncate font-medium text-foreground">{paneDisplayName(a)}</span>
+                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>
+                  {t(`quick.orch.${a.status}`)} · {a.workspaceLabel}
+                </span>
+              </button>
+            ) : (
+              <GonePin key={pin.session} pin={pin} className="py-1 pl-2.5 text-sm" />
+            ),
+          )}
         </div>
       )}
       {!!q?.projects.length && (

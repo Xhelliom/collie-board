@@ -39,6 +39,7 @@ import { PaneMenu } from "@/components/pane-menu";
 import { Composer, type ComposerHandle } from "@/components/composer";
 import { CtxBar } from "@/components/ctx-bar";
 import { SubagentsLine } from "@/components/subagents-line";
+import { PinButton } from "@/components/pin-button";
 import { ThreadSidebar } from "@/components/agent-sidebar";
 import { PaneListColumn } from "@/components/pane-list-column";
 import { ContextRailColumn } from "@/components/context-rail-column";
@@ -887,6 +888,7 @@ export function AgentChat({
                 <FileCode2 className="size-4" />
               </button>
             )}
+            {agent && <PinButton agent={agent} />}
             <button
               type="button"
               onClick={() => setDrawer("more")}
@@ -958,6 +960,7 @@ export function AgentChat({
               <PaneMenu panes={spacePanes} currentPaneId={paneId} onSelect={switchTo} />
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <PinButton agent={agent} className="size-8" />
               {agent.ctxPct != null && (
                 <button
                   type="button"
