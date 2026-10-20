@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.3] - 2026-10-20
+
+### Changed
+
+- `/api/diag/routes` : les octets viennent de `content-length`, le corps des réponses n'est plus relu ni reconstruit (0afbe8f)
+
+### Fixed
+
+- Une session herdr injoignable recule ses tentatives (1,5 s, doublées jusqu'à 60 s) et reprend le rythme normal dès qu'elle répond. (bbbdc5b)
+- Le rescan des sessions ne relit plus rien tant que les dossiers de sessions n'ont pas changé (mtime). (bbbdc5b)
+
 ## [0.223.2] - 2026-10-20
 
 ### Changed
