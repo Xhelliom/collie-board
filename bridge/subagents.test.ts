@@ -32,8 +32,23 @@ describe("runningSubagents", () => {
     expect(runningSubagents([...rows, queued("toolu_A"), userNotified("toolu_B")].join("\n"))).toEqual([]);
   });
 
-  it("says nothing for a launch with no confirmed start, or one from a subagent's own sidechain", () => {
-    expect(runningSubagents(launch("toolu_A", "x"))).toEqual([]);
+  it("counts a synchronous launch until its tool_result comes back, whatever it says", () => {
+    const answer = (id: string, toolUseResult?: unknown) =>
+      JSON.stringify({
+        isSidechain: false,
+        type: "user",
+        message: { content: [{ tool_use_id: id, type: "tool_result", content: [{ type: "text", text: "Done." }] }] },
+        ...(toolUseResult !== undefined && { toolUseResult }),
+      });
+    const rows = [launch("toolu_A", "Relecture"), launch("toolu_B", "Inventaire")];
+    expect(runningSubagents(rows.join("\n"))).toEqual(["Relecture", "Inventaire"]);
+    expect(runningSubagents([...rows, answer("toolu_A", { status: "completed" })].join("\n"))).toEqual(["Inventaire"]);
+    // An error result (the concurrency cap) or one with no toolUseResult at all ends it too.
+    expect(runningSubagents([...rows, answer("toolu_A", "Error: Concurrent subagent limit reached."), answer("toolu_B")].join("\n"))).toEqual([]);
+  });
+
+  it("says nothing for a launch from a subagent's own sidechain", () => {
+    expect(runningSubagents(launch("toolu_A", "x", true))).toEqual([]);
     expect(runningSubagents([launch("toolu_A", "x", true), launched("toolu_A")].join("\n"))).toEqual([]);
   });
 
