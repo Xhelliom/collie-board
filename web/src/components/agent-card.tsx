@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { ShellBadge, StatusBadge, StatusDot } from "@/components/status-badge";
 import { AgentIcon } from "@/components/agent-icon";
 import { CtxBar } from "@/components/ctx-bar";
+import { SubagentsLine } from "@/components/subagents-line";
 import { shortCwd, timeAgo } from "@/lib/format";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
@@ -88,6 +89,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
             <span className="truncate font-mono">{shortCwd(agent.cwd)}</span>
             {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
+          <SubagentsLine subagents={agent.subagents} />
         </div>
         {settled && <span className="shrink-0 text-[11px] text-muted-foreground">{settled}</span>}
         {isShell ? <ShellBadge /> : <StatusBadge status={agent.status} />}
@@ -140,6 +142,7 @@ export function NeedsYouCard({ agent, onClick }: { agent: AgentView; onClick: ()
             )}
           </div>
         )}
+        <SubagentsLine subagents={agent.subagents} />
       </div>
     </button>
   );
@@ -162,6 +165,7 @@ export function WorkingCard({ agent, onClick }: { agent: AgentView; onClick: () 
             <span className="min-w-0 truncate">{footnote(agent)}</span>
             {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
+          <SubagentsLine subagents={agent.subagents} />
         </div>
         {/* size-2.5 = 10px, already StatusDot's default. */}
         <StatusDot status={agent.status} />
@@ -189,9 +193,13 @@ export function IdleDoneRow({ agent, onClick }: { agent: AgentView; onClick: () 
       {/* The name alone doesn't distinguish rows — several idle/done panes are routinely all
           "claude" (paneDisplayName's fallback). The Herdr workspace name is the actual
           differentiator, so it rides along on every breakpoint now, not just desktop. */}
-      <span className="min-w-0 flex-1 truncate text-sm">
-        {headline(agent)}
-        <span className="text-muted-foreground"> · {footnote(agent)}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm">
+          {headline(agent)}
+          <span className="text-muted-foreground"> · {footnote(agent)}</span>
+        </span>
+        {/* The likeliest row to carry it: a main agent goes idle while its background helpers work. */}
+        <SubagentsLine subagents={agent.subagents} />
       </span>
       {/* Repo (last segment of cwd) — NOT the same field as the workspace name above: Herdr lets a
           workspace be labelled anything, so the two agree by convention, not by guarantee. */}

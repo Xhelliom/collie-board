@@ -29,6 +29,7 @@ import {
   type TranscriptSource,
 } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
+import { runningSubagents } from "./subagents.ts";
 import type { AgentView } from "./types.ts";
 
 /**
@@ -77,6 +78,10 @@ export class ContextTracker {
    */
   private readonly occupancy = new Map<string, { pct: number; tokens: number }>();
 
+  /** paneId → descriptions of the subagents its Claude session has running (subagents.ts). Same
+   *  rules as {@link occupancy}: in memory only, dropped with the pane. */
+  private readonly subagents = new Map<string, string[]>();
+
   constructor(
     private readonly db: BoardDb,
     private readonly herdr: HerdrClient,
@@ -121,6 +126,7 @@ export class ContextTracker {
       if (!live.has(paneId)) {
         this.lastRead.delete(paneId);
         this.occupancy.delete(paneId);
+        this.subagents.delete(paneId);
       }
     }
 
@@ -184,6 +190,12 @@ export class ContextTracker {
               : await this.resolveWithoutIntegration(paneId, pane.cwd);
             if (path === null) return; // level 3: no log for this agent, and that is fine
             const { text } = await this.source.load(path);
+            // Claude only: the one agent whose subagent rows were verified (subagents.ts).
+            if (pane.agent === "claude") {
+              const running = runningSubagents(text);
+              if (running.length > 0) this.subagents.set(paneId, running);
+              else this.subagents.delete(paneId);
+            }
             const usage = latestUsage(text);
             if (!usage) return;
             tokens = usage.tokens;
@@ -212,10 +224,16 @@ export class ContextTracker {
    * figure for is returned untouched, so "absent stays absent" and the UI simply renders no gauge.
    */
   enrich(panes: AgentView[]): AgentView[] {
-    if (this.occupancy.size === 0) return panes;
+    if (this.occupancy.size === 0 && this.subagents.size === 0) return panes;
     return panes.map((p) => {
       const seen = this.occupancy.get(p.paneId);
-      return seen === undefined ? p : { ...p, ctxPct: seen.pct, ctxTokens: seen.tokens };
+      const subagents = this.subagents.get(p.paneId);
+      if (seen === undefined && subagents === undefined) return p;
+      return {
+        ...p,
+        ...(seen && { ctxPct: seen.pct, ctxTokens: seen.tokens }),
+        ...(subagents && { subagents }),
+      };
     });
   }
 

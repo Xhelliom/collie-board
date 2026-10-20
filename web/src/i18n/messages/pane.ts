@@ -20,6 +20,10 @@ export const pane = defineMessages({
   "pane.copy.code": { en: "Copy code block", fr: "Copier le bloc de code" },
   "pane.copy.done": { en: "Copied", fr: "Copié" },
   "pane.copy.unavailable": { en: "Copy unavailable — requires a secure context (HTTPS)", fr: "Copie indisponible — nécessite un contexte sécurisé (HTTPS)" },
+  "pane.subagents": {
+    en: { one: "{count} subagent running", other: "{count} subagents running" },
+    fr: { one: "{count} sous-agent en cours", other: "{count} sous-agents en cours" },
+  },
   "pane.ctxUnits": { en: "Toggle context units", fr: "Changer l'unité du contexte" },
   "pane.dock.close": { en: "Close {title}", fr: "Fermer {title}" },
   "pane.draft.takeOver": { en: "Take over", fr: "Reprendre" },

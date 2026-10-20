@@ -60,6 +60,9 @@ export interface AgentView {
    */
   ctxPct?: number;
   ctxTokens?: number;
+  /** Short descriptions of the subagents this pane's Claude session has running (bridge
+   *  `subagents.ts`, overlaid at the gauge's cadence). Absent when none — or not a Claude pane. */
+  subagents?: string[];
   /**
    * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
    * Set only by an observed transition: a pane already idle/done when the bridge started has no
