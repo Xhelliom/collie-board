@@ -35,6 +35,12 @@ beforeEach(() => {
   clearStatus();
   __resetDrafts(); // most tests share the default paneId "w1:p1" — an unreset draft leaks across them
 });
+// A test may end on its request reaching the handler while send() still awaits the answer: its
+// `finally` then lands after the file's jsdom is gone ("window is not defined"). Let it settle first —
+// this runs before setup.ts's cleanup (after-hooks run in reverse).
+afterEach(async () => {
+  await waitFor(() => expect(document.querySelector("button .animate-spin")).toBeNull());
+});
 
 function renderComposer(overrides: Partial<ComponentProps<typeof Composer>> = {}) {
   const props: ComponentProps<typeof Composer> = {
