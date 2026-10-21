@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.224.0] - 2026-10-21
+
+### Added
+
+- Réglage par dépôt « Intégration : PR | merge direct » (opérateur seul) : en direct, un lot merge chaque carte validée dans main du checkout, poussé s'il y a un remote — ADR 0043 (b5265b3)
+
 ## [0.223.8] - 2026-10-21
 
 ### Fixed
