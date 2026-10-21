@@ -1588,17 +1588,32 @@ export class BoardDb {
       .map((r) => r.tag);
   }
 
+  /** Cards in one column, without reading the others — for the per-poll readers. */
+  listCardsWithStatus(status: CardStatus): Card[] {
+    return this.db.query<CardRow, [string]>("SELECT * FROM card WHERE status = ?").all(status).map(toCard);
+  }
+
   /**
-   * Cards whose work has landed and is worth a copilot review: an agent that finished its turn, and
-   * a card the operator filed as done. `done` is deliberately included — it is the only path that
-   * carries a wrapup note, and the operator filing a card is the clearest "this work is finished"
-   * signal the board ever gets.
+   * The cards the copilot still owes a review, with the session to review: a `review`/`done` card,
+   * its open session or else its latest, no review row for that session yet, and — for a `done`
+   * card — no wrapup note still pending (`isPendingWrapup`: reviewing before it lands would judge
+   * the work on the diff alone). `done` is deliberately included — it is the only path that carries
+   * a wrapup note. One query, because the copilot asks on every poll and the done column only grows:
+   * per card, it was three queries over hundreds of cards.
    */
-  listReviewableCards(): Card[] {
+  listCardsOwedReview(): { cardId: string; sessionId: string }[] {
     return this.db
-      .query<CardRow, []>("SELECT * FROM card WHERE status IN ('review', 'done')")
-      .all()
-      .map(toCard);
+      .query<{ cardId: string; sessionId: string }, []>(
+        `SELECT c.id AS cardId, s.id AS sessionId
+         FROM card c
+         JOIN session s ON s.id = (
+           SELECT id FROM session WHERE card_id = c.id
+           ORDER BY ended_at IS NULL DESC, started_at DESC, rowid DESC LIMIT 1)
+         WHERE c.status IN ('review', 'done')
+           AND NOT EXISTS (SELECT 1 FROM review r WHERE r.card_id = c.id AND r.session_id = s.id)
+           AND NOT (c.status = 'done' AND s.ended_at IS NOT NULL AND s.handoff_requested_at IS NOT NULL)`,
+      )
+      .all();
   }
 
   /** Cards whose status says an agent should be running — the reconciliation working set. */

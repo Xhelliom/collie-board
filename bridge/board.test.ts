@@ -2775,6 +2775,24 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     expect(state.asked).toBe(1);
   });
 
+  it("reviews each session once, and a new session again", async () => {
+    const store = db();
+    const card = filed(store, { wrapupPending: false });
+    const { state, copilot } = counting();
+    const coordinator = new CopilotCoordinator(store, copilot, cfg);
+
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    expect(state.asked).toBe(1);
+
+    store.openSession({ cardId: card.id, paneId: "w1:p2" });
+    coordinator.update(snapshot([]), async () => "stat");
+    await settle();
+    expect(state.asked).toBe(2);
+  });
+
   it("waits for the closing note first — reviewing early loses the account of what was left undone", async () => {
     const store = db();
     filed(store, { wrapupPending: true });
