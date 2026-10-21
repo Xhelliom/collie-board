@@ -49,6 +49,8 @@ import { TabStrip } from "@/components/tab-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { ResumeOffer } from "@/components/auto-handoff";
 import { ReadingView } from "@/components/reading-view";
+import { LastTurnButtons } from "@/components/last-turn-buttons";
+import { isOrchestrator } from "@/lib/agent-groups";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
@@ -349,6 +351,8 @@ export function AgentChat({
   const readingKey = `${paneId}|${session ?? ""}`;
   const markNoReading = useCallback(() => setNoReading(readingKey), [readingKey]);
   const reading = prefs.reading && historyAvailable && noReading !== readingKey;
+  // Its buttons are live on this screen only for the project's orchestrator (ADR 0044).
+  const orchestrator = !!agent && isOrchestrator(agent);
   // Reading mode still depends on the mirror — the dialog probe, the statusline and the terminal-draft
   // preview are all derived from `display`, which stops tracking the live text while the mirror is
   // frozen. Nothing can un-freeze it once the mirror is unmounted (freezing is a scroll gesture), so a
@@ -989,6 +993,7 @@ export function AgentChat({
             // pane, always (HERDR_API.md), so a revision tick fires once at mount and never again.
             poll={revalidator.state}
             onUnavailable={markNoReading}
+            orchestrator={orchestrator}
             working={agent?.status === "working"}
             dialogBlock={dialogBlock}
             dialogDisabled={readOnly || gone}
@@ -1123,6 +1128,8 @@ export function AgentChat({
 
           {/* Right above the reply box, at every breakpoint: the reply is what would reload the cache. */}
           {cardId && agent?.handoffReady && <ResumeOffer cardId={cardId} />}
+
+          {orchestrator && !reading && <LastTurnButtons paneId={paneId} session={session} poll={revalidator.state} />}
 
           <Composer
             ref={composerRef}
