@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.226.0] - 2026-10-21
+
+### Changed
+
+- Page projet : « Chiffres clés » revient en tête de page, au-dessus du lot en cours (toujours repliable, ouvert par défaut). (4c7bc0b)
+- Toasts façon shadcn (Sonner) : un seul empilement compact en haut, sous l'en-tête — fini la barre pleine largeur en bas (cf15cde)
+- Les toasts d'agent (bloqué/terminé) passent par le même empilement, avec un bouton « Ouvrir » vers le pane ou la carte (cf15cde)
+- Plus de confirmation « Envoyé » à l'envoi d'un texte : le message envoyé s'affiche déjà ; les erreurs restent jusqu'à fermeture (cf15cde)
+
 ## [0.225.0] - 2026-10-21
 
 ### Added
