@@ -42,7 +42,7 @@ describe("mcp: protocol", () => {
       result: { tools: { name: string; description: string; annotations: { readOnlyHint: boolean; destructiveHint?: boolean } }[] };
     };
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
-    for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications", "list_deliverables", "read_deliverable"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
+    for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications", "list_deliverables", "read_deliverable", "project_roadmap"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
     for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator", "publish_file"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
     for (const n of ["launch_lot", "finish_card"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
@@ -182,6 +182,35 @@ describe("mcp: tools", () => {
     expect(r.text).toContain("pull/1");
     expect(r.text).not.toContain("Autre dépôt");
     expect(r.text).not.toContain("SECRET-SPEC");
+  });
+  it("project_roadmap: the roadmap text, clipped, then a phase's cards with status, flow and lot", async () => {
+    const { call, calls } = setup({}, {
+      "GET /api/roadmap": { text: `# Roadmap — grive\n\n## Explore\nDétail X${"y".repeat(9000)}` },
+      "GET /api/phases": { body: { phases: [
+        { id: "ph1", name: "Explore", position: 0, closedAt: null, pipelineId: "f1" },
+        { id: "ph0", name: "Vieille", position: -1, closedAt: 1 },
+      ] } },
+      "GET /api/runs": { body: { runs: [{ id: "r1", name: "Lot A", phaseId: "ph1" }] } },
+      "GET /api/cards": { body: { cards: [
+        { id: "c1", title: "Étape un", status: "done", repoPath: "/r", phaseId: "ph1", runId: "r1", pipelineId: null },
+        { id: "c2", title: "Étape deux", status: "working", repoPath: "/r", phaseId: "ph1", pipelineId: "f2" },
+        { id: "c3", title: "Archivée", status: "archived", repoPath: "/r", phaseId: "ph1" },
+        { id: "c4", title: "Ancienne", status: "done", repoPath: "/r", phaseId: "ph0" },
+      ] } },
+      "GET /api/flows": { body: { flows: [{ id: "f1", name: "Explore → Build" }, { id: "f2", name: "Solo" }] } },
+      "GET /api/repos": { body: { repos: [] } },
+    });
+    const r = await call("project_roadmap", { repoPath: "/r/", format: "steps" });
+    expect(calls.find((c) => c.url.startsWith("/api/roadmap"))!.url).toContain("format=steps");
+    expect(r.text).toContain("Détail X");
+    expect(r.text.length).toBeLessThan(7000);
+    expect(r.text).toContain("phase « Explore » (en cours, 1/2 faites)");
+    expect(r.text).toContain("Étape un — done · flow : Explore → Build · lot : Lot A");
+    expect(r.text).toContain("Étape deux — working · flow : Solo · lot : hors lot");
+    expect(r.text).not.toContain("Archivée");
+    expect(r.text).not.toContain("Ancienne"); // a validated phase only on demand
+    expect((await call("project_roadmap", { repoPath: "/r", phase: "vieille" })).text).toContain("Ancienne");
+    expect((await call("project_roadmap", { repoPath: "/r", phase: "nope" })).isError).toBe(true);
   });
   it("get_card: spec and a short journal, not the whole card", async () => {
     const events = Array.from({ length: 30 }, (_, i) => 29 - i).map((i) => ({ id: i, type: "card.status", payload: { to: `etape${i}x` }, ts: i })); // récent d'abord, comme db.listEvents

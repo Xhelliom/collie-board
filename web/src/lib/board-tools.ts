@@ -48,7 +48,8 @@ export function boardApi(fetchFn: typeof fetch, base: string, headers: Record<st
     }
     const text = await res.text();
     if (!res.ok) throw refusal(res.status, `${method} ${path.split("?")[0]}`, text);
-    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+    // A text answer (the roadmap's Markdown) comes back as `{ text }`.
+    try { return text ? JSON.parse(text) : {}; } catch { return { text }; }
   };
 }
 
@@ -112,6 +113,46 @@ export function createTools(api: BoardApi): BoardTool[] {
         }
         for (const p of (prs.prs ?? []).filter((p: Json) => repoOf(p.card?.repoPath ?? "") === repo)) lines.push(`PR ouverte : ${oneLine(p.card.title, 80)} — ${p.url}`);
         return lines.join("\n") || "Rien de actif sur ce projet.";
+      },
+    },
+    {
+      name: "project_roadmap", readOnly: true,
+      description: "Roadmap d'un projet (md : vision, étapes détaillées, décisions ; steps : rendue des phases, lots et cartes), tronquée, puis les cartes des phases ouvertes — ou d'une seule — avec statut, flow et lot.",
+      props: {
+        repoPath: { type: "string", description: "Chemin absolu du dépôt (voir list_projects)" },
+        format: { type: "string", enum: ["md", "steps"], description: "Défaut : md" },
+        phase: { type: "string", description: "Nom ou id d'une phase : ses cartes seulement, même validée" },
+      },
+      required: ["repoPath"],
+      preview: async (a) => `Lire la roadmap de ${repoName(a.repoPath)}`,
+      run: async (a) => {
+        const repo = repoOf(a.repoPath);
+        const format = a.format === "steps" ? "steps" : "md";
+        const [rm, ph, runs, cards, flows, repos] = await Promise.all([
+          api("GET", `/api/roadmap${q({ repo, format })}`), api("GET", `/api/phases${q({ repo })}`), api("GET", `/api/runs${q({ repo })}`),
+          // Not view=summary: it drops most finished cards, and a phase's progress counts them.
+          api("GET", "/api/cards"), api("GET", "/api/flows"), api("GET", "/api/repos"),
+        ]);
+        const phases: Json[] = [...(ph.phases ?? [])].sort((x, y) => x.position - y.position);
+        const wanted = a.phase ? phases.filter((p) => p.id === a.phase || String(p.name).toLowerCase() === String(a.phase).toLowerCase()) : phases.filter((p) => !p.closedAt);
+        if (a.phase && !wanted.length) throw new Refusal(`Pas de phase « ${a.phase} » : ${phases.map((p) => p.name).join(", ") || "aucune phase"}.`);
+        const flowName = new Map<string, string>((flows.flows ?? []).map((f: Json) => [f.id, f.name]));
+        const repoFlow = (repos.repos ?? []).find((r: Json) => repoOf(r.path ?? "") === repo)?.flowId;
+        const runName = new Map<string, string>((runs.runs ?? []).map((r: Json) => [r.id, r.name ?? "lot sans nom"]));
+        const mine: Json[] = (cards.cards ?? []).filter((c: Json) => repoOf(c.repoPath ?? "") === repo && c.status !== "archived");
+        // The order of resolvePipeline (bridge/flows.ts): the card's own, then its phase's, then the repo's.
+        const flowOf = (c: Json, p: Json) =>
+          c.pipelineId ? flowName.get(c.pipelineId) ?? "flow supprimé" : c.templateId ? "un seul modèle"
+            : p.pipelineId ? flowName.get(p.pipelineId) ?? "flow supprimé" : p.templateId ? "un seul modèle"
+            : repoFlow ? flowName.get(repoFlow) ?? "flow supprimé" : "aucun";
+        const out = [clip(String(rm.text ?? "").trim(), 6000) || "Pas de roadmap."];
+        for (const p of wanted) {
+          const own = mine.filter((c) => c.phaseId === p.id);
+          out.push("", `Cartes de la phase « ${p.name} » (${p.closedAt ? "validée" : "en cours"}, ${own.filter((c) => c.status === "done").length}/${own.length} faites) :`);
+          for (const c of own) out.push(`- ${oneLine(c.title, 80)} — ${c.status} · flow : ${flowOf(c, p)} · lot : ${c.runId ? runName.get(c.runId) ?? "?" : "hors lot"}`);
+          if (!own.length) out.push("- (aucune carte)");
+        }
+        return out.join("\n");
       },
     },
     {
