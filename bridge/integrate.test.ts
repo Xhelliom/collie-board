@@ -1111,6 +1111,44 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     await t.cleanup();
   });
 
+  describe("merge direct (ADR 0043): the run's own merge, nobody watching", () => {
+    it("a dirty checkout is refused, main untouched", async () => {
+      const t = await fixture();
+      const before = git(t.repo, "rev-parse", "main");
+      await Bun.write(join(t.repo, "README"), "edited\n");
+      const r = await mergeCard(t.store, t.card, noPr, { direct: true });
+      expect(r).toMatchObject({ ok: false, error: { kind: "refused" } });
+      expect(git(t.repo, "rev-parse", "main")).toBe(before);
+      expect(await Bun.file(join(t.repo, "README")).text()).toBe("edited\n");
+      await t.cleanup();
+    });
+
+    it("a checkout not on main is refused, nothing merged", async () => {
+      const t = await fixture();
+      const before = git(t.repo, "rev-parse", "main");
+      git(t.repo, "checkout", "-q", "-b", "elsewhere");
+      const r = await mergeCard(t.store, t.card, noPr, { direct: true });
+      expect(r).toMatchObject({ ok: false, error: { kind: "refused" } });
+      expect(git(t.repo, "rev-parse", "main")).toBe(before);
+      await t.cleanup();
+    });
+
+    it("no remote: merged here, nothing to push, ok", async () => {
+      const t = await fixture();
+      git(t.repo, "remote", "remove", "origin");
+      expect((await mergeCard(t.store, t.card, noPr, { direct: true })).ok).toBe(true);
+      expect(git(t.repo, "cat-file", "-t", "main:x.ts")).toBe("blob");
+      await t.cleanup();
+    });
+
+    it("a remote: merged and pushed", async () => {
+      const t = await fixture();
+      expect((await mergeCard(t.store, t.card, noPr, { direct: true })).ok).toBe(true);
+      expect(git(t.origin, "rev-parse", "main")).toBe(git(t.repo, "rev-parse", "main"));
+      await t.cleanup();
+    });
+  });
+
   it("a push origin refuses undoes the merge: not ok, so the card is not filed", async () => {
     const t = await fixture();
     const before = git(t.repo, "rev-parse", "main");

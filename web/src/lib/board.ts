@@ -870,6 +870,13 @@ export function setRepoGate(path: string, gate: string | null): Promise<{ ok: tr
 }
 
 /** Set a repo's default flow (ADR 0032), or remove it with null. */
+/** How a run lands a repo's cards (ADR 0043): a PR (default) or a merge straight into the base. */
+export type RepoIntegration = "pr" | "direct";
+export const fetchRepoIntegration = (repo: string, signal?: AbortSignal): Promise<{ integration: RepoIntegration }> =>
+  apiRequest(`/api/repos/integration?repo=${encodeURIComponent(repo)}`, { signal });
+export const setRepoIntegration = (path: string, integration: RepoIntegration): Promise<{ ok: true; integration: RepoIntegration }> =>
+  apiRequest("/api/repos/integration", { method: "POST", body: JSON.stringify({ path, integration }) });
+
 export function setRepoFlow(path: string, flowId: string | null): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>("/api/repos/flow", { method: "POST", body: JSON.stringify({ path, flowId }) });
 }

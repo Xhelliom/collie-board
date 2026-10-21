@@ -452,8 +452,14 @@ every time it lands, before the lead judges it. Red goes straight back to the wo
 not set or change it (`POST /api/repos/gate` and `/suggest` are their screens); but know it exists, because a card in a
 gated repo is checked by a machine first.
 
+A repo may also be set to **merge direct** (ADR 0043) — the user's setting too, never yours (`POST
+/api/repos/integration` is refused from a pane). Then a run opens no PR: once the gate is green and the lead says
+finished, the card's branch is merged into the base in the repo's own checkout and pushed if there is an origin. A
+dirty checkout, or one not on the base, halts the card with the reason — tell the user, do not clean it yourself.
+
 ```bash
 curl -s "$B/api/repos" | jq '.repos[] | {path, gate}'        # gate = the command, or absent
+curl -s "$B/api/repos/integration?repo=/abs/repo"           # {"integration":"pr"|"direct"}
 curl -s "$B/api/project/facts[?repo=/abs/repo]"                # per card, read off its journal: gate result, the lead's
                                                               # verdict and reason, review verdict, PR + auto-merge,
                                                               # times sent back, template, start/end

@@ -27,7 +27,7 @@ const flush = async () => {
 /** A fake world: every port records its call; the lead answers from a queue. */
 function world(
   db: BoardDb,
-  opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void; clock?: { now: number } } = {},
+  opts: { slots?: number; reviewing?: boolean; stat?: string; report?: string | null; merge?: object; onLand?: (c: Card) => void; clock?: { now: number }; direct?: boolean } = {},
 ) {
   const calls: string[] = [];
   const checks: (CheckDecision | Error)[] = [];
@@ -42,6 +42,8 @@ function world(
   const folds: Awaited<ReturnType<RunPorts["fold"]>>[] = [];
   /** What GitHub says of a predecessor's PR when the coordinator asks (`refreshPr`). */
   let predPr: PrStatus | null = null;
+  /** What `mergeDirect` answers, oldest first; empty = it merged. */
+  const merges: Awaited<ReturnType<RunPorts["mergeDirect"]>>[] = [];
   const clock = opts.clock ?? { now: 1_000_000_000_000 };
   const ports: RunPorts = {
     lead: {
@@ -78,6 +80,11 @@ function world(
       if (pr.ok && opts.merge) db.recordRunEvent(c.id, "run.merge", { runId: db.getCard(c.id)!.runId!, merged: false, reason: "ci", ...opts.merge });
       else if (pr.ok) db.recordEvent(c.id, "card.automerge_armed", {});
       return pr;
+    },
+    direct: () => opts.direct ?? false,
+    mergeDirect: async (c) => {
+      calls.push(`merge ${c.title}`);
+      return merges.shift() ?? { ok: true };
     },
     land: async (c) => {
       calls.push(`land ${c.title}`);
@@ -137,6 +144,7 @@ function world(
     clock,
     gates,
     folds,
+    merges,
     coord: new RunCoordinator(db, ports, () => clock.now),
     ports,
   };
@@ -1076,5 +1084,50 @@ describe("one PR for the lot (ADR 0041)", () => {
     await settle(w);
     expect(w.calls.filter((c) => c === "fold b")).toHaveLength(1);
     expect(w.calls.filter((c) => c.startsWith("pr "))).toHaveLength(1);
+  });
+});
+
+describe("a repo set to merge direct (ADR 0043)", () => {
+  /** One card through start → lead "finished" → integration, in a world merged direct. */
+  const toIntegration = async (db: BoardDb, a: Card, w: ReturnType<typeof world>) => {
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+  };
+
+  it("the lead's finished merges the card into the base and files it — no PR", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { direct: true });
+    await toIntegration(db, a, w);
+    expect(w.calls.slice(-2)).toEqual(["merge a", "done a"]);
+    expect(w.calls.some((c) => c.startsWith("pr "))).toBe(false);
+  });
+
+  it("a refused merge (dirty checkout, not on main…) halts with its reason; the card stays in review", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { direct: true });
+    w.merges.push({ ok: false, error: { kind: "refused", message: "the checkout of main has uncommitted changes" } });
+    await toIntegration(db, a, w);
+    expect(w.calls.at(-1)).toBe("merge a");
+    expect(db.getCard(a.id)!.status).toBe("review");
+    expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toContain("uncommitted changes");
+  });
+
+  it("a lot merged direct lands each card on its own: no lot branch, no fold", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0, integration: "lot" });
+    const w = world(db, { direct: true });
+    await toIntegration(db, a, w);
+    expect(w.calls.slice(-2)).toEqual(["merge a", "done a"]);
+    expect(w.calls.some((c) => c.startsWith("lot ") || c.startsWith("fold "))).toBe(false);
   });
 });

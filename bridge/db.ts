@@ -389,6 +389,8 @@ export interface Run {
 }
 
 export type Integration = "card" | "lot";
+/** How a run lands a card of a repo (ADR 0043). The operator's setting; "pr" when unset. */
+export type RepoIntegration = "pr" | "direct";
 export const isIntegration = (v: unknown): v is Integration => v === "card" || v === "lot";
 
 /** A phase — ADR 0021. Not a container: it groups cards, it doesn't split one. Progress is derived. */
@@ -1113,6 +1115,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   gate       TEXT,
   -- ADR 0032: the repo's default flow, the last fallback of a card's resolution.
   flow_id    TEXT,
+  -- ADR 0043: 'direct' = a run merges a card into the base itself, no PR. Null: PR.
+  integration TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1420,6 +1424,8 @@ export class BoardDb {
       { table: "card", column: "run_id", ddl: "TEXT" },
       // The repo's gate command (ADR 0020). Null: no gate.
       { table: "repo_pref", column: "gate", ddl: "TEXT" },
+      // ADR 0043: how a run lands a card. Null: a PR.
+      { table: "repo_pref", column: "integration", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -2610,8 +2616,24 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** How a run lands a card of this repo (ADR 0043): a PR, or a merge straight into the base. */
+  repoIntegration(path: string): RepoIntegration {
+    const v = this.db.query<{ integration: string | null }, [string]>("SELECT integration FROM repo_pref WHERE path = ?").get(path)?.integration;
+    return v === "direct" ? "direct" : "pr";
+  }
+
+  setRepoIntegration(path: string, mode: RepoIntegration): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, integration, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET integration = excluded.integration, updated_at = excluded.updated_at`,
+      )
+      .run(path, mode === "direct" ? "direct" : null, this.now());
+    this.pruneRepoPref(path);
+  }
+
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL").run(path);
   }
 
   // ── board preferences ───────────────────────────────────────────────────────

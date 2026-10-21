@@ -81,6 +81,7 @@ describe("the coordinator and a planned lot", () => {
       start: async (id: string) => (started.push(id), { ok: true }),
       freeSlots: () => 3,
       gateCommand: () => null,
+      direct: () => false,
       reviewing: () => false,
     } as unknown as RunPorts;
     const coord = new RunCoordinator(db, ports);

@@ -186,6 +186,8 @@ export async function mergeCard(
   db: BoardDb,
   card: Card,
   gh: GitRunner = runGh,
+  /** A run on a repo set to merge direct (ADR 0043): nobody is watching, so a dirty base is refused too. */
+  opts: { direct?: boolean } = {},
 ): Promise<Result<{ base: string; ahead: number; url?: string }>> {
   const pr = card.repoPath && card.branch ? await prStatusOf(card.repoPath, card.branch, gh) : null;
   if (pr?.state === "open") return await mergeOpenPr(db, card, pr, gh);
@@ -193,6 +195,8 @@ export async function mergeCard(
   const checked = await gate(card, "merge");
   if (!checked.ok) return checked;
   const { state } = checked;
+  if (opts.direct && state.baseDirty)
+    return refused(`the checkout of ${state.base} has uncommitted changes — commit or stash them, then resume the run. Nothing was merged.`);
   // Origin ahead of either side: the merge would land a stale branch, or a base that cannot be pushed.
   const remote = await hasOrigin(card.repoPath!);
   if (remote) {
