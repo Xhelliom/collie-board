@@ -1201,6 +1201,10 @@ export function hasLanded(db: BoardDb, cardId: string): boolean {
   return last !== undefined && last.type !== "card.worktree";
 }
 
+/** Closes every card's opening prompt: what it renders, the operator sees only if it is published (ADR 0045). */
+export const PUBLISH_HINT =
+  "Publish every visual render you make (image, GIF/WebP/MP4, screenshot, report) on this card with the collie-board MCP tool `publish_file` {path} — or the curl in the collie-board skill.";
+
 /**
  * The prompt a fresh card opens with. Spec first, acceptance criteria as an explicit checklist —
  * an agent that can see the acceptance criteria writes toward them. Pure + exported so the exact
@@ -1229,5 +1233,6 @@ export function initialPrompt(card: Card, after?: { title: string; notes: string
       ),
     );
   }
+  parts.push(PUBLISH_HINT);
   return parts.join("\n\n");
 }

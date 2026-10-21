@@ -19,6 +19,7 @@ import {
   finishNow,
   finishNowPrompt,
   initialPrompt,
+  PUBLISH_HINT,
   reconcile,
   reconcileOne,
   releaseSession,
@@ -639,7 +640,7 @@ describe("initialPrompt", () => {
   });
 
   it("falls back to the title when there is no spec", () => {
-    expect(initialPrompt({ ...base, spec: null, acceptance: [] })).toBe("ship it");
+    expect(initialPrompt({ ...base, spec: null, acceptance: [] })).toBe(`ship it\n\n${PUBLISH_HINT}`);
   });
 });
 
@@ -2746,7 +2747,7 @@ describe("initialPrompt — the warm start", () => {
   it("says nothing about a predecessor when there isn't one", () => {
     const store = db();
     const card = store.createCard({ title: "solo", spec: "do it" });
-    expect(initialPrompt(store.getCard(card.id)!)).toBe("do it");
+    expect(initialPrompt(store.getCard(card.id)!)).toBe(`do it\n\n${PUBLISH_HINT}`);
   });
 });
 

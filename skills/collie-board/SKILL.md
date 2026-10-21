@@ -150,11 +150,21 @@ curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> \
 curl -s -X DELETE http://127.0.0.1:8788/api/cards/<id>
 ```
 
-## Publish a deliverable on a card
+## Publish a deliverable on a card (« Publier un livrable »)
 
 What you made for a card — an image, a PDF, a spreadsheet, a report — is lost with your session
 unless you publish it. The bridge keeps it under the card, after the worktree is merged and gone
-(ADR 0045). Send the **bytes**, never a path; send `x-collie-pane` so it is marked as yours.
+(ADR 0045).
+
+**When:** every render the operator will want to see — an image, an animation exported as
+GIF/WebP/MP4, a screenshot, a report, a spreadsheet. Publish it as soon as it exists, not at the end.
+
+**With the MCP server** (`collie-board`): `publish_file {path}` — it reads the file on your disk and
+sends it to the card your pane works on (`cardId`/`name` optional). `list_deliverables {cardId |
+repoPath}` and `read_deliverable {cardId, name}` read them back (an image comes back as an image).
+
+**Without MCP**, the same with curl. Send the **bytes**, never a path; send `x-collie-pane` so it is
+marked as yours. Your card id is the `cardId` of your pane in `GET /api/snapshot`.
 
 ```bash
 H=(-H "x-collie-pane: $HERDR_PANE_ID")

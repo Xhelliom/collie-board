@@ -22,7 +22,7 @@ const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 export const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 export const oneLine = (s: unknown, n = 140) => clip(String(s ?? "").replace(/\s+/g, " ").trim(), n);
 
-function refusal(status: number, action: string, body: string): Refusal {
+export function refusal(status: number, action: string, body: string): Refusal {
   const why = oneLine(body, 100);
   if (status === 403) {
     return new Refusal(/launch|validat|phase/i.test(`${action} ${body}`) && /launch|operator/i.test(body)
@@ -125,6 +125,23 @@ export function createTools(api: BoardApi): BoardTool[] {
         if (card.acceptance?.length) out.push(`Critères : ${card.acceptance.map((x: string) => oneLine(x, 100)).join(" ; ")}`);
         for (const e of events.slice(0, 8)) out.push(`· ${e.type} ${oneLine(JSON.stringify(e.payload ?? {}), 90)}`);
         return out.join("\n");
+      },
+    },
+    {
+      name: "list_deliverables", readOnly: true,
+      description: "Les livrables publiés par les agents (images, rapports, tableurs…) : ceux d'une carte, ou de toutes les cartes d'un projet. Pour en lire un : read_deliverable.",
+      props: { cardId: { type: "string" }, repoPath: { type: "string", description: "Sans cardId : toutes les cartes de ce dépôt" } },
+      preview: async (a) => a.cardId ? `Lister les livrables de ${await cardTitle(a.cardId)}` : `Lister les livrables de ${repoName(String(a.repoPath ?? "?"))}`,
+      run: async (a) => {
+        let cards: Json[];
+        if (a.cardId) cards = [(await api("GET", `/api/cards/${id(a.cardId)}`)).card ?? { id: a.cardId }];
+        // Not view=summary: it keeps only a few finished cards, and a deliverable outlives its card's merge.
+        else if (a.repoPath) cards = ((await api("GET", "/api/cards")).cards ?? []).filter((c: Json) => repoOf(c.repoPath ?? "") === repoOf(a.repoPath));
+        else throw new Refusal("Il faut un cardId ou un repoPath.");
+        const lists = await Promise.all(cards.map((c) => api("GET", `/api/cards/${id(c.id)}/deliverables`)));
+        const lines = cards.flatMap((c, i) => (lists[i]!.deliverables ?? []).map((d: Json) =>
+          `« ${oneLine(c.title ?? c.id, 60)} » (${c.id}) — ${d.name} · ${d.mime} · ${Math.max(1, Math.round(d.size / 1024))} Ko${d.by ? ` · ${d.by}` : ""}`));
+        return lines.join("\n") || "Aucun livrable publié.";
       },
     },
     {
