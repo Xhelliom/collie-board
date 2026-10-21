@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.5] - 2026-10-21
+
+### Fixed
+
+- Nouvelle carte : un échec garde la sheet ouverte avec la raison, un succès le confirme (08e6171)
+- Réglages (agents max, suites, passation auto, notifications) : un enregistrement refusé le dit au lieu de revenir en silence (08e6171)
+- Plus de message technique brut (glisser-déposer, envoi, panes, onglets, spaces, image, diff, restauration, ménage) ni de chaîne anglaise en dur (08e6171)
+- Écran d'erreur : message traduit, détail technique replié (08e6171)
+- Page projet : déplacer une carte, choisir modèle ou flow, écrire à l'orchestrateur confirment (08e6171)
+
 ## [0.223.4] - 2026-10-20
 
 ### Changed
