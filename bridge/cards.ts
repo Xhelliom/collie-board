@@ -154,6 +154,11 @@ export interface CardView extends Card {
    * without this the screen has nothing to show that a note is still in flight.
    */
   wrapupPending: boolean;
+  /**
+   * The url of the card's PR, from its newest `card.pr_opened`/`card.pr_updated`; null when it has
+   * none. One card's view only — the list does not read every journal. A lot's own PR is `lotView`'s.
+   */
+  prUrl?: string | null;
 }
 
 /** The card's most recent session, closed or not — for facts that outlive the session itself. */
@@ -373,7 +378,15 @@ export function cardView(
     runtime: pane ? runtimeOf(pane) : null,
     sessionCount: sessions.length,
     wrapupPending: last ? isPendingWrapup(last) : false,
+    prUrl: prUrlOf(db, card.id),
   };
+}
+
+/** See {@link CardView.prUrl}. Read by whoever decides between merging the PR and merging locally. */
+export function prUrlOf(db: Pick<BoardDb, "listEvents">, cardId: string): string | null {
+  const e = db.listEvents(cardId, EVENT_WINDOW).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  const url = (e?.payload as { url?: unknown } | undefined)?.url;
+  return typeof url === "string" ? url : null;
 }
 
 // ── starting a card ───────────────────────────────────────────────────────────

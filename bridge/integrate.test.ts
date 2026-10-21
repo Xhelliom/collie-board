@@ -27,6 +27,7 @@ import {
 } from "./git.ts";
 import { BoardDb, type CardSession } from "./db.ts";
 import { foldIntoLot } from "./lot.ts";
+import { prUrlOf } from "./cards.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { Config } from "./config.ts";
 import {
@@ -1011,5 +1012,114 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
       notePrOutcome(t.store, t.card.id, { state: "closed", url: "u", mergedAt: null, conflicting: false, mergeable: false, createdAt: null });
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("board/x");
     });
+  });
+});
+
+// Incident 20/10 (card e3745ea1): « Fusionner » on a card whose PR was open, its branch rebased and
+// pushed from elsewhere, merged the stale local branch into main, pushed nothing and filed the card.
+describe("mergeCard: the PR when there is one, origin's version, and pushed", () => {
+  function git(cwd: string, ...args: string[]): string {
+    const r = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
+    return r.stdout.toString().trim();
+  }
+  const noPr = fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } }).git;
+
+  /** A repo on main, a card branch one commit ahead, both pushed to a bare origin. */
+  const fixture = async () => {
+    const repo = join(tmpdir(), `collie-mergepr-${Math.random().toString(36).slice(2)}`);
+    const origin = `${repo}-origin.git`;
+    await mkdir(repo, { recursive: true });
+    git(tmpdir(), "init", "-q", "--bare", "-b", "main", origin);
+    git(repo, "init", "-q", "-b", "main");
+    git(repo, "config", "user.name", "t");
+    git(repo, "config", "user.email", "t@t");
+    git(repo, "config", "commit.gpgsign", "false");
+    git(repo, "remote", "add", "origin", origin);
+    await Bun.write(join(repo, "README"), "x\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "init");
+    git(repo, "checkout", "-q", "-b", "board/x");
+    await Bun.write(join(repo, "x.ts"), "export {};\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-qm", "x");
+    git(repo, "push", "-q", "origin", "main", "board/x");
+    git(repo, "checkout", "-q", "main");
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "x", repoPath: repo, baseRef: "main" });
+    store.patchCard(card.id, { branch: "board/x" });
+    const cleanup = async () => {
+      await rm(repo, { recursive: true, force: true });
+      await rm(origin, { recursive: true, force: true });
+    };
+    return { repo, origin, store, card: store.getCard(card.id)!, cleanup };
+  };
+
+  it("an open PR is merged on GitHub — no local merge, the merge journaled", async () => {
+    const t = await fixture();
+    const before = git(t.repo, "rev-parse", "main");
+    const { git: gh, calls } = fakeGit({
+      "pr view": { stdout: JSON.stringify({ state: "OPEN", url: "https://x/pull/148", mergeable: "MERGEABLE", mergedAt: null, createdAt: null }) },
+    });
+    t.store.recordEvent(t.card.id, "card.pr_opened", { branch: "board/x", base: "main", url: "https://x/pull/148" });
+    const r = await mergeCard(t.store, t.card, gh);
+    expect(r).toMatchObject({ ok: true, value: { url: "https://x/pull/148" } });
+    expect(calls.some((a) => a.join(" ") === "pr merge board/x --squash")).toBe(true);
+    expect(git(t.repo, "rev-parse", "main")).toBe(before);
+    expect(t.store.listEvents(t.card.id).some((e) => e.type === "card.pr_merged")).toBe(true);
+    await t.cleanup();
+  });
+
+  it("card.prUrl: the PR the board opened for it, read from the journal", async () => {
+    const t = await fixture();
+    expect(prUrlOf(t.store, t.card.id)).toBeNull();
+    t.store.recordEvent(t.card.id, "card.pr_opened", { branch: "board/x", base: "main", url: "https://x/pull/148" });
+    expect(prUrlOf(t.store, t.card.id)).toBe("https://x/pull/148");
+    await t.cleanup();
+  });
+
+  it("a conflicting PR is refused, nothing merged anywhere", async () => {
+    const t = await fixture();
+    const { git: gh, calls } = fakeGit({
+      "pr view": { stdout: JSON.stringify({ state: "OPEN", url: "u", mergeable: "CONFLICTING", mergedAt: null, createdAt: null }) },
+    });
+    expect(await mergeCard(t.store, t.card, gh)).toMatchObject({ ok: false, error: { kind: "conflict" } });
+    expect(calls.some((a) => a[1] === "merge")).toBe(false);
+    await t.cleanup();
+  });
+
+  it("no PR: merges locally and pushes the base", async () => {
+    const t = await fixture();
+    expect((await mergeCard(t.store, t.card, noPr)).ok).toBe(true);
+    expect(git(t.origin, "rev-parse", "main")).toBe(git(t.repo, "rev-parse", "main"));
+    expect(git(t.repo, "cat-file", "-t", "origin/main:x.ts")).toBe("blob");
+    await t.cleanup();
+  });
+
+  it("a local branch behind origin (rebased elsewhere) is refused, main untouched", async () => {
+    const t = await fixture();
+    const before = git(t.repo, "rev-parse", "main");
+    // The orchestrator's rebase: origin's board/x is rewritten, the local one is the old version.
+    const other = `${t.repo}-other`;
+    git(tmpdir(), "clone", "-q", "-b", "board/x", t.origin, other);
+    git(other, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--amend", "-m", "x rebased");
+    git(other, "push", "-q", "-f", "origin", "board/x");
+    const r = await mergeCard(t.store, t.card, noPr);
+    expect(r).toMatchObject({ ok: false, error: { kind: "refused" } });
+    expect(git(t.repo, "rev-parse", "main")).toBe(before);
+    await rm(other, { recursive: true, force: true });
+    await t.cleanup();
+  });
+
+  it("a push origin refuses undoes the merge: not ok, so the card is not filed", async () => {
+    const t = await fixture();
+    const before = git(t.repo, "rev-parse", "main");
+    await Bun.write(join(t.origin, "hooks", "pre-receive"), "#!/bin/sh\necho no >&2\nexit 1\n");
+    Bun.spawnSync(["chmod", "+x", join(t.origin, "hooks", "pre-receive")]);
+    const r = await mergeCard(t.store, t.card, noPr);
+    expect(r).toMatchObject({ ok: false, error: { kind: "git" } });
+    expect(git(t.repo, "rev-parse", "main")).toBe(before);
+    expect(t.store.listEvents(t.card.id).some((e) => e.type === "card.merged")).toBe(false);
+    await t.cleanup();
   });
 });

@@ -761,6 +761,38 @@ export async function fetchBase(
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
 }
 
+/** The repo has an `origin` to push to. Without one a local merge is the whole landing. */
+export async function hasOrigin(repoPath: string, git: GitRunner = runGit): Promise<boolean> {
+  return (await git(["remote", "get-url", "origin"], repoPath)).ok;
+}
+
+/**
+ * How many commits `origin/<ref>` has that the local `<ref>` lacks, freshly fetched. Null when origin
+ * has no such branch (a card branch never pushed) or cannot be asked. A rebase pushed from elsewhere
+ * reads here: merging the local branch then would land the version from before it.
+ */
+export async function originOnly(repoPath: string, ref: string, git: GitRunner = runGit): Promise<number | null> {
+  if (!(await fetchBase(repoPath, ref, git)).ok) return null;
+  const r = await git(["rev-list", "--count", `refs/heads/${ref}..refs/remotes/origin/${ref}`], repoPath);
+  return r.ok ? Number(r.stdout.trim()) : null;
+}
+
+/**
+ * Push the base a merge just landed on. Refused (hook, race, offline), the merge commit is undone —
+ * `reset --keep` stops rather than lose uncommitted work — so the base matches origin again and the
+ * card, still open, can be tapped again. `undone: false` says the merge is still there, unpushed.
+ */
+export async function pushMergedBase(
+  repoPath: string,
+  base: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string; undone: boolean }> {
+  const r = await git(["push", "origin", `refs/heads/${base}:refs/heads/${base}`], repoPath);
+  if (r.ok) return { ok: true };
+  const undone = (await git(["reset", "--keep", "HEAD^1"], repoPath)).ok;
+  return { ok: false, error: tailOf(r.stderr || r.stdout) || "git push failed", undone };
+}
+
 /**
  * Give a cleaned-up card its branch back, from `origin` (ADR 0014). A no-op when the branch is still
  * here — a card filed with `keepWorktree` never lost it. `--track`, so the branch reads as pushed
