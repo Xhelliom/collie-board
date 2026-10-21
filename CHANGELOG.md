@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.6] - 2026-10-21
+
+### Fixed
+
+- Une seule ligne de statut, montée dans la racine : les erreurs de /board/project et /settings s'affichent sur place (052e012)
+- Sur mobile, le statut reste au-dessus de la barre d'onglets et du composeur (celui de la carte passait dessous) (052e012)
+- Une erreur ne réapparaît plus sur un autre écran après navigation (052e012)
+
 ## [0.223.5] - 2026-10-21
 
 ### Fixed
