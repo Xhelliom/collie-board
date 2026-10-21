@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
+
+import { server } from "@/test/setup";
 
 import { BoardTabs, boardTabFor } from "./board-tabs";
 
@@ -34,5 +37,21 @@ describe("BoardTabs", () => {
     expect(router.state.historyAction).toBe("REPLACE");
     await userEvent.selectOptions(select, "");
     expect(router.state.location.search).toBe("");
+  });
+
+  it("offers a repo the bridge knows but no card names, and picking it opens its project", async () => {
+    server.use(
+      http.get("/api/repos", () =>
+        HttpResponse.json({ repos: [{ path: "/r/app", name: "app", source: "card" }, { path: "/r/grive", name: "grive", source: "herd" }], hiddenCount: 0 }),
+      ),
+    );
+    const router = createMemoryRouter([{ path: "*", element: <BoardTabs repos={[{ path: "/r/app", name: "app" }]} /> }], {
+      initialEntries: ["/board/project"],
+    });
+    render(<RouterProvider router={router} />);
+    await userEvent.selectOptions(await screen.findByRole("option", { name: "grive" }).then((o) => o.closest("select")!), "/r/grive");
+    expect(router.state.location.pathname).toBe("/board/project");
+    expect(router.state.location.search).toBe("?repo=%2Fr%2Fgrive");
+    expect(screen.getAllByRole("option", { name: "app" })).toHaveLength(1);
   });
 });

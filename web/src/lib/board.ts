@@ -501,6 +501,15 @@ export function reposOf(cards: readonly CardView[]): RepoScope[] {
 }
 
 /**
+ * The repos in play, then the ones the bridge knows (herd, scan) that no card names yet — appended,
+ * so a fresh repo can be picked and become a project before it has a card.
+ */
+export function withKnownRepos(inUse: readonly RepoScope[], known: readonly RepoScope[]): RepoScope[] {
+  const have = new Set(inUse.map((r) => r.path));
+  return [...inUse, ...known.filter((r) => !have.has(r.path)).map(({ path, name }) => ({ path, name }))];
+}
+
+/**
  * The repo scope is REMEMBERED, unlike the tag filter — see
  * [ADR 0006](../../../.adr/0006-the-board-scopes-by-repo-and-remembers-it.md). "All repos" is a
  * remembered choice too, stored as the empty string, so picking it means the board opens global

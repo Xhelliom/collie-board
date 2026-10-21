@@ -2,7 +2,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { ChevronDown, Columns3, GitPullRequest, Map as MapIcon } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
-import { loadRepoScope, saveRepoScope } from "@/lib/board";
+import { useKnownRepos } from "@/hooks/use-known-repos";
+import { loadRepoScope, saveRepoScope, withKnownRepos } from "@/lib/board";
 import { cn } from "@/lib/utils";
 
 // Board, Project and Open PRs are three views of the same thing — one repo's work — so they are
@@ -38,8 +39,10 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
   const active = boardTabFor(pathname);
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
+  // Repos with no card yet are offered too: picking one on the Project tab is how a project starts.
+  const all = withKnownRepos(repos, useKnownRepos());
   // The scope stays selectable even when nothing in the current list uses it any more.
-  const options = repo && !repos.some((r) => r.path === repo) ? [{ path: repo, name: repo.split("/").pop() || repo }, ...repos] : repos;
+  const options = repo && !all.some((r) => r.path === repo) ? [{ path: repo, name: repo.split("/").pop() || repo }, ...all] : all;
 
   function pick(next: string) {
     const value = next || null;
