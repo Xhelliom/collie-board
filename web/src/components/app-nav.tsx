@@ -21,8 +21,8 @@ import type { HomeData } from "@/lib/loaders";
 // owns the two things that used to live in every AppHeader: the Collie mark's connection animation,
 // and "where am I in the app". Below `lg` it renders as a bottom tab bar (mobile), at `lg` and up as a
 // persistent 248px sidebar — both on EVERY screen, entered ones (pane, space) included: the operator
-// never loses the way out. An entered screen lifts its bottom-pinned chrome (the pane's composer, the
-// space's status overlay) clear of the bar with ABOVE_TAB_BAR.
+// never loses the way out. An entered screen lifts its bottom-pinned chrome (the pane's composer) clear
+// of the bar with ABOVE_TAB_BAR; the status line (status-area.tsx) is raised above it too.
 export function AppNav({ data }: { data: HomeData }) {
   return (
     <>

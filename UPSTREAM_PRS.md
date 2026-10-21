@@ -1270,6 +1270,23 @@ beside it is the fork's).
 
 ---
 
+## 42. 🟡 One status line for the whole app, above the tab bar and the composer
+
+`setStatus()` is global, but each screen mounted its own `<StatusArea/>` — so a screen that forgot
+(settings, here) swallowed its errors, and an error (no TTL) resurfaced on the next screen that did
+mount one, far from what failed. The card screen's sat at `bottom-0`, under the mobile tab bar. Now
+`root.tsx` mounts the one `<StatusOverlay/>`, pinned above the tab bar; a bottom bar (the composer)
+lifts it clear of itself through `useStatusLift()` (a `--status-lift` CSS variable); and a route change
+drops a standing error (`clearErrorStatus`). Generic — no card in sight.
+
+| | |
+|---|---|
+| Commit | *fix(web): une seule ligne de statut, montée dans la racine* |
+| Files | `web/src/lib/status.ts`, `web/src/components/status-area.tsx`, `web/src/routes/root.tsx`, `web/src/components/composer.tsx`, the per-screen mounts removed (`home`, `space`, `spaces`, `agent-chat`) |
+| Extraction | **Needs extraction** — `prs.tsx`, `card.tsx` and `board.tsx` (the run button's lift) are the fork's. |
+
+---
+
 ## Never offer as one PR
 
 Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately

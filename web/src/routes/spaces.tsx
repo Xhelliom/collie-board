@@ -5,7 +5,6 @@ import { AppHeader } from "@/components/app-header";
 import { SpaceOverview } from "@/components/space-overview";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { SessionSwitcher } from "@/components/session-switcher";
-import { StatusArea } from "@/components/status-area";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath, spacePath } from "@/lib/nav";
@@ -50,10 +49,6 @@ export function SpacesRoute() {
             onNewSpace={() => setNewSpaceOpen(true)}
           />
         </main>
-      </div>
-
-      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
-        <StatusArea />
       </div>
 
       <NewSpaceSheet open={newSpaceOpen} onClose={() => setNewSpaceOpen(false)} onCreate={newSpace} />

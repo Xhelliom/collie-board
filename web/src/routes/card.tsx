@@ -46,7 +46,6 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
-import { StatusArea } from "@/components/status-area";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
@@ -1174,11 +1173,6 @@ export function CardRoute() {
       {card && (
         <CardEditor card={card} open={editing} onClose={() => setEditing(false)} onSave={save} />
       )}
-
-      {/* The app's one status surface — start/prompt failures land here rather than in a dialog. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-screen-sm lg:max-w-none px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
-        <StatusArea />
-      </div>
     </div>
   );
 }

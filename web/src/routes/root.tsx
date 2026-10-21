@@ -1,4 +1,5 @@
-import { Outlet, isRouteErrorResponse, useLoaderData, useMatches, useNavigate, useParams, useRouteError } from "react-router";
+import { useEffect } from "react";
+import { Outlet, isRouteErrorResponse, useLoaderData, useLocation, useMatches, useNavigate, useParams, useRouteError } from "react-router";
 
 import { usePolling } from "@/hooks/use-polling";
 import { usePollBusy } from "@/hooks/use-poll-busy";
@@ -7,6 +8,8 @@ import { usePushSetup } from "@/hooks/use-push";
 import { useConnectionLost } from "@/hooks/use-connection-lost";
 import { UpdateAvailableBanner } from "@/components/update-available-banner";
 import { AgentToasts } from "@/components/agent-toasts";
+import { StatusOverlay } from "@/components/status-area";
+import { clearErrorStatus } from "@/lib/status";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
 import { AppNav } from "@/components/app-nav";
@@ -38,6 +41,9 @@ export function RootLayout() {
   usePollBusy();
   const { toasts, dismiss } = useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
   usePushSetup();
+  // An error has no TTL: left standing, it would resurface on the next screen, far from what failed.
+  const { pathname } = useLocation();
+  useEffect(() => clearErrorStatus(), [pathname]);
 
   // A viewport-height row on desktop (nav sidebar + content), a column on mobile (content, with the
   // nav as a fixed tab bar that doesn't participate in flow — see app-nav.tsx). Inside the content
@@ -63,6 +69,9 @@ export function RootLayout() {
         <AgentToasts toasts={toasts} onDismiss={dismiss} />
         <Outlet />
       </div>
+      {/* The app's ONE status line — every screen's setStatus() lands here, /board/project and
+          /settings included. */}
+      <StatusOverlay />
     </div>
   );
 }

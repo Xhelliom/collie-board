@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 // A tiny global status channel. Anything that wants to tell the user something (lifecycle
-// transitions, send/kill confirmations, errors) calls setStatus(); the header's <StatusArea/>
-// renders the latest one inline and it auto-dismisses. Replaces the toast overlays — there's
+// transitions, send/kill confirmations, errors) calls setStatus(); the one <StatusArea/>, mounted in
+// routes/root.tsx, renders the latest one and it auto-dismisses. Replaces the toast overlays — there's
 // nothing to close, and it never covers the UI.
 export type StatusTone = "info" | "success" | "warn" | "error";
 
@@ -47,6 +47,11 @@ export function clearStatus(): void {
   }
   current = null;
   emit();
+}
+
+/** Drop a standing error — on a route change, where it would resurface with no context. Other tones fade anyway. */
+export function clearErrorStatus(): void {
+  if (current?.tone === "error") clearStatus();
 }
 
 function subscribe(cb: () => void): () => void {

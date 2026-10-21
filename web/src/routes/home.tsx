@@ -7,7 +7,6 @@ import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { useT } from "@/i18n";
 import { AgentList } from "@/components/agent-list";
-import { StatusArea } from "@/components/status-area";
 import { UpdateBanner } from "@/components/update-banner";
 import {
   CardsError,
@@ -92,13 +91,6 @@ export function HomeRoute() {
           </div>
         </main>
 
-      </div>
-
-      {/* Status overlay, anchored to the bottom of the viewport (no input here) — same slim line,
-          floating so it never shifts the list. Stays outside the scroller so it never scrolls away.
-          Raised clear of the mobile tab bar (app-nav.tsx), which now owns that edge below `lg`. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
-        <StatusArea />
       </div>
     </div>
   );

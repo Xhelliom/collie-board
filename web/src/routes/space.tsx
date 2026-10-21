@@ -8,7 +8,6 @@ import { SpaceStrip } from "@/components/space-strip";
 import { SpaceView } from "@/components/space-view";
 import { TabStrip } from "@/components/tab-strip";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
-import { StatusArea } from "@/components/status-area";
 import { UpdateBanner } from "@/components/update-banner";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -124,11 +123,6 @@ export function SpaceRoute() {
             `lg`, in the sidebar footer (app-nav.tsx) — a second copy here printed the same version
             twice on one desktop screen. Same reason home dropped its own. */}
         <UpdateBanner className="px-3 pt-3 pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]" />
-      </div>
-
-      {/* Status overlay, raised clear of the mobile tab bar (app-nav.tsx) like the root screens'. Stays outside the scroller. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 lg:bottom-0 mx-auto w-full max-w-screen-sm px-3 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
-        <StatusArea />
       </div>
 
       <NewSpaceSheet open={newSpaceOpen} onClose={() => setNewSpaceOpen(false)} onCreate={newSpace} />

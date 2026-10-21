@@ -5,7 +5,6 @@ import { Check, ChevronRight, Clock, Play, RefreshCw } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
 import { t, useT, type MessageKey } from "@/i18n";
-import { StatusArea } from "@/components/status-area";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import {
@@ -218,10 +217,6 @@ export function PrsRoute() {
           </>
         )}
       </main>
-
-      <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 lg:bottom-0 lg:max-w-none pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)]">
-        <StatusArea />
-      </div>
     </div>
   );
 }
