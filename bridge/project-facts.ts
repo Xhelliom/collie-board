@@ -25,6 +25,8 @@ export interface CardFacts {
   template: { name: string; key: string | null; model: string | null } | null;
   /** The journal's milestone events, slimmed to what the client needs to derive the timeline's dots (web/src/lib/card-milestones.ts). */
   milestoneEvents: BoardEvent[];
+  /** What is published on the card (ADR 0045), oldest first — from the journal, minus the ones deleted since. */
+  deliverables: { name: string; size: number; ts: number }[];
 }
 
 /** The event types a card's milestones are derived from, and the payload keys each needs. */
@@ -55,6 +57,7 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
     endedAt: null,
     template: null,
     milestoneEvents: [],
+    deliverables: [],
   };
   for (const e of [...events].sort((a, b) => a.id - b.id)) {
     if (MILESTONE_TYPES.has(e.type)) f.milestoneEvents.push(slim(e));
@@ -101,6 +104,14 @@ export function foldFacts(cardId: string, events: readonly BoardEvent[]): CardFa
       case "card.operator_said":
         f.operatorSaid++;
         break;
+      case "deliverable.published":
+      case "deliverable.deleted": {
+        const name = str(e.payload, "name");
+        if (!name) break;
+        f.deliverables = f.deliverables.filter((d) => d.name !== name);
+        if (e.type === "deliverable.published") f.deliverables.push({ name, size: Number((e.payload as { size?: number }).size) || 0, ts: e.ts });
+        break;
+      }
       case "session.opened":
         f.startedAt ??= e.ts;
         f.endedAt = null;

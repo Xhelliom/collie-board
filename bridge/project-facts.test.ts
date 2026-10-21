@@ -37,6 +37,20 @@ describe("foldFacts", () => {
     expect(foldFacts("c", events).pr).toEqual({ url: "u", state: "merged" });
   });
 
+  it("lists the deliverables published and not deleted since, a republish moving to the end", () => {
+    const f = foldFacts("c", [
+      ev("deliverable.published", { name: "a.png", size: 10 }, 1),
+      ev("deliverable.published", { name: "b.md", size: 20 }, 2),
+      ev("deliverable.deleted", { name: "b.md" }),
+      ev("deliverable.published", { name: "c.pdf", size: 30 }, 4),
+      ev("deliverable.published", { name: "a.png", size: 11 }, 5),
+    ]);
+    expect(f.deliverables).toEqual([
+      { name: "c.pdf", size: 30, ts: 4 },
+      { name: "a.png", size: 11, ts: 5 },
+    ]);
+  });
+
   it("an empty journal is all nulls", () => {
     expect(foldFacts("c", [])).toMatchObject({ gate: null, lead: null, pr: null, sentBack: 0, startedAt: null });
   });

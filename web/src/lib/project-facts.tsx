@@ -25,6 +25,8 @@ export interface CardFacts {
   lot?: Lot;
   /** The open question the orchestrator asked about it — absent once settled, and on an older bridge. */
   awaiting?: Awaiting;
+  /** What is published on it (ADR 0045), oldest first. Absent on an older bridge. */
+  deliverables?: { name: string; size: number; ts: number }[];
 }
 
 export const fetchFacts = (repo?: string, signal?: AbortSignal): Promise<{ facts: CardFacts[] }> =>

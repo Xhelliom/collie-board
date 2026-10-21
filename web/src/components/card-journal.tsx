@@ -402,6 +402,10 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.resumed");
     case "run.finished":
       return t("journal.runFinished");
+    case "deliverable.published":
+      return t("journal.deliverablePublished", { name: String(p.name ?? "") });
+    case "deliverable.deleted":
+      return t("journal.deliverableDeleted", { name: String(p.name ?? "") });
     case "copilot.split_kept":
       return t("journal.splitKept", { started: String(p.started ?? t("journal.aSubtask")) });
     default:

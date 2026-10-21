@@ -11,7 +11,7 @@ import type { TranscriptEntry } from "./types";
 // One `<ImageLightbox>` is mounted at the root and reads this; anything else just calls openLightbox().
 
 export interface LightboxState {
-  /** Absolute image paths or `data:` URLs, in display order. */
+  /** Absolute image paths, `data:` URLs or bridge URLs (`/api/…`), in display order. */
   images: string[];
   /** Which one is showing. */
   index: number;

@@ -667,6 +667,31 @@ export function startCard(id: string): Promise<{ ok: true; card: CardView }> {
  * Put back the text an edit overwrote. With an event id it restores that entry; without one, the
  * most recent overwrite. Reverting is journalled as an edit itself, so it can be reverted in turn.
  */
+/** One file published on a card (ADR 0045) — `GET /api/cards/<id>/deliverables`. */
+export interface Deliverable {
+  name: string;
+  size: number;
+  mime: string;
+  publishedAt: number;
+  by: "agent" | "operator" | null;
+}
+
+export const deliverableUrl = (cardId: string, name: string): string =>
+  `/api/cards/${encodeURIComponent(cardId)}/deliverables/${encodeURIComponent(name)}`;
+export const fetchDeliverables = (cardId: string, signal?: AbortSignal): Promise<{ deliverables: Deliverable[] }> =>
+  apiRequest(`/api/cards/${encodeURIComponent(cardId)}/deliverables`, { signal });
+export const deleteDeliverable = (cardId: string, name: string): Promise<{ ok: true }> =>
+  apiRequest(deliverableUrl(cardId, name), { method: "DELETE" });
+
+/** How a deliverable opens, by extension — the bridge's own rule (bridge/deliverables.ts `servedAs`). Pure. */
+export function deliverableKind(name: string): "image" | "markdown" | "html" | "pdf" | "file" {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return "image";
+  if (ext === "md" || ext === "markdown") return "markdown";
+  if (ext === "html" || ext === "htm") return "html";
+  return ext === "pdf" ? "pdf" : "file";
+}
+
 export function revertCard(id: string, eventId?: number): Promise<{ ok: true; card: CardView }> {
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/revert`, {
     method: "POST",

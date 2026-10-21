@@ -54,10 +54,11 @@ export function GalleryImg({
   // A `data:` URL (a screenshot a tool returned inline) IS the bytes: no file, no writer to race, so
   // its failure is final.
   const inline = path.startsWith("data:");
-  const src = inline ? path : (url ?? galleryImageUrl(path));
+  // A bridge URL (a card's deliverable) is already the source; anything else is a scratchpad path.
+  const src = inline || path.startsWith("/api/") ? path : (url ?? galleryImageUrl(path));
   return (
     <img
-      src={attempt === 0 ? src : `${src}&retry=${attempt}`}
+      src={attempt === 0 ? src : `${src}${src.includes("?") ? "&" : "?"}retry=${attempt}`}
       alt={alt ?? imageName(path) ?? t("gallery.imageAlt")}
       // Only ever loads what's on screen — these are full-size renders over a phone link.
       loading="lazy"

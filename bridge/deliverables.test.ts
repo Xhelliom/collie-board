@@ -149,6 +149,7 @@ describe("the routes", () => {
     await publish(card.id, "a.md", "# a");
     expect((await call(`/api/cards/${card.id}/deliverables/a.md`, { method: "DELETE" })).status).toBe(200);
     expect((await call(`/api/cards/${card.id}/deliverables/a.md`)).status).toBe(404);
+    expect(db.listEvents(card.id, 10).some((e) => e.type === "deliverable.deleted")).toBe(true);
 
     await publish(card.id, "b.md", "# b");
     const dir = join(deliverablesRoot(stateDir), card.id);

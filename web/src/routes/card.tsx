@@ -54,6 +54,7 @@ import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { CardJournal, editedByHandSince } from "@/components/card-journal";
 import { CardTimeline } from "@/components/card-timeline";
+import { CardDeliverables } from "@/components/card-deliverables";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { holdOf } from "@/lib/lot-hold";
 import { AwaitingTag } from "@/components/awaiting-tag";
@@ -1089,6 +1090,12 @@ export function CardRoute() {
                     </div>
                   </Section>
                 )}
+
+                {/* Refetched when the journal counts another publish — the card's own poll, no timer here. */}
+                <CardDeliverables
+                  cardId={card.id}
+                  version={detail?.events.filter((e) => e.type === "deliverable.published").length ?? 0}
+                />
 
                 {card.status === "review" && (
                   <Section label={t("card.section.reviewPass")}>

@@ -286,4 +286,5 @@ export const project = defineMessages({
   "project.add.placeholder": { en: "Search a repo, or type an absolute path", fr: "Chercher un dépôt, ou saisir un chemin absolu" },
   "project.add.path": { en: "Add {path}", fr: "Ajouter {path}" },
   "project.unlist": { en: "Remove from the list", fr: "Retirer de la liste" },
+  "project.fold.deliverables": { en: "Deliverables ({count})", fr: "Livrables ({count})" },
 });
