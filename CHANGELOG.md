@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.229.0] - 2026-10-21
+
+### Added
+
+- MCP : `publish_file` publie un fichier du disque de l'agent sur sa carte (carte du pane par défaut) (09dc1e1)
+- MCP : `list_deliverables` (carte ou projet) et `read_deliverable` (texte en texte, image en image, le reste en métadonnées) (09dc1e1)
+- Skill, prompt de l'orchestrateur et prompt de lancement d'une carte : quand et comment publier un livrable (09dc1e1)
+
 ## [0.228.0] - 2026-10-21
 
 ### Added
