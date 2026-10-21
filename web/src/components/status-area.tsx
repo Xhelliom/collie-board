@@ -1,11 +1,12 @@
+import { useCallback } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { clearStatus, useStatus, type StatusTone } from "@/lib/status";
 import { useT } from "@/i18n";
 
-// A slim, self-contained status line. Rendered inside a pointer-events-none positioning wrapper (an
-// overlay above the composer / at the bottom of home), it shows the latest status with a tone colour
+// A slim, self-contained status line. Mounted ONCE, in routes/root.tsx, inside a pointer-events-none
+// overlay pinned above the mobile tab bar (and above whatever bottom bar lifts it), it shows the latest status with a tone colour
 // + icon. Non-errors fade on their own; errors persist until dismissed — the bar re-enables pointer
 // events and shows a real ✕ button for that. Renders nothing when there's no status.
 //
@@ -14,7 +15,7 @@ import { useT } from "@/i18n";
 // role="status" and stays inert — a live region that is also a click target announces as neither.
 //
 // Which is also why ONLY the button re-enables pointer events. The bar floats over the content on
-// home/board/space (its wrapper there is pointer-events-none for exactly that reason); a bar that
+// every screen (its wrapper is pointer-events-none for exactly that reason); a bar that
 // swallowed taps without acting on them would be a dead strip across whatever sits beneath it.
 const TONE: Record<StatusTone, string> = {
   info: "text-muted-foreground",
@@ -60,6 +61,35 @@ export function StatusArea({ className }: { className?: string }) {
           <X className="size-3.5" />
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * A callback ref for a bottom-pinned bar (the pane's composer, the board's run button): while it is
+ * mounted, the status line sits above it instead of over it. One bar at a time — the last one wins.
+ */
+export function useStatusLift(): (el: HTMLElement | null) => (() => void) | undefined {
+  return useCallback((el: HTMLElement | null) => {
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const root = document.documentElement.style;
+    const ro = new ResizeObserver(() => root.setProperty("--status-lift", `${el.offsetHeight}px`));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.removeProperty("--status-lift");
+    };
+  }, []);
+}
+
+/**
+ * The app's one status line, pinned to the bottom: above the mobile tab bar (its height is
+ * ABOVE_TAB_BAR's), plus whatever `--status-lift` a bottom bar claims. Same place on every screen.
+ */
+export function StatusOverlay() {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 z-30 mx-auto w-full max-w-screen-sm px-3 lg:max-w-none bottom-[calc(var(--status-lift,0px)+0.75rem+env(safe-area-inset-bottom))] max-lg:bottom-[calc(var(--status-lift,0px)+3.5rem+0.875rem+1px+0.5rem+env(safe-area-inset-bottom))]">
+      <StatusArea />
     </div>
   );
 }

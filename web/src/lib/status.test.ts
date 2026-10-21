@@ -1,6 +1,6 @@
 import { renderHook, act } from "@testing-library/react";
 
-import { clearStatus, setStatus, useStatus } from "./status";
+import { clearErrorStatus, clearStatus, setStatus, useStatus } from "./status";
 
 // The global status channel: latest-wins, errors persist, everything else auto-clears on a TTL.
 // We observe it through useStatus (the public read) and drive the TTL with fake timers.
@@ -53,5 +53,17 @@ describe("status channel", () => {
     act(() => setStatus("sticky", "info", null));
     act(() => vi.advanceTimersByTime(10_000));
     expect(result.current?.text).toBe("sticky");
+  });
+
+  // root.tsx runs this on every route change: an error resurfacing on the next screen reads as that
+  // screen's failure. A success/info notice ("card created", then navigate) must survive the hop.
+  it("clearErrorStatus drops a standing error and leaves any other tone", () => {
+    const { result } = renderHook(() => useStatus());
+    act(() => setStatus("saved", "success"));
+    act(() => clearErrorStatus());
+    expect(result.current?.text).toBe("saved");
+    act(() => setStatus("failed", "error"));
+    act(() => clearErrorStatus());
+    expect(result.current).toBeNull();
   });
 });
