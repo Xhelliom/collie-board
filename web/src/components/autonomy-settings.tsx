@@ -2,7 +2,16 @@ import { useEffect, useState } from "react";
 
 import { useT } from "@/i18n";
 import { Switch } from "@/components/ui/switch";
-import { AUTONOMY_SECTION, boardErrorMessage, fetchAutonomy, saveAutonomy, type Autonomy } from "@/lib/board";
+import {
+  AUTONOMY_SECTION,
+  boardErrorMessage,
+  fetchAutonomy,
+  fetchRepoIntegration,
+  saveAutonomy,
+  setRepoIntegration,
+  type Autonomy,
+  type RepoIntegration,
+} from "@/lib/board";
 import { setStatus } from "@/lib/status";
 
 // How far the project's orchestrator may go without the operator (ADR 0030). The operator's screen
@@ -11,12 +20,17 @@ import { setStatus } from "@/lib/status";
 export function AutonomySettings({ repo }: { repo: string }) {
   const t = useT();
   const [a, setA] = useState<Autonomy | null>(null);
+  const [integration, setIntegration] = useState<RepoIntegration | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
     setA(null);
+    setIntegration(null);
     fetchAutonomy(repo, ac.signal)
       .then((r) => setA(r.autonomy))
+      .catch(() => {});
+    fetchRepoIntegration(repo, ac.signal)
+      .then((r) => setIntegration(r.integration))
       .catch(() => {});
     return () => ac.abort();
   }, [repo]);
@@ -26,6 +40,15 @@ export function AutonomySettings({ repo }: { repo: string }) {
   async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed">>) {
     try {
       setA((await saveAutonomy(repo, patch)).autonomy);
+      setStatus(t("orch.autoSaved"), "success", 2000);
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  }
+
+  async function saveIntegration(mode: RepoIntegration) {
+    try {
+      setIntegration((await setRepoIntegration(repo, mode)).integration);
       setStatus(t("orch.autoSaved"), "success", 2000);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
@@ -65,6 +88,19 @@ export function AutonomySettings({ repo }: { repo: string }) {
           <span>{t("orch.autoRed")}</span>
           <Switch checked={a.stopOnRed} onCheckedChange={(stopOnRed) => void save({ stopOnRed })} aria-label={t("orch.autoRed")} />
         </div>
+        {integration && (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <span>{t("orch.direct")}</span>
+              <Switch
+                checked={integration === "direct"}
+                onCheckedChange={(on) => void saveIntegration(on ? "direct" : "pr")}
+                aria-label={t("orch.direct")}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{t("orch.directHint")}</p>
+          </>
+        )}
       </div>
     </section>
   );

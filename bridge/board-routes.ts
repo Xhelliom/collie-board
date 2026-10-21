@@ -91,6 +91,8 @@ const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
 /** `/api/repos/gate` — set or clear a repo's gate command (ADR 0020). */
 const REPOS_GATE_ROUTE = "/api/repos/gate";
+/** `/api/repos/integration` — how a run lands a repo's cards: a PR, or a merge direct (ADR 0043). */
+const REPOS_INTEGRATION_ROUTE = "/api/repos/integration";
 /** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
 const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
 
@@ -472,6 +474,34 @@ async function route(
     ctx.db.setRepoGate(path.trim(), argv ? argv.join(" ") : null);
     ctx.audit.record({ action: "repo.gate", session: ctx.session, device: ctx.device, detail: { path: path.trim(), gate: argv?.join(" ") ?? null } });
     return ctx.json({ ok: true });
+  }
+
+  // How a run lands a repo's cards (ADR 0043). Merged direct, a card reaches the base with no PR to
+  // look at: the operator's decision, as the gate is — an agent pane may read it, never set it.
+  if (pathname === REPOS_INTEGRATION_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      const repo = new URL(req.url).searchParams.get("repo");
+      if (!repo) return ctx.text("repo required", 400);
+      return ctx.json({ integration: ctx.db.repoIntegration(repo) });
+    }
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("the integration mode is the operator's setting — an agent pane may not change it", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path, integration } = (body ?? {}) as { path?: unknown; integration?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (integration !== "pr" && integration !== "direct") return ctx.text('integration must be "pr" or "direct"', 400);
+    ctx.db.setRepoIntegration(path.trim(), integration);
+    ctx.audit.record({ action: "repo.integration", session: ctx.session, device: ctx.device, detail: { path: path.trim(), integration } });
+    return ctx.json({ ok: true, integration });
   }
 
   // The board's switches: whether a review's follow-up suggestions become cards, and how many agents

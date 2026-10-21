@@ -21,7 +21,7 @@ import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
-import { askEvery, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
+import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
@@ -56,6 +56,10 @@ export interface RunPorts {
   fold(run: Run, card: Card): Promise<Outcome>;
   /** `prForCard` with auto-merge armed — for a `lot` run, the lot's one PR. */
   openPr(card: Card, gate: MergeGate): Promise<Outcome>;
+  /** ADR 0043: the repo is set to merge direct — no PR, every card (a lot's too) lands on its own. */
+  direct(repoPath: string): boolean;
+  /** ADR 0043: `mergeCard` into the base, in the repo's checkout, pushed when there is an origin. "busy": a tap holds the card. */
+  mergeDirect(card: Card): Promise<Outcome>;
   /** `mergeWhenReady`: ask again whether the PR's checks let the board merge it (ADR 0029). "busy": a gesture holds the card (integration-lock.ts) — not asked, ask again next tick. */
   land(card: Card, gate: MergeGate): Promise<void | "busy">;
   /** Ask GitHub, fresh, what a card's PR became and journal it (`notePrOutcome`): a merge, a close, or nothing. */
@@ -313,7 +317,9 @@ export class RunCoordinator {
     const panes = new Map([...snap.agents, ...snap.shellPanes].map((p) => [p.paneId, p.status as string]));
     const reviewing = this.ports.reviewing();
 
-    for (const run of this.db.listOpenRuns()) {
+    for (const open of this.db.listOpenRuns()) {
+      // ADR 0043: merged direct, a lot has no PR to share — each card lands as a card of its own.
+      const run: Run = this.ports.direct(open.repoPath) ? { ...open, integration: "card" } : open;
       const members = this.db.runMembers(run.id).map((card) => ({ card, events: this.db.listEvents(card.id, 200) }));
       if (members.length === 0) continue;
       if (runState(run, members) === "finished") {
@@ -434,6 +440,7 @@ export class RunCoordinator {
         return;
       }
       case "pr": {
+        if (this.ports.direct(run.repoPath)) return this.mergeDirect(run, card);
         const r = await this.ports.openPr(card, this.mergeGate(run, card));
         if (r.ok) return this.landed(run, card, session!);
         if (r.error.kind !== "conflict") return this.halt(run, card.id, `PR: ${r.error.message}`);
@@ -485,6 +492,23 @@ export class RunCoordinator {
         reason: `waiting for “${pred.title}”'s PR to merge (auto-merge armed) — started now, this card would fork from its unmerged branch`,
       });
     }
+  }
+
+  /**
+   * ADR 0043: the lead said finished, the gate must be green, then the card's branch goes into the base
+   * in the repo's checkout. Merged (and pushed, with an origin): filed. A conflict: to the worker, against
+   * the local base. Any refusal — a dirty checkout, not on the base, origin ahead, a push refused — halts
+   * with its reason, the card where it was and nothing overwritten.
+   */
+  private async mergeDirect(run: Run, card: Card): Promise<void> {
+    const gate = this.mergeGate(run, card);
+    if (!gate.ok) return this.halt(run, card.id, `merge direct: ${gate.why}`);
+    const r = await this.ports.mergeDirect(card);
+    if (r.ok) return this.ports.fileAsDone(this.db.getCard(card.id)!);
+    if (r.error.kind === "busy") return;
+    if (r.error.kind !== "conflict") return this.halt(run, card.id, `merge direct: ${r.error.message}`);
+    const settled = await this.ports.resolveConflict(card);
+    if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
   }
 
   /** ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone. */
@@ -683,6 +707,12 @@ export function runHook(
       return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };
     },
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
+    direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
+    mergeDirect: async (card) => {
+      const held = await exclusive(integrating, card.id, () => mergeCard(db, db.getCard(card.id) ?? card, undefined, { direct: true }));
+      if (held.busy) return { ok: false, error: { kind: "busy", message: "a gesture holds the card" } };
+      return held.value.ok ? { ok: true } : held.value;
+    },
     land: async (card, gate) => {
       const view = prView(card);
       return (await exclusive(integrating, card.id, () => mergeWhenReady(db, card.id, view.repoPath!, view.branch!, gate))).busy ? "busy" : undefined;
@@ -692,6 +722,7 @@ export function runHook(
       // ADR 0041. With the lot's branch: merge it in, locally. The lot's PR against origin's base: the card
       // merges that base in and folds again — the lot picks it up from there.
       const run = card.runId ? db.getRun(card.runId) : null;
+      if (card.repoPath && db.repoIntegration(card.repoPath) === "direct") return resolveConflict(db, herdr, card, "merge");
       if (run?.integration !== "lot" || !run.lotBranch) return resolveConflict(db, herdr, card, "pr");
       return withLot ? resolveConflict(db, herdr, { ...card, baseRef: run.lotBranch }, "merge") : resolveConflict(db, herdr, { ...card, baseRef: run.lotBase }, "pr");
     },
