@@ -211,13 +211,13 @@ export function createTools(api: BoardApi): BoardTool[] {
       // The card screen's three ways to end a card, each by the same request as its button (card.tsx:
       // IntegrationSection's merge / PR, "Classer → Terminé"): no decision here, the bridge's gate and lock apply.
       name: "finish_card", readOnly: false, destructive: true,
-      description: "Termine une carte comme l'écran carte. mode « pr » (défaut) : ouvre ou met à jour la PR, la carte est classée quand la PR est fusionnée. « merge » : fusionne la branche directement dans sa base (main) et classe la carte. « done » : classe la carte sans intégrer.",
+      description: "Termine une carte comme l'écran carte. mode « pr » (défaut) : ouvre ou met à jour la PR, la carte est classée quand la PR est fusionnée. « merge » : fusionne la PR ouverte de la carte s'il y en a une (card.prUrl), sinon la branche dans sa base (main), poussée, et classe la carte. « done » : classe la carte sans intégrer.",
       props: { cardId: { type: "string" }, mode: { type: "string", enum: ["pr", "merge", "done"], description: "Défaut pr" } }, required: ["cardId"],
       preview: async (a) => {
         const { card } = await api("GET", `/api/cards/${id(a.cardId)}`);
         const title = `« ${oneLine(card?.title, 80)} »`;
         const mode = a.mode ?? "pr";
-        if (mode === "merge") return `Fusionner ${title} dans ${card?.baseRef || "sa branche de base"}`;
+        if (mode === "merge") return card?.prUrl ? `Fusionner la PR de ${title} : ${card.prUrl}` : `Fusionner ${title} dans ${card?.baseRef || "sa branche de base"}`;
         if (mode === "done") return `Classer ${title} terminée, sans intégrer`;
         return `Ouvrir la PR de ${title}`;
       },
@@ -250,7 +250,7 @@ export function createTools(api: BoardApi): BoardTool[] {
         if (mode === "pr") return filing
           ? `PR ouverte et suivie pour ${title} : ${res.url} — la carte sera classée une fois la PR fusionnée.`
           : `PR à jour pour ${title} : ${res.url}.`;
-        return `${title} fusionnée dans ${res.base}${filing ? " et classée terminée" : ""}.`;
+        return `${title} fusionnée dans ${res.base}${res.url ? ` par sa PR ${res.url}` : ""}${filing ? " et classée terminée" : ""}.`;
       },
     },
     {

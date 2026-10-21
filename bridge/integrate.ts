@@ -37,12 +37,15 @@ import {
   failedLog,
   fetchBase,
   formatDiffStat,
+  hasOrigin,
   integrationOf,
   isAncestor,
   mergeConflicts,
   mergeIntoBase,
+  originOnly,
   prStatusOf,
   pushBranch,
+  pushMergedBase,
   refusalFor,
   refusalMessage,
   removeWorktreeAt,
@@ -174,11 +177,37 @@ async function landingStat(db: BoardDb, card: Card): Promise<{ stat?: string }> 
   return stat?.files.length ? { stat: formatDiffStat(stat) } : {};
 }
 
-/** Merge the card's branch into its base. Local only — the push stays the operator's call. */
-export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base: string; ahead: number }>> {
+/**
+ * Merge the card's branch into its base, and push the base. A PR open on the branch is merged on
+ * GitHub instead: a local merge beside it leaves the PR open and lands whatever the local branch still
+ * holds — the version from before a rebase pushed elsewhere (incident 20/10, card e3745ea1).
+ */
+export async function mergeCard(
+  db: BoardDb,
+  card: Card,
+  gh: GitRunner = runGh,
+): Promise<Result<{ base: string; ahead: number; url?: string }>> {
+  const pr = card.repoPath && card.branch ? await prStatusOf(card.repoPath, card.branch, gh) : null;
+  if (pr?.state === "open") return await mergeOpenPr(db, card, pr, gh);
+
   const checked = await gate(card, "merge");
   if (!checked.ok) return checked;
   const { state } = checked;
+  // Origin ahead of either side: the merge would land a stale branch, or a base that cannot be pushed.
+  const remote = await hasOrigin(card.repoPath!);
+  if (remote) {
+    for (const ref of [state.branch, state.base]) {
+      const missing = await originOnly(card.repoPath!, ref);
+      if (missing) {
+        db.recordEvent(card.id, "card.merge_failed", { branch: state.branch, base: state.base, kind: "behind-origin", ref });
+        return refused(
+          ref === state.base
+            ? `origin/${ref} has ${missing} commit(s) ${ref} lacks here — pull ${ref} first, or the merge could not be pushed. Nothing was changed.`
+            : `origin/${ref} has ${missing} commit(s) the local branch lacks (pushed or rebased elsewhere) — open its PR, or bring the branch level with origin. Nothing was merged.`,
+        );
+      }
+    }
+  }
   // BEFORE the merge: after it, the base contains the branch and the same measure reads zero.
   const landing = await landingStat(db, card);
 
@@ -222,8 +251,45 @@ export async function mergeCard(db: BoardDb, card: Card): Promise<Result<{ base:
     }
     return { ok: false, error: { kind: "git", message: merged.error } };
   }
+  // A merge that stays local is not a landing: the card is not filed on it (the route files on ok).
+  if (remote) {
+    const pushed = await pushMergedBase(card.repoPath!, state.base);
+    if (!pushed.ok) {
+      db.recordEvent(card.id, "card.merge_failed", { branch: state.branch, base: state.base, kind: "push", undone: pushed.undone, error: pushed.error });
+      return {
+        ok: false,
+        error: {
+          kind: "git",
+          message: pushed.undone
+            ? `the push of ${state.base} was refused, so the merge was undone — nothing changed:\n${pushed.error}`
+            : `merged into ${state.base} here, but the push was refused and the merge could not be undone — push or reset ${state.base} yourself:\n${pushed.error}`,
+        },
+      };
+    }
+  }
   db.recordEvent(card.id, "card.merged", { branch: state.branch, base: state.base, ahead: state.ahead, ...landing });
   return { ok: true, value: { base: state.base, ahead: state.ahead } };
+}
+
+/** The Merge tap on a card whose branch has an open PR: GitHub merges it, now, the way a run does. */
+async function mergeOpenPr(
+  db: BoardDb,
+  card: Card,
+  pr: PrStatus,
+  gh: GitRunner,
+): Promise<Result<{ base: string; ahead: number; url: string }>> {
+  const base = (await baseOf(card)) ?? "the base";
+  if (pr.conflicting) {
+    return { ok: false, error: { kind: "conflict", message: `the PR ${pr.url} conflicts with ${base} — hand it to the agent to settle. Nothing was merged.` } };
+  }
+  const r = await enableAutoMerge(card.repoPath!, card.branch!, gh, []);
+  prCache.delete(prKey(card));
+  if (!r.ok) {
+    db.recordEvent(card.id, "card.merge_failed", { branch: card.branch, via: "pr", url: pr.url, error: r.error });
+    return { ok: false, error: { kind: "git", message: `GitHub would not merge ${pr.url}: ${r.error}` } };
+  }
+  notePrOutcome(db, card.id, { ...pr, state: "merged", mergedAt: Date.now() });
+  return { ok: true, value: { base, ahead: 0, url: pr.url } };
 }
 
 /**

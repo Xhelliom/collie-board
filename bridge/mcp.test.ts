@@ -233,7 +233,7 @@ describe("mcp: finish_card — the card screen's buttons, by the same request", 
     const { call, calls } = setup({}, { ...card(), "POST /api/cards/c1/integration": { body: { ok: true, url: "https://x/pull/7", base: "main" } } });
     expect((await call("finish_card", { cardId: "c1" })).text).toMatch(/PR ouverte et suivie.*pull\/7.*fusionnée/);
     expect(calls[1]!.body).toEqual({ action: "pr", andDone: true });
-    expect((await call("finish_card", { card_id: "c1", mode: "merge" })).text).toMatch(/fusionnée dans main et classée terminée/);
+    expect((await call("finish_card", { card_id: "c1", mode: "merge" })).text).toMatch(/fusionnée dans main par sa PR .*pull\/7 et classée terminée/);
     expect(calls[3]!.body).toEqual({ action: "merge", andDone: true });
     await call("finish_card", { cardId: "c1", mode: "done" });
     expect(calls[5]).toMatchObject({ method: "PATCH", url: "/api/cards/c1", body: { status: "done" } });

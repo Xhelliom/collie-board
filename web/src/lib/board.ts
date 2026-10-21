@@ -167,6 +167,8 @@ export interface CardView {
   copilotBusy: boolean;
   /** The agent is still writing its closing report — cleaning up the worktree now would lose it. */
   wrapupPending: boolean;
+  /** The card's PR url, from its journal. On one card's GET only; absent on the list and an older bridge. */
+  prUrl?: string | null;
   /** Off by default. When on, the worktree is never cleaned up automatically once wrapup settles. */
   keepWorktree: boolean;
   /** This card's answer to the automatic handoff: forced `on`, refused `off`, or null = the board pref. */

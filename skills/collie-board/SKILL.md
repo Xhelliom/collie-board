@@ -252,6 +252,8 @@ curl -s -X POST "$B/api/pane/<paneId>/reply" -H 'content-type: application/json'
   -d '{"text":"yes, go ahead"}'               # types the text and submits it (`"submit":false` only types)
 curl -s "$B/api/board/prs"                    # the cards whose PR is still open (journal only, free)
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
+#   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card
+#   mode "merge" merges that PR on GitHub — never the local branch.
 curl -s "$B/api/board/pins"                   # the sessions the user pinned: [{session, name}], session = agentSessionId
 curl -s -X POST "$B/api/board/pins" -H 'content-type: application/json' \
   -d '{"session":"<agentSessionId>","name":"chat infra","pinned":true}'   # pin (false = unpin; ask first)
