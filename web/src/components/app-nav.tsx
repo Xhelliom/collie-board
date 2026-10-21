@@ -7,11 +7,12 @@ import { useT, type MessageKey } from "@/i18n";
 import { isConnecting } from "@/lib/connection";
 import { useConnectionLost, useConnectionTrouble } from "@/hooks/use-connection-lost";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
+import { useKnownRepos } from "@/hooks/use-known-repos";
 import { DogGallop } from "@/components/dog-gallop";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { BuildStamp } from "@/components/build-stamp";
 import { homePath, spacePath, spacesPath, settingsPath } from "@/lib/nav";
-import { boardPath, loadRepoScope, projectPath, repoName, reposOf, saveRepoScope } from "@/lib/board";
+import { boardPath, loadRepoScope, projectPath, repoName, reposOf, saveRepoScope, withKnownRepos } from "@/lib/board";
 import { loadLastProject } from "@/lib/quick-access";
 import { SidebarQuick } from "@/components/sidebar-quick";
 import type { BoardData } from "@/lib/board-loaders";
@@ -201,14 +202,16 @@ function BoardRepoList() {
   const location = useLocation();
   const matches = useMatches();
   const [params, setParams] = useSearchParams();
-  if (location.pathname !== "/board" && location.pathname !== "/board/project") return null;
+  const onBoard = location.pathname === "/board" || location.pathname === "/board/project";
+  const known = useKnownRepos(onBoard);
+  if (!onBoard) return null;
 
   // The board's and the project view's loaders both return the cards; the repo list reads whichever is up.
   const board = matches.map((m) => m.data as BoardData | undefined).find((d) => Array.isArray(d?.cards));
   if (!board) return null;
 
   const activeRepo = params.get("repo");
-  const reposInUse = reposOf(board.cards);
+  const reposInUse = withKnownRepos(reposOf(board.cards), known);
   const repos =
     activeRepo && !reposInUse.some((r) => r.path === activeRepo)
       ? [{ path: activeRepo, name: repoName(activeRepo) }, ...reposInUse]
