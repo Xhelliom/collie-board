@@ -100,11 +100,11 @@ describe("ProjectRoute", () => {
     expect(screen.queryByText("other")).toBeNull();
   });
 
-  it("puts what waits for you first, folds the steps that merely run, and lists « à toi » first in the filters", async () => {
+  it("puts what waits for you right under the figures, folds the steps that merely run, and lists « à toi » first in the filters", async () => {
     mount([card({ id: "a", status: "working" }), card({ id: "b", status: "blocked" }), card({ id: "c", status: "done" })]);
     const waiting = await screen.findByRole("region", { name: "Waiting for you" });
     const summary = screen.getByRole("img", { name: /steps done/ }).closest("header")!;
-    expect(waiting.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary.compareDocumentPosition(waiting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.querySelector("#step-b [aria-expanded]")).toHaveAttribute("aria-expanded", "true");
     expect(document.querySelector("#step-a [aria-expanded]")).toHaveAttribute("aria-expanded", "false");
     const names = within(screen.getByRole("group", { name: /filter/i })).getAllByRole("button").map((b) => b.textContent);
@@ -236,7 +236,7 @@ describe("ProjectRoute", () => {
     expect(screen.queryByRole("region", { name: /Lot in progress/ })).toBeNull();
   });
 
-  it("leads with the running lot, then what waits for you, then the phase in progress; the rest folds below", async () => {
+  it("leads with the key figures, then the running lot, what waits for you and the phase in progress; the rest folds below", async () => {
     mount(
       [
         card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "working" }),
@@ -246,11 +246,11 @@ describe("ProjectRoute", () => {
       { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: 1 })] },
     );
     const order = [
-      await screen.findByRole("region", { name: "Lot in progress: Lot A" }),
+      await screen.findByRole("button", { name: "Key figures" }),
+      screen.getByRole("region", { name: "Lot in progress: Lot A" }),
       screen.getByRole("region", { name: /waiting for you/i }),
       screen.getByRole("heading", { name: "P1" }),
       screen.getByRole("button", { name: "Outside a phase · 1 step" }),
-      screen.getByRole("button", { name: "Key figures" }),
       screen.getByRole("button", { name: "Autonomy" }),
     ];
     for (let i = 1; i < order.length; i++) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

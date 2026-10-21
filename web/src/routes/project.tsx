@@ -327,6 +327,43 @@ export function ProjectRoute() {
             </div>
           ) : (
             <>
+              {/* The figures lead the page; the rest folds below the phase in progress — each folds, per device. */}
+              <Fold title={t("project.fold.figures")} state={figuresFold}>
+                <header className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    {latest > 0 && (
+                      <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
+                        <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
+                        {t("project.updated", { ago: ago(latest) })}
+                      </span>
+                    )}
+                    <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
+                      {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
+                      <span className="hidden sm:inline">
+                        {v.total > 0 ? rich(t("project.sum.progress", { count: v.done, done: v.done, total: v.total })) : t("project.sum.none")}
+                        {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
+                        {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
+                        , {t("project.sum.flight", { count: v.active })}.
+                      </span>
+                      {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
+                      {v.closedCount > 0 && (
+                        <>
+                          {" "}
+                          {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <Ring done={v.done} active={v.active} total={v.total} />
+                </header>
+
+                <div className="hidden grid-cols-4 gap-2 sm:grid">
+                  <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
+                  <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
+                  <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
+                  <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
+                </div>
+              </Fold>
               {running.map((l) => (
                 <LotBanner key={l.lot.id} live={l} />
               ))}
@@ -424,7 +461,7 @@ export function ProjectRoute() {
               <ol className="flex flex-col gap-2">{current.map(section)}</ol>
               {v.total === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">{t("project.allValidated")}</p>}
 
-              {/* Below the phase in progress: what no phase has taken, then the figures and the settings — each folds, per device. */}
+              {/* Below the phase in progress: what no phase has taken, then the settings. */}
               {loose.some((p) => p.steps.some(shownIn)) && (
                 <Fold title={t("project.fold.loose", { count: loose.reduce((n, p) => n + p.steps.length, 0) })} state={looseFold}>
                   <ol className="flex flex-col gap-2">{loose.map(section)}</ol>
@@ -444,43 +481,6 @@ export function ProjectRoute() {
                   </button>
                 </section>
               )}
-
-              <Fold title={t("project.fold.figures")} state={figuresFold}>
-                <header className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    {latest > 0 && (
-                      <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
-                        <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-                        {t("project.updated", { ago: ago(latest) })}
-                      </span>
-                    )}
-                    <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-                      {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
-                      <span className="hidden sm:inline">
-                        {v.total > 0 ? rich(t("project.sum.progress", { count: v.done, done: v.done, total: v.total })) : t("project.sum.none")}
-                        {named > 0 && v.total > 0 && ` ${t("project.sum.phases", { count: named })}`}.{" "}
-                        {v.waiting > 0 ? rich(t("project.sum.waiting", { count: v.waiting })) : t("project.sum.nothing")}
-                        , {t("project.sum.flight", { count: v.active })}.
-                      </span>
-                      {v.next && <> {rich(t("project.sum.next", { title: v.next.title }))}</>}
-                      {v.closedCount > 0 && (
-                        <>
-                          {" "}
-                          {t("project.sum.delivered", { count: v.deliveredSteps })} {t("project.sum.inPhases", { count: v.closedCount })}.
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <Ring done={v.done} active={v.active} total={v.total} />
-                </header>
-
-                <div className="hidden grid-cols-4 gap-2 sm:grid">
-                  <Kpi label={t("project.kpi.done")} value={v.done} note={t("project.kpi.ofSteps", { total: v.total })} tone="bg-status-done" compact />
-                  <Kpi label={t("project.kpi.flight")} value={v.active} note={t("project.kpi.agentOn")} tone="bg-status-working" compact />
-                  <Kpi label={t("project.kpi.waiting")} value={v.waiting} note={t(v.waiting ? "project.kpi.blocked" : "project.kpi.nothing")} tone="bg-brand" compact />
-                  <Kpi label={t("project.kpi.todo")} value={v.todo} note={v.next ? t("project.kpi.next", { title: v.next.title }) : undefined} tone="bg-muted-foreground" compact />
-                </div>
-              </Fold>
 
               {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
               {repo && <RepoFlow repo={repo} flows={data.flows} />}
