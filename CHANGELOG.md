@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.228.0] - 2026-10-21
+
+### Added
+
+- Livrables par carte : un agent publie un fichier (`POST /api/cards/<id>/deliverables?name=…`), le bridge le garde dans son state dir, liste, sert et supprime — survit au merge et au ménage du worktree (ADR 0045) (7e86616)
+- Page projet : « Supprimer la phase » sur une phase vide (ni carte ni lot), confirmée d'un second tap en place. (7ed866e)
+
+### Changed
+
+- `DELETE /api/phases/<id>` refuse une phase non vide (409 « phase is not empty »). (7ed866e)
+- Le prompt de l'orchestrateur ne crée plus de phase de board pour le Cadrage : seulement l'item de roadmap. (7ed866e)
+
 ## [0.227.0] - 2026-10-21
 
 ### Added
