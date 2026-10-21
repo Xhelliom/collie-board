@@ -10,6 +10,7 @@ import { Fold, useStoredFold } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
+import { DeliverableLinks, recentDeliverables } from "@/components/card-deliverables";
 import { PhaseTemplate } from "@/components/phase-template";
 import { templateFor, templateName } from "@/lib/templates";
 import { PhaseLots } from "@/components/project-lots";
@@ -220,6 +221,8 @@ export function ProjectRoute() {
   const loose = phased ? v.phases.filter((p) => !p.phase) : [];
   const looseFold = useStoredFold("project-loose");
   const figuresFold = useStoredFold("project-figures");
+  const deliverablesFold = useStoredFold("project-deliverables", false);
+  const deliverables = useMemo(() => recentDeliverables(cards, data.facts), [cards, data.facts]);
   const unfold = (p: (s: ProjectPhase) => boolean) => loose.some(p) && looseFold[1](true);
 
   // One section of the road map: its heading, its lots and its steps. `k` numbers the steps across the page.
@@ -510,6 +513,11 @@ export function ProjectRoute() {
               {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
               {repo && <RepoFlow repo={repo} flows={data.flows} />}
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
+              {deliverables.length > 0 && (
+                <Fold title={t("project.fold.deliverables", { count: deliverables.length })} state={deliverablesFold}>
+                  <DeliverableLinks items={deliverables} />
+                </Fold>
+              )}
               {repo && (
                 <Fold title={t("orch.auto")} state={autoFold}>
                   <AutonomySettings repo={repo} />
@@ -527,7 +535,7 @@ export function ProjectRoute() {
           onPointerDown={panel.onPointerDown}
           className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/30 active:bg-primary/40"
         />
-        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} />
+        <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} />
       </aside>
       </div>
       {validating && (
@@ -553,7 +561,7 @@ export function ProjectRoute() {
           scrolled as a whole with the composer below the fold. */}
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[94dvh] max-h-[94dvh]">
         <div className="flex h-full min-h-0 flex-col">
-          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} onLeave={() => setChatOpen(false)} />
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} onLeave={() => setChatOpen(false)} />
         </div>
       </BottomSheet>
     </div>

@@ -45,11 +45,11 @@ export function DocViewer({
 }: {
   url: string;
   name: string;
-  kind: Exclude<ArtifactKind, "image">;
+  kind: Exclude<ArtifactKind, "image"> | "pdf";
   fromLabel: string;
 }) {
   const t = useT();
-  if (kind === "html") {
+  if (kind === "html" || kind === "pdf") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {/* sandbox without allowances: no scripts, no forms, no top navigation, no popups — and the

@@ -225,6 +225,8 @@ export async function handleDeliverablesRoute(
   if (!full) return ctx.text("not found", 404);
   if (req.method === "DELETE") {
     await unlink(full);
+    // Journaled so the project's facts stop listing it (bridge/project-facts.ts).
+    ctx.db.recordEvent(cardId, "deliverable.deleted", { cardId, name: rawName });
     ctx.audit.record({ action: "deliverable.delete", session: ctx.session, device: ctx.device, detail: { cardId, name: rawName } });
     return ctx.json({ ok: true });
   }

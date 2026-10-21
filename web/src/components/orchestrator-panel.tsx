@@ -6,6 +6,7 @@ import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
+import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { autonomyPath, boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
@@ -36,6 +37,7 @@ export function OrchestratorPanel({
   state,
   entries,
   memory = null,
+  deliverables = [],
   onLeave,
 }: {
   repo: string | null;
@@ -44,6 +46,8 @@ export function OrchestratorPanel({
   entries: TranscriptEntry[];
   /** The note it left its next self (ADR 0023), read-only here. */
   memory?: OrchestratorMemory | null;
+  /** The project's deliverables, newest first (from the facts the page polls): the ones published during this conversation show in it. */
+  deliverables?: RecentDeliverable[];
   /** Called when the panel sends the operator to the page (the sheet closes itself). */
   onLeave?: () => void;
 }) {
@@ -53,6 +57,10 @@ export function OrchestratorPanel({
   const [draft, setDraft] = useState("");
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
+  // Since the conversation's first shown turn, oldest first — the order the thread reads in.
+  const since = entries.length > 0 ? Date.parse(entries[0]!.ts) : Infinity;
+  const published = deliverables.filter((d) => d.ts >= since).reverse();
+
   const scroller = useRef<HTMLDivElement>(null);
   // Follow the conversation as it grows — unless the reader scrolled up to read: then leave them there.
   const stuck = useRef(true);
@@ -65,7 +73,7 @@ export function OrchestratorPanel({
       if (stuck.current) el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(id);
-  }, [entries]);
+  }, [entries, published.length]);
 
   if (!repo) {
     return (
@@ -200,6 +208,12 @@ export function OrchestratorPanel({
             <ButtonsPaneContext.Provider value={state.paneId}>
               <TranscriptView entries={entries} />
             </ButtonsPaneContext.Provider>
+            {published.length > 0 && (
+              <div className="flex flex-col gap-1.5 px-2 pb-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{t("orch.published")}</span>
+                <DeliverableLinks items={published} onLeave={onLeave} />
+              </div>
+            )}
           </div>
         ) : (
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
