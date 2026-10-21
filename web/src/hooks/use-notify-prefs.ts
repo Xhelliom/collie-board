@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { t } from "@/i18n";
 import { getNotifyPrefs, setNotifyPrefs, type NotifyPrefs } from "@/lib/api";
+import { boardErrorMessage } from "@/lib/board";
+import { setStatus } from "@/lib/status";
 
 // Settings-page controller for the bridge-wide notification-type prefs (which agent statuses push).
 // Loads once on mount; a toggle is optimistic — flip the switch immediately, POST the single-key
@@ -26,8 +29,9 @@ export function useNotifyPrefs() {
     try {
       const updated = await setNotifyPrefs({ [key]: next });
       setPrefs(updated); // reconcile with the server's merged view
-    } catch {
+    } catch (e) {
       setPrefs((prev) => (prev ? { ...prev, [key]: !next } : prev)); // revert on failure
+      setStatus(t("error.saveFailed", { error: boardErrorMessage(e) }), "error");
     } finally {
       setBusy(false);
     }

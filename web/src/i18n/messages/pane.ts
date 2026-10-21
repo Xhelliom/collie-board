@@ -7,6 +7,7 @@ export const pane = defineMessages({
   "pane.artifacts": { en: "Artifacts", fr: "Artefacts" },
   "pane.artifacts.label": { en: "Session artifacts", fr: "Artefacts de la session" },
   "pane.attach": { en: "Attach image", fr: "Joindre une image" },
+  "pane.imageAdded": { en: "Image added — path in message", fr: "Image ajoutée — chemin dans le message" },
   "pane.cardCarried": { en: "Carried card", fr: "Carte portée" },
   "pane.changed.dialog": { en: "Dialog changed — refreshing", fr: "Dialogue modifié — actualisation" },
   "pane.changed.menu": { en: "Menu changed — refreshing", fr: "Menu modifié — actualisation" },
@@ -87,6 +88,14 @@ export const pane = defineMessages({
   "pane.sendFailed": { en: "Send failed", fr: "Échec de l'envoi" },
   "pane.send.really": { en: "Really send?", fr: "Vraiment envoyer ?" },
   "pane.send.sent": { en: "Sent ✓", fr: "Envoyé ✓" },
+  "pane.send.stalled": {
+    en: "Message didn't reach the input box — a dialog may be waiting. Nothing was submitted.",
+    fr: "Le message n'a pas atteint la zone de saisie — un dialogue attend peut-être. Rien n'a été envoyé.",
+  },
+  "pane.send.notSubmitted": {
+    en: "Typed into the pane but not submitted — check the pane before resending",
+    fr: "Tapé dans le pane mais pas envoyé — vérifie le pane avant de renvoyer",
+  },
   "pane.sent": { en: "You sent:", fr: "Tu as envoyé :" },
   "pane.sentShort": { en: "Sent", fr: "Envoyé" },
   "pane.switch": { en: "Switch pane", fr: "Changer de pane" },

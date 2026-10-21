@@ -196,7 +196,7 @@ function FileDiffSheet({
         setTruncated(r.truncated);
       })
       .catch((e) => {
-        if (!cancelled) setError((e as Error).message);
+        if (!cancelled) setError(boardErrorMessage(e));
       });
     return () => {
       cancelled = true;

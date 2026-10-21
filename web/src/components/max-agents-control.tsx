@@ -4,7 +4,8 @@ import { Gauge, Loader2, Minus, Plus } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { fetchBoardPrefs, setBoardPrefs, MAX_AGENTS_CAP } from "@/lib/board";
+import { boardErrorMessage, fetchBoardPrefs, setBoardPrefs, MAX_AGENTS_CAP } from "@/lib/board";
+import { setStatus } from "@/lib/status";
 
 // How many cards may run an agent at once — the semaphore `startCard` refuses on ("3 agents already
 // running — finish or hand one off first"). It lives on the bridge like every other board pref, but
@@ -48,8 +49,9 @@ export function MaxAgentsControl() {
     try {
       const updated = await setBoardPrefs({ maxAgents: next });
       setValue(updated.maxAgents);
-    } catch {
+    } catch (e) {
       setValue(value);
+      setStatus(t("error.saveFailed", { error: boardErrorMessage(e) }), "error");
     } finally {
       setBusy(false);
     }

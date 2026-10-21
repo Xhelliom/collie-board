@@ -45,8 +45,9 @@ export function AutoHandoffControl() {
     setBusy(true);
     try {
       setOn((await setBoardPrefs({ autoHandoff: next })).autoHandoff);
-    } catch {
+    } catch (e) {
       setOn(before);
+      setStatus(t("error.saveFailed", { error: boardErrorMessage(e) }), "error");
     } finally {
       setBusy(false);
     }

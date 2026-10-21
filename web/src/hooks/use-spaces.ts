@@ -6,6 +6,8 @@ import { setStatus } from "@/lib/status";
 import { panePath } from "@/lib/nav";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { isReadOnly, type AgentView, type CreateResponse } from "@/lib/types";
+import { t } from "@/i18n";
+import { boardErrorMessage } from "@/lib/board";
 
 // Shared "create a tab/space, then jump into its fresh shell" flow, used by the home space view and
 // the detail Herdr palette. The new pane won't be in the snapshot until the next poll, so we pass
@@ -50,7 +52,7 @@ export function useSpaceActions() {
         focused: false,
         kind: "shell",
       };
-      setStatus(`New ${what} ready — launch your agent`, "success");
+      setStatus(t(what === "tab" ? "spaces.ready.tab" : "spaces.ready.space"), "success");
       revalidatorRef.current.revalidate();
       navigate(panePath(p.paneId, sessionRef.current), { state: { freshPane: fresh } });
     },
@@ -59,11 +61,11 @@ export function useSpaceActions() {
 
   const newTab = useCallback(
     async (workspaceId: string) => {
-      if (readOnlyRef.current) return setStatus("Read-only — device not authorised", "error");
+      if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
       try {
         open(await api.createTab(workspaceId, {}, sessionRef.current), "tab");
       } catch (e) {
-        setStatus(e instanceof Error ? e.message : String(e), "error");
+        setStatus(boardErrorMessage(e), "error");
       }
     },
     [open],
@@ -71,11 +73,11 @@ export function useSpaceActions() {
 
   const newSpace = useCallback(
     async (opts: { label?: string; cwd?: string } = {}) => {
-      if (readOnlyRef.current) return setStatus("Read-only — device not authorised", "error");
+      if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
       try {
         open(await api.createWorkspace(opts, sessionRef.current), "space");
       } catch (e) {
-        setStatus(e instanceof Error ? e.message : String(e), "error");
+        setStatus(boardErrorMessage(e), "error");
       }
     },
     [open],

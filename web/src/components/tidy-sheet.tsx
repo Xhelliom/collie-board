@@ -53,7 +53,7 @@ export function TidySheet({ open, onClose }: { open: boolean; onClose: () => voi
     setError(null);
     try {
       const r = await closeTidy([...checked], hours);
-      if (r.failed.length) setError(r.failed.map((f) => `${f.paneId}: ${f.error}`).join("\n"));
+      if (r.failed.length) setError(t("tidy.failed", { count: r.failed.length, error: r.failed[0]!.error }));
       setDone(r.closed.length);
       void revalidator.revalidate();
     } catch (e) {

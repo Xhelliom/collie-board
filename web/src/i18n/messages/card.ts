@@ -107,6 +107,7 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   // new card sheet (components/new-card-sheet.tsx)
   "newcard.derivedTitle": { en: "Derived title:", fr: "Titre déduit :" },
   "newcard.add": { en: "Add to backlog", fr: "Ajouter au backlog" },
+  "newcard.failed": { en: "Card not created: {error}", fr: "Carte non créée : {error}" },
   "newcard.what": { en: "What needs doing (dictate away)", fr: "Ce qu'il y a à faire (dicte librement)" },
   "newcard.placeholder": { en: "Add a diff view scoped to the card's branch…", fr: "Ajouter une vue diff limitée à la branche de la carte…" },
   "newcard.uploading": { en: "Uploading the image…", fr: "Téléversement de l'image…" },

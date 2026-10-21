@@ -301,8 +301,10 @@ export function BoardRoute() {
     }
     revalidator.revalidate();
   }
+  // Throws on failure: the sheet stays open and says why, over the header that it covers.
   async function create(input: CardInput) {
     await createCard(input);
+    setStatus(t("board.cardCreated", { title: input.title ?? "" }), "success");
     revalidator.revalidate();
   }
 
@@ -345,7 +347,7 @@ export function BoardRoute() {
       // wrong: every nudge inside a column would file a "moved to backlog" event that never happened.
       await patchCard(card.id, now.status === status ? { position } : { status, position });
     } catch (e) {
-      setStatus((e as Error).message, "error", null);
+      setStatus(boardErrorMessage(e), "error", null);
     }
     await revalidator.revalidate();
     clear();

@@ -22,7 +22,7 @@ import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
 import { closePane, fetchHistory } from "@/lib/api";
-import { cardPath, handoffCard } from "@/lib/board";
+import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
 import { collectImages, openLightbox } from "@/lib/lightbox";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
@@ -184,7 +184,7 @@ export function AgentChat({
         setStatus(res.error ?? tr("pane.closeFailed"), "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setClosingPane(false);
     }
@@ -636,7 +636,7 @@ export function AgentChat({
       await handoffCard(id);
       setStatus(tr("pane.handoffAsked"), "info");
     } catch (e) {
-      setStatus((e as Error).message, "error", null);
+      setStatus(boardErrorMessage(e), "error", null);
     }
     revalidator.revalidate();
   };

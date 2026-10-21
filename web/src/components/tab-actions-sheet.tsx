@@ -8,6 +8,7 @@ import * as api from "@/lib/api";
 import { setStatus } from "@/lib/status";
 import type { TabView } from "@/lib/types";
 import { useT } from "@/i18n";
+import { boardErrorMessage } from "@/lib/board";
 
 interface TabActionsSheetProps {
   open: boolean;
@@ -83,7 +84,7 @@ export function TabActionsSheet({
         setStatus(res.error ?? t("spaces.sheet.renameFailed"), "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setSaving(false);
     }
@@ -103,7 +104,7 @@ export function TabActionsSheet({
         setStatus(res.error ?? t("spaces.sheet.closeFailed"), "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setClosing(false);
     }

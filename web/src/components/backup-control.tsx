@@ -9,6 +9,7 @@ import { downloadBackup, restoreBackup, type RestoreResult } from "@/lib/backup"
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isReadOnly } from "@/lib/types";
 import type { DeviceAuth } from "@/lib/types";
+import { boardErrorMessage } from "@/lib/board";
 
 // "Backup" — one file with everything Collie Board persists: the board's cards and their history,
 // the server-side preferences, and this browser's own (see lib/backup.ts). Both directions live in
@@ -71,7 +72,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
       setRestored(await restoreBackup(file));
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("settings.backup.restoreFailed"));
+      setError(t("settings.backup.restoreFailed", { error: boardErrorMessage(err) }));
     } finally {
       setBusy(null);
     }

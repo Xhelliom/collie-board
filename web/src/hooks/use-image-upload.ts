@@ -3,6 +3,8 @@ import type { ClipboardEvent, Dispatch, SetStateAction } from "react";
 
 import * as api from "@/lib/api";
 import { setStatus } from "@/lib/status";
+import { t } from "@/i18n";
+import { boardErrorMessage } from "@/lib/board";
 
 // Attaching a screenshot, once, for every text box that can carry one.
 //
@@ -58,12 +60,12 @@ export function useImageUpload({
         const path = res.path;
         setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${path}` : path));
         onAppended?.();
-        setStatus("Image added — path in message", "success");
+        setStatus(t("pane.imageAdded"), "success");
       } else {
         setStatus(res.error, "error");
       }
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err), "error");
+      setStatus(boardErrorMessage(err), "error");
     } finally {
       setUploading(false);
     }
