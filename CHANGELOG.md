@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.231.0] - 2026-10-21
+
+### Added
+
+- Carte : section « Livrables » — vignettes vers la lightbox, Markdown/HTML/PDF dans le visualiseur, téléchargement pour le reste, suppression en deux taps (9b4c205)
+- Page projet : repli « Livrables » (fermé par défaut) avec les rendus récents liés à leur carte (9b4c205)
+- Panneau orchestrateur : les livrables publiés pendant la conversation s'affichent dans le fil (9b4c205)
+- Facts du projet : `deliverables` par carte ; une suppression est journalisée (`deliverable.deleted`) (9b4c205)
+
 ## [0.230.0] - 2026-10-21
 
 ### Added
