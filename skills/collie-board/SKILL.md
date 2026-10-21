@@ -18,7 +18,7 @@ description: >-
 # Collie Board — cards over the local HTTP API
 
 The bridge already exposes everything. There is no CLI: use `curl`. (An MCP server, `bridge/mcp.ts`, wraps this same API for
-MCP clients; same guards, `HERDR_PANE_ID` relayed as `x-collie-pane`. Its `message_orchestrator(repoPath, text)` types `[vocal] <text>` into the live orchestrator's pane — a message from the operator by voice; it starts nothing if none lives. `notify` is offered only to a client with a pane.) Works **only on the machine running the bridge** — the API is bound to
+MCP clients; same guards, `HERDR_PANE_ID` relayed as `x-collie-pane`. Its `message_orchestrator(repoPath, text)` types `[vocal] <text>` into the live orchestrator's pane — a message from the operator by voice; it starts nothing if none lives. `notify` is offered only to a client with a pane. `project_roadmap(repoPath, format?, phase?)` reads the roadmap — `md` or `steps`, clipped — then the cards of the open phases, or of one, with status, flow and lot.) Works **only on the machine running the bridge** — the API is bound to
 loopback, and a loopback request with no `Origin` header is what the gate lets
 write.
 
