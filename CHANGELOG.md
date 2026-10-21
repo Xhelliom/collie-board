@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.7] - 2026-10-21
+
+### Changed
+
+- Copilot : les cartes à relire sortent d'une seule requête SQL au lieu de trois par carte terminée, à chaque poll (8,4 ms → 1,1 ms sur la vraie base). (78d829a)
+- Garde de review : ne lit plus que la colonne `review`, pas tout le board, à chaque poll. (78d829a)
+
+### Fixed
+
+- Un dépôt connu du bridge sans aucune carte se choisit dans le sélecteur de dépôt (onglets du tableau, barre latérale) et ouvre sa page projet (e28e4db)
+
 ## [0.223.6] - 2026-10-21
 
 ### Fixed
