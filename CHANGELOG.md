@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.223.8] - 2026-10-21
+
+### Fixed
+
+- « Fusionner » sur une carte dont la PR est ouverte fusionne la PR sur GitHub, plus jamais en local (8bee9c8)
+- Fusion locale refusée si `origin` a des commits absents de la branche ou de la base ; la base est poussée, et un push refusé annule la fusion sans classer la carte (8bee9c8)
+- La vue d'une carte porte `prUrl`, l'url de sa PR lue au journal (8bee9c8)
+
 ## [0.223.7] - 2026-10-21
 
 ### Changed
