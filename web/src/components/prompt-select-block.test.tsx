@@ -18,7 +18,8 @@ import { parseAnsi } from "@/lib/ansi";
 import { splitLines, type PromptModel, type PromptOption } from "@/lib/blocks";
 import { detectPromptSelect } from "@/lib/harness/claude/prompt-select";
 import { submitPromptOption } from "@/lib/prompt-action";
-import { clearStatus, setStatus, useStatus } from "@/lib/status";
+import { clearStatus, setStatus } from "@/lib/status";
+import { Toaster } from "@/components/ui/sonner";
 import { PromptSelectBlock } from "./prompt-select-block";
 
 const mockFetchPane = vi.mocked(fetchPane);
@@ -248,10 +249,6 @@ describe("submitPromptOption — race guard + per-family keystroke recipe", () =
 
 // A miniature of AgentChat's handler + status surface, so the wired tap is exercised through the
 // real component and the "menu changed" notice pattern the app uses.
-function StatusSentinel() {
-  const status = useStatus();
-  return <div data-testid="status">{status?.text ?? ""}</div>;
-}
 
 function Harness({ prompt, detectedRevision }: { prompt: PromptModel; detectedRevision: number }) {
   async function onAction(option: PromptOption) {
@@ -262,20 +259,20 @@ function Harness({ prompt, detectedRevision }: { prompt: PromptModel; detectedRe
       prompt,
       option,
     });
-    if (result.status === "sent") setStatus("Sent", "success");
-    else if (result.status === "changed") setStatus("Menu changed — refreshing", "warn");
-    else setStatus(result.error, "error");
+    // A send says nothing: the sent text shows up in the mirror.
+    if (result.status === "changed") setStatus("Menu changed — refreshing", "warn");
+    else if (result.status === "error") setStatus(result.error, "error");
   }
   return (
     <>
       <PromptSelectBlock prompt={prompt} onAction={onAction} />
-      <StatusSentinel />
+      <Toaster />
     </>
   );
 }
 
 describe("PromptSelectBlock — wired tap (component → handler → api)", () => {
-  it("tapping an option runs the guard, sends its keys, and confirms", async () => {
+  it("tapping an option runs the guard, sends its keys", async () => {
     const model = fixtureModel("claude--select-menu.txt");
     mockFetchPane.mockResolvedValue({
       paneId: "w1:p1",
@@ -288,8 +285,7 @@ describe("PromptSelectBlock — wired tap (component → handler → api)", () =
 
     await user.click(screen.getByRole("button", { name: /Red/ }));
 
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("Sent"));
-    expect(mockSendKeys).toHaveBeenCalledWith("w1:p1", ["1", "Enter"], undefined);
+    await waitFor(() => expect(mockSendKeys).toHaveBeenCalledWith("w1:p1", ["1", "Enter"], undefined));
   });
 
   it("a stale tap surfaces a 'menu changed' notice and sends nothing", async () => {
@@ -305,7 +301,7 @@ describe("PromptSelectBlock — wired tap (component → handler → api)", () =
 
     await user.click(screen.getByRole("button", { name: /Green/ }));
 
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("Menu changed"));
+    expect(await screen.findByText(/Menu changed/)).toBeInTheDocument();
     expect(mockSendKeys).not.toHaveBeenCalled();
   });
 });

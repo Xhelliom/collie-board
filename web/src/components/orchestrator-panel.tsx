@@ -118,7 +118,6 @@ export function OrchestratorPanel({
       const res = await sendReply(state.paneId, msg);
       if (res.ok === false) throw new Error(res.error ?? t("pane.sendFailed"));
       setDraft("");
-      setStatus(t("pane.sentShort"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     } finally {

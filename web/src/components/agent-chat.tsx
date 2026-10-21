@@ -442,7 +442,6 @@ export function AgentChat({
         option,
       });
       if (result.status === "sent") {
-        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
@@ -476,7 +475,6 @@ export function AgentChat({
         keys,
       });
       if (result.status === "sent") {
-        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
@@ -515,10 +513,7 @@ export function AgentChat({
             ? await submitPreviewNote({ ...base, text: action.text })
             : await submitPreviewKeys({ ...base, keys: action.keys });
       if (result.status === "sent") {
-        setStatus(
-          action.kind === "note" ? (action.text ? tr("pane.note.saved") : tr("pane.note.removed")) : tr("pane.sentShort"),
-          "success",
-        );
+        if (action.kind === "note") setStatus(action.text ? tr("pane.note.saved") : tr("pane.note.removed"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
@@ -553,7 +548,6 @@ export function AgentChat({
         intent: action,
       });
       if (result.status === "sent") {
-        setStatus(tr("pane.sentShort"), "success");
         setFollowing(true);
         revalidator.revalidate();
         listRef.current?.scrollToBottom();
@@ -1087,7 +1081,7 @@ export function AgentChat({
 
         {/* Bottom region: the composer. The status line USED to float here as an overlay just above
             the composer, but it covered the terminal tail (the prompt/cursor and up-levelled prompt
-            buttons) — it now lives as a slim row just below the header. The pane switcher used to
+            buttons) — the toasts now float under the header (ui/sonner.tsx). The pane switcher used to
             have a grab-handle band of its own here; it's a button in the composer's action row now
             (see composer.tsx), which costs the mirror nothing. */}
         <div className="relative">

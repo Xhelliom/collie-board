@@ -103,7 +103,7 @@ async function apiError(res: Response, path: string): Promise<ApiError> {
   try {
     body = await res.text();
   } catch {
-    // A body that won't read leaves the status line to speak for it.
+    // A body that won't read leaves the status toast to speak for it.
   }
   if (body.startsWith("{")) {
     try {

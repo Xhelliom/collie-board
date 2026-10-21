@@ -173,7 +173,6 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "card.toast.reviewAgain": { en: "Review relaunched — the new verdict arrives in a minute.", fr: "Review relancée — le nouveau verdict arrive dans une minute." },
   "card.toast.commitAsking": { en: "Commit request sent to the agent…", fr: "Demande de commit envoyée à l'agent…" },
   "card.toast.commitAsked": { en: "Commit requested — the agent commits on its branch.", fr: "Commit demandé — l'agent commite dans sa branche." },
-  "card.toast.sent": { en: "Sent", fr: "Envoyé" },
   "card.toast.handoff": { en: "Handoff asked for — the card swaps sessions when the note lands.", fr: "Handoff demandé — la carte change de session dès que la note arrive." },
   "card.toast.passSent": { en: "{command} sent — it runs in this card's agent.", fr: "{command} envoyé — il tourne dans l'agent de cette carte." },
   "card.replaceEdits": { en: "Replace my edits?", fr: "Remplacer mes modifications ?" },

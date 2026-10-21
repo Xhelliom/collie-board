@@ -24,7 +24,7 @@ import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
 import { fixtureAgents } from "@/test/handlers";
 import { AgentChat } from "./agent-chat";
-import { StatusArea } from "./status-area";
+import { Toaster } from "@/components/ui/sonner";
 
 // The detail view's core job: type a reply and submit it to the bridge. This drives the whole wired
 // path (composer → api.sendReply → MSW → optimistic clear / error surfacing) end-to-end, which no
@@ -58,7 +58,7 @@ function renderChat(overrides: Partial<ComponentProps<typeof AgentChat>> = {}) {
   render(
     <>
       <RouterProvider router={router} />
-      <StatusArea />
+      <Toaster />
     </>,
   );
   return props;

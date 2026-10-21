@@ -58,7 +58,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   const [hiddenCount, setHiddenCount] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
   const [creating, setCreating] = useState(false);
-  // The status line sits in the header, behind this sheet: a failed create has to say so here.
+  // The toasts sit under the header, behind this sheet: a failed create has to say so here.
   const [error, setError] = useState<string | null>(null);
 
   // A self-update reload must not eat a half-dictated brain dump.
@@ -234,9 +234,9 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
             placeholder={t("newcard.placeholder")}
             className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          {/* The shared status line lives in the header, behind this sheet, so the button carries the
+          {/* The shared toasts sit under the header, behind this sheet, so the button carries the
               upload's state itself — an upload that takes a few seconds says so where the user is
-              looking, and there is one control rather than a control plus a status line. */}
+              looking, and there is one control rather than a control plus a toast. */}
           <div className="flex px-1">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
             <Button

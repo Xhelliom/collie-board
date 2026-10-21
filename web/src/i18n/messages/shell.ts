@@ -40,6 +40,7 @@ export const shell = defineMessages({
   "error.back": { en: "Go back", fr: "Retour" },
   "update.tapBanner": { en: "New version — tap to update", fr: "Nouvelle version — touchez pour mettre à jour" },
   "toast.dismiss": { en: "Dismiss", fr: "Fermer" },
+  "toast.open": { en: "Open", fr: "Ouvrir" },
   "preview.currentAnswer": { en: "Current answer", fr: "Réponse actuelle" },
   "bell.markAllRead": { en: "Mark all read", fr: "Tout marquer comme lu" },
   "bell.delete": { en: "Delete notification: {title}", fr: "Supprimer la notification : {title}" },

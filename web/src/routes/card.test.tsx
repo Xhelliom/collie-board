@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
-import { useStatus } from "@/lib/status";
+import { Toaster } from "@/components/ui/sonner";
 import {
   convertible,
   liveFirst,
@@ -412,32 +412,24 @@ describe("IntegrationSection — merged, pushed, and neither", () => {
         ? Promise.reject(new DOMException("signal timed out", "TimeoutError"))
         : realFetch(input, init),
     );
-    function Probe() {
-      const status = useStatus();
-      return <output>{status ? `${status.tone}: ${status.text}` : ""}</output>;
-    }
     const onDone = vi.fn();
     server.use(
       http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: integration() })),
     );
     render(
       <>
-        <Probe />
+        <Toaster />
         <IntegrationSection card={card("working")} events={[]} onDone={onDone} onState={vi.fn()} />
       </>,
     );
     await userEvent.click(await screen.findByRole("button", { name: /open a pr/i }));
-    expect((await screen.findByText(/still running/i)).textContent).toMatch(/^info: /);
+    expect((await screen.findByText(/still running/i)).closest("[data-sonner-toast]")).toHaveAttribute("data-type", "info");
     expect(onDone).toHaveBeenCalled();
     cleanup();
   });
 
   // A second tap while the first push still runs: the bridge answers 409 in-progress, which is news, not an error.
   it("reads a 409 in-progress as already running, not as an error", async () => {
-    function Probe() {
-      const status = useStatus();
-      return <output>{status ? `${status.tone}: ${status.text}` : ""}</output>;
-    }
     server.use(
       http.get("*/api/cards/:id/integration", () => HttpResponse.json({ integration: integration() })),
       http.post("*/api/cards/:id/integration", () =>
@@ -446,12 +438,12 @@ describe("IntegrationSection — merged, pushed, and neither", () => {
     );
     render(
       <>
-        <Probe />
+        <Toaster />
         <IntegrationSection card={card("working")} events={[]} onDone={vi.fn()} onState={vi.fn()} />
       </>,
     );
     await userEvent.click(await screen.findByRole("button", { name: /open a pr/i }));
-    expect((await screen.findByText(/already running on this card — wait/i)).textContent).toMatch(/^info: /);
+    expect((await screen.findByText(/already running on this card — wait/i)).closest("[data-sonner-toast]")).toHaveAttribute("data-type", "info");
     cleanup();
   });
 

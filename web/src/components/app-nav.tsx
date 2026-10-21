@@ -23,7 +23,7 @@ import type { HomeData } from "@/lib/loaders";
 // and "where am I in the app". Below `lg` it renders as a bottom tab bar (mobile), at `lg` and up as a
 // persistent 248px sidebar — both on EVERY screen, entered ones (pane, space) included: the operator
 // never loses the way out. An entered screen lifts its bottom-pinned chrome (the pane's composer) clear
-// of the bar with ABOVE_TAB_BAR; the status line (status-area.tsx) is raised above it too.
+// of the bar with ABOVE_TAB_BAR; the toasts (ui/sonner.tsx) float at the top, out of its way.
 export function AppNav({ data }: { data: HomeData }) {
   return (
     <>

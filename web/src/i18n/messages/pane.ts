@@ -87,7 +87,6 @@ export const pane = defineMessages({
   "pane.send.dialog": { en: "A dialog is waiting — answer it first, then send.", fr: "Un dialogue attend — réponds-y d'abord, puis envoie." },
   "pane.sendFailed": { en: "Send failed", fr: "Échec de l'envoi" },
   "pane.send.really": { en: "Really send?", fr: "Vraiment envoyer ?" },
-  "pane.send.sent": { en: "Sent ✓", fr: "Envoyé ✓" },
   "pane.send.stalled": {
     en: "Message didn't reach the input box — a dialog may be waiting. Nothing was submitted.",
     fr: "Le message n'a pas atteint la zone de saisie — un dialogue attend peut-être. Rien n'a été envoyé.",
@@ -97,7 +96,6 @@ export const pane = defineMessages({
     fr: "Tapé dans le pane mais pas envoyé — vérifie le pane avant de renvoyer",
   },
   "pane.sent": { en: "You sent:", fr: "Tu as envoyé :" },
-  "pane.sentShort": { en: "Sent", fr: "Envoyé" },
   "pane.switch": { en: "Switch pane", fr: "Changer de pane" },
   "pane.tabs": { en: "Tabs", fr: "Onglets" },
   "pane.terminal": { en: "Terminal", fr: "Terminal" },

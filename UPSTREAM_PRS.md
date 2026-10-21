@@ -664,6 +664,11 @@ upstream (it covers the terminal tail and the composer, which is why the old toa
 stack is `pointer-events-none` and nothing in the layout moves — the screen stays usable, which is
 the property that makes a toast acceptable here at all.
 
+> **Superseded by brick 42's Sonner move.** The pings now go through the app's one Sonner
+> `<Toaster/>` (`toast()` with an *Open* action, one id per pane so a blocked→done flip replaces its
+> own notice); `agent-toasts.tsx` and its hand-rolled swipe are gone — Sonner stacks, which removes
+> the reason for a second channel.
+
 ---
 
 ## 20. 🔵 A refusal the bridge wrote is shown as the bridge wrote it
@@ -1284,6 +1289,13 @@ drops a standing error (`clearErrorStatus`). Generic — no card in sight.
 | Commit | *fix(web): une seule ligne de statut, montée dans la racine* |
 | Files | `web/src/lib/status.ts`, `web/src/components/status-area.tsx`, `web/src/routes/root.tsx`, `web/src/components/composer.tsx`, the per-screen mounts removed (`home`, `space`, `spaces`, `agent-chat`) |
 | Extraction | **Needs extraction** — `prs.tsx`, `card.tsx` and `board.tsx` (the run button's lift) are the fork's. |
+
+> **Then replaced by Sonner, shadcn's toast** — *feat(web): toasts façon shadcn (Sonner), un seul
+> empilement en haut*. `setStatus()` is now a façade over `toast()`/`toast.success()`…; the one
+> `<Toaster/>` (`components/ui/sonner.tsx`) sits in `root.tsx`, top-center under the header on a
+> phone, top-right on desktop, ~356px, three stacked, swipe to dismiss, ✕ on errors (which persist,
+> and close on a route change). `StatusArea`/`StatusOverlay`/`useStatusLift` are gone, and so are the
+> redundant "Sent" confirmations — the sent message already shows. Generic: a clean upstream PR.
 
 ---
 
