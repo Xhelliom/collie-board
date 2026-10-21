@@ -17,7 +17,6 @@ import { PhaseFilter } from "@/components/phase-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { RunSheet } from "@/components/run-sheet";
 import { containerIds, dependencyInfo, phaseProgress } from "@/lib/board-groups";
-import { useStatusLift } from "@/components/status-area";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import {
@@ -107,7 +106,6 @@ function newestDone(column: CardView[]): CardView[] {
 
 export function BoardRoute() {
   const t = useT();
-  const liftStatus = useStatusLift();
   const data = useLoaderData() as BoardRouteData;
   const facts = data.facts;
   const navigate = useNavigate();
@@ -759,13 +757,11 @@ export function BoardRoute() {
         </main>
       </div>
 
-      {/* The run button, above the mobile tab bar. It lifts the app's status line (root.tsx) clear
-          of itself. New card moved into the toolbar as the primary action — no floating FAB any more. */}
+      {/* The run button, above the mobile tab bar. New card moved into the toolbar as the primary action — no floating FAB any more. */}
       <div className="pointer-events-none fixed inset-x-0 bottom-14 z-30 mx-auto w-full max-w-screen-sm px-3 pb-[calc(env(safe-area-inset-bottom)_+_0.75rem)] lg:bottom-0 lg:max-w-none">
         {selecting && (
           <Button
             variant="brand"
-            ref={liftStatus}
             className="pointer-events-auto w-full"
             disabled={chosen.length === 0}
             onClick={() => setRunOpen(true)}

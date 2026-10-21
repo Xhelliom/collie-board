@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
 
+import { useT } from "@/i18n";
+import { cardPath } from "@/lib/board";
+import { panePath } from "@/lib/nav";
 import { notifyCardId, notifyContent } from "@/lib/notify-content";
 import type { AgentStatus, AgentView } from "@/lib/types";
 
@@ -18,16 +23,14 @@ import type { AgentStatus, AgentView } from "@/lib/types";
 //   • detail — the composition's body: the herd session when it isn't the primary one, the repo when
 //              the card already took the title, and what happened. NEVER a copilot subtitle — hence
 //              the `null` below: that answer can take seconds to minutes, and a toast is gone in
-//              {@link TOAST_TTL_MS} (see agent-toasts.tsx), so by the time it would land there is
+//              {@link TOAST_TTL_MS}, so by the time it would land there is
 //              nothing left to update. The bell shows it because it is a persistent record.
-//   • a tap  — deep-links into the pane, in its own session — EXCEPT when the alert is about a card
+//   • Open   — deep-links into the pane, in its own session — EXCEPT when the alert is about a card
 //              to read (`notifyCardId`), where it follows the sentence to the card instead: the pane
 //              is finished, so the terminal is the one place with nothing left to do (§4.1).
 // Everything above is read straight off the snapshot's `AgentView`, so a toast costs no extra fetch.
 
-export interface AgentToast {
-  /** Monotonic within this mount — a stable list key, nothing more. */
-  id: number;
+interface AgentToast {
   paneId: string;
   /** The herd session the pane lives in (undefined = primary) — the tap scopes to it. */
   session?: string;
@@ -38,10 +41,10 @@ export interface AgentToast {
   detail: string;
 }
 
-/** Toasts kept on screen at once — older ones drop off, they're transient by construction. */
-const MAX_TOASTS = 3;
+/** How long a toast stays up. Longer than a send confirmation — this one is worth reading and tapping. */
+const TOAST_TTL_MS = 6000;
 
-function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "id"> {
+function describe(a: AgentView, session: string | undefined): AgentToast {
   const status = a.status as "blocked" | "done";
   // The snapshot this diff ran on is the same one `reconcile()` had already acted on, so `cardStatus`
   // is current here with none of the re-reading the push has to do (§4.2).
@@ -59,21 +62,18 @@ function describe(a: AgentView, session: string | undefined): Omit<AgentToast, "
  * whose every internal request/reset would otherwise toast exactly like a worker's (the bridge keeps
  * it out of push/history the same way, by pane id rather than its renameable workspace label — see
  * index.ts). `session` is the herd session the snapshot was fetched for, stamped into each toast so
- * its tap lands in the right herd. Toasts auto-dismiss in the component that renders them.
+ * its tap lands in the right herd. The toasts go to the app's one <Toaster/> (routes/root.tsx), which
+ * stacks them — under the header, never over it nor over the composer.
  */
 export function useAgentTransitions(
   agents: AgentView[],
   openPaneId: string | null,
   copilotPaneId: string | null,
   session?: string,
-): { toasts: AgentToast[]; dismiss: (id: number) => void } {
+): void {
   const prev = useRef<Map<string, AgentStatus> | null>(null);
-  const [toasts, setToasts] = useState<AgentToast[]>([]);
-  const nextId = useRef(1);
-
-  const dismiss = useCallback((id: number) => {
-    setToasts((list) => list.filter((t) => t.id !== id));
-  }, []);
+  const navigate = useNavigate();
+  const t = useT();
 
   useEffect(() => {
     const now = new Map(agents.map((a) => [a.paneId, a.status]));
@@ -81,20 +81,25 @@ export function useAgentTransitions(
     prev.current = now;
     if (!before) return;
 
-    const fresh: AgentToast[] = [];
     for (const a of agents) {
       const was = before.get(a.paneId);
       if (!was || was === a.status) continue;
       if (a.paneId === openPaneId) continue; // you're already looking at it
       if (a.paneId === copilotPaneId) continue; // the board's own agent, not a worker
       if (a.status !== "blocked" && a.status !== "done") continue;
-      fresh.push({ id: nextId.current++, ...describe(a, session) });
+      const n = describe(a, session);
+      // One toast per pane (the id): a blocked→done flip replaces its own notice rather than stacking a second.
+      (n.status === "blocked" ? toast.warning : toast.success)(n.title, {
+        id: `agent:${n.paneId}`,
+        description: n.detail,
+        duration: TOAST_TTL_MS,
+        action: {
+          label: t("toast.open"),
+          onClick: () => navigate(n.cardId ? cardPath(n.cardId) : panePath(n.paneId, n.session)),
+        },
+      });
     }
-    if (fresh.length === 0) return;
-    // One toast per pane: a blocked→done flip replaces its own notice rather than stacking a second.
-    const supersededPanes = new Set(fresh.map((t) => t.paneId));
-    setToasts((list) => [...list.filter((t) => !supersededPanes.has(t.paneId)), ...fresh].slice(-MAX_TOASTS));
+    // `t`/`navigate` are left out on purpose: a re-created one must not re-run the diff.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agents, openPaneId, copilotPaneId, session]);
-
-  return { toasts, dismiss };
 }

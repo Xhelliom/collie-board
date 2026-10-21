@@ -8,7 +8,6 @@ import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { setStatus } from "@/lib/status";
-import { useStatusLift } from "@/components/status-area";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { NavTray } from "@/components/nav-tray";
@@ -202,7 +201,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // confirm the command palette uses for /clear.
   const sendConfirm = usePendingConfirm();
 
-  const liftStatus = useStatusLift();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const sentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -388,7 +386,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           setHandledKey(normalizeDraft(effectiveRaw));
           setPreviewLatched(false);
         }
-        // ✓ flash on the send button + status line acknowledge a VERIFIED send (the text was seen in
+        // The ✓ flash on the send button acknowledges a VERIFIED send (the text was seen in
         // the input box before the submit key went out), so this lands slightly later than the old
         // fire-and-forget ✓ but is now actually true. The "You sent: …" pending preview keeps the
         // typed text visible until the mirror catches up (cleared by the next text update or a 6s
@@ -396,7 +394,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         setJustSent(true);
         if (sentTimer.current) clearTimeout(sentTimer.current);
         sentTimer.current = setTimeout(() => setJustSent(false), 1500);
-        setStatus(tr("pane.send.sent"), "success");
         const preview = t.length > 60 ? `${t.slice(0, 57)}…` : t;
         setLastSent(preview);
         if (lastSentTimerRef.current) clearTimeout(lastSentTimerRef.current);
@@ -472,7 +469,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   return (
     <>
       {/* Below `lg` the tab bar under it already pays the safe area (agent-chat's ABOVE_TAB_BAR). */}
-      <div ref={liftStatus} className="border-t border-border/60 bg-chrome px-3 pb-2 pt-2.5 lg:pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]">
+      <div className="border-t border-border/60 bg-chrome px-3 pb-2 pt-2.5 lg:pb-[calc(env(safe-area-inset-bottom)_+_0.5rem)]">
         {/* Pending-send preview: visible from send until the mirror echoes back (or 6s). Shows the
             user what landed so they don't double-tap while waiting for the terminal to update. */}
         {lastSent && (

@@ -18,7 +18,8 @@ import { parseAnsi } from "@/lib/ansi";
 import { splitLines, type WizardModel } from "@/lib/blocks";
 import { detectWizard } from "@/lib/harness/claude/wizard";
 import { submitWizardKeys, wizardsEqual } from "@/lib/wizard-action";
-import { clearStatus, setStatus, useStatus } from "@/lib/status";
+import { clearStatus, setStatus } from "@/lib/status";
+import { Toaster } from "@/components/ui/sonner";
 import { WizardBlock } from "./wizard-block";
 
 const mockFetchPane = vi.mocked(fetchPane);
@@ -267,10 +268,6 @@ describe("submitWizardKeys — race guard (one keystroke per tap)", () => {
 
 // A miniature of AgentChat's handler + status surface, so the wired tap is exercised through the
 // real component and the "wizard changed" notice pattern the app uses.
-function StatusSentinel() {
-  const status = useStatus();
-  return <div data-testid="status">{status?.text ?? ""}</div>;
-}
 
 function Harness({ wizard, detectedRevision }: { wizard: WizardModel; detectedRevision: number }) {
   async function onAction(keys: string[]) {
@@ -281,20 +278,20 @@ function Harness({ wizard, detectedRevision }: { wizard: WizardModel; detectedRe
       wizard,
       keys,
     });
-    if (result.status === "sent") setStatus("Sent", "success");
-    else if (result.status === "changed") setStatus("Wizard changed — refreshing", "warn");
-    else setStatus(result.error, "error");
+    // A send says nothing: the sent text shows up in the mirror.
+    if (result.status === "changed") setStatus("Wizard changed — refreshing", "warn");
+    else if (result.status === "error") setStatus(result.error, "error");
   }
   return (
     <>
       <WizardBlock wizard={wizard} onAction={onAction} />
-      <StatusSentinel />
+      <Toaster />
     </>
   );
 }
 
 describe("WizardBlock — wired tap (component → handler → api)", () => {
-  it("tapping an answer runs the guard, sends its single digit, and confirms", async () => {
+  it("tapping an answer runs the guard, sends its single digit", async () => {
     const model = fixtureModel("claude--wizard-q1.txt");
     mockFetchPane.mockResolvedValue({
       paneId: "w1:p1",
@@ -307,8 +304,7 @@ describe("WizardBlock — wired tap (component → handler → api)", () => {
 
     await user.click(screen.getByRole("button", { name: /Tests/ }));
 
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("Sent"));
-    expect(mockSendKeys).toHaveBeenCalledWith("w1:p1", ["3"], undefined);
+    await waitFor(() => expect(mockSendKeys).toHaveBeenCalledWith("w1:p1", ["3"], undefined));
   });
 
   it("a stale tap surfaces a 'wizard changed' notice and sends nothing", async () => {
@@ -324,7 +320,7 @@ describe("WizardBlock — wired tap (component → handler → api)", () => {
 
     await user.click(screen.getByRole("button", { name: /Parser/ }));
 
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent("Wizard changed"));
+    expect(await screen.findByText(/Wizard changed/)).toBeInTheDocument();
     expect(mockSendKeys).not.toHaveBeenCalled();
   });
 });

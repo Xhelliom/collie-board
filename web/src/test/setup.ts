@@ -77,7 +77,7 @@ if (!globalThis.localStorage) {
   };
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: shim });
 }
-if (!("matchMedia" in window)) {
+if (typeof window.matchMedia !== "function") {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({

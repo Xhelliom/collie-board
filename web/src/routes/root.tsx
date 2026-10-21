@@ -7,8 +7,7 @@ import { useAgentTransitions } from "@/hooks/use-transitions";
 import { usePushSetup } from "@/hooks/use-push";
 import { useConnectionLost } from "@/hooks/use-connection-lost";
 import { UpdateAvailableBanner } from "@/components/update-available-banner";
-import { AgentToasts } from "@/components/agent-toasts";
-import { StatusOverlay } from "@/components/status-area";
+import { Toaster } from "@/components/ui/sonner";
 import { clearErrorStatus } from "@/lib/status";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
@@ -39,7 +38,7 @@ export function RootLayout() {
   // routine fast polls/navigations stay invisible. Mounted here so the whole app shares one
   // detector inside the router context.
   usePollBusy();
-  const { toasts, dismiss } = useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
+  useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
   usePushSetup();
   // An error has no TTL: left standing, it would resurface on the next screen, far from what failed.
   const { pathname } = useLocation();
@@ -63,15 +62,11 @@ export function RootLayout() {
             red "not connected" cause + Retry/Reload at ≥15s, and flashes green on recovery. Reads the
             same shared-clock signals as the nav dog, so the two always agree. */}
         <ConnectionBanner bridge={data.bridge} error={data.error} authError={data.authError} />
-        {/* Foreground notifications, floating under the header on every screen — a ping that arrives
-            while you're in the app is a toast you can tap, not a line in a bar you may not be looking
-            at. Mounted here so it outlives any single route. */}
-        <AgentToasts toasts={toasts} onDismiss={dismiss} />
         <Outlet />
       </div>
-      {/* The app's ONE status line — every screen's setStatus() lands here, /board/project and
-          /settings included. */}
-      <StatusOverlay />
+      {/* The app's ONE toast stack — every screen's setStatus() and every agent ping (useAgentTransitions)
+          lands here, floating under the header. Mounted here so it outlives any single route. */}
+      <Toaster />
     </div>
   );
 }

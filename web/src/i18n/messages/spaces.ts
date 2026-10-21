@@ -14,7 +14,6 @@ export const spaces = defineMessages({
   "spaces.tabTitle": { en: "Tab {label}", fr: "Onglet {label}" },
   "spaces.tabs": { en: "Tabs", fr: "Onglets" },
   "spaces.newTab": { en: "New tab", fr: "Nouvel onglet" },
-  "spaces.dismiss": { en: "Dismiss", fr: "Fermer" },
   "spaces.emptyTab": { en: "(empty tab)", fr: "(onglet vide)" },
   "spaces.noPanesTab": { en: "This tab has no panes.", fr: "Cet onglet n'a pas de panes." },
   "spaces.noPanesSpace": { en: "This space has no panes.", fr: "Ce space n'a pas de panes." },

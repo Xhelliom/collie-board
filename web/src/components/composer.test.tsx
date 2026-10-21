@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
-import { clearStatus, useStatus } from "@/lib/status";
+import { clearStatus } from "@/lib/status";
+import { Toaster } from "@/components/ui/sonner";
 import { isReloadHeld, __resetReloadGuard } from "@/lib/reload-guard";
 import { server } from "@/test/setup";
 import { recordReply } from "@/test/handlers";
@@ -66,10 +67,6 @@ function renderComposer(overrides: Partial<ComponentProps<typeof Composer>> = {}
   return props;
 }
 
-function StatusSentinel() {
-  const status = useStatus();
-  return <div data-testid="status">{status?.text ?? ""}</div>;
-}
 
 /** renderComposer + the status sentinel, for cases that assert on the status line. */
 function renderComposerWithStatus(overrides: Partial<ComponentProps<typeof Composer>> = {}) {
@@ -96,7 +93,7 @@ function renderComposerWithStatus(overrides: Partial<ComponentProps<typeof Compo
       path: "/",
       element: (
         <>
-          <StatusSentinel />
+          <Toaster />
           <Composer {...props} />
         </>
       ),
@@ -127,7 +124,7 @@ describe("Composer — send", () => {
     await user.type(box, "please do not approve anything");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent(/dialog is waiting/i));
+    expect(await screen.findByText(/dialog is waiting/i)).toBeInTheDocument();
     expect(calls).toEqual([]); // no keys, no reply — nothing reached the pane at all
     expect(box).toHaveValue("please do not approve anything"); // the message survives
     expect(props.onSent).not.toHaveBeenCalled();
@@ -253,7 +250,7 @@ describe("Composer — send", () => {
         path: "/",
         element: (
           <>
-            <StatusSentinel />
+            <Toaster />
             <Composer {...props} />
           </>
         ),
@@ -266,7 +263,7 @@ describe("Composer — send", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(box).toHaveValue("almost sent"));
-    await waitFor(() => expect(screen.getByTestId("status")).toHaveTextContent(partialError));
+    expect(await screen.findByText(partialError)).toBeInTheDocument();
     expect(props.onSent).not.toHaveBeenCalled();
   });
 });

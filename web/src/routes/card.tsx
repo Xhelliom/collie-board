@@ -645,7 +645,6 @@ export function CardRoute() {
                     <PromptBox
                       onSend={async (text) => {
                         await promptCard(card.id, text);
-                        setStatus(t("card.toast.sent"), "success");
                         revalidator.revalidate();
                       }}
                     />
