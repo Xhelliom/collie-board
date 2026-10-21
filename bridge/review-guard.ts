@@ -40,7 +40,7 @@ export class ReviewGuard {
 
   async onUpdate(snap: EngineSnapshot): Promise<void> {
     if (snap.bridge === "disconnected") return;
-    const inReview = this.db.listCards().filter((c) => c.status === "review");
+    const inReview = this.db.listCardsWithStatus("review");
     const ids = new Set(inReview.map((c) => c.id));
     for (const id of this.checked) if (!ids.has(id)) this.checked.delete(id);
     for (const card of inReview) {

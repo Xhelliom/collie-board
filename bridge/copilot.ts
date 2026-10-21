@@ -23,7 +23,6 @@ import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { Config } from "./config.ts";
 import {
   CARD_CATEGORIES,
-  isPendingWrapup,
   normalizeTag,
   type BoardDb,
   type Card,
@@ -1593,20 +1592,12 @@ export class CopilotCoordinator {
     this.copilot.observe(snap);
     if (!this.copilot.enabled || snap.bridge === "disconnected") return;
 
-    for (const card of this.db.listReviewableCards()) {
-      if (this.busyCards.has(card.id)) continue;
-      const session = this.db.openSessionFor(card.id) ?? this.db.listSessions(card.id).at(-1);
-      if (!session) continue;
-      if (this.db.listReviews(card.id).some((r) => r.sessionId === session.id)) continue;
-      // A card filed as done is still owed its agent's closing note — reviewing before it lands
-      // would judge the work on the diff alone and lose the one account of what was left undone.
-      // The wrapup coordinator clears the marker either way, so this never waits forever.
-      if (card.status === "done" && isPendingWrapup(session)) continue;
-
-      this.busyCards.add(card.id);
-      void this.review(card.id, session.id, statFor)
+    for (const { cardId, sessionId } of this.db.listCardsOwedReview()) {
+      if (this.busyCards.has(cardId)) continue;
+      this.busyCards.add(cardId);
+      void this.review(cardId, sessionId, statFor)
         .catch(() => {})
-        .finally(() => this.busyCards.delete(card.id));
+        .finally(() => this.busyCards.delete(cardId));
     }
   }
 
