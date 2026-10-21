@@ -1309,6 +1309,9 @@ export const startOrchestrator = (repoPath: string): Promise<{ ok: true; paneId:
 /** Validate a phase: its open steps go to `moveOpenTo` (an open phase, or null = none). The operator's gesture (ADR 0025). */
 export const closePhase = (id: string, input: { moveOpenTo: string | null; note?: string }): Promise<{ phase: Phase }> =>
   apiRequest(`/api/phases/${encodeURIComponent(id)}/close`, { method: "POST", body: JSON.stringify(input) });
+/** Only an empty phase (no card, no lot) — the bridge answers 409 otherwise. */
+export const deletePhase = (id: string): Promise<{ ok: true }> =>
+  apiRequest(`/api/phases/${encodeURIComponent(id)}`, { method: "DELETE" });
 export const reopenPhase = (id: string): Promise<{ phase: Phase }> =>
   apiRequest(`/api/phases/${encodeURIComponent(id)}/reopen`, { method: "POST", body: "{}" });
 /** An old project with no phases: file its finished, phase-less steps under one validated phase. */

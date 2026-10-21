@@ -215,6 +215,8 @@ export const project = defineMessages({
 
   // ── milestones: validating a phase (ADR 0025) ──────────────────────────────
   "project.validate": { en: "Validate this phase", fr: "Valider cette phase" },
+  "project.deletePhase": { en: "Delete this phase", fr: "Supprimer la phase" },
+  "project.deletePhase.confirm": { en: "Tap again to delete", fr: "Retouche pour supprimer" },
   "project.validate.title": { en: "Validate “{name}”", fr: "Valider « {name} »" },
   "project.validate.counts": { en: "{done} finished, {open} still open", fr: "{done} terminées, {open} encore ouvertes" },
   "project.validate.explain": {

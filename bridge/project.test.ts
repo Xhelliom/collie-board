@@ -120,10 +120,18 @@ describe("phases", () => {
     expect((await call(db, "GET", "/api/phases?repo=%2Fr")).body.phases.map((p: { name: string }) => p.name)).toEqual(["Scale up", "Foundations"]);
 
     const lot = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 0, planned: true, phaseId: p1.id });
+    // A phase holding a card or a lot is a real grouping: the route refuses it.
+    expect((await call(db, "DELETE", `/api/phases/${p1.id}`)).status).toBe(409);
+    db.updateLot(lot.id, { phaseId: null });
+    expect((await call(db, "DELETE", `/api/phases/${p1.id}`)).status).toBe(409);
+    await call(db, "PATCH", `/api/cards/${card.id}`, { phaseId: null });
     expect((await call(db, "DELETE", `/api/phases/${p1.id}`)).status).toBe(200);
-    expect(db.getCard(card.id)).toMatchObject({ phaseId: null });
-    expect(db.getRun(lot.id)!.phaseId).toBeNull();
     expect((await call(db, "DELETE", `/api/phases/${p1.id}`)).status).toBe(404);
+    // The db call itself still releases what a phase holds.
+    const p3 = db.createPhase({ repoPath: "/r", name: "Gone" });
+    db.patchCard(card.id, { phaseId: p3.id });
+    expect(db.deletePhase(p3.id)).toBe(true);
+    expect(db.getCard(card.id)).toMatchObject({ phaseId: null });
   });
 
   it("a card can be created straight into a phase", async () => {

@@ -227,7 +227,7 @@ curl -s -X POST "$B/api/phases" "${H[@]}" -d '{"repoPath":"/abs/repo","name":"Fo
 curl -s "$B/api/phases?repo=/abs/repo"
 curl -s "$B/api/phases"                                        # every repo's phases at once (each has its repoPath)
 curl -s -X PATCH "$B/api/phases/<id>" "${H[@]}" -d '{"name":"…","goal":"…","position":0}'
-curl -s -X DELETE "$B/api/phases/<id>" "${H[@]}"              # releases its cards and lots, deletes neither
+curl -s -X DELETE "$B/api/phases/<id>" "${H[@]}"              # only an EMPTY phase (no card, no lot) — 409 otherwise
 
 # put a card in a phase (at creation, or later)
 curl -s -X PATCH "$B/api/cards/<id>" "${H[@]}" -d '{"phaseId":"<phase id>"}'
@@ -293,7 +293,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
 
 The roadmap is a **document you write with the user**, not three lines. When it is empty, run a real
 brainstorm: one theme at a time (vision, audience, loop, constraints, risks, order of phases), restate,
-get a yes. The brainstorm itself is the phase « Cadrage » (a roadmap item `active` + a phase of that name);
+get a yes. The brainstorm itself is the phase « Cadrage » (a roadmap item `active`, and NO board phase — it files no card);
 mark it `done` when the user validates the plan. Cut ONLY the next phase into lots and cards.
 
 ```bash

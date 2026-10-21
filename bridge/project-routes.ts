@@ -187,7 +187,10 @@ export async function handleProjectRoute(
       const denied = guard("write");
       if (denied) return denied;
       const phase = db.getPhase(id);
-      if (!phase || !db.deletePhase(id)) return ctx.text("phase not found", 404);
+      if (!phase) return ctx.text("phase not found", 404);
+      // Only an empty phase goes: a real grouping is never dropped by mistake.
+      if (!db.phaseIsEmpty(id)) return ctx.text("phase is not empty", 409);
+      db.deletePhase(id);
       audit("phase.delete", { phaseId: id, repoPath: phase.repoPath, name: phase.name });
       return ctx.json({ ok: true });
     }

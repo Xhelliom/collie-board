@@ -20,7 +20,7 @@ import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { AUTONOMY_SECTION, boardErrorMessage, CARD_STATUS_LABEL, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
+import { AUTONOMY_SECTION, boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
@@ -29,6 +29,7 @@ import { lotHold } from "@/lib/lot-hold";
 import { saveLastProject } from "@/lib/quick-access";
 import { revealWhenRendered } from "@/lib/reveal";
 import { setStatus } from "@/lib/status";
+import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
 
 // The project view: one repo's board read as a road map. Derived and read-only (lib/project.ts) —
@@ -151,6 +152,18 @@ export function ProjectRoute() {
   const [validating, setValidating] = useState<ProjectPhase | null>(null);
   // The "validate the finished steps" sheet: all of them, or one old dictation's (cardIds + its title).
   const [sealing, setSealing] = useState<{ count: number; cardIds?: string[]; name?: string } | null>(null);
+  // An empty phase (no step, no lot) can go — two taps, in place. The bridge refuses a non-empty one.
+  const { pending: deletingArmed, confirm: confirmDelete } = usePendingConfirm();
+  const removePhase = async (id: string) => {
+    if (!confirmDelete(id)) return;
+    try {
+      await deletePhase(id);
+      forgetProjectSettled();
+      void revalidator.revalidate();
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  };
   const toggle = (id: string, on?: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -226,6 +239,18 @@ export function ProjectRoute() {
               className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
             >
               {t("project.validate")}
+            </button>
+          )}
+          {p.phase && !p.phase.closedAt && p.steps.length === 0 && p.lots.length === 0 && (
+            <button
+              type="button"
+              onClick={() => void removePhase(p.phase!.id)}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1 font-mono text-xs font-medium",
+                deletingArmed === p.phase.id ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/70 hover:border-foreground/25",
+              )}
+            >
+              {deletingArmed === p.phase.id ? t("project.deletePhase.confirm") : t("project.deletePhase")}
             </button>
           )}
           {!p.phase && repo && p.steps.some((s) => s.status === "done") && (
