@@ -17,7 +17,7 @@ function setup(env: McpEnv, routes: Record<string, { status?: number; body?: unk
     const h: Record<string, string> = {};
     new Headers(init?.headers).forEach((v, k) => (h[k] = v));
     const u = new URL(url);
-    calls.push({ method: init?.method ?? "GET", url: u.pathname + u.search, headers: h, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    calls.push({ method: init?.method ?? "GET", url: u.pathname + u.search, headers: h, body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body });
     const r = routes[`${init?.method ?? "GET"} ${u.pathname}`] ?? { body: {} };
     const status = r.status ?? 200;
     return new Response(r.text ?? JSON.stringify(r.body ?? {}), { status });
@@ -42,8 +42,8 @@ describe("mcp: protocol", () => {
       result: { tools: { name: string; description: string; annotations: { readOnlyHint: boolean; destructiveHint?: boolean } }[] };
     };
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
-    for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
-    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
+    for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications", "list_deliverables", "read_deliverable"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
+    for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator", "publish_file"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
     for (const n of ["launch_lot", "finish_card"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
   });
@@ -341,12 +341,80 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
   });
 });
 
+// The real deliverables route: what reaches the store is what the agent's file holds.
+describe("mcp: deliverables end to end, against the bridge's own route", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+  function world(env: McpEnv = { HERDR_PANE_ID: "w:p9" }) {
+    const root = mkdtempSync(join(tmpdir(), "collie-mcp-deliv-"));
+    const store = new BoardDb(":memory:");
+    const card = store.createCard({ title: "Rendu", repoPath: "/r/game" });
+    const other = store.createCard({ title: "Autre", repoPath: "/r/else" });
+    const ctx = {
+      db: store, engine: { current: () => ({ bridge: "connected", agents: [], shellPanes: [] }) }, copilot: { busy: () => new Set<string>() },
+      cfg: { stateDir: root }, audit: { record: () => {} }, session: "default", guard: () => null, device: null,
+      json: (data: unknown, status = 200) => new Response(JSON.stringify(data), { status }),
+      text: (body: string, status: number) => new Response(body, { status }),
+    } as never;
+    // /api/snapshot is server.ts's, not the board handler's: the one line of it publish_file reads.
+    const bridge = (async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path === "/api/snapshot") return Response.json({ bridge: "connected", agents: [{ paneId: "w:p9", cardId: card.id }] });
+      return (await handleBoardRoute(path, new Request(url, init), ctx)) ?? new Response("no route", { status: 404 });
+    }) as unknown as typeof fetch;
+    const mcp = createMcp(env, bridge);
+    const call = async (name: string, args: Record<string, unknown>) =>
+      ((await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } })) as {
+        result: { content: { type: string; text?: string; data?: string; mimeType?: string }[]; isError?: boolean };
+      }).result;
+    return { root, store, card, other, call };
+  }
+
+  it("publish_file sends the file's bytes to the pane's own card, with no card id, marked agent", async () => {
+    const { root, store, card, call } = world();
+    writeFileSync(join(root, "chart.png"), PNG);
+    const r = await call("publish_file", { path: join(root, "chart.png") });
+    expect(r.isError).toBeUndefined();
+    expect(r.content[0]!.text).toContain("chart.png");
+    const ev = store.listEvents(card.id).find((e) => e.type === "deliverable.published")!;
+    expect(ev.payload).toMatchObject({ name: "chart.png", size: PNG.length, by: "agent", pane: "w:p9" });
+  });
+
+  it("publish_file refuses clearly: no pane and no cardId, a missing file", async () => {
+    const { root, call } = world({});
+    expect((await call("publish_file", { path: join(root, "x.png") })).content[0]!.text).toMatch(/cardId/);
+    const w = world();
+    const r = await w.call("publish_file", { path: join(w.root, "nope.png") });
+    expect(r.isError).toBe(true);
+    expect(r.content[0]!.text).toMatch(/introuvable/);
+  });
+
+  it("list_deliverables by project, read_deliverable shows an image as an image and Markdown as text", async () => {
+    const { root, card, call } = world();
+    writeFileSync(join(root, "chart.png"), PNG);
+    writeFileSync(join(root, "report.md"), "# Bilan\nok");
+    writeFileSync(join(root, "data.xlsx"), "PK");
+    for (const f of ["chart.png", "report.md", "data.xlsx"]) await call("publish_file", { path: join(root, f) });
+    const list = (await call("list_deliverables", { repoPath: "/r/game/" })).content[0]!.text!;
+    expect(list.split("\n").length).toBe(3);
+    expect(list).toContain("« Rendu »");
+    expect((await call("list_deliverables", { repoPath: "/r/else" })).content[0]!.text).toBe("Aucun livrable publié.");
+    const img = (await call("read_deliverable", { cardId: card.id, name: "chart.png" })).content[0]!;
+    expect(img).toMatchObject({ type: "image", mimeType: "image/png" });
+    expect(Buffer.from(img.data!, "base64")).toEqual(Buffer.from(PNG));
+    expect((await call("read_deliverable", { cardId: card.id, name: "report.md" })).content[0]!.text).toBe("# Bilan\nok");
+    const meta = (await call("read_deliverable", { cardId: card.id, name: "data.xlsx" })).content[0]!.text!;
+    expect(meta).toMatch(/^data\.xlsx — application\/octet-stream.*un agent/);
+    expect((await call("read_deliverable", { cardId: card.id, name: "gone.png" })).isError).toBe(true);
+  });
+});
+
 describe("mcp: the catalog is the buttons' catalog (ADR 0042)", () => {
   it("tools/list is createTools, schemas included", async () => {
     const { mcp } = setup({ HERDR_PANE_ID: "w:p1" });
     const list = (await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string; inputSchema: { properties: unknown } }[] } };
     const catalog = createTools(async () => ({}));
-    expect(list.result.tools.map((t) => t.name)).toEqual(catalog.map((t) => t.name));
+    // Plus the two that read bytes, which a browser button cannot (they live in mcp.ts only).
+    expect(list.result.tools.map((t) => t.name)).toEqual([...catalog.map((t) => t.name), "publish_file", "read_deliverable"]);
     for (const t of catalog) expect(list.result.tools.find((x) => x.name === t.name)!.inputSchema.properties).toEqual(t.props);
     // Typing into another agent's pane is never a button.
     expect(catalog.filter((t) => t.button === false).map((t) => t.name)).toEqual(["reply_to_agent", "notify"]);

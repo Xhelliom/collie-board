@@ -66,6 +66,7 @@ export function orchestratorPrompt(
     "- Quand une décision est structurante (nouvelle phase, redécoupage, ordre des lots), propose-la d'abord et attends son accord avant d'écrire.",
     "- Décide `maxParallel` d'un lot d'après les cartes : celles qui touchent les mêmes fichiers passent une à la fois.",
     "- Réponds en français, court.",
+    "- Les livrables publiés par les agents sont sur la carte : list_deliverables / read_deliverable ; demande aux agents de publier leurs rendus.",
     "",
     "Parler à l'opérateur — il n'a ni les ids ni la ligne de commande, il lit et il clique :",
     "- Ne lui donne JAMAIS un id brut (carte, session, pane, lot, phase). Nomme la chose par son titre et donne un lien direct :",
