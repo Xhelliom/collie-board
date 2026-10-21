@@ -48,8 +48,9 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_UPLOAD_OVERHEAD = 64 * 1024; // 64 KB
 // Hard cap the runtime enforces on ANY request body (Bun.serve maxRequestBodySize). Bigger than the
 // upload cap + overhead so the handler's own 413 fires first for honest clients; this cuts off a
-// chunked or lying client that never sends an accurate Content-Length.
-const MAX_REQUEST_BODY_BYTES = 12 * 1024 * 1024; // 12 MB
+// chunked or lying client that never sends an accurate Content-Length. Sized for the largest
+// handler cap, a card deliverable's 25 MB (bridge/deliverables.ts).
+const MAX_REQUEST_BODY_BYTES = 26 * 1024 * 1024; // 26 MB
 // Upper bound on the pane-read `lines` param — don't trust the client (or Herdr) to cap it.
 const MAX_READ_LINES = 10_000;
 const IMAGE_EXT: Record<string, string> = {

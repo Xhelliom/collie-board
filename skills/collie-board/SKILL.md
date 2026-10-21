@@ -150,6 +150,24 @@ curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> \
 curl -s -X DELETE http://127.0.0.1:8788/api/cards/<id>
 ```
 
+## Publish a deliverable on a card
+
+What you made for a card — an image, a PDF, a spreadsheet, a report — is lost with your session
+unless you publish it. The bridge keeps it under the card, after the worktree is merged and gone
+(ADR 0045). Send the **bytes**, never a path; send `x-collie-pane` so it is marked as yours.
+
+```bash
+H=(-H "x-collie-pane: $HERDR_PANE_ID")
+curl -s -X POST "http://127.0.0.1:8788/api/cards/<id>/deliverables?name=chart.png" "${H[@]}" \
+  --data-binary @chart.png                     # → {name, size, mime}; a taken name gets "-2"
+curl -s http://127.0.0.1:8788/api/cards/<id>/deliverables          # [{name, size, mime, publishedAt, by}]
+curl -s http://127.0.0.1:8788/api/cards/<id>/deliverables/<name>   # the file
+curl -s -X DELETE http://127.0.0.1:8788/api/cards/<id>/deliverables/<name>
+```
+
+25 MB max. No SVG (415) — publish a PNG. Images, Markdown, HTML (scrubbed, sandboxed) and PDF
+render in the app; anything else downloads as an attachment.
+
 ## Notify the user's phone
 
 From any herdr agent pane — started from a card or by hand — you can send a

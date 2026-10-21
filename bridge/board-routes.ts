@@ -58,6 +58,7 @@ import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
+import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
 import type { AgentAdapter } from "./adapters.ts";
@@ -391,6 +392,8 @@ async function route(
   if (tidy) return tidy;
   const mcp = await handleMcpSetupRoute(pathname, req, ctx);
   if (mcp) return mcp;
+  const deliverables = await handleDeliverablesRoute(pathname, req, ctx);
+  if (deliverables) return deliverables;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {
@@ -1005,6 +1008,7 @@ async function route(
       const gone = db.getCard(id);
       if (!gone) return text("card not found", 404);
       db.deleteCard(id);
+      await removeCardDeliverables(ctx.cfg.stateDir, id);
       ctx.audit.record({
         action: "card.delete",
         session: ctx.session,

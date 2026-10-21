@@ -52,6 +52,7 @@ import { backfillBaseRefs, cardDiffStat, cardDiffSummary, diffStat } from "./git
 import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
+import { sweepOrphanDeliverables } from "./deliverables.ts";
 
 // How often the registry rescans the filesystem for sessions that appeared/disappeared after boot.
 const SESSION_REFRESH_MS = 15_000;
@@ -424,6 +425,10 @@ refreshTimer.unref();
 const uploadsDir = join(cfg.stateDir, "uploads");
 void sweepUploads(uploadsDir).then((removed) => {
   if (removed.length) console.log(`[uploads] swept ${removed.length} expired image(s) at startup`);
+});
+// A card deleted outside the card route (copilot, conversion) leaves its deliverables behind: once at boot.
+void sweepOrphanDeliverables(cfg.stateDir, (id) => board.getCard(id) !== null).then((gone) => {
+  if (gone.length) console.log(`[deliverables] removed ${gone.length} orphaned card store(s)`);
 });
 const sweepTimer = setInterval(() => {
   void sweepUploads(uploadsDir).then((removed) => {
