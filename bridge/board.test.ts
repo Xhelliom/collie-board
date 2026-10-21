@@ -2027,6 +2027,19 @@ describe("scanRootsFor", () => {
 });
 
 describe("repo preferences", () => {
+  it("lists a repo added by hand, keeps its other prefs when it is taken off, and prunes the empty row", () => {
+    const store = db();
+    store.setRepoListed("/repo/b", true);
+    store.setRepoListed("/repo/a", true);
+    store.setRepoGate("/repo/a", "make check");
+    expect(store.listedRepos()).toEqual(["/repo/a", "/repo/b"]);
+    store.setRepoListed("/repo/a", false);
+    store.setRepoListed("/repo/b", false);
+    expect(store.listedRepos()).toEqual([]);
+    expect(store.repoGate("/repo/a")).toBe("make check");
+    expect(store.dump().repo_pref).toHaveLength(1);
+  });
+
   it("stores a hidden repo and reports it back", () => {
     const store = db();
     expect(store.hiddenRepos().size).toBe(0);

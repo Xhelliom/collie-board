@@ -89,6 +89,8 @@ import type { StateEngine } from "./state-engine.ts";
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
 const REPOS_HIDE_ROUTE = "/api/repos/hide";
+/** `/api/repos/listed` — the repos the operator added to the project lists by hand: GET them, POST one in or out. */
+const REPOS_LISTED_ROUTE = "/api/repos/listed";
 /** `/api/repos/gate` — set or clear a repo's gate command (ADR 0020). */
 const REPOS_GATE_ROUTE = "/api/repos/gate";
 /** `/api/repos/integration` — how a run lands a repo's cards: a PR, or a merge direct (ADR 0043). */
@@ -428,6 +430,34 @@ async function route(
       detail: { path: path.trim(), hidden },
     });
     return ctx.json({ ok: true });
+  }
+
+  // The project lists = repos with cards ∪ these. Cheap to GET (one query), unlike `/api/repos`.
+  if (pathname === REPOS_LISTED_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      return ctx.json({ paths: ctx.db.listedRepos() });
+    }
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path: raw, listed } = (body ?? {}) as { path?: unknown; listed?: unknown };
+    if (typeof raw !== "string" || raw.trim() === "") return ctx.text("path required", 400);
+    if (typeof listed !== "boolean") return ctx.text("listed must be a boolean", 400);
+    const path = raw.trim().replace(/(.)\/+$/, "$1");
+    // Taking one off accepts any stored path (a repo since moved away included); adding needs a real one.
+    if (listed && (!isAbsolute(path) || !existsSync(join(path, ".git"))))
+      return ctx.text("path must be the root of a repository", 400);
+    ctx.db.setRepoListed(path, listed);
+    ctx.audit.record({ action: "repo.listed", session: ctx.session, device: ctx.device, detail: { path, listed } });
+    return ctx.json({ ok: true, paths: ctx.db.listedRepos() });
   }
 
   // Ask the copilot what the gate should be. The operator's tap spends the quota (the copilot is off

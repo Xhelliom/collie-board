@@ -503,12 +503,12 @@ export function reposOf(cards: readonly CardView[]): RepoScope[] {
 }
 
 /**
- * The repos in play, then the ones the bridge knows (herd, scan) that no card names yet — appended,
- * so a fresh repo can be picked and become a project before it has a card.
+ * The repos in play, then the ones the operator listed by hand that no card names yet — appended, so
+ * a repo can be picked and become a project before it has a card.
  */
-export function withKnownRepos(inUse: readonly RepoScope[], known: readonly RepoScope[]): RepoScope[] {
+export function withListedRepos(inUse: readonly RepoScope[], listed: readonly string[]): RepoScope[] {
   const have = new Set(inUse.map((r) => r.path));
-  return [...inUse, ...known.filter((r) => !have.has(r.path)).map(({ path, name }) => ({ path, name }))];
+  return [...inUse, ...listed.filter((p) => !have.has(p)).map((path) => ({ path, name: repoName(path) }))];
 }
 
 /**
@@ -834,6 +834,8 @@ export interface RepoChoice {
   gate?: string;
   /** The repo's default flow id (ADR 0032), when the operator set one. */
   flowId?: string;
+  /** The operator added it to the project lists by hand. */
+  listed?: boolean;
 }
 
 /**

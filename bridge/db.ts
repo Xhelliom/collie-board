@@ -1117,6 +1117,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   flow_id    TEXT,
   -- ADR 0043: 'direct' = a run merges a card into the base itself, no PR. Null: PR.
   integration TEXT,
+  -- 1 = the operator added this repo to the project lists by hand (it has no card yet, or may never).
+  listed     INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
 
@@ -1426,6 +1428,8 @@ export class BoardDb {
       { table: "repo_pref", column: "gate", ddl: "TEXT" },
       // ADR 0043: how a run lands a card. Null: a PR.
       { table: "repo_pref", column: "integration", ddl: "TEXT" },
+      // The repos the operator added to the project lists by hand. No backfill: none was, before.
+      { table: "repo_pref", column: "listed", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -2570,6 +2574,22 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** Repos the operator added to the project lists by hand. */
+  listedRepos(): string[] {
+    return this.db.query<{ path: string }, []>("SELECT path FROM repo_pref WHERE listed = 1 ORDER BY path").all().map((r) => r.path);
+  }
+
+  /** Add a repo to the project lists, or take it off. Touches no card. */
+  setRepoListed(path: string, listed: boolean): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, listed, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET listed = excluded.listed, updated_at = excluded.updated_at`,
+      )
+      .run(path, listed ? 1 : 0, this.now());
+    this.pruneRepoPref(path);
+  }
+
   /** The repo's gate command (ADR 0020), or null. */
   repoGate(path: string): string | null {
     return (
@@ -2633,7 +2653,7 @@ export class BoardDb {
   }
 
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0").run(path);
   }
 
   // ── board preferences ───────────────────────────────────────────────────────

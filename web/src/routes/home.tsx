@@ -22,7 +22,8 @@ import {
   useRepoPhases,
 } from "@/components/home-dashboard";
 import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
-import { reposOf } from "@/lib/board";
+import { repoName, reposOf } from "@/lib/board";
+import { useListedRepos } from "@/lib/listed-repos";
 import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
@@ -115,7 +116,13 @@ function Kpis({ board }: { board: BoardData }) {
 
 function Projects({ board }: { board: BoardData }) {
   const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
-  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), phases), [board.cards, phases]);
+  const listed = useListedRepos();
+  const dash = useMemo(() => {
+    const d = dashboardOf(board.cards, Date.now(), phases);
+    // A repo the operator added by hand gets its (empty) tile until its first card.
+    const extra = listed.filter((path) => !d.repos.some((r) => r.path === path));
+    return { ...d, repos: [...d.repos, ...extra.map((path) => ({ path, name: repoName(path), current: [], active: 0, waiting: 0, closedCount: 0, updatedAt: 0 }))] };
+  }, [board.cards, phases, listed]);
   const stamp = useMemo(() => board.cards.map((c) => `${c.id}:${c.status}:${c.updatedAt}`).join(), [board.cards]);
   const lots = useRepoLots(useMemo(() => dash.repos.map((r) => r.path), [dash.repos]), stamp);
   return <ProjectTiles repos={dash.repos} lots={lots} />;

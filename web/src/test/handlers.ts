@@ -141,6 +141,7 @@ export const handlers = [
   http.get("/api/snapshot", () => HttpResponse.json(fixtureSnapshot)),
   http.get("/api/board/pins", () => HttpResponse.json({ pins: [] })),
   http.get("/api/repos", () => HttpResponse.json({ repos: [], hiddenCount: 0 })),
+  http.get("/api/repos/listed", () => HttpResponse.json({ paths: [] })),
   http.get(/\/api\/pane\/[^/]+$/, () =>
     HttpResponse.json({ paneId: "w1:p1", text: paneTextWithDraft(), truncated: false, revision: 1 }),
   ),
