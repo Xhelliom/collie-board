@@ -44,7 +44,12 @@ curl -s http://127.0.0.1:8788/api/cards            # every card, with live agent
 curl -s 'http://127.0.0.1:8788/api/cards?view=summary'  # the light list (below)
 curl -s http://127.0.0.1:8788/api/cards/<id>       # one card + journal, sessions, reviews, children
 curl -s http://127.0.0.1:8788/api/repos            # repos the board knows about (for repoPath)
+curl -s http://127.0.0.1:8788/api/repos/listed     # {"paths":[…]} repos the operator added to the project lists by hand
 ```
+
+The project lists are the repos with cards plus those `listed` ones. The operator adds or takes one off
+(`POST /api/repos/listed` with `{"path":"/abs/repo","listed":true|false}`) — it touches no card; leave it
+to them unless asked.
 
 Pipe through `jq` to keep the output small — `/api/cards` returns the whole
 board and grows with it:

@@ -279,4 +279,9 @@ export const project = defineMessages({
     en: "Everything is validated — nothing in progress. Add cards or reopen a phase to carry on.",
     fr: "Tout est validé — rien en cours. Ajoute des cartes ou rouvre une phase pour continuer.",
   },
+  "project.add": { en: "Add a project", fr: "Ajouter un projet" },
+  "project.add.title": { en: "Add a project", fr: "Ajouter un projet" },
+  "project.add.placeholder": { en: "Search a repo, or type an absolute path", fr: "Chercher un dépôt, ou saisir un chemin absolu" },
+  "project.add.path": { en: "Add {path}", fr: "Ajouter {path}" },
+  "project.unlist": { en: "Remove from the list", fr: "Retirer de la liste" },
 });

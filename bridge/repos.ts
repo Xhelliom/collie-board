@@ -85,6 +85,8 @@ export interface RepoChoice {
   gate?: string;
   /** The repo's default flow (ADR 0032), when the operator set one. */
   flowId?: string;
+  /** The operator added it to the project lists by hand (`repo_pref.listed`). */
+  listed?: boolean;
 }
 
 /**
@@ -222,9 +224,12 @@ export async function listRepos(
   const scanned = new Set<string>();
   for (const root of scanRoots) await scanRoot(root, scanned);
 
+  // A repo the operator listed by hand is offered even outside the herd and the scan roots — ranked
+  // with the herd, ahead of the scan, since someone chose it.
+  const listed = db.listedRepos();
   const choices = mergeRepoChoices(
     [...carded].map(([path, lastUsedAt]) => ({ path, lastUsedAt })),
-    herd,
+    [...herd, ...listed],
     [...scanned],
   );
 
@@ -232,6 +237,7 @@ export async function listRepos(
   const flows = db.repoFlows();
   for (const choice of choices) {
     if (hidden.has(choice.path)) choice.hidden = true;
+    if (listed.includes(choice.path)) choice.listed = true;
     const gate = gates.get(choice.path);
     if (gate) choice.gate = gate;
     const flow = flows.get(choice.path);

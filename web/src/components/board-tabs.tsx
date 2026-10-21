@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { ChevronDown, Columns3, GitPullRequest, Map as MapIcon } from "lucide-react";
+import { ChevronDown, Columns3, GitPullRequest, Map as MapIcon, Plus, X } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
-import { useKnownRepos } from "@/hooks/use-known-repos";
-import { loadRepoScope, saveRepoScope, withKnownRepos } from "@/lib/board";
+import { AddProjectSheet } from "@/components/add-project-sheet";
+import { loadRepoScope, saveRepoScope, withListedRepos } from "@/lib/board";
+import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
 // Board, Project and Open PRs are three views of the same thing — one repo's work — so they are
@@ -39,8 +41,10 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
   const active = boardTabFor(pathname);
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
-  // Repos with no card yet are offered too: picking one on the Project tab is how a project starts.
-  const all = withKnownRepos(repos, useKnownRepos());
+  const [adding, setAdding] = useState(false);
+  const listed = useListedRepos();
+  // The repos with cards, then the ones the operator added by hand — never every repo the bridge knows.
+  const all = withListedRepos(repos, listed);
   // The scope stays selectable even when nothing in the current list uses it any more.
   const options = repo && !all.some((r) => r.path === repo) ? [{ path: repo, name: repo.split("/").pop() || repo }, ...all] : all;
 
@@ -85,6 +89,29 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         </label>
       )}
+      <div className={cn("order-last flex gap-1 sm:order-none", options.length === 0 && "sm:ml-auto")}>
+        {repo && listed.includes(repo) && (
+          // Takes the repo off the hand-made list only: its cards, if any, keep it listed through them.
+          <button
+            type="button"
+            onClick={() => void setRepoListed(repo, false).catch(() => {})}
+            className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-sm text-muted-foreground hover:bg-muted/60"
+          >
+            <X className="size-4" />
+            {t("project.unlist")}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          aria-label={t("project.add")}
+          title={t("project.add")}
+          className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60"
+        >
+          <Plus className="size-4" />
+        </button>
+      </div>
+      <AddProjectSheet open={adding} onClose={() => setAdding(false)} exclude={all.map((r) => r.path)} />
     </nav>
   );
 }
