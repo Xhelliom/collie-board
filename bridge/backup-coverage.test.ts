@@ -21,6 +21,7 @@ const PERSISTENCE: Record<string, string> = {
   "copilot.ts": "scratch request files under the copilot's work dir, deleted when the request ends — nothing to restore",
   "context-window.ts": "state dir file — walked by collectFiles",
   "db.ts": "board.db — row dump via dump()",
+  "deliverables.ts": "deliverables/<cardId>/ under the state dir — walked by collectFiles",
   "git.ts": "a repo's .git/info/exclude — the operator's repo, not Collie state",
   "notify-prefs.ts": "state dir file — walked by collectFiles",
   "opencode-transcript.ts": "reads opencode's own database, read-only",
