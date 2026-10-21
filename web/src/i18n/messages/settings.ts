@@ -122,7 +122,7 @@ export const settings = defineMessages({
     fr: "Téléchargez vos cartes, votre historique et vos préférences dans un seul fichier JSON — ou restaurez-en un.",
   },
   "settings.backup.failed": { en: "Couldn't back up.", fr: "Sauvegarde impossible." },
-  "settings.backup.restoreFailed": { en: "Couldn't restore.", fr: "Restauration impossible." },
+  "settings.backup.restoreFailed": { en: "Couldn't restore: {error}", fr: "Restauration impossible : {error}" },
   "settings.backup.preparing": { en: "Preparing…", fr: "Préparation…" },
   "settings.backup.download": { en: "Download backup", fr: "Télécharger la sauvegarde" },
   "settings.backup.restoring": { en: "Restoring…", fr: "Restauration…" },

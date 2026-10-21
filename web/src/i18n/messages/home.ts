@@ -31,6 +31,10 @@ export const home = defineMessages({
     fr: { one: "Fermer {count} pane", other: "Fermer {count} panes" },
   },
   "tidy.cancel": { en: "Cancel", fr: "Annuler" },
+  "tidy.failed": {
+    en: { one: "{count} pane not closed: {error}", other: "{count} panes not closed — first: {error}" },
+    fr: { one: "{count} pane non fermé : {error}", other: "{count} panes non fermés — premier : {error}" },
+  },
   "tidy.closed": {
     en: { one: "{count} pane closed.", other: "{count} panes closed." },
     fr: { one: "{count} pane fermé.", other: "{count} panes fermés." },

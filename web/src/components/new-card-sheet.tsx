@@ -8,7 +8,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
+import { boardErrorMessage, fetchRepos, normalizeTag, setRepoHidden, type CardInput, type RepoChoice } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { FlowPicker } from "@/components/flow-picker";
@@ -19,7 +19,8 @@ import { useImageUpload } from "@/hooks/use-image-upload";
 interface NewCardSheetProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (input: CardInput) => void;
+  /** Rejects on failure — the sheet then stays open and shows why. */
+  onCreate: (input: CardInput) => void | Promise<void>;
   /** The tags already in use, most recent first — the board derives it with `tagsOf`. */
   tags: string[];
   /**
@@ -56,6 +57,9 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   const [rewrite, setRewrite] = useState(true);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
+  const [creating, setCreating] = useState(false);
+  // The status line sits in the header, behind this sheet: a failed create has to say so here.
+  const [error, setError] = useState<string | null>(null);
 
   // A self-update reload must not eat a half-dictated brain dump.
   useHoldReload("new-card", open);
@@ -88,6 +92,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     setAgentKind(null);
     setTemplateId(null);
     setPipelineId(null);
+    setError(null);
     let cancelled = false;
     setShowHidden(false);
     void fetchRepos()
@@ -152,29 +157,37 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   const title = deriveTitle(text);
   const repoPath = manual ? manualPath.trim() : (selected?.path ?? "");
 
-  function create() {
-    if (!title) return;
-    onCreate({
-      title,
-      // `rawInput` IS the instruction to rewrite: creating a card with one is the only thing that
-      // makes the copilot act unasked (bridge/board-routes.ts). Withholding it therefore needs no
-      // flag of its own — it says exactly what "leave this card alone" means, and it says it in a
-      // field the schema already defines as "a dump, to be processed".
-      rawInput: rewrite ? text.trim() : null,
-      // The spec is set either way, so the card is usable before the copilot ever runs — and, when
-      // it is off, IS the text, which is what makes a hand-written card survive intact.
-      spec: text.trim(),
-      status: "backlog",
-      repoPath: repoPath || null,
-      baseRef: baseRef.trim() || null,
-      agentKind,
-      templateId,
-      pipelineId,
-      // Optional, and null is the normal answer — most cards have no tag. Normalised here so the
-      // card lands as the tag the field was showing you; the bridge folds it again regardless.
-      tag: normalizeTag(tag),
-    });
-    onClose();
+  async function create() {
+    if (!title || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await onCreate({
+        title,
+        // `rawInput` IS the instruction to rewrite: creating a card with one is the only thing that
+        // makes the copilot act unasked (bridge/board-routes.ts). Withholding it therefore needs no
+        // flag of its own — it says exactly what "leave this card alone" means, and it says it in a
+        // field the schema already defines as "a dump, to be processed".
+        rawInput: rewrite ? text.trim() : null,
+        // The spec is set either way, so the card is usable before the copilot ever runs — and, when
+        // it is off, IS the text, which is what makes a hand-written card survive intact.
+        spec: text.trim(),
+        status: "backlog",
+        repoPath: repoPath || null,
+        baseRef: baseRef.trim() || null,
+        agentKind,
+        templateId,
+        pipelineId,
+        // Optional, and null is the normal answer — most cards have no tag. Normalised here so the
+        // card lands as the tag the field was showing you; the bridge folds it again regardless.
+        tag: normalizeTag(tag),
+      });
+      onClose();
+    } catch (e) {
+      setError(boardErrorMessage(e));
+    } finally {
+      setCreating(false);
+    }
   }
 
   return (
@@ -187,6 +200,11 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
       title={t("board.newCard")}
       footer={
         <div className="flex flex-col gap-1">
+          {error && (
+            <p role="alert" className="px-1 text-xs text-destructive">
+              {t("newcard.failed", { error })}
+            </p>
+          )}
           {title && (
             <p className="truncate px-1 text-xs text-muted-foreground">
               {t("newcard.derivedTitle")} <span className="text-foreground">{title}</span>
@@ -195,7 +213,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
           <Button
             variant="brand"
             onClick={create}
-            disabled={!title}
+            disabled={!title || creating}
             className="h-12 w-full rounded-xl text-sm font-semibold"
           >
             {t("newcard.add")}

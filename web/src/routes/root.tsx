@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData, useMatches, useNavigate, useParams, useRouteError } from "react-router";
+import { Outlet, isRouteErrorResponse, useLoaderData, useMatches, useNavigate, useParams, useRouteError } from "react-router";
 
 import { usePolling } from "@/hooks/use-polling";
 import { usePollBusy } from "@/hooks/use-poll-busy";
@@ -119,13 +119,18 @@ export function RootError({ to }: { to?: string }) {
   const error = useRouteError();
   const navigate = useNavigate();
   const t = useT();
-  const message = error instanceof Error ? error.message : t("error.unknown");
+  // The technical detail is folded away: useful to report, noise to read.
+  const detail = error instanceof Error ? error.message : isRouteErrorResponse(error) ? `${error.status} ${error.statusText}` : t("error.unknown");
   // h-[100dvh] is for the root barrier (it replaces the whole app); flex-1 min-h-0 is for the leaf
   // ones, which render inside RootLayout's viewport column and must not push it past the screen.
   return (
     <div className="flex h-[100dvh] min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
       <h1 className="font-medium text-destructive">{t("error.title")}</h1>
-      <p className="max-w-xs text-sm text-muted-foreground">{message}</p>
+      <p className="max-w-xs text-sm text-muted-foreground">{t("error.body")}</p>
+      <details className="max-w-xs text-xs text-muted-foreground">
+        <summary className="cursor-pointer">{t("error.detail")}</summary>
+        <p className="mt-1 break-words font-mono">{detail}</p>
+      </details>
       <button
         type="button"
         onClick={() => navigate(to ?? homePath(sessionFromUrl()))}

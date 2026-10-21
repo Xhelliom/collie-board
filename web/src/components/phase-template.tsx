@@ -32,6 +32,7 @@ export function PhaseTemplate({
   async function pick(id: string) {
     try {
       await patchPhase(phase.id, { templateId: id || null });
+      setStatus(t("common.saved"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -42,6 +43,7 @@ export function PhaseTemplate({
   async function pickFlow(id: string) {
     try {
       await patchPhase(phase.id, { pipelineId: id || null });
+      setStatus(t("common.saved"), "success");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }

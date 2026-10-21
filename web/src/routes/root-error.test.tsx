@@ -43,7 +43,9 @@ describe("RootError — a leaf barrier", () => {
     render(<RouterProvider router={routerWithBrokenPane()} />);
 
     expect(screen.getByRole("heading", { name: "Something went wrong" })).toBeInTheDocument();
-    expect(screen.getByText("pane exploded")).toBeInTheDocument();
+    expect(screen.getByText("This screen couldn't be shown. Go back and try again.")).toBeInTheDocument();
+    // The raw message is still there to report, folded under a disclosure.
+    expect(screen.getByText("pane exploded").closest("details")).not.toBeNull();
     // The parent layout survived — that's what makes the board and the dashboard still reachable.
     expect(screen.getByText("root chrome")).toBeInTheDocument();
   });

@@ -55,6 +55,8 @@ export const spaces = defineMessages({
     fr: "Cet appareil n'est pas sur l'allowlist : la lecture passe, aucune écriture.",
   },
 
+  "spaces.ready.tab": { en: "New tab ready — launch your agent", fr: "Nouvel onglet prêt — lance ton agent" },
+  "spaces.ready.space": { en: "New space ready — launch your agent", fr: "Nouveau space prêt — lance ton agent" },
   "spaces.sheet.rename": { en: "Rename", fr: "Renommer" },
   "spaces.sheet.renamed": { en: "Renamed", fr: "Renommé" },
   "spaces.sheet.labelCleared": { en: "Label cleared", fr: "Nom effacé" },

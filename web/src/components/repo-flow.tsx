@@ -27,6 +27,7 @@ export function RepoFlow({ repo, flows }: { repo: string; flows: Flow[] | null |
     setFlowId(next);
     try {
       await setRepoFlow(repo, next || null);
+      setStatus(t("common.saved"), "success");
     } catch (e) {
       setFlowId(prev);
       setStatus(boardErrorMessage(e), "error", null);

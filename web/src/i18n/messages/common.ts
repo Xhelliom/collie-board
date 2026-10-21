@@ -13,6 +13,8 @@ export const common = defineMessages({
   },
   "common.back": { en: "Back", fr: "Retour" },
   "common.close": { en: "Close", fr: "Fermer" },
+  "common.saved": { en: "Saved ✓", fr: "Enregistré ✓" },
+  "error.saveFailed": { en: "Setting not saved: {error}", fr: "Réglage non enregistré : {error}" },
   "lightbox.label": { en: "Image viewer", fr: "Visionneuse d'images" },
   "notifications.title": { en: "Notifications", fr: "Notifications" },
   "notifications.titleCount": { en: "Notifications ({count})", fr: "Notifications ({count})" },

@@ -17,7 +17,9 @@
 // submit. If it never appears, NO key is sent and the caller keeps the draft. This is the same
 // choreography submitPreviewNote already uses for the note field, applied to the main input.
 
+import { t } from "@/i18n";
 import { fetchPane, sendReply } from "./api";
+import { boardErrorMessage } from "./board";
 import { parseAnsi } from "./ansi";
 import { splitLines } from "./blocks";
 import { adapterFor } from "./harness";
@@ -81,7 +83,7 @@ export async function sendGuardedReply(args: GuardedReplyArgs): Promise<ReplyOut
   try {
     typed = await sendReply(args.paneId, args.text, false, args.session);
   } catch (e) {
-    return { status: "error", error: message(e) };
+    return { status: "error", error: boardErrorMessage(e) };
   }
   if (!typed.ok) return { status: "error", error: typed.error };
 
@@ -118,7 +120,7 @@ export async function sendGuardedReply(args: GuardedReplyArgs): Promise<ReplyOut
   // surfaces it in the meantime.
   return {
     status: "stalled",
-    error: "Message didn't reach the input box — a dialog may be waiting. Nothing was submitted.",
+    error: t("pane.send.stalled"),
   };
 }
 
@@ -128,7 +130,7 @@ async function oneShot(args: GuardedReplyArgs): Promise<ReplyOutcome> {
     const res = await sendReply(args.paneId, args.text, true, args.session);
     return res.ok ? { status: "sent" } : { status: "error", error: res.error };
   } catch (e) {
-    return { status: "error", error: message(e) };
+    return { status: "error", error: boardErrorMessage(e) };
   }
 }
 
@@ -145,14 +147,10 @@ async function submitOnly(args: GuardedReplyArgs): Promise<ReplyOutcome> {
     // the bridge's own partial-failure case. Tell the caller not to resend.
     return {
       status: "error",
-      error: "typed into the pane but not submitted — check the pane before resending",
+      error: t("pane.send.notSubmitted"),
       textDelivered: true,
     };
   } catch (e) {
-    return { status: "error", error: message(e), textDelivered: true };
+    return { status: "error", error: boardErrorMessage(e), textDelivered: true };
   }
-}
-
-function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }

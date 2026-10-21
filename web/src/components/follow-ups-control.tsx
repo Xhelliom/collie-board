@@ -5,7 +5,8 @@ import { Rich } from "@/i18n/rich";
 import { useT } from "@/i18n";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { CARD_CATEGORIES, fetchBoardPrefs, setBoardPrefs } from "@/lib/board";
+import { boardErrorMessage, CARD_CATEGORIES, fetchBoardPrefs, setBoardPrefs } from "@/lib/board";
+import { setStatus } from "@/lib/status";
 import type { BoardPrefs } from "@/lib/board";
 
 // The one board-wide switch: whether the copilot's review turns what it found still undone into
@@ -42,8 +43,9 @@ export function FollowUpsControl() {
     setBusy(true);
     try {
       setPrefs(taken(await setBoardPrefs(patch)));
-    } catch {
+    } catch (e) {
       setPrefs(before);
+      setStatus(t("error.saveFailed", { error: boardErrorMessage(e) }), "error");
     } finally {
       setBusy(false);
     }

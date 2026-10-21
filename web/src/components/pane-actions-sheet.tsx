@@ -9,6 +9,7 @@ import { setStatus } from "@/lib/status";
 import { paneDisplayName } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
 import { useT } from "@/i18n";
+import { boardErrorMessage } from "@/lib/board";
 
 interface PaneActionsSheetProps {
   open: boolean;
@@ -82,7 +83,7 @@ export function PaneActionsSheet({
         setStatus(res.error ?? t("spaces.sheet.renameFailed"), "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setSaving(false);
     }
@@ -102,7 +103,7 @@ export function PaneActionsSheet({
         setStatus(res.error ?? t("spaces.sheet.closeFailed"), "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setClosing(false);
     }

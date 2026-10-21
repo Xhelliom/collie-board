@@ -32,6 +32,7 @@ export const board = defineMessages({
   "board.filterAria": { en: "Filter the board", fr: "Filtrer le board" },
   "board.filter": { en: "Filter", fr: "Filtrer" },
   "board.newCard": { en: "New card", fr: "Nouvelle carte" },
+  "board.cardCreated": { en: "Card created: “{title}”", fr: "Carte créée : « {title} »" },
   "board.emptyMatchTitle": { en: "No matching cards", fr: "Aucune carte qui corresponde" },
   "board.emptyMatch": { en: "No cards{auto}{repo}{tag}{phase}.", fr: "Aucune carte{auto}{repo}{tag}{phase}." },
   "board.emptyAuto": { en: " created automatically", fr: " créée automatiquement" },

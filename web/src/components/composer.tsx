@@ -23,6 +23,7 @@ import { useHoldReload } from "@/lib/reload-guard";
 import { isSelfEcho, normalizeDraft } from "@/hooks/use-terminal-draft";
 import { sendGuardedReply } from "@/lib/reply-action";
 import { TerminalDraftPreview } from "@/components/terminal-draft-preview";
+import { boardErrorMessage } from "@/lib/board";
 
 // Per-pane draft persistence: `input` below is local state, and AgentChat remounts Composer wholesale
 // (`key={paneId}` in routes/detail.tsx) on every pane switch — without this, navigating away and back
@@ -408,7 +409,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         setStatus(res.error, "error");
       }
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : String(e), "error");
+      setStatus(boardErrorMessage(e), "error");
     } finally {
       setSending(false);
     }
@@ -447,7 +448,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         if (!res.ok) setStatus(res.error ?? tr("pane.keys.failed"), "error");
         else scheduleKeyRevalidate();
       })
-      .catch((e) => setStatus(e instanceof Error ? e.message : String(e), "error"));
+      .catch((e) => setStatus(boardErrorMessage(e), "error"));
   }
 
   // Insert "/cmd " into the composer (arg-taking commands) and focus it. Appends to any draft already

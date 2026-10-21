@@ -161,6 +161,7 @@ export function ProjectRoute() {
   const move = async (cardId: string, phaseId: string | null) => {
     try {
       await patchCard(cardId, { phaseId });
+      setStatus(t("common.saved"), "success");
       void revalidator.revalidate();
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);

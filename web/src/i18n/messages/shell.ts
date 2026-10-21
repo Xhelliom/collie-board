@@ -32,6 +32,11 @@ export const shell = defineMessages({
   },
   "error.title": { en: "Something went wrong", fr: "Une erreur est survenue" },
   "error.unknown": { en: "Unknown error", fr: "Erreur inconnue" },
+  "error.body": {
+    en: "This screen couldn't be shown. Go back and try again.",
+    fr: "Cet écran n'a pas pu s'afficher. Reviens en arrière et réessaie.",
+  },
+  "error.detail": { en: "Technical detail", fr: "Détail technique" },
   "error.back": { en: "Go back", fr: "Retour" },
   "update.tapBanner": { en: "New version — tap to update", fr: "Nouvelle version — touchez pour mettre à jour" },
   "toast.dismiss": { en: "Dismiss", fr: "Fermer" },
