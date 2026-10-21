@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.225.0] - 2026-10-21
+
+### Added
+
+- « Ajouter un projet » : chercher un dépôt connu ou saisir un chemin absolu l'ajoute aux listes de projets (persisté, `repo_pref.listed`, route `/api/repos/listed`) (e9981d0)
+- « Retirer de la liste » sur un dépôt ajouté à la main, sans toucher à ses cartes (e9981d0)
+
+### Changed
+
+- Les sélecteurs de projet (onglets, barre latérale, tableau de bord) ne montrent plus que les dépôts avec cartes et ceux ajoutés à la main, plus tous les dépôts connus (e9981d0)
+
 ## [0.224.0] - 2026-10-21
 
 ### Added
