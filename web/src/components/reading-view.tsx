@@ -3,6 +3,7 @@ import { ChevronRight, Clock, Loader2 } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { TranscriptView } from "@/components/transcript-view";
+import { ButtonsPaneContext } from "@/components/action-buttons";
 import { QuestionHeading } from "@/components/option-button";
 import { PromptSelectBlock } from "@/components/prompt-select-block";
 import { WizardBlock } from "@/components/wizard-block";
@@ -103,6 +104,7 @@ export function ReadingView({
   onPreviewAction,
   onMultiSelectAction,
   onUnavailable,
+  orchestrator = false,
 }: {
   paneId: string;
   session?: string;
@@ -127,6 +129,8 @@ export function ReadingView({
   /** The transcript can't exist for this pane (no session / no log / unsupported / disabled) — the
    *  parent shows the terminal instead. `error` and `empty` are transient, so they stay here. */
   onUnavailable?: () => void;
+  /** This pane is its project's orchestrator: its own turns' buttons are live (ADR 0044). */
+  orchestrator?: boolean;
 }) {
   const t = useT();
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
@@ -198,7 +202,9 @@ export function ReadingView({
               {note ?? t("common.loading")}
             </div>
           ) : (
-            <TranscriptView entries={entries} agent={agent} />
+            <ButtonsPaneContext.Provider value={orchestrator ? paneId : null}>
+              <TranscriptView entries={entries} agent={agent} />
+            </ButtonsPaneContext.Provider>
           )}
           {/* The open dialog, if any — same native card the mirror shows, at the tail of the
               conversation. `question` isn't repeated for wizard/preview/multi-select (each block

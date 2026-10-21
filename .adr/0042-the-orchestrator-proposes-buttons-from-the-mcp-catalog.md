@@ -1,6 +1,6 @@
 # 0042 — The orchestrator proposes buttons whose action comes from the MCP catalog
 
-**Status:** Accepted
+**Status:** Accepted — amended by [0044](./0044-the-orchestrators-own-pane-screen-shows-its-buttons.md)
 
 ## Context
 
@@ -30,6 +30,7 @@ tool catalog**.
 - **Only in the orchestrator's conversation, only in its own words.** The orchestrator panel sets the
   context; a user turn (the operator's, or a `[vocal]` message typed in), a summary, a note or a
   thinking block resets it. Anywhere else — another agent's output, the pane screen — the block is code.
+  *(Amended by [0044](./0044-the-orchestrators-own-pane-screen-shows-its-buttons.md): the orchestrator's own pane screen shows them too.)*
 - **The tap is the operator's, with the operator's rights.** That is the point. Writing a block runs
   nothing; a route that refuses the orchestrator still refuses it.
 
