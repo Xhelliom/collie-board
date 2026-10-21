@@ -2325,6 +2325,11 @@ export class BoardDb {
     });
   }
 
+  /** No card (archived included) and no lot in the phase. */
+  phaseIsEmpty(id: string): boolean {
+    return !this.db.query("SELECT 1 FROM card WHERE phase_id = ?1 UNION ALL SELECT 1 FROM run WHERE phase_id = ?1 LIMIT 1").get(id);
+  }
+
   /** Delete a phase. Its cards and lots are released, not deleted — a phase is a grouping. */
   deletePhase(id: string): boolean {
     if (!this.getPhase(id)) return false;

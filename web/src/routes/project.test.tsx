@@ -361,6 +361,26 @@ describe("ProjectRoute", () => {
       expect(screen.getByText("shipped")).toBeInTheDocument();
     });
 
+    it("deletes an EMPTY phase after a second tap in place, and offers it on no other phase", async () => {
+      let deleted = 0;
+      server.use(
+        http.delete("*/api/phases/empty", () => {
+          deleted++;
+          return HttpResponse.json({ ok: true });
+        }),
+      );
+      mount([card({ id: "a", phaseId: "full", status: "ready" })], {
+        phases: [phase("empty", 0), phase("full", 1), phase("lotted", 2)],
+        lots: [lot({ id: "L", phaseId: "lotted" })],
+      });
+      const buttons = await screen.findAllByRole("button", { name: "Delete this phase" });
+      expect(buttons).toHaveLength(1);
+      await userEvent.click(buttons[0]!);
+      expect(deleted).toBe(0);
+      await userEvent.click(screen.getByRole("button", { name: "Tap again to delete" }));
+      await waitFor(() => expect(deleted).toBe(1));
+    });
+
     it("validates a phase after a confirmation, sending its open steps where asked", async () => {
       let body: unknown = null;
       server.use(
