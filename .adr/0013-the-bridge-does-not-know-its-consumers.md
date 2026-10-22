@@ -1,6 +1,6 @@
 # 0013 — The bridge does not know its consumers
 
-**Status:** Accepted
+**Status:** Accepted · amended by [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) (the central is a client of its nodes, and only of them)
 
 ## Context
 
