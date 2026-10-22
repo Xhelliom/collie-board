@@ -223,8 +223,9 @@ tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `finish_ca
 
 ### What is deliberately NOT built
 
-- **No multi-machine.** It would invert the architecture (headless bridge + central server). A
-  different project, not a `TODO` in disguise.
+- **No headless bridge driven by a central server.** Multi-machine is a central Collie calling
+  *nodes* — each a full bridge with its own herdr and its own `tailscale serve` — never a herdr socket
+  carried over the network. [ADR 0046](./.adr/0046-multi-machine-un-collie-central-et-des-noeuds.md).
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
 - **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
   miserable. Dragging exists on the wide-screen board, only between the columns a human owns.

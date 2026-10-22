@@ -298,6 +298,12 @@ question, and exactly one rule carries the design: **`card` is durable, `session
   point. The relationship falls out of herdr's model rather than being bookkeeping we maintain.
 - **Primary session only.** A pane id means nothing in another herdr server. Multi-session cards
   would need a session column on every row for a use case that doesn't exist.
+- **Multi-machine is a central and nodes.** Another machine runs its own herdr and the same bridge
+  in a `node` role — board off, `/api/node/*` on behind a per-node token, its own `tailscale serve`.
+  The central reads its nodes off `engine.onUpdate`, treats an unreachable one as a `disconnected`
+  snapshot, and qualifies their panes by node name; a card names an *environment* that a node
+  declares, never a path. The node never calls the central.
+  [ADR 0046](./.adr/0046-multi-machine-un-collie-central-et-des-noeuds.md).
 - **Security is not re-implemented.** `bridge/board-routes.ts` receives the same `guard()` every
   other route uses, so a board write is gated exactly like typing into a pane — which is what
   starting a card eventually is. `bridge/git.ts` is the only place the bridge shells out: argv

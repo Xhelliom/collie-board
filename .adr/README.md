@@ -42,7 +42,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 
 | # | Decision | Status |
 | --- | --- | --- |
-| [0001](./0001-one-managed-front-door.md) | Collie manages exactly one front door | Accepted |
+| [0001](./0001-one-managed-front-door.md) | Collie manages exactly one front door | Amended by [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) |
 | [0002](./0002-a-manual-status-ends-the-session-not-the-pane.md) | A manual status ends the session, never the pane | Accepted |
 | [0003](./0003-vaul-owns-the-sheet-gesture.md) | Vaul owns the sheet gesture | Accepted |
 | [0004](./0004-the-terminal-mirror-uses-the-platform-mono.md) | The terminal mirror uses the platform's mono | Accepted |
@@ -54,7 +54,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0010](./0010-an-agent-filed-card-is-traced-on-the-card.md) | An agent-filed card is traced on the card, not on the session | Accepted |
 | [0011](./0011-the-board-may-raise-an-alert-that-can-retract.md) | The board may raise its own alerts, if they can retract | Accepted |
 | [0012](./0012-the-review-is-markdown-the-app-already-renders.md) | The review is Markdown the app already renders | Accepted |
-| [0013](./0013-the-bridge-does-not-know-its-consumers.md) | The bridge does not know its consumers | Accepted |
+| [0013](./0013-the-bridge-does-not-know-its-consumers.md) | The bridge does not know its consumers | Amended by [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) |
 | [0014](./0014-a-conflicting-pr-does-not-file-the-card.md) | A PR that conflicts does not file its card; a filed card reopens on demand | Accepted |
 | [0015](./0015-a-card-forks-from-the-more-complete-base.md) | A card forks from the more complete of the local base and origin's | Partially superseded by [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) |
 | [0016](./0016-the-version-is-cut-on-main-by-ci.md) | The version is cut on main by CI; a branch only drops a fragment | Accepted |
@@ -70,3 +70,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) | A card after a merged predecessor forks from the base, not from its branch | Accepted |
 | [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) | "GitHub has not answered yet" is a wait, and only a landing files the card | Accepted |
 | [0037](./0037-a-finished-turn-is-read-at-the-passage-not-at-done.md) | Un tour fini se lit au passage working→idle, pas à l'état `done` | Accepted |
+| [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) | Multi-machine : un Collie central et des nœuds | Accepted |

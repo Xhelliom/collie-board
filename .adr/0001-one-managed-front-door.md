@@ -1,6 +1,6 @@
 # 0001 — Collie manages exactly one front door
 
-- **Status:** Accepted
+- **Status:** Accepted · amended by [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) (one managed front door *per machine*)
 - **Date:** 2026-07-27
 - **Shipped in:** 0.16.0
 - **Trail:** [PR #26](https://github.com/AltanS/collie/pull/26) (declined,
