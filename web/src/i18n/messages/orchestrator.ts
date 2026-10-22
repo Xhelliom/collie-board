@@ -58,5 +58,7 @@ export const orchestrator = defineMessages({
     en: "The autonomy settings could not be shown on this page.",
     fr: "Les réglages d'autonomie n'ont pas pu être affichés sur cette page.",
   },
-  "orch.published": { en: "Published", fr: "Publié" },
+  "orch.deliverables": { en: "Deliverables", fr: "Livrables" },
+  "orch.deliverablesCount": { en: "Deliverables ({count})", fr: "Livrables ({count})" },
+  "orch.deliverablesNew": { en: "Deliverables ({count}, new: {fresh})", fr: "Livrables ({count}, nouveaux : {fresh})" },
 });
