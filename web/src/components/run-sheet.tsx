@@ -118,7 +118,7 @@ export function RunSheet({
         <label aria-label={t("run.parallel")} className="flex items-center justify-between gap-3 text-sm">
           <span className="min-w-0">
             <span className="text-muted-foreground">{t("run.parallel")} : </span>
-            {maxAgents === null ? "…" : t("run.parallelBoard", { count: maxAgents })}
+            {maxAgents === null ? "…" : maxAgents === 0 ? t("run.parallelUnlimited") : t("run.parallelBoard", { count: maxAgents })}
           </span>
           <select
             aria-label={t("run.parallelCap")}

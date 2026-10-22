@@ -73,7 +73,7 @@ export interface RunPorts {
   stat(cardId: string): Promise<string>;
   /** The worker's closing bilan from its checkout, or null when it left none. */
   report(worktree: string): Promise<string | null>;
-  /** How many more agents may start now (`db.maxAgents() ?? cfg.boardMaxAgents` minus running). */
+  /** How many more agents may start now (`db.maxAgents() ?? cfg.boardMaxAgents` minus running; 0 = no limit). */
   freeSlots(): number;
   /** The repo's gate command (ADR 0020), or null. Read per card: the operator may set it mid-run. */
   gateCommand(card: Card): string | null;
@@ -743,7 +743,7 @@ export function runHook(
       const argv = parseGate(command);
       return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });
     },
-    freeSlots: () => (db.maxAgents() ?? cfg.boardMaxAgents) - runningCards(db),
+    freeSlots: () => ((db.maxAgents() ?? cfg.boardMaxAgents) || Infinity) - runningCards(db),
     reviewing: () => cfg.boardCopilot && !copilotDown(db.latestEventTypes(REVIEW_OUTCOMES, COPILOT_DOWN_AFTER)),
     commits: async (card) => {
       if (!card.repoPath || !card.branch) return null;

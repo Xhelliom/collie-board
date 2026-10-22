@@ -639,8 +639,8 @@ async function route(
         ctx.db.setFollowUpCategories(followUpCategories as CardCategory[]);
       }
       if (maxAgents !== undefined) {
-        if (typeof maxAgents !== "number" || !Number.isInteger(maxAgents) || maxAgents < 1 || maxAgents > MAX_AGENTS_CAP)
-          return ctx.text(`maxAgents must be a whole number between 1 and ${MAX_AGENTS_CAP}`, 400);
+        if (typeof maxAgents !== "number" || !Number.isInteger(maxAgents) || maxAgents < 0 || maxAgents > MAX_AGENTS_CAP)
+          return ctx.text(`maxAgents must be a whole number between 0 (no limit) and ${MAX_AGENTS_CAP}`, 400);
         ctx.db.setMaxAgents(maxAgents);
       }
       if (autoHandoff !== undefined) {

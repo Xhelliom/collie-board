@@ -18,7 +18,8 @@ import { setStatus } from "@/lib/status";
 // answers and nothing at all if it never does — a settings row that can't be trusted to reflect the
 // real limit is worse than no row.
 
-// A stepper is for nudging; anyone who genuinely wants 20 agents on one machine can still POST it.
+// A stepper is for nudging; past this one more tap means "no limit" — stored as 0, shown as ∞.
+// Anyone who wants exactly 20 agents on one machine can still POST it.
 const STEPPER_MAX = 8;
 
 export function MaxAgentsControl() {
@@ -40,9 +41,12 @@ export function MaxAgentsControl() {
 
   async function bump(delta: number) {
     if (value === null || busy) return;
-    // Clamp against the bridge's own ceiling too, so a value already above the stepper's range (set
-    // by env or by hand) can still be stepped down rather than being stuck.
-    const next = Math.min(MAX_AGENTS_CAP, Math.max(1, value + delta));
+    // 0 is "no limit": stepping down from it lands on the stepper's top, stepping up past the top
+    // reaches it. A value above the stepper's range (set by env or by hand) can still be stepped down.
+    let next: number;
+    if (value === 0) next = delta < 0 ? STEPPER_MAX : 0;
+    else if (delta > 0 && value >= STEPPER_MAX) next = 0;
+    else next = Math.min(MAX_AGENTS_CAP, Math.max(1, value + delta));
     if (next === value) return;
     setValue(next); // optimistic
     setBusy(true);
@@ -78,7 +82,7 @@ export function MaxAgentsControl() {
             <Button
               variant="outline"
               size="icon"
-              disabled={busy || value <= 1}
+              disabled={busy || value === 1}
               onClick={() => void bump(-1)}
               aria-label={t("settings.maxAgents.fewer")}
             >
@@ -88,12 +92,12 @@ export function MaxAgentsControl() {
               className="min-w-8 text-center text-base font-medium tabular-nums"
               aria-live="polite"
             >
-              {value}
+              {value === 0 ? "∞" : value}
             </span>
             <Button
               variant="outline"
               size="icon"
-              disabled={busy || value >= STEPPER_MAX}
+              disabled={busy || value === 0}
               onClick={() => void bump(1)}
               aria-label={t("settings.maxAgents.more")}
             >

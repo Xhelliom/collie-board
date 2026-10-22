@@ -313,7 +313,7 @@ export function loadConfig(): Config {
     multiSession: envBool("COLLIE_BOARD_MULTI_SESSION", true),
     skipServe: envBool("COLLIE_BOARD_SKIP_SERVE", false),
     boardAgentKind: (process.env.COLLIE_BOARD_AGENT_KIND ?? "claude").trim() || "claude",
-    boardMaxAgents: envInt("COLLIE_BOARD_MAX_AGENTS", 3, { min: 1, max: 32 }),
+    boardMaxAgents: envInt("COLLIE_BOARD_MAX_AGENTS", 3, { min: 0, max: 32 }),
     boardBranchPrefix: boardBranchPrefix(),
     boardHandoffPct: envInt("COLLIE_BOARD_HANDOFF_PCT", 70, { min: 1, max: 100 }),
     boardCtxWindow: envInt("COLLIE_BOARD_CTX_WINDOW", 200_000, { min: 1000 }),
