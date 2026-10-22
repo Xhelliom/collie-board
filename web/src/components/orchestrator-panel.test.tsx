@@ -141,6 +141,43 @@ describe("OrchestratorPanel", () => {
     await waitFor(() => expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }, { repoPath: "/g/app", step: "restart" }]));
   });
 
+  describe("deliverables", () => {
+    const deliv = (name: string, ts: number) => ({ cardId: "c1", cardTitle: "Carte", name, size: 10, ts });
+    const items = [deliv("b.jpg", 200), deliv("a.md", 100)];
+    const mountWith = (deliverables: ReturnType<typeof deliv>[]) => {
+      const router = createMemoryRouter(
+        [{ path: "/p", loader: () => null, element: <OrchestratorPanel repo="/g/app" state={{ paneId: "w1:p2", running: true }} entries={[turn("Fait.")]} deliverables={deliverables} /> }],
+        { initialEntries: ["/p"] },
+      );
+      return render(<RouterProvider router={router} />);
+    };
+    beforeEach(() => localStorage.clear());
+
+    it("no button without a deliverable", async () => {
+      mountWith([]);
+      await screen.findByText("Fait.");
+      expect(screen.queryByRole("button", { name: /^Livrables/ })).toBeNull();
+    });
+
+    it("keeps them out of the thread, behind a counted button whose dot goes once opened", async () => {
+      const view = mountWith(items);
+      await screen.findByText("Fait.");
+      expect(screen.queryByText("b.jpg")).toBeNull();
+      const button = screen.getByRole("button", { name: "Livrables (2, nouveaux : 2)" });
+      expect(screen.getByTestId("deliverables-new")).toBeInTheDocument();
+      await userEvent.click(button);
+      expect(await screen.findByText("b.jpg")).toBeInTheDocument();
+      expect(screen.getByText("a.md")).toBeInTheDocument();
+      expect(screen.getByLabelText("Fil de l'orchestrateur")).not.toHaveTextContent("b.jpg");
+      expect(screen.queryByTestId("deliverables-new")).toBeNull();
+      // The mark is the device's: a fresh mount stays quiet until a newer one lands.
+      view.unmount();
+      mountWith(items);
+      expect(await screen.findByRole("button", { name: "Livrables (2)" })).toBeInTheDocument();
+      expect(screen.queryByTestId("deliverables-new")).toBeNull();
+    });
+  });
+
   it("shows the memory note read-only, or says there is none yet", async () => {
     mount("/g/app", { paneId: "w1:p2", running: true }, [], { note: "écarté : le mode coop", updatedAt: Date.now() });
     expect(await screen.findByText("écarté : le mode coop")).toBeInTheDocument();

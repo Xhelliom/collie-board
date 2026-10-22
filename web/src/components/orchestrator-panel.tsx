@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
-import { Maximize2, Send } from "lucide-react";
+import { Maximize2, Package, Send } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
@@ -8,6 +8,7 @@ import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
 import { Button } from "@/components/ui/button";
+import { BottomSheet } from "@/components/ui/sheet";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { autonomyPath, boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
@@ -30,6 +31,23 @@ export const HANDOVER_PCT = 50;
 
 // Autonomy is a setting of the project (ADR 0030): the panel only points at its block on the page —
 // through the project's URL, so the right repo's page is the one that scrolls (routes/project.tsx).
+// The newest deliverable's date at the last opening of the list, per repo: a comfort of this device only.
+const seenKey = (repo: string) => `collie.orch-deliverables-seen:${repo}`;
+function loadSeen(repo: string): number {
+  try {
+    return Number(localStorage.getItem(seenKey(repo))) || 0;
+  } catch {
+    return 0;
+  }
+}
+function saveSeen(repo: string, ts: number): void {
+  try {
+    localStorage.setItem(seenKey(repo), String(ts));
+  } catch {
+    // Private mode: the dot comes back on the next mount, nothing worse.
+  }
+}
+
 const AUTONOMY_LINK = "inline-flex min-h-11 items-center self-start text-xs font-semibold text-muted-foreground underline underline-offset-2";
 
 export function OrchestratorPanel({
@@ -46,7 +64,7 @@ export function OrchestratorPanel({
   entries: TranscriptEntry[];
   /** The note it left its next self (ADR 0023), read-only here. */
   memory?: OrchestratorMemory | null;
-  /** The project's deliverables, newest first (from the facts the page polls): the ones published during this conversation show in it. */
+  /** The project's recent deliverables, newest first (from the facts the page polls), one button away. */
   deliverables?: RecentDeliverable[];
   /** Called when the panel sends the operator to the page (the sheet closes itself). */
   onLeave?: () => void;
@@ -57,9 +75,7 @@ export function OrchestratorPanel({
   const [draft, setDraft] = useState("");
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
-  // Since the conversation's first shown turn, oldest first — the order the thread reads in.
-  const since = entries.length > 0 ? Date.parse(entries[0]!.ts) : Infinity;
-  const published = deliverables.filter((d) => d.ts >= since).reverse();
+  const [delivOpen, setDelivOpen] = useState(false);
 
   const scroller = useRef<HTMLDivElement>(null);
   // Follow the conversation as it grows — unless the reader scrolled up to read: then leave them there.
@@ -73,7 +89,7 @@ export function OrchestratorPanel({
       if (stuck.current) el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(id);
-  }, [entries, published.length]);
+  }, [entries]);
 
   if (!repo) {
     return (
@@ -95,6 +111,10 @@ export function OrchestratorPanel({
       void revalidator.revalidate();
     }
   }
+
+  // Read on each render: opening the list re-renders, and a changed repo reads its own mark.
+  const seen = loadSeen(repo);
+  const fresh = deliverables.filter((d) => d.ts > seen).length;
 
   // Renewing is always on offer (a new prompt, a drifted thread); past the threshold it is a warning.
   const full = typeof state?.ctxPct === "number" && state.ctxPct >= HANDOVER_PCT;
@@ -166,11 +186,33 @@ export function OrchestratorPanel({
             </span>
           )}
         </span>
-        <Link to={panePath(state.paneId)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
-          <Maximize2 className="size-3" />
-          {t("orch.fullscreen")}
-        </Link>
+        <span className="flex items-center gap-3">
+          {deliverables.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                saveSeen(repo, deliverables[0]!.ts);
+                setDelivOpen(true);
+              }}
+              aria-label={t(fresh > 0 ? "orch.deliverablesNew" : "orch.deliverablesCount", { count: deliverables.length, fresh })}
+              className="relative inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-brand"
+            >
+              <Package className="size-3.5" />
+              <span className="tabular-nums">{deliverables.length}</span>
+              {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-working" />}
+            </button>
+          )}
+          <Link to={panePath(state.paneId)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">
+            <Maximize2 className="size-3" />
+            {t("orch.fullscreen")}
+          </Link>
+        </span>
       </div>
+      <BottomSheet open={delivOpen} onClose={() => setDelivOpen(false)} title={t("orch.deliverables")}>
+        <div data-vaul-no-drag className="overflow-y-auto">
+          <DeliverableLinks items={deliverables} onLeave={() => (setDelivOpen(false), onLeave?.())} />
+        </div>
+      </BottomSheet>
       {state.paneId && (
         <div
           role={full ? "alert" : undefined}
@@ -208,12 +250,6 @@ export function OrchestratorPanel({
             <ButtonsPaneContext.Provider value={state.paneId}>
               <TranscriptView entries={entries} />
             </ButtonsPaneContext.Provider>
-            {published.length > 0 && (
-              <div className="flex flex-col gap-1.5 px-2 pb-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">{t("orch.published")}</span>
-                <DeliverableLinks items={published} onLeave={onLeave} />
-              </div>
-            )}
           </div>
         ) : (
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
