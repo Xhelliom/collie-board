@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.231.1] - 2026-10-22
+
+### Changed
+
+- Panneau orchestrateur : les livrables quittent le fil pour un bouton « Livrables » (compte, point de nouveauté) qui ouvre la liste du projet dans une feuille (3cb2120)
+
 ## [0.231.0] - 2026-10-21
 
 ### Added
