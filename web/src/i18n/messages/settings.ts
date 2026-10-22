@@ -86,8 +86,8 @@ export const settings = defineMessages({
 
   "settings.maxAgents.title": { en: "Agents at once", fr: "Agents simultanés" },
   "settings.maxAgents.hint": {
-    en: "Starting a card past this limit is refused until one finishes or is handed off.",
-    fr: "Démarrer une carte au-delà de cette limite est refusé tant qu'un agent n'a pas fini ou été passé en handoff.",
+    en: "Starting a card past this limit is refused until one finishes or is handed off. ∞ removes the limit.",
+    fr: "Démarrer une carte au-delà de cette limite est refusé tant qu'un agent n'a pas fini ou été passé en handoff. ∞ supprime la limite.",
   },
   "settings.maxAgents.fewer": { en: "One agent fewer", fr: "Un agent de moins" },
   "settings.maxAgents.more": { en: "One agent more", fr: "Un agent de plus" },

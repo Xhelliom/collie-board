@@ -733,7 +733,7 @@ export async function startCard(
   // `BoardDb.maxAgents`. Read here rather than at boot, so raising it takes effect on the next tap
   // instead of on a bridge restart.
   const maxAgents = db.maxAgents() ?? cfg.boardMaxAgents;
-  if (runningCards(db) >= maxAgents) {
+  if (maxAgents > 0 && runningCards(db) >= maxAgents) {
     return {
       ok: false,
       error: {

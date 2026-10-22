@@ -2912,7 +2912,7 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
     store.setMaxAgents(5);
     expect(store.maxAgents()).toBe(5);
     store.setMaxAgents(0);
-    expect(store.maxAgents()).toBe(null); // 0 would make starting any card impossible
+    expect(store.maxAgents()).toBe(0); // 0 is "no limit", the unlimited mode — startCard skips the check
     store.setMaxAgents(9999);
     expect(store.maxAgents()).toBe(null);
   });

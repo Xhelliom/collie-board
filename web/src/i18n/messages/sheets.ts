@@ -34,6 +34,7 @@ export const sheets = defineMessages({
   "run.order": { en: "Order", fr: "Ordre" },
   "run.orderHint": { en: "Order (from the dependencies)", fr: "Ordre (tiré des dépendances)" },
   "run.parallel": { en: "Parallelism", fr: "Parallélisme" },
+  "run.parallelUnlimited": { en: "the board puts no limit on agents", fr: "le board ne limite pas les agents" },
   "run.parallelBoard": {
     en: { one: "the board allows {count} agent at a time", other: "the board allows {count} agents at a time" },
     fr: { one: "le board autorise {count} agent à la fois", other: "le board autorise {count} agents à la fois" },

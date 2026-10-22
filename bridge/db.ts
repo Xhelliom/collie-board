@@ -1165,8 +1165,8 @@ const AUTO_HANDOFF_KEY = "auto_handoff";
 /** `board_pref` key for {@link BoardDb.maxAgents}. */
 const MAX_AGENTS_KEY = "max_agents";
 
-/** The most agents the board will ever run at once, whatever the operator types. Matches the ceiling
- *  `COLLIE_BOARD_MAX_AGENTS` is clamped to in config.ts — one limit, two doors. */
+/** The most agents the board will ever run at once, whatever the operator types — except `0`, which
+ *  means no limit at all. Matches the ceiling `COLLIE_BOARD_MAX_AGENTS` is clamped to in config.ts. */
 export const MAX_AGENTS_CAP = 32;
 
 /** A tag longer than this is a sentence, not a label, and would not fit the chip it renders as. */
@@ -2724,7 +2724,7 @@ export class BoardDb {
   }
 
   /**
-   * How many cards may have an agent running at once — or null when nobody has set one from the
+   * How many cards may have an agent running at once (0 = no limit) — or null when nobody has set one from the
    * phone, in which case the caller keeps its env default (`COLLIE_BOARD_MAX_AGENTS`).
    *
    * The limit is about the MACHINE, not the deployment: how many agents this laptop can compile and
@@ -2738,7 +2738,7 @@ export class BoardDb {
       .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
       .get(MAX_AGENTS_KEY);
     const n = row ? Number(row.value) : NaN;
-    return Number.isInteger(n) && n >= 1 && n <= MAX_AGENTS_CAP ? n : null;
+    return Number.isInteger(n) && n >= 0 && n <= MAX_AGENTS_CAP ? n : null;
   }
 
   setMaxAgents(n: number): void {
