@@ -15,6 +15,7 @@ import {
 } from "./backup.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
+import { canSymlink } from "../scripts/test-env.ts";
 
 // The backup's two halves: the state-dir walk (what gets in, how it's encoded) and the row dump —
 // then the same two coming back, including the trust boundary the restore's paths cross.
@@ -184,7 +185,7 @@ describe("restore", () => {
     db.close();
   });
 
-  test("writes through a planted symlink's place, not through the symlink", async () => {
+  test.skipIf(!canSymlink)("writes through a planted symlink's place, not through the symlink", async () => {
     const dir = await tempDir();
     const outside = join(await tempDir(), "outside.json");
     await writeFile(outside, "untouched");

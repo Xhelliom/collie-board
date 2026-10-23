@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
@@ -156,7 +156,7 @@ describe("cardDiffStat — a card with no base (the copilot reviewed an empty di
     const root = mkdtempSync(join(tmpdir(), "cardstat-"));
     const repo = join(root, "repo");
     const wt = join(root, "wt");
-    Bun.spawnSync(["mkdir", repo]);
+    mkdirSync(repo);
     sh(repo, "init", "-b", "main");
     writeFileSync(join(repo, "a.txt"), "a\n");
     sh(repo, "add", "-A");

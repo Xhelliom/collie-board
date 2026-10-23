@@ -16,6 +16,7 @@ import {
   worktreeForPane,
 } from "./artifacts.ts";
 import type { TranscriptEntry } from "./transcript.ts";
+import { canSymlink } from "../scripts/test-env.ts";
 
 // Confinement is exercised against a REAL directory tree, exactly like the gallery test: the whole
 // point of resolveArtifact is what the filesystem does with symlinks, and a fake fs would only prove
@@ -42,6 +43,7 @@ beforeAll(async () => {
   await writeFile(join(root, "vector.svg"), "<svg/>");
   // The escape attempt: an artifact-named symlink inside the root pointing out of it.
   await writeFile(join(outside, "secret.png"), PNG);
+  if (!canSymlink) return;
   await symlink(join(outside, "secret.png"), join(root, "escape.png"));
   // A symlink whose NAME is an artifact kind and whose target is another root file — the resolved
   // path stays inside the root, so it is servable; only the escaping one must not be.
@@ -85,13 +87,13 @@ describe("resolveArtifact", () => {
     expect(page?.kind).toBe("html");
   });
 
-  test("refuses a symlink that escapes the root, even from inside it", async () => {
+  test.skipIf(!canSymlink)("refuses a symlink that escapes the root, even from inside it", async () => {
     // The attack this route exists to survive: the path IS inside the root as written, and only
     // realpath shows it isn't.
     expect(await resolveArtifact(root, inRoot("escape.png"))).toBeNull();
   });
 
-  test("serves a symlink that resolves back inside the root", async () => {
+  test.skipIf(!canSymlink)("serves a symlink that resolves back inside the root", async () => {
     // An in-root symlink is a rename, not an escape — the resolved file is what is served.
     expect((await resolveArtifact(root, inRoot("alias.png")))?.kind).toBe("image");
   });

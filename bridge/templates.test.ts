@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { Database } from "bun:sqlite";
 
+import { canSymlink } from "../scripts/test-env.ts";
 import { startCard } from "./cards.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import type { Config } from "./config.ts";
@@ -308,7 +309,7 @@ describe("/api/templates", () => {
     db.close();
   });
 
-  it("import returns candidates from .claude/agents and saves nothing; skips symlinks and big files", async () => {
+  it.skipIf(!canSymlink)("import returns candidates from .claude/agents and saves nothing; skips symlinks and big files", async () => {
     const db = new BoardDb(":memory:");
     const repo = mkdtempSync(join(tmpdir(), "collie-imp-"));
     mkdirSync(join(repo, ".git"));
