@@ -75,9 +75,17 @@ export function parseUsage(out: string): UsageLimit[] {
  * isn't there is one failed stat, once per TTL. Same shape as `resolve_bun()` in
  * `scripts/collie-board-ctl.sh`, which learned this for bun under a herdr plugin action.
  */
-export function claudeCandidates(home: string, fromPath: string | null): string[] {
+export function claudeCandidates(
+  home: string,
+  fromPath: string | null,
+  platform: string = process.platform,
+): string[] {
+  const pathHit = fromPath ? [fromPath] : [];
+  // Windows: the native installer drops `claude.exe` in the same `.local\bin`; npm's `claude.cmd`
+  // is left out — Bun.spawn can't run a batch file without a shell.
+  if (platform === "win32") return [...pathHit, join(home, ".local", "bin", "claude.exe")];
   return [
-    ...(fromPath ? [fromPath] : []),
+    ...pathHit,
     join(home, ".local", "bin", "claude"), // the native installer
     join(home, ".claude", "local", "claude"), // `claude migrate-installer`
     "/usr/local/bin/claude", // npm -g, and Homebrew on Intel

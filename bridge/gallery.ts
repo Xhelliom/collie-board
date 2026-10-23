@@ -1,6 +1,7 @@
 import { Glob } from "bun";
 import { realpath, stat } from "node:fs/promises";
-import { basename, extname, normalize, sep } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, extname, join, normalize, sep } from "node:path";
 
 import { computeEtag, gzipJsonResponse, notModified } from "./http-cache.ts";
 import { scrubHtml } from "./scrub.ts";
@@ -78,10 +79,12 @@ export function galleryDocKindOf(path: string): GalleryDocKind | null {
 export type GalleryFileKind = "image" | GalleryDocKind;
 
 /**
- * The one servable root: the harness scratchpad tree for the uid the bridge runs as. Not
- * configurable, deliberately — see the security note above.
+ * The one servable root: the harness scratchpad tree for the uid the bridge runs as — on Windows,
+ * where Claude Code has no uid to key on, `%TEMP%\claude` (already per-user). Not configurable,
+ * deliberately — see the security note above. The parameters exist for the test.
  */
-export function galleryRoot(): string {
+export function galleryRoot(platform: string = process.platform, tmp: string = tmpdir()): string {
+  if (platform === "win32") return join(tmp, "claude");
   return `/tmp/claude-${process.getuid?.() ?? 0}`;
 }
 

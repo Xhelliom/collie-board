@@ -1033,9 +1033,27 @@ What that means in practice:
 - **`tailscale serve` isn't wired up here.** Use the [Variant C](#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale)
   posture: loopback bind, your own ingress in front, `COLLIE_BOARD_PUBLIC_HOSTS` pinned. The security
   rules in [§Security](#%EF%B8%8F-security--read-before-you-run-it) are not relaxed on Windows.
-- **Set `COLLIE_BOARD_MULTI_SESSION=off`** — session discovery derives POSIX paths.
 - The socket path defaults to `%APPDATA%\herdr\herdr.sock`; override with `HERDR_SOCKET_PATH`
-  (an explicit `\\.\pipe\…` value is passed through untouched).
+  (an explicit `\\.\pipe\…` value is passed through untouched). Named sessions
+  (`%APPDATA%\herdr\sessions\<name>\herdr.sock`) are discovered like on Linux — verified against
+  Herdr 0.9.5 in the [Windows reconnaissance](./docs/multi-machine/reconnaissance-windows.md).
+
+**Installing on Windows** — native, no WSL, no Developer Mode:
+
+- **Bun from `irm bun.sh/install.ps1 | iex`**, not winget: winget's package doesn't put `bunx` on
+  `PATH` without Developer Mode, and the build needs it.
+- **Check the repo out with LF endings**: `git config --global core.autocrlf false` before cloning
+  (or a `.gitattributes` with `* text=auto eol=lf`). CRLF breaks the shell scripts and makes the
+  build's hashes differ from Linux.
+- **`git` and `claude` on the PATH of the Herdr *server*, not just your shell.** The server inherits
+  the PATH of whoever launched it; one started from a shell older than the Git install fails every
+  card start with `worktree_create_failed: program not found`, while its panes, which rebuild their
+  environment from the registry, still see git. Start Herdr from a fresh logon environment (a new
+  Windows Terminal, or a scheduled task at logon), never from a long-lived shell.
+- **The skill**: link it with a junction (`scripts/install-skill.sh` has the PowerShell line), and
+  the orchestrator's hook is `bun ~/.claude/skills/collie-board/since-hook.ts`, as on Linux.
+- The **gallery** reads Claude Code's Windows scratchpads, under `%TEMP%\claude`; the usage gauge
+  finds `claude.exe` on `PATH` or in `%USERPROFILE%\.local\bin`.
 
 **Is it actually working?** The bridge logs `[events] stream up` on start — the event stream works
 over the pipe, so Windows gets the same live updates as Linux, not degraded polling.

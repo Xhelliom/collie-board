@@ -360,12 +360,12 @@ curl -s "$B/api/orchestrator/since?since=<cursor>" "${H[@]}"   # {cursor, count,
 
 - **Claude Code** — a `UserPromptSubmit` hook injects `summary` at the top of each turn: nothing when
   nothing moved, never an interruption, silent in every pane that is not an orchestrator. Install it
-  once in `~/.claude/settings.json` (needs `curl` and `jq`; the cursor sits in
-  `~/.local/state/collie-board/since-<pane>`):
+  once in `~/.claude/settings.json` (needs `bun` — the same hook on Linux, macOS and Windows; the
+  cursor sits in `~/.local/state/collie-board/since-<pane>`, `:` turned into `_`):
 
   ```json
   { "hooks": { "UserPromptSubmit": [ { "hooks": [
-      { "type": "command", "command": "~/.claude/skills/collie-board/since-hook.sh" } ] } ] } }
+      { "type": "command", "command": "bun ~/.claude/skills/collie-board/since-hook.ts" } ] } ] } }
   ```
 
   A turn that starts with « Depuis ton dernier tour… » is that hook: read it as the board's word.

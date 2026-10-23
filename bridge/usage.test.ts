@@ -1,6 +1,7 @@
 // The `/usage` panel parse and the tracker's caching. The subprocess is injected, so nothing here
 // spawns a CLI.
 import { describe, expect, it } from "bun:test";
+import { join } from "node:path";
 
 import { claudeCandidates, parseUsage, UsageTracker, USAGE_TTL_MS } from "./usage.ts";
 
@@ -94,5 +95,12 @@ describe("claudeCandidates", () => {
 
   it("still looks in the home directory when the PATH has nothing — the service's case", () => {
     expect(claudeCandidates("/home/x", null)).toContain("/home/x/.local/bin/claude");
+  });
+
+  it("looks for claude.exe on Windows, after the PATH hit", () => {
+    const c = claudeCandidates("/home/x", "C:/bin/claude.exe", "win32");
+    expect(c[0]).toBe("C:/bin/claude.exe");
+    expect(c).toContain(join("/home/x", ".local", "bin", "claude.exe"));
+    expect(c.some((p) => p.startsWith("/usr/"))).toBe(false);
   });
 });
