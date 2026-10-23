@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.233.1] - 2026-10-23
+
+### Fixed
+
+- Windows : les chemins rendus par git (`C:/…`) sont normalisés en `C:\…` et comparés sans casse — un dépôt n'apparaît plus deux fois dans la liste, la garde de diff accepte les deux formes (ad854df)
+
 ## [0.233.0] - 2026-10-23
 
 ### Added
