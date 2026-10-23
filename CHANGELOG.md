@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.235.0] - 2026-10-23
+
+### Added
+
+- Routes pair d'action `/api/node/reply`, `/keys`, `/launch`, `/diff`, `/end`, derrière le jeton de `node.toml`, chaque appel tracé avec le pair appelant (272b3f4)
+- `launch` n'accepte qu'un environnement déclaré par le propriétaire, refuse tout chemin ou commande venu de l'appelant et tout dépôt dont l'autonomie est coupée ; passe par `launchAgent()` puis `promptAndConfirm()` (272b3f4)
+
 ## [0.234.0] - 2026-10-23
 
 ### Added
