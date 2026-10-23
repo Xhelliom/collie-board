@@ -12,6 +12,7 @@ import { basename } from "node:path";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { HerdrClient } from "./herdr-client.ts";
+import { samePath } from "./paths.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** The workspace label's prefix — what the notification hook and the adoption both recognise. */
@@ -37,7 +38,7 @@ export const isOrchestratorAgent = (agent: { workspaceLabel?: string }): boolean
 /** The repo's live orchestrator agent, or null. Same label AND same directory: an operator's own session in the repo is never taken for it. */
 export function findOrchestrator(snap: EngineSnapshot, repoPath: string, ignore?: string): string | null {
   const label = orchestratorLabel(repoPath);
-  return snap.agents.find((a) => a.workspaceLabel === label && a.cwd === repoPath && a.paneId !== ignore)?.paneId ?? null;
+  return snap.agents.find((a) => a.workspaceLabel === label && samePath(a.cwd, repoPath) && a.paneId !== ignore)?.paneId ?? null;
 }
 
 /** The note's ceiling when it is read back into a start prompt (the db keeps the same bound). */
@@ -170,7 +171,7 @@ async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps,
   if (live) return { paneId: live, started: false };
 
   const label = orchestratorLabel(repoPath);
-  const shell = snap.shellPanes.find((p) => p.workspaceLabel === label && p.cwd === repoPath);
+  const shell = snap.shellPanes.find((p) => p.workspaceLabel === label && samePath(p.cwd, repoPath));
   const paneId = shell?.paneId ?? (await herdr.createWorkspace({ cwd: repoPath, label })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
   await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);
