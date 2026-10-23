@@ -23,6 +23,7 @@ import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
+import { handleNodeRoute, loadNodeConfig } from "./node.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
@@ -152,6 +153,8 @@ export function startServer(opts: {
   // Per-session background notifications live in each session's runtime (built by the factory in
   // index.ts, wired to its StateEngine transitions). The routes here only fan preference changes and
   // snooze-clears across every live session's coordinator.
+  // The peer surface (`bridge/node.ts`), read once at boot: no node.toml → /api/node/* is a 404.
+  const node = loadNodeConfig(cfg.stateDir);
 
   const server = Bun.serve({
     hostname: cfg.host,
@@ -170,6 +173,21 @@ export function startServer(opts: {
       const sessionName = url.searchParams.get("session") ?? undefined;
       const unknownSession = () =>
         jsonError(`unknown session: ${sessionName ?? ""}`, 404, req.headers.get("accept-encoding"));
+
+      // ── Peer surface: another Collie reads this one, token-gated (the fork's addition) ──
+      const nodeRes = await handleNodeRoute(pathname, req, {
+        node,
+        access: () => guard(req, cfg, "read"),
+        audit: (peer, route) => audit.record({ action: peer ? "node.read" : "node.denied", detail: { peer, route } }),
+        snapshot: () => registry.get()?.engine.current() ?? { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" },
+        readPane: async (paneId) => {
+          const rt = registry.get();
+          return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
+        },
+        json: (data) => json(data, req.headers.get("accept-encoding")),
+        text,
+      });
+      if (nodeRes) return nodeRes;
 
       // ── Live state (polled by the client) ────────────────────────────────
       if (pathname === "/api/snapshot") {
