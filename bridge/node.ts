@@ -2,9 +2,13 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
+import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
+import { defaultBranchOf, diffFile, diffStat } from "./git.ts";
+import type { HerdrClient } from "./herdr-client.ts";
+
 // The peer surface (ADR 0046 §2 and §4, as revised by decision bed340b1: no central). Every machine
-// is a full Collie with its board on; `/api/node/*` is one more, read-only surface the OTHER peers
-// read, server to server, with a bearer token. The config is `<stateDir>/node.toml`, 0600, never in
+// is a full Collie with its board on; `/api/node/*` is one more surface the OTHER peers
+// read and drive, server to server, with a bearer token. The config is `<stateDir>/node.toml`, 0600, never in
 // a repo: without it, or without a single token, the whole family is a 404 and nothing changes.
 // The bridge still calls no one (ADR 0013) — reading the other peers is ADR 0048's.
 
@@ -110,19 +114,83 @@ export function peerFor(authorization: string | null, peers: readonly NodePeer[]
   return found;
 }
 
+/** A pane this machine launched for a peer: what `diff` reads and `end` closes. Memory only. */
+export interface LaunchedPane {
+  paneId: string;
+  peer: string;
+  environment: string;
+  branch: string;
+  checkoutPath: string;
+  base: string | null;
+}
+
+/** A validated `POST /api/node/launch`: the environment is this machine's own, resolved by name. */
+export interface LaunchRequest {
+  peer: string;
+  env: NodeEnvironment;
+  prompt: string;
+  branch: string;
+}
+
+export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
+
+// Anything else — a path, a cwd, an agent, a command, args — is refused by name, never ignored.
+const LAUNCH_FIELDS = new Set(["environment", "prompt", "branch"]);
+// A ref git accepts and that cannot pass for an option or climb out of refs/heads.
+const SAFE_BRANCH = /^(?![-/.])(?!.*\.\.)(?!.*\/\/)(?!.*[/.]$)(?!.*\.lock$)[A-Za-z0-9._/-]{1,100}$/;
+
+/** Validate a launch body against this machine's own config. Pure. */
+export function parseLaunch(body: unknown, node: NodeConfig, peer: string, now = Date.now()): Parsed<LaunchRequest> {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return { ok: false, error: "body must be a JSON object" };
+  const b = body as Record<string, unknown>;
+  const extra = Object.keys(b).filter((k) => !LAUNCH_FIELDS.has(k));
+  if (extra.length) return { ok: false, error: `refused: ${extra.join(", ")} — a peer names an environment; the path and the agent are ${node.name}'s` };
+  if (typeof b.environment !== "string") return { ok: false, error: "environment is required" };
+  const env = node.environments.find((e) => e.name === b.environment);
+  if (!env) {
+    const known = node.environments.map((e) => e.name).join(", ") || "none";
+    return { ok: false, error: `environment "${b.environment}" is not declared on ${node.name} (declared: ${known})` };
+  }
+  if (typeof b.prompt !== "string" || b.prompt.trim() === "") return { ok: false, error: "prompt must be a non-empty string" };
+  if (b.branch !== undefined && (typeof b.branch !== "string" || !SAFE_BRANCH.test(b.branch))) return { ok: false, error: "branch is not a safe git ref name" };
+  const branch = (b.branch as string | undefined) ?? `node/${peer.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${now.toString(36)}`;
+  return { ok: true, value: { peer, env, prompt: b.prompt, branch } };
+}
+
+/** `{ paneId, … }` from a POST body; the pane is a string herdr resolves, nothing more. */
+function paneOf(b: Record<string, unknown>): string | null {
+  return typeof b.paneId === "string" && b.paneId.trim() !== "" ? b.paneId : null;
+}
+
+/** What the routes do to this machine; the server wires the live herdr and git (see `liveNodeActions`). */
+export interface NodeActions {
+  reply: (paneId: string, text: string, submit: boolean) => Promise<{ ok: boolean; error?: string; textDelivered: boolean }>;
+  keys: (paneId: string, keys: string[]) => Promise<void>;
+  launch: (l: LaunchRequest) => Promise<LaunchedPane>;
+  diff: (p: LaunchedPane, path: string | null, untracked: boolean) => Promise<unknown>;
+  close: (paneId: string) => Promise<void>;
+}
+
 export interface NodeRouteDeps {
   node: NodeConfig | null;
   /** `checkAccess` at read level: the host allowlist and the trusted identity still stand in front. */
   access: () => Response | null;
-  audit: (peer: string | null, route: string) => void;
+  /** One audit line per call, the calling peer always in it: `node.read`, `node.denied`, `node.<action>`. */
+  audit: (action: string, peer: string | null, detail: Record<string, unknown>) => void;
   /** The primary session's snapshot, `disconnected` included — the peer decides what to ignore. */
   snapshot: () => unknown;
   readPane: (paneId: string) => Promise<Response>;
-  json: (data: unknown) => Response;
+  json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
+  actions: NodeActions;
+  /** The owner's autonomy switch for a repo (ADR 0030): off, and no peer launches there. */
+  autonomyOn: (repoPath: string) => boolean;
+  /** The panes launched for peers since boot. */
+  launched: Map<string, LaunchedPane>;
 }
 
 const NODE_PANE_ROUTE = /^\/api\/node\/pane\/([^/]+)$/;
+const NODE_POST = new Set(["/api/node/reply", "/api/node/keys", "/api/node/launch", "/api/node/end"]);
 
 /** The `/api/node/*` family. Returns null for any other path. */
 export async function handleNodeRoute(pathname: string, req: Request, d: NodeRouteDeps): Promise<Response | null> {
@@ -131,17 +199,119 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
   const denied = d.access();
   if (denied) return denied;
   const peer = peerFor(req.headers.get("authorization"), d.node.peers);
-  // shortcut: one audit line per peer read; throttle here if ADR 0048's polling makes the log noisy.
-  d.audit(peer, pathname);
-  if (!peer) return d.text("unauthorized", 401);
+  if (!peer) {
+    d.audit("node.denied", null, { route: pathname });
+    return d.text("unauthorized", 401);
+  }
+  if (NODE_POST.has(pathname)) {
+    if (req.method !== "POST") return d.text("method not allowed", 405);
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return d.text("bad body", 400);
+    }
+    return nodeAction(pathname.slice("/api/node/".length), peer, body, d.node, d);
+  }
   if (req.method !== "GET") return d.text("method not allowed", 405);
+  // shortcut: one audit line per peer read; throttle here if ADR 0048's polling makes the log noisy.
+  d.audit("node.read", peer, { route: pathname });
 
   if (pathname === "/api/node/snapshot") return d.json(d.snapshot());
   if (pathname === "/api/node/environments") {
     // Name and agent only: a peer names an environment, this machine resolves the path (ADR 0046 §2).
     return d.json({ node: d.node.name, environments: d.node.environments.map(({ name, agent }) => ({ name, agent })) });
   }
+  if (pathname === "/api/node/diff") {
+    const q = new URL(req.url).searchParams;
+    const launched = d.launched.get(q.get("pane") ?? "");
+    if (!launched) return d.text("not a pane launched for a peer", 404);
+    // `diffFile` refuses an unsafe path (`isSafeDiffPath`); the checkout is this machine's, never the caller's.
+    const diff = await d.actions.diff(launched, q.get("path"), q.get("untracked") === "1");
+    return (diff as { ok?: boolean }).ok === false ? d.json(diff, 400) : d.json(diff);
+  }
   const pane = NODE_PANE_ROUTE.exec(pathname);
   if (pane) return d.readPane(decodeURIComponent(pane[1]!));
   return d.text("not found", 404);
+}
+
+async function nodeAction(action: string, peer: string, body: unknown, node: NodeConfig, d: NodeRouteDeps): Promise<Response> {
+  const b = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const refuse = (error: string, status: number, detail: Record<string, unknown> = {}) => {
+    d.audit(`node.${action}`, peer, { ...detail, refused: error });
+    return d.json({ ok: false, error }, status);
+  };
+  try {
+    if (action === "launch") {
+      const parsed = parseLaunch(body, node, peer);
+      if (!parsed.ok) return refuse(parsed.error, 400, { environment: b.environment ?? null });
+      const { env, branch } = parsed.value;
+      if (!d.autonomyOn(env.repoPath)) {
+        return refuse(`autonomy is off for environment "${env.name}" on ${node.name} — its owner keeps the hand`, 403, { environment: env.name });
+      }
+      const launched = await d.actions.launch(parsed.value);
+      d.launched.set(launched.paneId, launched);
+      d.audit("node.launch", peer, { environment: env.name, branch, paneId: launched.paneId, prompt: parsed.value.prompt });
+      return d.json({ ok: true, paneId: launched.paneId, branch: launched.branch, environment: env.name });
+    }
+
+    const paneId = paneOf(b);
+    if (!paneId) return refuse("paneId is required", 400);
+    if (action === "reply") {
+      if (b.text !== undefined && typeof b.text !== "string") return refuse("text must be a string", 400, { paneId });
+      const text = (b.text as string | undefined) ?? "";
+      const submit = b.submit !== false;
+      const out = await d.actions.reply(paneId, text, submit);
+      d.audit("node.reply", peer, { paneId, text, submit, submitted: out.ok, textDelivered: out.textDelivered });
+      return d.json({ ok: out.ok, textDelivered: out.textDelivered, ...(out.error ? { error: out.error } : {}) });
+    }
+    if (action === "keys") {
+      const keys = Array.isArray(b.keys) ? b.keys.filter((k): k is string => typeof k === "string") : [];
+      if (keys.length === 0) return refuse("no keys", 400, { paneId });
+      await d.actions.keys(paneId, keys);
+      d.audit("node.keys", peer, { paneId, keys });
+      return d.json({ ok: true });
+    }
+    // end: only the pane this machine launched for that same peer — never any other pane of the owner.
+    const launched = d.launched.get(paneId);
+    if (!launched || launched.peer !== peer) return refuse("not a pane launched for this peer", 404, { paneId });
+    await d.actions.close(paneId);
+    d.launched.delete(paneId);
+    d.audit("node.end", peer, { paneId, environment: launched.environment, branch: launched.branch });
+    return d.json({ ok: true });
+  } catch (err) {
+    return refuse((err as Error).message, 502);
+  }
+}
+
+/** The live wiring: herdr for the panes, `git.ts` for the diff, `launchAgent` → `promptAndConfirm` for a launch. */
+export function liveNodeActions(
+  herdr: () => HerdrClient | null,
+  reply: (h: HerdrClient, ...a: Parameters<NodeActions["reply"]>) => ReturnType<NodeActions["reply"]>,
+): NodeActions {
+  const h = () => {
+    const c = herdr();
+    if (!c) throw new Error("herdr is not connected");
+    return c;
+  };
+  return {
+    reply: (paneId, text, submit) => reply(h(), paneId, text, submit),
+    keys: (paneId, keys) => h().sendPaneKeys(paneId, keys),
+    close: (paneId) => h().closePane(paneId),
+    diff: (p, path, untracked) => (path === null ? diffStat(p.checkoutPath, p.base) : diffFile(p.checkoutPath, p.base, path, { untracked })),
+    launch: async ({ peer, env, prompt, branch }) => {
+      const c = h();
+      const base = (await defaultBranchOf(env.repoPath)) ?? null;
+      const wt = await c.createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40) });
+      try {
+        await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch));
+        await promptAndConfirm(c, wt.paneId, prompt, undefined, { firstAfterLaunch: true });
+      } catch (err) {
+        // A pane no peer can `end` would sit on the owner's machine: close it, keep the checkout.
+        await c.closePane(wt.paneId).catch(() => {});
+        throw err;
+      }
+      return { paneId: wt.paneId, peer, environment: env.name, branch, checkoutPath: wt.checkoutPath, base };
+    },
+  };
 }

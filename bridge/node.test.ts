@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { handleNodeRoute, loadNodeConfig, parseNodeConfig, peerFor, type NodeConfig, type NodeRouteDeps } from "./node.ts";
+import { handleNodeRoute, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
 
 const TOKEN_A = "a".repeat(40);
 const TOKEN_B = "b".repeat(40);
@@ -95,21 +95,39 @@ describe("handleNodeRoute", () => {
   const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" };
 
   function deps(over: Partial<NodeRouteDeps> = {}) {
-    const audited: [string | null, string][] = [];
+    const audited: [string, string | null, Record<string, unknown>][] = [];
+    const calls: unknown[][] = [];
     const d: NodeRouteDeps = {
       node,
       access: () => null,
-      audit: (peer, route) => audited.push([peer, route]),
+      audit: (action, peer, detail) => audited.push([action, peer, detail]),
       snapshot: () => snap,
       readPane: async (id) => Response.json({ paneId: id }),
-      json: (data) => Response.json(data),
       text: (body, status) => new Response(body, { status }),
+      json: (data, status) => Response.json(data, { status: status ?? 200 }),
+      actions: {
+        reply: async (...a) => (calls.push(["reply", ...a]), { ok: true, textDelivered: true }),
+        keys: async (...a) => void calls.push(["keys", ...a]),
+        close: async (...a) => void calls.push(["close", ...a]),
+        diff: async (p, path) => ({ paneId: p.paneId, path }),
+        launch: async (l: LaunchRequest) => {
+          calls.push(["launch", l.env.repoPath, l.env.agent, l.prompt, l.branch]);
+          return { paneId: "w9:p1", peer: l.peer, environment: l.env.name, branch: l.branch, checkoutPath: "/wt", base: "main" };
+        },
+      },
+      autonomyOn: () => true,
+      launched: new Map<string, LaunchedPane>(),
       ...over,
     };
-    return { d, audited };
+    return { d, audited, calls };
   }
-  const req = (path: string, token: string | null = TOKEN_A, method = "GET") =>
-    new Request(`http://peer${path}`, { method, headers: token ? { authorization: `Bearer ${token}` } : {} });
+  const req = (path: string, token: string | null = TOKEN_A, method = "GET", body?: unknown) =>
+    new Request(`http://peer${path}`, {
+      method,
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const post = (path: string, body: unknown, d: NodeRouteDeps, token: string | null = TOKEN_A) => handleNodeRoute(path, req(path, token, "POST", body), d);
   const call = (path: string, d: NodeRouteDeps, r = req(path)) => handleNodeRoute(path, r, d);
 
   it("leaves every other path alone", async () => {
@@ -128,8 +146,8 @@ describe("handleNodeRoute", () => {
     expect((await call("/api/node/snapshot", d, req("/api/node/snapshot", null)))!.status).toBe(401);
     expect((await call("/api/node/snapshot", d, req("/api/node/snapshot", "z".repeat(40))))!.status).toBe(401);
     expect(audited).toEqual([
-      [null, "/api/node/snapshot"],
-      [null, "/api/node/snapshot"],
+      ["node.denied", null, { route: "/api/node/snapshot" }],
+      ["node.denied", null, { route: "/api/node/snapshot" }],
     ]);
   });
 
@@ -142,7 +160,7 @@ describe("handleNodeRoute", () => {
     const { d, audited } = deps();
     const res = (await call("/api/node/snapshot", d))!;
     expect(await res.json()).toEqual(snap);
-    expect(audited).toEqual([["arch-1", "/api/node/snapshot"]]);
+    expect(audited).toEqual([["node.read", "arch-1", { route: "/api/node/snapshot" }]]);
   });
 
   it("reads one pane", async () => {
@@ -155,8 +173,83 @@ describe("handleNodeRoute", () => {
     expect(await res.json()).toEqual({ node: "arch-2", environments: [{ name: "arch-2", agent: "claude" }] });
   });
 
-  it("is read-only and knows no other route", async () => {
+  it("keeps each verb to its routes and knows no other", async () => {
     expect((await call("/api/node/snapshot", deps().d, req("/api/node/snapshot", TOKEN_A, "POST")))!.status).toBe(405);
-    expect((await call("/api/node/launch", deps().d))!.status).toBe(404);
+    expect((await call("/api/node/launch", deps().d))!.status).toBe(405);
+    expect((await call("/api/node/nope", deps().d))!.status).toBe(404);
+  });
+
+  it("refuses every action without a token, before touching a pane", async () => {
+    const { d, audited, calls } = deps();
+    for (const r of ["reply", "keys", "launch", "end"]) expect((await post(`/api/node/${r}`, { paneId: "w1:p1" }, d, null))!.status).toBe(401);
+    expect((await call("/api/node/diff?pane=w1:p1", d, req("/api/node/diff?pane=w1:p1", null)))!.status).toBe(401);
+    expect(calls).toEqual([]);
+    expect(audited.every(([a, p]) => a === "node.denied" && p === null)).toBe(true);
+  });
+
+  it("replies and sends keys to a local pane, tracing the peer", async () => {
+    const { d, audited, calls } = deps();
+    expect(await (await post("/api/node/reply", { paneId: "w1:p1", text: "go" }, d))!.json()).toEqual({ ok: true, textDelivered: true });
+    expect(await (await post("/api/node/keys", { paneId: "w1:p1", keys: ["ctrl+c"] }, d, TOKEN_B))!.json()).toEqual({ ok: true });
+    expect(calls).toEqual([["reply", "w1:p1", "go", true], ["keys", "w1:p1", ["ctrl+c"]]]);
+    expect(audited.map(([a, p]) => [a, p])).toEqual([["node.reply", "arch-1"], ["node.keys", "win-cad"]]);
+    expect((await post("/api/node/keys", { paneId: "w1:p1", keys: [] }, d))!.status).toBe(400);
+    expect((await post("/api/node/reply", { text: "go" }, d))!.status).toBe(400);
+  });
+
+  it("launches in a declared environment through the injected launch, and remembers the pane", async () => {
+    const { d, audited, calls } = deps();
+    const res = (await post("/api/node/launch", { environment: "arch-2", prompt: "fix it", branch: "node/fix" }, d))!;
+    expect(await res.json()).toEqual({ ok: true, paneId: "w9:p1", branch: "node/fix", environment: "arch-2" });
+    expect(calls).toEqual([["launch", ENV_PATH, "claude", "fix it", "node/fix"]]);
+    expect(d.launched.get("w9:p1")?.peer).toBe("arch-1");
+    expect(audited.at(-1)).toEqual(["node.launch", "arch-1", { environment: "arch-2", branch: "node/fix", paneId: "w9:p1", prompt: "fix it" }]);
+  });
+
+  it("refuses a launch with a reason: undeclared environment, a path or a command, autonomy off", async () => {
+    const { d, audited, calls } = deps();
+    const undeclared = (await post("/api/node/launch", { environment: "other", prompt: "x" }, d))!;
+    expect(undeclared.status).toBe(400);
+    expect(((await undeclared.json()) as { error: string }).error).toContain("not declared");
+    for (const extra of [{ repoPath: "/etc" }, { cwd: "/" }, { command: "rm -rf /" }, { agent: "sh" }, { args: ["--x"] }]) {
+      expect((await post("/api/node/launch", { environment: "arch-2", prompt: "x", ...extra }, d))!.status).toBe(400);
+    }
+    const off = deps({ autonomyOn: (p) => p !== ENV_PATH });
+    const r = (await post("/api/node/launch", { environment: "arch-2", prompt: "x" }, off.d))!;
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { error: string }).error).toContain("autonomy is off");
+    expect(calls).toEqual([]);
+    expect(off.calls).toEqual([]);
+    expect(audited.every(([a, p, detail]) => a === "node.launch" && p === "arch-1" && "refused" in detail)).toBe(true);
+  });
+
+  it("diffs and ends only a pane launched for that peer", async () => {
+    const { d, calls } = deps();
+    expect((await call("/api/node/diff?pane=w1:p1", d, req("/api/node/diff?pane=w1:p1")))!.status).toBe(404);
+    expect((await post("/api/node/end", { paneId: "w1:p1" }, d))!.status).toBe(404);
+    await post("/api/node/launch", { environment: "arch-2", prompt: "x" }, d);
+    const diff = (await call("/api/node/diff", d, req("/api/node/diff?pane=w9:p1&path=a.ts")))!;
+    expect(await diff.json()).toEqual({ paneId: "w9:p1", path: "a.ts" });
+    const bad = deps({ actions: { ...d.actions, diff: async () => ({ ok: false, error: "bad path" }) }, launched: d.launched });
+    expect((await call("/api/node/diff", bad.d, req("/api/node/diff?pane=w9:p1&path=../x")))!.status).toBe(400);
+    expect((await post("/api/node/end", { paneId: "w9:p1" }, d, TOKEN_B))!.status).toBe(404);
+    expect((await post("/api/node/end", { paneId: "w9:p1" }, d))!.status).toBe(200);
+    expect(calls.at(-1)).toEqual(["close", "w9:p1"]);
+    expect(d.launched.size).toBe(0);
+  });
+});
+
+describe("parseLaunch", () => {
+  const node = parseNodeConfig(valid) as NodeConfig;
+  it("resolves the environment by name and names a branch after the peer", () => {
+    const r = parseLaunch({ environment: "arch-2", prompt: "go" }, node, "Arch 1", 36);
+    expect(r).toEqual({ ok: true, value: { peer: "Arch 1", env: node.environments[0]!, prompt: "go", branch: "node/arch-1-10" } });
+  });
+  it("refuses an unsafe branch and an empty prompt", () => {
+    for (const branch of ["-x", "../x", "a..b", "a//b", "a/", "x.lock", "a b", ""]) {
+      expect(parseLaunch({ environment: "arch-2", prompt: "go", branch }, node, "p").ok).toBe(false);
+    }
+    expect(parseLaunch({ environment: "arch-2", prompt: " " }, node, "p").ok).toBe(false);
+    expect(parseLaunch(["arch-2"], node, "p").ok).toBe(false);
   });
 });
