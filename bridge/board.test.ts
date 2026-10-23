@@ -1095,6 +1095,12 @@ describe("git — worktree resolution and diff parsing", () => {
     ]);
   });
 
+  it("spells a Git for Windows worktree path the way Node and herdr do", () => {
+    expect(parseWorktreeList("worktree C:/Users/me/repo\nbranch refs/heads/main\n", "win32")).toEqual([
+      { path: "C:\\Users\\me\\repo", branch: "main" },
+    ]);
+  });
+
   it("reports a detached worktree with a null branch rather than dropping it", () => {
     const out = ["worktree /tmp/det", "HEAD abc123", "detached", ""].join("\n");
     expect(parseWorktreeList(out)).toEqual([{ path: "/tmp/det", branch: null }]);
@@ -1136,6 +1142,18 @@ describe("isSafeDiffPath", () => {
   it("rejects an empty path and an embedded NUL", () => {
     expect(isSafeDiffPath("/wt/card", "")).toBe(false);
     expect(isSafeDiffPath("/wt/card", "a\0b")).toBe(false);
+  });
+
+  it("on win32, accepts a checkout spelled with / or \\ in any case, and keeps every refusal", () => {
+    for (const cwd of ["C:/Users/me/wt", "C:\\Users\\me\\wt", "c:\\users\\ME\\wt"]) {
+      expect(isSafeDiffPath(cwd, "README.md", "win32")).toBe(true);
+      expect(isSafeDiffPath(cwd, "src\\a.ts", "win32")).toBe(true);
+      expect(isSafeDiffPath(cwd, "..\\..\\etc", "win32")).toBe(false);
+      expect(isSafeDiffPath(cwd, "../wt-other/x", "win32")).toBe(false);
+      expect(isSafeDiffPath(cwd, "D:\\x", "win32")).toBe(false);
+      expect(isSafeDiffPath(cwd, "-p", "win32")).toBe(false);
+      expect(isSafeDiffPath(cwd, "", "win32")).toBe(false);
+    }
   });
 
   it("does not let a sibling directory that shares the prefix through", () => {
@@ -1822,6 +1840,11 @@ describe("repo picker", () => {
     const merged = mergeRepoChoices([{ path: "/r/a", lastUsedAt: 1 }], ["/r/a"], ["/r/a"]);
     expect(merged).toHaveLength(1);
     expect(merged[0]!.source).toBe("card");
+  });
+
+  it("on win32, git's C:/ form and herdr's C:\\ form are one repo, named by its last segment", () => {
+    const merged = mergeRepoChoices([], ["C:/Users/me/src/collie-board"], ["C:\\Users\\ME\\src\\Collie-Board"], "win32");
+    expect(merged).toEqual([{ path: "C:/Users/me/src/collie-board", name: "collie-board", source: "herd" }]);
   });
 
   it("resolves a repo root from a SUBDIRECTORY — a pane's cwd drifts as the agent works", async () => {

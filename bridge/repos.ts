@@ -25,6 +25,7 @@ import { join } from "node:path";
 
 import type { BoardDb } from "./db.ts";
 import { baseOf, defaultBranchOf, runGit, type GitRunner } from "./git.ts";
+import { normalizePath, pathKey } from "./paths.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** How deep a scan root is walked looking for `.git`. Enough for `~/code/org/project`. */
@@ -95,32 +96,33 @@ export interface RepoChoice {
  * Order is the whole UX: what you carded most recently, then what is open in the herd, then the
  * scan. First entry is the one the sheet pre-selects, so it has to be the likely answer.
  *
- * Pure + exported — the precedence and de-duplication rules are the part worth pinning down.
+ * Pure + exported — the precedence and de-duplication rules are the part worth pinning down. Paths
+ * are de-duplicated by `pathKey`, so `C:/x` and `C:\X` are one repo on win32; the first spelling seen
+ * is the one kept.
  */
 export function mergeRepoChoices(
   cards: { path: string; lastUsedAt: number }[],
   herd: string[],
   scan: string[],
+  platform: NodeJS.Platform = process.platform,
 ): RepoChoice[] {
   const byPath = new Map<string, RepoChoice>();
+  const add = (path: string, choice: Omit<RepoChoice, "path" | "name">) => {
+    const key = pathKey(path, platform);
+    if (!byPath.has(key)) byPath.set(key, { path, name: basename(path, platform), ...choice });
+  };
 
   // Cards first, newest-used first, so the ordering survives the later sources.
-  for (const { path, lastUsedAt } of [...cards].sort((a, b) => b.lastUsedAt - a.lastUsedAt)) {
-    if (!byPath.has(path)) byPath.set(path, { path, name: basename(path), source: "card", lastUsedAt });
-  }
+  for (const { path, lastUsedAt } of [...cards].sort((a, b) => b.lastUsedAt - a.lastUsedAt)) add(path, { source: "card", lastUsedAt });
   // A repo that is BOTH carded and open stays "card" — the stronger signal wins.
-  for (const path of herd) {
-    if (!byPath.has(path)) byPath.set(path, { path, name: basename(path), source: "herd" });
-  }
-  for (const path of scan) {
-    if (!byPath.has(path)) byPath.set(path, { path, name: basename(path), source: "scan" });
-  }
+  for (const path of herd) add(path, { source: "herd" });
+  for (const path of scan) add(path, { source: "scan" });
   return [...byPath.values()];
 }
 
-/** Last path segment, tolerating a trailing slash. Pure. */
-export function basename(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
+/** Last path segment, tolerating a trailing slash — and `\` as a separator on win32. Pure. */
+export function basename(path: string, platform: NodeJS.Platform = process.platform): string {
+  const trimmed = (platform === "win32" ? path.replaceAll("\\", "/") : path).replace(/\/+$/, "");
   // "/" trims to "" — never a real repo root, but a picker entry with an empty label would be a
   // mystery button, so fall back to the path itself.
   if (trimmed === "") return path;
@@ -148,7 +150,8 @@ export async function repoRootOf(cwd: string, git: GitRunner = runGit): Promise<
   if (!top.ok || !toplevel) return null;
   const common = await git(["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd);
   const dir = common.ok ? common.stdout.trim() : "";
-  return dir.endsWith("/.git") ? dir.slice(0, -"/.git".length) : toplevel;
+  // Git for Windows prints `C:/…` here, which herdr and Node spell `C:\…`: normalized once, at the source.
+  return normalizePath(dir.endsWith("/.git") ? dir.slice(0, -"/.git".length) : toplevel);
 }
 
 /**

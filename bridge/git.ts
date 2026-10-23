@@ -22,8 +22,9 @@
 // unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
 import { existsSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { join, posix, resolve, win32 } from "node:path";
 import { boardBranchPrefix } from "./config.ts";
+import { normalizePath, pathKey } from "./paths.ts";
 
 import { EVENT_WINDOW } from "./db.ts";
 
@@ -107,13 +108,16 @@ export const runGit: GitRunner = async (args, cwd) => {
  * detached checkout. Pure + exported: this output is how a card finds its checkout WITHOUT storing a
  * path that herdr could move under us.
  */
-export function parseWorktreeList(stdout: string): { path: string; branch: string | null }[] {
+export function parseWorktreeList(
+  stdout: string,
+  platform: NodeJS.Platform = process.platform,
+): { path: string; branch: string | null }[] {
   const out: { path: string; branch: string | null }[] = [];
   let current: { path: string; branch: string | null } | null = null;
   for (const line of stdout.split("\n")) {
     if (line.startsWith("worktree ")) {
       if (current) out.push(current);
-      current = { path: line.slice("worktree ".length).trim(), branch: null };
+      current = { path: normalizePath(line.slice("worktree ".length).trim(), platform), branch: null };
     } else if (line.startsWith("branch ") && current) {
       current.branch = line.slice("branch ".length).trim().replace(/^refs\/heads\//, "");
     }
@@ -251,13 +255,16 @@ export async function diffStat(
  *
  * Rejects an option-looking argument (`--output=…`) even though every call site also uses `--`, and
  * rejects anything that escapes the checkout after resolution. Belt and braces on purpose: this is
- * the only string that reaches a subprocess from a request. Pure + exported.
+ * the only string that reaches a subprocess from a request. Pure + exported. On win32 the checkout
+ * may be spelled `C:/…` (git) or `C:\…` (Node), in any case: both are compared by `pathKey`.
  */
-export function isSafeDiffPath(cwd: string, path: string): boolean {
+export function isSafeDiffPath(cwd: string, path: string, platform: NodeJS.Platform = process.platform): boolean {
   if (!path || path.startsWith("-")) return false;
   if (path.includes("\0")) return false;
-  const full = resolve(cwd, path);
-  return full === cwd || full.startsWith(cwd + sep);
+  const lib = platform === "win32" ? win32 : posix;
+  const root = pathKey(cwd, platform);
+  const full = pathKey(lib.resolve(cwd, path), platform);
+  return full === root || full.startsWith(root + lib.sep);
 }
 
 /**
