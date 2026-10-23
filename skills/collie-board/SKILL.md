@@ -402,7 +402,10 @@ code.
   turned **autonomy** on for this repo (`GET /api/orchestrator/autonomy?repo=`; only the user can change
   it, the write refuses your pane header) the board's end-of-lot message tells you that you may launch
   **one** planned lot with `POST /api/runs/<id>/launch`. Only then; a bound (lots chained, red gate/CI)
-  withdraws it and you launch nothing. `POST /api/runs` without `planned` stays refused in every case.
+  withdraws it and you launch nothing. And if the user also turned on `startWhenIdle` (same route;
+  ADR 0047), you may launch a planned lot whenever **no lot of this repo is running** — the bridge checks
+  at your request, counts it in the chain and refuses past the same bounds. `POST /api/runs` without
+  `planned` stays refused in every case.
 - `POST /api/runs/<id>/resume` — lifts a lot's halts (`run.halted`): each halted card picks up at the
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the

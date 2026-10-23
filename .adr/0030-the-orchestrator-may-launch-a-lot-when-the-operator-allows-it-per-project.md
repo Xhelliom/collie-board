@@ -1,6 +1,6 @@
 # 0030 — The orchestrator may launch a lot when the operator allows it, per project
 
-**Status:** Accepted — amends [ADR 0021](./0021-a-project-is-a-roadmap-phases-and-lots-planned-by-an-agent-that-never-launches.md) ("prepares, never launches")
+**Status:** Accepted · amended by [0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) (a start when nothing runs, if the operator allows it) — amends [ADR 0021](./0021-a-project-is-a-roadmap-phases-and-lots-planned-by-an-agent-that-never-launches.md) ("prepares, never launches")
 
 ## Context
 

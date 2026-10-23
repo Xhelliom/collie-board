@@ -109,11 +109,13 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     const cur = ctx.db.autonomyOf(b.repoPath);
     const enabled = b.enabled ?? cur.enabled;
     const stopOnRed = b.stopOnRed ?? cur.stopOnRed;
+    const startWhenIdle = b.startWhenIdle ?? cur.startWhenIdle;
     const maxChain = b.maxChain === undefined ? cur.maxChain : b.maxChain;
-    if (typeof enabled !== "boolean" || typeof stopOnRed !== "boolean") return ctx.text("enabled and stopOnRed must be booleans", 400);
+    if (typeof enabled !== "boolean" || typeof stopOnRed !== "boolean" || typeof startWhenIdle !== "boolean")
+      return ctx.text("enabled, stopOnRed and startWhenIdle must be booleans", 400);
     if (!isMaxChain(maxChain)) return ctx.text("maxChain must be a whole number from 1, or null for unlimited", 400);
-    const autonomy = ctx.db.setAutonomy(b.repoPath, { enabled, maxChain, stopOnRed });
-    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath, enabled, maxChain, stopOnRed } });
+    const autonomy = ctx.db.setAutonomy(b.repoPath, { enabled, maxChain, stopOnRed, startWhenIdle });
+    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath, enabled, maxChain, stopOnRed, startWhenIdle } });
     return ctx.json({ autonomy });
   }
 

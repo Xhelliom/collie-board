@@ -7,6 +7,7 @@ import { basename } from "node:path";
 
 import { isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
+import { idleStart } from "./autonomy.ts";
 import { lotView } from "./lot.ts";
 import { resumeRun } from "./run.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
@@ -216,15 +217,18 @@ export async function handleProjectRoute(
       // The planner prepares; the operator launches. A caller that names itself an agent pane is
       // refused whatever else it says — consent is not something an agent can give itself.
       const run = db.getRun(id);
-      // Unless the operator turned autonomy on for this repo and the end-of-lot wake armed one launch (ADR 0030).
-      if (pane && !(run && db.autonomyOf(run.repoPath).armed && db.autonomyOf(run.repoPath).enabled))
+      // Unless the operator turned autonomy on for this repo and the end-of-lot wake armed one launch
+      // (ADR 0030), or allowed a start when none of its lots is running (ADR 0047).
+      const auto = run ? db.autonomyOf(run.repoPath) : null;
+      const idle = !!pane && !!run && !auto!.armed && idleStart(db, run);
+      if (pane && !(auto?.enabled && (auto.armed || idle)))
         return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!run) return ctx.text("run not found", 404);
       if (run.launchedAt !== null) return ctx.text("already launched", 409);
-      if (pane && !db.spendAutonomy(run.repoPath)) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
+      if (pane && !db.spendAutonomy(run.repoPath, idle)) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);
-      audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}) });
+      audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}), ...(idle ? { reason: "idle" } : {}) });
       return ctx.json({ run: db.getRun(id) });
     }
     if (runMatch[2] === "resume") {

@@ -63,7 +63,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0019](./0019-an-agents-note-retracts-with-its-pane-or-in-ten-minutes.md) | An agent's note retracts with its pane, or in ten minutes | Accepted |
 | [0027](./0027-the-board-merges-the-pr-when-github-will-not.md) | The board merges the PR itself when GitHub's auto-merge is not there | Partially superseded by [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) |
 | [0029](./0029-the-board-reads-the-prs-checks-before-it-merges.md) | The board reads the PR's GitHub checks before it merges | Amended by [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) |
-| [0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) | The orchestrator may launch a lot when the operator allows it, per project | Accepted |
+| [0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) | The orchestrator may launch a lot when the operator allows it, per project | Amended by [0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) |
 | [0031](./0031-a-pipeline-is-an-ordered-list-of-roles-run-inside-a-run.md) | A pipeline is an ordered list of roles, chained only inside a run | Accepted |
 | [0032](./0032-a-flow-is-a-named-pipeline-kept-in-the-board.md) | A flow is a named pipeline, kept in the board | Accepted |
 | [0033](./0033-a-report-is-read-from-the-journal-the-narrative-is-the-only-thing-stored.md) | A report is read from the journal; the narrative is the only thing stored | Accepted |
@@ -71,3 +71,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) | "GitHub has not answered yet" is a wait, and only a landing files the card | Accepted |
 | [0037](./0037-a-finished-turn-is-read-at-the-passage-not-at-done.md) | Un tour fini se lit au passage working→idle, pas à l'état `done` | Accepted |
 | [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) | Multi-machine : un Collie central et des nœuds | Accepted |
+| [0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) | L'orchestrateur peut démarrer un lot quand rien ne tourne, si l'opérateur l'a permis | Accepted |
