@@ -45,6 +45,11 @@ export const orchestrator = defineMessages({
     en: "At the end of a lot only, never on a timer. Validating a phase stays yours.",
     fr: "À la fin d'un lot seulement, jamais sur un minuteur. Valider une phase reste à toi.",
   },
+  "orch.autoIdle": { en: "May start a lot when nothing is running", fr: "Peut démarrer un lot quand rien ne tourne" },
+  "orch.autoIdleHint": {
+    en: "When it asks and none of this project's lots is running. Counted in the chain, same bounds.",
+    fr: "Quand il le demande et qu'aucun lot du projet ne tourne. Compté dans l'enchaînement, mêmes bornes.",
+  },
   "orch.autoChain": { en: "Lots chained without you", fr: "Lots enchaînés sans toi" },
   "orch.autoUnlimited": { en: "Unlimited", fr: "Illimité" },
   "orch.direct": { en: "Integration: merge direct, no PR", fr: "Intégration : merge direct, sans PR" },

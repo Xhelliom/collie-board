@@ -507,6 +507,24 @@ describe("ProjectRoute", () => {
     expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "/board/project?repo=%2Fr%2Fapp#project-autonomy");
     expect(within(aside).queryByRole("switch")).toBeNull();
   });
+  it("lets the operator allow a start when nothing runs, greyed out while autonomy is off", async () => {
+    let saved: unknown = null;
+    server.use(
+      http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true, startWhenIdle: false } })),
+      http.put("*/api/orchestrator/autonomy", async ({ request }) => {
+        saved = await request.json();
+        return HttpResponse.json({ autonomy: { enabled: true, maxChain: 1, stopOnRed: true, startWhenIdle: false, ...(saved as object) } });
+      }),
+    );
+    mount([card({ id: "a" })]);
+    const block = await screen.findByRole("region", { name: "Autonomy" });
+    const idle = await within(block).findByRole("switch", { name: "May start a lot when nothing is running" });
+    expect(idle).toBeDisabled();
+    await userEvent.click(within(block).getByRole("switch", { name: "Let it launch the next planned lot" }));
+    await waitFor(() => expect(idle).toBeEnabled());
+    await userEvent.click(idle);
+    await waitFor(() => expect(saved).toEqual({ repoPath: "/r/app", startWhenIdle: true }));
+  });
   it("scrolls to the autonomy block once it is rendered, from the orchestrator's link", async () => {
     server.use(http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })));
     const scroll = vi.mocked(Element.prototype.scrollIntoView);

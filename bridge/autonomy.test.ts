@@ -64,12 +64,13 @@ const finish = async (w: ReturnType<typeof world>) => {
   await flush();
 };
 const launch = (w: ReturnType<typeof world>, headers: Record<string, string> = PANE) => call(w.db, "POST", `/api/runs/${w.lot2.id}/launch`, undefined, headers);
-const enable = (w: ReturnType<typeof world>, extra: object = {}) => call(w.db, "PUT", "/api/orchestrator/autonomy", { repoPath: repo, enabled: true, ...extra });
+const enable = (w: ReturnType<typeof world>, extra: object = {}, headers: Record<string, string> = {}) =>
+  call(w.db, "PUT", "/api/orchestrator/autonomy", { repoPath: repo, enabled: true, ...extra }, headers);
 
 describe("orchestrator autonomy (ADR 0030)", () => {
   it("is off by default and the launch route refuses the orchestrator", async () => {
     const w = world();
-    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false });
+    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false });
     await finish(w);
     expect((await launch(w)).status).toBe(403);
     expect(w.db.getRun(w.lot2.id)!.launchedAt).toBeNull();
@@ -142,6 +143,65 @@ describe("orchestrator autonomy (ADR 0030)", () => {
     await finish(w);
     await call(w.db, "PUT", "/api/orchestrator/autonomy", { repoPath: repo, enabled: false });
     expect((await launch(w)).status).toBe(403);
+  });
+});
+
+describe("start when idle (ADR 0047)", () => {
+  // lot 1 ends with no wake: nothing armed, nothing running.
+  const idle = (w: ReturnType<typeof world>, runId = w.lot1.id) => w.db.recordRunEvent(null, "run.finished", { runId });
+
+  it("off (default): nothing running still is no grant", async () => {
+    const w = world();
+    await enable(w);
+    idle(w);
+    expect((await launch(w)).status).toBe(403);
+  });
+
+  it("on and no lot running: it may start a planned lot, counted and journaled as idle", async () => {
+    const w = world();
+    await enable(w, { startWhenIdle: true, maxChain: null });
+    idle(w);
+    audits.length = 0;
+    expect((await launch(w)).status).toBe(200);
+    expect(audits).toContainEqual(expect.objectContaining({ action: "run.launch", detail: expect.objectContaining({ autonomous: true, reason: "idle" }) }));
+    expect(w.db.autonomyOf(repo).chained).toBe(1);
+  });
+
+  it("refused while a lot of the repo is running", async () => {
+    const w = world();
+    await enable(w, { startWhenIdle: true });
+    expect((await launch(w)).status).toBe(403);
+  });
+
+  it("refused past maxChain", async () => {
+    const w = world();
+    await enable(w, { startWhenIdle: true, maxChain: 1 });
+    idle(w);
+    expect((await launch(w)).status).toBe(200);
+    const lot3 = w.db.createRun({ repoPath: repo, cardIds: [w.db.createCard({ title: "c", repoPath: repo, status: "ready" }).id], foldInCap: 0, planned: true });
+    idle(w, w.lot2.id);
+    expect((await call(w.db, "POST", `/api/runs/${lot3.id}/launch`, undefined, PANE)).status).toBe(403);
+  });
+
+  it("refused after a red lot when stopOnRed", async () => {
+    const w = world();
+    const c = w.db.runMembers(w.lot1.id)[0]!;
+    w.db.setStatus(c.id, "review", "test");
+    w.db.recordRunEvent(c.id, "run.gate", { runId: w.lot1.id, command: "t", ok: false });
+    await enable(w, { startWhenIdle: true });
+    idle(w);
+    expect((await launch(w)).status).toBe(403);
+  });
+
+  it("is the operator's setting: the PUT refuses a pane, and the column survives a backup", async () => {
+    const w = world();
+    await enable(w);
+    expect((await enable(w, { startWhenIdle: true }, PANE)).status).toBe(403);
+    expect(w.db.autonomyOf(repo).startWhenIdle).toBe(false);
+    await enable(w, { startWhenIdle: true });
+    const copy = new BoardDb(":memory:");
+    copy.restore(w.db.dump());
+    expect(copy.autonomyOf(repo).startWhenIdle).toBe(true);
   });
 });
 

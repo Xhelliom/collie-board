@@ -37,7 +37,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
 
   if (!a) return null;
 
-  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed">>) {
+  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle">>) {
     try {
       setA((await saveAutonomy(repo, patch)).autonomy);
       setStatus(t("orch.autoSaved"), "success", 2000);
@@ -63,6 +63,16 @@ export function AutonomySettings({ repo }: { repo: string }) {
           <Switch checked={a.enabled} onCheckedChange={(enabled) => void save({ enabled })} aria-label={t("orch.autoOn")} />
         </div>
         <p className="text-xs text-muted-foreground">{t("orch.autoHint")}</p>
+        <div className="flex items-center justify-between gap-3">
+          <span className={a.enabled ? undefined : "opacity-50"}>{t("orch.autoIdle")}</span>
+          <Switch
+            checked={a.startWhenIdle}
+            disabled={!a.enabled}
+            onCheckedChange={(startWhenIdle) => void save({ startWhenIdle })}
+            aria-label={t("orch.autoIdle")}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t("orch.autoIdleHint")}</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label htmlFor="auto-chain">{t("orch.autoChain")}</label>
           <span className="flex items-center gap-2">

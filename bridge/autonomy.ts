@@ -1,6 +1,7 @@
 // The orchestrator's autonomy (ADR 0030). Off by default; the operator alone sets it and its bounds.
 // What this file decides is only "may the orchestrator launch the next lot after this one?" — the
-// answer is armed at the end-of-lot wake (orchestrator-nudge.ts) and spent by one launch.
+// answer is armed at the end-of-lot wake (orchestrator-nudge.ts) and spent by one launch — or, with
+// `startWhenIdle` (ADR 0047), read at the launch request when no lot of the repo is running.
 
 import type { BoardDb, Run } from "./db.ts";
 
@@ -39,4 +40,22 @@ export function endOfLot(db: BoardDb, run: Run): Verdict {
   if (a.stopOnRed && redCards(db, run).length) return { go: false, why: "un gate ou une CI est rouge" };
   if (a.maxChain !== null && a.chained >= a.maxChain) return { go: false, why: `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte` };
   return { go: true, next };
+}
+
+/**
+ * ADR 0047: may the orchestrator start `run` now, with no end-of-lot grant? Only with `startWhenIdle`,
+ * when no lot of the repo is running, within the chain bound and — with `stopOnRed` — when the last
+ * lot finished green. Read at the request; nothing schedules it.
+ */
+export function idleStart(db: BoardDb, run: Run): boolean {
+  const a = db.autonomyOf(run.repoPath);
+  if (!a.enabled || !a.startWhenIdle) return false;
+  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return false;
+  if (a.maxChain !== null && a.chained >= a.maxChain) return false;
+  // nothing runs, so every launched lot is finished: the latest launched is the last to have ended.
+  const last = db
+    .listRuns(run.repoPath)
+    .filter((r) => r.launchedAt !== null)
+    .reduce<Run | null>((m, r) => (m && m.launchedAt! >= r.launchedAt! ? m : r), null);
+  return !(a.stopOnRed && last && redCards(db, last).length);
 }
