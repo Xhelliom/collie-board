@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.234.0] - 2026-10-23
+
+### Added
+
+- Surface pair `/api/node/*` (snapshot, pane, environments) en lecture, derrière un jeton par pair déclaré dans `<stateDir>/node.toml` ; absente sans ce fichier (22b64d6)
+
 ## [0.233.2] - 2026-10-23
 
 ### Changed
