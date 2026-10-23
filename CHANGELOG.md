@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.233.2] - 2026-10-23
+
+### Changed
+
+- Hook « depuis » de l'orchestrateur en Bun (`since-hook.ts`, plus de `jq`) : remplacer `since-hook.sh` par `bun ~/.claude/skills/collie-board/since-hook.ts` dans `~/.claude/settings.json` (93a8ff3)
+
+### Fixed
+
+- Windows : la galerie lit les scratchpads sous `%TEMP%\claude`, la jauge d'usage trouve `claude.exe` (93a8ff3)
+
 ## [0.233.1] - 2026-10-23
 
 ### Fixed
