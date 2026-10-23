@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   containedIn,
   galleryDocKindOf,
+  galleryRoot,
   handleGalleryRoute,
   isImagePath,
   listGalleryDocs,
@@ -73,6 +74,13 @@ describe("isImagePath", () => {
     expect(names).not.toContain("notes.md");
     expect(names).not.toContain("page.html");
     expect(names).not.toContain("memo.markdown");
+  });
+});
+
+describe("galleryRoot", () => {
+  test("is the uid-keyed /tmp tree on Linux, %TEMP%\\claude on Windows", () => {
+    expect(galleryRoot("linux", "/ignored")).toBe(`/tmp/claude-${process.getuid?.() ?? 0}`);
+    expect(galleryRoot("win32", "/t")).toBe(join("/t", "claude"));
   });
 });
 

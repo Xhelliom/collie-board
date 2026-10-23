@@ -10,6 +10,9 @@
 #   scripts/install-skill.sh            # → ~/.claude/skills/collie-board
 #   CLAUDE_SKILLS_DIR=/some/dir scripts/install-skill.sh
 #
+# Windows (no symlink without Developer Mode): a junction does the same job, from PowerShell —
+#   New-Item -ItemType Junction -Path "$HOME\.claude\skills\collie-board" -Target "$PWD\skills\collie-board"
+#
 # A replaced copy is kept in ~/.claude/skills-backup, NOT beside the link: a second directory holding a
 # SKILL.md of the same name inside the skills directory would be loaded as a duplicate skill.
 set -euo pipefail
