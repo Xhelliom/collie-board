@@ -23,7 +23,7 @@ import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
-import { handleNodeRoute, loadNodeConfig } from "./node.ts";
+import { handleNodeRoute, liveNodeActions, loadNodeConfig, type LaunchedPane } from "./node.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
@@ -155,6 +155,11 @@ export function startServer(opts: {
   // snooze-clears across every live session's coordinator.
   // The peer surface (`bridge/node.ts`), read once at boot: no node.toml → /api/node/* is a 404.
   const node = loadNodeConfig(cfg.stateDir);
+  const nodeLaunched = new Map<string, LaunchedPane>();
+  const nodeActions = liveNodeActions(
+    () => registry.get()?.herdr ?? null,
+    (h, paneId, txt, submit) => sendReplySteps(h, paneId, txt, submit, cfg.submitKeys),
+  );
 
   const server = Bun.serve({
     hostname: cfg.host,
@@ -178,14 +183,17 @@ export function startServer(opts: {
       const nodeRes = await handleNodeRoute(pathname, req, {
         node,
         access: () => guard(req, cfg, "read"),
-        audit: (peer, route) => audit.record({ action: peer ? "node.read" : "node.denied", detail: { peer, route } }),
+        audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
         snapshot: () => registry.get()?.engine.current() ?? { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" },
         readPane: async (paneId) => {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
         },
-        json: (data) => json(data, req.headers.get("accept-encoding")),
+        json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
         text,
+        actions: nodeActions,
+        autonomyOn: (repoPath) => board.autonomyOf(repoPath).enabled,
+        launched: nodeLaunched,
       });
       if (nodeRes) return nodeRes;
 
