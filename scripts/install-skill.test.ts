@@ -3,6 +3,8 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
+import { canSymlink } from "./test-env.ts";
+
 const ROOT = join(import.meta.dir, "..");
 const SCRIPT = join(ROOT, "scripts/install-skill.sh");
 const SRC = join(ROOT, "skills/collie-board");
@@ -13,7 +15,8 @@ const run = (dir: string) => {
 };
 const fresh = () => mkdtempSync(join(tmpdir(), "collie-skill-"));
 
-describe("scripts/install-skill.sh", () => {
+// A test of a bash script that makes a symlink: it runs where both exist (Git Bash, Developer Mode).
+describe.skipIf(!Bun.which("bash") || !canSymlink)("scripts/install-skill.sh", () => {
   it("links the versioned skill into the skills directory, and says so again as a no-op", () => {
     const dir = fresh();
     expect(run(dir).code).toBe(0);

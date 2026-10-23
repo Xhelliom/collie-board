@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { handleBoardRoute } from "./board-routes.ts";
 import type { Config } from "./config.ts";
 import { BoardDb } from "./db.ts";
+import { canSymlink } from "../scripts/test-env.ts";
 import {
   deliverablesRoot,
   handleDeliverablesRoute,
@@ -130,14 +131,18 @@ describe("the routes", () => {
     expect((await publish("no-such-card", "a.txt", "x")).status).toBe(404);
   });
 
-  test("a symlink or a crafted name never leaves the store", async () => {
+  test("a crafted name never leaves the store", async () => {
+    const card = db.createCard({ title: "crafted" });
+    expect((await call(`/api/cards/${card.id}/deliverables/%2e%2e%2f%2e%2e%2fboard.db`)).status).toBe(404);
+    expect((await call(`/api/cards/${card.id}/deliverables/..`)).status).toBe(404);
+  });
+
+  test.skipIf(!canSymlink)("a symlink never leaves the store", async () => {
     const card = db.createCard({ title: "escape" });
     const dir = join(deliverablesRoot(stateDir), card.id);
     await mkdir(dir, { recursive: true });
     await symlink(join(outside, "secret.txt"), join(dir, "leak.txt"));
     expect((await call(`/api/cards/${card.id}/deliverables/leak.txt`)).status).toBe(404);
-    expect((await call(`/api/cards/${card.id}/deliverables/%2e%2e%2f%2e%2e%2fboard.db`)).status).toBe(404);
-    expect((await call(`/api/cards/${card.id}/deliverables/..`)).status).toBe(404);
     // The symlink is not listed either, and a publish under its name does not write through it.
     expect((await (await call(`/api/cards/${card.id}/deliverables`)).json()).deliverables).toEqual([]);
     expect((await (await publish(card.id, "leak.txt", "x")).json()).name).toBe("leak-2.txt");

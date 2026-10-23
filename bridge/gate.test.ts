@@ -1,7 +1,14 @@
 import { describe, expect, it } from "bun:test";
+import { tmpdir } from "node:os";
 
 import { BoardDb } from "./db.ts";
 import { gatePrompt, oneAtATime, parseGate, runGate, summarizeGate } from "./gate.ts";
+
+// The gate commands are this very bun, so the test runs where no `true`, `sh` or `sleep` exists (Windows).
+const bun = (code: string) => [process.execPath, "-e", code];
+const TRUE = bun("");
+const SLEEP = bun("setTimeout(() => {}, 5000)");
+const tmp = tmpdir();
 
 describe("gate (ADR 0020)", () => {
   it("parseGate splits on whitespace and refuses blank", () => {
@@ -26,12 +33,12 @@ describe("gate (ADR 0020)", () => {
   });
 
   it("runGate: pass, fail with output, missing binary, timeout", async () => {
-    expect(await runGate(["true"], "/tmp")).toEqual({ kind: "pass" });
-    const fail = await runGate(["sh", "-c", "echo bad >&2; exit 3"], "/tmp");
+    expect(await runGate(TRUE, tmp)).toEqual({ kind: "pass" });
+    const fail = await runGate(bun('console.error("bad"); process.exit(3)'), tmp);
     expect(fail).toMatchObject({ kind: "fail", exit: 3 });
     expect((fail as { summary: string }).summary).toContain("bad");
-    expect((await runGate(["definitely-not-a-binary-xyz"], "/tmp")).kind).toBe("error");
-    expect(await runGate(["sleep", "5"], "/tmp", 50)).toMatchObject({ kind: "error" });
+    expect((await runGate(["definitely-not-a-binary-xyz"], tmp)).kind).toBe("error");
+    expect(await runGate(SLEEP, tmp, 50)).toMatchObject({ kind: "error" });
   });
 
   it("oneAtATime: calls never overlap, and a failing one frees the slot", async () => {
@@ -55,7 +62,7 @@ describe("gate (ADR 0020)", () => {
 
   it("runGate is queued: a gate waits out a timed-out one, then runs", async () => {
     const t0 = Date.now();
-    const [slow, fast] = await Promise.all([runGate(["sleep", "5"], "/tmp", 100), runGate(["true"], "/tmp")]);
+    const [slow, fast] = await Promise.all([runGate(SLEEP, tmp, 100), runGate(TRUE, tmp)]);
     expect(slow.kind).toBe("error");
     expect(fast).toEqual({ kind: "pass" });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(100);

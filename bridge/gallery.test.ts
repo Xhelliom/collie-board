@@ -15,6 +15,7 @@ import {
   resolveImage,
   shortProject,
 } from "./gallery.ts";
+import { canSymlink } from "../scripts/test-env.ts";
 
 // The pure helpers stand on their own; everything that decides what is servable is exercised
 // against a REAL directory tree, because the whole point of resolveImage is what the filesystem
@@ -40,7 +41,7 @@ beforeAll(async () => {
   await writeFile(join(scratch("s1"), "data.json"), "{}");
   await writeFile(join(scratch("s1"), "renders", "deep.jpg"), PNG);
   // The escape attempt: an image-named symlink inside a scratchpad pointing out of the root.
-  await symlink(join(outside, "secret.png"), join(scratch("s1"), "escape.png"));
+  if (canSymlink) await symlink(join(outside, "secret.png"), join(scratch("s1"), "escape.png"));
 
   await mkdir(scratch("s2"), { recursive: true });
   await writeFile(join(scratch("s2"), "b.webp"), PNG);
@@ -203,8 +204,11 @@ describe("resolveGalleryFile", () => {
     });
   });
 
-  test("refuses an escape, an outside path and a refused kind", async () => {
+  test.skipIf(!canSymlink)("refuses a symlink escape", async () => {
     expect(await resolveGalleryFile(join(scratch("s1"), "escape.png"), root)).toBeNull();
+  });
+
+  test("refuses an outside path and a refused kind", async () => {
     expect(await resolveGalleryFile(join(outside, "secret.png"), root)).toBeNull();
     expect(await resolveGalleryFile(join(scratch("s1"), "data.json"), root)).toBeNull();
     expect(await resolveGalleryFile(join(scratch("s1"), "ghost.md"), root)).toBeNull();

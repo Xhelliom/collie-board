@@ -2034,10 +2034,11 @@ describe("repo picker", () => {
 });
 
 describe("scanRootsFor", () => {
-  const exists = (p: string) => ["/home/me/git", "/home/me/code"].includes(p);
+  const conventional = [join("/home/me", "git"), join("/home/me", "code")];
+  const exists = (p: string) => conventional.includes(p);
 
   it("falls back to the conventional roots that exist — this is the cold start", () => {
-    expect(scanRootsFor([], "/home/me", exists)).toEqual(["/home/me/git", "/home/me/code"]);
+    expect(scanRootsFor([], "/home/me", exists)).toEqual(conventional);
   });
 
   it("REPLACES the defaults with the operator's roots rather than adding to them", () => {

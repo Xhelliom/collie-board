@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, rm } from "node:fs/promises";
+import { chmod, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
@@ -1153,7 +1153,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     const t = await fixture();
     const before = git(t.repo, "rev-parse", "main");
     await Bun.write(join(t.origin, "hooks", "pre-receive"), "#!/bin/sh\necho no >&2\nexit 1\n");
-    Bun.spawnSync(["chmod", "+x", join(t.origin, "hooks", "pre-receive")]);
+    await chmod(join(t.origin, "hooks", "pre-receive"), 0o755);
     const r = await mergeCard(t.store, t.card, noPr);
     expect(r).toMatchObject({ ok: false, error: { kind: "git" } });
     expect(git(t.repo, "rev-parse", "main")).toBe(before);

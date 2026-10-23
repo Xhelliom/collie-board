@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 
 import {
   deriveConfigRoot,
@@ -16,6 +17,8 @@ import type { AgentStatus, AgentView } from "./types.ts";
 // runtime per herdr session. The path helpers get table coverage; the registry is driven with a fake
 // factory (no real socket/fs) so spawn/list/dispose lifecycle is verified purely, per the repo's
 // injected-fake convention (see state-engine.test.ts).
+// Fake paths go through join so they carry the separator the code joins with — `\` on win32.
+const native = (p: string) => join(p);
 
 // ── pure path helpers ─────────────────────────────────────────────────────────
 
@@ -58,33 +61,33 @@ describe("herdTagFor", () => {
 });
 
 describe("discoverSessionSockets", () => {
-  const root = "/cfg/herdr";
+  const root = native("/cfg/herdr");
 
   test("finds the default socket plus each sessions/<name>/herdr.sock that exists", () => {
     const present = new Set([
-      `${root}/herdr.sock`,
-      `${root}/sessions/alpha/herdr.sock`,
+      join(root, "herdr.sock"),
+      join(root, "sessions", "alpha", "herdr.sock"),
       // 'zeta' dir exists but its socket does not (session cleanly stopped → socket removed).
     ]);
     const found = discoverSessionSockets(
       root,
-      (dir) => (dir === `${root}/sessions` ? ["alpha", "zeta"] : []),
+      (dir) => (dir === join(root, "sessions") ? ["alpha", "zeta"] : []),
       (p) => present.has(p),
     );
     expect(found).toEqual([
-      { name: "default", socketPath: `${root}/herdr.sock` },
-      { name: "alpha", socketPath: `${root}/sessions/alpha/herdr.sock` },
+      { name: "default", socketPath: join(root, "herdr.sock") },
+      { name: "alpha", socketPath: join(root, "sessions", "alpha", "herdr.sock") },
     ]);
   });
 
   test("omits the default when its socket is absent (default session not running)", () => {
-    const present = new Set([`${root}/sessions/only/herdr.sock`]);
+    const present = new Set([join(root, "sessions", "only", "herdr.sock")]);
     const found = discoverSessionSockets(
       root,
       () => ["only"],
       (p) => present.has(p),
     );
-    expect(found).toEqual([{ name: "only", socketPath: `${root}/sessions/only/herdr.sock` }]);
+    expect(found).toEqual([{ name: "only", socketPath: join(root, "sessions", "only", "herdr.sock") }]);
   });
 
   test("returns nothing when no sockets exist", () => {
@@ -143,8 +146,8 @@ function makeRegistry(opts: {
   present?: string[];
   snapshots?: Record<string, { bridge: "connected" | "disconnected"; agents: AgentView[] }>;
 } = {}): Harness {
-  const configRoot = opts.configRoot ?? "/cfg/herdr";
-  const primarySocketPath = opts.primarySocketPath ?? `${configRoot}/herdr.sock`;
+  const configRoot = opts.configRoot ?? native("/cfg/herdr");
+  const primarySocketPath = opts.primarySocketPath ?? join(configRoot, "herdr.sock");
   const fakes = new Map<string, FakeSession>();
   const spawns: string[] = [];
   let dirs = opts.sessionDirs ?? [];
@@ -194,7 +197,7 @@ describe("SessionRegistry — construction & lookup", () => {
   });
 
   test("a named-session primary keeps its own name and is still the default lookup", () => {
-    const h = makeRegistry({ primarySocketPath: "/cfg/herdr/sessions/work/herdr.sock" });
+    const h = makeRegistry({ primarySocketPath: native("/cfg/herdr/sessions/work/herdr.sock") });
     expect(h.registry.primary).toBe("work");
     expect(h.registry.get()?.name).toBe("work");
     expect(h.registry.get("work")).toBe(h.registry.get());
@@ -206,9 +209,9 @@ describe("SessionRegistry — list()", () => {
     const h = makeRegistry({
       sessionDirs: ["zeta", "alpha"],
       present: [
-        "/cfg/herdr/herdr.sock",
-        "/cfg/herdr/sessions/zeta/herdr.sock",
-        "/cfg/herdr/sessions/alpha/herdr.sock",
+        native("/cfg/herdr/herdr.sock"),
+        native("/cfg/herdr/sessions/zeta/herdr.sock"),
+        native("/cfg/herdr/sessions/alpha/herdr.sock"),
       ],
       snapshots: {
         default: { bridge: "connected", agents: [agent("d1", "blocked"), agent("d2", "idle")] },
@@ -227,7 +230,7 @@ describe("SessionRegistry — list()", () => {
   test("an unreachable session reports reachable:false and zeroed counts", async () => {
     const h = makeRegistry({
       sessionDirs: ["down"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/down/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/down/herdr.sock")],
       snapshots: {
         // Stale last-known agents, but the last poll failed → treated as unreachable with 0 counts.
         down: { bridge: "disconnected", agents: [agent("x1", "blocked")] },
@@ -250,7 +253,7 @@ describe("SessionRegistry — refresh() lifecycle", () => {
   test("starts runtimes for newly-appeared sessions and does not respawn the primary", async () => {
     const h = makeRegistry({
       sessionDirs: ["demo"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")],
     });
     await h.registry.refresh();
     // primary spawned at construction; demo spawned on refresh; default NOT respawned though present.
@@ -264,13 +267,13 @@ describe("SessionRegistry — refresh() lifecycle", () => {
   test("disposes a session whose socket vanished (engine + poker stopped, notifications cleared)", async () => {
     const h = makeRegistry({
       sessionDirs: ["demo"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")],
     });
     await h.registry.refresh();
     const demo = h.fakes.get("demo")!;
     // Socket removed (session stopped) → next refresh disposes it.
     h.setDirs([]);
-    h.setPresent(["/cfg/herdr/herdr.sock"]);
+    h.setPresent([native("/cfg/herdr/herdr.sock")]);
     await h.registry.refresh();
     expect(demo.disposed).toEqual({ engine: 1, poker: 1, notifications: 1 });
     expect(h.registry.get("demo")).toBeUndefined();
@@ -279,7 +282,7 @@ describe("SessionRegistry — refresh() lifecycle", () => {
   test("never disposes the primary, even when discovery finds nothing", async () => {
     const h = makeRegistry({
       sessionDirs: ["demo"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")],
     });
     await h.registry.refresh();
     const primaryFake = h.fakes.get("default")!;
@@ -295,7 +298,7 @@ describe("SessionRegistry — refresh() lifecycle", () => {
     const h = makeRegistry({
       multiSession: false,
       sessionDirs: ["demo"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")],
     });
     await h.registry.refresh();
     expect(h.spawns).toEqual(["default"]); // demo never discovered
@@ -306,7 +309,7 @@ describe("SessionRegistry — refresh() lifecycle", () => {
   test("disposeAll stops every runtime including the primary", async () => {
     const h = makeRegistry({
       sessionDirs: ["demo"],
-      present: ["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"],
+      present: [native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")],
     });
     await h.registry.refresh();
     const primaryFake = h.fakes.get("default")!;
@@ -331,15 +334,15 @@ describe("every session outcome has its label on the card screen", () => {
 describe("SessionRegistry — refresh() skips an unchanged sessions dir", () => {
   test("rescans only when a watched directory's mtime moves", async () => {
     const mtimes = new Map<string, number>([
-      ["/cfg/herdr", 1],
-      ["/cfg/herdr/sessions", 1],
-      ["/cfg/herdr/sessions/demo", 1],
+      [native("/cfg/herdr"), 1],
+      [native("/cfg/herdr/sessions"), 1],
+      [native("/cfg/herdr/sessions/demo"), 1],
     ]);
     let lists = 0;
-    let present = new Set(["/cfg/herdr/herdr.sock", "/cfg/herdr/sessions/demo/herdr.sock"]);
+    let present = new Set([native("/cfg/herdr/herdr.sock"), native("/cfg/herdr/sessions/demo/herdr.sock")]);
     const registry = new SessionRegistry({
-      configRoot: "/cfg/herdr",
-      primarySocketPath: "/cfg/herdr/herdr.sock",
+      configRoot: native("/cfg/herdr"),
+      primarySocketPath: native("/cfg/herdr/herdr.sock"),
       factory: () => new FakeSession("connected", []).parts(),
       multiSession: true,
       listSessionDirs: () => (lists++, ["demo"]),
@@ -355,8 +358,8 @@ describe("SessionRegistry — refresh() skips an unchanged sessions dir", () => 
     expect(registry.get("demo")).toBeDefined();
 
     // demo's socket goes away: only its own dir's mtime moves — still caught.
-    present = new Set(["/cfg/herdr/herdr.sock"]);
-    mtimes.set("/cfg/herdr/sessions/demo", 2);
+    present = new Set([native("/cfg/herdr/herdr.sock")]);
+    mtimes.set(native("/cfg/herdr/sessions/demo"), 2);
     await registry.refresh();
     expect(lists).toBe(settled + 1);
     expect(registry.get("demo")).toBeUndefined();

@@ -60,7 +60,7 @@ describe("loadConfig", () => {
     expect(cfg.readLines).toBe(200);
     // Transcript history defaults ON — it's the only scrollback a Claude pane can ever have.
     expect(cfg.transcript).toBe(true);
-    expect(cfg.transcriptRoot).toEndWith("/.claude/projects");
+    expect(cfg.transcriptRoot).toEndWith(join(".claude", "projects"));
     expect(cfg.submitKeys).toEqual(["Enter"]);
     expect(cfg.trustedUser).toBe("");
     expect(cfg.allowedOrigins).toEqual([]);

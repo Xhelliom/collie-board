@@ -86,15 +86,15 @@ describe("UsageTracker", () => {
 
 describe("claudeCandidates", () => {
   it("prefers the PATH hit, then the installers", () => {
-    expect(claudeCandidates("/home/x", "/usr/bin/claude")[0]).toBe("/usr/bin/claude");
-    expect(claudeCandidates("/home/x", null).slice(0, 2)).toEqual([
-      "/home/x/.local/bin/claude",
-      "/home/x/.claude/local/claude",
+    expect(claudeCandidates("/home/x", "/usr/bin/claude", "linux")[0]).toBe("/usr/bin/claude");
+    expect(claudeCandidates("/home/x", null, "linux").slice(0, 2)).toEqual([
+      join("/home/x", ".local", "bin", "claude"),
+      join("/home/x", ".claude", "local", "claude"),
     ]);
   });
 
   it("still looks in the home directory when the PATH has nothing — the service's case", () => {
-    expect(claudeCandidates("/home/x", null)).toContain("/home/x/.local/bin/claude");
+    expect(claudeCandidates("/home/x", null, "linux")).toContain(join("/home/x", ".local", "bin", "claude"));
   });
 
   it("looks for claude.exe on Windows, after the PATH hit", () => {

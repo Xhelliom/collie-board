@@ -98,7 +98,8 @@ describe("Push — broadcast delivery & pruning", () => {
 });
 
 describe("Push — persistence", () => {
-  test("addSubscription persists with owner-only (0600) permissions", async () => {
+  // Windows has no POSIX mode: the file inherits its directory ACL and stat reports 0o666.
+  test.skipIf(process.platform === "win32")("addSubscription persists with owner-only (0600) permissions", async () => {
     const cfg = await tempCfg();
     const push = new Push(cfg, () => Promise.resolve());
     enable(push, []);

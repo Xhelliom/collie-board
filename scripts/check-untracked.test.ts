@@ -22,7 +22,8 @@ function repo(): string {
 }
 const run = (cwd: string) => Bun.spawnSync(["bash", script], { cwd, env: gitFreeEnv });
 
-describe("check-untracked.sh", () => {
+// A test of a bash script: it runs where bash does (Git Bash on Windows when it is in the PATH).
+describe.skipIf(!Bun.which("bash"))("check-untracked.sh", () => {
   it("fails and prints the path of an untracked file", () => {
     const d = repo();
     mkdirSync(join(d, "web/src"), { recursive: true });
