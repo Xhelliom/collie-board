@@ -198,6 +198,15 @@ describe("lots", () => {
     expect((await call(db, "POST", "/api/runs/ghost/launch")).status).toBe(404);
   });
 
+  it("refuses to launch a planned lot whose cards are all done already, saying why", async () => {
+    const { db, a } = await setup();
+    const lot = (await call(db, "POST", "/api/runs", { cardIds: [a.id], foldInCap: 0, planned: true })).body.run;
+    db.setStatus(a.id, "done", "test");
+    const res = await call(db, "POST", `/api/runs/${lot.id}/launch`);
+    expect(res.status).toBe(409);
+    expect(db.getRun(lot.id)!.launchedAt).toBeNull();
+  });
+
   it("resume is the operator's: refused with an agent pane's header, 409 when nothing is halted", async () => {
     const { db, a } = await setup();
     const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
@@ -481,6 +490,14 @@ describe("milestones: validating a phase (ADR 0025)", () => {
     db.launchRun(lot.id);
     expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(409);
     db.recordRunEvent(null, "run.finished", { runId: lot.id });
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(200);
+  });
+
+  it("counts a planned lot whose cards are all done as over", async () => {
+    const { db, p1, open } = board();
+    db.createRun({ repoPath: "/r", cardIds: [open.id], foldInCap: 0, planned: true, phaseId: p1.id });
+    expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(409);
+    db.setStatus(open.id, "done", "test");
     expect((await call(db, "POST", `/api/phases/${p1.id}/close`, {})).status).toBe(200);
   });
 

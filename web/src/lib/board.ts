@@ -1240,6 +1240,8 @@ export interface Lot {
   integration?: "card" | "lot";
   /** Launched and journaled `run.finished`: its cards are back to their own display. */
   finished?: boolean;
+  /** Planned, and every card done without it: finished, never launched. Absent on an older bridge. */
+  doneOutside?: boolean;
   /** That `run.finished`'s ts, else null. Absent on an older bridge. */
   finishedAt?: number | null;
   /** Members done / blocked or orphaned, counted on the bridge. Absent on an older bridge. */
