@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.235.6] - 2026-10-26
+
+### Added
+
+- Synchro du board partagé (ADR 0048 §3, lot 3) : `bridge/journal-sync.ts` sur `engine.onUpdate`, sans minuteur — une opération git en vol par dépôt, fetch ≤ 60 s, envoi ≤ 10 s après une écriture, non-fast-forward refait au tick suivant (0ce0ba6)
+- Dépôt en lecture seule pour ce pair après un refus de droits : les routes d'écriture de ses entités répondent 403 avec la raison (0ce0ba6)
+- `GET /api/repos` : champ `sync` (non envoyés, lecture seule, hors ligne) pour les dépôts partagés (0ce0ba6)
+
 ## [0.235.5] - 2026-10-26
 
 ### Added
