@@ -1347,3 +1347,9 @@ export async function sendJournal(
   await git(["update-ref", JOURNAL_REMOTE_REF, commit], repoPath);
   return { ok: true, pushed: true };
 }
+
+/** This clone's git identity — the `by` of its journal events (ADR 0048 §5); "" when none is set. */
+export async function gitUserEmail(repoPath: string, git: GitRunner = runGit): Promise<string> {
+  const r = await git(["config", "user.email"], repoPath);
+  return r.ok ? r.stdout.trim() : "";
+}

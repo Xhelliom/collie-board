@@ -84,6 +84,7 @@ import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
+import { journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
@@ -360,6 +361,9 @@ export async function handleBoardRoute(
     ctx = { ...ctx, audit: { record: (e) => audit.record({ ...e, detail: { ...e.detail, pane } }) } };
   }
   try {
+    // ADR 0048 §3: a shared repo whose remote refused this pair's push takes no more entity writes.
+    const readOnly = await readOnlyRefusal(pathname, req, ctx.db);
+    if (readOnly) return ctx.json({ ok: false, error: readOnly, kind: "read-only" }, 403);
     return await route(pathname, req, ctx);
   } catch (err) {
     // An unhandled throw here reaches Bun.serve, which answers with its own HTML error page and a
@@ -405,7 +409,8 @@ async function route(
     // `?all=1` is how the client shows the hidden ones so they can be brought back.
     const showAll = new URL(req.url).searchParams.get("all") === "1";
     return ctx.json({
-      repos: showAll ? all : all.filter((r) => !r.hidden),
+      // `sync`: a shared repo's « N changements non envoyés » and read-only reason (ADR 0048 §3).
+      repos: (showAll ? all : all.filter((r) => !r.hidden)).map((r) => ({ ...r, sync: journalStatus(ctx.db, r.path) })),
       hiddenCount: all.filter((r) => r.hidden).length,
     });
   }
