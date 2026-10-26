@@ -100,6 +100,24 @@ describe("buildBackup", () => {
   });
 });
 
+test("keeps the peers' secrets out, both ways (ADR 0049)", async () => {
+  const dir = await tempDir();
+  await writeFile(join(dir, "node.toml"), 'name = "b"\n');
+  await writeFile(join(dir, "peers.toml"), 'token = "secret"\n');
+  const db = new BoardDb(":memory:");
+  expect((await buildBackup(db, dir)).files).toEqual([]);
+  const result = await restoreBackup(db, dir, {
+    kind: "collie-board-backup",
+    version: 1,
+    exportedAt: "2026-10-26T09:00:00.000Z",
+    db: {},
+    files: [{ path: "peers.toml", encoding: "utf8", content: "planted" }],
+  });
+  expect(result.files).toBe(0);
+  expect(await readFile(join(dir, "peers.toml"), "utf8")).toBe('token = "secret"\n');
+  db.close();
+});
+
 describe("isSafeRelPath", () => {
   test("accepts a state-dir path and refuses everything that escapes or overwrites", () => {
     expect(isSafeRelPath("snooze.json")).toBe(true);

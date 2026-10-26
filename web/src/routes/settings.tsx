@@ -17,6 +17,7 @@ import { TemplatesControl } from "@/components/templates-control";
 import { MaxAgentsControl } from "@/components/max-agents-control";
 import { Card } from "@/components/ui/card";
 import { NotifyPrefsControl } from "@/components/notify-prefs-control";
+import { PeersControl } from "@/components/peers-control";
 import { SnoozeControl } from "@/components/snooze-control";
 import { ThemeControl } from "@/components/theme-control";
 import { UpdateCheckControl } from "@/components/update-check-control";
@@ -30,7 +31,7 @@ import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { galleryPath } from "@/lib/nav";
 import type { PushAvailability } from "@/lib/push";
 
-const TABS = ["display", "notifications", "agents", "system"] as const;
+const TABS = ["display", "notifications", "agents", "peers", "system"] as const;
 type Tab = (typeof TABS)[number];
 
 // Settings page — appearance + the push-notification toggle. Reachable via the nav (a root tab).
@@ -180,6 +181,8 @@ export function SettingsRoute() {
             <FlowsControl />
           </>
         )}
+
+        {tab === "peers" && <PeersControl />}
 
         {tab === "system" && (
           <>

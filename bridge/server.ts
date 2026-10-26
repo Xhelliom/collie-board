@@ -23,7 +23,8 @@ import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
-import { handleNodeRoute, liveNodeActions, loadNodeConfig, type LaunchedPane } from "./node.ts";
+import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
+import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
@@ -153,8 +154,9 @@ export function startServer(opts: {
   // Per-session background notifications live in each session's runtime (built by the factory in
   // index.ts, wired to its StateEngine transitions). The routes here only fan preference changes and
   // snooze-clears across every live session's coordinator.
-  // The peer surface (`bridge/node.ts`), read once at boot: no node.toml → /api/node/* is a 404.
-  const node = loadNodeConfig(cfg.stateDir);
+  // The peer surface (`bridge/node.ts`), read at boot and replaced by the pairing routes on write
+  // (`bridge/pairing.ts`): no peer in node.toml → /api/node/* is a 404.
+  const peers = new PeerStore(cfg.stateDir);
   const nodeLaunched = new Map<string, LaunchedPane>();
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
@@ -180,8 +182,17 @@ export function startServer(opts: {
         jsonError(`unknown session: ${sessionName ?? ""}`, 404, req.headers.get("accept-encoding"));
 
       // ── Peer surface: another Collie reads this one, token-gated (the fork's addition) ──
+      const peerRes = await handlePeerRoute(pathname, req, {
+        store: peers,
+        access: (level) => guard(req, cfg, level),
+        audit: (action, detail) => audit.record({ action, detail }),
+        json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
+        text,
+        fetch,
+      });
+      if (peerRes) return peerRes;
       const nodeRes = await handleNodeRoute(pathname, req, {
-        node,
+        node: peers.node(),
         access: () => guard(req, cfg, "read"),
         audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
         snapshot: () => registry.get()?.engine.current() ?? { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" },

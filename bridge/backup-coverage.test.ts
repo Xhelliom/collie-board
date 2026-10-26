@@ -25,6 +25,7 @@ const PERSISTENCE: Record<string, string> = {
   "git.ts": "a repo's .git/info/exclude — the operator's repo, not Collie state",
   "journal.ts": "state dir file (pair-id) — walked by collectFiles",
   "notify-prefs.ts": "state dir file — walked by collectFiles",
+  "pairing.ts": "node.toml / peers.toml — the peers' secrets, kept out of the backup on purpose (ADR 0049)",
   "opencode-transcript.ts": "reads opencode's own database, read-only",
   "opencode-usage.ts": "reads opencode's own database, read-only",
   "push.ts": "state dir file — walked by collectFiles",

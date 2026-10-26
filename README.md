@@ -226,6 +226,12 @@ tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `finish_ca
 - **No headless bridge driven by a central server.** Multi-machine is a central Collie calling
   *nodes* — each a full bridge with its own herdr and its own `tailscale serve` — never a herdr socket
   carried over the network. [ADR 0046](./.adr/0046-multi-machine-un-collie-central-et-des-noeuds.md).
+  Two Collies pair from **Settings → Peers**, never by editing `node.toml`: *Invite a peer* on the
+  machine to be driven shows a single-use 10-minute code, *Add a peer* on the other takes its URL and
+  that code. The token goes bridge to bridge (hashed in `node.toml`, clear in `peers.toml`, both
+  `0600`, both kept out of the backup) and never reaches a browser; *Revoke* takes effect at once.
+  A paired peer reads; it may launch only in environments granted by hand (`launch = [...]`).
+  [ADR 0049](./.adr/0049-appairage-de-pairs-par-code-depuis-l-ui.md).
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
 - **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
   miserable. Dragging exists on the wide-screen board, only between the columns a human owns.
