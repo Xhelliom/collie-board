@@ -70,6 +70,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0034](./0034-a-card-after-a-merged-predecessor-forks-from-the-base.md) | A card after a merged predecessor forks from the base, not from its branch | Accepted |
 | [0036](./0036-github-not-answering-yet-is-a-wait-and-only-a-landing-files-the-card.md) | "GitHub has not answered yet" is a wait, and only a landing files the card | Accepted |
 | [0037](./0037-a-finished-turn-is-read-at-the-passage-not-at-done.md) | Un tour fini se lit au passage working→idle, pas à l'état `done` | Accepted |
-| [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) | Multi-machine : un Collie central et des nœuds | Partially superseded by [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) |
+| [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) | Multi-machine : un Collie central et des nœuds | Partially superseded by [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md), amended by [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) |
 | [0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) | L'orchestrateur peut démarrer un lot quand rien ne tourne, si l'opérateur l'a permis | Accepted |
 | [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) | Board partagé par git, de pair à pair, multi-utilisateur | Accepted |
+| [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) | Appairage de pairs par code, depuis l'UI | Accepted |
