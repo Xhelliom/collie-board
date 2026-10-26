@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.236.0] - 2026-10-26
+
+### Added
+
+- Partage du board d'un dépôt par git (ADR 0048 §1, §6) : interrupteur dans les réglages du projet, off par défaut, refusé à un pane agent (4db9db4)
+- Activation : sauvegarde, fetch, import des entités (commit « import ») ou reconstruction depuis le journal existant (4db9db4)
+- Désactivation : outbox et `journal_field` vidées, branche distante intacte ; avertissement avant réactivation (4db9db4)
+- État du partage : à jour, N non envoyés, lecture seule, hors ligne ; branche existante signalée (4db9db4)
+
 ## [0.235.6] - 2026-10-26
 
 ### Added
