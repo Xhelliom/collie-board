@@ -84,7 +84,7 @@ import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
-import { journalStatus, readOnlyRefusal } from "./journal-sync.ts";
+import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 
@@ -398,6 +398,8 @@ async function route(
   if (mcp) return mcp;
   const deliverables = await handleDeliverablesRoute(pathname, req, ctx);
   if (deliverables) return deliverables;
+  const share = await handleShareRoute(pathname, req, ctx);
+  if (share) return share;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {

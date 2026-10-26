@@ -288,4 +288,47 @@ export const project = defineMessages({
   "project.add.path": { en: "Add {path}", fr: "Ajouter {path}" },
   "project.unlist": { en: "Remove from the list", fr: "Retirer de la liste" },
   "project.fold.deliverables": { en: "Deliverables ({count})", fr: "Livrables ({count})" },
+
+  // ADR 0048 §1, §6: sharing a repo's board over git — the operator's gesture, off by default.
+  "project.share.fold": { en: "Sharing over git", fr: "Partage par git" },
+  "project.share.on": { en: "Share this board on git", fr: "Partager ce board sur git" },
+  "project.share.hint": {
+    en: "Cards, phases, lots and the roadmap go to the {remote} remote, on an orphan collie-board branch. What goes stays in its history.",
+    fr: "Cartes, phases, lots et roadmap partent sur le remote {remote}, sur une branche orpheline collie-board. Ce qui part reste dans son historique.",
+  },
+  "project.share.remote": { en: "Remote", fr: "Remote" },
+  "project.share.noRemote": { en: "This repo has no remote: nothing to share on.", fr: "Ce dépôt n'a pas de remote : rien sur quoi partager." },
+  "project.share.branch": { en: "This repo already has a shared board on {remote}.", fr: "Ce dépôt a déjà un board partagé sur {remote}." },
+  "project.share.identity": { en: "Writes as {identity}", fr: "Écrit en tant que {identity}" },
+  "project.share.upToDate": { en: "Up to date", fr: "À jour" },
+  "project.share.unsent": {
+    en: { one: "{count} change not sent", other: "{count} changes not sent" },
+    fr: { one: "{count} changement non envoyé", other: "{count} changements non envoyés" },
+  },
+  "project.share.offline": { en: "Offline", fr: "Hors ligne" },
+  "project.share.readOnly": { en: "Read-only: {reason}", fr: "Lecture seule : {reason}" },
+  "project.share.askOn": {
+    en: "A backup of the board is taken first.",
+    fr: "Une sauvegarde du board est prise d'abord.",
+  },
+  "project.share.askMerge": {
+    en: "The shared board is rebuilt here, then this repo's cards it does not know are added to it.",
+    fr: "Le board partagé est reconstruit ici, puis les cartes de ce dépôt qu'il ne connaît pas y sont ajoutées.",
+  },
+  "project.share.askReactivate": {
+    en: "Sharing again: what you edited here since sharing stopped, on what the shared board already knows, is lost — the backup keeps it.",
+    fr: "Repartager : ce que tu as modifié ici depuis l'arrêt du partage, sur ce que le board partagé connaît déjà, est perdu — la sauvegarde le garde.",
+  },
+  "project.share.askOff": {
+    en: { one: "{count} change will not be sent.", other: "{count} changes will not be sent." },
+    fr: { one: "{count} changement ne partira pas.", other: "{count} changements ne partiront pas." },
+  },
+  "project.share.askOffBranch": {
+    en: "The branch on the remote is left as it is: the others carry on.",
+    fr: "La branche sur le remote n'est pas touchée : les autres continuent.",
+  },
+  "project.share.confirm": { en: "Confirm", fr: "Confirmer" },
+  "project.share.cancel": { en: "Cancel", fr: "Annuler" },
+  "project.share.done": { en: "Shared on {remote}", fr: "Partagé sur {remote}" },
+  "project.share.stopped": { en: "Sharing stopped", fr: "Partage arrêté" },
 });

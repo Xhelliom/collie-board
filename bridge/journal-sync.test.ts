@@ -82,6 +82,8 @@ describe("JournalSync — the consumer", () => {
       receive: async () => (calls.receive++, await gate, { ok: true, entries: [] }),
       send: async () => (calls.send++, { ok: true, pushed: false }),
       email: async () => "me@t",
+      remotes: async () => ["origin"],
+      forget: async () => {},
     };
     return { calls, git, release };
   };

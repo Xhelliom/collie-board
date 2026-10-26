@@ -54,6 +54,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/repos/flow": "the operator's default flow per repo (settings)",
   "/api/repos/gate/suggest": "the operator's gate screen asks the copilot (spends quota on a tap)",
   "/api/repos/hide": "the repo picker's own preference",
+  "/api/repos/share": "the operator's gesture sharing a repo's board on git (ADR 0048 §1), refused to a pane",
   "/api/subscribe": "web push subscription",
   "/api/tab": "herdr tab creation from the app",
   "/api/update/check": "the app's update banner",
