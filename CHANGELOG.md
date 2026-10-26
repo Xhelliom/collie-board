@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.235.4] - 2026-10-26
+
+### Added
+
+- Journal du board partagé (ADR 0048 §2/§6, lot 1) : `journal_outbox` remplie par triggers dans la transaction de chaque écriture partageable d'un dépôt partagé, `journal_field`, application des événements entrants et `rebuild` — rien pour un dépôt non partagé, pas encore branché (b2f60a4)
+
 ## [0.235.3] - 2026-10-26
 
 ### Added
