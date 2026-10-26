@@ -151,6 +151,7 @@ export const project = defineMessages({
   "lot.aria": { en: "Lot {name}", fr: "Lot {name}" },
   "lot.planned": { en: "planned", fr: "planifié" },
   "lot.finished": { en: "finished", fr: "terminé" },
+  "lot.doneOutside": { en: "done outside the lot", fr: "terminé hors lot" },
   "lot.running": { en: "running", fr: "en cours" },
   "lot.halted": { en: "halted", fr: "arrêté" },
   "lot.resume": { en: "Resume", fr: "Reprendre" },

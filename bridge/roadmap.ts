@@ -8,6 +8,7 @@
 
 import {
   DECISION_STATUSES,
+  doneOutsideLot,
   ROADMAP_MAX_DECISIONS,
   ROADMAP_STATUSES,
   type Card,
@@ -176,7 +177,7 @@ export function stepsMarkdown(name: string, board: { phases: Phase[]; lots: Run[
       const own = mine.filter((c) => c.runId === l.id);
       own.forEach((c) => taken.add(c.id));
       const ceiling = l.maxParallel === null ? "" : l.maxParallel === 1 ? ", one at a time" : `, ${l.maxParallel} at a time`;
-      lines.push("", `### Lot — ${l.name ?? "unnamed"} (${l.launchedAt === null ? "planned" : "launched"}${ceiling})`, "");
+      lines.push("", `### Lot — ${l.name ?? "unnamed"} (${l.launchedAt !== null ? "launched" : doneOutsideLot(l, cards.filter((c) => c.runId === l.id)) ? "done outside the lot" : "planned"}${ceiling})`, "");
       own.forEach((c) => lines.push(...card(c)));
     }
     const loose = mine.filter((c) => !taken.has(c.id));

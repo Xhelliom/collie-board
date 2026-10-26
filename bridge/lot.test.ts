@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
-import { BoardDb } from "./db.ts";
+import { BoardDb, doneOutsideLot } from "./db.ts";
 import { baseOf } from "./git.ts";
 import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard, lotView, prepareLot } from "./lot.ts";
 
@@ -200,5 +200,26 @@ describe("lotView", () => {
     const a = db.createCard({ title: "a", repoPath: "/repo" });
     const run = db.createRun({ repoPath: "/repo", cardIds: [a.id], foldInCap: 0, planned: true });
     expect(lotView(db, run).finished).toBe(false);
+  });
+
+  it("calls a planned lot whose cards were all done without it finished — done outside the lot", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/repo" });
+    const b = db.createCard({ title: "b", repoPath: "/repo" });
+    const run = db.createRun({ repoPath: "/repo", cardIds: [a.id, b.id], foldInCap: 0, planned: true });
+    db.setStatus(a.id, "done", "test");
+    expect(lotView(db, run)).toMatchObject({ finished: false, doneOutside: false });
+    db.setStatus(b.id, "done", "test");
+    expect(lotView(db, run)).toMatchObject({ finished: true, doneOutside: true, finishedAt: null, done: 2 });
+  });
+});
+
+describe("doneOutsideLot", () => {
+  it("is a planned lot with members, every one done", () => {
+    const done = { status: "done" as const };
+    expect(doneOutsideLot({ launchedAt: null }, [done, done])).toBe(true);
+    expect(doneOutsideLot({ launchedAt: null }, [done, { status: "ready" }])).toBe(false);
+    expect(doneOutsideLot({ launchedAt: null }, [])).toBe(false);
+    expect(doneOutsideLot({ launchedAt: 1 }, [done])).toBe(false);
   });
 });

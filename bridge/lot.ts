@@ -7,7 +7,7 @@
 // deux fusions concurrentes ne s'écrasent pas — la perdante rend "busy" et redemande au tick suivant.
 
 import { boardBranchPrefix } from "./config.ts";
-import type { BoardDb, Card, Run } from "./db.ts";
+import { doneOutsideLot, type BoardDb, type Card, type Run } from "./db.ts";
 import { haltReason } from "./run.ts";
 import { baseOf, branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 
@@ -129,7 +129,9 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinishedAt" | "list
   const members = db.runMembers(run.id);
   // The journal's `run.finished` ts: what the home's « lot X finished 2 h ago » reads.
   const finishedAt = run.launchedAt !== null ? db.runFinishedAt(run.id) : null;
-  const finished = finishedAt !== null;
+  // A planned lot whose cards all got done without it reads as finished — « terminé hors lot ».
+  const doneOutside = doneOutsideLot(run, members);
+  const finished = finishedAt !== null || doneOutside;
   let prUrl: string | null = null;
   if (run.integration === "lot" && !finished) {
     let ts = -1;
@@ -144,5 +146,5 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinishedAt" | "list
   // Counted here, not on the client: the home's summary card list keeps only a few done cards per repo.
   const done = members.filter((c) => c.status === "done").length;
   const blocked = members.filter((c) => c.status === "blocked" || c.status === "orphaned").length;
-  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, done, blocked, prUrl, halted };
+  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, doneOutside, done, blocked, prUrl, halted };
 }

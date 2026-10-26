@@ -5,7 +5,7 @@
 
 import { basename } from "node:path";
 
-import { isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
+import { doneOutsideLot, isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
 import { idleStart } from "./autonomy.ts";
 import { lotView } from "./lot.ts";
@@ -225,6 +225,7 @@ export async function handleProjectRoute(
         return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!run) return ctx.text("run not found", 404);
       if (run.launchedAt !== null) return ctx.text("already launched", 409);
+      if (doneOutsideLot(run, db.runMembers(id))) return ctx.text("every card of this lot is already done — it finished outside the lot", 409);
       if (pane && !db.spendAutonomy(run.repoPath, idle)) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);

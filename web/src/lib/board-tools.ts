@@ -257,7 +257,7 @@ export function createTools(api: BoardApi): BoardTool[] {
         if (!runId) {
           if (!a.repoPath) throw new Refusal("Il faut un runId ou un repoPath.");
           const { runs = [] } = await api("GET", `/api/runs${q({ repo: repoOf(a.repoPath) })}`);
-          const next = runs.filter((r: Json) => r.launchedAt === null).sort((x: Json, y: Json) => x.position - y.position)[0];
+          const next = runs.filter((r: Json) => r.launchedAt === null && !r.doneOutside).sort((x: Json, y: Json) => x.position - y.position)[0];
           if (!next) throw new Refusal("Aucun lot planifié sur ce projet.");
           runId = next.id as string;
         }

@@ -125,7 +125,8 @@ export function PhaseLots({
     <>
       <div className="flex flex-col gap-5">
         {visible.map(({ pl, own }) => {
-          const planned = pl.lot.launchedAt === null;
+          // Planned but every card already done (by hand, in another lot): nothing left to launch.
+          const planned = pl.lot.launchedAt === null && !pl.lot.doneOutside;
           // The bridge's word when it has one: a one-PR lot files its cards before its PR lands.
           const finished = pl.lot.finished ?? (pl.cards.length > 0 && pl.done === pl.cards.length);
           const pct = pl.cards.length ? (100 * pl.done) / pl.cards.length : 0;
@@ -150,7 +151,7 @@ export function PhaseLots({
                           : "bg-status-working/15 text-status-working",
                   )}
                 >
-                  {planned ? t("lot.planned") : finished ? t("lot.finished") : halted ? t("lot.halted") : t("lot.running")}
+                  {planned ? t("lot.planned") : pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : t("lot.running")}
                 </span>
                 {pl.lot.maxParallel ? (
                   <span className="font-mono text-xs text-muted-foreground">

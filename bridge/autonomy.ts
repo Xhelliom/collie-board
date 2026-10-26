@@ -3,7 +3,7 @@
 // answer is armed at the end-of-lot wake (orchestrator-nudge.ts) and spent by one launch — or, with
 // `startWhenIdle` (ADR 0047), read at the launch request when no lot of the repo is running.
 
-import type { BoardDb, Run } from "./db.ts";
+import { doneOutsideLot, type BoardDb, type Run } from "./db.ts";
 
 export const MAX_CHAIN_LIMIT = 1000;
 
@@ -35,7 +35,7 @@ export type Verdict = { go: true; next: Run } | { go: false; why: string | null 
 export function endOfLot(db: BoardDb, run: Run): Verdict {
   const a = db.autonomyOf(run.repoPath);
   if (!a.enabled) return { go: false, why: null };
-  const next = db.listRuns(run.repoPath).find((r) => r.launchedAt === null);
+  const next = db.listRuns(run.repoPath).find((r) => r.launchedAt === null && !doneOutsideLot(r, db.runMembers(r.id)));
   if (!next) return { go: false, why: null };
   if (a.stopOnRed && redCards(db, run).length) return { go: false, why: "un gate ou une CI est rouge" };
   if (a.maxChain !== null && a.chained >= a.maxChain) return { go: false, why: `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte` };

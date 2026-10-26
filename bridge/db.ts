@@ -389,6 +389,12 @@ export interface Run {
 }
 
 export type Integration = "card" | "lot";
+/**
+ * A PLANNED lot whose cards were all done without it (by hand, or in another run): it is over, never
+ * offered for launch. Derived from the cards, not stored. Pure.
+ */
+export const doneOutsideLot = (run: Pick<Run, "launchedAt">, members: readonly Pick<Card, "status">[]): boolean =>
+  run.launchedAt === null && members.length > 0 && members.every((c) => c.status === "done");
 /** How a run lands a card of a repo (ADR 0043). The operator's setting; "pr" when unset. */
 export type RepoIntegration = "pr" | "direct";
 export const isIntegration = (v: unknown): v is Integration => v === "card" || v === "lot";
@@ -2348,10 +2354,10 @@ export class BoardDb {
 
   // ── milestones (ADR 0025) ───────────────────────────────────────────────────
 
-  /** A lot of the phase that is not over: planned (it holds cards and drives nothing) or launched and not finished. */
+  /** A lot of the phase that is not over: planned (it holds cards and drives nothing, unless they are all done) or launched and not finished. */
   phaseHasUnfinishedLot(phaseId: string): boolean {
     const open = new Set(this.listOpenRuns().map((r) => r.id));
-    return this.listRuns().some((r) => r.phaseId === phaseId && (r.launchedAt === null || open.has(r.id)));
+    return this.listRuns().some((r) => r.phaseId === phaseId && ((r.launchedAt === null && !doneOutsideLot(r, this.runMembers(r.id))) || open.has(r.id)));
   }
 
   /**

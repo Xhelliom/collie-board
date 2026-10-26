@@ -98,6 +98,18 @@ describe("orchestrator autonomy (ADR 0030)", () => {
     expect(w.db.autonomyOf(repo)).toMatchObject({ chained: 1, armed: false });
   });
 
+  it("never picks a planned lot whose cards are all done as the next one", async () => {
+    const w = world();
+    await enable(w);
+    const c3 = w.db.createCard({ title: "c", repoPath: repo, status: "ready" });
+    const lot3 = w.db.createRun({ repoPath: repo, cardIds: [c3.id], foldInCap: 0, name: "lot 3", planned: true });
+    w.db.setStatus(w.db.runMembers(w.lot2.id)[0]!.id, "done", "test");
+    await finish(w);
+    expect(w.sent[0]).toContain(`/api/runs/${lot3.id}/launch`);
+    expect((await launch(w)).status).toBe(409);
+    expect(w.db.autonomyOf(repo).armed).toBe(true);
+  });
+
   it("validating a phase and the unplanned launch stay refused to it, enabled or not", async () => {
     const w = world();
     await enable(w);
