@@ -1228,12 +1228,12 @@ const EVENT_COLUMNS = { type: false, payload: true, ts: false } as const;
 /** A card's journal lines that stay on this machine: sessions, handoffs, wrapups, pane notes, worktree paths. */
 const LOCAL_EVENT_SQL = "(type LIKE 'session.%' OR type LIKE 'handoff.%' OR type LIKE 'wrapup.%' OR type IN ('agent.notify', 'card.worktree'))";
 
-/** A JSON object of `cols` read from `row` (NEW/OLD) — only the changed ones when `changed`, NULL when none. */
-function fieldsSql(cols: Record<string, boolean>, changed: boolean, has: Set<string>): string {
+/** A JSON object of `cols` read from `row` (NEW, or a table alias) — only the changed ones when `changed`, NULL when none. */
+function fieldsSql(cols: Record<string, boolean>, changed: boolean, has: Set<string>, row = "NEW"): string {
   const parts = Object.entries(cols).filter(([c]) => has.has(c)).map(([c, json]) => {
     // A column that should hold JSON but doesn't travels as a string: a trigger must never fail the write.
-    const v = json ? `CASE WHEN json_valid(NEW.${c}) THEN NEW.${c} ELSE json_quote(NEW.${c}) END` : `json_quote(NEW.${c})`;
-    return `SELECT '${c}' AS k, ${v} AS v${changed ? ` WHERE OLD.${c} IS NOT NEW.${c}` : ""}`;
+    const v = json ? `CASE WHEN json_valid(${row}.${c}) THEN ${row}.${c} ELSE json_quote(${row}.${c}) END` : `json_quote(${row}.${c})`;
+    return `SELECT '${c}' AS k, ${v} AS v${changed ? ` WHERE OLD.${c} IS NOT ${row}.${c}` : ""}`;
   });
   return `(SELECT json_group_object(k, json(v)) FROM (${parts.join(" UNION ALL ")}) HAVING count(*) > 0)`;
 }
@@ -1255,7 +1255,7 @@ END;`;
   let sql = "CREATE TEMP TABLE IF NOT EXISTS journal_mute (x);";
   for (const [kind, s] of Object.entries(SHARED)) {
     const entity = (row: string) => (kind === "roadmap" ? "'roadmap'" : `'${s.folder}/' || ${row}.id`);
-    // shortcut: an entity moved INTO a shared repo journals only its changed fields, not itself whole; lot 2's import covers it.
+    // shortcut: an entity moved INTO a shared repo journals only its changed fields, not itself whole; importJournal covers only what is there at activation.
     sql += out(`journal_${kind}_ins`, `AFTER INSERT ON main.${s.table}`, "NEW.repo_path", entity("NEW"), `${kind}.set`, fieldsSql(s.columns, false, columns(s.table)));
     sql += out(`journal_${kind}_upd`, `AFTER UPDATE ON main.${s.table}`, "NEW.repo_path", entity("NEW"), `${kind}.set`, fieldsSql(s.columns, true, columns(s.table)));
     if (kind !== "roadmap") sql += out(`journal_${kind}_del`, `AFTER DELETE ON main.${s.table}`, "OLD.repo_path", entity("OLD"), `${kind}.deleted`, "'{}'");
@@ -2939,6 +2939,28 @@ export class BoardDb {
       }
       this.applyJournal(repoPath, all, clock);
     });
+  }
+
+  /**
+   * § 6: queue a `*.set` of every shareable field of each of the repo's entities the journal does not
+   * know yet (no journal_field row) — the import of an activation. Returns how many were queued.
+   */
+  importJournal(repoPath: string): number {
+    const has = (t: string) => new Set(this.db.query<{ name: string }, []>(`PRAGMA table_info(${t})`).all().map((c) => c.name));
+    let n = 0;
+    this.db.transaction(() => {
+      for (const [kind, s] of Object.entries(SHARED)) {
+        const entity = kind === "roadmap" ? "'roadmap'" : `'${s.folder}/' || t.id`;
+        n += this.db
+          .query(
+            `INSERT INTO journal_outbox (repo_path, entity, type, fields)
+             SELECT ?1, e, '${kind}.set', f FROM (SELECT ${entity} AS e, ${fieldsSql(s.columns, false, has(s.table), "t")} AS f FROM ${s.table} t WHERE t.repo_path = ?1)
+             WHERE f IS NOT NULL AND NOT EXISTS (SELECT 1 FROM journal_field j WHERE j.repo_path = ?1 AND j.entity = e)`,
+          )
+          .run(repoPath).changes;
+      }
+    })();
+    return n;
   }
 
   private recordField(repoPath: string, entity: string, field: string, hlc: string): void {

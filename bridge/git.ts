@@ -1261,6 +1261,7 @@ export async function sendJournal(
   pairId: string,
   outbox: JournalEntry[],
   git: GitRunner = runGit,
+  message = `collie-board: ${outbox.length} events from ${pairId}`,
 ): Promise<{ ok: true; pushed: boolean } | JournalFailure> {
   if (!okRemote(remote)) return { ok: false, kind: "error", error: `not a remote name: ${remote}` };
   if (!/^[0-9a-f]{12}$/.test(pairId)) return { ok: false, kind: "error", error: `not a pair id: ${pairId}` };
@@ -1336,7 +1337,7 @@ export async function sendJournal(
   }
 
   const parents = [...new Set([ours, theirs].filter((p): p is string => !!p))].flatMap((p) => ["-p", p]);
-  const c = await git(["commit-tree", root, ...parents, "-m", `collie-board: ${outbox.length} events from ${pairId}`], repoPath);
+  const c = await git(["commit-tree", root, ...parents, "-m", message], repoPath);
   if (!c.ok) return fail(c);
   const commit = c.stdout.trim();
   const u = await git(["update-ref", JOURNAL_REF, commit], repoPath);
@@ -1352,4 +1353,27 @@ export async function sendJournal(
 export async function gitUserEmail(repoPath: string, git: GitRunner = runGit): Promise<string> {
   const r = await git(["config", "user.email"], repoPath);
   return r.ok ? r.stdout.trim() : "";
+}
+
+/** The clone's remotes — the choice offered when sharing its board (ADR 0048 §1). */
+export async function gitRemotes(repoPath: string, git: GitRunner = runGit): Promise<string[]> {
+  const r = await git(["remote"], repoPath);
+  return r.ok ? linesOf(r.stdout).map((l) => l.trim()) : [];
+}
+
+/** Whether `remote` has a shared board branch: null when it cannot be asked. Only ever signalled, never acted on (§ 1). */
+export async function journalBranchOn(repoPath: string, remote: string, git: GitRunner = runGit): Promise<boolean | null> {
+  if (!okRemote(remote)) return null;
+  const r = await git(["ls-remote", "--heads", remote, JOURNAL_BRANCH], repoPath);
+  return r.ok ? r.stdout.trim() !== "" : null;
+}
+
+/** Whether this clone has sent or read a journal before — a re-activation, which loses what was edited meanwhile (§ 6). */
+export async function journalWasShared(repoPath: string, git: GitRunner = runGit): Promise<boolean> {
+  return (await revOf(repoPath, JOURNAL_REF, git)) !== null;
+}
+
+/** Forget what this pair has read, so the next {@link receiveJournal} returns the whole journal — an activation's rebuild. */
+export async function forgetJournal(repoPath: string, git: GitRunner = runGit): Promise<void> {
+  await git(["update-ref", "-d", JOURNAL_REF], repoPath);
 }

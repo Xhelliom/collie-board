@@ -5,6 +5,7 @@ import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { AutonomySettings } from "@/components/autonomy-settings";
+import { ShareSettings } from "@/components/share-settings";
 import { BoardTabs } from "@/components/board-tabs";
 import { Fold, useStoredFold } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -190,6 +191,8 @@ export function ProjectRoute() {
   // gone — on every arrival, the link pushes a new entry — and say so if it never shows up.
   const location = useLocation();
   const autoFold = useStoredFold("project-autonomy");
+  // Closed until opened: opening it asks the remote (one ls-remote), never on the poll.
+  const shareFold = useStoredFold("project-share", false);
   useEffect(() => {
     if (location.hash !== `#${AUTONOMY_SECTION}`) return;
     autoFold[1](true);
@@ -521,6 +524,11 @@ export function ProjectRoute() {
               {repo && (
                 <Fold title={t("orch.auto")} state={autoFold}>
                   <AutonomySettings repo={repo} />
+                </Fold>
+              )}
+              {repo && (
+                <Fold title={t("project.share.fold")} state={shareFold}>
+                  <ShareSettings repo={repo} />
                 </Fold>
               )}
               <ClosedPhases closed={v.closed} onReopened={() => void revalidator.revalidate()} />

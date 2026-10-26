@@ -3,8 +3,22 @@
 // flight, a fetch at most every FETCH_EVERY_MS, a send on the tick after a local write at most every
 // SEND_EVERY_MS. The plumbing is git.ts's; the projection is db.ts's; this only decides when.
 
+import { existsSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
+
+import { writeSafetyBackup } from "./backup.ts";
+import { PANE_HEADER, type BoardContext } from "./board-routes.ts";
 import type { BoardDb, JournalEntry } from "./db.ts";
-import { gitUserEmail, receiveJournal, sendJournal, type JournalFailure } from "./git.ts";
+import {
+  forgetJournal,
+  gitRemotes,
+  gitUserEmail,
+  journalBranchOn,
+  journalWasShared,
+  receiveJournal,
+  sendJournal,
+  type JournalFailure,
+} from "./git.ts";
 import type { Hlc } from "./journal.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -42,14 +56,19 @@ export function plan(s: RepoSync, now: number, unsent: number): { fetch: boolean
 /** The git half, injectable so the consumer is tested without a remote. */
 export interface JournalGit {
   receive(repo: string, remote: string): Promise<{ ok: true; entries: JournalEntry[] } | JournalFailure>;
-  send(repo: string, remote: string, pairId: string, outbox: JournalEntry[]): Promise<{ ok: true; pushed: boolean } | JournalFailure>;
+  send(repo: string, remote: string, pairId: string, outbox: JournalEntry[], message?: string): Promise<{ ok: true; pushed: boolean } | JournalFailure>;
   email(repo: string): Promise<string>;
+  remotes(repo: string): Promise<string[]>;
+  /** Forget what was read, so the next receive is the whole journal. */
+  forget(repo: string): Promise<void>;
 }
 
 const realGit: JournalGit = {
   receive: (repo, remote) => receiveJournal(repo, remote),
-  send: (repo, remote, pairId, outbox) => sendJournal(repo, remote, pairId, outbox),
+  send: (repo, remote, pairId, outbox, message) => sendJournal(repo, remote, pairId, outbox, undefined, message),
   email: (repo) => gitUserEmail(repo),
+  remotes: (repo) => gitRemotes(repo),
+  forget: (repo) => forgetJournal(repo),
 };
 
 /** repo → its sync state. Module-level so the routes read it without wiring through server.ts. */
@@ -62,6 +81,13 @@ export function journalStatus(db: BoardDb, path: string): { unsent: number; read
   return { unsent: db.journalUnsent(path), readOnly: s.readOnly, offline: s.offline, error: s.error };
 }
 
+/** The running consumer, so the share route reaches its clock and its throttle without wiring through server.ts. */
+let live: JournalSync | null = null;
+
+export type Activation =
+  | { ok: true; backup: string; existed: boolean; imported: number; pushed: boolean; error: string | null }
+  | { ok: false; error: string };
+
 export class JournalSync {
   private readonly emails = new Map<string, string>();
 
@@ -70,7 +96,46 @@ export class JournalSync {
     private readonly clock: Hlc,
     private readonly git: JournalGit = realGit,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    live = this;
+  }
+
+  /**
+   * § 6: share a repo's board on `remote`. A backup first, then the WHOLE journal is fetched: absent,
+   * every local entity is imported and the orphan branch created by the « import » commit; present,
+   * the projection is rebuilt from it — the journal wins on what it knows, edits made here while
+   * unshared are lost (the backup keeps them) — then the entities it does not know are imported.
+   */
+  async activate(repo: string, remote: string, backup: () => Promise<string>): Promise<Activation> {
+    const s = states.get(repo) ?? fresh();
+    if (s.busy) return { ok: false, error: "a sync of this repo is in flight — try again in a moment" };
+    if (!(await this.git.remotes(repo)).includes(remote)) return { ok: false, error: `no remote named ${remote} in this repo` };
+    states.set(repo, s);
+    s.busy = true;
+    try {
+      const saved = await backup();
+      await this.git.forget(repo);
+      const r = await this.git.receive(repo, remote);
+      // Nothing is shared when the journal cannot be read: activating blind would import over it.
+      if (!r.ok) return { ok: false, error: r.error };
+      Object.assign(s, fresh(), { busy: true, lastFetch: this.now() });
+      this.db.setRepoShare(repo, remote);
+      this.db.rebuildJournal(repo, r.entries, this.clock);
+      const imported = this.db.importJournal(repo);
+      const pushed = await this.send(repo, remote, s, `collie-board: import of ${imported} entities from ${this.clock.pairId}`);
+      return { ok: true, backup: saved, existed: r.entries.length > 0, imported, pushed, error: s.error };
+    } finally {
+      s.busy = false;
+    }
+  }
+
+  /** § 6: stop sharing. The outbox is dropped (returned: « N changements ne partiront pas »); the remote branch is not touched. */
+  deactivate(repo: string): number {
+    const dropped = this.db.journalUnsent(repo);
+    this.db.setRepoShare(repo, null);
+    states.delete(repo);
+    return dropped;
+  }
 
   /** One tick. Returns the operations it started, so a test can await them; the hook does not. */
   update(snap: EngineSnapshot): Promise<void> {
@@ -99,17 +164,28 @@ export class JournalSync {
       const r = await this.git.receive(repo, remote);
       if (!r.ok) return this.fail(s, r);
       s.offline = false;
+      // Unshared while the fetch was out: what it brought is no longer this repo's to apply.
+      if (this.db.repoShare(repo) !== remote) return;
       if (r.entries.length > 0) this.db.applyJournal(repo, r.entries, this.clock);
     }
-    s.lastSend = t;
+    await this.send(repo, remote, s);
+  }
+
+  /** Push the outbox; true when a commit went out. A failure is recorded on `s` for plan() to pace. */
+  private async send(repo: string, remote: string, s: RepoSync, message?: string): Promise<boolean> {
+    s.lastSend = this.now();
     if (!this.emails.has(repo)) this.emails.set(repo, (await this.git.email(repo)) || this.clock.pairId);
     const outbox = this.db.journalOutbox(repo, this.clock, this.emails.get(repo)!);
-    const r = await this.git.send(repo, remote, this.clock.pairId, outbox);
-    if (!r.ok) return this.fail(s, r);
+    const r = await this.git.send(repo, remote, this.clock.pairId, outbox, message);
+    if (!r.ok) {
+      this.fail(s, r);
+      return false;
+    }
     if (outbox.length > 0) this.db.dropJournalOutbox(repo, outbox.at(-1)!.seq);
     s.offline = false;
     s.readOnly = null;
     s.error = null;
+    return r.pushed;
   }
 
   private fail(s: RepoSync, f: JournalFailure): void {
@@ -146,4 +222,53 @@ export async function readOnlyRefusal(pathname: string, req: Request, db: BoardD
   // An unshared repo is never read-only, whatever a past push said.
   for (const r of repos) if (r && states.get(r)?.readOnly && db.repoShare(r)) return states.get(r)!.readOnly;
   return null;
+}
+
+/** `/api/repos/share` — a repo's shared board (ADR 0048 §1, §6): GET its state, POST `{path, remote}` to share it, `remote: null` to stop. */
+const SHARE_ROUTE = "/api/repos/share";
+
+/**
+ * The operator's gesture, and the only writer of `repo_pref.share`: refused to an agent pane (an agent
+ * that could share would carry the board off to a remote nobody chose), write-gated, audited. Nothing
+ * here reads the repo's own config; the remote branch is only reported (`branch`), never acted on.
+ */
+export async function handleShareRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
+  if (pathname !== SHARE_ROUTE) return null;
+  if (req.method === "GET") {
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const url = new URL(req.url);
+    const repo = url.searchParams.get("repo");
+    if (!repo || !isAbsolute(repo) || !existsSync(join(repo, ".git"))) return ctx.text("repo must be the root of a repository", 400);
+    const share = ctx.db.repoShare(repo);
+    const remotes = await gitRemotes(repo);
+    const asked = url.searchParams.get("remote") ?? share ?? (remotes.includes("origin") ? "origin" : remotes[0]);
+    return ctx.json({
+      share,
+      remotes,
+      remote: asked ?? null,
+      // On demand only (the settings fold opens): one ls-remote, never on the poll.
+      branch: asked && remotes.includes(asked) ? await journalBranchOn(repo, asked) : null,
+      wasShared: await journalWasShared(repo),
+      identity: await gitUserEmail(repo),
+      sync: journalStatus(ctx.db, repo),
+    });
+  }
+  if (req.method !== "POST") return ctx.text("method not allowed", 405);
+  if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("sharing the board is the operator's setting — an agent pane may not change it", 403);
+  const denied = ctx.guard("write");
+  if (denied) return denied;
+  const body: unknown = await req.json().catch(() => null);
+  const { path, remote } = (body ?? {}) as { path?: unknown; remote?: unknown };
+  if (typeof path !== "string" || !isAbsolute(path) || !existsSync(join(path, ".git"))) return ctx.text("path must be the root of a repository", 400);
+  if (remote !== null && typeof remote !== "string") return ctx.text("remote must be a remote name or null", 400);
+  if (!live) return ctx.json({ ok: false, error: "the journal sync is not running", kind: "disabled" }, 503);
+  if (remote === null) {
+    const dropped = live.deactivate(path);
+    ctx.audit.record({ action: "repo.share", session: ctx.session, device: ctx.device, detail: { path, remote: null, dropped } });
+    return ctx.json({ ok: true, dropped });
+  }
+  const r = await live.activate(path, remote, () => writeSafetyBackup(ctx.db, ctx.cfg.stateDir));
+  ctx.audit.record({ action: "repo.share", session: ctx.session, device: ctx.device, detail: { path, remote, ok: r.ok } });
+  return ctx.json(r, r.ok ? 200 : 409);
 }

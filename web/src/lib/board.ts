@@ -904,6 +904,25 @@ export const fetchRepoIntegration = (repo: string, signal?: AbortSignal): Promis
 export const setRepoIntegration = (path: string, integration: RepoIntegration): Promise<{ ok: true; integration: RepoIntegration }> =>
   apiRequest("/api/repos/integration", { method: "POST", body: JSON.stringify({ path, integration }) });
 
+/** A repo's shared board (ADR 0048 §1): off (`share: null`) until the operator's gesture. */
+export interface RepoShare {
+  share: string | null;
+  remotes: string[];
+  /** The remote `branch` was asked of: the shared one, else `origin`, else the first. */
+  remote: string | null;
+  /** Whether `remote` already has a shared board — signalled only; null when it could not be asked. */
+  branch: boolean | null;
+  /** This clone was shared before: re-activating loses what was edited meanwhile (§ 6). */
+  wasShared: boolean;
+  identity: string;
+  sync: { unsent: number; readOnly: string | null; offline: boolean; error: string | null } | null;
+}
+export const fetchRepoShare = (repo: string, remote?: string, signal?: AbortSignal): Promise<RepoShare> =>
+  apiRequest(`/api/repos/share?repo=${encodeURIComponent(repo)}${remote ? `&remote=${encodeURIComponent(remote)}` : ""}`, { signal });
+/** Share on `remote`, or stop with null. The bridge refuses it to an agent pane. */
+export const setRepoShare = (path: string, remote: string | null): Promise<{ ok: true; dropped?: number; error?: string | null }> =>
+  apiRequest("/api/repos/share", { method: "POST", body: JSON.stringify({ path, remote }) });
+
 export function setRepoFlow(path: string, flowId: string | null): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>("/api/repos/flow", { method: "POST", body: JSON.stringify({ path, flowId }) });
 }
