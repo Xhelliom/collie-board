@@ -53,6 +53,8 @@ import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "
 import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 import { sweepOrphanDeliverables } from "./deliverables.ts";
+import { Hlc, loadPairId } from "./journal.ts";
+import { JournalSync } from "./journal-sync.ts";
 
 // How often the registry rescans the filesystem for sessions that appeared/disappeared after boot.
 const SESSION_REFRESH_MS = 15_000;
@@ -374,6 +376,10 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
+    // The shared board's journal (ADR 0048 §3): fetch/send for the repos marked shared, throttled
+    // inside the consumer — one git op in flight per repo, no timer. Fire-and-forget like the gauge.
+    const journalSync = new JournalSync(board, new Hlc(loadPairId(cfg.stateDir)));
+    engine.onUpdate((snap) => void journalSync.update(snap), "journalSync");
   }
 
   engine.start();

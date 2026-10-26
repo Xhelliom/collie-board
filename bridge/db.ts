@@ -2828,6 +2828,21 @@ export class BoardDb {
     return this.db.query<{ share: string | null }, [string]>("SELECT share FROM repo_pref WHERE path = ?").get(path)?.share ?? null;
   }
 
+  /** Every shared repo and its remote — what the sync consumer walks each tick. */
+  sharedRepos(): { path: string; remote: string }[] {
+    return this.db.query<{ path: string; remote: string }, []>("SELECT path, share AS remote FROM repo_pref WHERE share IS NOT NULL").all();
+  }
+
+  /** How many of a repo's writes are still waiting to be pushed — « N changements non envoyés ». */
+  journalUnsent(repoPath: string): number {
+    return this.db.query<{ n: number }, [string]>("SELECT COUNT(*) AS n FROM journal_outbox WHERE repo_path = ?").get(repoPath)!.n;
+  }
+
+  /** Drop the outbox rows a push carried; a write made during the push has a later seq and stays. */
+  dropJournalOutbox(repoPath: string, upToSeq: number): void {
+    this.db.query("DELETE FROM journal_outbox WHERE repo_path = ? AND seq <= ?").run(repoPath, upToSeq);
+  }
+
   /** Share a repo's board on a remote, or stop with null — which drops what was waiting to go (§ 6). */
   setRepoShare(path: string, remote: string | null): void {
     this.db.transaction(() => {
