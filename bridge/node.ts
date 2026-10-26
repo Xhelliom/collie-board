@@ -15,7 +15,13 @@ import type { HerdrClient } from "./herdr-client.ts";
 /** A peer allowed to read this machine: its name is what the audit log records. */
 export interface NodePeer {
   name: string;
-  token: string;
+  /** SHA-256 of its token, hex: the clear token lives only in the caller's `peers.toml` (ADR 0049 §4). */
+  sha256: string;
+  /** The Tailscale login seen at pairing: a request with this token under another login is refused. */
+  login?: string;
+  pairedAt?: string;
+  /** Environments it may launch in. Absent: every one (a hand-written 0046 peer); a paired peer starts with none. */
+  launch?: string[];
 }
 
 /** A place this machine offers to run an agent. The path stays here: a peer only ever names it. */
@@ -34,6 +40,7 @@ export interface NodeConfig {
 
 /** A token shorter than this is refused: it is worth a shell on this machine. */
 const MIN_TOKEN_LENGTH = 32;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 function str(v: unknown, what: string): string {
   if (typeof v !== "string" || v.trim() === "") throw new Error(`${what} must be a non-empty string`);
@@ -54,7 +61,9 @@ function table(v: unknown, what: string): Record<string, unknown>[] {
  * name = "arch-2"
  * [[peers]]
  * name = "arch-1"
- * token = "…"            # ≥ 32 chars, one per peer
+ * token = "…"            # ≥ 32 chars, one per peer — or token_sha256 = "<hex>", what the UI writes
+ * login = "me@github"    # optional: the Tailscale login this token must come with
+ * launch = ["arch-2"]    # optional: absent, every environment
  * [[environments]]
  * name = "arch-2"
  * repo_path = "/home/me/git/app"
@@ -62,22 +71,72 @@ function table(v: unknown, what: string): Record<string, unknown>[] {
  * ```
  */
 export function parseNodeConfig(raw: unknown): NodeConfig | null {
+  const cfg = parseNodeFile(raw);
+  return cfg.peers.length > 0 ? cfg : null;
+}
+
+/** {@link parseNodeConfig}, with no peer still a config: what the pairing routes rewrite. */
+export function parseNodeFile(raw: unknown): NodeConfig {
   if (raw === null || typeof raw !== "object") throw new Error("node.toml must be a table");
   const r = raw as Record<string, unknown>;
   const name = str(r.name, "name");
-  const peers = table(r.peers, "peers").map((p, i) => {
-    const token = str(p.token, `peers[${i}].token`);
-    if (token.length < MIN_TOKEN_LENGTH) throw new Error(`peers[${i}].token is shorter than ${MIN_TOKEN_LENGTH} characters`);
-    return { name: str(p.name, `peers[${i}].name`), token };
+  const peers = table(r.peers, "peers").map((p, i): NodePeer => {
+    let sha256: string;
+    if (p.token_sha256 !== undefined) {
+      sha256 = str(p.token_sha256, `peers[${i}].token_sha256`).toLowerCase();
+      if (!SHA256_HEX.test(sha256)) throw new Error(`peers[${i}].token_sha256 is not a SHA-256 hex digest`);
+    } else {
+      const token = str(p.token, `peers[${i}].token`);
+      if (token.length < MIN_TOKEN_LENGTH) throw new Error(`peers[${i}].token is shorter than ${MIN_TOKEN_LENGTH} characters`);
+      sha256 = digest(token).toString("hex");
+    }
+    const peer: NodePeer = { name: str(p.name, `peers[${i}].name`), sha256 };
+    if (p.login !== undefined) peer.login = str(p.login, `peers[${i}].login`);
+    if (p.paired_at !== undefined) peer.pairedAt = str(p.paired_at, `peers[${i}].paired_at`);
+    if (p.launch !== undefined) {
+      if (!Array.isArray(p.launch) || p.launch.some((e) => typeof e !== "string")) throw new Error(`peers[${i}].launch must be an array of strings`);
+      peer.launch = p.launch as string[];
+    }
+    return peer;
   });
-  if (new Set(peers.map((p) => p.token)).size !== peers.length) throw new Error("two peers share a token");
+  if (new Set(peers.map((p) => p.sha256)).size !== peers.length) throw new Error("two peers share a token");
+  if (new Set(peers.map((p) => p.name)).size !== peers.length) throw new Error("two peers share a name");
   const environments = table(r.environments, "environments").map((e, i) => {
     const repoPath = str(e.repo_path ?? e.repoPath, `environments[${i}].repo_path`);
     if (!isAbsolute(repoPath)) throw new Error(`environments[${i}].repo_path must be absolute`);
     return { name: str(e.name, `environments[${i}].name`), repoPath, agent: str(e.agent, `environments[${i}].agent`) };
   });
   if (new Set(environments.map((e) => e.name)).size !== environments.length) throw new Error("two environments share a name");
-  return peers.length > 0 ? { name, peers, environments } : null;
+  return { name, peers, environments };
+}
+
+/** A 0600 config file of the state dir, as read: `text` null when absent, `error` when it must stay shut. */
+export interface SecretFile<T> {
+  value: T | null;
+  text: string | null;
+  error?: string;
+}
+
+/**
+ * Read a secret TOML of the state dir. Absent → value and text null, silently. Unreadable, malformed,
+ * or readable by group/others → value null with an error: every failure closes the surface.
+ */
+export function readSecretToml<T>(path: string, parse: (raw: unknown) => T): SecretFile<T> {
+  try {
+    // Windows has no POSIX modes; its inherited ACLs are accepted (ADR 0046 §7).
+    if (process.platform !== "win32" && (statSync(path).mode & 0o077) !== 0) {
+      return { value: null, text: null, error: `${path} is readable by others — chmod 600 it` };
+    }
+    const text = readFileSync(path, "utf8");
+    try {
+      return { value: parse(Bun.TOML.parse(text)), text };
+    } catch (err) {
+      return { value: null, text, error: `${path}: ${(err as Error).message}` };
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { value: null, text: null };
+    return { value: null, text: null, error: `${path}: ${(err as Error).message}` };
+  }
 }
 
 /**
@@ -85,22 +144,12 @@ export function parseNodeConfig(raw: unknown): NodeConfig | null {
  * readable by group/others → null with a warning: every failure closes the surface.
  */
 export function loadNodeConfig(stateDir: string): NodeConfig | null {
-  const path = join(stateDir, "node.toml");
-  try {
-    // Windows has no POSIX modes; its inherited ACLs are accepted (ADR 0046 §7).
-    if (process.platform !== "win32" && (statSync(path).mode & 0o077) !== 0) {
-      console.warn(`[node] ${path} is readable by others — chmod 600 it; /api/node/* stays off`);
-      return null;
-    }
-    return parseNodeConfig(Bun.TOML.parse(readFileSync(path, "utf8")));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    console.warn(`[node] ${path} ignored, /api/node/* stays off: ${(err as Error).message}`);
-    return null;
-  }
+  const f = readSecretToml(join(stateDir, "node.toml"), parseNodeConfig);
+  if (f.error) console.warn(`[node] ${f.error}; /api/node/* stays off`);
+  return f.value;
 }
 
-const digest = (s: string) => createHash("sha256").update(s).digest();
+export const digest = (s: string) => createHash("sha256").update(s).digest();
 
 /**
  * The peer a request's `authorization: Bearer <token>` belongs to, or null. Constant time: both sides
@@ -110,7 +159,7 @@ export function peerFor(authorization: string | null, peers: readonly NodePeer[]
   const m = /^Bearer\s+(\S+)\s*$/i.exec(authorization ?? "");
   const given = digest(m?.[1] ?? "");
   let found: string | null = null;
-  for (const p of peers) if (timingSafeEqual(given, digest(p.token)) && m) found = p.name;
+  for (const p of peers) if (timingSafeEqual(given, Buffer.from(p.sha256, "hex")) && m) found = p.name;
   return found;
 }
 
@@ -151,6 +200,8 @@ export function parseLaunch(body: unknown, node: NodeConfig, peer: string, now =
     const known = node.environments.map((e) => e.name).join(", ") || "none";
     return { ok: false, error: `environment "${b.environment}" is not declared on ${node.name} (declared: ${known})` };
   }
+  const allowed = node.peers.find((p) => p.name === peer)?.launch;
+  if (allowed && !allowed.includes(env.name)) return { ok: false, error: `${peer} may not launch in "${env.name}" — ${node.name}'s owner grants it (ADR 0049 §4)` };
   if (typeof b.prompt !== "string" || b.prompt.trim() === "") return { ok: false, error: "prompt must be a non-empty string" };
   if (b.branch !== undefined && (typeof b.branch !== "string" || !SAFE_BRANCH.test(b.branch))) return { ok: false, error: "branch is not a safe git ref name" };
   const branch = (b.branch as string | undefined) ?? `node/${peer.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${now.toString(36)}`;
@@ -201,6 +252,12 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
   const peer = peerFor(req.headers.get("authorization"), d.node.peers);
   if (!peer) {
     d.audit("node.denied", null, { route: pathname });
+    return d.text("unauthorized", 401);
+  }
+  // The login seen at pairing is the one this token must come with (ADR 0049 §4, 0048 §5).
+  const login = d.node.peers.find((p) => p.name === peer)?.login;
+  if (login && req.headers.get("tailscale-user-login") !== login) {
+    d.audit("node.denied", peer, { route: pathname, login: req.headers.get("tailscale-user-login") });
     return d.text("unauthorized", 401);
   }
   if (NODE_POST.has(pathname)) {

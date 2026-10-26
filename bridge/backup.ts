@@ -30,6 +30,13 @@ export const BACKUP_VERSION = 1;
 /** Rebuilt from the row dump — their bytes are skipped on the way out and refused on the way in. */
 const DB_FILES = /^board\.db(-wal|-shm)?$/;
 
+/**
+ * The peers' secrets (ADR 0049): a backup is downloaded to a browser, where no token may go, and a
+ * restored one would declare a peer nobody paired. Never exported, never restored — a lost
+ * `peers.toml` is mended by pairing again.
+ */
+const SECRET_FILES = /^(node|peers)\.toml(\.\d+\.tmp)?$/;
+
 /** Kept as text so the backup stays greppable; everything else (uploads) rides as base64. */
 const TEXT_FILES = /\.(json|jsonl|log|txt|md|toml)$/i;
 
@@ -76,7 +83,7 @@ export async function collectFiles(dir: string, prefix = ""): Promise<BackupFile
       out.push(...(await collectFiles(join(dir, entry.name), path)));
       continue;
     }
-    if (!entry.isFile() || DB_FILES.test(entry.name)) continue;
+    if (!entry.isFile() || DB_FILES.test(entry.name) || (!prefix && SECRET_FILES.test(entry.name))) continue;
     try {
       const bytes = await readFile(join(dir, entry.name));
       const encoding = TEXT_FILES.test(entry.name) ? "utf8" : "base64";
@@ -216,12 +223,13 @@ export async function restoreBackup(
   backup: Backup,
 ): Promise<RestoreResult> {
   const tables = db.restore(backup.db);
-  for (const file of backup.files) {
+  const files = backup.files.filter((f) => !SECRET_FILES.test(f.path));
+  for (const file of files) {
     const abs = join(stateDir, file.path);
     await mkdir(dirname(abs), { recursive: true, mode: 0o700 });
     // Unlink first: writeFile follows a symlink, and the target may not be one we planted.
     await rm(abs, { force: true });
     await writeFile(abs, Buffer.from(file.content, file.encoding), { mode: 0o600 });
   }
-  return { tables, files: backup.files.length };
+  return { tables, files: files.length };
 }

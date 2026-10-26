@@ -3,11 +3,12 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { handleNodeRoute, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
+import { digest, handleNodeRoute, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
 
 const TOKEN_A = "a".repeat(40);
 const TOKEN_B = "b".repeat(40);
 const ENV_PATH = join(tmpdir(), "app");
+const sha = (t: string) => digest(t).toString("hex");
 
 const valid = {
   name: "arch-2",
@@ -22,9 +23,19 @@ describe("parseNodeConfig", () => {
   it("reads name, peers and environments", () => {
     expect(parseNodeConfig(valid)).toEqual({
       name: "arch-2",
-      peers: valid.peers,
+      peers: [
+        { name: "arch-1", sha256: sha(TOKEN_A) },
+        { name: "win-cad", sha256: sha(TOKEN_B) },
+      ],
       environments: [{ name: "arch-2", repoPath: ENV_PATH, agent: "claude" }],
     });
+  });
+
+  it("reads the hashed form the UI writes, with its login, date and launch grants", () => {
+    const peer = { name: "arch-1", token_sha256: sha(TOKEN_A).toUpperCase(), login: "me@github", paired_at: "2026-10-26T10:00:00Z", launch: [] };
+    expect(parseNodeConfig({ name: "arch-2", peers: [peer] })?.peers).toEqual([
+      { name: "arch-1", sha256: sha(TOKEN_A), login: "me@github", pairedAt: "2026-10-26T10:00:00Z", launch: [] },
+    ]);
   });
 
   it("is null without a peer: nothing to open", () => {
@@ -37,6 +48,9 @@ describe("parseNodeConfig", () => {
     expect(() => parseNodeConfig({ ...valid, peers: [{ name: "x", token: "short" }] })).toThrow("shorter");
     expect(() => parseNodeConfig({ ...valid, peers: [{ token: TOKEN_A }] })).toThrow("peers[0].name");
     expect(() => parseNodeConfig({ ...valid, peers: [valid.peers[0], { name: "y", token: TOKEN_A }] })).toThrow("share a token");
+    expect(() => parseNodeConfig({ ...valid, peers: [valid.peers[0], { name: "arch-1", token: TOKEN_B }] })).toThrow("share a name");
+    expect(() => parseNodeConfig({ ...valid, peers: [{ name: "x", token_sha256: "abc" }] })).toThrow("SHA-256");
+    expect(() => parseNodeConfig({ ...valid, peers: [{ name: "x", token: TOKEN_A, launch: "all" }] })).toThrow("launch");
     expect(() => parseNodeConfig({ ...valid, peers: { name: "x" } })).toThrow("array");
     expect(() => parseNodeConfig({ ...valid, environments: [{ name: "e", repo_path: "rel/path", agent: "claude" }] })).toThrow("absolute");
     expect(() => parseNodeConfig({ ...valid, environments: [{ name: "e", repo_path: ENV_PATH }] })).toThrow("agent");
@@ -63,7 +77,7 @@ describe("loadNodeConfig", () => {
   it("reads a 0600 file", () => {
     const d = dir();
     writeFileSync(join(d, "node.toml"), toml, { mode: 0o600 });
-    expect(loadNodeConfig(d)?.peers).toEqual([{ name: "arch-1", token: TOKEN_A }]);
+    expect(loadNodeConfig(d)?.peers).toEqual([{ name: "arch-1", sha256: sha(TOKEN_A) }]);
   });
 
   it.skipIf(process.platform === "win32")("refuses a file others can read", () => {
@@ -75,18 +89,19 @@ describe("loadNodeConfig", () => {
 });
 
 describe("peerFor", () => {
+  const peers = parseNodeConfig(valid)!.peers;
   it("names the peer whose token is presented", () => {
-    expect(peerFor(`Bearer ${TOKEN_B}`, valid.peers)).toBe("win-cad");
-    expect(peerFor(`bearer ${TOKEN_A}`, valid.peers)).toBe("arch-1");
+    expect(peerFor(`Bearer ${TOKEN_B}`, peers)).toBe("win-cad");
+    expect(peerFor(`bearer ${TOKEN_A}`, peers)).toBe("arch-1");
   });
 
   it("is null for a missing, malformed or unknown token", () => {
-    expect(peerFor(null, valid.peers)).toBeNull();
-    expect(peerFor("", valid.peers)).toBeNull();
-    expect(peerFor(TOKEN_A, valid.peers)).toBeNull();
-    expect(peerFor(`Basic ${TOKEN_A}`, valid.peers)).toBeNull();
-    expect(peerFor(`Bearer ${TOKEN_A}x`, valid.peers)).toBeNull();
-    expect(peerFor("Bearer ", [{ name: "empty", token: "" }])).toBeNull();
+    expect(peerFor(null, peers)).toBeNull();
+    expect(peerFor("", peers)).toBeNull();
+    expect(peerFor(TOKEN_A, peers)).toBeNull();
+    expect(peerFor(`Basic ${TOKEN_A}`, peers)).toBeNull();
+    expect(peerFor(`Bearer ${TOKEN_A}x`, peers)).toBeNull();
+    expect(peerFor("Bearer ", [{ name: "empty", sha256: sha("") }])).toBeNull();
   });
 });
 
@@ -149,6 +164,16 @@ describe("handleNodeRoute", () => {
       ["node.denied", null, { route: "/api/node/snapshot" }],
       ["node.denied", null, { route: "/api/node/snapshot" }],
     ]);
+  });
+
+  it("refuses a token presented under another Tailscale login than the one seen at pairing", async () => {
+    const bound = { ...node, peers: [{ ...node.peers[0]!, login: "me@github" }] };
+    const { d } = deps({ node: bound });
+    const as = (login?: string) =>
+      new Request("http://peer/api/node/snapshot", { headers: { authorization: `Bearer ${TOKEN_A}`, ...(login ? { "tailscale-user-login": login } : {}) } });
+    expect((await call("/api/node/snapshot", d, as("me@github")))!.status).toBe(200);
+    expect((await call("/api/node/snapshot", d, as("eve@github")))!.status).toBe(401);
+    expect((await call("/api/node/snapshot", d, as()))!.status).toBe(401);
   });
 
   it("keeps checkAccess in front of the token", async () => {
@@ -244,6 +269,12 @@ describe("parseLaunch", () => {
   it("resolves the environment by name and names a branch after the peer", () => {
     const r = parseLaunch({ environment: "arch-2", prompt: "go" }, node, "Arch 1", 36);
     expect(r).toEqual({ ok: true, value: { peer: "Arch 1", env: node.environments[0]!, prompt: "go", branch: "node/arch-1-10" } });
+  });
+  it("refuses an environment the peer was not granted", () => {
+    const granted = { ...node, peers: [{ ...node.peers[0]!, launch: [] }] };
+    const r = parseLaunch({ environment: "arch-2", prompt: "go" }, granted, "arch-1");
+    expect(r.ok).toBe(false);
+    expect(parseLaunch({ environment: "arch-2", prompt: "go" }, { ...granted, peers: [{ ...node.peers[0]!, launch: ["arch-2"] }] }, "arch-1").ok).toBe(true);
   });
   it("refuses an unsafe branch and an empty prompt", () => {
     for (const branch of ["-x", "../x", "a..b", "a//b", "a/", "x.lock", "a b", ""]) {
