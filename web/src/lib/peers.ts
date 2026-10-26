@@ -15,11 +15,22 @@ export interface PeersView {
   inbound: { name: string; login: string | null; pairedAt: string | null; launch: string[] | null }[];
   /** Who this machine drives (its peers.toml). */
   outbound: { name: string; url: string; pairedAt: string }[];
+  /** What this machine offers its peers (its node.toml). The path is shown here, never sent to a peer. */
+  environments: { name: string; repoPath: string; agent: string }[];
   error: string | null;
 }
 
 export type TestResult =
-  | { state: "ok"; node: string; environments: { name: string; agent: string }[] }
+  | {
+      state: "ok";
+      node: string;
+      version: string | null;
+      /** null: the peer's herdr is disconnected. */
+      panes: number | null;
+      environments: { name: string; agent: string }[];
+      /** How the peer sees this machine: its name there, and the Tailscale login it read. */
+      seenAs: { peer: string; login: string | null } | null;
+    }
   | { state: "refused" }
   | { state: "closed" }
   | { state: "unreachable"; error: string };
@@ -35,5 +46,10 @@ export const addPeer = (url: string, code: string) =>
 export const revokePeer = (name: string) => post<{ ok: true }>("/api/peers/revoke", { name });
 export const forgetPeer = (name: string) => post<{ ok: true }>("/api/peers/forget", { name });
 export const testPeer = (name: string) => post<{ test: TestResult }>("/api/peers/test", { name });
+
+/** Declare, rename or remove an environment. `repo` is a path from `/api/repos`, checked against the bridge's own list. */
+export const addEnvironment = (name: string, repo: string, agent: string) => post<{ ok: true }>("/api/peers/environments", { action: "add", name, repo, agent });
+export const renameEnvironment = (name: string, to: string) => post<{ ok: true }>("/api/peers/environments", { action: "rename", name, to });
+export const removeEnvironment = (name: string) => post<{ ok: true }>("/api/peers/environments", { action: "remove", name });
 
 export const formatCode = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;

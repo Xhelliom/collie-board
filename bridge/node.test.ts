@@ -132,6 +132,7 @@ describe("handleNodeRoute", () => {
       },
       autonomyOn: () => true,
       launched: new Map<string, LaunchedPane>(),
+      version: "1.2.3",
       ...over,
     };
     return { d, audited, calls };
@@ -195,7 +196,7 @@ describe("handleNodeRoute", () => {
 
   it("lists the environments without their paths", async () => {
     const res = (await call("/api/node/environments", deps().d))!;
-    expect(await res.json()).toEqual({ node: "arch-2", environments: [{ name: "arch-2", agent: "claude" }] });
+    expect(await res.json()).toEqual({ node: "arch-2", version: "1.2.3", you: { peer: "arch-1", login: null }, environments: [{ name: "arch-2", agent: "claude" }] });
   });
 
   it("keeps each verb to its routes and knows no other", async () => {

@@ -53,6 +53,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/peers/revoke": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/forget": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/test": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
+  "/api/peers/environments": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/notifications/log": "the bell",
   "/api/notifications/log/read-all": "the bell",
   "/api/notifications/prefs": "notification settings",

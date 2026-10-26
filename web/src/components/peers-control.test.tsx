@@ -12,18 +12,24 @@ import type { PeersView } from "@/lib/peers";
 
 let view: PeersView;
 let posted: [string, unknown][];
+let testResult: unknown;
 
 beforeEach(() => {
   setPreference("en");
   posted = [];
+  testResult = { state: "refused" };
   view = {
     name: "arch-2",
     invitation: null,
     inbound: [{ name: "arch-1", login: "me@github", pairedAt: "2026-10-26T10:00:00.000Z", launch: [] }],
     outbound: [{ name: "win-cad", url: "https://win-cad.ts.net", pairedAt: "2026-10-26T10:00:00.000Z" }],
+    environments: [{ name: "cad", repoPath: "/home/me/git/cad", agent: "claude" }],
     error: null,
   };
   server.use(
+    http.get("/api/repos", () =>
+      HttpResponse.json({ repos: [{ path: "/home/me/git/app", name: "app", source: "scan" }], hiddenCount: 0 }),
+    ),
     http.get("/api/peers", () => HttpResponse.json(view)),
     http.post("/api/peers/invite", () => {
       view = { ...view, invitation: { state: "open", code: "ABCDEFGH", expiresAt: Date.now() + 600_000 } };
@@ -39,7 +45,7 @@ beforeEach(() => {
       if (params.action === "add") {
         return HttpResponse.json({ ok: true, peer: { name: "b", url: "https://b.ts.net" }, test: { state: "ok", node: "b", environments: [{ name: "app", agent: "claude" }] } });
       }
-      if (params.action === "test") return HttpResponse.json({ ok: true, test: { state: "refused" } });
+      if (params.action === "test") return HttpResponse.json({ ok: true, test: testResult });
       return HttpResponse.json({ ok: true });
     }),
   );
@@ -97,6 +103,46 @@ describe("PeersControl", () => {
     const outbound = screen.getByRole("region", { name: /machines this one drives/i });
     await user.click(within(outbound).getByRole("button", { name: /test the connection/i }));
     expect(await within(outbound).findByText(/token refused \(401\)/i)).toBeInTheDocument();
+  });
+
+  test.each([
+    [{ state: "closed" }, /nothing there \(404\).*no invitation accepted/i],
+    [{ state: "unreachable", error: "connection refused" }, /unreachable: connection refused/i],
+    [
+      { state: "ok", node: "win-cad", version: "0.237.0", panes: 3, environments: [{ name: "cad", agent: "claude" }], seenAs: { peer: "arch-2", login: "me@github" } },
+      /reached — win-cad offers 1 environment\(s\) \(cad\) · version 0\.237\.0 · 3 pane\(s\) · sees this machine as arch-2 \(me@github\)/i,
+    ],
+  ])("test the connection says %o readably", async (result, text) => {
+    testResult = result;
+    const user = userEvent.setup();
+    render(<PeersControl />);
+    const outbound = await screen.findByRole("region", { name: /machines this one drives/i });
+    await user.click(within(outbound).getByRole("button", { name: /test the connection/i }));
+    expect(await within(outbound).findByRole("status")).toHaveTextContent(text);
+  });
+
+  test("an environment is declared from a known repo and an agent, never a typed path; renamed; removed", async () => {
+    const user = userEvent.setup();
+    render(<PeersControl />);
+    const envs = await screen.findByRole("region", { name: /environments offered/i });
+    expect(within(envs).getByText("cad")).toBeInTheDocument();
+    await waitFor(() => expect(within(envs).getByRole("option", { name: /app — \/home\/me\/git\/app/ })).toBeInTheDocument());
+    await user.selectOptions(within(envs).getByLabelText(/repository/i), "/home/me/git/app");
+    await user.selectOptions(within(envs).getByLabelText(/agent/i), "codex");
+    expect(within(envs).getByLabelText(/^name/i)).toHaveValue("app");
+    await user.click(within(envs).getByRole("button", { name: /declare/i }));
+    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "add", name: "app", repo: "/home/me/git/app", agent: "codex" }]));
+
+    await user.click(within(envs).getByRole("button", { name: /rename/i }));
+    const input = within(envs).getByDisplayValue("cad");
+    await user.clear(input);
+    await user.type(input, "cad-win");
+    await user.click(within(envs).getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "rename", name: "cad", to: "cad-win" }]));
+
+    await user.click(within(envs).getByRole("button", { name: /remove/i }));
+    await user.click(within(envs).getByRole("button", { name: /tap again/i }));
+    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "remove", name: "cad" }]));
   });
 
   test("speaks French", async () => {
