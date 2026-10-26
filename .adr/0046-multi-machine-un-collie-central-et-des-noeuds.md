@@ -1,6 +1,6 @@
 # 0046 — Multi-machine : un Collie central et des nœuds
 
-**Status:** Accepted — partiellement remplacée par [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) : § 1 côté central, § 3, les points de § 8 qui supposent un central unique, l'effacement côté nœud de § 6, et le lot 3 du découpage
+**Status:** Accepted — partiellement remplacée par [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) : § 1 côté central, § 3, les points de § 8 qui supposent un central unique, l'effacement côté nœud de § 6, et le lot 3 du découpage ; amendée par [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) : § 2 et § 4, `node.toml` écrit par l'UI et non plus à la main
 **Date:** 2026-10-22
 **Amends:** [0001](./0001-one-managed-front-door.md) (une porte gérée — *par machine*) ·
 [0013](./0013-the-bridge-does-not-know-its-consumers.md) (le central devient client de ses nœuds) —
