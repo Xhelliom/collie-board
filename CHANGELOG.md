@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.235.3] - 2026-10-26
+
+### Added
+
+- Journal du board partagé (ADR 0048 §2, lot 1) : `pairId`, horloge HLC, format v1 d'une ligne et projection dernier écrivain par champ — module pur, pas encore branché (2e626b7)
+
+### Fixed
+
+- Un lot planifié dont toutes les cartes sont `done` se montre « terminé hors lot » : plus de « Lancer », l'autonomie ne le choisit plus, `POST /api/runs/<id>/launch` le refuse (409) et la fin de phase le compte comme fini (c1a7771)
+
 ## [0.235.2] - 2026-10-26
 
 ### Changed
