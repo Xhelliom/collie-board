@@ -26,7 +26,8 @@ import { join, posix, resolve, win32 } from "node:path";
 import { boardBranchPrefix } from "./config.ts";
 import { normalizePath, pathKey } from "./paths.ts";
 
-import { EVENT_WINDOW } from "./db.ts";
+import { EVENT_WINDOW, type JournalEntry } from "./db.ts";
+import { formatEvent, parseEvent } from "./journal.ts";
 
 /** Wall-clock cap on any git call. A pathological repo must not wedge the request. */
 const GIT_TIMEOUT_MS = 15_000;
@@ -58,11 +59,11 @@ export interface DiffStat {
 }
 
 export interface GitRunner {
-  (args: string[], cwd: string): Promise<{ ok: boolean; stdout: string; stderr: string }>;
+  (args: string[], cwd: string, stdin?: string): Promise<{ ok: boolean; stdout: string; stderr: string }>;
 }
 
 /** The real runner. Injectable so every parser below is testable without a repo on disk. */
-export const runGit: GitRunner = async (args, cwd) => {
+export const runGit: GitRunner = async (args, cwd, stdin) => {
   // Git locates its directory from the ENVIRONMENT before it looks at the `cwd` below — and git
   // exports GIT_DIR to its hooks, so a bridge started under one (or any parent leaking these)
   // would run every card operation on the wrong repository. Drop the locating vars outright.
@@ -70,6 +71,7 @@ export const runGit: GitRunner = async (args, cwd) => {
   for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX", "GIT_INDEX_FILE"]) delete childEnv[key];
   const proc = Bun.spawn(["git", ...args], {
     cwd,
+    stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin),
     stdout: "pipe",
     stderr: "pipe",
     // A git subprocess must never wait on a credential prompt or a pager — both hang forever
@@ -1160,4 +1162,188 @@ export async function failedLog(repoPath: string, detailsUrl: string, gh: GitRun
   } catch {
     return "";
   }
+}
+
+// ── the shared board's journal (ADR 0048 §2–3) ──
+//
+// Plumbing only: no checkout, no index, no merge, no worktree — the operator's checkout is never
+// touched. The branch `collie-board` is orphan on the remote; locally it lives outside refs/heads, so
+// no branch picker, `git branch` or worktree ever sees it. Each pair only appends to its own files
+// (`<entity>/<pairId>.jsonl`), so two trees unite by path and no text conflict can exist.
+
+/** What this pair has built and read: its last journal commit. */
+export const JOURNAL_REF = "refs/collie-board/journal";
+/** The remote branch as last fetched or pushed. */
+export const JOURNAL_REMOTE_REF = "refs/collie-board/remote";
+const JOURNAL_BRANCH = "refs/heads/collie-board";
+const JOURNAL_FILE_RE = /^((?:cards|phases|runs)\/[^/]+|roadmap)\/([0-9a-f]{12})\.jsonl$/;
+const ENTITY_RE = /^(?:(?:cards|phases|runs)\/[A-Za-z0-9_-]+|roadmap)$/;
+
+export type JournalFailure = {
+  ok: false;
+  /** `rejected`: another pair pushed first — fetch, then send again next tick. `denied`: no right to push (403, protected). */
+  kind: "rejected" | "denied" | "unreachable" | "error";
+  error: string;
+};
+
+/** Sort a failed fetch or push by what the caller must do next. Pure, so the patterns are tested. */
+export function journalFailure(output: string): JournalFailure {
+  const kind = /\[rejected\]|non-fast-forward|fetch first/i.test(output)
+    ? "rejected"
+    : /\[remote rejected\]|\b403\b|permission denied|permission to .* denied|protected branch|authentication failed/i.test(output)
+      ? "denied"
+      : /could not resolve host|unable to access|could not read from remote|does not appear to be a git repository|connection (refused|timed out|reset)|network is unreachable|no route to host|operation timed out/i.test(output)
+        ? "unreachable"
+        : "error";
+  return { ok: false, kind, error: tailOf(output) || "git failed" };
+}
+
+const okRemote = (remote: string) => /^[A-Za-z0-9._-]+$/.test(remote) && !remote.startsWith("-");
+
+async function revOf(repoPath: string, ref: string, git: GitRunner): Promise<string | null> {
+  const r = await git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], repoPath);
+  return r.ok ? r.stdout.trim() : null;
+}
+
+async function blobOf(repoPath: string, rev: string | null, path: string, git: GitRunner): Promise<string> {
+  if (!rev) return "";
+  const r = await git(["cat-file", "blob", `${rev}:${path}`], repoPath);
+  return r.ok ? r.stdout : "";
+}
+
+const linesOf = (text: string) => text.split("\n").filter((l) => l !== "");
+
+/**
+ * Fetch the remote journal and return the lines this pair has not read yet: every journal file the
+ * remote changed since {@link JOURNAL_REF}, minus the lines already there. Apply them, THEN call
+ * {@link sendJournal} — which is what marks them read. A remote with no journal yet is an empty one.
+ */
+export async function receiveJournal(
+  repoPath: string,
+  remote: string,
+  git: GitRunner = runGit,
+): Promise<{ ok: true; entries: JournalEntry[] } | JournalFailure> {
+  if (!okRemote(remote)) return { ok: false, kind: "error", error: `not a remote name: ${remote}` };
+  const f = await git(["fetch", "--no-tags", "--no-write-fetch-head", remote, `+${JOURNAL_BRANCH}:${JOURNAL_REMOTE_REF}`], repoPath);
+  if (!f.ok && !/couldn't find remote ref/i.test(f.stderr)) return journalFailure(f.stderr || f.stdout);
+  const theirs = await revOf(repoPath, JOURNAL_REMOTE_REF, git);
+  if (!theirs) return { ok: true, entries: [] };
+  const ours = await revOf(repoPath, JOURNAL_REF, git);
+  const changed = ours
+    ? await git(["diff-tree", "-r", "-z", "--no-renames", "--name-only", ours, theirs], repoPath)
+    : await git(["ls-tree", "-r", "-z", "--name-only", theirs], repoPath);
+  if (!changed.ok) return journalFailure(changed.stderr);
+  const entries: JournalEntry[] = [];
+  for (const path of changed.stdout.split("\0")) {
+    const entity = JOURNAL_FILE_RE.exec(path)?.[1];
+    if (!entity) continue;
+    const seen = new Set(linesOf(await blobOf(repoPath, ours, path, git)));
+    for (const line of linesOf(await blobOf(repoPath, theirs, path, git))) {
+      if (seen.has(line)) continue;
+      const p = parseEvent(line);
+      // A bad line is skipped, not fatal: one broken writer must not stop everyone reading the rest.
+      if (p.ok) entries.push({ entity, event: p.event });
+    }
+  }
+  return { ok: true, entries };
+}
+
+/**
+ * Append the outbox to this pair's own files on top of the remote journal, commit it (parents: the
+ * local and the remote journal, or none on the very first send — the orphan) and push it. Never
+ * forced: a pair that pushed in between makes it `rejected`, and the next tick receives then sends
+ * again. A line already on the remote is not appended twice, so resending an outbox is harmless.
+ * With nothing to append, it only records the remote as read. Clear the outbox on `ok` only.
+ */
+export async function sendJournal(
+  repoPath: string,
+  remote: string,
+  pairId: string,
+  outbox: JournalEntry[],
+  git: GitRunner = runGit,
+): Promise<{ ok: true; pushed: boolean } | JournalFailure> {
+  if (!okRemote(remote)) return { ok: false, kind: "error", error: `not a remote name: ${remote}` };
+  if (!/^[0-9a-f]{12}$/.test(pairId)) return { ok: false, kind: "error", error: `not a pair id: ${pairId}` };
+  const bad = outbox.find((e) => !ENTITY_RE.test(e.entity));
+  if (bad) return { ok: false, kind: "error", error: `not a journal entity: ${bad.entity}` };
+  const fail = (r: { stdout: string; stderr: string }) => journalFailure(r.stderr || r.stdout);
+
+  const theirs = await revOf(repoPath, JOURNAL_REMOTE_REF, git);
+  const ours = await revOf(repoPath, JOURNAL_REF, git);
+
+  // The remote tree, as dir → name → entry; directories are rebuilt only along the changed paths.
+  type Entry = { mode: string; type: string; oid: string };
+  const dirs = new Map<string, Map<string, Entry>>([["", new Map()]]);
+  if (theirs) {
+    const ls = await git(["ls-tree", "-r", "-t", "-z", theirs], repoPath);
+    if (!ls.ok) return fail(ls);
+    for (const rec of ls.stdout.split("\0")) {
+      const m = /^(\d+) (\w+) ([0-9a-f]+)\t(.+)$/s.exec(rec);
+      if (!m) continue;
+      const path = m[4]!;
+      const dir = posix.dirname(path) === "." ? "" : posix.dirname(path);
+      if (!dirs.has(dir)) dirs.set(dir, new Map());
+      dirs.get(dir)!.set(posix.basename(path), { mode: m[1]!, type: m[2]!, oid: m[3]! });
+      if (m[2] === "tree" && !dirs.has(path)) dirs.set(path, new Map());
+    }
+  }
+
+  const byEntity = new Map<string, string[]>();
+  for (const e of outbox) byEntity.set(e.entity, [...(byEntity.get(e.entity) ?? []), formatEvent(e.event)]);
+  const dirty = new Set<string>();
+  for (const [entity, lines] of byEntity) {
+    const path = `${entity}/${pairId}.jsonl`;
+    const base = linesOf(await blobOf(repoPath, theirs, path, git));
+    const have = new Set(base);
+    const fresh = lines.filter((l) => !have.has(l) && have.add(l));
+    if (fresh.length === 0) continue;
+    const h = await git(["hash-object", "-w", "--stdin"], repoPath, [...base, ...fresh].join("\n") + "\n");
+    if (!h.ok) return fail(h);
+    // Register the file, and every directory above it, as changed.
+    let child = posix.basename(path);
+    let entry: Entry = { mode: "100644", type: "blob", oid: h.stdout.trim() };
+    for (let dir = entity; ; dir = posix.dirname(dir) === "." ? "" : posix.dirname(dir)) {
+      if (!dirs.has(dir)) dirs.set(dir, new Map());
+      dirs.get(dir)!.set(child, entry);
+      dirty.add(dir);
+      if (dir === "") break;
+      child = posix.basename(dir);
+      entry = { mode: "040000", type: "tree", oid: "" }; // filled when `dir` is written below
+    }
+  }
+
+  if (dirty.size === 0) {
+    // Nothing of ours to add: the remote, already received, is now what this pair has read.
+    if (theirs && theirs !== ours) {
+      const u = await git(["update-ref", JOURNAL_REF, theirs], repoPath);
+      if (!u.ok) return fail(u);
+    }
+    return { ok: true, pushed: false };
+  }
+
+  // Deepest first, so a directory's subtrees have their oids before it is written.
+  let root = "";
+  for (const dir of [...dirty].sort((a, b) => b.split("/").length - a.split("/").length || b.length - a.length)) {
+    const input = [...dirs.get(dir)!].map(([name, e]) => `${e.mode} ${e.type} ${e.oid}\t${name}\0`).join("");
+    const t = await git(["mktree", "-z"], repoPath, input);
+    if (!t.ok) return fail(t);
+    const oid = t.stdout.trim();
+    if (dir === "") root = oid;
+    else {
+      const parent = posix.dirname(dir) === "." ? "" : posix.dirname(dir);
+      dirs.get(parent)!.get(posix.basename(dir))!.oid = oid;
+    }
+  }
+
+  const parents = [...new Set([ours, theirs].filter((p): p is string => !!p))].flatMap((p) => ["-p", p]);
+  const c = await git(["commit-tree", root, ...parents, "-m", `collie-board: ${outbox.length} events from ${pairId}`], repoPath);
+  if (!c.ok) return fail(c);
+  const commit = c.stdout.trim();
+  const u = await git(["update-ref", JOURNAL_REF, commit], repoPath);
+  if (!u.ok) return fail(u);
+  // --no-verify: the repo's pre-push hook judges code, and this branch carries none.
+  const p = await git(["push", "--porcelain", "--no-verify", remote, `${JOURNAL_REF}:${JOURNAL_BRANCH}`], repoPath);
+  if (!p.ok) return journalFailure(`${p.stdout}\n${p.stderr}`);
+  await git(["update-ref", JOURNAL_REMOTE_REF, commit], repoPath);
+  return { ok: true, pushed: true };
 }
