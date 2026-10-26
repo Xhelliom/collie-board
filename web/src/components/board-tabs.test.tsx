@@ -14,6 +14,7 @@ describe("BoardTabs", () => {
     expect(boardTabFor("/board")).toBe("board");
     expect(boardTabFor("/board/project")).toBe("project");
     expect(boardTabFor("/board/prs")).toBe("prs");
+    expect(boardTabFor("/board/settings")).toBe("settings");
     expect(boardTabFor("/card/x")).toBeNull();
   });
 

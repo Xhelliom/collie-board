@@ -545,12 +545,17 @@ export function projectPath(repo?: string | null): string {
   return repo ? `/board/project?repo=${encodeURIComponent(repo)}` : "/board/project";
 }
 
-/** The id of the autonomy block on the project page (components/autonomy-settings.tsx). */
+/** The id of the autonomy block on the repo's Settings tab (components/autonomy-settings.tsx). */
 export const AUTONOMY_SECTION = "project-autonomy";
 
-/** The project's view scrolled to its autonomy block, once that block is rendered (routes/project.tsx). */
+/** The repo's Settings tab (routes/repo-settings.tsx). */
+export function settingsPath(repo?: string | null): string {
+  return repo ? `/board/settings?repo=${encodeURIComponent(repo)}` : "/board/settings";
+}
+
+/** The Settings tab scrolled to its autonomy block, once that block is rendered. */
 export function autonomyPath(repo: string): string {
-  return `${projectPath(repo)}#${AUTONOMY_SECTION}`;
+  return `${settingsPath(repo)}#${AUTONOMY_SECTION}`;
 }
 
 /** The project's view with its orchestrator's conversation open (`chat=1`, read once by the project route). */

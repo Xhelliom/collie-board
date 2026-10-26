@@ -3,7 +3,7 @@ import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CardView, Lot, Phase, Roadmap } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
@@ -261,7 +261,6 @@ describe("ProjectRoute", () => {
       screen.getByRole("region", { name: /waiting for you/i }),
       screen.getByRole("heading", { name: "P1" }),
       screen.getByRole("button", { name: "Outside a phase · 1 step" }),
-      screen.getByRole("button", { name: "Autonomy" }),
     ];
     for (let i = 1; i < order.length; i++) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -499,49 +498,12 @@ describe("ProjectRoute", () => {
       expect(screen.getByText(/Tout est validé/)).toBeInTheDocument();
     });
   });
-  it("puts the autonomy settings in a block of the page, not in the orchestrator's chat", async () => {
-    let saved: unknown = null;
-    server.use(
-      http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })),
-      http.put("*/api/orchestrator/autonomy", async ({ request }) => {
-        saved = await request.json();
-        return HttpResponse.json({ autonomy: { enabled: true, maxChain: 1, stopOnRed: true } });
-      }),
-    );
+  it("no longer folds the repo settings into the page: they live in the Settings tab", async () => {
     mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
-    const block = await screen.findByRole("region", { name: "Autonomy" });
-    await userEvent.click(await within(block).findByRole("switch", { name: "Let it launch the next planned lot" }));
-    await waitFor(() => expect(saved).toEqual({ repoPath: "/r/app", enabled: true }));
-    // The panel keeps a link to the block, no longer the settings themselves.
+    await screen.findByRole("complementary", { name: "Orchestrator" });
+    expect(screen.queryByRole("region", { name: "Autonomy" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Autonomy" })).toBeNull();
     const aside = screen.getByRole("complementary", { name: "Orchestrator" });
-    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "/board/project?repo=%2Fr%2Fapp#project-autonomy");
-    expect(within(aside).queryByRole("switch")).toBeNull();
-  });
-  it("lets the operator allow a start when nothing runs, greyed out while autonomy is off", async () => {
-    let saved: unknown = null;
-    server.use(
-      http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true, startWhenIdle: false } })),
-      http.put("*/api/orchestrator/autonomy", async ({ request }) => {
-        saved = await request.json();
-        return HttpResponse.json({ autonomy: { enabled: true, maxChain: 1, stopOnRed: true, startWhenIdle: false, ...(saved as object) } });
-      }),
-    );
-    mount([card({ id: "a" })]);
-    const block = await screen.findByRole("region", { name: "Autonomy" });
-    const idle = await within(block).findByRole("switch", { name: "May start a lot when nothing is running" });
-    expect(idle).toBeDisabled();
-    await userEvent.click(within(block).getByRole("switch", { name: "Let it launch the next planned lot" }));
-    await waitFor(() => expect(idle).toBeEnabled());
-    await userEvent.click(idle);
-    await waitFor(() => expect(saved).toEqual({ repoPath: "/r/app", startWhenIdle: true }));
-  });
-  it("scrolls to the autonomy block once it is rendered, from the orchestrator's link", async () => {
-    server.use(http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })));
-    const scroll = vi.mocked(Element.prototype.scrollIntoView);
-    scroll.mockClear();
-    localStorage.setItem("collie-fold:project-autonomy", "0"); // folded: the link unfolds it
-    mount([card({ id: "a" })], {}, "/board/project?repo=%2Fr%2Fapp#project-autonomy");
-    const block = await screen.findByRole("region", { name: "Autonomy" });
-    await waitFor(() => expect(scroll.mock.contexts).toContain(block));
+    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "/board/settings?repo=%2Fr%2Fapp#project-autonomy");
   });
 });

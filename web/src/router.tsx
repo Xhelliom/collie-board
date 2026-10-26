@@ -12,6 +12,7 @@ import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
+import { RepoSettingsRoute } from "@/routes/repo-settings";
 import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
         // Not polled: GitHub is asked on the Check tap, and the journal only moves on a tap too.
         shouldRevalidate: () => false,
       },
+      { path: "board/settings", element: <RepoSettingsRoute />, errorElement: <RootError to={boardPath()} /> },
       {
         path: "card/:cardId",
         loader: cardLoader,
