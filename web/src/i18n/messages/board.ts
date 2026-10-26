@@ -5,6 +5,8 @@ export const board = defineMessages({
   "tabs.board": { en: "Board", fr: "Board" },
   "tabs.project": { en: "Project", fr: "Projet" },
   "tabs.prs": { en: "Open PRs", fr: "PR ouvertes" },
+  "tabs.settings": { en: "Settings", fr: "Réglages" },
+  "settings.repo.pick": { en: "Pick a repo to set it up.", fr: "Choisis un dépôt pour le régler." },
   "repo.label": { en: "Repository", fr: "Dépôt" },
   "repo.all": { en: "All repos", fr: "Tous les dépôts" },
   "tile.copilot": { en: "copilot", fr: "copilote" },

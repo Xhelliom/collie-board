@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLoaderData, useLocation, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
 import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
-import { AutonomySettings } from "@/components/autonomy-settings";
-import { ShareSettings } from "@/components/share-settings";
 import { BoardTabs } from "@/components/board-tabs";
 import { Fold, useStoredFold } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
@@ -22,14 +20,13 @@ import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
-import { AUTONOMY_SECTION, boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
+import { boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
 import { useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
 import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
 import { saveLastProject } from "@/lib/quick-access";
-import { revealWhenRendered } from "@/lib/reveal";
 import { setStatus } from "@/lib/status";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
@@ -187,19 +184,6 @@ export function ProjectRoute() {
     store.set(f);
   };
   const go = (el: HTMLElement | null) => el?.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
-  // `#project-autonomy` (the orchestrator's link): scroll there once the block is rendered and the sheet
-  // gone — on every arrival, the link pushes a new entry — and say so if it never shows up.
-  const location = useLocation();
-  const autoFold = useStoredFold("project-autonomy");
-  // Closed until opened: opening it asks the remote (one ls-remote), never on the poll.
-  const shareFold = useStoredFold("project-share", false);
-  useEffect(() => {
-    if (location.hash !== `#${AUTONOMY_SECTION}`) return;
-    autoFold[1](true);
-    return revealWhenRendered(AUTONOMY_SECTION, go, () => setStatus(t("orch.autoMissing"), "error", null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival, not per render
-  }, [location.key, location.hash]);
-
   const steps = v.phases.flatMap((p) => p.steps);
   const counts: Record<Filter, number> = {
     all: v.total,
@@ -519,16 +503,6 @@ export function ProjectRoute() {
               {deliverables.length > 0 && (
                 <Fold title={t("project.fold.deliverables", { count: deliverables.length })} state={deliverablesFold}>
                   <DeliverableLinks items={deliverables} />
-                </Fold>
-              )}
-              {repo && (
-                <Fold title={t("orch.auto")} state={autoFold}>
-                  <AutonomySettings repo={repo} />
-                </Fold>
-              )}
-              {repo && (
-                <Fold title={t("project.share.fold")} state={shareFold}>
-                  <ShareSettings repo={repo} />
                 </Fold>
               )}
               <ClosedPhases closed={v.closed} onReopened={() => void revalidator.revalidate()} />
