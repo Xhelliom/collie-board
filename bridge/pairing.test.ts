@@ -26,6 +26,8 @@ function machine(name: string, machines: Map<string, PeerRouteDeps>, clock = { t
       const req = new Request(url, init);
       return (await handlePeerRoute(url.pathname, req, target)) ?? (await handleNodeRoute(url.pathname, req, nodeDeps(target)))!;
     }) as typeof fetch,
+    knownRepos: async () => ["/home/me/git/app"],
+    agents: () => ["claude", "codex"],
   };
   machines.set(`https://${name}.ts.net`, d);
   return { d, stateDir, audited, clock };
@@ -35,13 +37,14 @@ const nodeDeps = (t: PeerRouteDeps): NodeRouteDeps => ({
   node: t.store.node(),
   access: () => null,
   audit: () => {},
-  snapshot: () => ({}),
+  snapshot: () => ({ bridge: "connected", agents: [{}, {}], shellPanes: [{}], workspaces: [], tabs: [] }),
   readPane: async () => new Response(),
   json: t.json,
   text: t.text,
   actions: {} as NodeRouteDeps["actions"],
   autonomyOn: () => false,
   launched: new Map(),
+  version: "9.9.9",
 });
 
 const call = (d: PeerRouteDeps, path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}) =>
@@ -124,10 +127,11 @@ describe("the operator's routes", () => {
   it("are refused to an agent pane, reads included", async () => {
     const b = machine("b", new Map());
     const pane = { "x-collie-pane": "w1:p1" };
-    for (const [path, method] of [["/api/peers", "GET"], ["/api/peers/invite", "POST"], ["/api/peers/invite", "DELETE"], ["/api/peers/add", "POST"], ["/api/peers/revoke", "POST"], ["/api/peers/forget", "POST"], ["/api/peers/test", "POST"]] as const) {
+    for (const [path, method] of [["/api/peers", "GET"], ["/api/peers/invite", "POST"], ["/api/peers/invite", "DELETE"], ["/api/peers/add", "POST"], ["/api/peers/revoke", "POST"], ["/api/peers/forget", "POST"], ["/api/peers/test", "POST"], ["/api/peers/environments", "POST"]] as const) {
       expect((await call(b.d, path, method, method === "POST" ? {} : undefined, pane)).status).toBe(403);
     }
     expect(b.d.store.view().invitation).toBeNull();
+    expect(b.d.store.view().environments).toEqual([]);
   });
 
   it("keep checkAccess in front", async () => {
@@ -153,7 +157,7 @@ describe("pairing end to end", () => {
     const added = await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net/", code: formatCode(inv.code) });
     const text = await added.text();
     expect(added.status).toBe(200);
-    expect(JSON.parse(text)).toMatchObject({ ok: true, peer: { name: "b", url: "https://b.ts.net" }, test: { state: "ok", node: "b", environments: [] } });
+    expect(JSON.parse(text)).toMatchObject({ ok: true, peer: { name: "b", url: "https://b.ts.net" }, test: { state: "ok", node: "b", version: "9.9.9", panes: 3, environments: [], seenAs: { peer: "a", login: null } } });
 
     const token = a.d.store.outbound()[0]!.token;
     expect(text).not.toContain(token);
@@ -193,5 +197,71 @@ describe("pairing end to end", () => {
     expect((await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net", code: "ABC" })).status).toBe(400);
     expect((await call(a.d, "/api/peers/add", "POST", { url: "http://b.ts.net", code: "ABCD-EFGH" })).status).toBe(400);
     expect(b.d.store.view().invitation?.state).toBe("open");
+  });
+});
+
+describe("environments, chosen, never typed", () => {
+  const env = (d: PeerRouteDeps, body: unknown) => call(d, "/api/peers/environments", "POST", body);
+
+  it("declares one from a known repo and agent, live on /api/node/environments without a restart", async () => {
+    const machines = new Map<string, PeerRouteDeps>();
+    const a = machine("a", machines);
+    const b = machine("b", machines);
+    const { code } = b.d.store.invite();
+    await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net", code });
+
+    expect((await env(b.d, { action: "add", name: "app", repo: "/home/me/git/app", agent: "codex" })).status).toBe(200);
+    expect(readFileSync(join(b.stateDir, "node.toml"), "utf8")).toContain('repo_path = "/home/me/git/app"');
+    const test = ((await (await call(a.d, "/api/peers/test", "POST", { name: "b" })).json()) as { test: unknown }).test;
+    expect(test).toMatchObject({ state: "ok", environments: [{ name: "app", agent: "codex" }] });
+    expect(JSON.stringify(test)).not.toContain("/home/me");
+  });
+
+  it("refuses a typed path, an unknown agent, a bad or taken name", async () => {
+    const b = machine("b", new Map());
+    expect((await env(b.d, { action: "add", name: "x", repo: "/etc", agent: "claude" })).status).toBe(400);
+    expect((await env(b.d, { action: "add", name: "x", repo: "/home/me/git/app", agent: "sh" })).status).toBe(400);
+    expect((await env(b.d, { action: "add", name: "../x", repo: "/home/me/git/app", agent: "claude" })).status).toBe(400);
+    expect((await env(b.d, { action: "add", name: "x", repo: "/home/me/git/app", agent: "claude" })).status).toBe(200);
+    expect((await env(b.d, { action: "add", name: "x", repo: "/home/me/git/app", agent: "claude" })).status).toBe(409);
+    expect(b.d.store.view().environments).toEqual([{ name: "x", repoPath: "/home/me/git/app", agent: "claude" }]);
+  });
+
+  it("renames and removes, and a peer's launch grant follows", async () => {
+    const machines = new Map<string, PeerRouteDeps>();
+    const a = machine("a", machines);
+    const b = machine("b", machines);
+    const { code } = b.d.store.invite();
+    await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net", code });
+    await env(b.d, { action: "add", name: "app", repo: "/home/me/git/app", agent: "claude" });
+    // A grant, as the operator will give it: written by hand into the in-memory config's file.
+    const cfg = b.d.store.node()!;
+    cfg.peers[0]!.launch = ["app"];
+
+    expect((await env(b.d, { action: "rename", name: "app", to: "web" })).status).toBe(200);
+    expect(b.d.store.view().environments.map((e) => e.name)).toEqual(["web"]);
+    expect(b.d.store.view().inbound[0]!.launch).toEqual(["web"]);
+    expect((await env(b.d, { action: "rename", name: "nope", to: "x" })).status).toBe(404);
+    expect((await env(b.d, { action: "remove", name: "web" })).status).toBe(200);
+    expect(b.d.store.view().environments).toEqual([]);
+    expect(b.d.store.view().inbound[0]!.launch).toEqual([]);
+  });
+});
+
+describe("« Tester la connexion »", () => {
+  it("says 401 when the surface is open but the token is not B's, and unreachable when B is down", async () => {
+    const machines = new Map<string, PeerRouteDeps>();
+    const a = machine("a", machines);
+    const b = machine("b", machines);
+    const c = machine("c", machines);
+    const { code } = b.d.store.invite();
+    await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net", code });
+    const c2 = c.d.store.invite();
+    await call(b.d, "/api/peers/add", "POST", { url: "https://c.ts.net", code: c2.code });
+    // A's token for b, pointed at c: c's surface is open (b paired), the token is not c's.
+    a.d.store.addOutbound({ ...a.d.store.outbound()[0]!, name: "c", url: "https://c.ts.net" });
+    expect(((await (await call(a.d, "/api/peers/test", "POST", { name: "c" })).json()) as { test: unknown }).test).toEqual({ state: "refused" });
+    machines.delete("https://b.ts.net");
+    expect(((await (await call(a.d, "/api/peers/test", "POST", { name: "b" })).json()) as { test: unknown }).test).toEqual({ state: "unreachable", error: "connection refused" });
   });
 });

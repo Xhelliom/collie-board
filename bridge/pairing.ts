@@ -4,7 +4,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 
 import { PANE_HEADER } from "./board-routes.ts";
-import { digest, parseNodeFile, readSecretToml, type NodeConfig } from "./node.ts";
+import { digest, parseNodeFile, readSecretToml, type NodeConfig, type NodeEnvironment } from "./node.ts";
 
 // Pairing by code, from the settings screen (ADR 0049). B (driven) opens a 10-minute, single-use
 // invitation; A (driving) sends B's URL and the code to its OWN bridge, which calls B's
@@ -93,6 +93,8 @@ export interface PeersView {
   invitation: Invitation | null;
   inbound: { name: string; login: string | null; pairedAt: string | null; launch: string[] | null }[];
   outbound: { name: string; url: string; pairedAt: string }[];
+  /** What this machine offers its peers; the path is shown to its own operator, never sent to a peer. */
+  environments: { name: string; repoPath: string; agent: string }[];
   error: string | null;
 }
 
@@ -141,6 +143,7 @@ export class PeerStore {
       invitation: this.currentInvitation(),
       inbound: (this.nodeFile.cfg?.peers ?? []).map((p) => ({ name: p.name, login: p.login ?? null, pairedAt: p.pairedAt ?? null, launch: p.launch ?? null })),
       outbound: this.outFile.peers.map(({ name, url, pairedAt }) => ({ name, url, pairedAt })),
+      environments: this.nodeFile.cfg?.environments ?? [],
       error: this.nodeFile.error ?? this.outFile.error ?? null,
     };
   }
@@ -189,6 +192,34 @@ export class PeerStore {
     const cfg = this.nodeFile.cfg;
     if (!cfg?.peers.some((p) => p.name === name)) throw new PeerError(`no peer named "${name}"`, 404);
     this.writeNode({ ...cfg, peers: cfg.peers.filter((p) => p.name !== name) });
+  }
+
+  /** Declare an environment: the path was resolved by the caller from the board's own repo list (ADR 0049 §6). */
+  addEnvironment(env: NodeEnvironment): void {
+    const cfg = this.nodeFile.cfg ?? { name: this.ownName(), peers: [], environments: [] };
+    if (cfg.environments.some((e) => e.name === env.name)) throw new PeerError(`an environment is already named "${env.name}"`, 409);
+    this.writeNode({ ...cfg, environments: [...cfg.environments, env] });
+  }
+
+  /** Rename an environment; a peer's `launch` grant follows the new name. */
+  renameEnvironment(from: string, to: string): void {
+    const cfg = this.envConfig(from);
+    if (from !== to && cfg.environments.some((e) => e.name === to)) throw new PeerError(`an environment is already named "${to}"`, 409);
+    const peers = cfg.peers.map((p) => (p.launch ? { ...p, launch: p.launch.map((e) => (e === from ? to : e)) } : p));
+    this.writeNode({ ...cfg, peers, environments: cfg.environments.map((e) => (e.name === from ? { ...e, name: to } : e)) });
+  }
+
+  /** Remove an environment, and every grant to launch in it. */
+  removeEnvironment(name: string): void {
+    const cfg = this.envConfig(name);
+    const peers = cfg.peers.map((p) => (p.launch ? { ...p, launch: p.launch.filter((e) => e !== name) } : p));
+    this.writeNode({ ...cfg, peers, environments: cfg.environments.filter((e) => e.name !== name) });
+  }
+
+  private envConfig(name: string): NodeConfig {
+    const cfg = this.nodeFile.cfg;
+    if (!cfg?.environments.some((e) => e.name === name)) throw new PeerError(`no environment named "${name}"`, 404);
+    return cfg;
   }
 
   /** Store a machine this one drives; a second pairing with the same name replaces the first. */
@@ -275,25 +306,57 @@ async function readCapped(res: Request | Response, max: number): Promise<string 
 }
 
 export type TestResult =
-  | { state: "ok"; node: string; environments: { name: string; agent: string }[] }
+  | {
+      state: "ok";
+      node: string;
+      /** The peer's plugin version, null from a peer older than this field. */
+      version: string | null;
+      /** Its panes, agents and shells; null when its herdr is disconnected. */
+      panes: number | null;
+      environments: { name: string; agent: string }[];
+      /** How the peer sees this machine: the name its node.toml gives us, and the Tailscale login it read. */
+      seenAs: { peer: string; login: string | null } | null;
+    }
   | { state: "refused" }
   | { state: "closed" }
   | { state: "unreachable"; error: string };
 
-/** « Tester la connexion »: one call, never retried, never scheduled — a button. */
+/** One GET to a peer, token in hand: a status, or the parsed body of a 200. */
+async function peerGet(fetchFn: typeof fetch, p: OutboundPeer, route: string): Promise<{ status: number; body: Record<string, unknown> | null }> {
+  const res = await fetchFn(`${p.url}${route}`, {
+    headers: { authorization: `Bearer ${p.token}` },
+    redirect: "manual",
+    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+  });
+  if (res.status !== 200) {
+    await res.body?.cancel().catch(() => {});
+    return { status: res.status, body: null };
+  }
+  const v: unknown = JSON.parse((await readCapped(res, 1024 * 1024)) ?? "null");
+  return { status: 200, body: typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null };
+}
+
+/** « Tester la connexion »: the environments, then the snapshot — never retried, never scheduled: a button. */
 export async function testPeer(fetchFn: typeof fetch, p: OutboundPeer): Promise<TestResult> {
   try {
-    const res = await fetchFn(`${p.url}/api/node/environments`, {
-      headers: { authorization: `Bearer ${p.token}` },
-      redirect: "manual",
-      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
-    });
-    if (res.status === 401) return { state: "refused" };
-    if (res.status === 404) return { state: "closed" };
-    if (res.status !== 200) return { state: "unreachable", error: `HTTP ${res.status}` };
-    const body = JSON.parse((await readCapped(res, 64 * 1024)) ?? "null") as { node?: unknown; environments?: unknown };
-    if (typeof body?.node !== "string" || !Array.isArray(body.environments)) return { state: "unreachable", error: "not a Collie answer" };
-    return { state: "ok", node: body.node, environments: body.environments as { name: string; agent: string }[] };
+    const env = await peerGet(fetchFn, p, "/api/node/environments");
+    if (env.status === 401) return { state: "refused" };
+    if (env.status === 404) return { state: "closed" };
+    if (env.status !== 200) return { state: "unreachable", error: `HTTP ${env.status}` };
+    const b = env.body;
+    if (typeof b?.node !== "string" || !Array.isArray(b.environments)) return { state: "unreachable", error: "not a Collie answer" };
+    const snap = await peerGet(fetchFn, p, "/api/node/snapshot");
+    const s = snap.body as { bridge?: unknown; agents?: unknown; shellPanes?: unknown } | null;
+    const panes = s && s.bridge !== "disconnected" && Array.isArray(s.agents) && Array.isArray(s.shellPanes) ? s.agents.length + s.shellPanes.length : null;
+    const you = b.you as { peer?: unknown; login?: unknown } | undefined;
+    return {
+      state: "ok",
+      node: b.node,
+      version: typeof b.version === "string" ? b.version : null,
+      panes,
+      environments: (b.environments as { name: string; agent: string }[]).map(({ name, agent }) => ({ name, agent })),
+      seenAs: typeof you?.peer === "string" ? { peer: you.peer, login: typeof you.login === "string" ? you.login : null } : null,
+    };
   } catch (err) {
     return { state: "unreachable", error: (err as Error).message };
   }
@@ -341,6 +404,10 @@ export interface PeerRouteDeps {
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
   fetch: typeof fetch;
+  /** The repo paths the board knows (`/api/repos`): an environment can only be one of them. */
+  knownRepos: () => Promise<string[]>;
+  /** The agents the adapters know (`adapters/agents.toml`). */
+  agents: () => string[];
 }
 
 async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
@@ -397,6 +464,28 @@ export async function handlePeerRoute(pathname: string, req: Request, d: PeerRou
     if (pathname === "/api/peers/forget") {
       store.forget(name);
       d.audit("peers.forget", { peer: name });
+      return d.json({ ok: true });
+    }
+    if (pathname === "/api/peers/environments") {
+      if (b.action === "remove") {
+        store.removeEnvironment(name);
+        d.audit("peers.environment.remove", { environment: name });
+        return d.json({ ok: true });
+      }
+      const to = typeof b.to === "string" ? b.to : "";
+      if (!PEER_NAME.test(b.action === "rename" ? to : name)) return d.json({ ok: false, error: "name must be letters, digits, . _ - (64 at most)" }, 400);
+      if (b.action === "rename") {
+        store.renameEnvironment(name, to);
+        d.audit("peers.environment.rename", { environment: name, to });
+        return d.json({ ok: true });
+      }
+      if (b.action !== "add") return d.json({ ok: false, error: "action must be add, rename or remove" }, 400);
+      if (typeof b.agent !== "string" || !d.agents().includes(b.agent)) return d.json({ ok: false, error: `unknown agent "${String(b.agent)}"` }, 400);
+      // Chosen in the board's own list, never resolved from what was typed (ADR 0049 §6).
+      const repoPath = (await d.knownRepos()).find((r) => r === b.repo);
+      if (!repoPath) return d.json({ ok: false, error: "repo must be one of the board's known repos" }, 400);
+      store.addEnvironment({ name, repoPath, agent: b.agent });
+      d.audit("peers.environment.add", { environment: name, repo: repoPath, agent: b.agent });
       return d.json({ ok: true });
     }
     if (pathname === "/api/peers/test") {

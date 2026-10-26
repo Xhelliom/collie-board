@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { boardErrorMessage } from "@/lib/board";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
+import { PeerEnvironments } from "@/components/peer-environments";
 import {
   addPeer,
   cancelInvite,
@@ -90,7 +91,14 @@ export function PeersControl() {
   const date = (iso: string | number | null) => (iso ? new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }) : "");
   const testText = (r: TestResult) =>
     r.state === "ok"
-      ? t("peers.test.ok", { node: r.node, count: r.environments.length })
+      ? [
+          t("peers.test.ok", { node: r.node, count: r.environments.length }) + (r.environments.length ? ` (${r.environments.map((e) => e.name).join(", ")})` : ""),
+          r.version && t("peers.test.version", { version: r.version }),
+          r.panes === null ? t("peers.test.herdrDown") : t("peers.test.panes", { count: r.panes }),
+          r.seenAs && t("peers.test.seenAs", { peer: r.seenAs.peer, login: r.seenAs.login ?? t("peers.noLogin") }),
+        ]
+          .filter(Boolean)
+          .join(" · ")
       : r.state === "unreachable"
         ? t("peers.test.unreachable", { error: r.error })
         : t(`peers.test.${r.state}`);
@@ -217,6 +225,8 @@ export function PeersControl() {
         </ul>
       </Card>
 
+      <PeerEnvironments environments={view.environments} onChange={load} />
+
       <Card className="gap-2 p-4" aria-label={t("peers.outbound.title")} role="region">
         <div className="font-medium">{t("peers.outbound.title")}</div>
         {view.outbound.length === 0 && <p className="text-sm text-muted-foreground">{t("peers.none")}</p>}
@@ -256,7 +266,11 @@ export function PeersControl() {
                   </Button>
                 </div>
               </div>
-              {tests[p.name] && <p className="text-xs">{testText(tests[p.name]!)}</p>}
+              {tests[p.name] && (
+                <p role="status" className={`text-xs ${tests[p.name]!.state === "ok" ? "" : "text-status-blocked"}`}>
+                  {testText(tests[p.name]!)}
+                </p>
+              )}
             </li>
           ))}
         </ul>

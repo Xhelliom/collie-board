@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { extname, join, normalize, sep } from "node:path";
@@ -25,6 +26,7 @@ import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
 import { handlePeerRoute, PeerStore } from "./pairing.ts";
+import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
@@ -181,6 +183,7 @@ export function startServer(opts: {
       const unknownSession = () =>
         jsonError(`unknown session: ${sessionName ?? ""}`, 404, req.headers.get("accept-encoding"));
 
+      const primarySnap = () => registry.get()?.engine.current() ?? { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" };
       // ── Peer surface: another Collie reads this one, token-gated (the fork's addition) ──
       const peerRes = await handlePeerRoute(pathname, req, {
         store: peers,
@@ -189,13 +192,16 @@ export function startServer(opts: {
         json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
         text,
         fetch,
+        knownRepos: async () =>
+          (await listRepos(board, primarySnap(), scanRootsFor(cfg.boardRepoRoots, homedir(), existsSync))).map((r) => r.path),
+        agents: () => Object.keys(adapters),
       });
       if (peerRes) return peerRes;
       const nodeRes = await handleNodeRoute(pathname, req, {
         node: peers.node(),
         access: () => guard(req, cfg, "read"),
         audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
-        snapshot: () => registry.get()?.engine.current() ?? { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "disconnected" },
+        snapshot: primarySnap,
         readPane: async (paneId) => {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
@@ -205,6 +211,7 @@ export function startServer(opts: {
         actions: nodeActions,
         autonomyOn: (repoPath) => board.autonomyOf(repoPath).enabled,
         launched: nodeLaunched,
+        version: updateMonitor.status().current,
       });
       if (nodeRes) return nodeRes;
 

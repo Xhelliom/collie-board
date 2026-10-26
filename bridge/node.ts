@@ -238,6 +238,8 @@ export interface NodeRouteDeps {
   autonomyOn: (repoPath: string) => boolean;
   /** The panes launched for peers since boot. */
   launched: Map<string, LaunchedPane>;
+  /** This plugin's version, for a peer's « Tester la connexion ». */
+  version: string;
 }
 
 const NODE_PANE_ROUTE = /^\/api\/node\/pane\/([^/]+)$/;
@@ -277,7 +279,13 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
   if (pathname === "/api/node/snapshot") return d.json(d.snapshot());
   if (pathname === "/api/node/environments") {
     // Name and agent only: a peer names an environment, this machine resolves the path (ADR 0046 §2).
-    return d.json({ node: d.node.name, environments: d.node.environments.map(({ name, agent }) => ({ name, agent })) });
+    // `you`: how this machine sees the caller — what « Tester la connexion » shows (ADR 0049 §6).
+    return d.json({
+      node: d.node.name,
+      version: d.version,
+      you: { peer, login: req.headers.get("tailscale-user-login") },
+      environments: d.node.environments.map(({ name, agent }) => ({ name, agent })),
+    });
   }
   if (pathname === "/api/node/diff") {
     const q = new URL(req.url).searchParams;
