@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.235.5] - 2026-10-26
+
+### Added
+
+- Journal du board partagé (ADR 0048 §2/§3, lot 2) : envoi et réception par plomberie git dans `bridge/git.ts` — branche orpheline `collie-board`, ref locale `refs/collie-board/journal`, union par écrivain sans merge, refus typés (rejeté, droits, injoignable) — pas encore branché (e8179ab)
+
 ## [0.235.4] - 2026-10-26
 
 ### Added
