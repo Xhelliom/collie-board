@@ -23,6 +23,7 @@ const PERSISTENCE: Record<string, string> = {
   "db.ts": "board.db — row dump via dump()",
   "deliverables.ts": "deliverables/<cardId>/ under the state dir — walked by collectFiles",
   "git.ts": "a repo's .git/info/exclude — the operator's repo, not Collie state",
+  "journal.ts": "state dir file (pair-id) — walked by collectFiles",
   "notify-prefs.ts": "state dir file — walked by collectFiles",
   "opencode-transcript.ts": "reads opencode's own database, read-only",
   "opencode-usage.ts": "reads opencode's own database, read-only",
@@ -59,7 +60,7 @@ test("every table of board.db is in the backup", async () => {
 test("every file a state-dir writer creates is in the backup", async () => {
   const dir = await mkdtemp(join(tmpdir(), "collie-coverage-"));
   dirs.push(dir);
-  const names = ["audit.log", "notify-prefs.json", "push-subscriptions.json", "snooze.json", "update-state.json"];
+  const names = ["audit.log", "pair-id", "notify-prefs.json", "push-subscriptions.json", "snooze.json", "update-state.json"];
   for (const n of names) await writeFile(join(dir, n), "{}");
   const backed = (await buildBackup(new BoardDb(join(dir, "board.db")), dir)).files.map((f) => f.path);
   const missing = names.filter((n) => !backed.includes(n));
