@@ -15,6 +15,7 @@
 
 import { BUILTIN_FLOWS } from "./flows.ts";
 import { BUILTIN_TEMPLATES } from "./templates.ts";
+import type { Hlc, JournalEvent } from "./journal.ts";
 import { chmodSync } from "node:fs";
 
 import { Database } from "bun:sqlite";
@@ -1121,6 +1122,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   integration TEXT,
   -- 1 = the operator added this repo to the project lists by hand (it has no card yet, or may never).
   listed     INTEGER NOT NULL DEFAULT 0,
+  -- ADR 0048 §1: the remote this repo's board is shared on. NULL = not shared, nothing journaled.
+  share      TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1143,7 +1146,135 @@ CREATE TABLE IF NOT EXISTS board_pref (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- ADR 0048 §2–3: a shared repo's writes as journal events, in write order, waiting to be pushed.
+-- Filled by the journal triggers INSIDE the write's own transaction; \`hlc\` is stamped by
+-- stampJournal before anything reads the row, so seq order is hlc order.
+CREATE TABLE IF NOT EXISTS journal_outbox (
+  seq       INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_path TEXT NOT NULL,
+  entity    TEXT NOT NULL,
+  type      TEXT NOT NULL,
+  fields    TEXT NOT NULL,
+  hlc       TEXT
+);
+
+-- ADR 0048 §2: the winning hlc of each field of each shared entity — and of each \`card.event\` (\`@<hlc>\`),
+-- review (\`review:<id>\`) and tombstone (\`.deleted\`), so applying an event is O(fields) and idempotent.
+CREATE TABLE IF NOT EXISTS journal_field (
+  repo_path TEXT NOT NULL,
+  entity    TEXT NOT NULL,
+  field     TEXT NOT NULL,
+  hlc       TEXT NOT NULL,
+  PRIMARY KEY (repo_path, entity, field)
+);
 `;
+
+/**
+ * What of each entity goes to the shared journal (ADR 0048 §2) — the column and whether it holds JSON.
+ * Anything absent never does: `repo_path` (a local path), `workspace_id` and the handoff/worktree
+ * switches (live, this machine's), `updated_at` and the roadmap's `revision` (local bookkeeping).
+ * Sessions, preferences, autonomy, the orchestrator's memory, templates and flows have no entry at all.
+ */
+const SHARED = {
+  card: {
+    table: "card",
+    folder: "cards",
+    columns: {
+      title: false, spec: false, raw_input: false, acceptance: true, status: false, base_ref: false,
+      branch: false, agent_kind: false, parent_id: false, duplicate_of: false, depends_on: false,
+      origin: false, origin_card_id: false, category: false, tag: false, position: false, run_id: false,
+      phase_id: false, template_id: false, pipeline_id: false, created_at: false,
+    },
+    // Inserted when the first event of a card is not the one that names it; the next fields fill it.
+    seed: "INSERT OR IGNORE INTO card (id, repo_path, title, status, created_at, updated_at) VALUES (?1, ?2, '', 'backlog', ?3, ?3)",
+  },
+  run: {
+    table: "run",
+    folder: "runs",
+    columns: {
+      fold_in_cap: false, lead_agent: false, phase_id: false, name: false, position: false, launched_at: false,
+      max_parallel: false, integration: false, lot_branch: false, lot_base: false, created_at: false,
+    },
+    seed: "INSERT OR IGNORE INTO run (id, repo_path, created_at, fold_in_cap) VALUES (?1, ?2, ?3, 0)",
+  },
+  phase: {
+    table: "phase",
+    folder: "phases",
+    columns: {
+      name: false, goal: false, position: false, roadmap_item_id: false, closed_at: false, closed_note: false,
+      template_id: false, pipeline_id: false, created_at: false,
+    },
+    seed: "INSERT OR IGNORE INTO phase (id, repo_path, name, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?3)",
+  },
+  roadmap: {
+    table: "roadmap",
+    folder: "roadmap",
+    columns: { vision: false, items: true, decisions: true },
+    seed: "INSERT OR IGNORE INTO roadmap (repo_path, updated_at) VALUES (?2, ?3)",
+  },
+} as const;
+type SharedKind = keyof typeof SHARED;
+
+const REVIEW_COLUMNS = { id: false, verdict: false, notes: false, todos: true, created_at: false } as const;
+const EVENT_COLUMNS = { type: false, payload: true, ts: false } as const;
+
+/** A card's journal lines that stay on this machine: sessions, handoffs, wrapups, pane notes, worktree paths. */
+const LOCAL_EVENT_SQL = "(type LIKE 'session.%' OR type LIKE 'handoff.%' OR type LIKE 'wrapup.%' OR type IN ('agent.notify', 'card.worktree'))";
+
+/** A JSON object of `cols` read from `row` (NEW/OLD) — only the changed ones when `changed`, NULL when none. */
+function fieldsSql(cols: Record<string, boolean>, changed: boolean, has: Set<string>): string {
+  const parts = Object.entries(cols).filter(([c]) => has.has(c)).map(([c, json]) => {
+    // A column that should hold JSON but doesn't travels as a string: a trigger must never fail the write.
+    const v = json ? `CASE WHEN json_valid(NEW.${c}) THEN NEW.${c} ELSE json_quote(NEW.${c}) END` : `json_quote(NEW.${c})`;
+    return `SELECT '${c}' AS k, ${v} AS v${changed ? ` WHERE OLD.${c} IS NOT NEW.${c}` : ""}`;
+  });
+  return `(SELECT json_group_object(k, json(v)) FROM (${parts.join(" UNION ALL ")}) HAVING count(*) > 0)`;
+}
+
+/**
+ * The journal triggers: every write of a shared repo's entity adds its event to journal_outbox in the
+ * SAME transaction, whichever method made it. TEMP, so they are rebuilt from this code at every open,
+ * never migrated, and never in a backup; muted while the journal itself is being applied.
+ */
+function journalTriggers(columns: (table: string) => Set<string>): string {
+  const when = (repo: string) =>
+    `NOT EXISTS (SELECT 1 FROM temp.journal_mute) AND EXISTS (SELECT 1 FROM main.repo_pref WHERE path = ${repo} AND share IS NOT NULL)`;
+  const out = (name: string, on: string, repo: string, entity: string, type: string, fields: string, extra = "") => `
+CREATE TEMP TRIGGER IF NOT EXISTS ${name} ${on} WHEN ${when(repo)}${extra}
+BEGIN
+  INSERT INTO main.journal_outbox (repo_path, entity, type, fields)
+  SELECT ${repo}, ${entity}, '${type}', f FROM (SELECT ${fields} AS f) WHERE f IS NOT NULL;
+END;`;
+  let sql = "CREATE TEMP TABLE IF NOT EXISTS journal_mute (x);";
+  for (const [kind, s] of Object.entries(SHARED)) {
+    const entity = (row: string) => (kind === "roadmap" ? "'roadmap'" : `'${s.folder}/' || ${row}.id`);
+    // shortcut: an entity moved INTO a shared repo journals only its changed fields, not itself whole; lot 2's import covers it.
+    sql += out(`journal_${kind}_ins`, `AFTER INSERT ON main.${s.table}`, "NEW.repo_path", entity("NEW"), `${kind}.set`, fieldsSql(s.columns, false, columns(s.table)));
+    sql += out(`journal_${kind}_upd`, `AFTER UPDATE ON main.${s.table}`, "NEW.repo_path", entity("NEW"), `${kind}.set`, fieldsSql(s.columns, true, columns(s.table)));
+    if (kind !== "roadmap") sql += out(`journal_${kind}_del`, `AFTER DELETE ON main.${s.table}`, "OLD.repo_path", entity("OLD"), `${kind}.deleted`, "'{}'");
+  }
+  const cardRepo = "(SELECT repo_path FROM main.card WHERE id = NEW.card_id)";
+  for (const on of ["INSERT", "UPDATE"])
+    sql += out(`journal_review_${on.toLowerCase()}`, `AFTER ${on} ON main.review`, cardRepo, "'cards/' || NEW.card_id", "card.review", fieldsSql(REVIEW_COLUMNS, false, columns("review")));
+  sql += out("journal_event_ins", "AFTER INSERT ON main.event", cardRepo, "'cards/' || NEW.card_id", "card.event", fieldsSql(EVENT_COLUMNS, false, columns("event")), ` AND NOT ${LOCAL_EVENT_SQL.replaceAll("type", "NEW.type")}`);
+  return sql;
+}
+
+/** The journal_field keys an event claims: its fields, or the one key that makes it idempotent. */
+function journalKeys(e: { type: string; hlc: string; fields: Record<string, unknown> }): string[] {
+  if (e.type.endsWith(".deleted")) return [".deleted"];
+  if (e.type.endsWith(".set")) return Object.keys(e.fields);
+  if (e.type === "card.event") return [`@${e.hlc}`];
+  if (e.type === "card.review" && typeof e.fields.id === "string") return [`review:${e.fields.id}`];
+  return [];
+}
+
+/** One event of a repo's journal and the entity folder its file is in (`cards/<id>`, `roadmap`…). */
+export interface JournalEntry {
+  entity: string;
+  event: JournalEvent;
+}
 
 /** `board_pref` key for {@link BoardDb.pins}. */
 const PINS_KEY = "pinned_sessions";
@@ -1290,6 +1421,10 @@ export class BoardDb {
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(SCHEMA);
     this.migrate();
+    // From the columns the tables really have: a trigger naming a missing one would fail every write.
+    this.db.exec(
+      journalTriggers((t) => new Set(this.db.query<{ name: string }, []>(`PRAGMA table_info(${t})`).all().map((c) => c.name))),
+    );
     // Owner-only, like audit.log: a card's spec is as sensitive as the reply text that log echoes.
     // The 0700 state dir already bounds it — this is the belt to that brace, and it costs one call.
     // WAL/SHM siblings inherit the directory's protection; only the main file is ours to set.
@@ -1329,7 +1464,8 @@ export class BoardDb {
    */
   restore(tables: Record<string, unknown[]>): Record<string, number> {
     const counts: Record<string, number> = {};
-    this.db.transaction(() => {
+    // Muted: a restore puts back what the board was, it is not a write to journal (nor a tombstone per row).
+    this.muted(() => {
       // Rows arrive table by table, so `session` can land before the `card` it references. Deferring
       // the checks to COMMIT keeps the constraint (a dangling card_id still rolls the whole thing
       // back) without imposing an insertion order the dump doesn't carry.
@@ -1354,7 +1490,7 @@ export class BoardDb {
         }
         counts[name] = rows.length;
       }
-    })();
+    });
     return counts;
   }
 
@@ -1433,6 +1569,8 @@ export class BoardDb {
       { table: "repo_pref", column: "integration", ddl: "TEXT" },
       // The repos the operator added to the project lists by hand. No backfill: none was, before.
       { table: "repo_pref", column: "listed", ddl: "INTEGER NOT NULL DEFAULT 0" },
+      // ADR 0048 §1: no repo was shared before.
+      { table: "repo_pref", column: "share", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -1816,7 +1954,8 @@ export class BoardDb {
         );
       const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
       for (const cardId of input.cardIds) {
-        if (join.run(id, cardId, input.repoPath).changes !== 1) {
+        // `changes` counts the journal trigger's rows too (bun:sqlite): 0 is the only "no such card".
+        if (join.run(id, cardId, input.repoPath).changes === 0) {
           throw new Error(`card ${cardId} is not a card of ${input.repoPath}`);
         }
       }
@@ -1831,7 +1970,7 @@ export class BoardDb {
 
   /** Launch a planned lot. False when it is missing or already launched — launching is once. */
   launchRun(id: string): boolean {
-    return this.db.query("UPDATE run SET launched_at = ? WHERE id = ? AND launched_at IS NULL").run(this.now(), id).changes === 1;
+    return this.db.query("UPDATE run SET launched_at = ? WHERE id = ? AND launched_at IS NULL").run(this.now(), id).changes > 0;
   }
 
   /**
@@ -1858,7 +1997,7 @@ export class BoardDb {
         }
         const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ? AND (run_id IS NULL OR run_id = ?)");
         for (const cardId of want) {
-          if (join.run(id, cardId, run.repoPath, id).changes !== 1) {
+          if (join.run(id, cardId, run.repoPath, id).changes === 0) {
             throw new Error(`card ${cardId} is not a free card of ${run.repoPath}`);
           }
         }
@@ -2673,7 +2812,194 @@ export class BoardDb {
   }
 
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL").run(path);
+  }
+
+  // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────
+
+  /** The remote this repo's board is shared on, or null. */
+  repoShare(path: string): string | null {
+    return this.db.query<{ share: string | null }, [string]>("SELECT share FROM repo_pref WHERE path = ?").get(path)?.share ?? null;
+  }
+
+  /** Share a repo's board on a remote, or stop with null — which drops what was waiting to go (§ 6). */
+  setRepoShare(path: string, remote: string | null): void {
+    this.db.transaction(() => {
+      this.db
+        .query(
+          `INSERT INTO repo_pref (path, share, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(path) DO UPDATE SET share = excluded.share, updated_at = excluded.updated_at`,
+        )
+        .run(path, remote, this.now());
+      if (remote === null) {
+        this.db.query("DELETE FROM journal_outbox WHERE repo_path = ?").run(path);
+        this.db.query("DELETE FROM journal_field WHERE repo_path = ?").run(path);
+      }
+      this.pruneRepoPref(path);
+    })();
+  }
+
+  /** Run `fn` in one transaction with the journal triggers silenced: applying the journal is not a local write. */
+  private muted<T>(fn: () => T): T {
+    return this.db.transaction(() => {
+      this.db.exec("INSERT INTO temp.journal_mute VALUES (1)");
+      try {
+        return fn();
+      } finally {
+        this.db.exec("DELETE FROM temp.journal_mute");
+      }
+    })();
+  }
+
+  /**
+   * Give every outbox row still without one its hlc, in write order, and record what it won. Lazy on
+   * purpose — a trigger has no clock — and safe because every reader of the outbox and every apply
+   * stamps first: nothing is observed between a local write and its stamp.
+   */
+  stampJournal(clock: Hlc): void {
+    const rows = this.db
+      .query<{ seq: number; repo_path: string; entity: string; type: string; fields: string }, []>(
+        "SELECT seq, repo_path, entity, type, fields FROM journal_outbox WHERE hlc IS NULL ORDER BY seq",
+      )
+      .all();
+    if (rows.length === 0) return;
+    const max = this.db.query<{ h: string | null }, []>("SELECT MAX(hlc) AS h FROM journal_field").get()?.h;
+    if (max) clock.observe(max);
+    this.db.transaction(() => {
+      for (const r of rows) {
+        const hlc = clock.next();
+        this.db.query("UPDATE journal_outbox SET hlc = ? WHERE seq = ?").run(hlc, r.seq);
+        for (const key of journalKeys({ type: r.type, hlc, fields: JSON.parse(r.fields) })) this.recordField(r.repo_path, r.entity, key, hlc);
+      }
+    })();
+  }
+
+  /** A repo's outbox as journal events, oldest first — what the next push appends to this pair's files. */
+  journalOutbox(repoPath: string, clock: Hlc, by: string): (JournalEntry & { seq: number })[] {
+    this.stampJournal(clock);
+    return this.db
+      .query<{ seq: number; entity: string; type: string; fields: string; hlc: string }, [string]>(
+        "SELECT seq, entity, type, fields, hlc FROM journal_outbox WHERE repo_path = ? ORDER BY seq",
+      )
+      .all(repoPath)
+      .map((r) => ({ seq: r.seq, entity: r.entity, event: { v: 1, hlc: r.hlc, type: r.type, by, fields: JSON.parse(r.fields) } }));
+  }
+
+  /**
+   * Apply journal events to a repo's board: last writer per field, a tombstone is final, `card.event`
+   * and `card.review` are idempotent. Any order of the same events gives the same board. What arrives
+   * is untrusted: only the shareable columns of an entity OF THIS REPO are written, a value that does
+   * not fit is skipped, and nothing is journaled back.
+   */
+  applyJournal(repoPath: string, entries: JournalEntry[], clock: Hlc): void {
+    this.stampJournal(clock);
+    for (const { event } of entries) clock.observe(event.hlc);
+    const sorted = [...entries].sort((a, b) => (a.event.hlc < b.event.hlc ? -1 : a.event.hlc > b.event.hlc ? 1 : 0));
+    this.muted(() => {
+      for (const { entity, event } of sorted) this.applyOne(repoPath, entity, event);
+    });
+  }
+
+  /**
+   * Rebuild a repo's projection from its whole journal (§ 6: activation, or doubt). The outbox not yet
+   * pushed is part of it — those are events too, and would otherwise be overwritten here and win there.
+   * Entities the journal does not know are left as they are.
+   */
+  rebuildJournal(repoPath: string, entries: JournalEntry[], clock: Hlc): void {
+    const all = [...entries, ...this.journalOutbox(repoPath, clock, "self")];
+    this.muted(() => {
+      this.db.query("DELETE FROM journal_field WHERE repo_path = ?").run(repoPath);
+      // shortcut: a card's shared lines are dropped and re-inserted with new ids, so a bell tailing the journal would see them again; lot 2 rebuilds before the tailer starts.
+      const cards = new Set(all.filter((e) => e.entity.startsWith("cards/")).map((e) => e.entity.slice("cards/".length)));
+      for (const id of cards) {
+        if (!this.db.query("SELECT 1 FROM card WHERE id = ? AND repo_path = ?").get(id, repoPath)) continue;
+        this.db.query(`DELETE FROM event WHERE card_id = ? AND NOT ${LOCAL_EVENT_SQL}`).run(id);
+        this.db.query("DELETE FROM review WHERE card_id = ?").run(id);
+      }
+      this.applyJournal(repoPath, all, clock);
+    });
+  }
+
+  private recordField(repoPath: string, entity: string, field: string, hlc: string): void {
+    this.db
+      .query(
+        `INSERT INTO journal_field (repo_path, entity, field, hlc) VALUES (?, ?, ?, ?)
+         ON CONFLICT(repo_path, entity, field) DO UPDATE SET hlc = excluded.hlc`,
+      )
+      .run(repoPath, entity, field, hlc);
+  }
+
+  private applyOne(repoPath: string, entity: string, e: JournalEvent): void {
+    const [folder, id = repoPath, extra] = entity.split("/");
+    const kind = (Object.keys(SHARED) as SharedKind[]).find((k) => SHARED[k].folder === folder);
+    if (!kind || extra !== undefined || (kind === "roadmap") !== (entity === "roadmap")) return;
+    const s = SHARED[kind];
+    const key = kind === "roadmap" ? "repo_path" : "id";
+    const won = (field: string) =>
+      this.db
+        .query<{ hlc: string }, [string, string, string]>("SELECT hlc FROM journal_field WHERE repo_path = ? AND entity = ? AND field = ?")
+        .get(repoPath, entity, field)?.hlc;
+    if (won(".deleted")) return;
+    // An id that is another repo's entity is not this journal's to touch.
+    const ours = () => !!this.db.query(`SELECT 1 FROM ${s.table} WHERE ${key} = ? AND repo_path = ?`).get(id, repoPath);
+    const exists = () => !!this.db.query(`SELECT 1 FROM ${s.table} WHERE ${key} = ?`).get(id);
+    const ensure = () => {
+      if (!exists()) this.db.query(s.seed).run(id, repoPath, this.now());
+      return ours();
+    };
+    const scalar = (v: unknown) => v === null || typeof v === "string" || typeof v === "number";
+
+    if (e.type === `${kind}.deleted`) {
+      this.recordField(repoPath, entity, ".deleted", e.hlc);
+      if (!ours()) return;
+      if (kind === "card") return this.deleteCard(id);
+      this.db.query(`UPDATE card SET ${kind}_id = NULL WHERE ${kind}_id = ?`).run(id);
+      if (kind === "phase") this.db.query("UPDATE run SET phase_id = NULL WHERE phase_id = ?").run(id);
+      this.db.query(`DELETE FROM ${s.table} WHERE id = ?`).run(id);
+    } else if (e.type === `${kind}.set`) {
+      if (!ensure()) return;
+      let changed = false;
+      for (const [field, value] of Object.entries(e.fields)) {
+        const json = (s.columns as Record<string, boolean>)[field];
+        if (json === undefined) continue;
+        const v = json ? JSON.stringify(value) : value;
+        if (!scalar(v) || (kind === "card" && field === "status" && !isCardStatus(v))) continue;
+        const cur = won(field);
+        if (cur && cur >= e.hlc) continue;
+        try {
+          this.db.query(`UPDATE ${s.table} SET ${field} = ? WHERE ${key} = ?`).run(v as string | number | null, id);
+        } catch {
+          continue; // a NOT NULL column given null: the line is wrong, the board is not
+        }
+        this.recordField(repoPath, entity, field, e.hlc);
+        changed = true;
+      }
+      if (!changed) return;
+      if (kind === "roadmap") this.db.query("UPDATE roadmap SET revision = revision + 1, updated_at = ? WHERE repo_path = ?").run(this.now(), id);
+      else if (kind !== "run") this.db.query(`UPDATE ${s.table} SET updated_at = ? WHERE id = ?`).run(this.now(), id);
+    } else if (kind === "card" && e.type === "card.event") {
+      const { type, payload, ts } = e.fields;
+      if (won(`@${e.hlc}`) || typeof type !== "string" || typeof ts !== "number" || !ensure()) return;
+      this.db
+        .query("INSERT INTO event (card_id, type, payload, ts) VALUES (?, ?, ?, ?)")
+        .run(id, type, payload === null || payload === undefined ? null : JSON.stringify(payload), ts);
+      this.recordField(repoPath, entity, `@${e.hlc}`, e.hlc);
+    } else if (kind === "card" && e.type === "card.review") {
+      const f = e.fields;
+      if (typeof f.id !== "string" || typeof f.created_at !== "number" || !scalar(f.verdict) || !scalar(f.notes)) return;
+      const cur = won(`review:${f.id}`);
+      if ((cur && cur >= e.hlc) || !ensure()) return;
+      const other = this.db.query<{ card_id: string }, [string]>("SELECT card_id FROM review WHERE id = ?").get(f.id);
+      if (other && other.card_id !== id) return;
+      this.db
+        .query(
+          `INSERT INTO review (id, card_id, verdict, notes, todos, created_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET verdict = excluded.verdict, notes = excluded.notes, todos = excluded.todos`,
+        )
+        .run(f.id, id, f.verdict as string | null, f.notes as string | null, JSON.stringify(f.todos ?? []), f.created_at);
+      this.recordField(repoPath, entity, `review:${f.id}`, e.hlc);
+    }
+    // Other types (card.claimed, deliverable.published) belong to later lots.
   }
 
   // ── board preferences ───────────────────────────────────────────────────────

@@ -74,6 +74,8 @@ describe("buildBackup", () => {
       "board_pref",
       "card",
       "event",
+      "journal_field",
+      "journal_outbox",
       "orchestrator_memory",
       "phase",
       "repo_autonomy",
