@@ -606,7 +606,9 @@ describe("a landed card keeps the diff its review reads", () => {
 
     git(checkout, "add", ".");
     git(checkout, "commit", "-qm", "the file the agent forgot");
-    expect((await mergeCard(store, store.getCard(card.id)!)).ok).toBe(true);
+    // A fake gh: the real one reaches for the network and once hung CI past the 5 s timeout.
+    const noPr = fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } }).git;
+    expect((await mergeCard(store, store.getCard(card.id)!, noPr)).ok).toBe(true);
     expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
     expect(await worktreePathFor(repo, "board/x")).toBeNull();
 
@@ -649,7 +651,7 @@ describe("a landed card keeps the diff its review reads", () => {
 
     it("not after a local `--no-ff` merge: the predecessor's commits are already in the base", async () => {
       const t = await fixture();
-      expect((await mergeCard(t.store, t.store.getCard(t.card.id)!)).ok).toBe(true);
+      expect((await mergeCard(t.store, t.store.getCard(t.card.id)!, fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } }).git)).ok).toBe(true);
       expect((await cleanupCard(t.store, {} as HerdrClient, t.store.getCard(t.card.id)!)).ok).toBe(true);
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
       expect(t.moved()).toBe(false);
