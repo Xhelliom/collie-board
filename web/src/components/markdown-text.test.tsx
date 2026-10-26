@@ -111,3 +111,32 @@ describe("MarkdownText — the copilot's review notes", () => {
     expect(screen.getByText(legacy)).toBeInTheDocument();
   });
 });
+
+// The terminal's colour cues (bold orange, headings/table headers violet, inline code blue) come
+// through as theme tokens, and a ```diff block keeps its sign colours — all still text nodes.
+describe("MarkdownText — colour accents", () => {
+  it("tints bold, headings, table headers and inline code with their theme tokens", () => {
+    const md = ["# Title", "", "a **bold** and `code`", "", "| H |", "| - |", "| v |"].join("\n");
+    const { container } = render(<MarkdownText text={md} />);
+    expect(screen.getByText("Title").className).toContain("text-md-heading");
+    expect(container.querySelector("strong")?.className).toContain("text-md-strong");
+    expect(container.querySelector("code")?.className).toContain("text-md-code");
+    expect(container.querySelector("th")?.className).toContain("text-md-heading");
+  });
+
+  it("colours a diff block by line sign, copying the same text", () => {
+    const diff = "```diff\n@@ -1 +1 @@\n-old\n+<b>new</b>\n same\n```";
+    const { container } = render(<MarkdownText text={diff} />);
+    const pre = container.querySelector("pre")!;
+    expect(pre.textContent).toBe("@@ -1 +1 @@\n-old\n+<b>new</b>\n same");
+    expect(pre.querySelector("b")).toBeNull();
+    const spans = [...pre.children] as HTMLElement[];
+    expect(spans.map((s) => s.className)).toEqual(["text-muted-foreground", "text-diff-del", "text-diff-add", ""]);
+  });
+
+  it("keeps find marks on top of the colours", () => {
+    const { container } = render(<MarkdownText text={"**needle** and\n```diff\n+needle\n```"} query="needle" />);
+    expect(container.querySelector("strong mark")?.textContent).toBe("needle");
+    expect(container.querySelector("pre .text-diff-add mark")?.textContent).toBe("needle");
+  });
+});

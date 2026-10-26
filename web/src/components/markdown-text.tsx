@@ -48,7 +48,7 @@ function Span({ span }: { span: MdSpan }) {
   switch (span.kind) {
     case "bold":
       return (
-        <strong className="font-semibold">
+        <strong className="font-semibold text-md-strong">
           <Spans spans={span.spans} />
         </strong>
       );
@@ -60,7 +60,7 @@ function Span({ span }: { span: MdSpan }) {
       );
     case "code":
       return (
-        <code className="code-inline rounded bg-muted px-1 py-0.5 font-mono break-all">
+        <code className="code-inline rounded bg-muted px-1 py-0.5 font-mono text-md-code break-all">
           <Hit text={span.text} />
         </code>
       );
@@ -102,13 +102,36 @@ const Spans = ({ spans }: { spans: MdSpan[] }) => (
 // copying is just handing it to the clipboard. `pr-8` on the <pre> keeps a long first line from
 // running under the button; the button sits on the outer wrapper (not the scrolling <pre>), so it
 // stays put regardless of horizontal scroll.
-function CodeBlock({ text }: { text: string }) {
+// A ```diff block's lines keep their sign colour, as in the terminal. Still text nodes — one span per
+// line, the newline kept inside it so the <pre> lays out and copies exactly as before.
+function diffLineClass(line: string): string | undefined {
+  if (line.startsWith("@@")) return "text-muted-foreground";
+  if (line.startsWith("+++") || line.startsWith("---")) return "font-semibold";
+  if (line.startsWith("+")) return "text-diff-add";
+  if (line.startsWith("-")) return "text-diff-del";
+  return undefined;
+}
+
+function DiffText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <>
+      {lines.map((line, i) => (
+        <span key={i} className={diffLineClass(line)}>
+          <Hit text={i < lines.length - 1 ? `${line}\n` : line} />
+        </span>
+      ))}
+    </>
+  );
+}
+
+function CodeBlock({ text, lang = "" }: { text: string; lang?: string }) {
   const t = useT();
   const { canCopy, copied, copy } = useCopy();
   return (
     <div className="relative">
       <pre className="overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 pr-8 font-mono text-xs leading-snug">
-        <Hit text={text} />
+        {lang === "diff" ? <DiffText text={text} /> : <Hit text={text} />}
       </pre>
       <button
         type="button"
@@ -156,7 +179,7 @@ function TableBlock({ block }: { block: Extract<MdBlock, { kind: "table" }> }) {
           <div key={r} className="space-y-0.5 rounded-md border bg-muted/30 px-2.5 py-2 text-sm">
             {row.map((cell, c) => (
               <div key={c} className="flex gap-2">
-                <span className="w-1/3 shrink-0 font-medium text-muted-foreground">
+                <span className="w-1/3 shrink-0 font-medium text-md-heading">
                   <Spans spans={block.headers[c] ?? []} />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -177,7 +200,7 @@ function TableBlock({ block }: { block: Extract<MdBlock, { kind: "table" }> }) {
         <thead>
           <tr>
             {block.headers.map((cell, c) => (
-              <th key={c} className="border-b px-2 py-1 text-left align-top font-semibold">
+              <th key={c} className="border-b px-2 py-1 text-left align-top font-semibold text-md-heading">
                 <Spans spans={cell} />
               </th>
             ))}
@@ -215,13 +238,13 @@ function Block({ block }: { block: MdBlock }) {
       // the body rung and let the weight carry the distinction.
       const cls = HEADING_CLASS[block.level] ?? "text-base font-semibold";
       return (
-        <div className={`${cls} mt-1 leading-snug`}>
+        <div className={`${cls} mt-1 leading-snug text-md-heading`}>
           <Spans spans={block.spans} />
         </div>
       );
     }
     case "code":
-      return block.lang === "collie-buttons" ? <ButtonsBlock text={block.text} /> : <CodeBlock text={block.text} />;
+      return block.lang === "collie-buttons" ? <ButtonsBlock text={block.text} /> : <CodeBlock text={block.text} lang={block.lang} />;
     case "table":
       return <TableBlock block={block} />;
     case "list": {
