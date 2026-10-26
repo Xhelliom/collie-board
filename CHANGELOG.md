@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.237.0] - 2026-10-26
+
+### Added
+
+- Réglages → Pairs : « Inviter un pair » (code à usage unique, 10 min, compte à rebours) et « Ajouter un pair » (URL + code, réciprocité proposée) — ADR 0049 (2dcaa8f)
+- `POST /api/node/pair`, 404 hors invitation, brûlée au premier essai, comparaison en temps constant (2dcaa8f)
+- Liste des pairs (identité Tailscale, date, révocation immédiate, test de connexion, oubli) ; routes `/api/peers/*` refusées à un `x-collie-pane` (2dcaa8f)
+
+### Changed
+
+- `node.toml` range les jetons hachés (`token_sha256`), lie le login Tailscale vu à l'appairage et borne le lancement par pair (`launch`) ; rechargé à l'écriture, sans redémarrage (2dcaa8f)
+- `node.toml` et `peers.toml` sortent de la sauvegarde, dans les deux sens (2dcaa8f)
+
 ## [0.236.0] - 2026-10-26
 
 ### Added
