@@ -89,6 +89,14 @@ function withSession(path: string, session?: string): string {
   return `${path}${sep}session=${encodeURIComponent(s)}`;
 }
 
+// A paired peer's agent is `<paneId>@<peer>` (bridge/peer-herd.ts): read, reply and keys go through
+// the bridge's relay, which holds the peer's token — the browser only ever names the peer.
+function paneRoute(paneId: string, rest: string, session?: string): string {
+  const at = paneId.lastIndexOf("@");
+  if (at < 0) return withSession(`/api/pane/${encodeURIComponent(paneId)}${rest}`, session);
+  return `/api/herd/${encodeURIComponent(paneId.slice(at + 1))}/pane/${encodeURIComponent(paneId.slice(0, at))}${rest}`;
+}
+
 /**
  * The failure a caller shows the user.
  *
@@ -199,10 +207,7 @@ export async function fetchPane(
   if (lines) params.set("lines", String(lines));
   if (unwrapped) params.set("unwrapped", "1");
   const qs = params.toString();
-  const url = withSession(
-    `/api/pane/${encodeURIComponent(paneId)}${qs ? `?${qs}` : ""}`,
-    session,
-  );
+  const url = paneRoute(paneId, qs ? `?${qs}` : "", session);
   // Pane ids are per-session (each session is a separate Herdr server), so the ETag/body cache must
   // be keyed by session too — otherwise a "w1:p1" in one session would 304 into another's mirror.
   const cacheKey = `${session ?? ""}\u0000${paneId}`;
@@ -312,14 +317,14 @@ export function sendReply(
   submit = true,
   session?: string,
 ): Promise<ActionResponse> {
-  return req<ActionResponse>(withSession(`/api/pane/${encodeURIComponent(paneId)}/reply`, session), {
+  return req<ActionResponse>(paneRoute(paneId, "/reply", session), {
     method: "POST",
     body: JSON.stringify({ text, submit }),
   });
 }
 
 export function sendKeys(paneId: string, keys: string[], session?: string): Promise<ActionResponse> {
-  return req<ActionResponse>(withSession(`/api/pane/${encodeURIComponent(paneId)}/keys`, session), {
+  return req<ActionResponse>(paneRoute(paneId, "/keys", session), {
     method: "POST",
     body: JSON.stringify({ keys }),
   });

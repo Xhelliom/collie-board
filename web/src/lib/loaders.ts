@@ -24,6 +24,7 @@ import {
 } from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
 import { navCached, urlKey } from "@/lib/nav-cache";
+import { fetchHerd, type PeerHerdView } from "@/lib/peers";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type {
   AgentView,
@@ -76,6 +77,8 @@ export interface HomeData {
   device: DeviceAuth | undefined;
   agents: AgentView[];
   shellPanes: AgentView[];
+  /** The paired peers' herds (primary session only; empty elsewhere, on an older bridge, or with no peer). */
+  peers?: PeerHerdView[];
   workspaces: WorkspaceView[];
   tabs: TabView[];
   /** The bridge's session registry (primary-first); empty on a single-session / older bridge. */
@@ -167,12 +170,16 @@ function isPaneUrl(url: string | undefined): boolean {
   }
 }
 
+// The peers' herds as last read — kept through a failed refresh, like the snapshot.
+let lastPeers: PeerHerdView[] = [];
+
 function toHomeData(snap: SnapshotResponse, session: string | undefined, error: boolean): HomeData {
   return {
     bridge: snap.bridge,
     device: snap.device,
     agents: snap.agents,
     shellPanes: snap.shellPanes ?? [],
+    peers: session ? [] : lastPeers,
     workspaces: snap.workspaces ?? [],
     tabs: snap.tabs ?? [],
     sessions: snap.sessions ?? [],
@@ -199,6 +206,7 @@ function staleHome(session: string | undefined): HomeData {
         device: undefined,
         agents: [],
         shellPanes: [],
+        peers: [],
         workspaces: [],
         tabs: [],
         sessions: [],
@@ -234,7 +242,13 @@ export async function rootLoader({ request }: { request?: Request } = {}): Promi
 
 async function loadHome(session: string | undefined, request?: Request): Promise<HomeData> {
   try {
-    const snap = await fetchSnapshot(session, request?.signal);
+    // The peers ride the same poll: an in-memory read on the bridge, never a call to a peer. Their
+    // failure (an older bridge's 404) never costs the local herd.
+    const [snap, herd] = await Promise.all([
+      fetchSnapshot(session, request?.signal),
+      session ? null : fetchHerd(request?.signal).catch(() => null),
+    ]);
+    if (herd) lastPeers = herd.peers;
     lastSnapshot.set(session ?? "", snap);
     rememberAuthError(session, false);
     return toHomeData(snap, session, false);

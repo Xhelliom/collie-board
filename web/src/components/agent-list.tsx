@@ -1,10 +1,11 @@
-import { Brush, Inbox } from "lucide-react";
+import { Brush, Inbox, Monitor } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AGENT_GROUPS, groupMembers, isOrchestrator, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
+import type { PeerHerdView } from "@/lib/peers";
 import { useFold } from "./fold";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
@@ -40,6 +41,9 @@ export function AgentList({
   // by a chip that isn't drawn never silently loses its panes.
   const [orchOnly, setOrchOnly] = useState(false);
   const [tidy, setTidy] = useState(false);
+  // Which machine's agents: null all, "" this one, else a paired peer. Drawn only once a peer has one.
+  const [machine, setMachine] = useState<string | null>(null);
+  const machines = [...new Set(agents.flatMap((a) => (a.peer ? [a.peer] : [])))];
   const hasOrch = agents.some(isOrchestrator);
   const pins = usePins(agents);
   if (agents.length === 0) {
@@ -56,11 +60,11 @@ export function AgentList({
 
   // Only render groups that actually have members — and nothing at all if every slice is empty, so
   // it adds no stray padding.
-  const shown = orchOnly ? agents.filter(isOrchestrator) : agents;
+  const shown = agents.filter((a) => (!orchOnly || isOrchestrator(a)) && (machine === null || (a.peer ?? "") === machine));
   const sections = groups
     .map((g) => ({ g, members: groupMembers(shown, g) }))
     .filter((s) => s.members.length > 0);
-  if (sections.length === 0 && !orchOnly) return null;
+  if (sections.length === 0 && !orchOnly && machine === null) return null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -82,12 +86,23 @@ export function AgentList({
         </section>
       )}
       <div className="-mb-3 flex items-center gap-2">
-        {(hasOrch || orchOnly) && (
-          <>
-            <Chip label={t("filter.all")} active={!orchOnly} onClick={() => setOrchOnly(false)} />
-            <Chip label={t("home.filter.orch")} active={orchOnly} onClick={() => setOrchOnly(!orchOnly)} />
-          </>
+        {(hasOrch || orchOnly || machines.length > 0 || machine !== null) && (
+          <Chip
+            label={t("filter.all")}
+            active={!orchOnly && machine === null}
+            onClick={() => {
+              setOrchOnly(false);
+              setMachine(null);
+            }}
+          />
         )}
+        {(hasOrch || orchOnly) && (
+          <Chip label={t("home.filter.orch")} active={orchOnly} onClick={() => setOrchOnly(!orchOnly)} />
+        )}
+        {(machines.length > 0 || machine !== null) &&
+          ["", ...machines].map((m) => (
+            <Chip key={m} label={m || t("machines.this")} active={machine === m} onClick={() => setMachine(machine === m ? null : m)} />
+          ))}
         {/* « Ménage »: mounted only while open — it reads the router, which a bare list doesn't need. */}
         <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setTidy(true)}>
           <Brush />
@@ -153,6 +168,24 @@ function Pinnable({ agent, children }: { agent: AgentView; children: ReactNode }
     <div className="flex min-w-0 items-center gap-1">
       <div className="min-w-0 flex-1">{children}</div>
       <PinButton agent={agent} />
+    </div>
+  );
+}
+
+/** A paired peer whose herd can't be read: one greyed line saying why — never its last-known agents. */
+export function PeersDown({ peers }: { peers: readonly PeerHerdView[] }) {
+  const t = useT();
+  const down = peers.filter((p) => p.state === "disconnected");
+  if (down.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      {down.map((p) => (
+        <div key={p.peer} role="status" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground opacity-70">
+          <Monitor className="size-4 shrink-0" />
+          <span className="shrink-0 font-medium">{t("herd.peerDown", { peer: p.peer })}</span>
+          {p.error && <span className="min-w-0 truncate font-mono text-[11px]">{p.error}</span>}
+        </div>
+      ))}
     </div>
   );
 }

@@ -11,6 +11,8 @@ export const peers = defineMessages({
   "machines.up": { en: "reachable", fr: "joignable" },
   "machines.down": { en: "unreachable", fr: "injoignable" },
   "machines.pending": { en: "checking…", fr: "vérification…" },
+  // The herd list: a paired peer whose agents can't be read (ADR 0048's one herd).
+  "herd.peerDown": { en: "{peer} — unreachable", fr: "{peer} — injoignable" },
 
   // The card screen: where a card runs (ADR 0046 §4).
   "cardEnv.label": { en: "Launch on", fr: "Lancer sur" },

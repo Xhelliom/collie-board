@@ -6,6 +6,7 @@ import { AgentChat } from "@/components/agent-chat";
 import { useLoadingStalled } from "@/hooks/use-loading-stalled";
 import { ROOT_ROUTE_ID, type HomeData, type PaneData } from "@/lib/loaders";
 import { homePath, panePath } from "@/lib/nav";
+import { remoteAgents } from "@/lib/peers";
 import { t } from "@/i18n";
 import { setStatus } from "@/lib/status";
 import type { AgentView } from "@/lib/types";
@@ -34,9 +35,13 @@ export function DetailRoute() {
   const stalled = useLoadingStalled();
 
   const fresh = (location.state as { freshPane?: AgentView } | null)?.freshPane;
+  // A paired peer's agent (`<paneId>@<peer>`): read and answered through the bridge's relay (lib/api.ts).
+  const remote = remoteAgents(root.peers ?? []).find((a) => a.paneId === paneId);
+  const peerDown = root.peers?.some((p) => paneId.endsWith(`@${p.peer}`) && p.state !== "connected") ?? false;
   const inSnapshot =
     root.agents.some((a) => a.paneId === paneId) ||
-    root.shellPanes.some((p) => p.paneId === paneId);
+    root.shellPanes.some((p) => p.paneId === paneId) ||
+    !!remote;
   // The freshPane is a bootstrap only — used before a just-created pane first appears in a snapshot.
   // Once it's been seen, retire it; otherwise the stale copy masks a pane that has since closed
   // (e.g. you ran `exit` in its shell), stranding you on a dead view.
@@ -53,6 +58,7 @@ export function DetailRoute() {
   const agent =
     root.agents.find((a) => a.paneId === paneId) ??
     root.shellPanes.find((p) => p.paneId === paneId) ??
+    remote ??
     (fresh && fresh.paneId === paneId && !seen ? fresh : undefined);
   const tabLabel = root.tabs.find((t) => t.tabId === agent?.tabId)?.label;
   const gone = !agent;
@@ -61,11 +67,12 @@ export function DetailRoute() {
   // leaving you on a dead "agent gone" view. Guarded on a connected, non-stale snapshot so a
   // transient poll failure or reconnect doesn't evict a still-valid pane.
   useEffect(() => {
-    if (gone && root.bridge === "connected" && !root.error) {
+    // An unread peer is not a closed pane: it waits for the peer rather than bounce.
+    if (gone && root.bridge === "connected" && !root.error && !peerDown) {
       setStatus(t("pane.closed"), "info");
       navigate(homePath(session), { replace: true });
     }
-  }, [gone, root.bridge, root.error, navigate, session]);
+  }, [gone, root.bridge, root.error, peerDown, navigate, session]);
 
   return (
     <AgentChat

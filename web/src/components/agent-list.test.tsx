@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 
 import type { AgentView } from "@/lib/types";
-import { AgentList } from "./agent-list";
+import { AgentList, PeersDown } from "./agent-list";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
@@ -144,5 +144,45 @@ describe("AgentList — pins", () => {
     expect(screen.getByText("vieille session")).toBeInTheDocument();
     expect(screen.getByText("session ended")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pin to quick access" })).toBeNull();
+  });
+});
+
+// One herd (ADR 0048): a paired peer's agents sit in the same triage, marked « on <peer> », and a peer
+// that can't be read is one greyed line — never ghost agents, never the local list gone.
+describe("AgentList — paired peers", () => {
+  it("lists a remote agent with its machine chip, filterable by machine", async () => {
+    const opened: string[] = [];
+    render(
+      <AgentList
+        agents={[
+          agent({ paneId: "w1:p1", status: "working", workspaceLabel: "here" }),
+          agent({ paneId: "w2:p1@dev", peer: "dev", status: "blocked", workspaceLabel: "there" }),
+        ]}
+        onOpen={(id) => opened.push(id)}
+      />,
+    );
+    expect(screen.getByText("on dev")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("there"));
+    expect(opened).toEqual(["w2:p1@dev"]);
+    await userEvent.click(screen.getByRole("button", { name: "dev" }));
+    expect(screen.queryByText("Working")).not.toBeInTheDocument();
+    expect(screen.getByText("there")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "this machine" }));
+    expect(screen.queryByText("there")).not.toBeInTheDocument();
+    expect(screen.getByText("Working")).toBeInTheDocument();
+  });
+
+  it("shows an unreachable peer as one line with the reason, and nothing for a reachable one", () => {
+    render(
+      <PeersDown
+        peers={[
+          { peer: "dev", state: "disconnected", error: "dev: not reached (timeout)", agents: [] },
+          { peer: "win", state: "connected", error: null, agents: [] },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("dev — unreachable");
+    expect(screen.getByText("dev: not reached (timeout)")).toBeInTheDocument();
+    expect(screen.queryByText(/win/)).not.toBeInTheDocument();
   });
 });

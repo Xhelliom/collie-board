@@ -4,7 +4,10 @@
 export type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 
 export interface AgentView {
+  /** `<herdr pane id>@<peer>` for an agent of a paired peer (lib/peers.ts `remoteAgents`). */
   paneId: string;
+  /** The paired peer this agent runs on (ADR 0048's one herd); absent for a local pane. */
+  peer?: string;
   workspaceId: string;
   workspaceLabel: string;
   workspaceNumber: number;

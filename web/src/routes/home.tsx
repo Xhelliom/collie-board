@@ -6,7 +6,7 @@ import { NavMark } from "@/components/app-nav";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { useT } from "@/i18n";
-import { AgentList } from "@/components/agent-list";
+import { AgentList, PeersDown } from "@/components/agent-list";
 import { UpdateBanner } from "@/components/update-banner";
 import {
   CardsError,
@@ -27,6 +27,7 @@ import { useListedRepos } from "@/lib/listed-repos";
 import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
+import { remoteAgents } from "@/lib/peers";
 
 // Dashboard home screen (redesign §1 "Herd"). Purpose: answer "which agent needs me right now", and
 // nothing else — Spaces and the Board are nav destinations now (app-nav.tsx), not rows on this
@@ -40,6 +41,8 @@ export function HomeRoute() {
   const t = useT();
 
   const open = (id: string) => navigate(panePath(id, data.session));
+  // One herd: the paired peers' agents beside this machine's, each with its « sur <pair> » chip.
+  const herd = useMemo(() => [...data.agents, ...remoteAgents(data.peers ?? [])], [data.agents, data.peers]);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
@@ -68,14 +71,15 @@ export function HomeRoute() {
 
         <main className="flex-1 px-4 py-5 lg:px-5 lg:py-6">
           <div className="mx-auto flex max-w-6xl flex-col gap-6">
-            <HomeHero agents={data.agents} />
+            <HomeHero agents={herd} />
             {/* The triage stays the heart of the screen, the card KPIs under it; the board's context sits
                 beside them on a wide screen and under them on a phone. `grid-cols-1` + `min-w-0`: an
                 implicit track is `auto`, so one `truncate` line would otherwise widen the whole page. */}
             <div className="grid grid-cols-1 gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]">
               <div className="flex flex-col gap-6">
                 {/* The hero already says "no agent running": no second empty block. */}
-                <AgentList agents={data.agents} bridge={data.bridge} onOpen={open} emptyState={false} />
+                <AgentList agents={herd} bridge={data.bridge} onOpen={open} emptyState={false} />
+                <PeersDown peers={data.peers ?? []} />
                 <CardBlock board={board} fallback={<HomeKpisSkeleton />} label={t("home.kpi.title")}>
                   {(b) => <Kpis board={b} />}
                 </CardBlock>
