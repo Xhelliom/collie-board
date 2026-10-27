@@ -37,6 +37,7 @@ ever persisted.
 
 ## Contents
 
+- [Quick start](#quick-start) · [How you use it](#how-you-use-it)
 - [Screens](#screens)
 - [The board](#the-board) · [Runs](#runs) · [Configuration](#board-configuration) · [Endpoints](#board-endpoints)
 - [A fork of Collie](#a-fork-of-collie)
@@ -47,6 +48,73 @@ ever persisted.
 - [Deployment variants](#deployment-variants) · [Windows (experimental)](#windows-experimental)
 - [Web Push](#web-push-optional) · [Troubleshooting](#troubleshooting)
 - [Architecture](#architecture) · [Developing this plugin](#developing-this-plugin)
+
+## Quick start
+
+From nothing to the board on your phone. Everything below runs on the **host** — the machine your
+agents run on — except step 4. Read [Security](#%EF%B8%8F-security--read-before-you-run-it) first:
+the bridge is remote shell access to that host.
+
+**1. Prerequisites**
+
+- [**Bun**](https://bun.sh), [**git**](https://git-scm.com) and [**Tailscale**](https://tailscale.com),
+  logged in to your tailnet — on the host *and*, as the Tailscale app, on your phone.
+- [**`gh`**](https://cli.github.com), optional: only the *open a PR* tap needs it.
+
+**2. Install Herdr** (≥ 0.7.0; commands from [herdr.dev/docs/install](https://herdr.dev/docs/install/))
+
+```bash
+# macOS / Linux  (or: brew install herdr)
+curl -fsSL https://herdr.dev/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
+```
+
+Then `herdr --version` in a fresh terminal. Not found? The install directory isn't on your `PATH` yet.
+
+**3. Install and start Collie Board** — macOS and Linux:
+
+```bash
+herdr plugin install Xhelliom/collie-board
+herdr plugin action invoke setup --plugin herdr.collie-board   # preflight + security config
+herdr plugin action invoke start --plugin herdr.collie-board
+```
+
+From a local clone instead, `herdr plugin link "$(pwd)"` then `bash scripts/collie-board-ctl.sh setup`
+replace the first two lines ([Install](#install) has both paths). `start` builds the UI, starts the
+bridge and publishes it with `tailscale serve`; it prints the URL ([First run](#first-run--what-youll-see)).
+
+| Host | How the bridge is kept running | After a reboot |
+| --- | --- | --- |
+| **Linux** | `systemd --user` service `collie-board`, auto-restarting | Starts by itself once you run `loginctl enable-linger $USER` ([Surviving reboots](#surviving-reboots)). |
+| **macOS** | No systemd: a `nohup` background process with a pidfile | Not restarted — nothing ships a `launchd` agent. Run the `start` action again after a reboot. |
+| **Windows** | Experimental: you run `bun run bridge/index.ts` yourself; action buttons need Git Bash, no `tailscale serve` | Start it again yourself. Follow [Windows (experimental)](#windows-experimental) — LF checkout, Bun, PATH, front door. |
+
+**4. Open it on your phone.** Open the `tailnet` URL from the banner (`herdr plugin action invoke url
+--plugin herdr.collie-board` prints it again) with the phone's Tailscale app connected, then install
+it as an app: **iOS** Safari → share → *Add to Home Screen*; **Android** Chrome → ⋮ → *Install app*.
+You should see your herd. Then [Configure](#configure) to close the two startup warnings.
+
+## How you use it
+
+- **The herd.** Home lists every herdr pane with its state — working, blocked, idle. Open one to read
+  its terminal, reply in a plain text field (phone dictation works), or tap the native buttons an
+  agent's permission prompts and menus turn into. [Screens](#screens).
+- **A card is a task.** Dictate it, then tap *Start*: the card gets its own git worktree, herdr
+  workspace and agent, handed the spec. [The board](#the-board).
+- **The columns move themselves.** Working → *In progress*, blocked → *Needs you*, done → *To review*;
+  a vanished pane leaves the card *orphaned*, relaunchable from its last handoff.
+- **Review, then ship.** A card in review shows its diff, its agent's wrap-up note and, if enabled,
+  the copilot's verdict. Merge into the base or open a PR from the same screen.
+- **Lots and phases.** The *Project* view plans a repo's roadmap: cards grouped into phases and lots.
+  Launch a lot — or select cards and tap *Run these* — and a lead agent drives them to PRs, halting
+  to you only when it must. [Runs](#runs).
+- **Per-repo settings.** How autonomous runs may be, whether the board is shared over git, which
+  peers may drive this machine (Settings → Peers). [Board configuration](#board-configuration) ·
+  [peers](#what-is-deliberately-not-built).
 
 ## Screens
 
