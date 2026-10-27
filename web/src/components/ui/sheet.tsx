@@ -96,6 +96,11 @@ function SheetShell({
             e.preventDefault();
             (e.currentTarget as HTMLElement | null)?.focus();
           }}
+          // A press or a focus on a toast is not "outside" in the sense that should dismiss: the
+          // toaster floats above the sheet, and its buttons belong to the toast. The overlay still is.
+          onInteractOutside={(e) => {
+            if ((e.target as Element | null)?.closest?.("[data-sonner-toaster]")) e.preventDefault();
+          }}
           onCloseAutoFocus={(e) => {
             e.preventDefault();
             opener.current?.focus?.();

@@ -31,6 +31,9 @@ export function Toaster(props: ToasterProps) {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          // An open sheet is a Radix modal, which sets `pointer-events: none` on <body>; the toaster
+          // is a child of <body>, so without this a toast above a drawer is visible but dead.
+          pointerEvents: "auto",
         } as CSSProperties
       }
       {...props}

@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 
 import { BottomSheet, SideSheet } from "./sheet";
+import { Toaster } from "./sonner";
 
 // The sheet is Vaul's drawer now, so what is worth testing here changed shape: the drag physics is
 // the library's and is tested there, while what remains OURS is the shell around it — the labelling,
@@ -111,6 +113,45 @@ describe("BottomSheet — dismiss paths", () => {
     );
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+});
+
+// The toaster lives outside the sheet's portal, so to Radix every press on a toast is an outside
+// press: the sheet closed, and the body-wide `pointer-events: none` made the toast dead anyway.
+describe("sheet — a toast above an open sheet", () => {
+  it("takes the click: the action runs and the sheet stays open", async () => {
+    const onClose = vi.fn();
+    const onAction = vi.fn();
+    render(
+      <>
+        <Toaster />
+        <BottomSheet open onClose={onClose} title="Actions">
+          body
+        </BottomSheet>
+      </>,
+    );
+    await waitFor(() => expect(overlay()).not.toBeNull());
+    act(() => {
+      toast("Saved", { action: { label: "Undo", onClick: onAction } });
+    });
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    expect(document.body.style.pointerEvents).toBe("none");
+    expect((undo.closest("[data-sonner-toaster]") as HTMLElement).style.pointerEvents).toBe("auto");
+
+    fireEvent.pointerDown(undo, { pointerType: "touch" });
+    fireEvent.focus(undo);
+    fireEvent.click(undo);
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog()).toBeInTheDocument();
+
+    // …while the overlay is still a way out.
+    fireEvent.pointerDown(overlay(), { pointerType: "touch" });
+    fireEvent.click(overlay());
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    act(() => {
+      toast.dismiss();
+    });
   });
 });
 
