@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.240.0] - 2026-10-27
+
+### Added
+
+- Un seul troupeau : `GET /api/herd` sert les agents des pairs pilotés (lus ≈ 5 s sur `engine.onUpdate`), un pair injoignable marqué `disconnected` seul (62dd886)
+- `/api/herd/<pair>/pane/<paneId>` (+ `/reply`, `/keys`) relaie lecture, réponse et touches vers `/api/node/*` du pair, mêmes gardes que les routes locales (62dd886)
+
 ## [0.239.2] - 2026-10-27
 
 ### Changed
