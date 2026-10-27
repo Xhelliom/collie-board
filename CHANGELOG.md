@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.241.0] - 2026-10-27
+
+### Added
+
+- Accueil : les agents des pairs dans la liste du troupeau, puce « sur <pair> », filtre par machine (21fc43a)
+- Pair injoignable : une ligne grisée avec la raison, la liste locale intacte (21fc43a)
+- Page pane d'un agent distant (`<paneId>@<pair>`) : lecture, réponse, touches et boutons natifs via `/api/herd` (21fc43a)
+- Agent distant bloqué : l'alerte habituelle dans le slot du troupeau, rétractée quand il repart ou que le pair ne répond plus (21fc43a)
+
 ## [0.240.0] - 2026-10-27
 
 ### Added
