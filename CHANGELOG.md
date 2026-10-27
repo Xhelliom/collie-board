@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.239.2] - 2026-10-27
+
+### Changed
+
+- Carte : sélecteur « Lancer sur » (« cette machine », puis « env · pair ») aussi dans l'éditeur ; pair injoignable grisé avec sa raison ; absent sans pair (d650d77)
+- Tuile et en-tête de la carte : « sur <pair> » pour une carte lancée chez un pair (d650d77)
+
+### Fixed
+
+- Un toast affiché au-dessus d'un drawer ouvert est de nouveau cliquable, sans fermer le drawer (768592a)
+- Diff d'une carte distante : un `.md` s'ouvre en patch, la lecture de fichier n'existant pas chez le pair (d650d77)
+
 ## [0.239.1] - 2026-10-27
 
 ### Fixed
