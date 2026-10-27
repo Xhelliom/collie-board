@@ -320,6 +320,10 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.template", { name: String(p.name ?? "") });
     case "card.start_failed":
       return t("journal.startFailed", { stage: String(p.stage), error: String(p.error) });
+    case "card.remote_launched":
+      return t("journal.remoteLaunched", { peer: String(p.peer), environment: String(p.environment), branch: String(p.branch) });
+    case "card.remote_ended":
+      return t("journal.remoteEnded", { peer: String(p.peer), environment: String(p.environment) });
     case "card.split_from":
       return p.after ? t("journal.splitAfter", { after: String(p.after) }) : t("journal.split");
     case "card.reopened":

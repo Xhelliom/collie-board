@@ -130,6 +130,8 @@ export interface CardView {
   templateId?: string | null;
   /** The flow it goes through in a run (ADR 0032), or null. Optional: older fixtures omit it. */
   pipelineId?: string | null;
+  /** The peer environment it launches in (ADR 0046 §4), or null for this machine. */
+  environment?: CardEnvironment | null;
   /** The pipeline role a tap would hand this card to next (ADR 0031): a landed card, outside a run. */
   nextStep?: { templateId: string; name: string } | null;
   /**
@@ -628,6 +630,8 @@ export interface CardInput {
   templateId?: string | null;
   /** The flow it goes through in a run (ADR 0032), or `null` for none. */
   pipelineId?: string | null;
+  /** A paired peer's environment, or `null` for this machine. */
+  environment?: CardEnvironment | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */
@@ -650,6 +654,31 @@ export function patchCard(id: string, input: CardInput): Promise<{ ok: true; car
     body: JSON.stringify(input),
   });
 }
+
+/** A named environment on a paired peer: the peer resolves the path, never this machine. */
+export interface CardEnvironment {
+  peer: string;
+  name: string;
+}
+
+/** The paired peers' environments whose origin is this repo's; read when the picker opens, never polled. */
+export function fetchRepoEnvironments(repo: string): Promise<{
+  remote: string | null;
+  environments: (CardEnvironment & { agent: string })[];
+  unreachable: { peer: string; error: string }[];
+}> {
+  return apiRequest(`/api/repos/environments?repo=${encodeURIComponent(repo)}`);
+}
+
+export interface CardRemote {
+  environment: CardEnvironment | null;
+  session: { peer: string; environment: string; paneId: string; branch: string } | null;
+  /** What the peer said when the card was opened: never written back here. */
+  state: { reachable: boolean; error?: string; pane: { status: string; agent: string | null } | null } | null;
+}
+
+export const fetchCardRemote = (id: string) => apiRequest<CardRemote>(`/api/cards/${encodeURIComponent(id)}/remote`);
+export const endCardRemote = (id: string) => apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}/remote`, { method: "DELETE" });
 
 export function deleteCard(id: string): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}`, { method: "DELETE" });

@@ -264,6 +264,7 @@ describe("reconcileOne", () => {
     phaseId: null,
     templateId: null,
     pipelineId: null,
+    environment: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -630,6 +631,7 @@ describe("initialPrompt", () => {
     phaseId: null,
     templateId: null,
     pipelineId: null,
+    environment: null,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1296,6 +1298,7 @@ describe("handoff prompts", () => {
     phaseId: null,
     templateId: null,
     pipelineId: null,
+    environment: null,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {

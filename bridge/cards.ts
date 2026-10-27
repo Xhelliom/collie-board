@@ -548,6 +548,8 @@ export type StartError =
   | { kind: "blocked-by"; message: string }
   /** The local base and origin's could not be brought level — see `syncBaseWithOrigin`. */
   | { kind: "stale-base"; message: string }
+  /** The card runs in a peer's environment: only its own start route sends it there (remote-launch.ts). */
+  | { kind: "remote"; message: string }
   | { kind: "herdr"; message: string };
 
 export interface StartResult {
@@ -715,6 +717,11 @@ export async function startCard(
       ok: false,
       error: { kind: "blocked-by", message: `waiting on “${predecessor.title}” to finish first` },
     };
+  }
+
+  // Never a local fallback for a card that names a peer's environment (ADR 0046 §4).
+  if (card.environment) {
+    return { ok: false, error: { kind: "remote", message: `this card runs in ${card.environment.name} on ${card.environment.peer} — start it from its card` } };
   }
 
   if (!card.repoPath) {

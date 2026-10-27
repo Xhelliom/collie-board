@@ -49,6 +49,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
+import { CardEnvironment } from "@/components/card-environment";
 import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
@@ -712,6 +713,7 @@ export function CardRoute() {
                         revalidator.revalidate();
                       }}
                     />
+                    <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)} />
                     <StartButton
                       card={card}
                       pending={starting}

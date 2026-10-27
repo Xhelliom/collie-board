@@ -65,6 +65,8 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "journal.specSent": { en: "Spec sent to the agent", fr: "Spec envoyée à l'agent" },
   "journal.operatorSaid": { en: "You told the agent: “{text}”", fr: "Tu as dit à l'agent : « {text} »" },
   "journal.startFailed": { en: "Start failed at {stage}: {error}", fr: "Échec du démarrage à l'étape {stage} : {error}" },
+  "journal.remoteLaunched": { en: "Launched on {peer} ({environment}), branch {branch}", fr: "Lancée sur {peer} ({environment}), branche {branch}" },
+  "journal.remoteEnded": { en: "Session ended on {peer} ({environment})", fr: "Session terminée sur {peer} ({environment})" },
   "journal.splitAfter": { en: "Split off, after “{after}”", fr: "Détachée, après « {after} »" },
   "journal.split": { en: "Split off from a dictation", fr: "Détachée d'une dictée" },
   "journal.sessionOpened": { en: "Agent session opened", fr: "Session d'agent ouverte" },

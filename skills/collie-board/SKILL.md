@@ -150,6 +150,17 @@ curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> \
 curl -s -X DELETE http://127.0.0.1:8788/api/cards/<id>
 ```
 
+### Run a card on another machine (ADR 0046 §4)
+
+A card may carry `"environment": {"peer": "dev", "name": "dev-board"}` (create or PATCH; `null` = this
+machine). Its start then goes to that paired peer, never here; diff and end go through it too.
+
+```bash
+curl -s "http://127.0.0.1:8788/api/repos/environments?repo=/home/user/git/project"
+# {remote, environments:[{peer, name, agent, remote}], unreachable:[{peer, error}]} — only those whose origin is this repo's
+curl -s http://127.0.0.1:8788/api/cards/<id>/remote   # {environment, session, state} — reads the peer once
+```
+
 ## Publish a deliverable on a card (« Publier un livrable »)
 
 What you made for a card — an image, a PDF, a spreadsheet, a report — is lost with your session
@@ -317,6 +328,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
 - `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, never yours.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
 - `POST /api/cards/<id>/handoff`, `DELETE` on a card that has work in it.
+- `DELETE /api/cards/<id>/remote` — ends a card's session on its peer (closes the pane there).
 ### Roadmap, decisions, memory (ADR 0023)
 
 The roadmap is a **document you write with the user**, not three lines. When it is empty, run a real

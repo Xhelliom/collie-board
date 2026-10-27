@@ -11,6 +11,21 @@ export const peers = defineMessages({
   "machines.up": { en: "reachable", fr: "joignable" },
   "machines.down": { en: "unreachable", fr: "injoignable" },
   "machines.pending": { en: "checking…", fr: "vérification…" },
+
+  // The card screen: where a card runs (ADR 0046 §4).
+  "cardEnv.label": { en: "Runs on", fr: "S'exécute sur" },
+  "cardEnv.local": { en: "This machine", fr: "Cette machine" },
+  "cardEnv.option": { en: "{name} — on {peer} ({agent})", fr: "{name} — sur {peer} ({agent})" },
+  "cardEnv.hint": {
+    en: "Only the peers' environments whose origin is this repo's. Started there, never here instead.",
+    fr: "Seuls les environnements des pairs dont l'origine est ce dépôt. Lancée là-bas, jamais ici à la place.",
+  },
+  "cardEnv.someUnreachable": { en: "Not reached: {peers}.", fr: "Injoignables : {peers}." },
+  "cardEnv.runningOn": { en: "Running on {peer} ({environment}), branch {branch}", fr: "En cours sur {peer} ({environment}), branche {branch}" },
+  "cardEnv.pane": { en: "Its agent, when this card was opened: {status}", fr: "Son agent, à l'ouverture de la carte : {status}" },
+  "cardEnv.paneGone": { en: "Its pane is no longer there on the peer.", fr: "Son pane n'existe plus chez le pair." },
+  "cardEnv.unreachable": { en: "Peer not reached: {error}", fr: "Pair injoignable : {error}" },
+  "cardEnv.end": { en: "End the session on {peer}", fr: "Terminer la session sur {peer}" },
   "peers.title": { en: "Peers", fr: "Pairs" },
   "peers.hint": {
     en: "Pair this Collie ({name}) with another one by a code. The token never reaches this browser.",
