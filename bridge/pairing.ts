@@ -321,31 +321,43 @@ export type TestResult =
   | { state: "closed" }
   | { state: "unreachable"; error: string };
 
-/** One GET to a peer, token in hand: a status, or the parsed body of a 200. */
-async function peerGet(fetchFn: typeof fetch, p: OutboundPeer, route: string): Promise<{ status: number; body: Record<string, unknown> | null }> {
+/**
+ * One call to a peer, token in hand (ADR 0048 §4): a GET, or a POST of `body`. Bounded in time and
+ * size, never retried; the body is parsed whatever the status, so a refusal keeps its reason.
+ */
+export async function peerCall(
+  fetchFn: typeof fetch,
+  p: OutboundPeer,
+  route: string,
+  opts: { body?: unknown; timeoutMs?: number } = {},
+): Promise<{ status: number; body: Record<string, unknown> | null }> {
+  const post = opts.body !== undefined;
   const res = await fetchFn(`${p.url}${route}`, {
-    headers: { authorization: `Bearer ${p.token}` },
+    method: post ? "POST" : "GET",
+    headers: { authorization: `Bearer ${p.token}`, ...(post ? { "content-type": "application/json" } : {}) },
+    ...(post ? { body: JSON.stringify(opts.body) } : {}),
     redirect: "manual",
-    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? CALL_TIMEOUT_MS),
   });
-  if (res.status !== 200) {
-    await res.body?.cancel().catch(() => {});
-    return { status: res.status, body: null };
+  let v: unknown = null;
+  try {
+    v = JSON.parse((await readCapped(res, 1024 * 1024)) ?? "null");
+  } catch {
+    // not JSON: the status says enough
   }
-  const v: unknown = JSON.parse((await readCapped(res, 1024 * 1024)) ?? "null");
-  return { status: 200, body: typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null };
+  return { status: res.status, body: typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null };
 }
 
 /** « Tester la connexion »: the environments, then the snapshot — never retried, never scheduled: a button. */
 export async function testPeer(fetchFn: typeof fetch, p: OutboundPeer): Promise<TestResult> {
   try {
-    const env = await peerGet(fetchFn, p, "/api/node/environments");
+    const env = await peerCall(fetchFn, p, "/api/node/environments");
     if (env.status === 401) return { state: "refused" };
     if (env.status === 404) return { state: "closed" };
     if (env.status !== 200) return { state: "unreachable", error: `HTTP ${env.status}` };
     const b = env.body;
     if (typeof b?.node !== "string" || !Array.isArray(b.environments)) return { state: "unreachable", error: "not a Collie answer" };
-    const snap = await peerGet(fetchFn, p, "/api/node/snapshot");
+    const snap = await peerCall(fetchFn, p, "/api/node/snapshot");
     const s = snap.body as { bridge?: unknown; agents?: unknown; shellPanes?: unknown } | null;
     const panes = s && s.bridge !== "disconnected" && Array.isArray(s.agents) && Array.isArray(s.shellPanes) ? s.agents.length + s.shellPanes.length : null;
     const you = b.you as { peer?: unknown; login?: unknown } | undefined;

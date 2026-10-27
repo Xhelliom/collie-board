@@ -3,7 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
-import { defaultBranchOf, diffFile, diffStat } from "./git.ts";
+import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 
 // The peer surface (ADR 0046 §2 and §4, as revised by decision bed340b1: no central). Every machine
@@ -278,13 +278,17 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
 
   if (pathname === "/api/node/snapshot") return d.json(d.snapshot());
   if (pathname === "/api/node/environments") {
-    // Name and agent only: a peer names an environment, this machine resolves the path (ADR 0046 §2).
+    // Name, agent and the normalised origin — never the path: a peer names an environment, this
+    // machine resolves it (ADR 0046 §2); the origin is how the caller knows which repo it runs.
     // `you`: how this machine sees the caller — what « Tester la connexion » shows (ADR 0049 §6).
+    const environments = await Promise.all(
+      d.node.environments.map(async ({ name, agent, repoPath }) => ({ name, agent, remote: normalizeRemote(await originUrl(repoPath)) })),
+    );
     return d.json({
       node: d.node.name,
       version: d.version,
       you: { peer, login: req.headers.get("tailscale-user-login") },
-      environments: d.node.environments.map(({ name, agent }) => ({ name, agent })),
+      environments,
     });
   }
   if (pathname === "/api/node/diff") {

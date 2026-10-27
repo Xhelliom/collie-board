@@ -87,6 +87,8 @@ import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
+import type { OutboundPeer } from "./pairing.ts";
+import { diffOnPeer, endOnPeer, environmentsForRepo, parseCardEnvironment, remoteSessionOf, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
@@ -99,6 +101,8 @@ const REPOS_GATE_ROUTE = "/api/repos/gate";
 const REPOS_INTEGRATION_ROUTE = "/api/repos/integration";
 /** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
 const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
+/** `/api/repos/environments?repo=` — the paired peers' environments whose origin is this repo's (ADR 0046 §4). */
+const REPOS_ENVIRONMENTS_ROUTE = "/api/repos/environments";
 
 /** `/api/board/prefs` — the board-wide switches (see BoardDb's `board_pref`). */
 const BOARD_PREFS_ROUTE = "/api/board/prefs";
@@ -142,7 +146,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|handoff|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /**
  * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
@@ -176,7 +180,17 @@ export interface BoardContext {
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
+  /** The machines this one drives (`peers.toml`), for a card that runs in a peer's environment. Absent: none. */
+  peers?: { outbound(): readonly OutboundPeer[] };
+  fetch?: typeof fetch;
 }
+
+const remoteDeps = (ctx: BoardContext): RemoteDeps => ({
+  db: ctx.db,
+  fetch: ctx.fetch ?? fetch,
+  outbound: () => ctx.peers?.outbound() ?? [],
+  branchPrefix: ctx.cfg.boardBranchPrefix,
+});
 
 /**
  * Validate an untrusted card body into the fields we accept. Pure + exported: this is the only
@@ -253,6 +267,12 @@ export function parseCardBody(
     if (!opts.requireTitle) return { ok: false, error: "category is set at creation" };
     if (o.category !== DECLARABLE_CATEGORY) return { ok: false, error: `category must be ${DECLARABLE_CATEGORY}` };
     out.category = DECLARABLE_CATEGORY;
+  }
+
+  if ("environment" in o) {
+    const env = parseCardEnvironment(o.environment);
+    if (!env.ok) return env;
+    out.environment = env.value;
   }
 
   if ("autoHandoff" in o) {
@@ -492,6 +512,15 @@ async function route(
     const outcome = await suggestGate((build) => ctx.copilot.ask(build), path);
     ctx.audit.record({ action: "repo.gate_suggest", session: ctx.session, device: ctx.device, detail: { path, ok: outcome.ok } });
     return ctx.json(outcome, outcome.ok ? 200 : 502);
+  }
+
+  if (pathname === REPOS_ENVIRONMENTS_ROUTE) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const repo = new URL(req.url).searchParams.get("repo") ?? "";
+    if (!isAbsolute(repo)) return ctx.text("repo must be an absolute path", 400);
+    return ctx.json(await environmentsForRepo(remoteDeps(ctx), repo));
   }
 
   // A repo's gate: a command the bridge will RUN in a run's worker checkout — remote execution by
@@ -1046,7 +1075,20 @@ async function route(
   if (action === "start" && req.method === "POST") {
     const denied = ctx.guard("write");
     if (denied) return denied;
-    if (!db.getCard(id)) return text("card not found", 404);
+    const toStart = db.getCard(id);
+    if (!toStart) return text("card not found", 404);
+    if (toStart.environment) {
+      // A peer's environment: its launch route, never `launchAgent` here (remote-launch.ts).
+      const r = await startOnPeer(remoteDeps(ctx), toStart);
+      ctx.audit.record({
+        action: "card.start",
+        session: ctx.session,
+        device: ctx.device,
+        detail: { cardId: id, peer: toStart.environment.peer, environment: toStart.environment.name, ok: r.ok, ...(r.ok ? { paneId: r.session.paneId } : { error: r.error }) },
+      });
+      if (!r.ok) return ctx.json({ ok: false, error: r.error, kind: r.kind === "peer" ? "peer" : "remote" }, r.kind === "peer" ? 502 : 409);
+      return json({ ok: true, card: view(id) });
+    }
     const result = await startCard(db, ctx.herdr, ctx.cfg, id, { adapters: ctx.adapters });
     ctx.audit.record({
       action: "card.start",
@@ -1284,6 +1326,16 @@ async function route(
     if (denied) return denied;
     const card = db.getCard(id);
     if (!card) return text("card not found", 404);
+    if (card.environment) {
+      // The checkout is on the peer: read through its `/api/node/diff`, which knows only the panes it launched.
+      const remote = remoteSessionOf(db.listEvents(id));
+      if (!remote) return ctx.json({ ok: false, error: "no session running on a peer", kind: "no-branch" }, 409);
+      const q = new URL(req.url).searchParams;
+      const mode = q.get("mode");
+      if (mode === "read") return ctx.json({ ok: false, error: "reading a file is not offered on a peer's checkout" }, 409);
+      const r = await diffOnPeer(remoteDeps(ctx), remote, mode === "file" ? (q.get("path") ?? "") : null, q.get("untracked") === "1");
+      return r.status === 200 ? json(r.body) : ctx.json(r.body, r.status);
+    }
     if (!card.repoPath || !card.branch) {
       return ctx.json({ ok: false, error: "this card has no branch yet", kind: "no-branch" }, 409);
     }
@@ -1310,6 +1362,26 @@ async function route(
       return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
     }
     return json({ ok: true, ...(await diffStat(cwd, await baseOf(card))), cwd });
+  }
+
+  // ── remote: the card's session on a peer — read once on opening (GET), ended by the operator (DELETE) ──
+  if (action === "remote" && (req.method === "GET" || req.method === "DELETE")) {
+    const denied = ctx.guard(req.method === "GET" ? "read" : "write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    if (req.method === "GET") {
+      const session = remoteSessionOf(db.listEvents(id));
+      return json({ environment: card.environment, session, state: session ? await remoteStateOf(remoteDeps(ctx), session) : null });
+    }
+    const r = await endOnPeer(remoteDeps(ctx), card);
+    ctx.audit.record({
+      action: "card.remote_end",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: r.ok, ...(r.ok ? { peer: r.session.peer, environment: r.session.environment, paneId: r.session.paneId } : { error: r.error }) },
+    });
+    return r.ok ? json({ ok: true, card: view(id) }) : ctx.json({ ok: false, error: r.error }, 502);
   }
 
   // ── review: ask the copilot for its verdict again, now ───────────────────

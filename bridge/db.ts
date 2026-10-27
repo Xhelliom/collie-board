@@ -234,6 +234,14 @@ export interface Card {
   templateId: string | null;
   /** The flow this card goes through, or null — ADR 0032. Falls back to its phase's, then its repo's. */
   pipelineId: string | null;
+  /** A peer's environment this card launches in, or null for this machine — ADR 0046 §4. Intent, so a column. */
+  environment: CardEnvironment | null;
+}
+
+/** A named environment on a paired peer (`peers.toml`): the peer resolves the path, never this machine. */
+export interface CardEnvironment {
+  peer: string;
+  name: string;
 }
 
 export type AutoHandoffChoice = "on" | "off";
@@ -662,6 +670,7 @@ interface CardRow {
   phase_id: string | null;
   template_id: string | null;
   pipeline_id: string | null;
+  environment: string | null;
 }
 
 interface RunRow {
@@ -917,7 +926,17 @@ function toCard(r: CardRow): Card {
     phaseId: r.phase_id ?? null,
     templateId: r.template_id ?? null,
     pipelineId: r.pipeline_id ?? null,
+    environment: parseEnvironmentColumn(r.environment),
   };
+}
+
+function parseEnvironmentColumn(raw: string | null | undefined): CardEnvironment | null {
+  try {
+    const v = JSON.parse(raw ?? "null") as Partial<CardEnvironment> | null;
+    return typeof v?.peer === "string" && typeof v.name === "string" ? { peer: v.peer, name: v.name } : null;
+  } catch {
+    return null;
+  }
 }
 
 function toSession(r: SessionRow): CardSession {
@@ -1358,6 +1377,7 @@ export interface NewCard {
   phaseId?: string | null;
   templateId?: string | null;
   pipelineId?: string | null;
+  environment?: CardEnvironment | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -1382,6 +1402,7 @@ export interface CardPatch {
   phaseId?: string | null;
   templateId?: string | null;
   pipelineId?: string | null;
+  environment?: CardEnvironment | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1406,6 +1427,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   phaseId: "phase_id",
   templateId: "template_id",
   pipelineId: "pipeline_id",
+  environment: "environment",
 };
 
 /**
@@ -1600,6 +1622,8 @@ export class BoardDb {
       { table: "card", column: "pipeline_id", ddl: "TEXT" },
       { table: "phase", column: "pipeline_id", ddl: "TEXT" },
       { table: "repo_pref", column: "flow_id", ddl: "TEXT" },
+      // ADR 0046 §4: the peer environment a card launches in, as JSON {peer, name}.
+      { table: "card", column: "environment", ddl: "TEXT" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -1693,6 +1717,7 @@ export class BoardDb {
     if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
     if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
     if (input.pipelineId) this.db.query("UPDATE card SET pipeline_id = ? WHERE id = ?").run(input.pipelineId, id);
+    if (input.environment) this.db.query("UPDATE card SET environment = ? WHERE id = ?").run(JSON.stringify(input.environment), id);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1807,11 +1832,13 @@ export class BoardDb {
       values.push(
         key === "acceptance"
           ? JSON.stringify(value ?? [])
-          : key === "keepWorktree"
-            ? (value ? 1 : 0)
-            : key === "tag"
-              ? normalizeTag(value)
-              : (value as string | number | null),
+          : key === "environment"
+            ? (value ? JSON.stringify(value) : null)
+            : key === "keepWorktree"
+              ? (value ? 1 : 0)
+              : key === "tag"
+                ? normalizeTag(value)
+                : (value as string | number | null),
       );
     }
     if (sets.length === 0) return this.getCard(id);

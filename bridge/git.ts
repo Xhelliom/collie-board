@@ -775,6 +775,38 @@ export async function hasOrigin(repoPath: string, git: GitRunner = runGit): Prom
   return (await git(["remote", "get-url", "origin"], repoPath)).ok;
 }
 
+/** `origin`'s URL as configured, or null (no remote, no repo there). Raw: `normalizeRemote` strips it. */
+export async function originUrl(repoPath: string, git: GitRunner = runGit): Promise<string | null> {
+  const r = await git(["remote", "get-url", "origin"], repoPath).catch(() => null);
+  return r?.ok ? r.stdout.trim() || null : null;
+}
+
+/**
+ * An origin URL reduced to `host/owner/repo`, lowercase: what two clones of one repo share whatever
+ * their protocol — scp-like ssh, ssh://, https — and with no user or token in it. Null for a local path.
+ */
+export function normalizeRemote(raw: string | null): string | null {
+  const s = raw?.trim() ?? "";
+  let host: string;
+  let path: string;
+  const scp = /^(?:[^@/]+@)?([^:/\\]+):(?!\/)([^\\]+)$/.exec(s);
+  if (scp && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
+    [, host, path] = scp as unknown as [string, string, string];
+    if (host.length === 1) return null; // `C:repo` is a Windows drive, not a host
+  } else {
+    try {
+      const u = new URL(s);
+      if (u.protocol === "file:" || !u.hostname) return null;
+      host = u.hostname;
+      path = u.pathname;
+    } catch {
+      return null;
+    }
+  }
+  path = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  return path ? `${host}/${path}`.toLowerCase() : null;
+}
+
 /**
  * How many commits `origin/<ref>` has that the local `<ref>` lacks, freshly fetched. Null when origin
  * has no such branch (a card branch never pushed) or cannot be asked. A rebase pushed from elsewhere
