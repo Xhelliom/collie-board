@@ -142,6 +142,9 @@ export const handlers = [
   http.get("/api/board/pins", () => HttpResponse.json({ pins: [] })),
   http.get("/api/repos", () => HttpResponse.json({ repos: [], hiddenCount: 0 })),
   http.get("/api/repos/listed", () => HttpResponse.json({ paths: [] })),
+  http.get("/api/peers", () =>
+    HttpResponse.json({ name: "collie", invitation: null, inbound: [], outbound: [], environments: [], error: null }),
+  ),
   http.get(/\/api\/pane\/[^/]+$/, () =>
     HttpResponse.json({ paneId: "w1:p1", text: paneTextWithDraft(), truncated: false, revision: 1 }),
   ),

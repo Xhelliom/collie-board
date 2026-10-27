@@ -3,6 +3,14 @@ import { defineMessages } from "../define";
 // Settings → Peers: pairing two Collies by code (ADR 0049).
 export const peers = defineMessages({
   "settings.tab.peers": { en: "Peers", fr: "Pairs" },
+
+  // The header's machine switcher: this machine and the ones it drives.
+  "machines.label": { en: "Machine: {name} — switch", fr: "Machine : {name} — changer" },
+  "machines.title": { en: "Machines", fr: "Machines" },
+  "machines.this": { en: "this machine", fr: "cette machine" },
+  "machines.up": { en: "reachable", fr: "joignable" },
+  "machines.down": { en: "unreachable", fr: "injoignable" },
+  "machines.pending": { en: "checking…", fr: "vérification…" },
   "peers.title": { en: "Peers", fr: "Pairs" },
   "peers.hint": {
     en: "Pair this Collie ({name}) with another one by a code. The token never reaches this browser.",
