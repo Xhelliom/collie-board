@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.239.0] - 2026-10-27
+
+### Added
+
+- Carte : champ `environment` ({peer, name}, null = local) ; son lancement part sur le pair (`/api/node/launch`), jamais en local à la place (a419a05)
+- Refus motivés et journalisés avec le pair : pair injoignable ou non appairé, environnement inconnu, autonomie coupée (a419a05)
+- `GET /api/repos/environments?repo=` : les environnements des pairs dont le remote origin correspond au dépôt ; sélecteur « S'exécute sur » sur la carte (a419a05)
+- Diff et fin de session d'une carte distante lus via le pair ; état de son pane lu à l'ouverture de la carte (`/api/cards/:id/remote`) (a419a05)
+- `/api/node/environments` expose l'URL normalisée du remote origin de chaque environnement (jamais le chemin) (a419a05)
+
 ## [0.238.2] - 2026-10-27
 
 ### Added
