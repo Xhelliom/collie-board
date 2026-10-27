@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import type { JournalEntry } from "./db.ts";
-import { JOURNAL_REF, journalFailure, receiveJournal, sendJournal } from "./git.ts";
+import { JOURNAL_REF, journalFailure, ownJournal, receiveJournal, sendJournal } from "./git.ts";
 
 // ADR 0048 §2–3, lot 2: the journal's git plumbing, against a bare remote in a temp dir.
 
@@ -114,6 +114,55 @@ describe("journal over git — orphan branch, send, receive, union by writer", (
     expect(readFileSync(join(a, "code.txt"), "utf8")).toBe("dirty, uncommitted\n");
     expect(sh(a, "rev-parse", "--verify", JOURNAL_REF).trim()).toMatch(/^[0-9a-f]{40}$/);
     expect(sh(a, "for-each-ref", "refs/heads")).not.toContain("collie-board");
+  });
+});
+
+describe("journal over git — a remote branch rewritten or deleted (ADR 0048 §3)", () => {
+  const linesOn = (bare: string) => sh(bare, "ls-tree", "-r", "--name-only", "collie-board").trim().split("\n").flatMap((f) => sh(bare, "show", `collie-board:${f}`).trim().split("\n"));
+
+  test("force-pushed to an older state: detected, then « Renvoyer mon journal » restores every line, idempotently", async () => {
+    const { bare, clones } = setup(2);
+    const [a, b] = clones as [string, string];
+    const e1 = ev("cards/c1", hlc(1, A), { title: "one" });
+    const e2 = ev("cards/c1", hlc(2, A), { status: "doing" });
+    const e3 = ev("roadmap", hlc(3, A), { vision: "v" });
+    await sendJournal(a, "origin", A, [e1]);
+    const old = sh(bare, "rev-parse", "collie-board").trim();
+    await sendJournal(a, "origin", A, [e2, e3]);
+    sh(bare, "update-ref", "refs/heads/collie-board", old); // the force-push
+
+    const got = await receiveJournal(a, "origin");
+    expect(got).toEqual({ ok: true, entries: [], rewritten: true });
+    expect(linesOn(bare)).toHaveLength(1);
+
+    const own = await ownJournal(a, A);
+    expect(own).toEqual([e3, e1, e2].sort((x, y) => x.entity.localeCompare(y.entity)));
+    expect(await sendJournal(a, "origin", A, own)).toEqual({ ok: true, pushed: true });
+    // A second clone, which never read the journal, finds every line of this pair.
+    const got2 = await receiveJournal(b, "origin");
+    expect(got2.ok && new Set(got2.entries.map((e) => e.event.hlc))).toEqual(new Set([e1, e2, e3].map((e) => e.event.hlc)));
+
+    // Twice: no line is added twice, and nothing is even pushed.
+    expect(await sendJournal(a, "origin", A, await ownJournal(a, A))).toEqual({ ok: true, pushed: false });
+    expect(linesOn(bare)).toHaveLength(3);
+    // A normal fetch on top is not a rewrite.
+    expect(await receiveJournal(a, "origin")).toEqual({ ok: true, entries: [] });
+  });
+
+  test("the remote branch deleted, then a local write: recreated with every line known", async () => {
+    const { bare, clones } = setup(2);
+    const [a, b] = clones as [string, string];
+    const eb = ev("cards/c1", hlc(1, B), { title: "from B" });
+    const ea = ev("cards/c1", hlc(2, A), { status: "doing" });
+    await sendJournal(b, "origin", B, [eb]);
+    expect(await receiveJournal(a, "origin")).toEqual({ ok: true, entries: [eb] });
+    await sendJournal(a, "origin", A, [ea]);
+    sh(bare, "update-ref", "-d", "refs/heads/collie-board");
+
+    expect(await receiveJournal(a, "origin")).toEqual({ ok: true, entries: [] });
+    const ea2 = ev("cards/c1", hlc(3, A), { title: "again" });
+    expect(await sendJournal(a, "origin", A, [ea2])).toEqual({ ok: true, pushed: true });
+    expect(new Set(linesOn(bare).map((l) => JSON.parse(l).hlc))).toEqual(new Set([eb, ea, ea2].map((e) => e.event.hlc)));
   });
 });
 

@@ -920,13 +920,17 @@ export interface RepoShare {
   /** This clone was shared before: re-activating loses what was edited meanwhile (§ 6). */
   wasShared: boolean;
   identity: string;
-  sync: { unsent: number; readOnly: string | null; offline: boolean; error: string | null } | null;
+  /** `rewritten`: the remote branch was force-pushed to an older state; sends wait for {@link resendJournal}. */
+  sync: { unsent: number; readOnly: string | null; offline: boolean; rewritten: boolean; error: string | null } | null;
 }
 export const fetchRepoShare = (repo: string, remote?: string, signal?: AbortSignal): Promise<RepoShare> =>
   apiRequest(`/api/repos/share?repo=${encodeURIComponent(repo)}${remote ? `&remote=${encodeURIComponent(remote)}` : ""}`, { signal });
 /** Share on `remote`, or stop with null. The bridge refuses it to an agent pane. */
 export const setRepoShare = (path: string, remote: string | null): Promise<{ ok: true; dropped?: number; error?: string | null }> =>
   apiRequest("/api/repos/share", { method: "POST", body: JSON.stringify({ path, remote }) });
+/** « Renvoyer mon journal »: every line this pair wrote, pushed again — idempotent. Refused to an agent pane. */
+export const resendJournal = (path: string): Promise<{ ok: true; lines: number }> =>
+  apiRequest("/api/repos/share/resend", { method: "POST", body: JSON.stringify({ path }) });
 
 export function setRepoFlow(path: string, flowId: string | null): Promise<{ ok: true }> {
   return apiRequest<{ ok: true }>("/api/repos/flow", { method: "POST", body: JSON.stringify({ path, flowId }) });

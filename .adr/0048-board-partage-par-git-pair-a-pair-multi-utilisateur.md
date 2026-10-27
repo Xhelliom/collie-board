@@ -173,6 +173,18 @@ rebase ; le journal par écrivain n'a pas ce cas.
 - **Hors ligne** (remote injoignable) : rien ne change pour l'opérateur. SQLite reste la vérité
   locale, l'outbox grossit, le projet affiche *« N changements non envoyés »* — un indicateur, pas
   une notification. Au retour du réseau, l'envoi reprend au tick suivant.
+- **Branche supprimée sur le remote** : elle se répare seule — le prochain envoi part de la dernière
+  ref distante connue et recrée la branche avec tout l'historique connu.
+- **Branche réécrite** (force-push vers un état ancien) : les lignes déjà envoyées par ce pair n'y
+  sont plus, et l'outbox vidée ne les renverra jamais. À la réception, une ref distante qui ne
+  descend pas de la dernière connue (`merge-base --is-ancestor`) est signalée *« historique réécrit
+  sur le remote »* et **retient les envois** — un envoi bâti sur l'arbre réécrit effacerait de
+  `refs/collie-board/journal` les lignes à restaurer. Le geste opérateur **« Renvoyer mon
+  journal »** (réglages du projet, route refusée à un pane) relit tous les fichiers de ce pair dans
+  la ref locale et les pousse par l'envoi ordinaire : union, jamais forcé, idempotent. Pas de
+  renvoi automatique : un force-push peut être voulu (purger un secret), le renvoi est un choix.
+  **Recommandé** : protéger `collie-board` sur le remote (GitHub : interdire suppression et
+  force-push), ce qui laisse les pushes ordinaires des pairs passer.
 
 **Écarté — un `git pull` dans un worktree dédié.** Un checkout de plus par dépôt, un index que
 quelqu'un finira par salir, et un `merge` qui peut s'arrêter sur un conflit que la disposition par
