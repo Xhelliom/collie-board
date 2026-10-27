@@ -16,6 +16,7 @@ import {
   invitePeer,
   revokePeer,
   testPeer,
+  clearPeerCache,
   type PeersView,
   type TestResult,
 } from "@/lib/peers";
@@ -68,6 +69,7 @@ export function PeersControl() {
       setError(boardErrorMessage(e));
     } finally {
       setBusy(false);
+      clearPeerCache();
       load();
     }
   }

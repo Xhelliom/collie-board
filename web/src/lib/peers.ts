@@ -53,3 +53,21 @@ export const renameEnvironment = (name: string, to: string) => post<{ ok: true }
 export const removeEnvironment = (name: string) => post<{ ok: true }>("/api/peers/environments", { action: "remove", name });
 
 export const formatCode = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;
+
+// The header's machine switcher reads these on mount and on opening its menu, never on a timer: a
+// short cache keeps a screen change from refetching, and a test (a real server-to-server call) from
+// running again on every reopen.
+const PEER_CACHE_MS = 30_000;
+const peerCache = new Map<string, { at: number; value: Promise<unknown> }>();
+function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = peerCache.get(key);
+  if (hit && Date.now() - hit.at < PEER_CACHE_MS) return hit.value as Promise<T>;
+  const value = load();
+  peerCache.set(key, { at: Date.now(), value });
+  value.catch(() => peerCache.delete(key));
+  return value;
+}
+export const cachedPeers = () => cached("view", () => fetchPeers());
+export const cachedPeerTest = (name: string) => cached(`test:${name}`, () => testPeer(name).then((r) => r.test));
+/** After pairing, forgetting or a test in Settings: the switcher reads afresh. */
+export const clearPeerCache = () => peerCache.clear();

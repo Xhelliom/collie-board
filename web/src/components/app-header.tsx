@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { useT } from "@/i18n";
 
 import { NotificationBell } from "@/components/notification-bell";
+import { MachineSwitcher } from "@/components/machine-switcher";
 
 interface AppHeaderProps {
   /** Screen title, left-aligned. Ignored when `children` is set (a bespoke breadcrumb — the pane's
@@ -79,6 +80,7 @@ export function AppHeader({
           <div className="flex items-center gap-1">
             {rightLead}
             {rightTrail}
+            <MachineSwitcher />
             {/* The bell closes the right cluster on every screen. In a right-aligned row the anchored
                 slot is the LAST one, and the bell is the only control present everywhere — so it gets
                 it, and the screen's own controls (which change from screen to screen anyway) shift
