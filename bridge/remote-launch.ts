@@ -89,9 +89,9 @@ export interface RemoteDeps {
   branchPrefix: string;
 }
 
-type Call = { status: number; body: Record<string, unknown> | null } | { error: string };
+export type Call = { status: number; body: Record<string, unknown> | null } | { error: string };
 
-async function call(d: RemoteDeps, peer: OutboundPeer, route: string, opts?: Parameters<typeof peerCall>[3]): Promise<Call> {
+export async function call(d: Pick<RemoteDeps, "fetch">, peer: OutboundPeer, route: string, opts?: Parameters<typeof peerCall>[3]): Promise<Call> {
   try {
     return await peerCall(d.fetch, peer, route, opts);
   } catch (err) {
@@ -99,7 +99,7 @@ async function call(d: RemoteDeps, peer: OutboundPeer, route: string, opts?: Par
   }
 }
 
-const ok = (r: Call): r is { status: 200; body: Record<string, unknown> } => !("error" in r) && r.status === 200 && r.body !== null;
+export const ok = (r: Call): r is { status: 200; body: Record<string, unknown> } => !("error" in r) && r.status === 200 && r.body !== null;
 
 /**
  * Start a card in its peer environment. Same "the board says no" gates as `startCard` that make sense
@@ -182,7 +182,7 @@ export async function environmentsForRepo(d: Omit<RemoteDeps, "db" | "branchPref
   const unreachable: { peer: string; error: string }[] = [];
   const all = await Promise.all(
     d.outbound().map(async (peer) => {
-      const r = await call(d as RemoteDeps, peer, "/api/node/environments");
+      const r = await call(d, peer, "/api/node/environments");
       if (!ok(r) || !Array.isArray(r.body.environments)) {
         unreachable.push({ peer: peer.name, error: peerRefusal(peer.name, "environments", r) });
         return [];
