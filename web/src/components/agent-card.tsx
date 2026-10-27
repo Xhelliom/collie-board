@@ -1,4 +1,4 @@
-import { ChevronRight, GitBranch, TerminalSquare } from "lucide-react";
+import { ChevronRight, GitBranch, Monitor, TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { shortCwd, timeAgo } from "@/lib/format";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
+import { useT } from "@/i18n";
 
 // A pane row, used by the space view. Usually an agent; for a bare shell pane (kind:"shell") it
 // shows a terminal glyph and a muted "shell" tag instead of a status badge.
@@ -34,6 +35,18 @@ const footnote = (a: AgentView) => (named(a) ? a.workspaceLabel : paneDisplayNam
 export function settledFor(agent: AgentView): string | null {
   if (agent.status !== "idle" && agent.status !== "done") return null;
   return agent.statusSince === undefined ? null : timeAgo(agent.statusSince);
+}
+
+/** « sur dev » — where a paired peer's agent runs, in a card tile's words (ADR 0046 §4). */
+export function PeerChip({ agent }: { agent: AgentView }) {
+  const t = useT();
+  if (!agent.peer) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
+      <Monitor className="size-3 shrink-0" />
+      {t("cardEnv.on", { peer: agent.peer })}
+    </span>
+  );
 }
 
 export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () => void }) {
@@ -119,6 +132,7 @@ export function NeedsYouCard({ agent, onClick }: { agent: AgentView; onClick: ()
           <span className="truncate font-mono text-[11px] text-muted-foreground">
             {agent.workspaceLabel}
           </span>
+          <PeerChip agent={agent} />
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <AgentIcon agent={agent.agent} className="size-[26px] shrink-0" />
@@ -167,6 +181,7 @@ export function WorkingCard({ agent, onClick }: { agent: AgentView; onClick: () 
           </div>
           <SubagentsLine subagents={agent.subagents} />
         </div>
+        <PeerChip agent={agent} />
         {/* size-2.5 = 10px, already StatusDot's default. */}
         <StatusDot status={agent.status} />
       </div>
@@ -201,6 +216,7 @@ export function IdleDoneRow({ agent, onClick }: { agent: AgentView; onClick: () 
         {/* The likeliest row to carry it: a main agent goes idle while its background helpers work. */}
         <SubagentsLine subagents={agent.subagents} />
       </span>
+      <PeerChip agent={agent} />
       {/* Repo (last segment of cwd) — NOT the same field as the workspace name above: Herdr lets a
           workspace be labelled anything, so the two agree by convention, not by guarantee. */}
       <span className="w-16 shrink-0 truncate font-mono text-[11px] text-muted-foreground sm:w-20 lg:w-24">

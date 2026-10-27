@@ -8,6 +8,7 @@ import {
   createTab,
   fetchPane,
   fetchSnapshot,
+  sendKeys,
   sendReply,
   uploadImage,
   withTimeout,
@@ -206,6 +207,18 @@ describe("api client — session scoping", () => {
     await fetchPane("w1:p1", 600);
     expect(urls[0]).toBe("/api/snapshot");
     expect(urls[1]).toBe("/api/pane/w1%3Ap1?lines=600");
+  });
+
+  it("routes a paired peer's pane (`<paneId>@<peer>`) through the bridge's relay, never ?session=", async () => {
+    const urls = captureUrls();
+    await fetchPane("w1:p1@dev", 600, "collie-demo");
+    await sendReply("w1:p1@dev", "hi");
+    await sendKeys("w1:p1@dev", ["Enter"]);
+    expect(urls).toEqual([
+      "/api/herd/dev/pane/w1%3Ap1?lines=600",
+      "/api/herd/dev/pane/w1%3Ap1/reply",
+      "/api/herd/dev/pane/w1%3Ap1/keys",
+    ]);
   });
 });
 

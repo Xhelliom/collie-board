@@ -6,6 +6,7 @@
 // token stays in `peers.toml`, the browser only ever names the peer.
 
 import type { OutboundPeer } from "./pairing.ts";
+import type { Alert } from "./notifications.ts";
 import { call, ok, peerRefusal, type Call } from "./remote-launch.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -38,13 +39,20 @@ interface Slot extends PeerHerdView {
   lastRead: number;
 }
 
+/** The client's id for a remote pane — herdr pane ids never hold `@`, peer names never do either. */
+export const herdPaneId = (peer: string, paneId: string) => `${paneId}@${peer}`;
+
 export interface PeerHerdDeps {
   fetch: typeof fetch;
   outbound: () => readonly OutboundPeer[];
+  /** The primary session's coordinator: a remote agent waiting on you takes the herd's usual slot. */
+  alerts?: () => Pick<{ arm(key: string, alert: Alert): void; retract(key: string): void }, "arm" | "retract"> | undefined;
 }
 
 export class PeerHerd {
   private readonly slots = new Map<string, Slot>();
+  /** Alert key → its peer, for every remote `blocked` armed and not yet retracted. */
+  private readonly raised = new Map<string, string>();
 
   constructor(
     private readonly d: PeerHerdDeps,
@@ -55,7 +63,11 @@ export class PeerHerd {
   async update(snap: EngineSnapshot): Promise<void> {
     if (snap.bridge === "disconnected") return;
     const peers = this.d.outbound();
-    for (const name of this.slots.keys()) if (!peers.some((p) => p.name === name)) this.slots.delete(name);
+    for (const name of this.slots.keys()) {
+      if (peers.some((p) => p.name === name)) continue;
+      this.slots.delete(name);
+      this.raise(name, []);
+    }
     await Promise.all(peers.map((p) => this.read(p)));
   }
 
@@ -68,8 +80,36 @@ export class PeerHerd {
     s.lastRead = now;
     try {
       Object.assign(s, herdOf(peer.name, await call(this.d, peer, "/api/node/snapshot")), { at: this.now() });
+      this.raise(peer.name, s.agents);
     } finally {
       s.busy = false;
+    }
+  }
+
+  /**
+   * The pane's own `blocked`, relayed (ADR 0011 test 3: the pane speaks, the board adds nothing): armed
+   * in the herd's one slot, retracted as soon as the peer's snapshot stops saying it — a peer that no
+   * longer answers says nothing, so its alerts go too rather than outlive what we can read.
+   */
+  private raise(peer: string, agents: readonly Record<string, unknown>[]): void {
+    const alerts = this.d.alerts?.();
+    if (!alerts) return;
+    const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+    const blocked = new Set<string>();
+    for (const a of agents) {
+      const id = str(a.paneId);
+      if (a.status !== "blocked" || !id) continue;
+      const key = herdPaneId(peer, id);
+      blocked.add(key);
+      if (this.raised.has(key)) continue;
+      this.raised.set(key, peer);
+      const cardTitle = str(a.cardTitle);
+      alerts.arm(key, { paneId: key, agent: str(a.agent), workspaceLabel: str(a.workspaceLabel), cwd: str(a.cwd) ?? "", status: "blocked", ...(cardTitle ? { cardTitle } : {}), subtitle: `on ${peer}` });
+    }
+    for (const [key, p] of this.raised) {
+      if (p !== peer || blocked.has(key)) continue;
+      this.raised.delete(key);
+      alerts.retract(key);
     }
   }
 

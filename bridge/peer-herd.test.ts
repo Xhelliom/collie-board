@@ -36,6 +36,30 @@ describe("herdOf", () => {
 });
 
 describe("PeerHerd", () => {
+  it("raises a remote blocked in the herd's slot and retracts it when the peer stops saying it", async () => {
+    let t = 0;
+    let answer: unknown = SNAP;
+    const { fetch } = fakeFetch(() => (answer instanceof Error ? answer : Response.json(answer)));
+    const log: string[] = [];
+    const alerts = { arm: (k: string, a: { status: string; paneId?: string }) => log.push(`arm ${k} ${a.status} ${a.paneId}`), retract: (k: string) => log.push(`retract ${k}`) };
+    const herd = new PeerHerd({ fetch, outbound: () => [DEV], alerts: () => alerts }, () => t);
+    await herd.update(LOCAL);
+    t += READ_EVERY_MS;
+    await herd.update(LOCAL); // still blocked: armed once, not re-armed
+    expect(log).toEqual(["arm w1:p1@dev blocked w1:p1@dev"]);
+    answer = { ...SNAP, agents: [{ paneId: "w1:p1", status: "working" }] };
+    t += READ_EVERY_MS;
+    await herd.update(LOCAL);
+    expect(log.at(-1)).toBe("retract w1:p1@dev");
+    answer = SNAP;
+    t += READ_EVERY_MS;
+    await herd.update(LOCAL);
+    answer = new Error("timeout"); // unreachable: we can no longer read it, so it goes
+    t += READ_EVERY_MS;
+    await herd.update(LOCAL);
+    expect(log.slice(2)).toEqual(["arm w1:p1@dev blocked w1:p1@dev", "retract w1:p1@dev"]);
+  });
+
   it("reads each peer at most every READ_EVERY_MS", async () => {
     let t = 0;
     const { fetch, seen } = fakeFetch(() => Response.json(SNAP));

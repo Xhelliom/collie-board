@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import type { AgentView } from "@/lib/types";
 
 // The Peers settings screen's half of ADR 0049. Every call is the operator's own; no answer ever
 // carries a token — the bridge keeps it, the screen only sees names, logins, dates and outcomes.
@@ -71,3 +72,17 @@ export const cachedPeers = () => cached("view", () => fetchPeers());
 export const cachedPeerTest = (name: string) => cached(`test:${name}`, () => testPeer(name).then((r) => r.test));
 /** After pairing, forgetting or a test in Settings: the switcher reads afresh. */
 export const clearPeerCache = () => peerCache.clear();
+
+/** One paired peer's herd as the bridge last read it (`GET /api/herd`, bridge/peer-herd.ts). */
+export interface PeerHerdView {
+  peer: string;
+  state: "pending" | "connected" | "disconnected";
+  error: string | null;
+  agents: AgentView[];
+}
+
+export const fetchHerd = (signal?: AbortSignal) => apiRequest<{ peers: PeerHerdView[] }>("/api/herd", { signal });
+
+/** The peers' agents, each under the id the relay routes on (`<paneId>@<peer>`, lib/api.ts). */
+export const remoteAgents = (peers: readonly PeerHerdView[]): AgentView[] =>
+  peers.flatMap((p) => p.agents.map((a) => ({ ...a, paneId: `${a.paneId}@${p.peer}`, peer: p.peer })));

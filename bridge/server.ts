@@ -162,7 +162,7 @@ export function startServer(opts: {
   const peers = new PeerStore(cfg.stateDir);
   const nodeLaunched = new Map<string, LaunchedPane>();
   // The paired peers' herds, read on the primary engine's tick (bridge/peer-herd.ts) — no timer.
-  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound() });
+  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications });
   registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
