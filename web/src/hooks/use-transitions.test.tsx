@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -13,9 +13,6 @@ import type { AgentStatus, AgentView } from "@/lib/types";
 // where its Open button leads. The toast lands in the app's one Sonner <Toaster/>.
 
 beforeEach(() => toast.dismiss());
-// Sonner unmounts a removed toast on a bare 200 ms setTimeout it never clears: let the last one fire
-// while jsdom is still here, or it lands after teardown as "window is not defined" and fails CI.
-afterAll(() => new Promise((resolve) => setTimeout(resolve, 300)));
 
 const base: AgentView = {
   paneId: "w1:p1",

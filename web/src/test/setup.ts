@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { cleanup, configure } from "@testing-library/react";
 import { setupServer } from "msw/node";
+import { toast } from "sonner";
 
 import { handlers, resetTypedDraft } from "./handlers";
 import { __resetConnectionHealth } from "@/lib/connection-health";
@@ -24,11 +25,41 @@ beforeEach(() => {
   __setPins([]);
 });
 afterEach(() => {
+  toast.dismiss();
   cleanup();
   server.resetHandlers();
   resetTypedDraft(); // the fake pane's input line, so a draft can't leak into the next test
 });
 afterAll(() => server.close());
+
+// A library's bare setTimeout outlives the component that set it — Radix's focus scope dispatches
+// its unmount event 0 ms after cleanup, Sonner removes a toast 200 ms after dismiss — and once the
+// file ends, Vitest tears jsdom down before they fire: an uncaught exception ("window is not
+// defined", "dispatchEvent … not of type Event") that fails a run whose tests all passed. Track
+// every timeout set in the file and clear the ones still pending when it ends.
+const pendingTimeouts = new Set<ReturnType<typeof setTimeout>>();
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+globalThis.setTimeout = ((fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+  const id = realSetTimeout(
+    (...a: unknown[]) => {
+      pendingTimeouts.delete(id);
+      fn(...a);
+    },
+    ms,
+    ...args,
+  );
+  pendingTimeouts.add(id);
+  return id;
+}) as unknown as typeof setTimeout;
+globalThis.clearTimeout = ((id?: ReturnType<typeof setTimeout>) => {
+  if (id !== undefined) pendingTimeouts.delete(id);
+  realClearTimeout(id);
+}) as typeof clearTimeout;
+afterAll(() => {
+  pendingTimeouts.forEach(realClearTimeout);
+  pendingTimeouts.clear();
+});
 
 // jsdom gaps that the terminal mirror / sheets touch.
 if (!Element.prototype.scrollIntoView) {
