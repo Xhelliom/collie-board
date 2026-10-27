@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchCards, normalizeTag, tagsOf, type CardInput, type CardView } from "@/lib/board";
+import { fetchCards, normalizeTag, tagsOf, type CardEnvironment, type CardInput, type CardView } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
+import { EnvironmentPicker } from "@/components/card-environment";
 
 // Rework a card by hand.
 //
@@ -38,6 +39,7 @@ export function CardEditor({
   const [acceptance, setAcceptance] = useState<string[]>(card.acceptance);
   const [baseRef, setBaseRef] = useState(card.baseRef ?? "");
   const [agentKind, setAgentKind] = useState<string | null>(card.agentKind ?? null);
+  const [environment, setEnvironment] = useState<CardEnvironment | null>(card.environment ?? null);
   const [tag, setTag] = useState(card.tag ?? "");
   const [parentId, setParentId] = useState<string | null>(card.parentId);
   const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
@@ -54,6 +56,7 @@ export function CardEditor({
     setAcceptance(card.acceptance);
     setBaseRef(card.baseRef ?? "");
     setAgentKind(card.agentKind ?? null);
+    setEnvironment(card.environment ?? null);
     setTag(card.tag ?? "");
     setParentId(card.parentId);
     setDependsOn(card.dependsOn);
@@ -89,6 +92,8 @@ export function CardEditor({
         tag: normalizeTag(tag),
         parentId,
         dependsOn,
+        // Only when moved: an unchanged edit must not re-assert where a card runs.
+        ...(environment?.peer !== card.environment?.peer || environment?.name !== card.environment?.name ? { environment } : {}),
       });
       onClose();
     } finally {
@@ -173,6 +178,7 @@ export function CardEditor({
         <TagField value={tag} onChange={setTag} tags={tagsOf([card, ...others])} />
 
         <AgentKindPicker value={agentKind} onChange={setAgentKind} />
+        {card.repoPath && <EnvironmentPicker repoPath={card.repoPath} value={environment} onChange={setEnvironment} />}
 
         <LinkPicker
           label={t("editor.partOf")}

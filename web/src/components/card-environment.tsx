@@ -11,16 +11,11 @@ const keyOf = (e: Env | null | undefined) => (e ? `${e.peer}/${e.name}` : "");
 // is lot 2's (the unified herd); this only says what it was a moment ago.
 export function CardEnvironment({ card, onChanged, onError }: { card: CardView; onChanged: () => void; onError: (m: string) => void }) {
   const t = useT();
-  const [envs, setEnvs] = useState<Awaited<ReturnType<typeof fetchRepoEnvironments>> | null>(null);
   const [remote, setRemote] = useState<CardRemote | null>(null);
   const [ending, setEnding] = useState(false);
   const env = card.environment ?? null;
   const envKey = keyOf(env);
 
-  useEffect(() => {
-    if (!card.repoPath) return;
-    fetchRepoEnvironments(card.repoPath).then(setEnvs, () => setEnvs(null));
-  }, [card.repoPath]);
   // Re-read when the card's start or end changes its journal, i.e. when its status moves.
   useEffect(() => {
     if (!envKey) return setRemote(null);
@@ -60,38 +55,66 @@ export function CardEnvironment({ card, onChanged, onError }: { card: CardView; 
     );
   }
 
+  if (!card.repoPath) return null;
+  return (
+    <EnvironmentPicker
+      repoPath={card.repoPath}
+      value={env}
+      onChange={async (picked) => {
+        try {
+          await patchCard(card.id, { environment: picked });
+        } catch (err) {
+          onError((err as Error).message);
+        }
+        onChanged();
+      }}
+    />
+  );
+}
+
+/**
+ * « Lancer sur »: this machine, then the peers' environments whose origin is this repo's; an
+ * unreachable peer stays listed, greyed with its reason. No peer at all: no picker — nothing changes.
+ * Read when it mounts, never polled.
+ */
+export function EnvironmentPicker({ repoPath, value, onChange }: { repoPath: string; value: Env | null; onChange: (e: Env | null) => void }) {
+  const t = useT();
+  const [envs, setEnvs] = useState<Awaited<ReturnType<typeof fetchRepoEnvironments>> | null>(null);
+  useEffect(() => {
+    fetchRepoEnvironments(repoPath).then(setEnvs, () => setEnvs(null));
+  }, [repoPath]);
+
   const offered = envs?.environments ?? [];
-  // Nothing to choose between, and nothing chosen: no peer runs this repo — say nothing.
-  if (offered.length === 0 && !env) return null;
+  const unreachable = envs?.unreachable ?? [];
+  if (offered.length === 0 && unreachable.length === 0 && !value) return null;
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{t("cardEnv.label")}</span>
       <select
         aria-label={t("cardEnv.label")}
-        value={keyOf(env)}
-        onChange={async (e) => {
-          const picked = offered.find((o) => keyOf(o) === e.target.value) ?? null;
-          try {
-            await patchCard(card.id, { environment: picked ? { peer: picked.peer, name: picked.name } : null });
-          } catch (err) {
-            onError((err as Error).message);
-          }
-          onChanged();
+        value={keyOf(value)}
+        onChange={(e) => {
+          const picked = offered.find((o) => keyOf(o) === e.target.value);
+          onChange(picked ? { peer: picked.peer, name: picked.name } : null);
         }}
-        className="h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <option value="">{t("cardEnv.local")}</option>
         {offered.map((o) => (
           <option key={keyOf(o)} value={keyOf(o)}>
-            {t("cardEnv.option", { name: o.name, peer: o.peer, agent: o.agent })}
+            {t("cardEnv.option", { name: o.name, peer: o.peer })}
           </option>
         ))}
-        {env && !offered.some((o) => keyOf(o) === keyOf(env)) && <option value={keyOf(env)}>{t("cardEnv.option", { name: env.name, peer: env.peer, agent: "?" })}</option>}
+        {value && !offered.some((o) => keyOf(o) === keyOf(value)) && (
+          <option value={keyOf(value)}>{t("cardEnv.option", { name: value.name, peer: value.peer })}</option>
+        )}
+        {unreachable.map((u) => (
+          <option key={`!${u.peer}`} value={`!${u.peer}`} disabled>
+            {t("cardEnv.unreachableOption", { peer: u.peer, error: u.error })}
+          </option>
+        ))}
       </select>
-      <p className="px-1 text-xs text-muted-foreground">
-        {t("cardEnv.hint")}
-        {envs?.unreachable.length ? ` ${t("cardEnv.someUnreachable", { peers: envs.unreachable.map((u) => u.peer).join(", ") })}` : ""}
-      </p>
+      <p className="px-1 text-xs text-muted-foreground">{t("cardEnv.hint")}</p>
     </label>
   );
 }
