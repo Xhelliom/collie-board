@@ -189,4 +189,48 @@ describe("/api/repos/share — the operator's route", () => {
     expect(off.body).toEqual({ ok: true, dropped: unsent });
     expect((await call(pb.db, stateDir, "GET", `/api/repos/share?repo=${encodeURIComponent(b)}`)).body).toMatchObject({ share: null, wasShared: true });
   });
+
+  test("« Renvoyer mon journal »: a force-push is signalled, holds the sends, and the resend restores it for every pair", async () => {
+    const { root, bare, clones } = setup(2);
+    const [a, b] = clones as [string, string];
+    const clock = { t: 1_000_000 };
+    const stateDir = mkdtempSync(join(root, "state-"));
+    const pa = install(a, A, clock);
+    const c1 = pa.db.createCard({ title: "first", repoPath: a });
+    await pa.activate();
+    const old = branchOf(bare);
+    const c2 = pa.db.createCard({ title: "second", repoPath: a });
+    clock.t += FETCH_EVERY_MS;
+    await pa.tick();
+    expect(branchOf(bare)).not.toBe(old);
+
+    sh(bare, "update-ref", "refs/heads/collie-board", old); // someone force-pushes an older state
+    clock.t += FETCH_EVERY_MS;
+    await pa.tick();
+    expect(journalStatus(pa.db, a)).toMatchObject({ rewritten: true });
+    // Held: a write here does not build on the rewritten branch.
+    pa.db.patchCard(c1.id, { title: "first, edited" });
+    clock.t += FETCH_EVERY_MS;
+    await pa.tick();
+    expect(branchOf(bare)).toBe(old);
+
+    const route = (headers: Record<string, string> = {}) => call(pa.db, stateDir, "POST", "/api/repos/share/resend", { path: a }, headers);
+    expect((await route({ "x-collie-pane": "p1" })).status).toBe(403);
+    expect(branchOf(bare)).toBe(old);
+    const r = await route();
+    expect(r).toMatchObject({ status: 200, body: { ok: true } });
+    expect(journalStatus(pa.db, a)).toMatchObject({ rewritten: false, unsent: 0, error: null });
+    const lines = sh(bare, "show", `collie-board:cards/${c1.id}/${A}.jsonl`);
+
+    // Idempotent: a second resend adds no line.
+    expect((await route()).body).toMatchObject({ ok: true });
+    expect(sh(bare, "show", `collie-board:cards/${c1.id}/${A}.jsonl`)).toBe(lines);
+
+    // Another pair, sharing afterwards, gets everything.
+    const pb = install(b, B, clock);
+    clock.t += 1;
+    await pb.activate();
+    expect(pb.db.getCard(c1.id)?.title).toBe("first, edited");
+    expect(pb.db.getCard(c2.id)?.title).toBe("second");
+  });
 });

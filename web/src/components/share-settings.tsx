@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useT } from "@/i18n";
 import { Switch } from "@/components/ui/switch";
-import { boardErrorMessage, fetchRepoShare, setRepoShare, type RepoShare } from "@/lib/board";
+import { boardErrorMessage, fetchRepoShare, resendJournal, setRepoShare, type RepoShare } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 
 // Sharing a repo's board over git (ADR 0048 §1, §6). Off by default; turning it on or off is the
@@ -43,10 +43,25 @@ export function ShareSettings({ repo }: { repo: string }) {
     }
   }
 
+  async function resend() {
+    setBusy(true);
+    try {
+      const r = await resendJournal(repo);
+      setStatus(t("project.share.resent", { count: r.lines }), "success", 2500);
+      setInfo(await fetchRepoShare(repo, picked));
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const sync = info.sync;
   const state = !sync
     ? null
-    : sync.readOnly
+    : sync.rewritten
+      ? t("project.share.rewritten")
+      : sync.readOnly
       ? t("project.share.readOnly", { reason: sync.readOnly })
       : sync.offline
         ? `${t("project.share.offline")} · ${t("project.share.unsent", { count: sync.unsent })}`
@@ -90,6 +105,19 @@ export function ShareSettings({ repo }: { repo: string }) {
         )}
         {!shared && info.branch && <p className="text-xs">{t("project.share.branch", { remote: remote ?? "" })}</p>}
         {state && <p role="status" className="text-xs">{state}</p>}
+        {shared && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">{t("project.share.resendHint")}</p>
+            <button
+              type="button"
+              disabled={busy || asking !== null}
+              onClick={() => void resend()}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${sync?.rewritten ? "border-amber-500/60 bg-amber-500/10" : ""}`}
+            >
+              {t("project.share.resend")}
+            </button>
+          </div>
+        )}
         {info.identity && (shared || asking === "on") && (
           <p className="text-xs text-muted-foreground">{t("project.share.identity", { identity: info.identity })}</p>
         )}

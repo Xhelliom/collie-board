@@ -9,11 +9,13 @@ const base: RepoShare = { share: null, remotes: ["origin"], remote: "origin", br
 let answer: RepoShare = base;
 const fetchRepoShare = vi.fn(async (_r: string, _remote?: string) => answer);
 const setRepoShare = vi.fn(async (_p: string, _r: string | null) => ({ ok: true as const }));
+const resendJournal = vi.fn(async (_p: string) => ({ ok: true as const, lines: 4 }));
 
 vi.mock("@/lib/board", async (orig) => ({
   ...(await orig<typeof import("@/lib/board")>()),
   fetchRepoShare: (r: string, remote?: string) => fetchRepoShare(r, remote),
   setRepoShare: (p: string, r: string | null) => setRepoShare(p, r),
+  resendJournal: (p: string) => resendJournal(p),
 }));
 
 const show = async (a: RepoShare) => {
@@ -51,7 +53,7 @@ describe("ShareSettings (ADR 0048 §1, §6)", () => {
   });
 
   it("says how many changes will not go before stopping", async () => {
-    const sw = await show({ ...base, share: "origin", sync: { unsent: 3, readOnly: null, offline: true, error: null } });
+    const sw = await show({ ...base, share: "origin", sync: { unsent: 3, readOnly: null, offline: true, rewritten: false, error: null } });
     expect(sw).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("status")).toHaveTextContent("Hors ligne · 3 changements non envoyés");
     await click(sw);
@@ -61,8 +63,20 @@ describe("ShareSettings (ADR 0048 §1, §6)", () => {
   });
 
   it("shows read-only and up-to-date states", async () => {
-    await show({ ...base, share: "origin", sync: { unsent: 0, readOnly: "protected branch", offline: false, error: null } });
+    await show({ ...base, share: "origin", sync: { unsent: 0, readOnly: "protected branch", offline: false, rewritten: false, error: null } });
     expect(screen.getByRole("status")).toHaveTextContent("Lecture seule : protected branch");
+  });
+
+  it("signals a rewritten remote and resends this pair's journal on the gesture", async () => {
+    await show({ ...base, share: "origin", sync: { unsent: 2, readOnly: null, offline: false, rewritten: true, error: null } });
+    expect(screen.getByRole("status")).toHaveTextContent("Historique réécrit sur le remote");
+    await click(screen.getByRole("button", { name: "Renvoyer mon journal" }));
+    expect(resendJournal).toHaveBeenCalledWith("/r/app");
+  });
+
+  it("offers no resend while the board is not shared", async () => {
+    await show(base);
+    expect(screen.queryByRole("button", { name: "Renvoyer mon journal" })).toBeNull();
   });
 
   it("cannot be turned on without a remote", async () => {

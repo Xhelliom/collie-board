@@ -304,6 +304,10 @@ tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `finish_ca
   A paired peer reads; it may launch only in environments granted by hand (`launch = [...]`).
   [ADR 0049](./.adr/0049-appairage-de-pairs-par-code-depuis-l-ui.md).
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
+  A repo's board shared over git (opt-in, [ADR 0048](./.adr/0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md))
+  is the exception: an append-only journal on an orphan `collie-board` branch. **Protect that branch
+  on the remote** (GitHub: block deletion and force-pushes) — a force-push to an older state drops
+  lines that only *Resend my journal*, in the project settings, puts back.
 - **No drag & drop as the primary verb.** Most transitions are automatic, and dragging on a phone is
   miserable. Dragging exists on the wide-screen board, only between the columns a human owns.
 - **No heuristic context gauge.** It could only produce a number that looks authoritative and isn't.

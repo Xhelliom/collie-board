@@ -331,4 +331,17 @@ export const project = defineMessages({
   "project.share.cancel": { en: "Cancel", fr: "Annuler" },
   "project.share.done": { en: "Shared on {remote}", fr: "Partagé sur {remote}" },
   "project.share.stopped": { en: "Sharing stopped", fr: "Partage arrêté" },
+  "project.share.rewritten": {
+    en: "History rewritten on the remote: lines you sent may be gone, and sending waits for you to resend your journal.",
+    fr: "Historique réécrit sur le remote : des lignes envoyées peuvent manquer, et l'envoi attend que tu renvoies ton journal.",
+  },
+  "project.share.resend": { en: "Resend my journal", fr: "Renvoyer mon journal" },
+  "project.share.resendHint": {
+    en: "Pushes again every line this machine wrote, without forcing — for a branch force-pushed to an older state.",
+    fr: "Repousse toutes les lignes écrites par cette machine, sans forcer — pour une branche force-pushée vers un état ancien.",
+  },
+  "project.share.resent": {
+    en: { one: "{count} line resent", other: "{count} lines resent" },
+    fr: { one: "{count} ligne renvoyée", other: "{count} lignes renvoyées" },
+  },
 });

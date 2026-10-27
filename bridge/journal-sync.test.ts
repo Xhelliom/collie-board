@@ -48,7 +48,7 @@ function install(repo: string, pairId: string, clock: { t: number }, git?: Journ
 }
 
 const state = (over: Partial<RepoSync> = {}): RepoSync => ({
-  busy: false, lastFetch: 0, lastSend: 0, refetch: false, offline: false, readOnly: null, error: null, ...over,
+  busy: false, lastFetch: 0, lastSend: 0, refetch: false, offline: false, readOnly: null, rewritten: false, error: null, ...over,
 });
 
 describe("plan — the throttle, on an injected clock", () => {
@@ -69,6 +69,7 @@ describe("plan — the throttle, on an injected clock", () => {
     expect(plan(state({ refetch: true }), 1, 0)).toEqual({ fetch: true });
     expect(plan(state({ offline: true }), SEND_EVERY_MS, 5)).toBeNull();
     expect(plan(state({ readOnly: "no" }), SEND_EVERY_MS, 5)).toBeNull();
+    expect(plan(state({ rewritten: true }), SEND_EVERY_MS, 5)).toBeNull();
     expect(plan(state({ offline: true }), FETCH_EVERY_MS, 5)).toEqual({ fetch: true });
   });
 });
@@ -84,6 +85,7 @@ describe("JournalSync — the consumer", () => {
       email: async () => "me@t",
       remotes: async () => ["origin"],
       forget: async () => {},
+      own: async () => [],
     };
     return { calls, git, release };
   };

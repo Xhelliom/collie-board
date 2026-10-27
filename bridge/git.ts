@@ -1254,12 +1254,20 @@ export async function receiveJournal(
   repoPath: string,
   remote: string,
   git: GitRunner = runGit,
-): Promise<{ ok: true; entries: JournalEntry[] } | JournalFailure> {
+): Promise<{ ok: true; entries: JournalEntry[]; rewritten?: true } | JournalFailure> {
   if (!okRemote(remote)) return { ok: false, kind: "error", error: `not a remote name: ${remote}` };
+  const before = await revOf(repoPath, JOURNAL_REMOTE_REF, git);
   const f = await git(["fetch", "--no-tags", "--no-write-fetch-head", remote, `+${JOURNAL_BRANCH}:${JOURNAL_REMOTE_REF}`], repoPath);
   if (!f.ok && !/couldn't find remote ref/i.test(f.stderr)) return journalFailure(f.stderr || f.stdout);
   const theirs = await revOf(repoPath, JOURNAL_REMOTE_REF, git);
   if (!theirs) return { ok: true, entries: [] };
+  // §3: the remote no longer descends from what was last known — force-pushed. Exit 1 with no stderr is
+  // "not an ancestor"; any other failure is not evidence, so it says nothing.
+  let rewritten = false;
+  if (before && before !== theirs) {
+    const a = await git(["merge-base", "--is-ancestor", before, theirs], repoPath);
+    rewritten = !a.ok && a.stderr.trim() === "";
+  }
   const ours = await revOf(repoPath, JOURNAL_REF, git);
   const changed = ours
     ? await git(["diff-tree", "-r", "-z", "--no-renames", "--name-only", ours, theirs], repoPath)
@@ -1277,7 +1285,29 @@ export async function receiveJournal(
       if (p.ok) entries.push({ entity, event: p.event });
     }
   }
-  return { ok: true, entries };
+  return rewritten ? { ok: true, entries, rewritten: true } : { ok: true, entries };
+}
+
+/**
+ * Every line this pair has written, read back from its own files in {@link JOURNAL_REF} — what
+ * « Renvoyer mon journal » hands to {@link sendJournal} after the remote branch was rewritten to an
+ * older state. Nothing when this pair has no journal yet.
+ */
+export async function ownJournal(repoPath: string, pairId: string, git: GitRunner = runGit): Promise<JournalEntry[]> {
+  const ours = await revOf(repoPath, JOURNAL_REF, git);
+  if (!ours) return [];
+  const ls = await git(["ls-tree", "-r", "-z", "--name-only", ours], repoPath);
+  if (!ls.ok) throw new Error(tailOf(ls.stderr) || "git ls-tree failed");
+  const entries: JournalEntry[] = [];
+  for (const path of ls.stdout.split("\0")) {
+    const m = JOURNAL_FILE_RE.exec(path);
+    if (!m || m[2] !== pairId) continue;
+    for (const line of linesOf(await blobOf(repoPath, ours, path, git))) {
+      const p = parseEvent(line);
+      if (p.ok) entries.push({ entity: m[1]!, event: p.event });
+    }
+  }
+  return entries;
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   gitUserEmail,
   journalBranchOn,
   journalWasShared,
+  ownJournal,
   receiveJournal,
   sendJournal,
   type JournalFailure,
@@ -36,10 +37,16 @@ export interface RepoSync {
   offline: boolean;
   /** The remote refused this pair's push (rights): the repo's entity writes are refused, with this reason. */
   readOnly: string | null;
+  /**
+   * The remote branch was rewritten to a state that does not descend from the last one known
+   * (force-push). Sends are held until the operator resends this pair's journal: a send would build
+   * on the rewritten tree and drop from JOURNAL_REF the very lines the resend reads back.
+   */
+  rewritten: boolean;
   error: string | null;
 }
 
-const fresh = (): RepoSync => ({ busy: false, lastFetch: -Infinity, lastSend: -Infinity, refetch: false, offline: false, readOnly: null, error: null });
+const fresh = (): RepoSync => ({ busy: false, lastFetch: -Infinity, lastSend: -Infinity, refetch: false, offline: false, readOnly: null, rewritten: false, error: null });
 
 /**
  * What a repo's tick does: nothing, a send, or a fetch then a send. Pure, so the throttle is tested
@@ -49,18 +56,20 @@ const fresh = (): RepoSync => ({ busy: false, lastFetch: -Infinity, lastSend: -I
 export function plan(s: RepoSync, now: number, unsent: number): { fetch: boolean } | null {
   if (s.busy) return null;
   if (s.refetch || now - s.lastFetch >= FETCH_EVERY_MS) return { fetch: true };
-  if (unsent > 0 && !s.offline && !s.readOnly && now - s.lastSend >= SEND_EVERY_MS) return { fetch: false };
+  if (unsent > 0 && !s.offline && !s.readOnly && !s.rewritten && now - s.lastSend >= SEND_EVERY_MS) return { fetch: false };
   return null;
 }
 
 /** The git half, injectable so the consumer is tested without a remote. */
 export interface JournalGit {
-  receive(repo: string, remote: string): Promise<{ ok: true; entries: JournalEntry[] } | JournalFailure>;
+  receive(repo: string, remote: string): Promise<{ ok: true; entries: JournalEntry[]; rewritten?: true } | JournalFailure>;
   send(repo: string, remote: string, pairId: string, outbox: JournalEntry[], message?: string): Promise<{ ok: true; pushed: boolean } | JournalFailure>;
   email(repo: string): Promise<string>;
   remotes(repo: string): Promise<string[]>;
   /** Forget what was read, so the next receive is the whole journal. */
   forget(repo: string): Promise<void>;
+  /** Every line this pair wrote, read back from its own journal ref. */
+  own(repo: string, pairId: string): Promise<JournalEntry[]>;
 }
 
 const realGit: JournalGit = {
@@ -69,16 +78,20 @@ const realGit: JournalGit = {
   email: (repo) => gitUserEmail(repo),
   remotes: (repo) => gitRemotes(repo),
   forget: (repo) => forgetJournal(repo),
+  own: (repo, pairId) => ownJournal(repo, pairId),
 };
 
 /** repo → its sync state. Module-level so the routes read it without wiring through server.ts. */
 const states = new Map<string, RepoSync>();
 
 /** A repo's sync as the project screen shows it, or null when the repo is not shared. */
-export function journalStatus(db: BoardDb, path: string): { unsent: number; readOnly: string | null; offline: boolean; error: string | null } | null {
+export function journalStatus(
+  db: BoardDb,
+  path: string,
+): { unsent: number; readOnly: string | null; offline: boolean; rewritten: boolean; error: string | null } | null {
   if (!db.repoShare(path)) return null;
   const s = states.get(path) ?? fresh();
-  return { unsent: db.journalUnsent(path), readOnly: s.readOnly, offline: s.offline, error: s.error };
+  return { unsent: db.journalUnsent(path), readOnly: s.readOnly, offline: s.offline, rewritten: s.rewritten, error: s.error };
 }
 
 /** The running consumer, so the share route reaches its clock and its throttle without wiring through server.ts. */
@@ -137,6 +150,30 @@ export class JournalSync {
     return dropped;
   }
 
+  /**
+   * « Renvoyer mon journal » — the operator's repair once the remote branch was force-pushed to an
+   * older state: every line this pair ever wrote is read back from its own journal ref and sent again
+   * with the outbox, after a fetch. Never forced, and idempotent: a line already on the remote is not
+   * added twice. It also releases the sends a detected rewrite held.
+   */
+  async resend(repo: string): Promise<{ ok: true; lines: number } | { ok: false; error: string }> {
+    const remote = this.db.repoShare(repo);
+    if (!remote) return { ok: false, error: "this repo's board is not shared" };
+    const s = states.get(repo) ?? fresh();
+    if (s.busy) return { ok: false, error: "a sync of this repo is in flight — try again in a moment" };
+    states.set(repo, s);
+    s.busy = true;
+    try {
+      const own = await this.git.own(repo, this.clock.pairId);
+      await this.run(repo, remote, s, true, own);
+      return s.error ? { ok: false, error: s.error } : { ok: true, lines: own.length };
+    } catch (err) {
+      return { ok: false, error: (s.error = (err as Error).message) };
+    } finally {
+      s.busy = false;
+    }
+  }
+
   /** One tick. Returns the operations it started, so a test can await them; the hook does not. */
   update(snap: EngineSnapshot): Promise<void> {
     if (snap.bridge === "disconnected") return Promise.resolve();
@@ -156,7 +193,7 @@ export class JournalSync {
     return Promise.all(ops).then(() => {});
   }
 
-  private async run(repo: string, remote: string, s: RepoSync, fetch: boolean): Promise<void> {
+  private async run(repo: string, remote: string, s: RepoSync, fetch: boolean, own?: JournalEntry[]): Promise<void> {
     const t = this.now();
     if (fetch) {
       s.lastFetch = t;
@@ -164,19 +201,21 @@ export class JournalSync {
       const r = await this.git.receive(repo, remote);
       if (!r.ok) return this.fail(s, r);
       s.offline = false;
+      if (r.rewritten) s.rewritten = true;
       // Unshared while the fetch was out: what it brought is no longer this repo's to apply.
       if (this.db.repoShare(repo) !== remote) return;
       if (r.entries.length > 0) this.db.applyJournal(repo, r.entries, this.clock);
     }
-    await this.send(repo, remote, s);
+    if (s.rewritten && !own) return;
+    await this.send(repo, remote, s, undefined, own);
   }
 
   /** Push the outbox; true when a commit went out. A failure is recorded on `s` for plan() to pace. */
-  private async send(repo: string, remote: string, s: RepoSync, message?: string): Promise<boolean> {
+  private async send(repo: string, remote: string, s: RepoSync, message?: string, own?: JournalEntry[]): Promise<boolean> {
     s.lastSend = this.now();
     if (!this.emails.has(repo)) this.emails.set(repo, (await this.git.email(repo)) || this.clock.pairId);
     const outbox = this.db.journalOutbox(repo, this.clock, this.emails.get(repo)!);
-    const r = await this.git.send(repo, remote, this.clock.pairId, outbox, message);
+    const r = await this.git.send(repo, remote, this.clock.pairId, [...(own ?? []), ...outbox], message);
     if (!r.ok) {
       this.fail(s, r);
       return false;
@@ -184,6 +223,7 @@ export class JournalSync {
     if (outbox.length > 0) this.db.dropJournalOutbox(repo, outbox.at(-1)!.seq);
     s.offline = false;
     s.readOnly = null;
+    if (own) s.rewritten = false;
     s.error = null;
     return r.pushed;
   }
@@ -233,6 +273,7 @@ const SHARE_ROUTE = "/api/repos/share";
  * here reads the repo's own config; the remote branch is only reported (`branch`), never acted on.
  */
 export async function handleShareRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
+  if (pathname === RESEND_ROUTE) return resendRoute(req, ctx);
   if (pathname !== SHARE_ROUTE) return null;
   if (req.method === "GET") {
     const denied = ctx.guard("read");
@@ -270,5 +311,22 @@ export async function handleShareRoute(pathname: string, req: Request, ctx: Boar
   }
   const r = await live.activate(path, remote, () => writeSafetyBackup(ctx.db, ctx.cfg.stateDir));
   ctx.audit.record({ action: "repo.share", session: ctx.session, device: ctx.device, detail: { path, remote, ok: r.ok } });
+  return ctx.json(r, r.ok ? 200 : 409);
+}
+
+/** `/api/repos/share/resend` — POST `{path}`: « Renvoyer mon journal » (ADR 0048 §3). */
+const RESEND_ROUTE = "/api/repos/share/resend";
+
+/** The operator's repair, refused to an agent pane like the share switch: it pushes to the remote. */
+async function resendRoute(req: Request, ctx: BoardContext): Promise<Response> {
+  if (req.method !== "POST") return ctx.text("method not allowed", 405);
+  if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("resending the journal is the operator's gesture — an agent pane may not", 403);
+  const denied = ctx.guard("write");
+  if (denied) return denied;
+  const { path } = ((await req.json().catch(() => null)) ?? {}) as { path?: unknown };
+  if (typeof path !== "string" || !isAbsolute(path) || !existsSync(join(path, ".git"))) return ctx.text("path must be the root of a repository", 400);
+  if (!live) return ctx.json({ ok: false, error: "the journal sync is not running", kind: "disabled" }, 503);
+  const r = await live.resend(path);
+  ctx.audit.record({ action: "repo.share.resend", session: ctx.session, device: ctx.device, detail: { path, ...r } });
   return ctx.json(r, r.ok ? 200 : 409);
 }
