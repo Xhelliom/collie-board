@@ -303,6 +303,21 @@ curl -s -X POST "$B/api/board/pins" -H 'content-type: application/json' \
   -d '{"session":"<agentSessionId>","name":"chat infra","pinned":true}'   # pin (false = unpin; ask first)
 ```
 
+The agents of the paired peers (other machines this one drives) are one more herd, read every ~5 s
+and never stored. A pane there is named by its peer; reading, answering and keys go through this
+bridge, never to the peer directly:
+
+```bash
+curl -s "$B/api/herd"                         # {peers:[{peer, state, error, agents, shellPanes, at}]}
+#   state: connected | disconnected (unreachable, refused, or its herdr down — that peer only) | pending
+#   each pane carries `peer`; its paneId is the peer's own
+curl -s "$B/api/herd/<peer>/pane/<paneId>"    # that remote pane's recent output
+curl -s -X POST "$B/api/herd/<peer>/pane/<paneId>/reply" -H 'content-type: application/json' \
+  -d '{"text":"yes, go ahead"}'               # same body as the local reply
+curl -s -X POST "$B/api/herd/<peer>/pane/<paneId>/keys" -H 'content-type: application/json' \
+  -d '{"keys":["Enter"]}'                     # same key grammar as the local keys
+```
+
 - Answer a pane only for what the user already decided or what is plainly safe (a "continue", a
   fact in the roadmap). A real choice is theirs: put it to them first.
 - Never type into your own pane, and never `reply` to something that is not an agent waiting.

@@ -26,6 +26,7 @@ import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
 import { handlePeerRoute, PeerStore } from "./pairing.ts";
+import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
@@ -160,6 +161,9 @@ export function startServer(opts: {
   // (`bridge/pairing.ts`): no peer in node.toml → /api/node/* is a 404.
   const peers = new PeerStore(cfg.stateDir);
   const nodeLaunched = new Map<string, LaunchedPane>();
+  // The paired peers' herds, read on the primary engine's tick (bridge/peer-herd.ts) — no timer.
+  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound() });
+  registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
     (h, paneId, txt, submit) => sendReplySteps(h, paneId, txt, submit, cfg.submitKeys),
@@ -214,6 +218,17 @@ export function startServer(opts: {
         version: updateMonitor.status().current,
       });
       if (nodeRes) return nodeRes;
+      const herdRes = await handleHerdRoute(pathname, req, {
+        herd: peerHerd,
+        outbound: () => peers.outbound(),
+        fetch,
+        guard: (level) => guard(req, cfg, level),
+        device: () => deviceAuth(req, cfg).device,
+        audit: (action, paneId, device, detail) => audit.record({ action, paneId, device, detail }),
+        json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
+        text,
+      });
+      if (herdRes) return herdRes;
 
       // ── Live state (polled by the client) ────────────────────────────────
       if (pathname === "/api/snapshot") {
