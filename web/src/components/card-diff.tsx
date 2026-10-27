@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils";
 // (CLAUDE.md → Security posture) and it applies with full force here: a diff is attacker-influenced
 // content by definition — it is literally whatever the agent, or a file it read, wrote.
 
-export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: string }) {
+/** `remote`: the checkout is on a peer, which serves the patch but never a file to read. */
+export function CardDiff({ cardId, statusKey, remote = false }: { cardId: string; statusKey: string; remote?: boolean }) {
   const t = useT();
   const [stat, setStat] = useState<DiffStat | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export function CardDiff({ cardId, statusKey }: { cardId: string; statusKey: str
         </div>
       )}
 
-      <FileDiffSheet cardId={cardId} file={open} onClose={() => setOpen(null)} />
+      <FileDiffSheet cardId={cardId} file={open} remote={remote} onClose={() => setOpen(null)} />
     </section>
   );
 }
@@ -158,10 +159,12 @@ export function isMarkdownPath(path: string): boolean {
 function FileDiffSheet({
   cardId,
   file,
+  remote,
   onClose,
 }: {
   cardId: string;
   file: DiffFile | null;
+  remote: boolean;
   onClose: () => void;
 }) {
   const t = useT();
@@ -175,7 +178,7 @@ function FileDiffSheet({
 
   // A `.md` opens READ-FIRST — the point of tapping a report is to read it, and the patch is one tap
   // away. Every other file keeps exactly the diff it always had.
-  const markdown = file !== null && isMarkdownPath(file.path);
+  const markdown = file !== null && !remote && isMarkdownPath(file.path);
   const prose = file !== null && (override?.path === file.path ? override.prose : markdown);
 
   useEffect(() => {

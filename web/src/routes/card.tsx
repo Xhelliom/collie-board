@@ -585,7 +585,7 @@ export function CardRoute() {
                   that became a container by hand-linking children afterwards keeps whatever it
                   already had — and clearing that is not safe, since it may name a real worktree from
                   before. */}
-              {(card.repoPath || (card.branch && !detail?.children.length)) && (
+              {(card.repoPath || card.environment || (card.branch && !detail?.children.length)) && (
                 <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
                   {card.repoPath && <span className="truncate">{repoName(card.repoPath)}</span>}
                   {card.repoPath && card.branch && !detail?.children.length && <span>·</span>}
@@ -595,6 +595,7 @@ export function CardRoute() {
                       {card.branch}
                     </span>
                   )}
+                  {card.environment && <span className="shrink-0 font-sans">· {t("cardEnv.on", { peer: card.environment.peer })}</span>}
                 </div>
               )}
               <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">
@@ -902,7 +903,7 @@ export function CardRoute() {
                   </Section>
                 )}
 
-                <CardDiff cardId={card.id} statusKey={card.status} />
+                <CardDiff cardId={card.id} statusKey={card.status} remote={Boolean(card.environment)} />
 
                 <Section label={t("card.section.rework")}>
                   <div className="flex flex-wrap gap-2">

@@ -7,6 +7,7 @@ import {
   GitBranch,
   Layers,
   ListChecks,
+  Monitor,
   Sparkles,
 } from "lucide-react";
 
@@ -169,7 +170,7 @@ export function CardTile({
       : null;
   const ctxPct = card.session?.ctxPct;
   const hasMeta = Boolean(
-    card.runtime || card.branch || ctxPct != null || card.sessionCount > 1 || criteriaCount(card) > 0,
+    card.runtime || card.branch || card.environment || ctxPct != null || card.sessionCount > 1 || criteriaCount(card) > 0,
   );
   return (
     <button
@@ -358,6 +359,13 @@ export function CardTile({
               <span className="flex min-w-0 items-center gap-1 truncate font-mono">
                 <GitBranch className="size-3 shrink-0" />
                 {card.branch}
+              </span>
+            )}
+            {/* Where it launches when that is not here (ADR 0046 §4). */}
+            {card.environment && (
+              <span className="flex shrink-0 items-center gap-1">
+                <Monitor className="size-3 shrink-0" />
+                {t("cardEnv.on", { peer: card.environment.peer })}
               </span>
             )}
             {/* A quick "how much is riding on this" stat — the count only, not the criteria

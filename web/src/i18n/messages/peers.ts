@@ -13,14 +13,15 @@ export const peers = defineMessages({
   "machines.pending": { en: "checking…", fr: "vérification…" },
 
   // The card screen: where a card runs (ADR 0046 §4).
-  "cardEnv.label": { en: "Runs on", fr: "S'exécute sur" },
+  "cardEnv.label": { en: "Launch on", fr: "Lancer sur" },
   "cardEnv.local": { en: "This machine", fr: "Cette machine" },
-  "cardEnv.option": { en: "{name} — on {peer} ({agent})", fr: "{name} — sur {peer} ({agent})" },
+  "cardEnv.option": { en: "{name} · {peer}", fr: "{name} · {peer}" },
+  "cardEnv.unreachableOption": { en: "{peer} — unreachable: {error}", fr: "{peer} — injoignable : {error}" },
+  "cardEnv.on": { en: "on {peer}", fr: "sur {peer}" },
   "cardEnv.hint": {
     en: "Only the peers' environments whose origin is this repo's. Started there, never here instead.",
     fr: "Seuls les environnements des pairs dont l'origine est ce dépôt. Lancée là-bas, jamais ici à la place.",
   },
-  "cardEnv.someUnreachable": { en: "Not reached: {peers}.", fr: "Injoignables : {peers}." },
   "cardEnv.runningOn": { en: "Running on {peer} ({environment}), branch {branch}", fr: "En cours sur {peer} ({environment}), branche {branch}" },
   "cardEnv.pane": { en: "Its agent, when this card was opened: {status}", fr: "Son agent, à l'ouverture de la carte : {status}" },
   "cardEnv.paneGone": { en: "Its pane is no longer there on the peer.", fr: "Son pane n'existe plus chez le pair." },
