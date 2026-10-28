@@ -23,6 +23,7 @@ import { CARD_STATUS_LABEL, criteriaCount, type BoardEvent, type CardStatus, typ
 import type { DependencyInfo } from "@/lib/board-groups";
 import type { LotHold } from "@/lib/lot-hold";
 import { AwaitingTag } from "@/components/awaiting-tag";
+import { CardPeople, useCardPeople } from "@/components/card-people";
 import type { Awaiting } from "@/lib/board";
 
 // One card in a board column. Deliberately the same visual language as AgentCard (the pane row):
@@ -169,8 +170,9 @@ export function CardTile({
       ? paneDisplayName(card.runtime)
       : null;
   const ctxPct = card.session?.ctxPct;
+  const people = useCardPeople(card);
   const hasMeta = Boolean(
-    card.runtime || card.branch || card.environment || ctxPct != null || card.sessionCount > 1 || criteriaCount(card) > 0,
+    card.runtime || card.branch || card.environment || people || ctxPct != null || card.sessionCount > 1 || criteriaCount(card) > 0,
   );
   return (
     <button
@@ -368,6 +370,8 @@ export function CardTile({
                 {t("cardEnv.on", { peer: card.environment.peer })}
               </span>
             )}
+            {/* Who filed it, who it is for — a shared board only (ADR 0048 §5). */}
+            <CardPeople card={card} />
             {/* A quick "how much is riding on this" stat — the count only, not the criteria
                 themselves; opening the card is what "the details" is for. */}
             {criteriaCount(card) > 0 && (

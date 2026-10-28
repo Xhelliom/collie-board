@@ -19,13 +19,14 @@ import { spaces } from "./messages/spaces";
 import { pane } from "./messages/pane";
 import { shell } from "./messages/shell";
 import { peers } from "./messages/peers";
+import { people } from "./messages/people";
 
 const forms = (v: string | { one: string; other: string }) => (typeof v === "string" ? [v] : [v.one, v.other]);
 const params = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).sort();
 
 describe("the message catalog", () => {
   it("has no key defined in two areas — the spread would let the last one win silently", () => {
-    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates, flows, home, settings, gallery, history, spaces, pane, shell, peers].flatMap((a) => Object.keys(a));
+    const all = [common, board, card, project, prs, sheets, orchestrator, languageMessages, templates, flows, home, settings, gallery, history, spaces, pane, shell, peers, people].flatMap((a) => Object.keys(a));
     expect(all.filter((k, i) => all.indexOf(k) !== i)).toEqual([]);
     expect(Object.keys(CATALOG).length).toBe(all.length);
   });

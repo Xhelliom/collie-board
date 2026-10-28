@@ -13,6 +13,8 @@ import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
 import { RepoFilter } from "@/components/repo-filter";
 import { OriginFilter } from "@/components/origin-filter";
+import { AssigneeFilter } from "@/components/assignee-filter";
+import { assignedToMe, useIdentities } from "@/lib/identities";
 import { PhaseFilter } from "@/components/phase-filter";
 import { NewCardSheet } from "@/components/new-card-sheet";
 import { RunSheet } from "@/components/run-sheet";
@@ -127,6 +129,9 @@ export function BoardRoute() {
   // separate — a card has one tag and it answers what kind of work this is (ADR 0005), so folding
   // "who wrote it" into the same filter would make the two mutually exclusive for no reason.
   const autoOnly = params.get("origin") === "auto";
+  // `?who=me`: only what is assigned to me, on a shared board (ADR 0048 §5).
+  const mineOnly = params.get("who") === "me";
+  const identities = useIdentities();
   // `?status=blocked,orphaned` — where the home KPIs lead. Comma-separated: "stuck" is two columns.
   // The URL is untrusted: keep only real columns (each has a `status.*` key), and no list at all when
   // none survives — `[]` would be truthy and hide every card behind an empty chip.
@@ -134,7 +139,7 @@ export function BoardRoute() {
   const statuses = known?.length ? known : null;
   // One key at a time, the rest of the query kept: the filters compose, so setting a tag must
   // not silently drop the repo scope it is narrowing.
-  const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status" | "done", value: string | null) =>
+  const setParam = (key: "tag" | "repo" | "origin" | "phase" | "status" | "done" | "who", value: string | null) =>
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -147,6 +152,7 @@ export function BoardRoute() {
   const pick = (tag: string | null) => setParam("tag", tag);
   const pickAuto = (auto: boolean) => setParam("origin", auto ? "auto" : null);
   const pickPhase = (id: string | null) => setParam("phase", id);
+  const pickMine = (mine: boolean) => setParam("who", mine ? "me" : null);
   // The repo scope is also REMEMBERED (ADR 0006) — a tag is a momentary lens, a repo is where you
   // are working today, and the card page returns to a bare `/board` with no query on it.
   const pickRepo = (repo: string | null) => {
@@ -235,7 +241,10 @@ export function BoardRoute() {
   // Offered only when there is something to offer, from the SCOPED list — same rule as the tags
   // above, so the strip never proposes a combination that comes back empty.
   const hasAuto = scoped.some((c) => c.origin !== null);
-  const cards = scoped.filter((c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase, statuses }));
+  const hasShared = scoped.some((c) => c.repoPath && identities[c.repoPath]);
+  const cards = scoped.filter(
+    (c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase, statuses }) && (!mineOnly || assignedToMe(c, identities)),
+  );
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
   const showRepo = !activeRepo && repos.length > 1;
@@ -248,7 +257,7 @@ export function BoardRoute() {
     return found ? { name: templateName(found.template), inherited: found.inherited } : undefined;
   };
   const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
-  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || phasesOn.length > 0;
+  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || hasShared || mineOnly || phasesOn.length > 0;
 
   // One tile per card, in its status column, on every screen (ADR 0022). A container — the card a
   // dictation was split from — holds no work and takes no tile; its sub-tasks name it instead.
@@ -445,6 +454,16 @@ export function BoardRoute() {
                 <X className="size-3" />
               </button>
             )}
+            {mineOnly && (
+              <button
+                type="button"
+                onClick={() => pickMine(false)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {t("people.toMe")}
+                <X className="size-3" />
+              </button>
+            )}
             {activeRepo && (
               <button
                 type="button"
@@ -510,7 +529,7 @@ export function BoardRoute() {
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
-              {active || activeRepo || autoOnly || statuses || activePhase ? (
+              {active || activeRepo || autoOnly || mineOnly || statuses || activePhase ? (
                 <>
                   <NonNominalPanel tone="muted" title={t("board.emptyMatchTitle")}>
                     {t("board.emptyMatch", {
@@ -796,6 +815,7 @@ export function BoardRoute() {
           />
           <TagFilter tags={tags} active={active} onPick={pick} />
           <OriginFilter has={hasAuto} active={autoOnly} onPick={pickAuto} />
+          <AssigneeFilter has={hasShared} active={mineOnly} onPick={pickMine} />
         </div>
       </BottomSheet>
 

@@ -50,6 +50,7 @@ import { CardDiff } from "@/components/card-diff";
 import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { CardEnvironment } from "@/components/card-environment";
+import { CardPeople } from "@/components/card-people";
 import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
@@ -596,6 +597,7 @@ export function CardRoute() {
                     </span>
                   )}
                   {card.environment && <span className="shrink-0 font-sans">· {t("cardEnv.on", { peer: card.environment.peer })}</span>}
+                  <CardPeople card={card} className="font-sans" />
                 </div>
               )}
               <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">

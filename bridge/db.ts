@@ -2872,9 +2872,10 @@ export class BoardDb {
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────
 
-  /** The remote this repo's board is shared on, or null. */
   /** repo → this clone's git `user.email` (ADR 0048 §5), set by journal-sync and the create route. Runtime, never persisted. */
   private readonly peerIdentities = new Map<string, string>();
+  /** repo → the git identities seen as the `by` of an applied journal line. Runtime: the cards' columns outlive it. */
+  private readonly journalAuthors = new Map<string, Set<string>>();
 
   peerIdentity(repo: string): string | undefined {
     return this.peerIdentities.get(repo);
@@ -2884,6 +2885,27 @@ export class BoardDb {
     if (email) this.peerIdentities.set(repo, email);
   }
 
+  /**
+   * Who is who on each shared repo, for the screens (ADR 0048 §5): this pair's identity, and every
+   * identity the repo knows — journal authors, creators, assignees. Unshared repos are absent.
+   */
+  identities(): Record<string, { me: string | null; people: string[] }> {
+    const out: Record<string, { me: string | null; people: string[] }> = {};
+    for (const { path } of this.sharedRepos()) {
+      const me = this.peerIdentities.get(path) ?? null;
+      const cols = this.db
+        .query<{ v: string }, [string]>(
+          "SELECT created_by AS v FROM card WHERE repo_path = ?1 AND created_by IS NOT NULL UNION SELECT assignee FROM card WHERE repo_path = ?1 AND assignee IS NOT NULL",
+        )
+        .all(path)
+        .map((r) => r.v);
+      const people = new Set([...(me ? [me] : []), ...(this.journalAuthors.get(path) ?? []), ...cols]);
+      out[path] = { me, people: [...people].sort() };
+    }
+    return out;
+  }
+
+  /** The remote this repo's board is shared on, or null. */
   repoShare(path: string): string | null {
     return this.db.query<{ share: string | null }, [string]>("SELECT share FROM repo_pref WHERE path = ?").get(path)?.share ?? null;
   }
@@ -2975,6 +2997,10 @@ export class BoardDb {
   applyJournal(repoPath: string, entries: JournalEntry[], clock: Hlc): void {
     this.stampJournal(clock);
     for (const { event } of entries) clock.observe(event.hlc);
+    // A pair with no `user.email` signs with its pair id: not a person to assign to.
+    const authors = this.journalAuthors.get(repoPath) ?? new Set<string>();
+    for (const { event } of entries) if (event.by.includes("@")) authors.add(event.by);
+    this.journalAuthors.set(repoPath, authors);
     const sorted = [...entries].sort((a, b) => (a.event.hlc < b.event.hlc ? -1 : a.event.hlc > b.event.hlc ? 1 : 0));
     this.muted(() => {
       for (const { entity, event } of sorted) this.applyOne(repoPath, entity, event);

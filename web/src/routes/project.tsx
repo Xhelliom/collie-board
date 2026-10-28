@@ -30,6 +30,7 @@ import { saveLastProject } from "@/lib/quick-access";
 import { setStatus } from "@/lib/status";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
+import { assignedToMe, useIdentities } from "@/lib/identities";
 
 // The project view: one repo's board read as a road map. Derived and read-only (lib/project.ts) —
 // phases are containers, steps their sub-tasks, "waiting for you" is what is blocked, in review or
@@ -122,7 +123,16 @@ export function ProjectRoute() {
   useEffect(() => {
     if (repo) saveLastProject(repo);
   }, [repo]);
-  const cards = useMemo(() => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards), [data.cards, repo]);
+  // « À moi » (ADR 0048 §5): in the URL like the board's `?who=me`, and offered only on a shared repo.
+  const identities = useIdentities();
+  const shared = Boolean(repo && identities[repo]);
+  const mineOnly = params.get("who") === "me";
+  const pickMine = (mine: boolean) =>
+    setParams((p) => (mine ? p.set("who", "me") : p.delete("who"), p), { replace: true, preventScrollReset: true });
+  const cards = useMemo(
+    () => (repo ? data.cards.filter((c) => c.repoPath === repo) : data.cards).filter((c) => !mineOnly || assignedToMe(c, identities)),
+    [data.cards, repo, mineOnly, identities],
+  );
   const v = useMemo(() => projectOf(cards, data.phases, data.lots), [cards, data.phases, data.lots]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const running = liveLots(data.lots, byId, data.facts);
@@ -443,6 +453,22 @@ export function ProjectRoute() {
 
               <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
                 <div role="group" aria-label={t("project.filter.aria")} className="flex min-w-0 flex-wrap gap-1.5">
+                  {(shared || mineOnly) &&
+                    ([false, true] as const).map((mine) => (
+                      <button
+                        key={String(mine)}
+                        type="button"
+                        aria-pressed={mineOnly === mine}
+                        onClick={() => pickMine(mine)}
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
+                          mineOnly === mine ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
+                          mine && "mr-1.5",
+                        )}
+                      >
+                        {mine ? t("people.toMe") : t("people.everyone")}
+                      </button>
+                    ))}
                   {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
                     <button
                       key={f.id}
