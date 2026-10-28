@@ -1,13 +1,16 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 
 import { buildSubscriptions, EventPoker, sameIdSet, type Subscription } from "./event-poker.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 
 // EventPoker owns the stream lifecycle (ack → healthy, events → throttled poke, down → backoff
 // reconnect). The socket itself lives in HerdrClient.subscribeEvents and stays untested; here we
-// fake it so tests drive ack/event/down synchronously and assert the decisions.
+// fake it so tests drive ack/event/down synchronously and assert the decisions. Time is bun's fake
+// clock: a real sleep under load (a pre-push beside running lots, a slow CI) made the counts flaky.
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => jest.useRealTimers());
+const sleep = (ms: number) => jest.advanceTimersByTime(ms);
 
 interface FakeStream {
   subscriptions: Subscription[];
@@ -97,7 +100,7 @@ describe("EventPoker — health", () => {
 });
 
 describe("EventPoker — throttled poke", () => {
-  test("a burst pokes once at once, then once more when the window closes", async () => {
+  test("a burst pokes once at once, then once more when the window closes", () => {
     const { client, poker, pokes } = makePoker({ windowMs: 30 });
     poker.start();
     client.last.onUp();
@@ -105,47 +108,47 @@ describe("EventPoker — throttled poke", () => {
     expect(pokes.length).toBe(1); // the first event pokes immediately — no wait on a status flip
     for (let i = 0; i < 20; i++) client.last.onEvent("pane_agent_status_changed", {});
     expect(pokes.length).toBe(1); // the rest of the burst waits for the window
-    await sleep(45);
+    sleep(45);
     expect(pokes.length).toBe(2); // one catch-up for the whole burst, the last event not lost
-    await sleep(45);
+    sleep(45);
     expect(pokes.length).toBe(2); // quiet window after it: nothing owed, no extra poke
     poker.stop();
   });
 
-  test("a steady stream polls at most once per window", async () => {
+  test("a steady stream polls at most once per window", () => {
     const { client, poker, pokes } = makePoker({ windowMs: 20 });
     poker.start();
     client.last.onUp();
     for (let i = 0; i < 20; i++) {
       client.last.onEvent("pane_agent_status_changed", {});
-      await sleep(5);
+      sleep(5);
     }
-    // ~100ms of events every 5ms → about one poke per 20ms window, not twenty.
-    expect(pokes.length).toBeGreaterThanOrEqual(3);
-    expect(pokes.length).toBeLessThanOrEqual(7);
+    // 100ms of events every 5ms → one poke per 20ms window (0, 20, 40, 60, 80, and the 100ms
+    // catch-up for the last event), not twenty.
+    expect(pokes.length).toBe(6);
     poker.stop();
   });
 
-  test("stop drops a pending catch-up", async () => {
+  test("stop drops a pending catch-up", () => {
     const { client, poker, pokes } = makePoker({ windowMs: 15 });
     poker.start();
     client.last.onUp();
     client.last.onEvent("pane_created", {});
     client.last.onEvent("pane_created", {});
     poker.stop();
-    await sleep(30);
+    sleep(30);
     expect(pokes.length).toBe(1);
   });
 });
 
 describe("EventPoker — reconnect backoff", () => {
-  test("reconnects after a down per the backoff schedule and resets on the next ack", async () => {
+  test("reconnects after a down per the backoff schedule and resets on the next ack", () => {
     const { client, poker, health } = makePoker({ backoffMs: [15, 40] });
     poker.start();
     client.last.onUp();
     client.last.onDown("boom");
     expect(client.streams.length).toBe(1); // not yet — waiting out the backoff
-    await sleep(30);
+    sleep(30);
     expect(client.streams.length).toBe(2); // reconnected (first backoff step)
     client.last.onUp(); // healthy again → backoff reset
     expect(health).toEqual([true, false, true]);
@@ -174,24 +177,24 @@ describe("EventPoker — resubscribe on pane-set change", () => {
 });
 
 describe("EventPoker — stop()", () => {
-  test("closes the stream, cancels a pending reconnect, and never reconnects afterward", async () => {
+  test("closes the stream, cancels a pending reconnect, and never reconnects afterward", () => {
     const { client, poker } = makePoker({ backoffMs: [10] });
     poker.start();
     client.last.onUp();
     client.last.onDown("boom"); // schedules a reconnect
     poker.stop();
-    await sleep(30);
+    sleep(30);
     expect(client.streams.length).toBe(1); // the scheduled reconnect was cancelled
   });
 
-  test("closing an up stream on stop() does not flip health or schedule work", async () => {
+  test("closing an up stream on stop() does not flip health or schedule work", () => {
     const { client, poker, health } = makePoker();
     poker.start();
     client.last.onUp();
     poker.stop();
     expect(client.last.closed).toBe(true); // stop() closed it
     expect(health).toEqual([true]); // the deliberate close is stale — no spurious unhealthy
-    await sleep(20);
+    sleep(20);
     expect(client.streams.length).toBe(1);
   });
 });

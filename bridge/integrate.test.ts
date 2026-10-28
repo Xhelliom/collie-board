@@ -578,6 +578,10 @@ describe("rebindDependents — a dependent card must not lose its diff when its 
 // untracked, the review said `partial`, the file got committed, the card merged and was cleaned up —
 // and with the checkout gone there was nothing left to judge. Real git, because the bug IS what git
 // can still read once the branch has landed.
+// Real git (init, worktree, merge, push) blows bun's 5 s default on a loaded CI runner; describe
+// takes no timeout in bun, so each real-git test passes it.
+const GIT_TIMEOUT = 30_000;
+
 describe("a landed card keeps the diff its review reads", () => {
   function git(cwd: string, ...args: string[]): void {
     const r = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
@@ -621,7 +625,7 @@ describe("a landed card keeps the diff its review reads", () => {
 
     await rm(repo, { recursive: true, force: true });
     await rm(checkout, { recursive: true, force: true });
-  });
+  }, GIT_TIMEOUT);
 
   describe("card.base_moved only when the dependent really has something to merge", () => {
     const fixture = async () => {
@@ -656,7 +660,7 @@ describe("a landed card keeps the diff its review reads", () => {
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
       expect(t.moved()).toBe(false);
       await rm(t.repo, { recursive: true, force: true });
-    });
+    }, GIT_TIMEOUT);
 
     it("not after a discard: that work is thrown away, there is nothing to merge", async () => {
       const t = await fixture();
@@ -664,7 +668,7 @@ describe("a landed card keeps the diff its review reads", () => {
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
       expect(t.moved()).toBe(false);
       await rm(t.repo, { recursive: true, force: true });
-    });
+    }, GIT_TIMEOUT);
   });
 
   it("a card folded into a lot's branch is cleaned up whole: checkout and branch gone, the lot keeps the work (ADR 0041)", async () => {
@@ -694,7 +698,7 @@ describe("a landed card keeps the diff its review reads", () => {
     expect(await branchExists(repo, "board/lot-x")).toBe(true);
     await rm(repo, { recursive: true, force: true });
     await rm(checkout, { recursive: true, force: true });
-  });
+  }, GIT_TIMEOUT);
 
   it("still has nothing to say for a card that never recorded a landing", async () => {
     const store = new BoardDb(":memory:");
@@ -1070,7 +1074,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     expect(git(t.repo, "rev-parse", "main")).toBe(before);
     expect(t.store.listEvents(t.card.id).some((e) => e.type === "card.pr_merged")).toBe(true);
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 
   it("card.prUrl: the PR the board opened for it, read from the journal", async () => {
     const t = await fixture();
@@ -1078,7 +1082,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     t.store.recordEvent(t.card.id, "card.pr_opened", { branch: "board/x", base: "main", url: "https://x/pull/148" });
     expect(prUrlOf(t.store, t.card.id)).toBe("https://x/pull/148");
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 
   it("a conflicting PR is refused, nothing merged anywhere", async () => {
     const t = await fixture();
@@ -1088,7 +1092,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     expect(await mergeCard(t.store, t.card, gh)).toMatchObject({ ok: false, error: { kind: "conflict" } });
     expect(calls.some((a) => a[1] === "merge")).toBe(false);
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 
   it("no PR: merges locally and pushes the base", async () => {
     const t = await fixture();
@@ -1096,7 +1100,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     expect(git(t.origin, "rev-parse", "main")).toBe(git(t.repo, "rev-parse", "main"));
     expect(git(t.repo, "cat-file", "-t", "origin/main:x.ts")).toBe("blob");
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 
   it("a local branch behind origin (rebased elsewhere) is refused, main untouched", async () => {
     const t = await fixture();
@@ -1111,7 +1115,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     expect(git(t.repo, "rev-parse", "main")).toBe(before);
     await rm(other, { recursive: true, force: true });
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 
   describe("merge direct (ADR 0043): the run's own merge, nobody watching", () => {
     it("a dirty checkout is refused, main untouched", async () => {
@@ -1123,7 +1127,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
       expect(git(t.repo, "rev-parse", "main")).toBe(before);
       expect(await Bun.file(join(t.repo, "README")).text()).toBe("edited\n");
       await t.cleanup();
-    });
+    }, GIT_TIMEOUT);
 
     it("a checkout not on main is refused, nothing merged", async () => {
       const t = await fixture();
@@ -1133,7 +1137,7 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
       expect(r).toMatchObject({ ok: false, error: { kind: "refused" } });
       expect(git(t.repo, "rev-parse", "main")).toBe(before);
       await t.cleanup();
-    });
+    }, GIT_TIMEOUT);
 
     it("no remote: merged here, nothing to push, ok", async () => {
       const t = await fixture();
@@ -1141,14 +1145,14 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
       expect((await mergeCard(t.store, t.card, noPr, { direct: true })).ok).toBe(true);
       expect(git(t.repo, "cat-file", "-t", "main:x.ts")).toBe("blob");
       await t.cleanup();
-    });
+    }, GIT_TIMEOUT);
 
     it("a remote: merged and pushed", async () => {
       const t = await fixture();
       expect((await mergeCard(t.store, t.card, noPr, { direct: true })).ok).toBe(true);
       expect(git(t.origin, "rev-parse", "main")).toBe(git(t.repo, "rev-parse", "main"));
       await t.cleanup();
-    });
+    }, GIT_TIMEOUT);
   });
 
   it("a push origin refuses undoes the merge: not ok, so the card is not filed", async () => {
@@ -1161,5 +1165,5 @@ describe("mergeCard: the PR when there is one, origin's version, and pushed", ()
     expect(git(t.repo, "rev-parse", "main")).toBe(before);
     expect(t.store.listEvents(t.card.id).some((e) => e.type === "card.merged")).toBe(false);
     await t.cleanup();
-  });
+  }, GIT_TIMEOUT);
 });
