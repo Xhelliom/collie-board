@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Play, Rocket } from "lucide-react";
 
+import { HaltReason } from "@/components/halt-reason";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
@@ -135,7 +136,7 @@ export function PhaseLots({
             <section
               key={pl.lot.id}
               aria-label={t("lot.aria", { name: pl.lot.name ?? "" })}
-              className="flex flex-col gap-2"
+              className="flex min-w-0 flex-col gap-2"
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-0.5 pt-1">
                 <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? t("run.lot")}</span>
@@ -184,7 +185,7 @@ export function PhaseLots({
                   </Button>
                 )}
               </div>
-              {halted && pl.lot.halted && <p className="px-0.5 text-sm text-status-blocked">{pl.lot.halted}</p>}
+              {halted && pl.lot.halted && <HaltReason reason={pl.lot.halted} className="min-w-0 px-0.5" />}
               {!planned && (
                 <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
                   <i className="block h-full bg-status-done transition-[width] duration-700" style={{ width: `${pct}%` }} />

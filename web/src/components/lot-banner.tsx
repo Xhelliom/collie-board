@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { ExternalLink, SquareTerminal } from "lucide-react";
 
+import { HaltReason } from "@/components/halt-reason";
 import { useT } from "@/i18n";
 import type { LiveLot, LiveState } from "@/lib/lot-live";
 import { panePath } from "@/lib/nav";
@@ -32,7 +33,7 @@ export function LotBanner({ live }: { live: LiveLot }) {
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">{t("lot.live.progress", { done: merged, total: cards.length })}</span>
       </div>
-      {lot.halted && <p className="text-sm text-status-blocked">{lot.halted}</p>}
+      {lot.halted && <HaltReason reason={lot.halted} className="min-w-0" />}
       <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
         <i className="block h-full bg-status-done transition-[width] duration-700" style={{ width: `${(100 * merged) / cards.length}%` }} />
       </div>

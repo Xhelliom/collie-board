@@ -218,6 +218,28 @@ describe("ProjectRoute", () => {
     await waitFor(() => expect(resumed).toBe("L1"));
   });
 
+  it("a long coloured halt reason: no ANSI, the error line up front, the rest folded, Resume before it", async () => {
+    const noise = Array.from({ length: 40 }, (_, i) => `\u001b[2m  test ${i} ok\u001b[0m`).join("\n");
+    const halted = `\u001b[1mpre-push\u001b[0m\n${noise}\n\u001b[31m✗ pre-push: web tests failed — push aborted.\u001b[0m\n`;
+    mount([card({ id: "one", phaseId: "P1", runId: "L1" })], {
+      phases: [phase("P1")],
+      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["one"], launchedAt: 1, halted })],
+    });
+    const group = await screen.findByRole("region", { name: "Lot Lot A" });
+    const banner = await screen.findByRole("region", { name: "Lot in progress: Lot A" });
+    for (const el of [group, banner]) {
+      expect(el.textContent).not.toContain("\u001b");
+      expect(el.textContent).not.toContain("[31m");
+      const head = within(el).getByText("✗ pre-push: web tests failed — push aborted.");
+      expect(head).not.toHaveTextContent("test 3 ok");
+      expect(within(el).getByText("Show more").closest("details")).not.toHaveAttribute("open");
+    }
+    const resume = within(group).getByRole("button", { name: /resume/i });
+    const head = within(group).getByText("✗ pre-push: web tests failed — push aborted.");
+    expect(resume.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(resume).toBeEnabled();
+  });
+
   it("a running lot gets a banner up top: progress, each card's state, its pane and its PR", async () => {
     mount(
       [

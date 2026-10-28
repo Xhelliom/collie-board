@@ -3,6 +3,7 @@ import { RotateCcw, Sparkles, User } from "lucide-react";
 import { Link } from "react-router";
 
 import { CollapsibleText } from "@/components/collapsible-text";
+import { stripAnsi } from "@/components/halt-reason";
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { panePath } from "@/lib/nav";
@@ -401,7 +402,7 @@ export function describeEvent(event: BoardEvent): string {
     case "run.merge":
       return t(p.merged ? "journal.merged" : "journal.notMerged", { reason: reason() });
     case "run.halted":
-      return p.leadSilent ? t("journal.leadSilent") : t("journal.halted", { reason: reason() });
+      return p.leadSilent ? t("journal.leadSilent") : t("journal.halted", { reason: stripAnsi(reason()) });
     case "run.resumed":
       return t("journal.resumed");
     case "run.finished":
