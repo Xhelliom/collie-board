@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.242.0] - 2026-10-28
+
+### Added
+
+- Carte : `createdBy` dérivé de l'identité git du pair qui crée (board partagé), hors de toute allowlist (ad93946)
+- Carte : `assignee` (identité git, création et PATCH), partagé par le journal avec `createdBy` (ad93946)
+
 ## [0.241.3] - 2026-10-28
 
 ### Fixed
