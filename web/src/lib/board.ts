@@ -7,6 +7,7 @@
 
 import { t } from "@/i18n";
 import { apiRequest, conditionalGet, GET_TIMEOUT_MS, INTEGRATION_TIMEOUT_MS, withTimeout } from "./api";
+import { publishIdentities, type RepoIdentities } from "./identities";
 
 export { conditionalGet };
 import type { AgentStatus } from "./types";
@@ -132,6 +133,10 @@ export interface CardView {
   pipelineId?: string | null;
   /** The peer environment it launches in (ADR 0046 §4), or null for this machine. */
   environment?: CardEnvironment | null;
+  /** Shared board only (ADR 0048 §5): the git identity of the pair that created it — derived by the bridge. */
+  createdBy?: string | null;
+  /** Shared board only: who it is meant for, as a git identity. */
+  assignee?: string | null;
   /** The pipeline role a tap would hand this card to next (ADR 0031): a landed card, outside a run. */
   nextStep?: { templateId: string; name: string } | null;
   /**
@@ -589,8 +594,10 @@ export function cardPrompt(cardId: string): string {
 // a mutation the next poll sends a stale If-None-Match, the server computes a different tag, and we
 // get the fresh body. A cache that self-corrects needs no cache-busting.
 
-export function fetchCards(signal?: AbortSignal): Promise<{ cards: CardView[] }> {
-  return conditionalGet<{ cards: CardView[] }>("/api/cards", signal);
+export async function fetchCards(signal?: AbortSignal): Promise<{ cards: CardView[] }> {
+  const r = await conditionalGet<{ cards: CardView[]; identities?: Record<string, RepoIdentities> }>("/api/cards", signal);
+  publishIdentities(r.identities);
+  return r;
 }
 
 /**
@@ -599,15 +606,18 @@ export function fetchCards(signal?: AbortSignal): Promise<{ cards: CardView[] }>
  * keep one card type; ponytail: they are not the card's — read the detail (`fetchCard`) for those.
  */
 export async function fetchCardsSummary(signal?: AbortSignal): Promise<{ cards: CardView[]; counts: CardCounts }> {
-  const r = await conditionalGet<{ cards: Omit<CardView, "spec" | "acceptance" | "rawInput">[]; counts: CardCounts }>(
+  const r = await conditionalGet<{ cards: Omit<CardView, "spec" | "acceptance" | "rawInput">[]; counts: CardCounts; identities?: Record<string, RepoIdentities> }>(
     "/api/cards?view=summary",
     signal,
   );
+  publishIdentities(r.identities);
   return { cards: r.cards.map((c) => ({ ...c, spec: null, acceptance: [], rawInput: null })), counts: r.counts };
 }
 
-export function fetchCard(id: string, signal?: AbortSignal): Promise<CardDetail> {
-  return conditionalGet<CardDetail>(`/api/cards/${encodeURIComponent(id)}`, signal);
+export async function fetchCard(id: string, signal?: AbortSignal): Promise<CardDetail> {
+  const r = await conditionalGet<CardDetail & { identities?: Record<string, RepoIdentities> }>(`/api/cards/${encodeURIComponent(id)}`, signal);
+  publishIdentities(r.identities);
+  return r;
 }
 
 /** Fields a create/patch accepts. The bridge validates them again — this is convenience, not a gate. */
@@ -632,6 +642,8 @@ export interface CardInput {
   pipelineId?: string | null;
   /** A paired peer's environment, or `null` for this machine. */
   environment?: CardEnvironment | null;
+  /** A git identity (ADR 0048 §5), or `null` for nobody. */
+  assignee?: string | null;
   /** Set by the copilot; the client only ever clears it — "not a duplicate" is one tap. */
   duplicateOf?: string | null;
   /** One tag, or `null` to clear it. The bridge normalises it — send what was typed. */

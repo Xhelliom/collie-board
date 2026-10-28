@@ -10,6 +10,7 @@ import { fetchCardRemote, fetchCards, normalizeTag, tagsOf, type CardEnvironment
 import { TagField } from "@/components/tag-field";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { EnvironmentPicker } from "@/components/card-environment";
+import { useRepoIdentities } from "@/lib/identities";
 
 // Rework a card by hand.
 //
@@ -41,6 +42,9 @@ export function CardEditor({
   const [agentKind, setAgentKind] = useState<string | null>(card.agentKind ?? null);
   const [environment, setEnvironment] = useState<CardEnvironment | null>(card.environment ?? null);
   const [tag, setTag] = useState(card.tag ?? "");
+  const [assignee, setAssignee] = useState<string | null>(card.assignee ?? null);
+  // A shared repo's identities (ADR 0048 §5); undefined on an unshared one, and then no picker.
+  const ids = useRepoIdentities(card.repoPath);
   const [parentId, setParentId] = useState<string | null>(card.parentId);
   const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
   const [others, setOthers] = useState<CardView[]>([]);
@@ -60,6 +64,7 @@ export function CardEditor({
     setAgentKind(card.agentKind ?? null);
     setEnvironment(card.environment ?? null);
     setTag(card.tag ?? "");
+    setAssignee(card.assignee ?? null);
     setParentId(card.parentId);
     setDependsOn(card.dependsOn);
     // Fetched on OPEN, not polled: linking is a deliberate act, and the list only has to be right
@@ -103,6 +108,7 @@ export function CardEditor({
         parentId,
         dependsOn,
         // Only when moved: an unchanged edit must not re-assert where a card runs.
+        ...(assignee !== (card.assignee ?? null) ? { assignee } : {}),
         ...(environment?.peer !== card.environment?.peer || environment?.name !== card.environment?.name ? { environment } : {}),
       });
       onClose();
@@ -186,6 +192,25 @@ export function CardEditor({
             carries has to stay offered — otherwise editing anything else on the card would present
             its own tag as unknown. `others` rides the fetch the link pickers already do. */}
         <TagField value={tag} onChange={setTag} tags={tagsOf([card, ...others])} />
+
+        {ids && (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">{t("people.assignee")}</span>
+            <select
+              value={assignee ?? ""}
+              onChange={(e) => setAssignee(e.target.value || null)}
+              className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <option value="">{t("people.nobody")}</option>
+              {/* Me first, then everyone the journal has seen — and the current one even if it has not. */}
+              {[...new Set([...(ids.me ? [ids.me] : []), ...ids.people, ...(assignee ? [assignee] : [])])].map((email) => (
+                <option key={email} value={email}>
+                  {email === ids.me ? `${t("people.me")} (${email})` : email}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <AgentKindPicker value={agentKind} onChange={setAgentKind} />
         {/* The bridge refuses to move a running card (environmentChangeRefusal): don't offer it. */}

@@ -904,14 +904,16 @@ async function route(
       // Polled by every board screen: rebuilt only when the db, the panes or the copilot moved.
       const snap = engine.current();
       const busy = ctx.copilot.busy();
-      const deps = [db.revision(), snap.agents, snap.shellPanes, [...busy].join()];
+      // `identities`: who is "me" and who can be assigned, per shared repo (ADR 0048 §5) — runtime, hence a dep.
+      const identities = db.identities();
+      const deps = [db.revision(), snap.agents, snap.shellPanes, [...busy].join(), JSON.stringify(identities)];
       return json(
         memoOn(db, `cards:${v}`, deps, () => {
           const all = cardViews(db, snap, { copilotBusy: busy }).map(withNext);
-          if (v === null) return { cards: all };
+          if (v === null) return { cards: all, identities };
           // The list screens' view (audit perf #4): no spec, few finished cards, counts over all of them.
           const open = new Set(db.listPhases().filter((p) => p.closedAt == null).map((p) => p.id));
-          return cardsSummary(all, open);
+          return { ...cardsSummary(all, open), identities };
         }),
       );
     }
@@ -1007,6 +1009,8 @@ async function route(
         lot: run ? lotView(db, run) : null,
         // The open question the orchestrator asked the operator about this card (null: none).
         awaiting: detail.repoPath ? awaitingOn(db.getRoadmap(detail.repoPath)?.decisions, id) : null,
+        // Same as the list's: a card opened directly must still know who « me » is (ADR 0048 §5).
+        identities: db.identities(),
       });
     }
     if (req.method === "PATCH" || req.method === "POST") {

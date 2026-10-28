@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 
 import type { CardRuntime, CardView } from "@/lib/board";
+import { assignedToMe, publishIdentities } from "@/lib/identities";
 import { CardTile } from "./card-tile";
 
 // The redesigned tile (interface homogénéité et couleurs): status row (loud/named/silent), title,
@@ -223,5 +224,37 @@ describe("CardTile — the template chip (ADR 0026)", () => {
     expect(screen.getByText("Reviewer")).toHaveAttribute("title");
     rerender(<CardTile card={card()} onClick={() => {}} />);
     expect(screen.queryByText("Reviewer")).toBeNull();
+  });
+});
+
+describe("CardTile — who filed it, who it is for (ADR 0048 §5)", () => {
+  afterEach(() => act(() => publishIdentities({})));
+  const shared = () => act(() => publishIdentities({ "/r/s": { me: "me@x", people: ["alice@x", "me@x"] } }));
+
+  it("a colleague's card says « by alice »; an assigned one carries « to me »", () => {
+    shared();
+    render(<CardTile card={card({ repoPath: "/r/s", createdBy: "alice@x", assignee: "me@x" })} onClick={() => {}} />);
+    expect(screen.getByText("by alice")).toBeInTheDocument();
+    expect(screen.getByText("to me")).toBeInTheDocument();
+  });
+
+  it("my own card does not say who filed it", () => {
+    shared();
+    render(<CardTile card={card({ repoPath: "/r/s", createdBy: "me@x", assignee: "alice@x" })} onClick={() => {}} />);
+    expect(screen.queryByText(/^by /)).toBeNull();
+    expect(screen.getByText("to alice")).toBeInTheDocument();
+  });
+
+  it("an unshared repo shows none of it", () => {
+    render(<CardTile card={card({ repoPath: "/r/local", createdBy: "alice@x", assignee: "alice@x" })} onClick={() => {}} />);
+    expect(screen.queryByText(/alice/)).toBeNull();
+  });
+
+  it("« to me » keeps only my cards on a shared repo, and every unshared one", () => {
+    const ids = { "/r/s": { me: "me@x", people: [] } };
+    expect(assignedToMe(card({ repoPath: "/r/s", assignee: "me@x" }), ids)).toBe(true);
+    expect(assignedToMe(card({ repoPath: "/r/s", assignee: "alice@x" }), ids)).toBe(false);
+    expect(assignedToMe(card({ repoPath: "/r/s" }), ids)).toBe(false);
+    expect(assignedToMe(card({ repoPath: "/r/local" }), ids)).toBe(true);
   });
 });

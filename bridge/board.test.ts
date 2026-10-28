@@ -5071,3 +5071,16 @@ describe("POST/PATCH /api/cards — createdBy derived, assignee declared (ADR 00
     expect(store.getCard(card.id)).toMatchObject({ assignee: "bob@x", createdBy: "me@pair" });
   });
 });
+
+describe("GET /api/cards — identities per shared repo (ADR 0048 §5)", () => {
+  it("names me and everyone the repo knows; an unshared repo is absent", async () => {
+    const store = db();
+    store.setRepoShare("/r/shared", "origin");
+    store.setPeerIdentity("/r/shared", "me@pair");
+    store.createCard({ title: "a", repoPath: "/r/shared", assignee: "bob@pair" });
+    store.createCard({ title: "b", repoPath: "/r/local", assignee: "nobody@local" });
+    const r = await handleBoardRoute("/api/cards", new Request("http://x/api/cards?view=summary"), routeCtx(store));
+    const body = (await r!.json()) as { identities: Record<string, unknown> };
+    expect(body.identities).toEqual({ "/r/shared": { me: "me@pair", people: ["bob@pair", "me@pair"] } });
+  });
+});
