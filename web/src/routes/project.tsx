@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
-import { ChevronsDownUp, ChevronsUpDown, MessagesSquare } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
@@ -127,6 +127,7 @@ export function ProjectRoute() {
   const identities = useIdentities();
   const shared = Boolean(repo && identities[repo]);
   const mineOnly = params.get("who") === "me";
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const pickMine = (mine: boolean) =>
     setParams((p) => (mine ? p.set("who", "me") : p.delete("who"), p), { replace: true, preventScrollReset: true });
   const cards = useMemo(
@@ -451,15 +452,26 @@ export function ProjectRoute() {
                 ))}
               </nav>
 
-              <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
-                <div role="group" aria-label={t("project.filter.aria")} className="flex min-w-0 flex-wrap gap-1.5">
+              <div className="sticky top-0 z-10 -mx-4 flex items-start justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
+                {/* A phone gets one button: the chips (up to six, two lines) open under it on a tap. */}
+                <button
+                  type="button"
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen((o) => !o)}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium sm:hidden"
+                >
+                  <ListFilter className="size-3.5" />
+                  {t("project.filter.button")}
+                  {filter !== "all" && <span className="text-muted-foreground">· {t(FILTERS.find((f) => f.id === filter)!.label)}</span>}
+                </button>
+                <div role="group" aria-label={t("project.filter.aria")} className={cn("min-w-0 flex-wrap gap-1.5", filtersOpen ? "flex" : "hidden sm:flex")}>
                   {(shared || mineOnly) &&
                     ([false, true] as const).map((mine) => (
                       <button
                         key={String(mine)}
                         type="button"
                         aria-pressed={mineOnly === mine}
-                        onClick={() => pickMine(mine)}
+                        onClick={() => { pickMine(mine); setFiltersOpen(false); }}
                         className={cn(
                           "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
                           mineOnly === mine ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
@@ -474,7 +486,7 @@ export function ProjectRoute() {
                       key={f.id}
                       type="button"
                       aria-pressed={filter === f.id}
-                      onClick={() => pick(f.id)}
+                      onClick={() => { pick(f.id); setFiltersOpen(false); }}
                       className={cn(
                         "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
                         filter === f.id ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
