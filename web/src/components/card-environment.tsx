@@ -60,6 +60,8 @@ export function CardEnvironment({ card, onChanged, onError }: { card: CardView; 
     <EnvironmentPicker
       repoPath={card.repoPath}
       value={env}
+      // A local session whose pane is gone still holds the card here: the bridge refuses the move.
+      lockedReason={card.session ? t("cardEnv.locked") : undefined}
       onChange={async (picked) => {
         try {
           await patchCard(card.id, { environment: picked });
@@ -77,7 +79,18 @@ export function CardEnvironment({ card, onChanged, onError }: { card: CardView; 
  * unreachable peer stays listed, greyed with its reason. No peer at all: no picker — nothing changes.
  * Read when it mounts, never polled.
  */
-export function EnvironmentPicker({ repoPath, value, onChange }: { repoPath: string; value: Env | null; onChange: (e: Env | null) => void }) {
+export function EnvironmentPicker({
+  repoPath,
+  value,
+  onChange,
+  lockedReason,
+}: {
+  repoPath: string;
+  value: Env | null;
+  onChange: (e: Env | null) => void;
+  /** Set while a session runs: the picker shows where it runs, and why it can't move. */
+  lockedReason?: string;
+}) {
   const t = useT();
   const [envs, setEnvs] = useState<Awaited<ReturnType<typeof fetchRepoEnvironments>> | null>(null);
   useEffect(() => {
@@ -93,11 +106,12 @@ export function EnvironmentPicker({ repoPath, value, onChange }: { repoPath: str
       <select
         aria-label={t("cardEnv.label")}
         value={keyOf(value)}
+        disabled={Boolean(lockedReason)}
         onChange={(e) => {
           const picked = offered.find((o) => keyOf(o) === e.target.value);
           onChange(picked ? { peer: picked.peer, name: picked.name } : null);
         }}
-        className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="h-11 rounded-lg border border-border bg-background px-3 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60"
       >
         <option value="">{t("cardEnv.local")}</option>
         {offered.map((o) => (
@@ -114,7 +128,7 @@ export function EnvironmentPicker({ repoPath, value, onChange }: { repoPath: str
           </option>
         ))}
       </select>
-      <p className="px-1 text-xs text-muted-foreground">{t("cardEnv.hint")}</p>
+      <p className="px-1 text-xs text-muted-foreground">{lockedReason ?? t("cardEnv.hint")}</p>
     </label>
   );
 }

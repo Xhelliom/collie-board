@@ -88,6 +88,22 @@ describe("Lancer sur", () => {
     expect(onSave.mock.calls[1]).toHaveProperty("0.environment", { peer: "test-depot-collie", name: "dev" });
   });
 
+  it("the editor locks the choice while the card runs here or on a peer — the bridge refuses it", async () => {
+    envs([{ peer: "test-depot-collie", name: "dev", agent: "claude" }]);
+    server.use(
+      http.get("/api/cards", () => HttpResponse.json({ cards: [] })),
+      http.get("/api/cards/c1/remote", () =>
+        HttpResponse.json({ environment: { peer: "test-depot-collie", name: "dev" }, session: { peer: "test-depot-collie", environment: "dev", paneId: "w1:p1", branch: "b" }, state: null }),
+      ),
+    );
+    const { unmount } = render(<CardEditor card={card({ session: {} as CardView["session"] })} open onClose={() => {}} onSave={async () => {}} />);
+    expect(await screen.findByLabelText("Launch on")).toBeDisabled();
+    expect(screen.getByText(/A session is running/)).toBeInTheDocument();
+    unmount();
+    render(<CardEditor card={card({ environment: { peer: "test-depot-collie", name: "dev" } })} open onClose={() => {}} onSave={async () => {}} />);
+    await waitFor(async () => expect(await screen.findByLabelText("Launch on")).toBeDisabled());
+  });
+
   it("the tile says which machine", () => {
     render(<CardTile card={card({ environment: { peer: "test-depot-collie", name: "dev" } })} onClick={() => {}} />);
     expect(screen.getByText("on test-depot-collie")).toBeInTheDocument();

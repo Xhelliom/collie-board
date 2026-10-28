@@ -194,3 +194,16 @@ export async function environmentsForRepo(d: Omit<RemoteDeps, "db" | "branchPref
   );
   return { remote, environments: environmentsForRemote(remote, all.flat()), unreachable };
 }
+
+/**
+ * Why `environment` can't change now, or null. A running session — here or on a peer — stays where
+ * it was started: the diff, the end and the "running on" block read `card.environment`, so a change
+ * mid-run would point them at a machine that has no pane for this card. End it first.
+ */
+export function environmentChangeRefusal(db: BoardDb, card: Card, next: CardEnvironment | null): string | null {
+  if (card.environment?.peer === next?.peer && card.environment?.name === next?.name) return null;
+  const remote = remoteSessionOf(db.listEvents(card.id));
+  if (remote) return `this card is running on ${remote.peer} (${remote.environment}) — end that session before changing where it runs`;
+  if (db.openSessionFor(card.id)) return "this card is running on this machine — end its session before changing where it runs";
+  return null;
+}
