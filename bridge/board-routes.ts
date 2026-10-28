@@ -88,7 +88,7 @@ import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
-import { diffOnPeer, endOnPeer, environmentsForRepo, parseCardEnvironment, remoteSessionOf, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
+import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionOf, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
@@ -1006,7 +1006,8 @@ async function route(
     if (req.method === "PATCH" || req.method === "POST") {
       const denied = ctx.guard("write");
       if (denied) return denied;
-      if (!db.getCard(id)) return text("card not found", 404);
+      const current = db.getCard(id);
+      if (!current) return text("card not found", 404);
       let body: unknown;
       try {
         body = await req.json();
@@ -1015,6 +1016,8 @@ async function route(
       }
       const parsed = parseCardBody(body, { requireTitle: false });
       if (!parsed.ok) return text(parsed.error, 400);
+      const envRefusal = parsed.value.environment !== undefined ? environmentChangeRefusal(db, current, parsed.value.environment) : null;
+      if (envRefusal) return text(envRefusal, 409);
       const linkError = checkLinks(db, id, parsed.value);
       if (linkError) return text(linkError, 400);
       // A status change goes through setStatus so it lands in the card's journal; everything else

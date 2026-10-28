@@ -5,6 +5,7 @@ import { normalizeRemote } from "./git.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import {
   endOnPeer,
+  environmentChangeRefusal,
   environmentsForRemote,
   launchRouteFor,
   parseCardEnvironment,
@@ -150,5 +151,32 @@ describe("startOnPeer / endOnPeer", () => {
     expect(await endOnPeer(d, db.getCard(card.id)!)).toMatchObject({ ok: true });
     expect(calls[1]).toEqual({ url: "https://dev.example.ts.net/api/node/end", body: { paneId: "w9:p1" } });
     expect(remoteSessionOf(db.listEvents(card.id))).toBeNull();
+  });
+});
+
+describe("environmentChangeRefusal", () => {
+  const DEV_BOARD = { peer: "dev", name: "dev-board" };
+  it("lets a card that runs nowhere move, and lets any card keep where it is", () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "x", repoPath: "/r" });
+    expect(environmentChangeRefusal(db, card, DEV_BOARD)).toBeNull();
+    db.openSession({ cardId: card.id, paneId: "w1:p1" });
+    expect(environmentChangeRefusal(db, card, null)).toBeNull();
+  });
+  it("refuses while a session runs here", () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "x", repoPath: "/r" });
+    db.openSession({ cardId: card.id, paneId: "w1:p1" });
+    expect(environmentChangeRefusal(db, card, DEV_BOARD)).toContain("running on this machine");
+  });
+  it("refuses while a session runs on the peer, and not once it has ended", () => {
+    const db = new BoardDb(":memory:");
+    const card = db.createCard({ title: "x", repoPath: "/r", environment: DEV_BOARD });
+    const s = { peer: "dev", environment: "dev-board", paneId: "w9:p1", branch: "b" };
+    db.recordEvent(card.id, "card.remote_launched", s);
+    expect(environmentChangeRefusal(db, card, null)).toContain("running on dev (dev-board)");
+    expect(environmentChangeRefusal(db, card, { peer: "dev", name: "other" })).not.toBeNull();
+    db.recordEvent(card.id, "card.remote_ended", s);
+    expect(environmentChangeRefusal(db, card, null)).toBeNull();
   });
 });

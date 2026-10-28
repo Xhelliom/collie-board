@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useHoldReload } from "@/lib/reload-guard";
 import { cn } from "@/lib/utils";
-import { fetchCards, normalizeTag, tagsOf, type CardEnvironment, type CardInput, type CardView } from "@/lib/board";
+import { fetchCardRemote, fetchCards, normalizeTag, tagsOf, type CardEnvironment, type CardInput, type CardView } from "@/lib/board";
 import { TagField } from "@/components/tag-field";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { EnvironmentPicker } from "@/components/card-environment";
@@ -45,6 +45,8 @@ export function CardEditor({
   const [dependsOn, setDependsOn] = useState<string | null>(card.dependsOn);
   const [others, setOthers] = useState<CardView[]>([]);
   const [saving, setSaving] = useState(false);
+  // A session on a peer isn't in the card view (journal only): read once on open, like the card screen does.
+  const [runningOnPeer, setRunningOnPeer] = useState(false);
 
   useHoldReload("card-editor", open);
 
@@ -63,6 +65,14 @@ export function CardEditor({
     // Fetched on OPEN, not polled: linking is a deliberate act, and the list only has to be right
     // at the moment you pick from it. Rides the ETag cache, so it is usually a 304.
     let cancelled = false;
+    setRunningOnPeer(false);
+    if (card.environment) {
+      void fetchCardRemote(card.id)
+        .then((r) => {
+          if (!cancelled) setRunningOnPeer(Boolean(r.session));
+        })
+        .catch(() => {});
+    }
     void fetchCards()
       .then(({ cards }) => {
         if (!cancelled) setOthers(cards.filter((c) => c.id !== card.id));
@@ -178,7 +188,15 @@ export function CardEditor({
         <TagField value={tag} onChange={setTag} tags={tagsOf([card, ...others])} />
 
         <AgentKindPicker value={agentKind} onChange={setAgentKind} />
-        {card.repoPath && <EnvironmentPicker repoPath={card.repoPath} value={environment} onChange={setEnvironment} />}
+        {/* The bridge refuses to move a running card (environmentChangeRefusal): don't offer it. */}
+        {card.repoPath && (
+          <EnvironmentPicker
+            repoPath={card.repoPath}
+            value={environment}
+            onChange={setEnvironment}
+            lockedReason={card.session || runningOnPeer ? t("cardEnv.locked") : undefined}
+          />
+        )}
 
         <LinkPicker
           label={t("editor.partOf")}

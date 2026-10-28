@@ -24,6 +24,10 @@ export const peers = defineMessages({
     en: "Only the peers' environments whose origin is this repo's. Started there, never here instead.",
     fr: "Seuls les environnements des pairs dont l'origine est ce dépôt. Lancée là-bas, jamais ici à la place.",
   },
+  "cardEnv.locked": {
+    en: "A session is running: end it before changing where this card runs.",
+    fr: "Une session tourne : terminez-la avant de changer où cette carte s'exécute.",
+  },
   "cardEnv.runningOn": { en: "Running on {peer} ({environment}), branch {branch}", fr: "En cours sur {peer} ({environment}), branche {branch}" },
   "cardEnv.pane": { en: "Its agent, when this card was opened: {status}", fr: "Son agent, à l'ouverture de la carte : {status}" },
   "cardEnv.paneGone": { en: "Its pane is no longer there on the peer.", fr: "Son pane n'existe plus chez le pair." },
