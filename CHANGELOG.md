@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.241.3] - 2026-10-28
+
+### Fixed
+
+- Sélecteur d'environnement, carte distante et pairs : une réponse arrivée après le démontage n'écrit plus d'état (CI rouge sur `window is not defined`) (e1e4f2a)
+- Carte lancée sur un pair : « Démarrer » n'est plus proposé tant que la session distante tourne (6522083)
+
 ## [0.241.2] - 2026-10-28
 
 ### Fixed
