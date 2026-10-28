@@ -73,6 +73,12 @@ export function remoteSessionOf(events: readonly BoardEvent[]): RemoteSession | 
   return null;
 }
 
+/** The card's session on a peer, from its newest launch/end — searched by type, so a chatty card never loses it. */
+export function remoteSessionFor(db: BoardDb, cardId: string): RemoteSession | null {
+  const last = db.lastEventOf(cardId, [REMOTE_LAUNCHED, REMOTE_ENDED]);
+  return last ? remoteSessionOf([last]) : null;
+}
+
 /** A peer's answer turned into the reason the operator reads: who refused, and why. Pure. */
 export function peerRefusal(peer: string, environment: string, r: { status: number; body: Record<string, unknown> | null } | { error: string }): string {
   if ("error" in r) return `${environment}: ${peer} unreachable (${r.error})`;
@@ -120,7 +126,7 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
   if (predecessor && predecessor.status !== "done" && predecessor.status !== "archived") {
     return failed(`waiting on “${predecessor.title}” to finish first`, "board");
   }
-  const running = remoteSessionOf(d.db.listEvents(card.id));
+  const running = remoteSessionFor(d.db, card.id);
   if (running) return failed(`already running on ${running.peer} (${running.environment})`, "board", running.peer);
 
   const branch = card.branch ?? branchFromTitle(card.title, d.branchPrefix);
@@ -138,7 +144,7 @@ function peerOf(d: RemoteDeps, s: RemoteSession): OutboundPeer | null {
 
 /** End the card's session on its peer: the peer closes the pane it launched, the checkout stays there. */
 export async function endOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true; session: RemoteSession } | { ok: false; error: string }> {
-  const s = remoteSessionOf(d.db.listEvents(card.id));
+  const s = remoteSessionFor(d.db, card.id);
   if (!s) return { ok: false, error: "no session running on a peer" };
   const peer = peerOf(d, s);
   if (!peer) return { ok: false, error: `${s.peer} is no longer a paired peer of this machine` };
@@ -202,7 +208,7 @@ export async function environmentsForRepo(d: Omit<RemoteDeps, "db" | "branchPref
  */
 export function environmentChangeRefusal(db: BoardDb, card: Card, next: CardEnvironment | null): string | null {
   if (card.environment?.peer === next?.peer && card.environment?.name === next?.name) return null;
-  const remote = remoteSessionOf(db.listEvents(card.id));
+  const remote = remoteSessionFor(db, card.id);
   if (remote) return `this card is running on ${remote.peer} (${remote.environment}) — end that session before changing where it runs`;
   if (db.openSessionFor(card.id)) return "this card is running on this machine — end its session before changing where it runs";
   return null;

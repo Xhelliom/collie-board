@@ -3252,6 +3252,15 @@ export class BoardDb {
       .map(toEvent);
   }
 
+  /** A card's newest entry among `types`, or null — a fact read from the journal without the 100 cap of {@link listEvents}. */
+  lastEventOf(cardId: string, types: string[]): BoardEvent | null {
+    const marks = types.map(() => "?").join(",");
+    const r = this.db
+      .query<EventRow, string[]>(`SELECT * FROM event WHERE card_id = ? AND type IN (${marks}) ORDER BY ts DESC, id DESC LIMIT 1`)
+      .get(cardId, ...types);
+    return r ? toEvent(r) : null;
+  }
+
   /** A card's journal, newest first, capped — a fact about the card is read through {@link EVENT_WINDOW}. */
   listEvents(cardId: string, limit = 100): BoardEvent[] {
     return this.db

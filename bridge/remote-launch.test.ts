@@ -10,6 +10,7 @@ import {
   launchRouteFor,
   parseCardEnvironment,
   peerRefusal,
+  remoteSessionFor,
   remoteSessionOf,
   startOnPeer,
   type RemoteDeps,
@@ -151,6 +152,17 @@ describe("startOnPeer / endOnPeer", () => {
     expect(await endOnPeer(d, db.getCard(card.id)!)).toMatchObject({ ok: true });
     expect(calls[1]).toEqual({ url: "https://dev.example.ts.net/api/node/end", body: { paneId: "w9:p1" } });
     expect(remoteSessionOf(db.listEvents(card.id))).toBeNull();
+  });
+
+  it("still finds the session, and ends it, after more than 100 events since the launch", async () => {
+    const { db, d, card, calls } = setup((url) => Response.json(url.endsWith("/launch") ? { ok: true, paneId: "w9:p1", branch: "b" } : { ok: true }));
+    await startOnPeer(d, card);
+    for (let i = 0; i < 150; i++) db.recordEvent(card.id, "card.edited", { i });
+    expect(remoteSessionOf(db.listEvents(card.id))).toBeNull(); // the capped window has lost it
+    expect(remoteSessionFor(db, card.id)).toEqual({ peer: "dev", environment: "dev-board", paneId: "w9:p1", branch: "b" });
+    expect(await endOnPeer(d, db.getCard(card.id)!)).toMatchObject({ ok: true });
+    expect(calls[1]).toEqual({ url: "https://dev.example.ts.net/api/node/end", body: { paneId: "w9:p1" } });
+    expect(remoteSessionFor(db, card.id)).toBeNull();
   });
 });
 
