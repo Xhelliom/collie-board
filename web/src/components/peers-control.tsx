@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link2, Loader2, Network } from "lucide-react";
 
 import { useLocale, useT } from "@/i18n";
@@ -39,12 +39,20 @@ export function PeersControl() {
   const [tests, setTests] = useState<Record<string, TestResult>>({});
   const { pending, confirm } = usePendingConfirm(4000);
 
+  // A reply landing after unmount (or after the test environment is gone) must not set state.
+  const live = useRef(true);
   const load = useCallback(() => {
     fetchPeers()
-      .then((v) => setView(v))
-      .catch((e) => setError(boardErrorMessage(e)));
+      .then((v) => live.current && setView(v))
+      .catch((e) => live.current && setError(boardErrorMessage(e)));
   }, []);
-  useEffect(load, [load]);
+  useEffect(() => {
+    live.current = true;
+    load();
+    return () => {
+      live.current = false;
+    };
+  }, [load]);
 
   const open = view?.invitation?.state === "open" ? view.invitation : null;
   useEffect(() => {

@@ -142,6 +142,10 @@ export const handlers = [
   http.get("/api/board/pins", () => HttpResponse.json({ pins: [] })),
   http.get("/api/repos", () => HttpResponse.json({ repos: [], hiddenCount: 0 })),
   http.get("/api/repos/listed", () => HttpResponse.json({ paths: [] })),
+  http.get("/api/repos/environments", () => HttpResponse.json({ remote: null, environments: [], unreachable: [] })),
+  http.get(/\/api\/cards\/[^/]+\/remote$/, () =>
+    HttpResponse.json({ environment: null, session: null, state: null }),
+  ),
   http.get("/api/peers", () =>
     HttpResponse.json({ name: "collie", invitation: null, inbound: [], outbound: [], environments: [], error: null }),
   ),

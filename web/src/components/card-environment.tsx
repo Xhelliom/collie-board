@@ -22,7 +22,14 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
   // Re-read when the card's start or end changes its journal, i.e. when its status moves.
   useEffect(() => {
     if (!envKey) return setRemote(null);
-    fetchCardRemote(card.id).then(setRemote, () => setRemote(null));
+    let live = true;
+    fetchCardRemote(card.id).then(
+      (r) => live && setRemote(r),
+      () => live && setRemote(null),
+    );
+    return () => {
+      live = false;
+    };
   }, [card.id, envKey, card.status]);
 
   const session = remote?.session ?? null;
@@ -101,7 +108,14 @@ export function EnvironmentPicker({
   const t = useT();
   const [envs, setEnvs] = useState<Awaited<ReturnType<typeof fetchRepoEnvironments>> | null>(null);
   useEffect(() => {
-    fetchRepoEnvironments(repoPath).then(setEnvs, () => setEnvs(null));
+    let live = true;
+    fetchRepoEnvironments(repoPath).then(
+      (r) => live && setEnvs(r),
+      () => live && setEnvs(null),
+    );
+    return () => {
+      live = false;
+    };
   }, [repoPath]);
 
   const offered = envs?.environments ?? [];
