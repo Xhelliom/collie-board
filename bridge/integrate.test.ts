@@ -694,13 +694,15 @@ describe("a landed card keeps the diff its review reads", () => {
 
     const store = new BoardDb(":memory:");
     const card = store.createCard({ title: "x", repoPath: repo, baseRef: "board/lot-x" });
-    store.patchCard(card.id, { branch: "board/x" });
+    store.patchCard(card.id, { branch: "board/x", workspaceId: "wGONE" });
     // Not landed by the board: the late commit is nowhere else, so the refusal stands — and says so.
     expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(false);
     expect(store.listEvents(card.id).some((e) => e.type === "card.cleanup_refused")).toBe(true);
 
     store.recordEvent(card.id, "card.lot_merged", {});
-    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
+    // …and its workspace is gone from herdr: git removes the checkout instead.
+    const gone = { removeWorktree: async () => { throw new Error("herdr worktree.remove: workspace_not_found: workspace wGONE not found"); } } as unknown as HerdrClient;
+    expect((await cleanupCard(store, gone, store.getCard(card.id)!)).ok).toBe(true);
     expect(await worktreePathFor(repo, "board/x")).toBeNull();
     expect(await branchExists(repo, "board/x")).toBe(false);
     await rm(repo, { recursive: true, force: true });

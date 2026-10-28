@@ -801,6 +801,10 @@ export async function cleanupCard(
   // workspace herdr no longer knows (a restart, a workspace closed by hand) would otherwise be
   // unreachable forever — `git branch -d` refuses while a worktree holds the branch, and nothing
   // else in the app removes one.
+  // A workspace herdr no longer knows (closed by hand, a restart) is the same card as one with no
+  // workspace at all: git removes the checkout. Only `workspace_not_found` falls back — any other herdr
+  // refusal (a dirty checkout) is right and stays one.
+  let viaGit = !card.workspaceId;
   if (card.workspaceId) {
     try {
       // `force` ONLY on a discard, where throwing uncommitted work away is the request itself. A
@@ -809,10 +813,14 @@ export async function cleanupCard(
       // `.board/` used to make this necessary everywhere; `ensureBoardExcluded` removed that.
       await herdr.removeWorktree({ workspaceId: card.workspaceId, force: opts.discard === true });
     } catch (err) {
-      db.recordEvent(card.id, "card.cleanup_failed", { stage: "worktree", error: (err as Error).message });
-      return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
+      if (!(err as Error).message.includes("workspace_not_found")) {
+        db.recordEvent(card.id, "card.cleanup_failed", { stage: "worktree", error: (err as Error).message });
+        return { ok: false, error: { kind: "herdr", message: (err as Error).message } };
+      }
+      viaGit = true;
     }
-  } else {
+  }
+  if (viaGit) {
     const checkout = await worktreePathFor(card.repoPath!, branch);
     if (checkout) {
       const removed = await removeWorktreeAt(card.repoPath!, checkout);
