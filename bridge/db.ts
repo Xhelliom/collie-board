@@ -236,6 +236,14 @@ export interface Card {
   pipelineId: string | null;
   /** A peer's environment this card launches in, or null for this machine — ADR 0046 §4. Intent, so a column. */
   environment: CardEnvironment | null;
+  /**
+   * The git identity (`user.email`) of the pair that created this card, on a shared board — ADR 0048
+   * §5. Derived like {@link origin}, never declared: out of every allowlist, written once by
+   * `createCard`. Null on an unshared repo, and on every card that existed before (nobody knows who).
+   */
+  createdBy: string | null;
+  /** Who this card is meant for, as a git identity — an intention, not a right (ADR 0048 §5). */
+  assignee: string | null;
 }
 
 /** A named environment on a paired peer (`peers.toml`): the peer resolves the path, never this machine. */
@@ -671,6 +679,8 @@ interface CardRow {
   template_id: string | null;
   pipeline_id: string | null;
   environment: string | null;
+  created_by: string | null;
+  assignee: string | null;
 }
 
 interface RunRow {
@@ -927,6 +937,8 @@ function toCard(r: CardRow): Card {
     templateId: r.template_id ?? null,
     pipelineId: r.pipeline_id ?? null,
     environment: parseEnvironmentColumn(r.environment),
+    createdBy: r.created_by ?? null,
+    assignee: r.assignee ?? null,
   };
 }
 
@@ -1209,7 +1221,7 @@ const SHARED = {
       title: false, spec: false, raw_input: false, acceptance: true, status: false, base_ref: false,
       branch: false, agent_kind: false, parent_id: false, duplicate_of: false, depends_on: false,
       origin: false, origin_card_id: false, category: false, tag: false, position: false, run_id: false,
-      phase_id: false, template_id: false, pipeline_id: false, created_at: false,
+      phase_id: false, template_id: false, pipeline_id: false, created_at: false, created_by: false, assignee: false,
     },
     // Inserted when the first event of a card is not the one that names it; the next fields fill it.
     seed: "INSERT OR IGNORE INTO card (id, repo_path, title, status, created_at, updated_at) VALUES (?1, ?2, '', 'backlog', ?3, ?3)",
@@ -1379,6 +1391,7 @@ export interface NewCard {
   templateId?: string | null;
   pipelineId?: string | null;
   environment?: CardEnvironment | null;
+  assignee?: string | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -1404,6 +1417,7 @@ export interface CardPatch {
   templateId?: string | null;
   pipelineId?: string | null;
   environment?: CardEnvironment | null;
+  assignee?: string | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1429,6 +1443,7 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   templateId: "template_id",
   pipelineId: "pipeline_id",
   environment: "environment",
+  assignee: "assignee",
 };
 
 /**
@@ -1625,6 +1640,9 @@ export class BoardDb {
       { table: "repo_pref", column: "flow_id", ddl: "TEXT" },
       // ADR 0046 §4: the peer environment a card launches in, as JSON {peer, name}.
       { table: "card", column: "environment", ddl: "TEXT" },
+      // ADR 0048 §5: no backfill — who created a card before is not known, and guessing the local pair would lie.
+      { table: "card", column: "created_by", ddl: "TEXT" },
+      { table: "card", column: "assignee", ddl: "TEXT" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -1691,8 +1709,8 @@ export class BoardDb {
       .query(
         `INSERT INTO card (id, title, spec, raw_input, acceptance, status, repo_path, base_ref,
                            branch, workspace_id, agent_kind, parent_id, depends_on, origin,
-                           origin_card_id, category, tag, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                           origin_card_id, category, tag, position, created_at, updated_at, created_by, assignee)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -1714,6 +1732,9 @@ export class BoardDb {
         input.position ?? (minPos ?? 0) - 1,
         ts,
         ts,
+        // Derived, whoever calls: the pair creating it, when its repo is shared and its identity read.
+        input.repoPath && this.repoShare(input.repoPath) ? (this.peerIdentities.get(input.repoPath) ?? null) : null,
+        input.assignee ?? null,
       );
     if (input.phaseId) this.db.query("UPDATE card SET phase_id = ? WHERE id = ?").run(input.phaseId, id);
     if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
@@ -2852,6 +2873,17 @@ export class BoardDb {
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────
 
   /** The remote this repo's board is shared on, or null. */
+  /** repo → this clone's git `user.email` (ADR 0048 §5), set by journal-sync and the create route. Runtime, never persisted. */
+  private readonly peerIdentities = new Map<string, string>();
+
+  peerIdentity(repo: string): string | undefined {
+    return this.peerIdentities.get(repo);
+  }
+
+  setPeerIdentity(repo: string, email: string): void {
+    if (email) this.peerIdentities.set(repo, email);
+  }
+
   repoShare(path: string): string | null {
     return this.db.query<{ share: string | null }, [string]>("SELECT share FROM repo_pref WHERE path = ?").get(path)?.share ?? null;
   }

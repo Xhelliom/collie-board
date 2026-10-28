@@ -117,6 +117,9 @@ Fields, all optional except `title`:
 | `dependsOn` | card id that must be `done` first (a gate, nothing auto-starts) |
 | `status` | `backlog` (default), `ready`, `working`, `blocked`, `review`, `done`, `archived` |
 | `rawInput` | **do not use from here** — see below |
+| `assignee` | who the card is meant for, as a git identity (`user.email`) — an intention, not a right; also settable by PATCH, `null` clears it |
+
+Read-only, on a shared board (ADR 0048 §5): `createdBy` is the git `user.email` of the pair that created the card — derived by the bridge, never taken from a body (an agent's card too: `origin: agent`, `createdBy` = the machine's owner). `null` on an unshared repo and on cards older than the field. Both travel through the shared journal.
 
 ### `spec`, never `rawInput`
 
