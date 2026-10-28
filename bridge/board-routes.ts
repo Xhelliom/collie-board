@@ -50,6 +50,7 @@ import {
   diffFile,
   diffStat,
   landedStat,
+  gitUserEmail,
   readWorktreeFile,
   worktreePathFor,
 } from "./git.ts";
@@ -227,6 +228,8 @@ export function parseCardBody(
     "phaseId",
     "templateId",
     "pipelineId",
+    // A git identity, as an intention (ADR 0048 §5). `createdBy` is not here: derived, never declared.
+    "assignee",
     // Shape only. The canonical form (case, spacing, length) is `normalizeTag`, applied in the db so
     // the copilot's writes get it too — see there.
     "tag",
@@ -933,6 +936,9 @@ async function route(
       // needs, and the link back is a bonus only a board-started session can give.
       const pane = req.headers.get(PANE_HEADER)?.trim();
       const filer = pane ? db.openSessionByPane(pane) : null;
+      // createdBy (ADR 0048 §5) needs this pair's identity before the sync's first tick has read it.
+      const repo = parsed.value.repoPath;
+      if (repo && db.repoShare(repo) && !db.peerIdentity(repo)) db.setPeerIdentity(repo, await gitUserEmail(repo));
       const card = db.createCard({
         ...(await withDefaultBaseRef(parsed.value)),
         title: parsed.value.title!,

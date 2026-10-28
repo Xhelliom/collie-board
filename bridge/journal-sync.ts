@@ -132,6 +132,7 @@ export class JournalSync {
       // Nothing is shared when the journal cannot be read: activating blind would import over it.
       if (!r.ok) return { ok: false, error: r.error };
       Object.assign(s, fresh(), { busy: true, lastFetch: this.now() });
+      await this.identity(repo);
       this.db.setRepoShare(repo, remote);
       this.db.rebuildJournal(repo, r.entries, this.clock);
       const imported = this.db.importJournal(repo);
@@ -210,10 +211,17 @@ export class JournalSync {
     await this.send(repo, remote, s, undefined, own);
   }
 
+  /** This clone's git identity, read once: the `by` of its lines (the pair id when unset) and its cards' `createdBy`. */
+  private async identity(repo: string): Promise<void> {
+    const email = await this.git.email(repo);
+    this.db.setPeerIdentity(repo, email);
+    this.emails.set(repo, email || this.clock.pairId);
+  }
+
   /** Push the outbox; true when a commit went out. A failure is recorded on `s` for plan() to pace. */
   private async send(repo: string, remote: string, s: RepoSync, message?: string, own?: JournalEntry[]): Promise<boolean> {
     s.lastSend = this.now();
-    if (!this.emails.has(repo)) this.emails.set(repo, (await this.git.email(repo)) || this.clock.pairId);
+    if (!this.emails.has(repo)) await this.identity(repo);
     const outbox = this.db.journalOutbox(repo, this.clock, this.emails.get(repo)!);
     const r = await this.git.send(repo, remote, this.clock.pairId, [...(own ?? []), ...outbox], message);
     if (!r.ok) {

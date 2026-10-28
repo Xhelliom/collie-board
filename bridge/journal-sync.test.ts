@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import { BoardDb } from "./db.ts";
+import { ownJournal } from "./git.ts";
 import { Hlc } from "./journal.ts";
 import { FETCH_EVERY_MS, JournalSync, journalStatus, plan, readOnlyRefusal, SEND_EVERY_MS, type JournalGit, type RepoSync } from "./journal-sync.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -151,6 +152,31 @@ describe("two installations, one bare remote", () => {
     };
     expect(pick(pa.db)).toEqual({ title: "from A", spec: "A's spec", status: "ready" });
     expect(pick(pb.db)).toEqual(pick(pa.db));
+  });
+
+  test("createdBy and assignee travel; every line is signed with the pair's git identity (ADR 0048 §5)", async () => {
+    const { clones } = setup(2);
+    const [a, b] = clones as [string, string];
+    const clock = { t: 1_000_000 };
+    const pa = install(a, A, clock);
+    const pb = install(b, B, clock);
+    await pa.tick(); // the first tick reads this pair's identity
+    const card = pa.db.createCard({ title: "from A", repoPath: a, assignee: "p1@t" });
+    expect(card.createdBy).toBe("p0@t");
+    clock.t += SEND_EVERY_MS;
+    await pa.tick();
+    await pb.tick();
+    expect(pb.db.getCard(card.id)).toMatchObject({ createdBy: "p0@t", assignee: "p1@t" });
+
+    clock.t += SEND_EVERY_MS;
+    pb.db.patchCard(card.id, { assignee: "p0@t" });
+    await pb.tick();
+    clock.t += FETCH_EVERY_MS;
+    await pa.tick();
+    expect(pa.db.getCard(card.id)).toMatchObject({ createdBy: "p0@t", assignee: "p0@t" });
+
+    expect(new Set((await ownJournal(a, A)).map((e) => e.event.by))).toEqual(new Set(["p0@t"]));
+    expect(new Set((await ownJournal(b, B)).map((e) => e.event.by))).toEqual(new Set(["p1@t"]));
   });
 
   test("offline: the unsent count is exact, nothing is retried before the next fetch, then it resumes", async () => {

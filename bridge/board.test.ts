@@ -265,6 +265,8 @@ describe("reconcileOne", () => {
     templateId: null,
     pipelineId: null,
     environment: null,
+    createdBy: null,
+    assignee: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -632,6 +634,8 @@ describe("initialPrompt", () => {
     templateId: null,
     pipelineId: null,
     environment: null,
+    createdBy: null,
+    assignee: null,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1299,6 +1303,8 @@ describe("handoff prompts", () => {
     templateId: null,
     pipelineId: null,
     environment: null,
+    createdBy: null,
+    assignee: null,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
@@ -5013,5 +5019,55 @@ describe("GET /api/cards?view=summary", () => {
     expect(sum.counts.doneByRepo).toEqual({ "/r": 7 });
 
     expect((await get("?view=bogus"))!.status).toBe(400);
+  });
+});
+
+// ── who created a card, and who it is for (ADR 0048 §5) ──────────────────────
+
+describe("POST/PATCH /api/cards — createdBy derived, assignee declared (ADR 0048 §5)", () => {
+  const post = (body: unknown, pane?: string) =>
+    new Request("http://x/api/cards", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(pane ? { [PANE_HEADER]: pane } : {}) },
+      body: JSON.stringify(body),
+    });
+  const shared = () => {
+    const store = db();
+    store.setRepoShare("/r/shared", "origin");
+    store.setPeerIdentity("/r/shared", "me@pair");
+    return store;
+  };
+
+  it("stamps the creating pair's git identity, whatever the body claims", async () => {
+    const store = shared();
+    await handleBoardRoute("/api/cards", post({ title: "mine", repoPath: "/r/shared", createdBy: "evil@x" }), routeCtx(store));
+    expect(store.listCards().find((c) => c.title === "mine")!.createdBy).toBe("me@pair");
+  });
+
+  it("an agent's card stays `agent`, created by the machine's owner", async () => {
+    const store = shared();
+    await handleBoardRoute("/api/cards", post({ title: "filed", repoPath: "/r/shared" }, "w1:p1"), routeCtx(store));
+    expect(store.listCards().find((c) => c.title === "filed")).toMatchObject({ origin: "agent", createdBy: "me@pair" });
+  });
+
+  it("an unshared repo's card has no createdBy", async () => {
+    const store = db();
+    store.setPeerIdentity("/r/local", "me@pair");
+    await handleBoardRoute("/api/cards", post({ title: "local", repoPath: "/r/local" }), routeCtx(store));
+    expect(store.listCards().find((c) => c.title === "local")!.createdBy).toBeNull();
+  });
+
+  it("assignee is set at creation and by PATCH; createdBy never by PATCH", async () => {
+    const store = shared();
+    await handleBoardRoute("/api/cards", post({ title: "for alice", repoPath: "/r/shared", assignee: "alice@x" }), routeCtx(store));
+    const card = store.listCards().find((c) => c.title === "for alice")!;
+    expect(card.assignee).toBe("alice@x");
+    const patch = new Request(`http://x/api/cards/${card.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assignee: "bob@x", createdBy: "evil@x" }),
+    });
+    await handleBoardRoute(`/api/cards/${card.id}`, patch, routeCtx(store));
+    expect(store.getCard(card.id)).toMatchObject({ assignee: "bob@x", createdBy: "me@pair" });
   });
 });
