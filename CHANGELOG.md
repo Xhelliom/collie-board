@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.241.1] - 2026-10-28
+
+### Fixed
+
+- Bridge starts again on SQLite < 3.53: journal triggers no longer write to a schema-qualified table. (a9102bd)
+- Lot arrêté : raison sans codes ANSI, réduite à la ligne d'erreur (le reste sous « Voir plus »), « Reprendre » toujours visible (1b4c713)
+- Le bridge refuse (409) de changer `environment` d'une carte dont une session tourne, ici ou chez un pair. (05f4662)
+- « Lancer sur » est grisé avec sa raison tant qu'une session tourne (éditeur et page carte). (05f4662)
+
 ## [0.241.0] - 2026-10-27
 
 ### Added
