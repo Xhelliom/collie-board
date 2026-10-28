@@ -1265,10 +1265,11 @@ function fieldsSql(cols: Record<string, boolean>, changed: boolean, has: Set<str
 function journalTriggers(columns: (table: string) => Set<string>): string {
   const when = (repo: string) =>
     `NOT EXISTS (SELECT 1 FROM temp.journal_mute) AND EXISTS (SELECT 1 FROM main.repo_pref WHERE path = ${repo} AND share IS NOT NULL)`;
+  // Unqualified INSERT target: SQLite < 3.53 rejects a schema-qualified write in a trigger body; a TEMP trigger resolves it to main.
   const out = (name: string, on: string, repo: string, entity: string, type: string, fields: string, extra = "") => `
 CREATE TEMP TRIGGER IF NOT EXISTS ${name} ${on} WHEN ${when(repo)}${extra}
 BEGIN
-  INSERT INTO main.journal_outbox (repo_path, entity, type, fields)
+  INSERT INTO journal_outbox (repo_path, entity, type, fields)
   SELECT ${repo}, ${entity}, '${type}', f FROM (SELECT ${fields} AS f) WHERE f IS NOT NULL;
 END;`;
   let sql = "CREATE TEMP TABLE IF NOT EXISTS journal_mute (x);";
