@@ -714,14 +714,15 @@ export function CardRoute() {
                         revalidator.revalidate();
                       }}
                     />
-                    <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)} />
-                    <StartButton
-                      card={card}
-                      pending={starting}
-                      onStart={start}
-                      predecessor={detail?.predecessor}
-                      childCount={detail?.children.length}
-                    />
+                    <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)}>
+                      <StartButton
+                        card={card}
+                        pending={starting}
+                        onStart={start}
+                        predecessor={detail?.predecessor}
+                        childCount={detail?.children.length}
+                      />
+                    </CardEnvironment>
                     {/* The other answer to "start this?", and it belongs next to Start rather than
                         three taps deep in the "⋯": this is too small for a worktree and an agent of
                         its own, and the card it came out of still has one. Only while nothing has

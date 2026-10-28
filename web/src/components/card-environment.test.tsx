@@ -6,7 +6,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/test/setup";
 import { setPreference } from "@/i18n";
 import type { CardView } from "@/lib/board";
-import { EnvironmentPicker } from "./card-environment";
+import { CardEnvironment, EnvironmentPicker } from "./card-environment";
 import { CardEditor } from "./card-editor";
 import { CardTile } from "./card-tile";
 
@@ -107,5 +107,56 @@ describe("Lancer sur", () => {
   it("the tile says which machine", () => {
     render(<CardTile card={card({ environment: { peer: "test-depot-collie", name: "dev" } })} onClick={() => {}} />);
     expect(screen.getByText("on test-depot-collie")).toBeInTheDocument();
+  });
+});
+
+describe("CardEnvironment", () => {
+  const onCard = { peer: "test-depot-collie", name: "dev" };
+  const running = { environment: onCard, session: { peer: "test-depot-collie", environment: "dev", paneId: "w1:p1", branch: "board/x" } };
+  const start = <button>Start</button>;
+
+  it("no peer serves the repo: no picker, Start alone", async () => {
+    envs([]);
+    render(<CardEnvironment card={card()} onChanged={() => {}} onError={() => {}}>{start}</CardEnvironment>);
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByLabelText("Launch on")).toBeNull();
+  });
+
+  it("running on a peer: says where, hides Start, and ends the session there", async () => {
+    setPreference("fr");
+    let ended = 0;
+    server.use(
+      http.get("/api/cards/c1/remote", () =>
+        HttpResponse.json(ended ? { environment: onCard, session: null, state: null } : { ...running, state: { reachable: true, pane: { status: "working", agent: "claude" } } }),
+      ),
+      http.delete("/api/cards/c1/remote", () => {
+        ended++;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    envs([{ ...onCard, agent: "claude" }]);
+    const onChanged = vi.fn();
+    render(<CardEnvironment card={card({ environment: onCard, status: "working" })} onChanged={onChanged} onError={() => {}}>{start}</CardEnvironment>);
+    // Not even a flash of Start while the remote is being read.
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(await screen.findByText("En cours sur test-depot-collie (dev), branche board/x")).toBeInTheDocument();
+    expect(screen.getByText("Son agent, à l'ouverture de la carte : working")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.queryByLabelText("Lancer sur")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Terminer la session sur test-depot-collie" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(ended).toBe(1);
+    expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
+    expect(screen.queryByTestId("card-remote")).toBeNull();
+  });
+
+  it("an unreachable peer still holds the card: Start stays hidden", async () => {
+    server.use(http.get("/api/cards/c1/remote", () => HttpResponse.json({ ...running, state: { reachable: false, error: "timeout", pane: null } })));
+    render(<CardEnvironment card={card({ environment: onCard })} onChanged={() => {}} onError={() => {}}>{start}</CardEnvironment>);
+    expect(await screen.findByText("Peer not reached: timeout")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End the session on test-depot-collie" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
   });
 });

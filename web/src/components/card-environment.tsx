@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
@@ -9,9 +9,12 @@ const keyOf = (e: Env | null | undefined) => (e ? `${e.peer}/${e.name}` : "");
 // Where the card runs (ADR 0046 §4): this machine, or a paired peer's environment whose origin is
 // this repo's. Both reads happen when the card is opened, never on a timer — the peer's live state
 // is lot 2's (the unified herd); this only says what it was a moment ago.
-export function CardEnvironment({ card, onChanged, onError }: { card: CardView; onChanged: () => void; onError: (m: string) => void }) {
+// `children` (the Start button) shows only once the card is known not to run on a peer: the bridge
+// would refuse a second launch ("already running on …"), and a button that can only fail is a wasted tap.
+export function CardEnvironment({ card, onChanged, onError, children }: { card: CardView; onChanged: () => void; onError: (m: string) => void; children?: ReactNode }) {
   const t = useT();
-  const [remote, setRemote] = useState<CardRemote | null>(null);
+  // undefined: not read yet — Start waits for the answer rather than flash in and out.
+  const [remote, setRemote] = useState<CardRemote | null | undefined>(card.environment ? undefined : null);
   const [ending, setEnding] = useState(false);
   const env = card.environment ?? null;
   const envKey = keyOf(env);
@@ -55,22 +58,26 @@ export function CardEnvironment({ card, onChanged, onError }: { card: CardView; 
     );
   }
 
-  if (!card.repoPath) return null;
+  if (remote === undefined) return null;
+  if (!card.repoPath) return children;
   return (
-    <EnvironmentPicker
-      repoPath={card.repoPath}
-      value={env}
-      // A local session whose pane is gone still holds the card here: the bridge refuses the move.
-      lockedReason={card.session ? t("cardEnv.locked") : undefined}
-      onChange={async (picked) => {
-        try {
-          await patchCard(card.id, { environment: picked });
-        } catch (err) {
-          onError((err as Error).message);
-        }
-        onChanged();
-      }}
-    />
+    <>
+      <EnvironmentPicker
+        repoPath={card.repoPath}
+        value={env}
+        // A local session whose pane is gone still holds the card here: the bridge refuses the move.
+        lockedReason={card.session ? t("cardEnv.locked") : undefined}
+        onChange={async (picked) => {
+          try {
+            await patchCard(card.id, { environment: picked });
+          } catch (err) {
+            onError((err as Error).message);
+          }
+          onChanged();
+        }}
+      />
+      {children}
+    </>
   );
 }
 
