@@ -73,8 +73,11 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
           {t(tab.label)}
         </Link>
       ))}
+      {/* The repo picker and its + / unlist share ONE row, also on a phone: the header is three lines
+          tall otherwise, on a screen that is mostly list. */}
+      <div className="order-last flex w-full items-center gap-1 sm:order-none sm:ml-auto sm:w-auto">
       {options.length > 0 && (
-        <label className="relative order-last w-full sm:order-none sm:ml-auto sm:w-auto">
+        <label className="relative min-w-0 flex-1 sm:flex-none">
           <span className="sr-only">{t("repo.label")}</span>
           <select
             value={repo ?? ""}
@@ -91,7 +94,7 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         </label>
       )}
-      <div className={cn("order-last flex gap-1 sm:order-none", options.length === 0 && "sm:ml-auto")}>
+      <div className="flex gap-1">
         {repo && listed.includes(repo) && (
           // Takes the repo off the hand-made list only: its cards, if any, keep it listed through them.
           <button
@@ -112,6 +115,7 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
         >
           <Plus className="size-4" />
         </button>
+      </div>
       </div>
       <AddProjectSheet open={adding} onClose={() => setAdding(false)} exclude={all.map((r) => r.path)} />
     </nav>
