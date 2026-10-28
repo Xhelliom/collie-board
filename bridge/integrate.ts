@@ -762,10 +762,19 @@ export async function cleanupCard(
   opts: { discard?: boolean } = {},
 ): Promise<Result<{ branch: string; discarded: number }>> {
   const state = await integrationFor(card);
+  // The board itself landed this card's work (a PR it opened was merged, or it was folded into its lot's
+  // branch). What the branch still holds is what came AFTER — the agent's closing bilan committed past the
+  // fold, or commits a squash-merge never makes ancestors — and "ahead and not pushed" would refuse
+  // that for ever, in silence: 28 finished CrewDesign lot cards kept their checkout this way.
+  const landedByBoard = db.listEvents(card.id, 500).some((e) => e.type === "card.pr_merged" || e.type === "card.lot_merged");
   if (!opts.discard) {
     // `refusalFor` rather than `gate`, which would re-read the state we already have.
-    const blocked = refusalFor(state, "cleanup");
-    if (blocked) return { ok: false, error: { kind: "refused", message: refusalMessage(blocked, state) } };
+    let blocked = refusalFor(state, "cleanup");
+    if (blocked === "not-merged" && landedByBoard) blocked = refusalFor(state && { ...state, ahead: 0 }, "cleanup");
+    if (blocked) {
+      db.recordEvent(card.id, "card.cleanup_refused", { reason: blocked });
+      return { ok: false, error: { kind: "refused", message: refusalMessage(blocked, state) } };
+    }
     // `discard` is exempt on purpose: it is the one gesture that already means "I know, throw it away
     // anyway", and gating it too would defeat that escape hatch.
     const refusal = wrapupGate(lastSessionOf(db, card.id));
@@ -819,7 +828,7 @@ export async function cleanupCard(
   const landed = !opts.discard && (await isAncestor(card.repoPath!, branch, state!.base));
   // `-d` asks for a branch merged into HEAD; a card folded into a lot's branch (ADR 0041) is merged into
   // that one. Reachable from its base is the same guarantee that nothing is lost.
-  const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard || landed);
+  const deleted = await deleteBranch(card.repoPath!, branch, undefined, opts.discard || landed || landedByBoard);
   if (!deleted.ok) {
     // The checkout is already gone, so say what actually happened rather than claiming a clean run.
     db.recordEvent(card.id, "card.cleanup_failed", { stage: "branch", error: deleted.error });
