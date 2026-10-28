@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.243.0] - 2026-10-28
+
+### Added
+
+- Board partagé : « par <nom> » et puce « à <nom> » sur la tuile et la page de carte (3385fc3)
+- Éditeur de carte : choix de l'assignée parmi les identités connues du dépôt (3385fc3)
+- Board et page projet : filtre « À moi » / « Tout le monde » (`?who=me`) (3385fc3)
+- `GET /api/cards` et `/api/cards/:id` : `identities` par dépôt partagé (moi + identités connues) (3385fc3)
+
+### Fixed
+
+- Nettoyage : si herdr ne connaît plus le workspace de la carte, git supprime le worktree (au lieu d'échouer à vie) (7bf623c)
+- Nettoyage : un worktree de carte dont le board a posé le travail (PR fusionnée ou lot) est enfin supprimé, même avec un commit postérieur (bilan, squash) (0c0b498)
+- Un nettoyage refusé laisse une trace (`card.cleanup_refused`) au lieu de rester silencieux (0c0b498)
+
 ## [0.242.0] - 2026-10-28
 
 ### Added
