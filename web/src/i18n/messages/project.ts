@@ -53,6 +53,7 @@ export const project = defineMessages({
   "project.kpi.next": { en: "next: {title}", fr: "prochaine : {title}" },
 
   "project.filter.aria": { en: "Filter the steps", fr: "Filtrer les étapes" },
+  "project.filter.button": { en: "Filter", fr: "Filtre" },
   "project.filter.all": { en: "all", fr: "tout" },
   "project.filter.done": { en: "done", fr: "terminé" },
   "project.filter.flight": { en: "in flight", fr: "en cours" },
