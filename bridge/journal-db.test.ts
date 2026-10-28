@@ -196,3 +196,14 @@ test("migration: a board from before the journal opens, keeps its cards and gain
   db.patchCard(card.id, { title: "edited" });
   expect(outbox(db).filter((e) => e.event.type === "card.set").map((e) => e.event.fields)).toEqual([{ title: "edited" }]);
 });
+
+test("no trigger body writes to a schema-qualified table (SQLite < 3.53 refuses it at open)", () => {
+  const db = board();
+  const raw = (db as unknown as { db: Database }).db;
+  const triggers = raw.query<{ name: string; sql: string }, []>("SELECT name, sql FROM sqlite_temp_master WHERE type = 'trigger'").all();
+  expect(triggers.length).toBeGreaterThan(0);
+  for (const t of triggers) {
+    const body = t.sql.slice(t.sql.search(/\bBEGIN\b/));
+    expect({ name: t.name, bad: body.match(/\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+\w+\./gi) }).toEqual({ name: t.name, bad: null });
+  }
+});
