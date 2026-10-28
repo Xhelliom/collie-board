@@ -88,7 +88,7 @@ import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync
 import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
-import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionOf, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
+import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
@@ -1331,7 +1331,7 @@ async function route(
     if (!card) return text("card not found", 404);
     if (card.environment) {
       // The checkout is on the peer: read through its `/api/node/diff`, which knows only the panes it launched.
-      const remote = remoteSessionOf(db.listEvents(id));
+      const remote = remoteSessionFor(db, id);
       if (!remote) return ctx.json({ ok: false, error: "no session running on a peer", kind: "no-branch" }, 409);
       const q = new URL(req.url).searchParams;
       const mode = q.get("mode");
@@ -1374,7 +1374,7 @@ async function route(
     const card = db.getCard(id);
     if (!card) return text("card not found", 404);
     if (req.method === "GET") {
-      const session = remoteSessionOf(db.listEvents(id));
+      const session = remoteSessionFor(db, id);
       return json({ environment: card.environment, session, state: session ? await remoteStateOf(remoteDeps(ctx), session) : null });
     }
     const r = await endOnPeer(remoteDeps(ctx), card);
