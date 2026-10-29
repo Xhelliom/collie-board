@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.247.0] - 2026-10-29
+
+### Added
+
+- Board partagé : un lot porte `createdBy`/`createdPair` dérivés ; seul le pair créateur le lance, le reprend, le pilote et le pousse (ADR 0048 §7) (3636766)
+- Fin de lot partagée : `finished_at` journalisé quand le coordinateur du créateur termine le lot — les autres pairs le voient terminé (3636766)
+- UI : boutons « Lancer ce lot » / « Reprendre » grisés avec « Lot de X — seul son créateur… » ; « en cours chez X » sur le lot et la carte (3636766)
+- Un agent (orchestrateur) est refusé (`403`) sur une carte assignée à un autre et sur le lot d'un autre (3636766)
+
 ## [0.246.1] - 2026-10-29
 
 ### Changed
