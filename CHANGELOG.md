@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.246.0] - 2026-10-29
+
+### Added
+
+- Onglet Recette du projet : capacités livrées à tester, groupées par usage, captures en tête, étapes OK / KO / passer (01053b7)
+- Un KO noté crée une carte de suite liée ; ce qui est validé quitte la vue par défaut, une étape validée se replie (01053b7)
+- Compteur graphique à tester / OK / KO, période (dernière visite / toujours), filtres à tester / tout / à moi, recherche et galerie des captures (01053b7)
+- Puce « N à tester » sur la page projet, qui ouvre l'onglet (01053b7)
+- `GET /api/recette` renvoie les captures, l'assignée et masque un KO dont la carte de suite est livrée (01053b7)
+
 ## [0.245.0] - 2026-10-29
 
 ### Added
