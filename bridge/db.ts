@@ -15,7 +15,7 @@
 
 import { BUILTIN_FLOWS } from "./flows.ts";
 import { BUILTIN_TEMPLATES } from "./templates.ts";
-import type { Hlc, JournalEvent } from "./journal.ts";
+import { parseHlc, type Hlc, type JournalEvent } from "./journal.ts";
 import { chmodSync } from "node:fs";
 
 import { Database } from "bun:sqlite";
@@ -244,6 +244,18 @@ export interface Card {
   createdBy: string | null;
   /** Who this card is meant for, as a git identity — an intention, not a right (ADR 0048 §5). */
   assignee: string | null;
+  /**
+   * The last `card.claimed` of a shared card (ADR 0048 §7): the pair that pushed it, its git identity
+   * and when. Only ever written by applying the journal — a claim exists once the remote took it.
+   */
+  claim: CardClaim | null;
+}
+
+/** A pair's reservation of a shared card — see {@link Card.claim}. */
+export interface CardClaim {
+  pair: string;
+  by: string;
+  at: number;
 }
 
 /** A named environment on a paired peer (`peers.toml`): the peer resolves the path, never this machine. */
@@ -681,6 +693,9 @@ interface CardRow {
   environment: string | null;
   created_by: string | null;
   assignee: string | null;
+  claimed_pair: string | null;
+  claimed_by: string | null;
+  claimed_at: number | null;
 }
 
 interface RunRow {
@@ -939,6 +954,7 @@ function toCard(r: CardRow): Card {
     environment: parseEnvironmentColumn(r.environment),
     createdBy: r.created_by ?? null,
     assignee: r.assignee ?? null,
+    claim: r.claimed_pair && r.claimed_by ? { pair: r.claimed_pair, by: r.claimed_by, at: r.claimed_at ?? 0 } : null,
   };
 }
 
@@ -1305,6 +1321,7 @@ function journalKeys(e: { type: string; hlc: string; fields: Record<string, unkn
   if (e.type.endsWith(".set")) return Object.keys(e.fields);
   if (e.type === "card.event") return [`@${e.hlc}`];
   if (e.type === "card.review" && typeof e.fields.id === "string") return [`review:${e.fields.id}`];
+  if (e.type === "card.claimed") return ["claim"];
   return [];
 }
 
@@ -1643,6 +1660,10 @@ export class BoardDb {
       // ADR 0048 §5: no backfill — who created a card before is not known, and guessing the local pair would lie.
       { table: "card", column: "created_by", ddl: "TEXT" },
       { table: "card", column: "assignee", ddl: "TEXT" },
+      // ADR 0048 §7: a shared card's reservation, written only by applying a pushed `card.claimed`.
+      { table: "card", column: "claimed_pair", ddl: "TEXT" },
+      { table: "card", column: "claimed_by", ddl: "TEXT" },
+      { table: "card", column: "claimed_at", ddl: "INTEGER" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -2885,12 +2906,32 @@ export class BoardDb {
     if (email) this.peerIdentities.set(repo, email);
   }
 
+  /** This installation's pair id, set by the journal sync. Runtime: it lives in its own state file. */
+  private localPair: string | null = null;
+
+  setPairId(pair: string): void {
+    this.localPair = pair;
+  }
+
+  /**
+   * A `card.claimed` of this pair, stamped after every claim the card has seen (ADR 0048 §7) — not yet
+   * applied: it is applied once the remote took it, so a refused push leaves no claim behind.
+   */
+  claimEntry(repoPath: string, cardId: string, clock: Hlc, by: string): JournalEntry {
+    const entity = `cards/${cardId}`;
+    const cur = this.db
+      .query<{ hlc: string }, [string, string]>("SELECT hlc FROM journal_field WHERE repo_path = ? AND entity = ? AND field = 'claim'")
+      .get(repoPath, entity)?.hlc;
+    if (cur) clock.observe(cur);
+    return { entity, event: { v: 1, hlc: clock.next(), type: "card.claimed", by, fields: { pair: clock.pairId, by } } };
+  }
+
   /**
    * Who is who on each shared repo, for the screens (ADR 0048 §5): this pair's identity, and every
    * identity the repo knows — journal authors, creators, assignees. Unshared repos are absent.
    */
-  identities(): Record<string, { me: string | null; people: string[] }> {
-    const out: Record<string, { me: string | null; people: string[] }> = {};
+  identities(): Record<string, { me: string | null; pair: string | null; people: string[] }> {
+    const out: Record<string, { me: string | null; pair: string | null; people: string[] }> = {};
     for (const { path } of this.sharedRepos()) {
       const me = this.peerIdentities.get(path) ?? null;
       const cols = this.db
@@ -2900,7 +2941,8 @@ export class BoardDb {
         .all(path)
         .map((r) => r.v);
       const people = new Set([...(me ? [me] : []), ...(this.journalAuthors.get(path) ?? []), ...cols]);
-      out[path] = { me, people: [...people].sort() };
+      // `pair`: what a card's claim is compared with — the same person on two machines is two pairs.
+      out[path] = { me, pair: this.localPair, people: [...people].sort() };
     }
     return out;
   }
@@ -3127,6 +3169,12 @@ export class BoardDb {
         )
         .run(f.id, id, f.verdict as string | null, f.notes as string | null, JSON.stringify(f.todos ?? []), f.created_at);
       this.recordField(repoPath, entity, `review:${f.id}`, e.hlc);
+    } else if (kind === "card" && e.type === "card.claimed") {
+      const { pair, by } = e.fields;
+      const cur = won("claim");
+      if (typeof pair !== "string" || typeof by !== "string" || (cur && cur >= e.hlc) || !ensure()) return;
+      this.db.query("UPDATE card SET claimed_pair = ?, claimed_by = ?, claimed_at = ? WHERE id = ?").run(pair, by, parseHlc(e.hlc)?.ms ?? this.now(), id);
+      this.recordField(repoPath, entity, "claim", e.hlc);
     }
     // Other types (card.claimed, deliverable.published) belong to later lots.
   }

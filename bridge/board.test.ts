@@ -267,6 +267,7 @@ describe("reconcileOne", () => {
     environment: null,
     createdBy: null,
     assignee: null,
+    claim: null,
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -636,6 +637,7 @@ describe("initialPrompt", () => {
     environment: null,
     createdBy: null,
     assignee: null,
+    claim: null,
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1305,6 +1307,7 @@ describe("handoff prompts", () => {
     environment: null,
     createdBy: null,
     assignee: null,
+    claim: null,
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
@@ -5081,6 +5084,6 @@ describe("GET /api/cards — identities per shared repo (ADR 0048 §5)", () => {
     store.createCard({ title: "b", repoPath: "/r/local", assignee: "nobody@local" });
     const r = await handleBoardRoute("/api/cards", new Request("http://x/api/cards?view=summary"), routeCtx(store));
     const body = (await r!.json()) as { identities: Record<string, unknown> };
-    expect(body.identities).toEqual({ "/r/shared": { me: "me@pair", people: ["bob@pair", "me@pair"] } });
+    expect(body.identities).toEqual({ "/r/shared": { me: "me@pair", pair: null, people: ["bob@pair", "me@pair"] } });
   });
 });

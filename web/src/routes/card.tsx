@@ -51,6 +51,8 @@ import { CardEditor, LinkPicker } from "@/components/card-editor";
 import { AgentKindPicker } from "@/components/agent-kind-picker";
 import { CardEnvironment } from "@/components/card-environment";
 import { CardPeople } from "@/components/card-people";
+import { ClaimedElsewhere } from "@/components/card-claim";
+import { claimHolder, useIdentities } from "@/lib/identities";
 import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
@@ -144,6 +146,7 @@ export function CardRoute() {
   const navigate = useNavigate();
   const back = useBack(boardPath());
   const revalidator = useRevalidator();
+  const identities = useIdentities();
   const [starting, setStarting] = useState(false);
   /** Which suggestion is being sent, so only ITS button says "Sending…". A title alone is not a key:
    *  the same suggestion can sit on two reviews of one card — the copilot's, and the one a
@@ -717,13 +720,18 @@ export function CardRoute() {
                       }}
                     />
                     <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)}>
-                      <StartButton
-                        card={card}
-                        pending={starting}
-                        onStart={start}
-                        predecessor={detail?.predecessor}
-                        childCount={detail?.children.length}
-                      />
+                      {/* ADR 0048 §7: another pair holds this shared card — greyed with why, and « reprendre la main ». */}
+                      {claimHolder(card, identities) ? (
+                        <ClaimedElsewhere card={card} onChanged={() => revalidator.revalidate()} onMessage={(m, tone) => setStatus(m, tone)} />
+                      ) : (
+                        <StartButton
+                          card={card}
+                          pending={starting}
+                          onStart={start}
+                          predecessor={detail?.predecessor}
+                          childCount={detail?.children.length}
+                        />
+                      )}
                     </CardEnvironment>
                     {/* The other answer to "start this?", and it belongs next to Start rather than
                         three taps deep in the "⋯": this is too small for a worktree and an agent of

@@ -9,6 +9,8 @@ import type { CardView } from "./board";
 
 export interface RepoIdentities {
   me: string | null;
+  /** This installation's pair id — what a card's claim is compared with (ADR 0048 §7). Optional: older bridges omit it. */
+  pair?: string | null;
   people: string[];
 }
 
@@ -47,4 +49,12 @@ export function personName(email: string, me: string | null, meLabel: string): s
 export function assignedToMe(card: CardView, ids: Record<string, RepoIdentities>): boolean {
   const repo = card.repoPath ? ids[card.repoPath] : undefined;
   return !repo || (repo.me !== null && card.assignee === repo.me);
+}
+
+/** Another pair's claim that keeps a card from launching here (ADR 0048 §7); done or archived releases it. */
+export function claimHolder(card: CardView, ids: Record<string, RepoIdentities>): NonNullable<CardView["claim"]> | null {
+  const repo = card.repoPath ? ids[card.repoPath] : undefined;
+  const c = card.claim;
+  if (!repo?.pair || !c || c.pair === repo.pair || card.status === "done" || card.status === "archived") return null;
+  return c;
 }

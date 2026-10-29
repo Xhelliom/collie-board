@@ -1,4 +1,5 @@
 import { branchFromTitle, initialPrompt } from "./cards.ts";
+import { claimForLaunch } from "./claim.ts";
 import type { BoardDb, BoardEvent, Card, CardEnvironment } from "./db.ts";
 import { normalizeRemote, originUrl } from "./git.ts";
 import { PEER_NAME, peerCall, type OutboundPeer } from "./pairing.ts";
@@ -128,6 +129,8 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
   }
   const running = remoteSessionFor(d.db, card.id);
   if (running) return failed(`already running on ${running.peer} (${running.environment})`, "board", running.peer);
+  const refused = await claimForLaunch(d.db, card);
+  if (refused) return failed(refused, "board");
 
   const branch = card.branch ?? branchFromTitle(card.title, d.branchPrefix);
   const r = await call(d, peer, "/api/node/launch", { body: { environment, prompt: initialPrompt(card), branch }, timeoutMs: LAUNCH_TIMEOUT_MS });

@@ -342,6 +342,9 @@ These spend quota or drive a real terminal. Never fire one unasked:
 
 - `POST /api/cards/<id>/start` — cuts a git worktree, opens a herdr workspace and
   launches an agent on the card.
+  On a **shared** repo it first pushes the card's claim (ADR 0048 §7): `409 {kind:"claimed"}` when
+  another pair holds it (`error` says who and since when), or when offline and the card is not
+  assigned to you. Taking a card back (`POST /api/cards/<id>/claim`) is the operator's gesture — refused to a pane.
 - `POST /api/cards/<id>/prompt` (`{"text":"…"}`) — types into that agent's pane.
 - `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, never yours.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.

@@ -8,6 +8,7 @@ import { isAbsolute, join } from "node:path";
 
 import { writeSafetyBackup } from "./backup.ts";
 import { PANE_HEADER, type BoardContext } from "./board-routes.ts";
+import { claimHolder, claimReason, setClaimer, takeOver, type ClaimResult } from "./claim.ts";
 import type { BoardDb, JournalEntry } from "./db.ts";
 import {
   forgetJournal,
@@ -101,8 +102,14 @@ export type Activation =
   | { ok: true; backup: string; existed: boolean; imported: number; pushed: boolean; error: string | null }
   | { ok: false; error: string };
 
+/** How many pushes a claim tries while other pairs keep moving the branch under it. */
+const CLAIM_ATTEMPTS = 3;
+const IN_FLIGHT = "a sync of this repo is in flight — try again in a moment";
+
 export class JournalSync {
   private readonly emails = new Map<string, string>();
+  /** repo → the tick or claim holding `busy`, so a claim waits for it instead of failing a launch. */
+  private readonly inflight = new Map<string, Promise<unknown>>();
 
   constructor(
     private readonly db: BoardDb,
@@ -111,6 +118,63 @@ export class JournalSync {
     private readonly now: () => number = Date.now,
   ) {
     live = this;
+    db.setPairId(clock.pairId);
+    setClaimer((repo, cardId, force) => this.claim(repo, cardId, force));
+  }
+
+  /**
+   * § 7: claim a shared card, synchronously, before it is launched. The claim is pushed first and
+   * applied here only once the remote took it: the push is never forced, so it is a compare-and-swap on
+   * the branch — refused, the journal is fetched, and if another pair claimed the card meanwhile the
+   * launch is refused with its reason. `force` is « reprendre la main »: over another pair's claim.
+   */
+  async claim(repo: string, cardId: string, force = false): Promise<ClaimResult> {
+    const remote = this.db.repoShare(repo);
+    if (!remote) return { ok: true };
+    const s = states.get(repo) ?? fresh();
+    states.set(repo, s);
+    while (s.busy) {
+      const p = this.inflight.get(repo);
+      if (!p) return { ok: false, error: IN_FLIGHT };
+      await p;
+    }
+    if (s.rewritten) return { ok: false, error: "the remote's collie-board branch was rewritten — resend this pair's journal (project settings) before launching" };
+    s.busy = true;
+    const op = this.claimLoop(repo, remote, s, cardId, force)
+      .catch((err): ClaimResult => ({ ok: false, error: (s.error = (err as Error).message) }))
+      .finally(() => void (s.busy = false));
+    this.inflight.set(repo, op);
+    return op;
+  }
+
+  private async claimLoop(repo: string, remote: string, s: RepoSync, cardId: string, force: boolean): Promise<ClaimResult> {
+    for (let attempt = 0; attempt < CLAIM_ATTEMPTS; attempt++) {
+      const card = this.db.getCard(cardId);
+      if (!card || card.repoPath !== repo) return { ok: false, error: "card not found" };
+      const held = force ? null : claimHolder(card, this.clock.pairId);
+      if (held) return { ok: false, error: claimReason(held) };
+      // Already this pair's, and on the remote: an applied claim is a pushed one.
+      if (!force && card.claim?.pair === this.clock.pairId) return { ok: true };
+      if (!this.emails.has(repo)) await this.identity(repo);
+      const entry = this.db.claimEntry(repo, cardId, this.clock, this.emails.get(repo)!);
+      if (await this.send(repo, remote, s, `collie-board: ${entry.event.by} claims ${cardId}`, undefined, [entry])) {
+        this.db.applyJournal(repo, [entry], this.clock);
+        return { ok: true };
+      }
+      if (s.offline) return { ok: false, offline: true, error: s.error ?? "remote unreachable" };
+      if (!s.refetch) return { ok: false, error: s.readOnly ?? s.error ?? "the claim could not be pushed" };
+      // Another pair pushed first: read what it pushed, then look at the card again.
+      s.refetch = false;
+      s.lastFetch = this.now();
+      const r = await this.git.receive(repo, remote);
+      if (!r.ok) {
+        this.fail(s, r);
+        return { ok: false, offline: r.kind === "unreachable" ? true : undefined, error: r.error } as ClaimResult;
+      }
+      if (r.rewritten) return { ok: false, error: "the remote's collie-board branch was rewritten — resend this pair's journal (project settings) before launching" };
+      if (r.entries.length > 0) this.db.applyJournal(repo, r.entries, this.clock);
+    }
+    return { ok: false, error: "the shared board kept moving — the claim could not be pushed, try again" };
   }
 
   /**
@@ -121,7 +185,7 @@ export class JournalSync {
    */
   async activate(repo: string, remote: string, backup: () => Promise<string>): Promise<Activation> {
     const s = states.get(repo) ?? fresh();
-    if (s.busy) return { ok: false, error: "a sync of this repo is in flight — try again in a moment" };
+    if (s.busy) return { ok: false, error: IN_FLIGHT };
     if (!(await this.git.remotes(repo)).includes(remote)) return { ok: false, error: `no remote named ${remote} in this repo` };
     states.set(repo, s);
     s.busy = true;
@@ -185,11 +249,11 @@ export class JournalSync {
       const p = plan(s, this.now(), this.db.journalUnsent(path));
       if (!p) continue;
       s.busy = true;
-      ops.push(
-        this.run(path, remote, s, p.fetch)
-          .catch((err) => void (s.error = (err as Error).message))
-          .finally(() => void (s.busy = false)),
-      );
+      const op = this.run(path, remote, s, p.fetch)
+        .catch((err) => void (s.error = (err as Error).message))
+        .finally(() => void (s.busy = false));
+      this.inflight.set(path, op);
+      ops.push(op);
     }
     return Promise.all(ops).then(() => {});
   }
@@ -219,11 +283,11 @@ export class JournalSync {
   }
 
   /** Push the outbox; true when a commit went out. A failure is recorded on `s` for plan() to pace. */
-  private async send(repo: string, remote: string, s: RepoSync, message?: string, own?: JournalEntry[]): Promise<boolean> {
+  private async send(repo: string, remote: string, s: RepoSync, message?: string, own?: JournalEntry[], claim: JournalEntry[] = []): Promise<boolean> {
     s.lastSend = this.now();
     if (!this.emails.has(repo)) await this.identity(repo);
     const outbox = this.db.journalOutbox(repo, this.clock, this.emails.get(repo)!);
-    const r = await this.git.send(repo, remote, this.clock.pairId, [...(own ?? []), ...outbox], message);
+    const r = await this.git.send(repo, remote, this.clock.pairId, [...(own ?? []), ...outbox, ...claim], message);
     if (!r.ok) {
       this.fail(s, r);
       return false;
@@ -282,6 +346,8 @@ const SHARE_ROUTE = "/api/repos/share";
  */
 export async function handleShareRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
   if (pathname === RESEND_ROUTE) return resendRoute(req, ctx);
+  const claim = CLAIM_ROUTE.exec(pathname);
+  if (claim) return takeOverRoute(claim[1]!, req, ctx);
   if (pathname !== SHARE_ROUTE) return null;
   if (req.method === "GET") {
     const denied = ctx.guard("read");
@@ -337,4 +403,21 @@ async function resendRoute(req: Request, ctx: BoardContext): Promise<Response> {
   const r = await live.resend(path);
   ctx.audit.record({ action: "repo.share.resend", session: ctx.session, device: ctx.device, detail: { path, ...r } });
   return ctx.json(r, r.ok ? 200 : 409);
+}
+
+/** `/api/cards/<id>/claim` — POST: « reprendre la main » on a shared card another pair claimed (ADR 0048 §7). */
+const CLAIM_ROUTE = /^\/api\/cards\/([^/]+)\/claim$/;
+
+/** The operator's gesture, confirmed in the UI and refused to an agent pane: an agent must not take a card from another pair. */
+async function takeOverRoute(id: string, req: Request, ctx: BoardContext): Promise<Response> {
+  if (req.method !== "POST") return ctx.text("method not allowed", 405);
+  if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("taking a card back is the operator's gesture — an agent pane may not", 403);
+  const denied = ctx.guard("write");
+  if (denied) return denied;
+  const card = ctx.db.getCard(id);
+  if (!card) return ctx.text("card not found", 404);
+  const previous = card.claim;
+  const r = await takeOver(card);
+  ctx.audit.record({ action: "card.claim", session: ctx.session, device: ctx.device, detail: { cardId: id, from: previous?.by ?? null, ok: r.ok } });
+  return ctx.json(r.ok ? { ok: true } : { ok: false, error: r.error, kind: "claimed" }, r.ok ? 200 : 409);
 }
