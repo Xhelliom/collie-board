@@ -67,6 +67,7 @@ import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
+import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { awaitingOn } from "./roadmap.ts";
 import { suggestGate } from "./gate-suggest.ts";
 import { NO_AGENT, requestHandoff } from "./handoff.ts";
@@ -154,7 +155,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -277,6 +278,10 @@ export function parseCardBody(
     if (!env.ok) return env;
     out.environment = env.value;
   }
+
+  const recette = parseRecetteBody(o);
+  if (!recette.ok) return recette;
+  Object.assign(out, recette.value);
 
   if ("autoHandoff" in o) {
     if (o.autoHandoff !== null && o.autoHandoff !== "on" && o.autoHandoff !== "off") {
@@ -423,6 +428,8 @@ async function route(
   if (deliverables) return deliverables;
   const share = await handleShareRoute(pathname, req, ctx);
   if (share) return share;
+  const recette = await handleRecetteRoute(pathname, req, ctx);
+  if (recette) return recette;
 
   // The repo picker. A read, and on-demand only — it shells out per distinct pane cwd.
   if (pathname === REPOS_ROUTE) {

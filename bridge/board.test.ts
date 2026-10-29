@@ -268,6 +268,10 @@ describe("reconcileOne", () => {
     createdBy: null,
     assignee: null,
     claim: null,
+    manualChecks: [],
+    capability: null,
+    usageGroup: null,
+    checkVerdicts: {},
   });
   const session = (startedAt: number, paneId: string | null = "w1:p1"): CardSession => ({
     id: "s1",
@@ -638,6 +642,10 @@ describe("initialPrompt", () => {
     createdBy: null,
     assignee: null,
     claim: null,
+    manualChecks: [],
+    capability: null,
+    usageGroup: null,
+    checkVerdicts: {},
   };
 
   it("uses the spec, with the acceptance criteria spelled out as a checklist", () => {
@@ -1308,6 +1316,10 @@ describe("handoff prompts", () => {
     createdBy: null,
     assignee: null,
     claim: null,
+    manualChecks: [],
+    capability: null,
+    usageGroup: null,
+    checkVerdicts: {},
   };
 
   it("asks for decisions-and-why, not a file list git already has", () => {
