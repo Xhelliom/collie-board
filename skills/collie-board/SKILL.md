@@ -153,6 +153,35 @@ curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> \
 curl -s -X DELETE http://127.0.0.1:8788/api/cards/<id>
 ```
 
+### Manual tests — the « recette »
+
+At the end of a card that changes something a person can see or do, write 1 to 5 steps the operator
+can test by hand. Usage, not code: each step is ONE line (≤ 100 chars) — verb + where + what to
+expect — in the user's words; never a route, a file name or a PR (the card already shows those).
+`capability` is what the user can now DO, `usageGroup` the use it serves. A step may name a
+deliverable of the card in `shot`. Purely internal work (tests, refactor, invisible fix): nothing.
+
+```bash
+curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> -H 'content-type: application/json' \
+  -H "x-collie-pane: $HERDR_PANE_ID" -d '{
+  "capability": "Lancer une carte sur dev depuis l’éditeur",
+  "usageGroup": "Piloter une autre machine",
+  "manualChecks": [{"text": "Choisir « dev » dans Environnement", "expected": "le chip dev apparaît", "shot": "dev.png"}]
+}'
+```
+
+A step without `id` gets one from its text: rewording a step asks for a fresh verdict.
+
+**The verdict is the operator's** — `POST /api/cards/<id>/checks/<stepId>` `{status: ok|ko|skip, note?,
+followUp?}` is refused (403) to any `x-collie-pane`: an agent does not pass its own recette. `by` is
+derived (the pair's git identity on a shared repo, else `operator`). `followUp: true` with a KO and a
+note files a card linked back by `originCardId`. Steps and verdicts travel through the shared journal.
+
+`GET /api/recette?repo=<path>&since=<epoch ms or date>&all=1` — delivered cards (done/archived) that
+have steps, newest first, grouped by `usageGroup`: `{groups:[{usage, entries:[{cardId, capability,
+state: todo|ok|ko, deliveredAt, phase, lot, steps:[{id, text, expected?, shot?, verdict}]}]}]}`.
+Fully validated cards are left out unless `all=1`.
+
 ### Run a card on another machine (ADR 0046 §4)
 
 A card may carry `"environment": {"peer": "dev", "name": "dev-board"}` (create or PATCH; `null` = this
