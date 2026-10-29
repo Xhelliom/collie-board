@@ -26,6 +26,14 @@ describe("BoardTabs", () => {
     expect(screen.getByRole("link", { name: "Open PRs" })).toHaveAttribute("href", "/board/prs?repo=%2Fr%2Fapp");
   });
 
+  it("keeps an icon-only tab named on a phone: only the current one shows its label below sm", () => {
+    render(<RouterProvider router={createMemoryRouter([{ path: "*", element: <BoardTabs /> }], { initialEntries: ["/board/project"] })} />);
+    const prs = screen.getByRole("link", { name: "Open PRs" });
+    expect(prs).toHaveAttribute("title", "Open PRs");
+    expect(prs.querySelector("span")).toHaveClass("hidden", "sm:inline");
+    expect(screen.getByRole("link", { name: "Project" }).querySelector("span")).not.toHaveClass("hidden");
+  });
+
   it("switches the repo from any of the views, keeping the view and not stacking history", async () => {
     const router = createMemoryRouter(
       [{ path: "*", element: <BoardTabs repos={[{ path: "/r/app", name: "app" }, { path: "/r/web", name: "web" }]} /> }],
