@@ -678,6 +678,10 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.merge",
 ];
 
+/** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */
+export const DEFAULT_MAX_ROUNDS = 5;
+export const MAX_ROUNDS_LIMIT = 15;
+
 /** The orchestrator's per-repo autonomy (ADR 0030). `maxChain` null: unlimited. */
 export interface RepoAutonomy {
   enabled: boolean;
@@ -687,6 +691,8 @@ export interface RepoAutonomy {
   armed: boolean;
   /** ADR 0047: it may also start a planned lot when none of the repo's lots is running. */
   startWhenIdle: boolean;
+  /** How many times the lead may send a worker back before the card goes to the operator. */
+  maxRounds: number;
 }
 
 export interface BoardEvent {
@@ -1261,7 +1267,8 @@ CREATE TABLE IF NOT EXISTS repo_autonomy (
   stop_on_red INTEGER NOT NULL DEFAULT 1,
   chained     INTEGER NOT NULL DEFAULT 0,  -- lots launched by the orchestrator since the operator last did
   armed       INTEGER NOT NULL DEFAULT 0,  -- the end-of-lot wake granted one launch
-  start_when_idle INTEGER NOT NULL DEFAULT 0 -- ADR 0047: may start a planned lot when nothing runs
+  start_when_idle INTEGER NOT NULL DEFAULT 0, -- ADR 0047: may start a planned lot when nothing runs
+  max_rounds  INTEGER NOT NULL DEFAULT 5   -- send-backs before the card goes to the operator (run.ts)
 );
 
 -- Board-wide operator preferences that aren't about one card or one repo. Key/value because a column
@@ -1759,6 +1766,7 @@ export class BoardDb {
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
+      { table: "repo_autonomy", column: "max_rounds", ddl: "INTEGER NOT NULL DEFAULT 5" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -2867,27 +2875,27 @@ export class BoardDb {
 
   autonomyOf(path: string): RepoAutonomy {
     const r = this.db
-      .query<{ enabled: number; max_chain: number | null; stop_on_red: number; chained: number; armed: number; start_when_idle: number }, [string]>(
+      .query<{ enabled: number; max_chain: number | null; stop_on_red: number; chained: number; armed: number; start_when_idle: number; max_rounds: number }, [string]>(
         "SELECT * FROM repo_autonomy WHERE path = ?",
       )
       .get(path);
     return r
-      ? { enabled: r.enabled === 1, maxChain: r.max_chain, stopOnRed: r.stop_on_red === 1, chained: r.chained, armed: r.armed === 1, startWhenIdle: r.start_when_idle === 1 }
-      : { enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false };
+      ? { enabled: r.enabled === 1, maxChain: r.max_chain, stopOnRed: r.stop_on_red === 1, chained: r.chained, armed: r.armed === 1, startWhenIdle: r.start_when_idle === 1, maxRounds: r.max_rounds }
+      : { enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false, maxRounds: DEFAULT_MAX_ROUNDS };
   }
 
   /** The operator's settings. Turning it off disarms; turning it (or `startWhenIdle`) on starts a fresh chain. */
-  setAutonomy(path: string, s: Pick<RepoAutonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle">): RepoAutonomy {
+  setAutonomy(path: string, s: Pick<RepoAutonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">): RepoAutonomy {
     const was = this.autonomyOf(path);
     const fresh = (s.enabled && !was.enabled) || (s.enabled && s.startWhenIdle && !was.startWhenIdle);
     this.db
       .query(
-        `INSERT INTO repo_autonomy (path, enabled, max_chain, stop_on_red, start_when_idle, chained, armed) VALUES (?, ?, ?, ?, ?, 0, 0)
+        `INSERT INTO repo_autonomy (path, enabled, max_chain, stop_on_red, start_when_idle, max_rounds, chained, armed) VALUES (?, ?, ?, ?, ?, ?, 0, 0)
          ON CONFLICT(path) DO UPDATE SET enabled = excluded.enabled, max_chain = excluded.max_chain, stop_on_red = excluded.stop_on_red,
-           start_when_idle = excluded.start_when_idle,
+           start_when_idle = excluded.start_when_idle, max_rounds = excluded.max_rounds,
            chained = CASE WHEN ? THEN 0 ELSE chained END, armed = CASE WHEN excluded.enabled = 1 THEN armed ELSE 0 END`,
       )
-      .run(path, s.enabled ? 1 : 0, s.maxChain, s.stopOnRed ? 1 : 0, s.startWhenIdle ? 1 : 0, fresh ? 1 : 0);
+      .run(path, s.enabled ? 1 : 0, s.maxChain, s.stopOnRed ? 1 : 0, s.startWhenIdle ? 1 : 0, s.maxRounds, fresh ? 1 : 0);
     return this.autonomyOf(path);
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { BoardDb, isMaxParallel, type Card } from "./db.ts";
+import { BoardDb, DEFAULT_MAX_ROUNDS as MAX_ROUNDS, isMaxParallel, type Card } from "./db.ts";
 import type { GateResult } from "./gate.ts";
 import type { GitRunner, PrStatus } from "./git.ts";
 import { mergeWhenReady, notePrOutcome } from "./integrate.ts";
@@ -8,7 +8,7 @@ import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts"
 import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
 import { lotView } from "./lot.ts";
-import { briefOf, MAX_ROUNDS, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { briefOf, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -297,6 +297,37 @@ describe("RunCoordinator (ADR 0017)", () => {
     w.coord.update(snap({ p: "idle" }));
     await flush();
     expect(w.calls.filter((c) => c.startsWith("prompt"))).toHaveLength(MAX_ROUNDS);
+  });
+
+  it("reads the repo's round limit each tick: lowered mid-run, the card in progress stops at it; Resume gives the full count again", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    const w = world(db);
+    const round = async (i: number) => {
+      db.setStatus(a.id, "working", "agent working");
+      land(db, a);
+      w.checks.push({ decision: "prompt", prompt: `round ${i}`, reason: "still missing" });
+      w.coord.update(snap({ p: "idle" }));
+      await flush();
+    };
+    const prompts = () => w.calls.filter((c) => c.startsWith("prompt")).length;
+    await round(0);
+    await round(1);
+    db.setAutonomy("/r", { ...db.autonomyOf("/r"), maxRounds: 2 });
+    await round(2);
+    expect(prompts()).toBe(2);
+    expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toBe(
+      "2 rounds without the lead finding it finished — change it in Project settings → Rounds before calling me",
+    );
+    // Resume: the count starts again from the halt — two more send-backs, then the operator again.
+    db.setAutonomy("/r", { ...db.autonomyOf("/r"), maxRounds: 3 });
+    expect(resumeRun(db, db.getRun(run.id)!)).toBe(1);
+    w.checks.length = 0;
+    for (let i = 3; i < 7; i++) await round(i);
+    expect(prompts()).toBe(5);
+    expect(events(db, a, "run.halted")).toHaveLength(2);
   });
 
   const emptyRound = async (db: BoardDb, a: Card, w: ReturnType<typeof world>, n: number) => {

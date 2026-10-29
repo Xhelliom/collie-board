@@ -483,6 +483,11 @@ code.
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
   user why and let them resume it.
+  A card halts after **`maxRounds`** send-backs by the lead with no finish (the repo's « Rounds before
+  calling me », 1–15, default 5): read it in `maxRounds` of `GET /api/orchestrator/autonomy?repo=`.
+  It is the user's — the write refuses your pane header. When cards keep hitting it just short of the
+  end, **propose** a higher value to the user; never try to change it. A resume gives the card the full
+  count again, and a new value applies to running cards from their next round.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
 

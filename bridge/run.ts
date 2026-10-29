@@ -29,8 +29,6 @@ import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
 
-/** How many times the lead may send a worker back before the card goes to the operator. */
-export const MAX_ROUNDS = 5;
 const LAND_EVERY_MS = 30_000;
 
 /** The worker's brief when a GitHub check fails on its PR — the counterpart of `gatePrompt`. */
@@ -147,6 +145,8 @@ export function stepFor(
     predecessorArmed?: boolean;
     /** The repo has a gate: a landing is run through it before the lead sees it. */
     gated: boolean;
+    /** How many times the lead may send the worker back before the operator — the repo's setting, read each tick. */
+    maxRounds: number;
     reviewing: boolean;
     /** The copilot's review of the open session: there, failed, or still to come. */
     review: "done" | "failed" | "pending";
@@ -189,7 +189,8 @@ export function stepFor(
     const rounds = events.filter(
       (e) => e.type === "run.decision" && isRun(e, run.id) && after(e, halted) && (e.payload as { decision: string }).decision === "prompt",
     ).length;
-    if (rounds >= MAX_ROUNDS) return { kind: "halt", reason: `${rounds} rounds without the lead finding it finished`, limit: true };
+    if (rounds >= ctx.maxRounds)
+      return { kind: "halt", reason: `${rounds} rounds without the lead finding it finished — change it in Project settings → Rounds before calling me`, limit: true };
     if (after(resolve, decision)) {
       const clash = newest(events, (e) => e.type === "card.pr_failed" && (e.payload as { stage?: string }).stage === "conflict");
       return { kind: "recheck", conflicts: ((clash?.payload as { files?: string[] } | null)?.files) ?? [] };
@@ -347,6 +348,7 @@ export class RunCoordinator {
           depsDone: !pred || FILED.has(pred.status),
           predecessorArmed: pred !== null && FILED.has(pred.status) && awaitsMerge(this.db.listEvents(pred.id, 200)),
           gated: this.ports.gateCommand(card) !== null,
+          maxRounds: this.db.autonomyOf(run.repoPath).maxRounds,
           reviewing,
           review: reviews.length ? "done" : failed ? "failed" : "pending",
           next: nextRole(pipelineOf(this.db, card), events),
@@ -558,7 +560,7 @@ export class RunCoordinator {
 
   /**
    * Step 3, machine first: red goes straight back to the worker with the gate's own report — no lead
-   * asked, no quota spent — and counts as a round, so MAX_ROUNDS is the escalation to the operator.
+   * asked, no quota spent — and counts as a round, so the repo's round limit is the escalation to the operator.
    * A gate that cannot give a verdict is not the worker's fault: it halts.
    */
   private async gate(run: Run, card: Card, session: CardSession): Promise<void> {

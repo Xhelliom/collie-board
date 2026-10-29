@@ -3,13 +3,16 @@
 // answer is armed at the end-of-lot wake (orchestrator-nudge.ts) and spent by one launch — or, with
 // `startWhenIdle` (ADR 0047), read at the launch request when no lot of the repo is running.
 
-import { doneOutsideLot, type BoardDb, type Run } from "./db.ts";
+import { doneOutsideLot, MAX_ROUNDS_LIMIT, type BoardDb, type Run } from "./db.ts";
 
 export const MAX_CHAIN_LIMIT = 1000;
 
 /** `maxChain` as the operator may set it: a whole number from 1, or null for unlimited. */
 export const isMaxChain = (v: unknown): v is number | null =>
   v === null || (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_CHAIN_LIMIT);
+
+/** The lead's send-backs before the operator, as the operator may set them. */
+export const isMaxRounds = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_ROUNDS_LIMIT;
 
 /** The cards of a finished lot whose last gate or CI verdict is red and that never got filed. Pure over the journal. */
 export function redCards(db: BoardDb, run: Run): string[] {

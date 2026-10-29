@@ -12,7 +12,7 @@ import { RepoSettingsRoute } from "./repo-settings";
 
 function mount(url: string) {
   server.use(
-    http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true } })),
+    http.get("*/api/orchestrator/autonomy", () => HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true, maxRounds: 5 } })),
     http.get("*/api/repos", () => HttpResponse.json({ repos: [{ path: "/r/new", gate: "make test" }] })),
   );
   const router = createMemoryRouter([{ path: "/board/settings", element: <RepoSettingsRoute /> }, { path: "/board/prs", element: <p>prs</p> }], {
@@ -31,6 +31,28 @@ describe("RepoSettingsRoute", () => {
     mount("/board/settings?repo=%2Fr%2Fnew");
     expect(await screen.findByRole("region", { name: "Autonomy" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /make test/ })).toBeInTheDocument();
+  });
+
+  it("sets the rounds before calling me, autonomy off, within 1 to 15", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      http.put("*/api/orchestrator/autonomy", async ({ request }) => {
+        const body = (await request.json()) as { maxRounds: number };
+        sent.push(body);
+        return HttpResponse.json({ autonomy: { enabled: false, maxChain: 1, stopOnRed: true, maxRounds: body.maxRounds } });
+      }),
+    );
+    mount("/board/settings?repo=%2Fr%2Fnew");
+    const input = await screen.findByLabelText("Rounds before calling me");
+    expect(input).toHaveValue(5);
+    expect(input).toBeEnabled();
+    await userEvent.clear(input);
+    await userEvent.type(input, "16");
+    await userEvent.clear(input);
+    await userEvent.type(input, "8");
+    await screen.findByDisplayValue("8");
+    // "1" then "8" are each sent; "16" and an empty field never are.
+    expect(sent).toEqual([{ repoPath: "/r/new", maxRounds: 1 }, { repoPath: "/r/new", maxRounds: 8 }]);
   });
 
   it("asks to pick a repo when none is chosen", () => {

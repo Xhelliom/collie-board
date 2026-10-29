@@ -70,7 +70,7 @@ const enable = (w: ReturnType<typeof world>, extra: object = {}, headers: Record
 describe("orchestrator autonomy (ADR 0030)", () => {
   it("is off by default and the launch route refuses the orchestrator", async () => {
     const w = world();
-    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false });
+    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`)).body.autonomy).toEqual({ enabled: false, maxChain: 1, stopOnRed: true, chained: 0, armed: false, startWhenIdle: false, maxRounds: 5 });
     await finish(w);
     expect((await launch(w)).status).toBe(403);
     expect(w.db.getRun(w.lot2.id)!.launchedAt).toBeNull();
@@ -83,6 +83,17 @@ describe("orchestrator autonomy (ADR 0030)", () => {
     expect((await enable(w)).status).toBe(200);
     expect((await enable(w, { maxChain: 0 })).status).toBe(400);
     expect((await enable(w, { maxChain: null })).body.autonomy.maxChain).toBeNull();
+  });
+
+  it("the round limit: 1 to 15, read by anyone, written by the operator alone", async () => {
+    const w = world();
+    expect((await call(w.db, "PUT", "/api/orchestrator/autonomy", { repoPath: repo, maxRounds: 15 }, PANE)).status).toBe(403);
+    expect((await call(w.db, "GET", `/api/orchestrator/autonomy?repo=${repo}`, undefined, PANE)).body.autonomy.maxRounds).toBe(5);
+    for (const bad of [0, 16, 2.5, "8"]) expect((await enable(w, { maxRounds: bad })).status).toBe(400);
+    expect((await enable(w, { maxRounds: 15 })).body.autonomy.maxRounds).toBe(15);
+    expect((await enable(w, { maxRounds: 1 })).body.autonomy).toMatchObject({ maxRounds: 1, enabled: true });
+    // Another setting written later keeps it.
+    expect((await enable(w, { stopOnRed: false })).body.autonomy.maxRounds).toBe(1);
   });
 
   it("enabled: the end-of-lot wake lets it launch the next planned lot, once, journaled", async () => {
