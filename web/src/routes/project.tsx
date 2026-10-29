@@ -308,6 +308,56 @@ export function ProjectRoute() {
     );
   };
 
+  const filterChips = (
+    <div role="group" aria-label={t("project.filter.aria")} className="flex min-w-0 flex-wrap gap-1.5">
+      {(shared || mineOnly) &&
+        ([false, true] as const).map((mine) => (
+          <button
+            key={String(mine)}
+            type="button"
+            aria-pressed={mineOnly === mine}
+            onClick={() => pickMine(mine)}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
+              mineOnly === mine ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
+              mine && "mr-1.5",
+            )}
+          >
+            {mine ? t("people.toMe") : t("people.everyone")}
+          </button>
+        ))}
+      {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          aria-pressed={filter === f.id}
+          onClick={() => pick(f.id)}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
+            filter === f.id ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
+          )}
+        >
+          {f.id !== "all" && <span className={cn("size-2 rounded-full", f.dot)} />}
+          {t(f.label)}
+          <span className="tabular-nums text-muted-foreground">{counts[f.id]}</span>
+        </button>
+      ))}
+    </div>
+  );
+  const foldAll = (
+    <button
+      type="button"
+      onClick={() =>
+        setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)))
+      }
+      aria-label={allOpen ? t("project.foldAll") : t("project.openAll")}
+      title={allOpen ? t("project.foldAll") : t("project.openAll")}
+      className="shrink-0 rounded-full border bg-card/70 p-2 hover:border-foreground/25"
+    >
+      {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
+    </button>
+  );
+
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
       <AppHeader
@@ -331,7 +381,21 @@ export function ProjectRoute() {
           </button>
         }
       />
-      <BoardTabs repos={reposOf(data.cards)} />
+      <BoardTabs
+        repos={reposOf(data.cards)}
+        actions={
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            aria-label={t("project.filter.button")}
+            title={t("project.filter.button")}
+            className="relative inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 sm:hidden"
+          >
+            <ListFilter className="size-4" />
+            {(filter !== "all" || mineOnly) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" aria-hidden="true" />}
+          </button>
+        }
+      />
       <h1 className="sr-only">{t("project.title")}</h1>
       <div className="flex min-h-0 flex-1">
       <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
@@ -456,63 +520,10 @@ export function ProjectRoute() {
                 ))}
               </nav>
 
-              <div className="sticky top-0 z-10 -mx-4 flex items-start justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur lg:-mx-6 lg:px-6">
-                {/* A phone gets one button: the chips (up to six, two lines) open under it on a tap. */}
-                <button
-                  type="button"
-                  aria-expanded={filtersOpen}
-                  onClick={() => setFiltersOpen((o) => !o)}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium sm:hidden"
-                >
-                  <ListFilter className="size-3.5" />
-                  {t("project.filter.button")}
-                  {filter !== "all" && <span className="text-muted-foreground">· {t(FILTERS.find((f) => f.id === filter)!.label)}</span>}
-                </button>
-                <div role="group" aria-label={t("project.filter.aria")} className={cn("min-w-0 flex-wrap gap-1.5", filtersOpen ? "flex" : "hidden sm:flex")}>
-                  {(shared || mineOnly) &&
-                    ([false, true] as const).map((mine) => (
-                      <button
-                        key={String(mine)}
-                        type="button"
-                        aria-pressed={mineOnly === mine}
-                        onClick={() => { pickMine(mine); setFiltersOpen(false); }}
-                        className={cn(
-                          "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
-                          mineOnly === mine ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
-                          mine && "mr-1.5",
-                        )}
-                      >
-                        {mine ? t("people.toMe") : t("people.everyone")}
-                      </button>
-                    ))}
-                  {FILTERS.filter((f) => f.id === "all" || counts[f.id] > 0).map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      aria-pressed={filter === f.id}
-                      onClick={() => { pick(f.id); setFiltersOpen(false); }}
-                      className={cn(
-                        "inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium transition-colors",
-                        filter === f.id ? "border-foreground/50 bg-accent" : "hover:border-foreground/25",
-                      )}
-                    >
-                      {f.id !== "all" && <span className={cn("size-2 rounded-full", f.dot)} />}
-                      {t(f.label)}
-                      <span className="tabular-nums text-muted-foreground">{counts[f.id]}</span>
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)))
-                  }
-                  aria-label={allOpen ? t("project.foldAll") : t("project.openAll")}
-                  title={allOpen ? t("project.foldAll") : t("project.openAll")}
-                  className="shrink-0 rounded-full border bg-card/70 p-2 hover:border-foreground/25"
-                >
-                  {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
-                </button>
+              {/* From sm up the filters keep their bar; on a phone they live behind the header's Filtre button. */}
+              <div className="sticky top-0 z-10 -mx-4 hidden items-start justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur sm:flex lg:-mx-6 lg:px-6">
+                {filterChips}
+                {foldAll}
               </div>
 
               <ol className="flex flex-col gap-2">{current.map(section)}</ol>
@@ -583,6 +594,12 @@ export function ProjectRoute() {
       {/* A definite height, so the thread scrolls INSIDE the sheet and the composer stays pinned: with
           the height left to the content the sheet was half-empty on a short thread and, on a long one,
           scrolled as a whole with the composer below the fold. */}
+      <BottomSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title={t("project.filter.aria")}>
+        <div className="flex flex-col gap-4 p-4" onClick={(e) => (e.target as HTMLElement).closest("[aria-pressed]") && setFiltersOpen(false)}>
+          {filterChips}
+          <div className="flex justify-end">{foldAll}</div>
+        </div>
+      </BottomSheet>
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[94dvh] max-h-[94dvh]">
         <div className="flex h-full min-h-0 flex-col">
           <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} onLeave={() => setChatOpen(false)} />

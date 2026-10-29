@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { ChevronDown, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
 
@@ -37,7 +37,7 @@ export interface RepoOption {
   name: string;
 }
 
-export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
+export function BoardTabs({ repos = [], actions }: { repos?: RepoOption[]; actions?: ReactNode }) {
   const t = useT();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -103,6 +103,7 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
         </label>
       )}
       <div className="flex gap-1">
+        {actions}
         {repo && listed.includes(repo) && (
           // Takes the repo off the hand-made list only: its cards, if any, keep it listed through them.
           <button
