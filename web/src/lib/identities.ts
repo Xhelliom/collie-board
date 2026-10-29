@@ -46,7 +46,7 @@ export function personName(email: string, me: string | null, meLabel: string): s
 }
 
 /** « À moi »: a shared repo's card assigned to this pair. An unshared repo's card is everyone's — kept. */
-export function assignedToMe(card: CardView, ids: Record<string, RepoIdentities>): boolean {
+export function assignedToMe(card: Pick<CardView, "repoPath" | "assignee">, ids: Record<string, RepoIdentities>): boolean {
   const repo = card.repoPath ? ids[card.repoPath] : undefined;
   return !repo || (repo.me !== null && card.assignee === repo.me);
 }

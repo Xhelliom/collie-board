@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { ChevronDown, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
+import { ChevronDown, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
@@ -8,8 +8,8 @@ import { loadRepoScope, saveRepoScope, withListedRepos } from "@/lib/board";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
-// Board, Project, Open PRs and Settings are four views of the same thing — one repo's work — so they are
-// siblings under the Board tab, not a board with two hidden side doors. One row, on all four, that
+// Board, Project, Open PRs, Recette and Settings are five views of the same thing — one repo's work — so they are
+// siblings under the Board tab, not a board with two hidden side doors. One row, on all five, that
 // carries the repo scope across AND lets you change it: a project view you cannot leave for another
 // repo is a dead end. `replace`: switching views or repos must not stack history, or Back would walk
 // through them instead of leaving.
@@ -18,14 +18,16 @@ const TABS = [
   { key: "board", label: "tabs.board", path: "/board", icon: Columns3 },
   { key: "project", label: "tabs.project", path: "/board/project", icon: MapIcon },
   { key: "prs", label: "tabs.prs", path: "/board/prs", icon: GitPullRequest },
+  { key: "recette", label: "tabs.recette", path: "/board/recette", icon: ClipboardCheck },
   { key: "settings", label: "tabs.settings", path: "/board/settings", icon: Settings },
 ] as const satisfies readonly { key: string; label: MessageKey; path: string; icon: unknown }[];
 
-/** Which of the four the location is on. Pure, exported for the test. */
+/** Which of the five the location is on. Pure, exported for the test. */
 export function boardTabFor(pathname: string): (typeof TABS)[number]["key"] | null {
   if (pathname === "/board") return "board";
   if (pathname === "/board/project") return "project";
   if (pathname === "/board/prs") return "prs";
+  if (pathname === "/board/recette") return "recette";
   if (pathname === "/board/settings") return "settings";
   return null;
 }

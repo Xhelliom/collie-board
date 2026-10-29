@@ -130,7 +130,7 @@ describe("POST /api/cards/:id/checks/:step — the verdict", () => {
 });
 
 describe("GET /api/recette", () => {
-  type Body = { groups: { usage: string | null; entries: { cardId: string; capability: string; state: string; steps: unknown[] }[] }[] };
+  type Body = { groups: { usage: string | null; entries: { cardId: string; capability: string; state: string; followUpDone: boolean; steps: unknown[] }[] }[] };
   const read = async (db: BoardDb, q = "") => (await (await call(db, "GET", `/api/recette?repo=${REPO}${q}`)).json()) as Body;
 
   test("delivered cards with steps, titled by the capability and grouped by use; internal and undelivered ones absent", async () => {
@@ -156,6 +156,17 @@ describe("GET /api/recette", () => {
     expect((await read(db, "&all=1")).groups[0]!.entries[0]!.state).toBe("ok");
     expect((await read(db, `&all=1&since=${Date.now() + 60_000}`)).groups).toEqual([]);
     expect((await call(db, "GET", "/api/recette?since=nonsense")).status).toBe(400);
+  });
+
+  test("a KO stays until its follow-up card is delivered", async () => {
+    const db = board();
+    const card = delivered(db);
+    const res = await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", note: "rien", followUp: true });
+    const { followUp } = (await res.json()) as { followUp: { id: string } };
+    expect((await read(db)).groups[0]!.entries[0]!.state).toBe("ko");
+    db.setStatus(followUp.id, "done", "test");
+    expect((await read(db)).groups).toEqual([]);
+    expect((await read(db, "&all=1")).groups[0]!.entries.find((e) => e.cardId === card.id)).toMatchObject({ state: "ko", followUpDone: true });
   });
 
   test("one KO marks the entry KO", () => {

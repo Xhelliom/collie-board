@@ -1,0 +1,37 @@
+import { defineMessages } from "../define";
+
+// The Recette tab: what the operator can now do, to try by hand once cards are delivered.
+export const recette = defineMessages({
+  "recette.title": { en: "Testing", fr: "Recette" },
+  "recette.count": { en: { one: "{count} to test", other: "{count} to test" }, fr: { one: "{count} à tester", other: "{count} à tester" } },
+  "recette.chip": { en: { one: "{count} to test", other: "{count} to test" }, fr: { one: "{count} à tester", other: "{count} à tester" } },
+  "recette.counter": { en: "{todo} to test, {ok} OK, {ko} KO", fr: "{todo} à tester, {ok} OK, {ko} KO" },
+  "recette.state.todo": { en: "to test", fr: "à tester" },
+  "recette.state.ok": { en: "OK", fr: "OK" },
+  "recette.state.ko": { en: "KO", fr: "KO" },
+  "recette.period.visit": { en: "Since my last visit", fr: "Depuis ma dernière visite" },
+  "recette.period.all": { en: "Any time", fr: "Toujours" },
+  "recette.filter.todo": { en: "To test", fr: "À tester" },
+  "recette.filter.all": { en: "Everything", fr: "Tout" },
+  "recette.search": { en: "Search a capability, a capture, a step", fr: "Chercher une capacité, une capture, une étape" },
+  "recette.gallery": { en: { one: "{count} capture", other: "{count} captures" }, fr: { one: "{count} capture", other: "{count} captures" } },
+  "recette.empty": {
+    en: "Nothing to test. A delivered card lands here when its agent wrote what the user can now do.",
+    fr: "Rien à tester. Une carte livrée arrive ici quand son agent a écrit ce que l'utilisateur peut maintenant faire.",
+  },
+  "recette.emptyFiltered": { en: "Nothing here with these filters.", fr: "Rien ici avec ces filtres." },
+  "recette.otherUse": { en: "Other", fr: "Autres" },
+  "recette.openCard": { en: "Open the card", fr: "Ouvrir la carte" },
+  "recette.settled": { en: { one: "{count} step validated", other: "{count} steps validated" }, fr: { one: "{count} étape validée", other: "{count} étapes validées" } },
+  "recette.step.todo": { en: "To test", fr: "À tester" },
+  "recette.step.ok": { en: "OK", fr: "OK" },
+  "recette.step.ko": { en: "KO", fr: "KO" },
+  "recette.step.skip": { en: "Skipped", fr: "Passée" },
+  "recette.step.markOk": { en: "OK", fr: "OK" },
+  "recette.step.markKo": { en: "KO", fr: "KO" },
+  "recette.step.markSkip": { en: "Skip", fr: "Passer" },
+  "recette.note": { en: "What happened?", fr: "Qu'est-ce qui s'est passé ?" },
+  "recette.saveKo": { en: "Mark KO", fr: "Marquer KO" },
+  "recette.followUp": { en: "Create a follow-up card", fr: "Créer une carte de suite" },
+  "recette.followUpMade": { en: "Follow-up card created", fr: "Carte de suite créée" },
+});
