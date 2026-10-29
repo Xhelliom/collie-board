@@ -9,7 +9,10 @@
 // serves, and says nothing the project page already shows (PR, diff, files). A card with no step —
 // purely internal work — is simply absent.
 
+import { join } from "node:path";
+
 import type { BoardContext } from "./board-routes.ts";
+import { deliverablesRoot, listDeliverables, servedAs } from "./deliverables.ts";
 import { CHECK_STATUSES, EVENT_WINDOW, type Card, type CardPatch, type CheckStatus, type ManualCheck } from "./db.ts";
 
 /** One line a person reads at a glance: verb + where + what to expect. */
@@ -104,20 +107,32 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     const since = sinceRaw ? (/^\d+$/.test(sinceRaw) ? Number(sinceRaw) : Date.parse(sinceRaw)) : 0;
     if (Number.isNaN(since)) return ctx.text("since must be epoch ms or a date", 400);
     const all = q.get("all") === "1";
-    const entries = ctx.db
-      .listCards({ includeArchived: true })
-      .filter((c) => (c.status === "done" || c.status === "archived") && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
-      .map((c) => ({ card: c, at: deliveredAt(ctx, c), state: recetteState(c) }))
-      .filter((e) => e.at >= since && (all || e.state !== "ok"))
+    const cards = ctx.db.listCards({ includeArchived: true });
+    const delivered = (c: Card) => c.status === "done" || c.status === "archived";
+    // A KO stays until the card that fixes it is delivered — then it is over too.
+    const fixed = new Set(cards.filter((c) => c.originCardId && delivered(c)).map((c) => c.originCardId));
+    const entries = cards
+      .filter((c) => delivered(c) && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
+      .map((c) => ({ card: c, at: deliveredAt(ctx, c), state: recetteState(c), followUpDone: fixed.has(c.id) }))
+      .filter((e) => e.at >= since && (all || (e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
       .sort((a, b) => b.at - a.at);
+    const stateDir = ctx.cfg.stateDir;
     const groups = new Map<string, unknown[]>();
-    for (const { card, at, state } of entries) {
+    for (const { card, at, state, followUpDone } of entries) {
+      // The captures lead each entry: its image deliverables, read off disk (no store: none).
+      const shots = stateDir
+        ? (await listDeliverables(join(deliverablesRoot(stateDir), card.id))).filter((d) => servedAs(d.name).kind === "image").map((d) => d.name)
+        : [];
       const usage = card.usageGroup ?? "";
       if (!groups.has(usage)) groups.set(usage, []);
       groups.get(usage)!.push({
         cardId: card.id,
         capability: card.capability ?? card.title,
+        repoPath: card.repoPath,
+        assignee: card.assignee,
         state,
+        followUpDone,
+        shots,
         deliveredAt: at,
         phase: card.phaseId ? (ctx.db.getPhase(card.phaseId)?.name ?? null) : null,
         lot: card.runId ? (ctx.db.getRun(card.runId)?.name ?? null) : null,

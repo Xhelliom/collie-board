@@ -13,6 +13,8 @@ import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
 import { RepoSettingsRoute } from "@/routes/repo-settings";
+import { RecetteRoute } from "@/routes/recette";
+import { recetteLoader } from "@/lib/recette";
 import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
 import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
@@ -69,6 +71,14 @@ export const router = createBrowserRouter([
         errorElement: <RootError to={boardPath()} />,
         // Not polled: GitHub is asked on the Check tap, and the journal only moves on a tap too.
         shouldRevalidate: () => false,
+      },
+      {
+        path: "board/recette",
+        loader: recetteLoader,
+        element: <RecetteRoute />,
+        errorElement: <RootError to={boardPath()} />,
+        // Not polled: the list reads the deliverables off disk, and only moves on a verdict — refetched then.
+        shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
       },
       { path: "board/settings", element: <RepoSettingsRoute />, errorElement: <RootError to={boardPath()} /> },
       {

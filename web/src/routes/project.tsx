@@ -31,6 +31,7 @@ import { setStatus } from "@/lib/status";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
 import { assignedToMe, useIdentities } from "@/lib/identities";
+import { RecetteChip } from "@/routes/recette";
 
 // The project view: one repo's board read as a road map. Derived and read-only (lib/project.ts) —
 // phases are containers, steps their sub-tasks, "waiting for you" is what is blocked, in review or
@@ -357,12 +358,15 @@ export function ProjectRoute() {
               <Fold title={t("project.fold.figures")} state={figuresFold}>
                 <header className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    {latest > 0 && (
-                      <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
-                        <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-                        {t("project.updated", { ago: ago(latest) })}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {latest > 0 && (
+                        <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
+                          <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
+                          {t("project.updated", { ago: ago(latest) })}
+                        </span>
+                      )}
+                      <RecetteChip repo={repo} />
+                    </div>
                     <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
                       {/* The figures are the ring's and the filters' on a phone; the sentence keeps only what they do not say. */}
                       <span className="hidden sm:inline">
