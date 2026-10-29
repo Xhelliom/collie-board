@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.245.0] - 2026-10-29
+
+### Added
+
+- Board partagé : lancer une carte (local, lot, « Lancer sur » un pair) pousse d'abord sa réservation `card.claimed` ; un seul pair gagne (ADR 0048 §7) (4075433)
+- Carte prise par un autre pair : « Démarrer » grisé avec « Prise par X à HH:MM », et « Reprendre la main » confirmé (`POST /api/cards/<id>/claim`) (4075433)
+- Hors ligne, seule une carte assignée à soi se lance sur un dépôt partagé (4075433)
+
 ## [0.244.0] - 2026-10-29
 
 ### Added
