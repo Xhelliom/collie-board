@@ -91,6 +91,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
+import { assignedElsewhere } from "./claim.ts";
 
 /** `/api/repos` — the new-card picker's source (see repos.ts). `/api/repos/hide` toggles one. */
 const REPOS_ROUTE = "/api/repos";
@@ -1097,6 +1098,9 @@ async function route(
     if (denied) return denied;
     const toStart = db.getCard(id);
     if (!toStart) return text("card not found", 404);
+    // ADR 0048 §7: the orchestrator (any agent pane) never launches another person's card. The operator may.
+    const elsewhere = req.headers.get(PANE_HEADER)?.trim() ? assignedElsewhere(db, toStart) : null;
+    if (elsewhere) return ctx.json({ ok: false, error: elsewhere, kind: "claimed" }, 403);
     if (toStart.environment) {
       // A peer's environment: its launch route, never `launchAgent` here (remote-launch.ts).
       const r = await startOnPeer(remoteDeps(ctx), toStart);

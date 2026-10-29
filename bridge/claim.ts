@@ -2,7 +2,7 @@
 // two pairs never launch the same card. The push is journal-sync.ts's; this is what a launch asks,
 // kept apart so cards.ts and remote-launch.ts reach it without importing the routes.
 
-import type { BoardDb, Card, CardClaim } from "./db.ts";
+import type { BoardDb, Card, CardClaim, Run } from "./db.ts";
 
 export type ClaimResult = { ok: true } | { ok: false; error: string; offline?: true };
 
@@ -40,4 +40,15 @@ export async function claimForLaunch(db: BoardDb, card: Card): Promise<string | 
 export async function takeOver(card: Card): Promise<ClaimResult> {
   if (!card.repoPath || !claimer) return { ok: false, error: "this card's board is not shared" };
   return claimer(card.repoPath, card.id, true);
+}
+
+/** §7: an orchestrator never launches a card of a shared repo assigned to someone else, even online. Null: it may. */
+export function assignedElsewhere(db: Pick<BoardDb, "repoShare" | "peerIdentity">, card: Pick<Card, "repoPath" | "assignee">): string | null {
+  if (!card.repoPath || !card.assignee || !db.repoShare(card.repoPath)) return null;
+  return card.assignee === db.peerIdentity(card.repoPath) ? null : `this card is assigned to ${card.assignee} — an agent never launches another person's card`;
+}
+
+/** §7: a lot belongs to its creator — only that pair launches, resumes and drives it. Null: this pair may. */
+export function lotOwnerRefusal(db: Pick<BoardDb, "ownsRun">, run: Pick<Run, "createdPair" | "createdBy">): string | null {
+  return db.ownsRun(run) ? null : `this lot is ${run.createdBy ?? "another pair"}'s — only the pair that created it launches or resumes it`;
 }

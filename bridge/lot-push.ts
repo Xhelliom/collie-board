@@ -9,7 +9,9 @@ import type { Alert } from "./notifications.ts";
 export interface LotPushSource {
   getCard(id: string): { runId: string | null; repoPath: string | null } | null;
   /** Les lots lancés et pas encore terminés. */
-  listOpenRuns(): { id: string }[];
+  listOpenRuns(): { id: string; createdPair: string | null }[];
+  /** Un lot créé sur ce pair (ADR 0048 §7) : celui d'un autre pair, son orchestrateur ici ne le pousse pas. */
+  ownsRun(run: { createdPair: string | null }): boolean;
 }
 
 export interface LotPushDeps {
@@ -29,6 +31,6 @@ export function lotHoldsPush(key: string, alert: Alert, d: LotPushDeps): boolean
   if (!d.enabled() || key.startsWith("note:")) return false;
   const card = alert.cardId ? d.db.getCard(alert.cardId) : null;
   if (!card?.runId || !card.repoPath) return false;
-  if (!key.startsWith("run:") && !d.db.listOpenRuns().some((r) => r.id === card.runId)) return false;
+  if (!key.startsWith("run:") && !d.db.listOpenRuns().some((r) => r.id === card.runId && d.db.ownsRun(r))) return false;
   return d.orchestratorAlive(card.repoPath);
 }

@@ -1327,6 +1327,9 @@ export interface Lot {
   prUrl?: string | null;
   /** Launched and halted: why (the newest halt still holding). Null while it runs. Absent on an older bridge. */
   halted?: string | null;
+  /** Shared board only (ADR 0048 §7): who created it and on which pair — only that pair launches and resumes it. */
+  createdBy?: string | null;
+  createdPair?: string | null;
 }
 
 export type RoadmapStatus = "planned" | "active" | "done" | "dropped";

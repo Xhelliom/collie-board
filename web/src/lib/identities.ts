@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-import type { CardView } from "./board";
+import type { CardView, Lot } from "./board";
 
 // Who is who on a shared board (ADR 0048 §5): per shared repo, this pair's git identity and every
 // identity the repo knows. Rides `/api/cards` — whichever fetch read it last publishes it here, so the
@@ -51,8 +51,14 @@ export function assignedToMe(card: CardView, ids: Record<string, RepoIdentities>
   return !repo || (repo.me !== null && card.assignee === repo.me);
 }
 
+/** The creator of another pair's lot (ADR 0048 §7) — it is seen here, never launched or resumed. Null: this pair's, or unshared. */
+export function lotOwner(lot: Pick<Lot, "repoPath" | "createdBy" | "createdPair">, ids: Record<string, RepoIdentities>): string | null {
+  const pair = ids[lot.repoPath]?.pair;
+  return pair && lot.createdPair && lot.createdPair !== pair ? (lot.createdBy ?? lot.createdPair) : null;
+}
+
 /** Another pair's claim that keeps a card from launching here (ADR 0048 §7); done or archived releases it. */
-export function claimHolder(card: CardView, ids: Record<string, RepoIdentities>): NonNullable<CardView["claim"]> | null {
+export function claimHolder(card: Pick<CardView, "repoPath" | "claim" | "status">, ids: Record<string, RepoIdentities>): NonNullable<CardView["claim"]> | null {
   const repo = card.repoPath ? ids[card.repoPath] : undefined;
   const c = card.claim;
   if (!repo?.pair || !c || c.pair === repo.pair || card.status === "done" || card.status === "archived") return null;

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Play, Rocket } from "lucide-react";
+import { Lock, Play, Rocket } from "lucide-react";
 
 import { HaltReason } from "@/components/halt-reason";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
 import { boardErrorMessage, launchLot, resumeLot, type CardView } from "@/lib/board";
+import { lotOwner, personName, useIdentities } from "@/lib/identities";
 import type { ProjectLot } from "@/lib/project";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -100,6 +101,7 @@ export function PhaseLots({
   renderStep: (card: CardView, inLot: boolean) => React.ReactNode;
 }) {
   const t = useT();
+  const ids = useIdentities();
   const [launching, setLaunching] = useState<ProjectLot | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
   // A halted lot is the operator's: resuming picks each halted card up at the step it stopped on.
@@ -132,6 +134,9 @@ export function PhaseLots({
           const finished = pl.lot.finished ?? (pl.cards.length > 0 && pl.done === pl.cards.length);
           const pct = pl.cards.length ? (100 * pl.done) / pl.cards.length : 0;
           const halted = !planned && !finished && pl.lot.halted != null;
+          // ADR 0048 §7: another pair's lot — seen, its buttons greyed with why.
+          const owner = lotOwner(pl.lot, ids);
+          const ownerName = owner ? personName(owner, ids[pl.lot.repoPath]?.me ?? null, t("people.me")) : null;
           return (
             <section
               key={pl.lot.id}
@@ -152,7 +157,7 @@ export function PhaseLots({
                           : "bg-status-working/15 text-status-working",
                   )}
                 >
-                  {planned ? t("lot.planned") : pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : t("lot.running")}
+                  {planned ? t("lot.planned") : pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : ownerName ? t("people.runningAt", { name: ownerName }) : t("lot.running")}
                 </span>
                 {pl.lot.maxParallel ? (
                   <span className="font-mono text-xs text-muted-foreground">
@@ -166,7 +171,8 @@ export function PhaseLots({
                   <Button
                     variant="brand"
                     className="h-8 gap-1.5 rounded-[10px] px-3 text-sm font-semibold"
-                    disabled={pl.cards.length === 0}
+                    disabled={pl.cards.length === 0 || !!owner}
+                    title={owner ?? undefined}
                     onClick={() => setLaunching(pl)}
                   >
                     <Rocket className="size-4" />
@@ -177,7 +183,8 @@ export function PhaseLots({
                   <Button
                     variant="brand"
                     className="h-8 gap-1.5 rounded-[10px] px-3 text-sm font-semibold"
-                    disabled={resuming === pl.lot.id}
+                    disabled={resuming === pl.lot.id || !!owner}
+                    title={owner ?? undefined}
                     onClick={() => void resume(pl)}
                   >
                     <Play className="size-4" />
@@ -185,6 +192,12 @@ export function PhaseLots({
                   </Button>
                 )}
               </div>
+              {ownerName && (planned || halted) && (
+                <p className="flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
+                  <Lock className="size-3.5 shrink-0" />
+                  <span>{t("lot.ownedBy", { name: ownerName })}</span>
+                </p>
+              )}
               {halted && pl.lot.halted && <HaltReason reason={pl.lot.halted} className="min-w-0 px-0.5" />}
               {!planned && (
                 <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
