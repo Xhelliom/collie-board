@@ -21,6 +21,8 @@ export function AutonomySettings({ repo }: { repo: string }) {
   const t = useT();
   const [a, setA] = useState<Autonomy | null>(null);
   const [integration, setIntegration] = useState<RepoIntegration | null>(null);
+  // What is typed in the rounds field, so it can be emptied to type another number; null = the saved value.
+  const [rounds, setRounds] = useState<string | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -37,7 +39,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
 
   if (!a) return null;
 
-  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle">>) {
+  async function save(patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>) {
     try {
       setA((await saveAutonomy(repo, patch)).autonomy);
       setStatus(t("orch.autoSaved"), "success", 2000);
@@ -98,6 +100,25 @@ export function AutonomySettings({ repo }: { repo: string }) {
           <span>{t("orch.autoRed")}</span>
           <Switch checked={a.stopOnRed} onCheckedChange={(stopOnRed) => void save({ stopOnRed })} aria-label={t("orch.autoRed")} />
         </div>
+        {/* Not an autonomy bound: it holds on every run, autonomy on or off — hence never disabled. */}
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="auto-rounds">{t("orch.rounds")}</label>
+          <input
+            id="auto-rounds"
+            type="number"
+            min={1}
+            max={15}
+            value={rounds ?? a.maxRounds}
+            onBlur={() => setRounds(null)}
+            onChange={(e) => {
+              setRounds(e.target.value);
+              const n = Number(e.target.value);
+              if (e.target.value !== "" && Number.isInteger(n) && n >= 1 && n <= 15) void save({ maxRounds: n });
+            }}
+            className="h-8 w-16 rounded-md border border-border bg-background px-2 text-sm"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t("orch.roundsHint")}</p>
         {integration && (
           <>
             <div className="flex items-center justify-between gap-3">

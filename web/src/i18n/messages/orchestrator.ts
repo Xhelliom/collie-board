@@ -58,6 +58,11 @@ export const orchestrator = defineMessages({
     fr: "Éteint : un lot ouvre une PR par carte (défaut). Allumé : gate vert et lead d'accord, la carte est mergée dans main dans le checkout du dépôt, poussée s'il y a un remote. Un checkout sale ou pas sur main laisse la carte en review.",
   },
   "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
+  "orch.rounds": { en: "Rounds before calling me", fr: "Allers-retours avant de m'appeler" },
+  "orch.roundsHint": {
+    en: "How many times the lead may send a card back to its worker before it comes to you (1 to 15). Applies to running cards from the next round.",
+    fr: "Combien de fois le lead peut renvoyer une carte à son agent avant qu'elle te revienne (1 à 15). S'applique aux cartes en cours dès le prochain tour.",
+  },
   "orch.autoSaved": { en: "Autonomy saved.", fr: "Autonomie enregistrée." },
   "orch.autoMissing": {
     en: "The autonomy settings could not be shown on this page.",

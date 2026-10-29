@@ -1393,10 +1393,12 @@ export interface Autonomy {
   armed: boolean;
   /** ADR 0047: it may also start a planned lot when none of the repo's lots is running. */
   startWhenIdle: boolean;
+  /** How many times the lead may send a worker back before the card comes to the operator (1–15). */
+  maxRounds: number;
 }
 export const fetchAutonomy = (repo: string, signal?: AbortSignal): Promise<{ autonomy: Autonomy }> =>
   apiRequest(`/api/orchestrator/autonomy?repo=${encodeURIComponent(repo)}`, { signal });
-export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle">>): Promise<{ autonomy: Autonomy }> =>
+export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>): Promise<{ autonomy: Autonomy }> =>
   apiRequest("/api/orchestrator/autonomy", { method: "PUT", body: JSON.stringify({ repoPath, ...patch }) });
 /** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
 export interface OrchestratorMemory {
