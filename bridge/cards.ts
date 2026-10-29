@@ -33,6 +33,7 @@ import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
+import { manualChecksPrompt } from "./recette.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { owedStep, resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
@@ -888,7 +889,7 @@ export async function startCard(
     : undefined;
   // The brief goes in front of the card's first prompt — never in front of a special one (a conflict
   // to settle, say), which is a message to an agent that already has its role.
-  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}`);
+  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
   try {
     // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });

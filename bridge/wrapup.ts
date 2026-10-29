@@ -35,6 +35,7 @@ import { join } from "node:path";
 
 import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
+import { manualChecksPrompt } from "./recette.ts";
 import { baseOf, diffStat, worktreePathFor } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { cleanupCard } from "./integrate.ts";
@@ -102,7 +103,10 @@ export function wrapupPrompt(card: Card): string {
     "4. Anything the next person should know before touching this again.",
     "",
     "Be honest about 2 and 3 — an overstated report becomes a card nobody knows is missing.",
-    "Write the file and nothing else. Do not summarise it back to me.",
+    "",
+    manualChecksPrompt(card.id),
+    "",
+    "Write the file (and the recette, if any) and nothing else. Do not summarise it back to me.",
   );
   return parts.join("\n");
 }

@@ -244,6 +244,37 @@ export interface Card {
   createdBy: string | null;
   /** Who this card is meant for, as a git identity — an intention, not a right (ADR 0048 §5). */
   assignee: string | null;
+  /** The card's manual test (« recette »), in order — written by its agent, the orchestrator or the operator. */
+  manualChecks: ManualCheck[];
+  /** What the user can now DO, in their words — the recette's title. Null: the card's title. */
+  capability: string | null;
+  /** The use this capability serves (« Travailler à deux ») — the recette groups by it. */
+  usageGroup: string | null;
+  /**
+   * The operator's verdict per step id. A column of its own, apart from {@link manualChecks}, so an
+   * agent rewriting its steps and the operator ticking them never overwrite each other in the
+   * journal's last-write-wins (ADR 0048 §2). A verdict whose step is gone is simply not shown.
+   */
+  checkVerdicts: Record<string, CheckVerdict>;
+}
+
+/** One step of a recette: one line, verb + where + what to expect. `shot` names a deliverable of the card. */
+export interface ManualCheck {
+  id: string;
+  text: string;
+  expected?: string;
+  shot?: string;
+}
+
+export const CHECK_STATUSES = ["ok", "ko", "skip"] as const;
+export type CheckStatus = (typeof CHECK_STATUSES)[number];
+
+/** `by` is derived by the bridge (the pair's git identity on a shared repo, else `operator`), never read from a body. */
+export interface CheckVerdict {
+  status: CheckStatus;
+  by: string;
+  at: number;
+  note?: string;
 }
 
 /** A named environment on a paired peer (`peers.toml`): the peer resolves the path, never this machine. */
@@ -681,6 +712,10 @@ interface CardRow {
   environment: string | null;
   created_by: string | null;
   assignee: string | null;
+  manual_checks: string | null;
+  capability: string | null;
+  usage_group: string | null;
+  check_verdicts: string | null;
 }
 
 interface RunRow {
@@ -820,6 +855,29 @@ interface EventRow {
  * output and by API bodies, and a malformed value must degrade to "empty list", never throw inside
  * a `GET /api/cards` that would then take the whole board down.
  */
+/** A column the journal may have filled from another pair: anything malformed reads as empty, never throws. */
+function jsonValue(raw: string | null): unknown {
+  try {
+    return raw ? (JSON.parse(raw) as unknown) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseManualChecks(raw: string | null): ManualCheck[] {
+  const v = jsonValue(raw);
+  if (!Array.isArray(v)) return [];
+  return v.filter((c): c is ManualCheck => typeof c?.id === "string" && typeof c?.text === "string");
+}
+
+function parseVerdicts(raw: string | null): Record<string, CheckVerdict> {
+  const v = jsonValue(raw);
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return {};
+  return Object.fromEntries(
+    Object.entries(v).filter(([, x]) => CHECK_STATUSES.includes(x?.status) && typeof x?.by === "string" && typeof x?.at === "number"),
+  );
+}
+
 function jsonArray(raw: string | null): string[] {
   if (!raw) return [];
   try {
@@ -939,6 +997,10 @@ function toCard(r: CardRow): Card {
     environment: parseEnvironmentColumn(r.environment),
     createdBy: r.created_by ?? null,
     assignee: r.assignee ?? null,
+    manualChecks: parseManualChecks(r.manual_checks),
+    capability: r.capability ?? null,
+    usageGroup: r.usage_group ?? null,
+    checkVerdicts: parseVerdicts(r.check_verdicts),
   };
 }
 
@@ -1222,6 +1284,7 @@ const SHARED = {
       branch: false, agent_kind: false, parent_id: false, duplicate_of: false, depends_on: false,
       origin: false, origin_card_id: false, category: false, tag: false, position: false, run_id: false,
       phase_id: false, template_id: false, pipeline_id: false, created_at: false, created_by: false, assignee: false,
+      manual_checks: true, capability: false, usage_group: false, check_verdicts: true,
     },
     // Inserted when the first event of a card is not the one that names it; the next fields fill it.
     seed: "INSERT OR IGNORE INTO card (id, repo_path, title, status, created_at, updated_at) VALUES (?1, ?2, '', 'backlog', ?3, ?3)",
@@ -1392,6 +1455,9 @@ export interface NewCard {
   pipelineId?: string | null;
   environment?: CardEnvironment | null;
   assignee?: string | null;
+  manualChecks?: ManualCheck[];
+  capability?: string | null;
+  usageGroup?: string | null;
 }
 
 /** A partial update. Absent keys are left alone; an explicit `null` clears a nullable column. */
@@ -1418,6 +1484,9 @@ export interface CardPatch {
   pipelineId?: string | null;
   environment?: CardEnvironment | null;
   assignee?: string | null;
+  manualChecks?: ManualCheck[];
+  capability?: string | null;
+  usageGroup?: string | null;
 }
 
 /** Column name per patch key — also the allowlist that keeps `patch()` from building arbitrary SQL. */
@@ -1444,6 +1513,9 @@ const PATCH_COLUMNS: Record<keyof CardPatch, string> = {
   pipelineId: "pipeline_id",
   environment: "environment",
   assignee: "assignee",
+  manualChecks: "manual_checks",
+  capability: "capability",
+  usageGroup: "usage_group",
 };
 
 /**
@@ -1643,6 +1715,10 @@ export class BoardDb {
       // ADR 0048 §5: no backfill — who created a card before is not known, and guessing the local pair would lie.
       { table: "card", column: "created_by", ddl: "TEXT" },
       { table: "card", column: "assignee", ddl: "TEXT" },
+      { table: "card", column: "manual_checks", ddl: "TEXT" },
+      { table: "card", column: "capability", ddl: "TEXT" },
+      { table: "card", column: "usage_group", ddl: "TEXT" },
+      { table: "card", column: "check_verdicts", ddl: "TEXT" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -1740,6 +1816,10 @@ export class BoardDb {
     if (input.templateId) this.db.query("UPDATE card SET template_id = ? WHERE id = ?").run(input.templateId, id);
     if (input.pipelineId) this.db.query("UPDATE card SET pipeline_id = ? WHERE id = ?").run(input.pipelineId, id);
     if (input.environment) this.db.query("UPDATE card SET environment = ? WHERE id = ?").run(JSON.stringify(input.environment), id);
+    const recette = Object.fromEntries(
+      Object.entries({ manualChecks: input.manualChecks, capability: input.capability, usageGroup: input.usageGroup }).filter(([, v]) => v != null),
+    );
+    if (Object.keys(recette).length > 0) this.patchCard(id, recette);
     this.recordEvent(id, "card.created", { title: input.title, status });
     return this.getCard(id)!;
   }
@@ -1852,7 +1932,7 @@ export class BoardDb {
       const value = patch[key];
       sets.push(`${column} = ?`);
       values.push(
-        key === "acceptance"
+        key === "acceptance" || key === "manualChecks"
           ? JSON.stringify(value ?? [])
           : key === "environment"
             ? (value ? JSON.stringify(value) : null)
@@ -1870,6 +1950,16 @@ export class BoardDb {
     values.push(this.now(), id);
     this.db.query(`UPDATE card SET ${sets.join(", ")} WHERE id = ?`).run(...values);
     if (before) this.recordEdit(before, patch, reason);
+    return this.getCard(id);
+  }
+
+  /** Record the operator's verdict on one step of the card's recette. Out of {@link CardPatch}: no body reaches it. */
+  setCheckVerdict(id: string, stepId: string, verdict: CheckVerdict): Card | null {
+    const card = this.getCard(id);
+    if (!card) return null;
+    // shortcut: two pairs ticking different steps of one card at once — the whole map is last-write-wins; one entity per verdict if that bites.
+    const verdicts = { ...card.checkVerdicts, [stepId]: verdict };
+    this.db.query("UPDATE card SET check_verdicts = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(verdicts), this.now(), id);
     return this.getCard(id);
   }
 
