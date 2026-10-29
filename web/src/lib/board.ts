@@ -137,6 +137,8 @@ export interface CardView {
   createdBy?: string | null;
   /** Shared board only: who it is meant for, as a git identity. */
   assignee?: string | null;
+  /** Shared board only (ADR 0048 §7): the pair that last claimed it by launching it, its identity and when. */
+  claim?: { pair: string; by: string; at: number } | null;
   /** The pipeline role a tap would hand this card to next (ADR 0031): a landed card, outside a run. */
   nextStep?: { templateId: string; name: string } | null;
   /**
@@ -707,6 +709,11 @@ export function startCard(id: string): Promise<{ ok: true; card: CardView }> {
   return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/start`, {
     method: "POST",
   });
+}
+
+/** « Reprendre la main » (ADR 0048 §7): claim a shared card over another pair's claim. Pushed before it answers. */
+export function takeOverCard(id: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>(`/api/cards/${encodeURIComponent(id)}/claim`, { method: "POST" });
 }
 
 /**

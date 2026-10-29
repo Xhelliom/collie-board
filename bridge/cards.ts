@@ -35,6 +35,7 @@ import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { claimForLaunch } from "./claim.ts";
 import { owedStep, resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -551,6 +552,8 @@ export type StartError =
   | { kind: "stale-base"; message: string }
   /** The card runs in a peer's environment: only its own start route sends it there (remote-launch.ts). */
   | { kind: "remote"; message: string }
+  /** A shared card another pair claimed, or whose claim could not be pushed (ADR 0048 §7). */
+  | { kind: "claimed"; message: string }
   | { kind: "herdr"; message: string };
 
 export interface StartResult {
@@ -750,6 +753,10 @@ export async function startCard(
       },
     };
   }
+
+  // ADR 0048 §7: last of the gates, so a card that would not start anyway is not claimed for nothing.
+  const refused = await claimForLaunch(db, card);
+  if (refused) return { ok: false, error: { kind: "claimed", message: refused } };
 
   const branch = card.branch ?? branchFromTitle(card.title, cfg.boardBranchPrefix);
   // The card's own template, else its phase's (ADR 0026). Its kind yields to one the card names.
