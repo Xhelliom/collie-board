@@ -141,6 +141,17 @@ describe("OrchestratorPanel", () => {
     await waitFor(() => expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }, { repoPath: "/g/app", step: "restart" }]));
   });
 
+  it("a failed restart says why, in the panel", async () => {
+    server.use(
+      http.post("*/api/orchestrator/renew", () =>
+        HttpResponse.json({ ok: false, error: "L'ancien orchestrateur n'a pas pu être fermé (refus). Il tourne toujours.", kind: "herdr" }, { status: 502 }),
+      ),
+    );
+    mount("/g/app", { paneId: "w1:p2", running: true, ctxPct: 20 });
+    await userEvent.click(await screen.findByRole("button", { name: "Repartir à neuf" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/« Repartir à neuf » a échoué : L'ancien orchestrateur n'a pas pu être fermé/);
+  });
+
   describe("deliverables", () => {
     const deliv = (name: string, ts: number) => ({ cardId: "c1", cardTitle: "Carte", name, size: 10, ts });
     const items = [deliv("b.jpg", 200), deliv("a.md", 100)];

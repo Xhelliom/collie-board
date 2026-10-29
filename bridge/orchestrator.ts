@@ -157,22 +157,22 @@ const inflight = new Map<string, Promise<{ paneId: string; started: boolean }>>(
  * Find or create the repo's orchestrator. Adopts a live one (a bridge restart loses nothing); reuses
  * a bare shell a failed launch left in its workspace rather than stacking another next to it.
  */
-export function startOrchestrator(deps: OrchestratorDeps, repoPath: string, ignore?: string): Promise<{ paneId: string; started: boolean }> {
+export function startOrchestrator(deps: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string): Promise<{ paneId: string; started: boolean }> {
   const going = inflight.get(repoPath);
   if (going) return going;
-  const p = doStart(deps, repoPath, ignore).finally(() => inflight.delete(repoPath));
+  const p = doStart(deps, repoPath, ignore, shellPane).finally(() => inflight.delete(repoPath));
   inflight.set(repoPath, p);
   return p;
 }
 
-async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps, repoPath: string, ignore?: string) {
+async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string) {
   const snap = snapshot();
   const live = findOrchestrator(snap, repoPath, ignore);
   if (live) return { paneId: live, started: false };
 
   const label = orchestratorLabel(repoPath);
-  const shell = snap.shellPanes.find((p) => p.workspaceLabel === label && samePath(p.cwd, repoPath));
-  const paneId = shell?.paneId ?? (await herdr.createWorkspace({ cwd: repoPath, label })).paneId;
+  const shell = shellPane ?? snap.shellPanes.find((p) => p.workspaceLabel === label && samePath(p.cwd, repoPath))?.paneId;
+  const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
   await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);
   await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null, cfg.allowedOrigins?.[0] ?? null), wait, { firstAfterLaunch: true });
@@ -197,15 +197,26 @@ export async function askOrchestratorNote(deps: OrchestratorDeps, repoPath: stri
  * and then waited for in the snapshot, so a stale poll cannot make the start adopt the pane just closed.
  */
 export async function restartOrchestrator(deps: OrchestratorDeps, repoPath: string): Promise<{ paneId: string; started: boolean }> {
-  const old = findOrchestrator(deps.snapshot(), repoPath);
-  if (old) {
-    try {
-      await deps.herdr.closePane(old);
-    } catch {
-      // A pane already gone is the outcome we wanted.
+  const snap = deps.snapshot();
+  const old = findOrchestrator(snap, repoPath);
+  if (!old) return startOrchestrator(deps, repoPath);
+  // The successor's shell opens in the old one's workspace BEFORE the close. That workspace sits on
+  // the repo's main checkout: while a lot's worktrees hang off it, herdr refuses to close its last
+  // pane ("confirmation_required: … would close a worktree group", live-verified 2026-10-29) — and
+  // confirming would close the lot's workspaces with it. A second pane makes the close a plain one.
+  const ws = snap.agents.find((a) => a.paneId === old)?.workspaceId;
+  const fresh = ws ? (await deps.herdr.createTab(ws, { cwd: repoPath })).paneId : undefined;
+  try {
+    await deps.herdr.closePane(old);
+  } catch (err) {
+    const msg = (err as Error).message;
+    // A pane already gone is the outcome we wanted; anything else leaves the old one running.
+    if (!msg.includes("pane_not_found")) {
+      console.warn(`[orchestrator] restart: closing ${old} failed (${repoPath}): ${msg}`);
+      throw new Error(`L'ancien orchestrateur n'a pas pu être fermé (${msg}). Il tourne toujours : ferme son pane à la main, puis « Démarrer l'orchestrateur ».`);
     }
-    const wait = deps.wait ?? ((ms: number) => Bun.sleep(ms));
-    for (let i = 0; i < 10 && findOrchestrator(deps.snapshot(), repoPath) === old; i++) await wait(300);
   }
-  return startOrchestrator(deps, repoPath, old ?? undefined);
+  const wait = deps.wait ?? ((ms: number) => Bun.sleep(ms));
+  for (let i = 0; i < 10 && findOrchestrator(deps.snapshot(), repoPath) === old; i++) await wait(300);
+  return startOrchestrator(deps, repoPath, old, fresh);
 }

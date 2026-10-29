@@ -254,6 +254,41 @@ describe("the orchestrator's memory (ADR 0023)", () => {
     expect(r.started).toBe(true);
     expect(r.paneId).not.toBe("p1");
   });
+
+  it("renew during a lot: opens the successor's tab first, closes only the old pane, touches no lot agent", async () => {
+    const f = fakeHerdr();
+    const orch = { ...agent("w1:p1", "orchestrator-app", "/g/app"), workspaceId: "w1" };
+    const lot = [
+      { ...agent("w2:p1", "Carte A", "/wt/app/board-a"), workspaceId: "w2" },
+      { ...agent("w3:p1", "Carte B", "/wt/app/board-b"), workspaceId: "w3" },
+    ];
+    const panes = new Set(["w1:p1"]);
+    const h = f.herdr as Record<string, unknown>;
+    h.createTab = async (ws: string, o: { cwd?: string }) => (f.calls.push(`tab ${ws} ${o.cwd}`), panes.add("w1:p2"), { paneId: "w1:p2" });
+    // herdr's live behaviour: the last pane of the main checkout's workspace won't close while worktrees hang off it.
+    h.closePane = async (id: string) => {
+      if ([...panes].filter((p) => p.startsWith("w1:")).length < 2) throw new Error("herdr pane.close: confirmation_required: closing this pane would close a worktree group");
+      f.calls.push(`close ${id}`);
+      panes.delete(id);
+    };
+    const snapshot = () => snap([...(panes.has("w1:p1") ? [orch] : []), ...lot] as never);
+    const r = await restartOrchestrator({ herdr: f.herdr, cfg, snapshot, wait: noWait }, "/g/app");
+    expect(r).toEqual({ paneId: "w1:p2", started: true });
+    expect(f.calls.slice(0, 2)).toEqual(["tab w1 /g/app", "close w1:p1"]);
+    expect(f.calls.filter((c) => /w[23]:/.test(c))).toEqual([]);
+    expect(f.calls).toContain("prompt w1:p2");
+  });
+
+  it("renew: a close herdr refuses is reported, never swallowed into a second orchestrator", async () => {
+    const f = fakeHerdr();
+    const h = f.herdr as Record<string, unknown>;
+    h.closePane = async () => {
+      throw new Error("herdr pane.close: confirmation_required: closing this pane would close a worktree group");
+    };
+    const deps = { herdr: f.herdr, cfg, snapshot: () => snap([agent("p1", "orchestrator-app", "/g/app")]), wait: noWait };
+    await expect(restartOrchestrator(deps, "/g/app")).rejects.toThrow(/n'a pas pu être fermé.*worktree group/);
+    expect(f.calls.some((c) => c.startsWith("start"))).toBe(false);
+  });
 });
 
 describe("/api/orchestrator/memory and /renew", () => {

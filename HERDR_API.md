@@ -198,9 +198,13 @@ Two sibling structural ops remove panes. `tab.close` live-verified 2026-07-19 on
 
 | Method | Params | Returns (`result.type`) | Event | Error (unknown id) |
 |---|---|---|---|---|
-| `pane.close` | `{pane_id}` | `ok` | `pane.closed` | `pane_not_found` |
+| `pane.close` | `{pane_id}` | `ok` | `pane.closed` | `pane_not_found`, `confirmation_required` (see below) |
 | `tab.close` | `{tab_id}` (schema: `TabTarget`) | `ok` | `tab.closed` | `tab_not_found` |
 
+- **`pane.close` refuses the last pane of a repo's main-checkout workspace while linked worktrees
+  hang off it**: `confirmation_required: closing this pane would close a worktree group` (live-verified
+  2026-10-29). Confirming would close the worktree workspaces too. Open a second pane in that workspace
+  first (`tab.create`) and the close is a plain one — what `restartOrchestrator` does during a lot.
 - **`tab.close` is a BULK pane-close: closing a tab terminates EVERY pane inside it.** Verified by
   creating a throwaway tab holding a plain shell pane, then `tab.close {tab_id}` — the next
   `session.snapshot` no longer lists the tab **or** its inner pane. So it's no more privileged than
