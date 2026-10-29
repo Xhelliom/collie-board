@@ -9,6 +9,22 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.248.0] - 2026-10-29
+
+### Added
+
+- Réglages du projet : « Allers-retours avant de m'appeler » (1–15, défaut 5), réservé à l'opérateur, appliqué aux cartes en cours au tour suivant. (bb40c92)
+
+### Changed
+
+- Recette : une liste à une colonne qui se déplie sur place, étapes « Faire / Attendu » en entier (5894446)
+- Recette : captures entières avec loupe, capture d'une étape à côté d'elle, lien texte vers la carte (5894446)
+- Un arrêt sur la limite d'allers-retours dit où la changer. (bb40c92)
+
+### Fixed
+
+- Board sur mobile : les onglets tiennent sur une ligne (icône seule pour les onglets inactifs) (a54671a)
+
 ## [0.247.0] - 2026-10-29
 
 ### Added
