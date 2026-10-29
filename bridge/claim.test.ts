@@ -39,15 +39,17 @@ async function twoPairs() {
     const dir = join(root, `clone${i}`);
     sh(root, "clone", "-q", bare, dir);
     sh(dir, "config", "user.email", `p${i}@t`);
+    sh(dir, "config", "user.name", `p${i}`);
+    sh(dir, "config", "commit.gpgsign", "false");
     return dir;
   }) as [string, string];
   const clock = { t: 1_000_000 };
   const pa = install(a, A, clock);
   const card = pa.db.createCard({ title: "shared", repoPath: a, status: "ready" });
-  await pa.activate();
+  expect(await pa.activate()).toMatchObject({ ok: true, pushed: true });
   const pb = install(b, B, clock);
   clock.t += 1;
-  await pb.activate();
+  expect(await pb.activate()).toMatchObject({ ok: true });
   expect(pb.db.getCard(card.id)).toMatchObject({ title: "shared", repoPath: b, claim: null });
   return { root, bare, a, b, clock, pa, pb, id: card.id };
 }
