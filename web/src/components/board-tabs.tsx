@@ -60,21 +60,27 @@ export function BoardTabs({ repos = [] }: { repos?: RepoOption[] }) {
 
   return (
     <nav aria-label={t("tabs.aria")} className="flex flex-wrap items-center gap-1 border-b border-border bg-background px-3 py-2 lg:px-5">
-      {TABS.map((tab) => (
-        <Link
-          key={tab.key}
-          to={`${tab.path}${q}`}
-          replace
-          aria-current={active === tab.key ? "page" : undefined}
-          className={cn(
-            "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition-colors",
-            active === tab.key ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/60",
-          )}
-        >
-          <tab.icon className="size-4" />
-          {t(tab.label)}
-        </Link>
-      ))}
+      {/* One line on a phone whatever the count: below sm only the current tab keeps its label, and
+          if that still overflows the row scrolls sideways rather than wrapping. */}
+      <div className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none]">
+        {TABS.map((tab) => (
+          <Link
+            key={tab.key}
+            to={`${tab.path}${q}`}
+            replace
+            aria-current={active === tab.key ? "page" : undefined}
+            aria-label={t(tab.label)}
+            title={t(tab.label)}
+            className={cn(
+              "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg text-sm font-semibold transition-colors",
+              active === tab.key ? "bg-accent px-3 text-foreground" : "px-2.5 text-muted-foreground hover:bg-muted/60 sm:px-3",
+            )}
+          >
+            <tab.icon className="size-4" />
+            <span className={active === tab.key ? undefined : "hidden sm:inline"}>{t(tab.label)}</span>
+          </Link>
+        ))}
+      </div>
       {/* The repo picker and its + / unlist share ONE row, also on a phone: the header is three lines
           tall otherwise, on a screen that is mostly list. */}
       <div className="order-last flex w-full items-center gap-1 sm:order-none sm:ml-auto sm:w-auto">
