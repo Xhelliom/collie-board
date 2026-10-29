@@ -10,4 +10,5 @@ export const people = defineMessages({
   "people.filter": { en: "Who", fr: "Qui" },
   "people.everyone": { en: "Everyone", fr: "Tout le monde" },
   "people.toMe": { en: "To me", fr: "À moi" },
+  "people.runningAt": { en: "running at {name}'s", fr: "en cours chez {name}" },
 });

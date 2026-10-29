@@ -318,6 +318,8 @@ export class RunCoordinator {
     const reviewing = this.ports.reviewing();
 
     for (const open of this.db.listOpenRuns()) {
+      // ADR 0048 §7: another pair's lot is that pair's coordinator's to drive — seen here, never driven.
+      if (!this.db.ownsRun(open)) continue;
       // ADR 0043: merged direct, a lot has no PR to share — each card lands as a card of its own.
       const run: Run = this.ports.direct(open.repoPath) ? { ...open, integration: "card" } : open;
       const members = this.db.runMembers(run.id).map((card) => ({ card, events: this.db.listEvents(card.id, 200) }));

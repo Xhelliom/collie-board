@@ -446,6 +446,12 @@ export interface Run {
   /** The lot branch and the base it was cut from, written when the first card starts (`lot` only). */
   lotBranch: string | null;
   lotBase: string | null;
+  /**
+   * Shared repo only (ADR 0048 §7): who created the lot — its git identity, and the pair (machine) it
+   * was created on. Derived at creation, never declared. Only that pair launches, resumes and drives it.
+   */
+  createdBy: string | null;
+  createdPair: string | null;
 }
 
 export type Integration = "card" | "lot";
@@ -747,6 +753,8 @@ interface RunRow {
   integration: string | null;
   lot_branch: string | null;
   lot_base: string | null;
+  created_by: string | null;
+  created_pair: string | null;
 }
 
 function toRun(r: RunRow): Run {
@@ -764,6 +772,8 @@ function toRun(r: RunRow): Run {
     integration: r.integration === "lot" ? "lot" : "card",
     lotBranch: r.lot_branch ?? null,
     lotBase: r.lot_base ?? null,
+    createdBy: r.created_by ?? null,
+    createdPair: r.created_pair ?? null,
   };
 }
 
@@ -1311,6 +1321,7 @@ const SHARED = {
     columns: {
       fold_in_cap: false, lead_agent: false, phase_id: false, name: false, position: false, launched_at: false,
       max_parallel: false, integration: false, lot_branch: false, lot_base: false, created_at: false,
+      created_by: false, created_pair: false, finished_at: false,
     },
     seed: "INSERT OR IGNORE INTO run (id, repo_path, created_at, fold_in_cap) VALUES (?1, ?2, ?3, 0)",
   },
@@ -1715,6 +1726,11 @@ export class BoardDb {
       { table: "run", column: "integration", ddl: "TEXT NOT NULL DEFAULT 'card'" },
       { table: "run", column: "lot_branch", ddl: "TEXT" },
       { table: "run", column: "lot_base", ddl: "TEXT" },
+      // ADR 0048 §7: a lot's creator, and its end as the creator's coordinator saw it — shared, so the
+      // other pairs see a lot finish. No backfill: the local `run.finished` event still says it here.
+      { table: "run", column: "created_by", ddl: "TEXT" },
+      { table: "run", column: "created_pair", ddl: "TEXT" },
+      { table: "run", column: "finished_at", ddl: "INTEGER" },
       // ADR 0025: a validated phase is a milestone. Null closed_at = still the work in progress.
       { table: "phase", column: "closed_at", ddl: "INTEGER" },
       { table: "phase", column: "closed_note", ddl: "TEXT NOT NULL DEFAULT ''" },
@@ -2098,12 +2114,13 @@ export class BoardDb {
     integration?: Integration;
   }): Run {
     const id = crypto.randomUUID();
+    const shared = !!this.repoShare(input.repoPath);
     this.db.transaction(() => {
       const ts = this.now();
       this.db
         .query(
-          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel, integration)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO run (id, repo_path, created_at, fold_in_cap, lead_agent, phase_id, name, position, launched_at, max_parallel, integration, created_by, created_pair)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -2117,6 +2134,9 @@ export class BoardDb {
           input.planned ? null : ts,
           input.maxParallel ?? null,
           input.integration ?? "card",
+          // Derived, like a card's (ADR 0048 §5/§7): the pair creating it, when its repo is shared.
+          shared ? (this.peerIdentities.get(input.repoPath) ?? null) : null,
+          shared ? this.localPair : null,
         );
       const join = this.db.query("UPDATE card SET run_id = ? WHERE id = ? AND repo_path = ?");
       for (const cardId of input.cardIds) {
@@ -2196,11 +2216,14 @@ export class BoardDb {
     return r ? toRun(r) : null;
   }
 
-  /** The launched runs not yet journaled `run.finished` — the coordinator's working set. A planned lot is not in it. */
+  /**
+   * The launched runs not yet finished — by the local `run.finished`, or the shared `finished_at` a
+   * creator's coordinator wrote. Every pair's: the coordinator keeps to {@link ownsRun}. A planned lot is not in it.
+   */
   listOpenRuns(): Run[] {
     return this.db
       .query<RunRow, []>(
-        `SELECT * FROM run WHERE launched_at IS NOT NULL AND id NOT IN (
+        `SELECT * FROM run WHERE launched_at IS NOT NULL AND finished_at IS NULL AND id NOT IN (
            SELECT json_extract(payload, '$.runId') FROM event WHERE type = 'run.finished')
          ORDER BY created_at`,
       )
@@ -2213,13 +2236,26 @@ export class BoardDb {
     return this.runFinishedAt(id) !== null;
   }
 
-  /** When `run.finished` was journaled for this run (its event's ts), or null — read, never stored. */
+  /** When this run finished: the local `run.finished` event's ts, else the shared `finished_at` another pair pushed. */
   runFinishedAt(id: string): number | null {
     return (
       this.db
-        .query<{ ts: number }, [string]>("SELECT MIN(ts) AS ts FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ?")
+        .query<{ ts: number | null }, [string]>(
+          `SELECT COALESCE((SELECT MIN(ts) FROM event WHERE type = 'run.finished' AND json_extract(payload, '$.runId') = ?1),
+                           (SELECT finished_at FROM run WHERE id = ?1)) AS ts`,
+        )
         .get(id)?.ts ?? null
     );
+  }
+
+  /** This pair's pair id (ADR 0048 §7), or null when no sync runs. */
+  pairId(): string | null {
+    return this.localPair;
+  }
+
+  /** A lot this pair may launch, resume and drive: one created here, or on no shared repo. Pure. */
+  ownsRun(run: Pick<Run, "createdPair">): boolean {
+    return run.createdPair === null || run.createdPair === this.localPair;
   }
 
   /** A follow-up the lead folded into the run: it becomes a member. */
@@ -2240,6 +2276,8 @@ export class BoardDb {
   /** {@link recordEvent}, typed to the `run.*` kinds so a payload can't drift from its shape. */
   recordRunEvent<K extends RunEventKind>(cardId: string | null, kind: K, payload: RunEventPayloads[K]): void {
     this.recordEvent(cardId, kind, payload);
+    // The event stays local; its fact is shared (ADR 0048 §7) — the other pairs see the lot finish.
+    if (kind === "run.finished") this.db.query("UPDATE run SET finished_at = ? WHERE id = ? AND finished_at IS NULL").run(this.now(), payload.runId);
   }
 
   // ── sessions ────────────────────────────────────────────────────────────────

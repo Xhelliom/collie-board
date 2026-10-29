@@ -380,6 +380,7 @@ These spend quota or drive a real terminal. Never fire one unasked:
   On a **shared** repo it first pushes the card's claim (ADR 0048 §7): `409 {kind:"claimed"}` when
   another pair holds it (`error` says who and since when), or when offline and the card is not
   assigned to you. Taking a card back (`POST /api/cards/<id>/claim`) is the operator's gesture — refused to a pane.
+  **Never start a card assigned to someone else** (`assignee` ≠ you): the bridge refuses your pane `403`.
 - `POST /api/cards/<id>/prompt` (`{"text":"…"}`) — types into that agent's pane.
 - `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, never yours.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
@@ -474,6 +475,10 @@ code.
   ADR 0047), you may launch a planned lot whenever **no lot of this repo is running** — the bridge checks
   at your request, counts it in the chain and refuses past the same bounds. `POST /api/runs` without
   `planned` stays refused in every case.
+  On a **shared** repo a lot belongs to its creator (ADR 0048 §7): `GET /api/runs` gives `createdBy` /
+  `createdPair`, and launching or resuming another pair's lot is refused `403` — to you and to the user
+  alike. Never launch a lot that is not this pair's, nor one holding a card assigned to someone else.
+  Its coarse state is shared (`launchedAt`, `finished`/`finishedAt`); its current step is not.
 - `POST /api/runs/<id>/resume` — lifts a lot's halts (`run.halted`): each halted card picks up at the
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
