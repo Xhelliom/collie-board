@@ -24,6 +24,7 @@ export const orchestrator = defineMessages({
   },
   "orch.askNote": { en: "Ask it to take notes", fr: "Lui demander de noter" },
   "orch.restart": { en: "Start afresh", fr: "Repartir à neuf" },
+  "orch.restartFailed": { en: "Starting afresh failed: {reason}", fr: "« Repartir à neuf » a échoué : {reason}" },
   "orch.waitingNote": { en: "Waiting for its note…", fr: "En attente de sa note…" },
   "orch.thread": { en: "Orchestrator thread", fr: "Fil de l'orchestrateur" },
   "orch.warmingUp": {

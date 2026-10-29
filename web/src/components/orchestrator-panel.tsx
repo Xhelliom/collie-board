@@ -76,6 +76,8 @@ export function OrchestratorPanel({
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
   const [delivOpen, setDelivOpen] = useState(false);
+  // Why the last "Repartir à neuf" failed, kept beside the button until the next try.
+  const [restartError, setRestartError] = useState<string | null>(null);
 
   const scroller = useRef<HTMLDivElement>(null);
   // Follow the conversation as it grows — unless the reader scrolled up to read: then leave them there.
@@ -121,6 +123,7 @@ export function OrchestratorPanel({
 
   async function renew(step: "ask" | "restart") {
     setBusy(true);
+    if (step === "restart") setRestartError(null);
     try {
       await renewOrchestrator(repo!, step);
       if (step === "ask") {
@@ -131,7 +134,8 @@ export function OrchestratorPanel({
         setStatus(t("orch.renewed"), "success");
       }
     } catch (e) {
-      setStatus(boardErrorMessage(e), "error", null);
+      if (step === "restart") setRestartError(t("orch.restartFailed", { reason: boardErrorMessage(e) }));
+      else setStatus(boardErrorMessage(e), "error", null);
     } finally {
       setBusy(false);
       void revalidator.revalidate();
@@ -232,6 +236,11 @@ export function OrchestratorPanel({
               <span className="text-xs text-muted-foreground">{t("orch.waitingNote")}</span>
             )}
           </div>
+          {restartError && (
+            <p role="alert" className="text-xs text-destructive">
+              {restartError}
+            </p>
+          )}
         </div>
       )}
       <div
