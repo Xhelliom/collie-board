@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.248.2] - 2026-10-29
+
+### Fixed
+
+- Orchestrateur : « Repartir à neuf » marche pendant un lot (herdr refusait de fermer le dernier pane du checkout principal) (4722a76)
+- Orchestrateur : un échec de « Repartir à neuf » s'affiche avec sa raison dans le panneau (4722a76)
+
 ## [0.248.1] - 2026-10-29
 
 ### Changed
