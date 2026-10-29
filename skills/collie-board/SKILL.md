@@ -316,6 +316,12 @@ by `dependsOn`. **State lives in the board, not in this conversation**: when you
 roadmap, `/api/phases` and `/api/runs` rather than relying on what you remember. Tell the user
 what you prepared and let them launch it.
 
+**At the end of a lot, keep the recette** (the board's end-of-lot message reminds you): before the
+bilan, re-read the [manual tests](#manual-tests--the--recette-) of the cards it merged and PATCH them
+into shape — concrete (where to tap, what to expect), short, steps that are done together merged into
+one; a card that is purely internal gets none (`"manualChecks": []`). Then cite « N à tester » in the
+bilan (N = the `todo` entries of `GET /api/recette?repo=<repo>`). Their verdict stays the operator's.
+
 ## Watch and answer the herd
 
 An agent stuck on a question, or a PR that no longer merges, is yours to look at — and to unblock.
