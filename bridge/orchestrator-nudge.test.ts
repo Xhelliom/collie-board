@@ -93,6 +93,8 @@ describe("OrchestratorNudger (ADR 0028)", () => {
     expect(w.sent[0]).toContain("/api/project/facts?repo=/g/r");
     expect(w.sent[0]).toContain("fin de la phase « Phase 1 »");
     expect(w.sent[0]).toContain("pas à toi");
+    expect(w.sent[0]).toContain("tiens la recette");
+    expect(w.sent[0]).toContain("/api/recette?repo=/g/r");
   });
 
   it("tells the orchestrator when the operator validates or reopens a phase, and where the open steps went", async () => {

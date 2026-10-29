@@ -25,6 +25,11 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
     ...(ok.length ? ["Mergées :", ...ok.map(line)] : []),
     ...(ko.length ? ["Bloquées ou non mergées :", ...ko.map(line)] : []),
     `Fais à l'opérateur un bilan COURT : ce qui est mergé, ce qui est bloqué et POURQUOI (une raison par carte non mergée, lue dans /api/project/facts?repo=${repoPath ?? "<repo>"} — verdict du lead, gate, review — et dans le journal de la carte), puis la suite que tu proposes.`,
+    ...(ok.length
+      ? [
+          `Avant ce bilan, tiens la recette : relis les tests manuels (manualChecks) des cartes mergées — concrets (où cliquer, quoi attendre), regroupés quand ils se font ensemble, rien sur une carte purement interne — et cite « N à tester » (GET /api/recette?repo=${repoPath ?? "<repo>"}).`,
+        ]
+      : []),
     ...(phase
       ? [
           `C'est aussi la fin de la phase « ${phase.name} » : propose à l'opérateur de la valider (c'est à lui de le faire, pas à toi) et dis où vont les étapes encore ouvertes${phase.open.length ? ` (${phase.open.map((c) => `« ${c.title} »`).join(", ")})` : ""} : phase suivante, backlog ou abandon.`,
