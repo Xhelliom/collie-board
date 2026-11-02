@@ -57,6 +57,13 @@ describe("CardDiff — empty diff", () => {
     expect(screen.getAllByRole("button")).toHaveLength(1); // the refresh, nothing else
     expect(patched).toBe(false);
   });
+
+  it("says « nothing coded, already there » instead of looking like a failure", async () => {
+    server.use(http.get("/api/cards/c1/diff", () => HttpResponse.json(stat([]))));
+    render(<CardDiff cardId="c1" statusKey="done" alreadyPresent />);
+    expect(await screen.findByText(/already there/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing changed on this branch/i)).not.toBeInTheDocument();
+  });
 });
 
 // The reader. A generated report is a file the card wrote, so it is reached from the diff — but a

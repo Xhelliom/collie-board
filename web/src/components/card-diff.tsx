@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 // content by definition — it is literally whatever the agent, or a file it read, wrote.
 
 /** `remote`: the checkout is on a peer, which serves the patch but never a file to read. */
-export function CardDiff({ cardId, statusKey, remote = false }: { cardId: string; statusKey: string; remote?: boolean }) {
+export function CardDiff({ cardId, statusKey, remote = false, alreadyPresent = false }: { cardId: string; statusKey: string; remote?: boolean; alreadyPresent?: boolean }) {
   const t = useT();
   const [stat, setStat] = useState<DiffStat | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +97,7 @@ export function CardDiff({ cardId, statusKey, remote = false }: { cardId: string
       {stat && stat.files.length === 0 ? (
         // No way out offered here on purpose: the base is the bridge's one answer (`baseOf`), and a
         // button writing `main` broke dependent cards and was offered on merged ones.
-        <p className="text-xs text-muted-foreground">{t("diff.empty")}</p>
+        <p className="text-xs text-muted-foreground">{t(alreadyPresent ? "diff.alreadyPresent" : "diff.empty")}</p>
       ) : (
         <div className="flex flex-col gap-1">
           {shown.map((f) => (

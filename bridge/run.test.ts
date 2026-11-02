@@ -227,6 +227,38 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(events(db, a, "run.decision")[0]!.payload).toMatchObject({ decision: "finished", reason: "abc123 is on main" });
   });
 
+  it("keeps each new bilan on the card, numbered per round, and never the same text twice", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const opts = { report: "Issue : codé\nfirst try" };
+    const w = world(db, opts);
+    w.coord.update(snap());
+    await flush();
+
+    land(db, a);
+    w.checks.push({ decision: "prompt", prompt: "commit", reason: "not committed" });
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    // Same bilan at the next landing: not kept twice.
+    db.setStatus(a.id, "working", "agent working");
+    land(db, a);
+    w.checks.push({ decision: "prompt", prompt: "again", reason: "still not" });
+    w.coord.update(snap({ "p-a": "done" }));
+    await flush();
+    expect(events(db, a, "run.report")).toHaveLength(1);
+
+    opts.report = "Issue : déjà présent\nabc123 on main";
+    db.setStatus(a.id, "working", "agent working");
+    land(db, a);
+    w.coord.update(snap({ "p-a": "idle" }));
+    await flush();
+    const kept = events(db, a, "run.report").map((e) => e.payload);
+    expect(kept).toHaveLength(2);
+    expect(kept[0]).toMatchObject({ runId: run.id, round: 2, issue: "present", text: "Issue : déjà présent\nabc123 on main" });
+    expect(kept[1]).toMatchObject({ round: 1, issue: "coded" });
+  });
+
   it("check → prompt the worker; check → finished → PR → filed; then the run finishes", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });

@@ -24,7 +24,7 @@ import type { HerdrClient } from "./herdr-client.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
-import { bilanPrompt, BILAN_REL_PATH, Lead, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
+import { bilanPrompt, BILAN_REL_PATH, Lead, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
@@ -380,6 +380,14 @@ export class RunCoordinator {
     }
   }
 
+  /** The bilan outlives the worktree: journaled once per new text, numbered within the run. */
+  private keepReport(runId: string, cardId: string, text: string): void {
+    const kept = this.db.listEventsOf(cardId, ["run.report"]).map((e) => e.payload as { runId: string; text: string });
+    if (kept.at(-1)?.text === text) return;
+    const round = kept.filter((p) => p.runId === runId).length + 1;
+    this.db.recordRunEvent(cardId, "run.report", { runId, round, text, issue: parseIssue(text) });
+  }
+
   private async act(run: Run, card: Card, session: CardSession | null, step: NonNullable<Step>): Promise<void> {
     const runId = run.id;
     switch (step.kind) {
@@ -406,6 +414,7 @@ export class RunCoordinator {
         const operatorSaid = operatorSince(this.db.listEvents(card.id, 200), run.id);
         const statSummary = step.kind === "check" ? await this.ports.stat(card.id) : "";
         const workerReport = step.kind === "check" ? await this.ports.report(brief.worktree) : null;
+        if (workerReport) this.keepReport(runId, card.id, workerReport);
         // Nothing to judge and nothing said: the lead would only send it back (ADR 0014's loop), so ask for the bilan.
         if (step.kind === "check" && statSummary.trim() === "(no changes)" && !workerReport) {
           await this.ports.prompt(session!.paneId!, `Your branch has no changes. ${bilanPrompt()}`);

@@ -30,7 +30,26 @@ export function bilanPrompt(): string {
   return [
     `When you stop, write a short bilan to ${BILAN_REL_PATH}: what is done, what is not, and why —`,
     "and, if the work was already on the base branch, the commits or files there that prove it.",
+    "Its first line is the outcome, exactly one of: `Issue : codé` · `Issue : déjà présent` · `Issue : partiel` · `Issue : rien fait`.",
   ].join("\n");
+}
+
+/** The outcome a bilan opens with ({@link bilanPrompt}); null when it gives none the board can read. */
+export type BilanIssue = "coded" | "present" | "partial" | "none";
+
+/** Read the bilan's `Issue :` line, anywhere in its first lines, in French or English. Pure. */
+export function parseIssue(text: string): BilanIssue | null {
+  for (const raw of text.split("\n").slice(0, 5)) {
+    const m = /^[\s>*#_-]*(?:issue|outcome)\s*:\s*[*_`]*\s*(.+)$/i.exec(raw);
+    if (!m) continue;
+    const v = m[1]!.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (/deja|already|present/.test(v)) return "present";
+    if (/partiel|partial/.test(v)) return "partial";
+    if (/rien|nothing|none/.test(v)) return "none";
+    if (/code|done|implemented/.test(v)) return "coded";
+    return null;
+  }
+  return null;
 }
 
 export class Lead extends Copilot {

@@ -664,6 +664,8 @@ export interface RunEventPayloads {
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
   "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
+  /** The worker's bilan as the lead read it at a check — kept here because the worktree is not. Once per new text. */
+  "run.report": { runId: string; round: number; text: string; issue: "coded" | "present" | "partial" | "none" | null };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -676,6 +678,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.resumed",
   "run.gate",
   "run.merge",
+  "run.report",
 ];
 
 /** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */
@@ -3494,6 +3497,15 @@ export class BoardDb {
       .map(toEvent);
   }
 
+  /** A card's entries among `types`, oldest first — uncapped, so a long run keeps all its rounds. */
+  listEventsOf(cardId: string, types: string[]): BoardEvent[] {
+    const marks = types.map(() => "?").join(",");
+    return this.db
+      .query<EventRow, string[]>(`SELECT * FROM event WHERE card_id = ? AND type IN (${marks}) ORDER BY id`)
+      .all(cardId, ...types)
+      .map(toEvent);
+  }
+
   /** A card's newest entry among `types`, or null — a fact read from the journal without the 100 cap of {@link listEvents}. */
   lastEventOf(cardId: string, types: string[]): BoardEvent | null {
     const marks = types.map(() => "?").join(",");
@@ -3573,6 +3585,9 @@ function safeJson(raw: string): unknown {
     return raw;
   }
 }
+
+/** The event types the card's « Compte rendu » is told from (web/src/lib/card-report.ts): uncapped, unlike the journal. */
+export const REPORT_TYPES = ["run.report", "run.decision", "run.halted"];
 
 /** The event types a card's milestones are derived from (web/src/lib/card-milestones.ts). */
 export const MILESTONE_TYPES = ["session.opened", "run.gate", "run.decision", "review.created", "card.pr_opened", "card.pr_merged", "card.pr_closed"];

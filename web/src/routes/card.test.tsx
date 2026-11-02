@@ -945,7 +945,8 @@ describe("long texts fold", () => {
       { initialEntries: ["/card/c1"] },
     );
     render(<RouterProvider router={router} />);
-    const box = (await screen.findByText("Closing report text")).closest("[id]")!;
+    // Also in the « Compte rendu » at the top, unfolded there by its own <details>: the session's copy folds.
+    const box = (await screen.findAllByText("Closing report text")).map((el) => el.closest("[id]")).find(Boolean)!;
     expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
   });
 });
