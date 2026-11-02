@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.248.4] - 2026-11-02
+
+### Fixed
+
+- Mode lecture et jauge opencode : lisent aussi la base opencode 1.x (`opencode-stable.db`), la plus récemment écrite du dossier de données (cde6c94)
+- Mode lecture opencode : un opencode juste lancé n'affiche plus une ancienne conversation du même dossier (cde6c94)
+- Deux opencode dans le même dépôt : chaque pane ne montre que la sienne, sinon rien (cde6c94)
+
 ## [0.248.3] - 2026-11-02
 
 ### Fixed
