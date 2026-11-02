@@ -403,6 +403,8 @@ export function describeEvent(event: BoardEvent): string {
       return t(p.merged ? "journal.merged" : "journal.notMerged", { reason: reason() });
     case "run.halted":
       return p.leadSilent ? t("journal.leadSilent") : t("journal.halted", { reason: stripAnsi(reason()) });
+    case "run.report":
+      return t("journal.report", { round: String(p.round ?? "?") });
     case "run.resumed":
       return t("journal.resumed");
     case "run.finished":

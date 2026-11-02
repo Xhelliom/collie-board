@@ -323,6 +323,13 @@ into shape — concrete (where to tap, what to expect), short, steps that are do
 one; a card that is purely internal gets none (`"manualChecks": []`). Then cite « N à tester » in the
 bilan (N = the `todo` entries of `GET /api/recette?repo=<repo>`). Their verdict stays the operator's.
 
+**What each card came to** is in `GET /api/cards/<id>` → `reportEvents` (oldest first, uncapped):
+`run.report` = a worker's bilan as the lead read it, `{runId, round, text, issue}` — `issue` is
+`coded | present | partial | none`, or null when the bilan opened with no `Issue :` line; then
+`run.decision` (`finished` / `prompt` + `reason`) and `run.halted` (`reason`) — the lead's answer.
+`sessions[].handoffMd` is the end-of-session report. Cite them in the lot's bilan: an empty diff with
+`issue: "present"` is « déjà présent », not a failure.
+
 ## Watch and answer the herd
 
 An agent stuck on a question, or a PR that no longer merges, is yours to look at — and to unblock.

@@ -232,6 +232,8 @@ export interface CardDetail {
   events: BoardEvent[];
   /** The events the timeline derives from — uncapped, unlike `events`. Absent on an older bridge. */
   milestoneEvents?: BoardEvent[];
+  /** The « Compte rendu »'s events (run.report / run.decision / run.halted), uncapped. Absent on an older bridge. */
+  reportEvents?: BoardEvent[];
   /** The lot this card is in, or null. Absent on an older bridge. */
   lot?: Lot | null;
   /** The open question the orchestrator asked about this card, or null. Absent on an older bridge. */

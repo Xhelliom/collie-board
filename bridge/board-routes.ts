@@ -41,7 +41,7 @@ import type {
   ReviewTodo,
   TinyTodo,
 } from "./db.ts";
-import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, type Integration } from "./db.ts";
+import { CARD_CATEGORIES, DECLARABLE_CATEGORY, isCardStatus, isIntegration, isMaxParallel, MAX_AGENTS_CAP, REPORT_TYPES, type Integration } from "./db.ts";
 import { lotPrCard, lotView } from "./lot.ts";
 import {
   baseOf,
@@ -1013,6 +1013,8 @@ async function route(
         events: db.listEvents(id).map(trimEvent),
         // The timeline reads these, not `events`: the journal above stops at 100, the story must not.
         milestoneEvents: db.listMilestoneEvents(id).map(trimEvent),
+        // The « Compte rendu »: every kept bilan and the lead's answers, uncapped like the milestones.
+        reportEvents: db.listEventsOf(id, REPORT_TYPES),
         // Its lot, so the screen can say "the lead has this" while the lot runs (null: not in one).
         lot: run ? lotView(db, run) : null,
         // The open question the orchestrator asked the operator about this card (null: none).

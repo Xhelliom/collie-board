@@ -44,6 +44,8 @@ import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
 import { SectionLabel } from "@/components/ui/section-label";
 import { CollapsibleText } from "@/components/collapsible-text";
+import { CardReportSection } from "@/components/card-report";
+import { cardReport } from "@/lib/card-report";
 import { MarkdownText } from "@/components/markdown-text";
 import { StatusBadge } from "@/components/status-badge";
 import { CardDiff } from "@/components/card-diff";
@@ -168,6 +170,7 @@ export function CardRoute() {
   const [takeOver, setTakeOver] = useState(false);
 
   const detail = data.detail;
+  const report = detail ? cardReport(detail.reportEvents ?? [], detail.sessions) : null;
   const card = detail?.card;
   // A launched lot that is not over has this card: the lead reviews, opens the PR and merges.
   const hold = card ? holdOf(card, detail?.lot, !!integrationHistory(detail?.events ?? []).pr) : null;
@@ -864,6 +867,9 @@ export function CardRoute() {
                   </div>
                 )}
 
+                {/* What came of the work, before how it was asked for: a diff alone can't say « already there ». */}
+                {report && <CardReportSection report={report} />}
+
                 {/* Above the spec on purpose: this is usually the answer to "why is this card still a
                     bare title", and that question is asked while looking at the empty space below. */}
                 {card.copilotBusy && (
@@ -914,7 +920,7 @@ export function CardRoute() {
                   </Section>
                 )}
 
-                <CardDiff cardId={card.id} statusKey={card.status} remote={Boolean(card.environment)} />
+                <CardDiff cardId={card.id} statusKey={card.status} remote={Boolean(card.environment)} alreadyPresent={report?.issue === "present"} />
 
                 <Section label={t("card.section.rework")}>
                   <div className="flex flex-wrap gap-2">

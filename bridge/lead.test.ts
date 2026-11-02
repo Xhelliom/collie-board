@@ -9,6 +9,7 @@ import {
   toConflictDecision,
   Lead,
   LEAD_ATTEMPTS,
+  parseIssue,
   toTriageDecision,
   triagePrompt,
 } from "./lead.ts";
@@ -43,6 +44,17 @@ describe("lead prompts", () => {
 
   it("the worker is told where to write its bilan", () => {
     expect(bilanPrompt()).toContain(BILAN_REL_PATH);
+  });
+
+  it("the bilan's outcome line is asked for and read, tolerating its absence", () => {
+    expect(bilanPrompt()).toContain("Issue : déjà présent");
+    expect(parseIssue("Issue : codé\nrest")).toBe("coded");
+    expect(parseIssue("# Bilan\n**Issue :** déjà présent — abc123")).toBe("present");
+    expect(parseIssue("issue: Partiel")).toBe("partial");
+    expect(parseIssue("Issue : rien fait")).toBe("none");
+    expect(parseIssue("Outcome: already there")).toBe("present");
+    expect(parseIssue("Did the thing.\nAll green.")).toBeNull();
+    expect(parseIssue("Issue : bof")).toBeNull();
   });
 
   it("triage lists follow-ups by index, with the review's verdict and notes", () => {
