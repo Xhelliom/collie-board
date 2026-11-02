@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import type { BoardContext } from "./board-routes.ts";
 import { deliverablesRoot, listDeliverables, servedAs } from "./deliverables.ts";
-import { CHECK_STATUSES, EVENT_WINDOW, type Card, type CardPatch, type CheckStatus, type ManualCheck } from "./db.ts";
+import { CHECK_STATUSES, EVENT_WINDOW, type BoardEvent, type Card, type CardPatch, type CheckStatus, type ManualCheck } from "./db.ts";
 
 /** One line a person reads at a glance: verb + where + what to expect. */
 export const CHECK_TEXT_MAX = 100;
@@ -86,13 +86,34 @@ export function manualChecksPrompt(cardId: string): string {
 const VERDICT_ROUTE = /^\/api\/cards\/([^/]+)\/checks\/([^/]+)$/;
 const RECETTE_ROUTE = "/api/recette";
 
-/** When a card was delivered: its merge, else its move to done, else its last write. */
-function deliveredAt(ctx: BoardContext, card: Card): number {
-  const events = ctx.db.listEvents(card.id, EVENT_WINDOW);
+/**
+ * When a card was delivered: its merge, else its move to done, else its last write — null when it is
+ * not delivered yet. A card of a one-PR lot (ADR 0041) is delivered when the lot's PR is merged on its
+ * base, not when it folds into the lot branch: `card.pr_merged` journaled on a member that folded
+ * (the closer — `lotPrCard`), or on the card itself. Until then it is not in the recette. Pure.
+ */
+export function deliveredAt(
+  card: Pick<Card, "updatedAt">,
+  events: readonly BoardEvent[],
+  lot: { branch: string; members: readonly (readonly BoardEvent[])[] } | null,
+): number | null {
+  const newest = (es: readonly BoardEvent[]) => (es.length ? Math.max(...es.map((e) => e.ts)) : null);
+  if (lot) {
+    // Its own merge: its own PR (done outside the lot, or the closer's), or merged by hand on anything but the lot branch.
+    const own = events.filter((e) => e.type === "card.pr_merged" || (e.type === "card.merged" && (e.payload as { base?: string } | null)?.base !== lot.branch));
+    const lotPr = lot.members.filter((es) => es.some((e) => e.type === "card.lot_merged")).flatMap((es) => es.filter((e) => e.type === "card.pr_merged"));
+    return newest(own) ?? newest(lotPr);
+  }
   const merged = events.filter((e) => e.type === "card.merged" || e.type === "card.pr_merged");
   const done = events.filter((e) => e.type === "card.status" && (e.payload as { to?: string } | null)?.to === "done");
-  const at = (merged.length ? merged : done).map((e) => e.ts);
-  return at.length ? Math.max(...at) : card.updatedAt;
+  return newest(merged.length ? merged : done) ?? card.updatedAt;
+}
+
+/** The lot a card is delivered with, read off the db: only a one-PR lot that cut its branch. */
+function lotOf(ctx: BoardContext, card: Card) {
+  const run = card.runId ? ctx.db.getRun(card.runId) : null;
+  if (run?.integration !== "lot" || !run.lotBranch) return null;
+  return { branch: run.lotBranch, members: ctx.db.runMembers(run.id).map((m) => ctx.db.listEvents(m.id, EVENT_WINDOW)) };
 }
 
 /** `GET /api/recette` and `POST /api/cards/<id>/checks/<stepId>`, or null when `pathname` is neither. */
@@ -113,7 +134,8 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     const fixed = new Set(cards.filter((c) => c.originCardId && delivered(c)).map((c) => c.originCardId));
     const entries = cards
       .filter((c) => delivered(c) && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
-      .map((c) => ({ card: c, at: deliveredAt(ctx, c), state: recetteState(c), followUpDone: fixed.has(c.id) }))
+      .map((c) => ({ card: c, at: deliveredAt(c, ctx.db.listEvents(c.id, EVENT_WINDOW), lotOf(ctx, c)), state: recetteState(c), followUpDone: fixed.has(c.id) }))
+      .filter((e): e is typeof e & { at: number } => e.at !== null)
       .filter((e) => e.at >= since && (all || (e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
       .sort((a, b) => b.at - a.at);
     const stateDir = ctx.cfg.stateDir;
