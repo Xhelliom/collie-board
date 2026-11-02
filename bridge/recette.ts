@@ -9,7 +9,7 @@
 // serves, and says nothing the project page already shows (PR, diff, files). A card with no step —
 // purely internal work — is simply absent.
 
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import type { BoardContext } from "./board-routes.ts";
 import { deliverablesRoot, listDeliverables, servedAs } from "./deliverables.ts";
@@ -109,6 +109,16 @@ export function deliveredAt(
   return newest(merged.length ? merged : done) ?? card.updatedAt;
 }
 
+/** The newest PR url journaled across these event lists — a card's own, or a one-PR lot's members. Pure. */
+export function newestPrUrl(lists: readonly (readonly BoardEvent[])[]): string | null {
+  let best: { url: string; ts: number } | null = null;
+  for (const e of lists.flat()) {
+    const url = (e.payload as { url?: unknown } | null)?.url;
+    if ((e.type === "card.pr_opened" || e.type === "card.pr_updated") && typeof url === "string" && (!best || e.ts > best.ts)) best = { url, ts: e.ts };
+  }
+  return best?.url ?? null;
+}
+
 /** The lot a card is delivered with, read off the db: only a one-PR lot that cut its branch. */
 function lotOf(ctx: BoardContext, card: Card) {
   const run = card.runId ? ctx.db.getRun(card.runId) : null;
@@ -134,13 +144,19 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     const fixed = new Set(cards.filter((c) => c.originCardId && delivered(c)).map((c) => c.originCardId));
     const entries = cards
       .filter((c) => delivered(c) && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
-      .map((c) => ({ card: c, at: deliveredAt(c, ctx.db.listEvents(c.id, EVENT_WINDOW), lotOf(ctx, c)), state: recetteState(c), followUpDone: fixed.has(c.id) }))
+      .map((c) => {
+        const events = ctx.db.listEvents(c.id, EVENT_WINDOW);
+        const lot = lotOf(ctx, c);
+        // Its own PR, else — a one-PR lot — the lot's, journaled on whichever member opened it.
+        const prUrl = newestPrUrl([events]) ?? (lot ? newestPrUrl(lot.members) : null);
+        return { card: c, at: deliveredAt(c, events, lot), state: recetteState(c), followUpDone: fixed.has(c.id), prUrl };
+      })
       .filter((e): e is typeof e & { at: number } => e.at !== null)
       .filter((e) => e.at >= since && (all || (e.state !== "ok" && !(e.state === "ko" && e.followUpDone))))
       .sort((a, b) => b.at - a.at);
     const stateDir = ctx.cfg.stateDir;
     const groups = new Map<string, unknown[]>();
-    for (const { card, at, state, followUpDone } of entries) {
+    for (const { card, at, state, followUpDone, prUrl } of entries) {
       // The captures lead each entry: its image deliverables, read off disk (no store: none).
       const shots = stateDir
         ? (await listDeliverables(join(deliverablesRoot(stateDir), card.id))).filter((d) => servedAs(d.name).kind === "image").map((d) => d.name)
@@ -156,8 +172,13 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         followUpDone,
         shots,
         deliveredAt: at,
+        // The thread back to the delivery: project (only when the view spans repos), phase, lot, PR.
+        project: !repo && card.repoPath ? basename(card.repoPath) : null,
+        phaseId: card.phaseId,
         phase: card.phaseId ? (ctx.db.getPhase(card.phaseId)?.name ?? null) : null,
+        runId: card.runId,
         lot: card.runId ? (ctx.db.getRun(card.runId)?.name ?? null) : null,
+        prUrl,
         steps: card.manualChecks.map((s) => ({ ...s, verdict: card.checkVerdicts[s.id] ?? null })),
       });
     }

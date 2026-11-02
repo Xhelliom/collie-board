@@ -169,6 +169,16 @@ describe("GET /api/recette", () => {
     expect((await read(db, "&all=1")).groups[0]!.entries.find((e) => e.cardId === card.id)).toMatchObject({ state: "ko", followUpDone: true });
   });
 
+  test("each entry carries its thread: project (all repos only), phase id, lot id, its PR", async () => {
+    const db = board();
+    const card = delivered(db);
+    db.recordEvent(card.id, "card.pr_opened", { url: "https://gh/o/r/pull/1" });
+    db.recordEvent(card.id, "card.pr_updated", { url: "https://gh/o/r/pull/2" });
+    expect((await read(db)).groups[0]!.entries[0]).toMatchObject({ project: null, phaseId: null, runId: null, prUrl: "https://gh/o/r/pull/2" });
+    const all = (await (await call(db, "GET", "/api/recette")).json()) as { groups: { entries: { project: string }[] }[] };
+    expect(all.groups[0]!.entries[0]!.project).toBe("app");
+  });
+
   test("one KO marks the entry KO", () => {
     expect(recetteState({ manualChecks: [{ id: "a", text: "x" }, { id: "b", text: "y" }], checkVerdicts: { b: { status: "ko", by: "o", at: 1 } } })).toBe("ko");
   });

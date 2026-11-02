@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
 import { useLightbox } from "@/lib/lightbox";
-import { isPending, matchesQuery, recetteLoader, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
+import { byDelivery, isPending, matchesQuery, prLabel, recetteLoader, type RecetteEntry, type RecetteGroup } from "@/lib/recette";
 import { server } from "@/test/setup";
 
 import { RecetteChip, RecetteRoute } from "./recette";
@@ -41,6 +41,22 @@ describe("recette helpers", () => {
     expect(isPending(entry({ state: "ok" }))).toBe(false);
     expect(isPending(entry({ state: "ko" }))).toBe(true);
     expect(isPending(entry({ state: "ko", followUpDone: true }))).toBe(false);
+  });
+
+  it("by delivery: phases then lots, newest merge first; a lot's PR only when its entries share one", () => {
+    const now = 1_000_000;
+    const out = byDelivery([
+      entry({ cardId: "old", phaseId: "p1", phase: "P1", runId: "r1", lot: "A", prUrl: "https://gh/o/r/pull/3", deliveredAt: now - 50 }),
+      entry({ cardId: "new", phaseId: "p2", phase: "P2", runId: "r2", lot: "B", prUrl: "https://gh/o/r/pull/9", deliveredAt: now }),
+      entry({ cardId: "mid", phaseId: "p1", phase: "P1", runId: "r1", lot: "A", prUrl: "https://gh/o/r/pull/4", deliveredAt: now - 10 }),
+      entry({ cardId: "loose", phaseId: null, phase: null, runId: null, lot: null, deliveredAt: now - 99 }),
+    ]);
+    expect(out.map((p) => p.phase)).toEqual(["P2", "P1", null]);
+    expect(out[0]!.lots[0]).toMatchObject({ lot: "B", prUrl: "https://gh/o/r/pull/9", at: now });
+    expect(out[1]!.lots[0]!.entries.map((e) => e.cardId)).toEqual(["mid", "old"]);
+    expect(out[1]!.lots[0]!.prUrl).toBeNull(); // one PR per card: no lot PR
+    expect(prLabel("https://github.com/o/r/pull/12")).toBe("PR #12");
+    expect(prLabel("https://example/x")).toBe("PR");
   });
 
   it("searches the capability, the capture names and the steps", () => {
@@ -105,6 +121,29 @@ describe("RecetteRoute", () => {
     expect(screen.getAllByText("Pick dev in Environment")).toHaveLength(1);
   });
 
+  it("labels each verdict and says its effect; a return to the page hides nothing", async () => {
+    localStorage.setItem("collie-board-recette-visit:/r/app", String(Date.now() + 60_000)); // an old visit mark: ignored
+    mount([{ usage: null, entries: [entry({ prUrl: "https://github.com/o/r/pull/7", phaseId: "p", runId: "r" })] }]);
+    const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
+    expect(within(step).getByRole("button", { name: "It works" })).toHaveAttribute("title", expect.stringContaining("leaves « To test »"));
+    expect(within(step).getByRole("button", { name: "Skip" })).toHaveAttribute("title", expect.stringContaining("not as passed"));
+    expect(within(step).getByRole("button", { name: "It doesn't work" })).toHaveAttribute("title", expect.stringContaining("follow-up card"));
+    expect(screen.queryByRole("button", { name: "Since my last visit" })).toBeNull();
+    // The thread: phase, lot, card, PR — each a link.
+    const thread = screen.getByRole("navigation", { name: "Where it comes from" });
+    expect(within(thread).getByRole("link", { name: "Phase 1" })).toHaveAttribute("href", "/board/project?repo=%2Fr%2Fapp");
+    expect(within(thread).getByRole("link", { name: "Card" })).toHaveAttribute("href", "/card/c1");
+    expect(within(thread).getByRole("link", { name: "PR #7" })).toHaveAttribute("href", "https://github.com/o/r/pull/7");
+    expect(screen.getByText("How it works")).toBeInTheDocument();
+  });
+
+  it("groups by delivery, and remembers the choice", async () => {
+    mount([{ usage: "Use", entries: [entry({ phaseId: "p", runId: "r", prUrl: "https://github.com/o/r/pull/5" })] }]);
+    await userEvent.click(await screen.findByRole("button", { name: "By delivery" }));
+    expect(screen.getByRole("heading", { name: /Lot A/ })).toHaveTextContent("PR #5");
+    expect(localStorage.getItem("collie-board-recette-grouping")).toBe("delivery");
+  });
+
   it("filters by search", async () => {
     mount([{ usage: null, entries: [entry(), entry({ cardId: "c2", capability: "Share a board", shots: [], steps: [] })] }]);
     await screen.findByText("Share a board");
@@ -123,7 +162,7 @@ describe("RecetteRoute", () => {
     );
     const router = mount([{ usage: null, entries: [entry()] }]);
     const step = (await screen.findByText("Pick dev in Environment")).closest("li")!;
-    await userEvent.click(within(step).getByRole("button", { name: "KO" }));
+    await userEvent.click(within(step).getByRole("button", { name: "It doesn't work" }));
     const followUp = screen.getByRole("button", { name: "Create a follow-up card" });
     expect(followUp).toBeDisabled(); // a follow-up needs a note
     await userEvent.type(screen.getByRole("textbox", { name: "What happened?" }), "nothing shows");
@@ -138,7 +177,7 @@ describe("RecetteChip", () => {
     server.use(http.get("/api/recette", () => HttpResponse.json({ groups: [{ usage: null, entries: [entry(), entry({ cardId: "c2", state: "ok" })] }] })));
     const router = createMemoryRouter([{ path: "*", element: <RecetteChip repo="/r/app" /> }]);
     const { unmount } = render(<RouterProvider router={router} />);
-    expect(await screen.findByRole("link", { name: "1 to test" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp&period=all");
+    expect(await screen.findByRole("link", { name: "1 to test" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp");
     unmount();
     server.use(http.get("/api/recette", () => HttpResponse.json({ groups: [] })));
     const { container } = render(<RouterProvider router={createMemoryRouter([{ path: "*", element: <RecetteChip repo="/r/app" /> }])} />);
