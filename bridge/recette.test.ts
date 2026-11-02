@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import { Hlc } from "./journal.ts";
-import { manualChecksPrompt, parseRecetteBody, recetteState } from "./recette.ts";
+import { deliveredAt, manualChecksPrompt, parseRecetteBody, recetteState } from "./recette.ts";
 import { wrapupPrompt } from "./wrapup.ts";
 
 const REPO = "/r/app";
@@ -202,5 +202,40 @@ describe("the worker is asked for its recette", () => {
     expect(prompt).toContain(manualChecksPrompt(card.id));
     expect(prompt).toContain(`/api/cards/${card.id}`);
     expect(manualChecksPrompt(card.id)).toContain("Purely internal work");
+  });
+});
+
+describe("deliveredAt", () => {
+  const ev = (type: string, ts: number, payload: unknown = null) => ({ id: ts, cardId: "c", type, payload, ts });
+  const card = { updatedAt: 1 };
+  const folded = [ev("card.status", 10, { to: "done" }), ev("card.lot_merged", 9, { runId: "r" })];
+
+  test("one-PR lot still running: a folded, done card is not delivered", () => {
+    expect(deliveredAt(card, folded, { branch: "board/lot-x", members: [folded, []] })).toBeNull();
+  });
+
+  test("one-PR lot finished, its PR still open: not delivered", () => {
+    const closer = [...folded, ev("card.pr_opened", 20, { url: "u" })];
+    expect(deliveredAt(card, folded, { branch: "board/lot-x", members: [folded, closer] })).toBeNull();
+    // Merged by hand into the lot branch is still not main.
+    const byHand = [...folded, ev("card.merged", 12, { base: "board/lot-x" })];
+    expect(deliveredAt(card, byHand, { branch: "board/lot-x", members: [byHand, closer] })).toBeNull();
+  });
+
+  test("one-PR lot whose PR merged: delivered at that merge, on every member", () => {
+    const closer = [...folded, ev("card.pr_opened", 20), ev("card.pr_merged", 30, { url: "u" })];
+    const lot = { branch: "board/lot-x", members: [folded, closer] };
+    expect(deliveredAt(card, folded, lot)).toBe(30);
+    expect(deliveredAt(card, closer, lot)).toBe(30);
+    // A member done outside the lot with its own PR does not deliver the others.
+    const outside = [ev("card.pr_merged", 40)];
+    expect(deliveredAt(card, folded, { branch: "board/lot-x", members: [folded, outside] })).toBeNull();
+    expect(deliveredAt(card, outside, { branch: "board/lot-x", members: [folded, outside] })).toBe(40);
+  });
+
+  test("one PR per card, or no lot: unchanged — merge, else done, else last write", () => {
+    expect(deliveredAt(card, [ev("card.status", 10, { to: "done" }), ev("card.merged", 15)], null)).toBe(15);
+    expect(deliveredAt(card, [ev("card.status", 10, { to: "done" })], null)).toBe(10);
+    expect(deliveredAt(card, [], null)).toBe(1);
   });
 });
