@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.248.3] - 2026-11-02
+
+### Fixed
+
+- Recette : une carte d'un lot « une PR pour le lot » n'est à tester qu'une fois la PR du lot mergée, datée de ce merge. (05aa033)
+
 ## [0.248.2] - 2026-10-29
 
 ### Fixed
