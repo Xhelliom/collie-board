@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.249.0] - 2026-11-02
+
+### Added
+
+- Carte : section « Compte rendu » en haut — issue du travail, conclusion du lead, tours bilan → réponse, compte rendu de fin de session (c2d3507)
+- Chaque bilan du worker est conservé sur la carte (`run.report`), un par tour, même après le nettoyage du worktree (c2d3507)
+- Le bilan s'ouvre sur une ligne « Issue : codé | déjà présent | partiel | rien fait » (c2d3507)
+- Diff vide d'une carte « déjà présent » : le dit au lieu de ressembler à un échec (c2d3507)
+
 ## [0.248.5] - 2026-11-02
 
 ### Changed
