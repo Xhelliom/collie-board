@@ -29,6 +29,7 @@ import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
+import { paneResolveOpts } from "./opencode-store.ts";
 import { pageOpenCodeHistory } from "./opencode-transcript.ts";
 import { handleArtifactFile, paneArtifactsResponse, worktreeForPane } from "./artifacts.ts";
 import type {
@@ -423,6 +424,7 @@ export function startServer(opts: {
                   adapters,
                   pane,
                   new URL(`http://artifacts/?limit=${MAX_HISTORY_LIMIT}`),
+                  agents,
                 );
                 if (page !== null) entries = page.entries;
               } catch {
@@ -748,7 +750,7 @@ export function historyParams(url: URL): { limit: number; before?: string; after
  * and the one a Codex integration would report (AGENT_COMPAT.md §5). A reported path still goes
  * through `confinedSessionPath` before a byte is read. Without either we resolve the way the context
  * gauge does: the pane's foreground process, then its directory (see `resolveWithoutSession`) — or,
- * for an `opencodeDb` agent, the OpenCode session store by directory (opencode-transcript.ts).
+ * for an `opencodeDb` agent, the OpenCode session store (opencode-store.ts).
  *
  * That LAST resolution is the one that resolves BY DIRECTORY, which is only sound for an agent whose
  * transcript format we can actually read — otherwise a codex pane sitting in a directory Claude once
@@ -792,7 +794,7 @@ async function paneHistory(
     return unavailable("unsupported");
 
   try {
-    const page = await resolvePanePage(cfg, transcripts, herdr, adapters, pane, url);
+    const page = await resolvePanePage(cfg, transcripts, herdr, adapters, pane, url, agents);
     if (page === null) return unavailable("no-log");
     // ETag on the body: a followed idle pane answers 304 (the parse is cached by size/mtime).
     return conditionalJson({ paneId, available: true, ...page } satisfies PaneHistoryResponse, req);
@@ -827,47 +829,31 @@ async function resolvePanePage(
   adapters: Record<string, AgentAdapter>,
   pane: AgentView,
   url: URL,
+  /** Every agent pane — an opencode pane sharing its directory with another needs the mirror. */
+  agents: readonly AgentView[],
 ): Promise<PaneTranscriptPage | null> {
   const params = historyParams(url);
   const adapter = adapterFor(adapters, pane.agent);
+  const openCodePage = async () =>
+    pageOpenCodeHistory(cfg.boardOpenCodeDb, {
+      ...(await paneResolveOpts(pane, agents, herdr, processStartedAt)),
+      ...params,
+    });
   let page: PaneTranscriptPage | null;
   if (pane.agentSessionId) {
     page = await transcripts.page(pane.agentSessionId, params);
     // A reported id no JSONL log answers to can still be an opencode session (`ses_…`):
     // herdr names whatever the agent announced, and only the session store knows that shape.
-    if (page === null && adapter.opencodeDb) {
-      page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
-        sessionId: pane.agentSessionId,
-        cwd: pane.cwd,
-        ...params,
-      });
-    }
+    if (page === null && adapter.opencodeDb) page = await openCodePage();
   } else if (pane.agentSessionPath) {
     // herdr named the file itself — no resolution to do, just the containment every read here is
     // subject to. Null means refused or gone, which is the same answer as "no log".
     const path = await confinedSessionPath(pane.agentSessionPath);
     page = path === null ? null : await transcripts.pageAt(path, params);
   } else if (adapter.opencodeDb) {
-    // OpenCode keeps its conversations in its own session store, not in JSONL logs — resolved
-    // by directory with the single-live-candidate rule, like the gauge (opencode-transcript.ts).
-    page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, { cwd: pane.cwd, ...params });
-    if (page === null) {
-      // Several live sessions may share this directory (a fan-out of parallel agents), and the
-      // clock rule then refuses every pane. The mirror is per-pane ground truth — herdr returns
-      // it by pane id, so it can never name the wrong conversation — and naming the session by
-      // its content is what the Claude path already does (resolveForProcess). Best-effort: an
-      // unreadable mirror costs nothing, the refusal stands.
-      const mirror = await herdr
-        .readPane(pane.paneId, "recent", 200, "ansi")
-        .then((r) => r.text, () => null);
-      if (mirror) {
-        page = await pageOpenCodeHistory(cfg.boardOpenCodeDb, {
-          cwd: pane.cwd,
-          ...params,
-          mirror,
-        });
-      }
-    }
+    // OpenCode keeps its conversations in its own session store, not in JSONL logs — linked to
+    // the pane by opencode-store.ts (directory, agent start, mirror), shared with the gauge.
+    page = await openCodePage();
   } else {
     const path = await resolveWithoutSession({
       source: transcripts.source,

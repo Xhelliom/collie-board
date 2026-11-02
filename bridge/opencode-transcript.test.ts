@@ -7,12 +7,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Database } from "bun:sqlite";
 
-import { OPENCODE_LIVE_MS } from "./opencode-usage.ts";
 import {
-  pageOpenCodeHistory,
-  parseOpenCodeMessages,
+  OPENCODE_LIVE_MS,
+  openOpenCodeStore,
   resolveOpenCodeSession,
-} from "./opencode-transcript.ts";
+  type ResolveOpts,
+} from "./opencode-store.ts";
+import { pageOpenCodeHistory, parseOpenCodeMessages } from "./opencode-transcript.ts";
 
 const NOW = 1_800_000_000_000;
 
@@ -198,10 +199,27 @@ describe("parseOpenCodeMessages", () => {
   });
 });
 
+/** Resolve against a fixture file, with the pane's agent started at the dawn of time unless said otherwise. */
+async function resolve(
+  path: string,
+  cwd: string,
+  now: () => number,
+  mirror?: string,
+  extra: Partial<ResolveOpts> = {},
+): Promise<string | null> {
+  const store = openOpenCodeStore(path);
+  if (!store) return null;
+  try {
+    return await resolveOpenCodeSession(store, { cwd, now, startedAt: 0, mirror: mirror ?? null, ...extra });
+  } finally {
+    store.db.close();
+  }
+}
+
 describe("resolveOpenCodeSession", () => {
   const now = () => NOW;
 
-  it("resolves the newest session for the directory", () => {
+  it("resolves the newest session for the directory", async () => {
     const path = fixture(
       [
         { id: "old", directory: "/repo", updatedAgoMs: OPENCODE_LIVE_MS + 5000 },
@@ -209,12 +227,12 @@ describe("resolveOpenCodeSession", () => {
       ],
       {},
     );
-    expect(resolveOpenCodeSession(path, "/repo", now)).toBe("new");
-    expect(resolveOpenCodeSession(path, "/elsewhere", now)).toBeNull();
-    expect(resolveOpenCodeSession("/nonexistent/opencode.db", "/repo", now)).toBeNull();
+    expect(await resolve(path, "/repo", now)).toBe("new");
+    expect(await resolve(path, "/elsewhere", now)).toBeNull();
+    expect(await resolve("/nonexistent/opencode.db", "/repo", now)).toBeNull();
   });
 
-  it("refuses when two sessions in one directory are both live", () => {
+  it("refuses when two sessions in one directory are both live", async () => {
     const path = fixture(
       [
         { id: "s1", directory: "/repo", updatedAgoMs: 1000 },
@@ -222,10 +240,10 @@ describe("resolveOpenCodeSession", () => {
       ],
       {},
     );
-    expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
+    expect(await resolve(path, "/repo", now)).toBeNull();
   });
 
-  it("names the live session whose prose the mirror is showing", () => {
+  it("names the live session whose prose the mirror is showing", async () => {
     const path = fixture(
       [
         { id: "s1", directory: "/repo", updatedAgoMs: 1000 },
@@ -237,17 +255,17 @@ describe("resolveOpenCodeSession", () => {
       },
     );
     // Without the mirror there is nothing to decide on.
-    expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
+    expect(await resolve(path, "/repo", now)).toBeNull();
     // With it, the outright winner is served — even though both sessions are live.
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "summarise the quarterly report for finance"),
+      await resolve(path, "/repo", now, "summarise the quarterly report for finance"),
     ).toBe("s1");
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
+      await resolve(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
     ).toBe("s2");
   });
 
-  it("still refuses on a tie — guessing is how the wrong transcript gets served", () => {
+  it("still refuses on a tie — guessing is how the wrong transcript gets served", async () => {
     const path = fixture(
       [
         { id: "s1", directory: "/repo", updatedAgoMs: 1000 },
@@ -259,11 +277,11 @@ describe("resolveOpenCodeSession", () => {
       },
     );
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "hello world, this is a long greeting"),
+      await resolve(path, "/repo", now, "hello world, this is a long greeting"),
     ).toBeNull();
   });
 
-  it("names a quiet session when the mirror shows it while siblings keep writing", () => {
+  it("names a quiet session when the mirror shows it while siblings keep writing", async () => {
     const path = fixture(
       [
         { id: "loud1", directory: "/repo", updatedAgoMs: 1000 },
@@ -277,13 +295,13 @@ describe("resolveOpenCodeSession", () => {
         quiet: [msg("u3", "user", 1, userData("audit the access logs for intrusions tonight"))],
       },
     );
-    expect(resolveOpenCodeSession(path, "/repo", now)).toBeNull();
+    expect(await resolve(path, "/repo", now)).toBeNull();
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "audit the access logs for intrusions tonight"),
+      await resolve(path, "/repo", now, "audit the access logs for intrusions tonight"),
     ).toBe("quiet");
   });
 
-  it("ignores subagent sessions — only a root ever backs a pane", () => {
+  it("ignores subagent sessions — only a root ever backs a pane", async () => {
     const path = fixture(
       [
         { id: "child", directory: "/repo", updatedAgoMs: 1000, parentId: "root" },
@@ -295,10 +313,10 @@ describe("resolveOpenCodeSession", () => {
       },
     );
     // The clock path: the only live session is a child, so the stale root is served.
-    expect(resolveOpenCodeSession(path, "/repo", now)).toBe("root");
+    expect(await resolve(path, "/repo", now)).toBe("root");
   });
 
-  it("never scores children when the mirror must decide between live roots", () => {
+  it("never scores children when the mirror must decide between live roots", async () => {
     const path = fixture(
       [
         { id: "root1", directory: "/repo", updatedAgoMs: 1000 },
@@ -314,11 +332,11 @@ describe("resolveOpenCodeSession", () => {
     // The mirror names the child — which no pane runs — so the answer stays a refusal
     // instead of locking onto a thread that dies with its worker.
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "tally the warehouse inventory by friday"),
+      await resolve(path, "/repo", now, "tally the warehouse inventory by friday"),
     ).toBeNull();
     // The mirror names a root: served, despite the newer live child.
     expect(
-      resolveOpenCodeSession(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
+      await resolve(path, "/repo", now, "rewrite the onboarding guide for newcomers"),
     ).toBe("root2");
   });
 });
@@ -342,18 +360,18 @@ describe("pageOpenCodeHistory", () => {
 
   it("serves the conversation oldest-first with paging cursors", async () => {
     const path = db();
-    const full = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 10, now }))!;
+    const full = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 10, now, startedAt: 0 }))!;
     expect(full.entries.map((e) => e.uuid)).toEqual(["u1", "a1", "u2", "a2"]);
     expect(full.total).toBe(4);
     expect(full.hasMore).toBe(false);
     expect(full.fileTruncated).toBe(false);
     expect(full.queued).toEqual([]);
 
-    const tail = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 10, after: "a1", now }))!;
+    const tail = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 10, after: "a1", now, startedAt: 0 }))!;
     expect(tail.entries.map((e) => e.uuid)).toEqual(["u2", "a2"]);
     expect(tail.hasMore).toBe(true); // older turns exist before the window
 
-    const older = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 1, before: "u2", now }))!;
+    const older = (await pageOpenCodeHistory(path, { cwd: "/repo", limit: 1, before: "u2", now, startedAt: 0 }))!;
     expect(older.entries.map((e) => e.uuid)).toEqual(["a1"]);
     expect(older.hasMore).toBe(true);
   });
@@ -377,10 +395,10 @@ describe("pageOpenCodeHistory", () => {
       ],
       { s1: [msg("u1", "user", 1, userData("hi"))] },
     );
-    expect(await pageOpenCodeHistory(ambiguous, { cwd: "/repo", limit: 10, now })).toBeNull();
-    expect(await pageOpenCodeHistory(db(), { cwd: "/elsewhere", limit: 10, now })).toBeNull();
+    expect(await pageOpenCodeHistory(ambiguous, { cwd: "/repo", limit: 10, now, startedAt: 0 })).toBeNull();
+    expect(await pageOpenCodeHistory(db(), { cwd: "/elsewhere", limit: 10, now, startedAt: 0 })).toBeNull();
     expect(
-      await pageOpenCodeHistory("/nonexistent/opencode.db", { cwd: "/repo", limit: 10, now }),
+      await pageOpenCodeHistory("/nonexistent/opencode.db", { cwd: "/repo", limit: 10, now, startedAt: 0 }),
     ).toBeNull();
   });
 });
