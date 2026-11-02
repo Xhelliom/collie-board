@@ -20,6 +20,7 @@ import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import { windowForModel, type WindowResolver } from "./context-window.ts";
 import type { BoardDb, CardSession } from "./db.ts";
 import type { HerdrClient } from "./herdr-client.ts";
+import { paneResolveOpts } from "./opencode-store.ts";
 import { readOpenCodeUsage } from "./opencode-usage.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import {
@@ -157,7 +158,7 @@ export class ContextTracker {
       if (last !== undefined && now - last < REFRESH_MS) return [];
       const session = sessionByPane.get(pane.paneId);
       if (adapter.opencodeDb && !adapter.context) {
-        // OpenCode resolves by directory in its own session store — no session id needed.
+        // OpenCode resolves in its own session store (opencode-store.ts), reported id or directory.
         if (!pane.cwd) return [];
         return [{ pane, session, sessionId: null, opencode: true }];
       }
@@ -179,7 +180,10 @@ export class ContextTracker {
           let model: string | null;
           let provider: string | null = null;
           if (opencode) {
-            const seen = readOpenCodeUsage(this.openCodeDbPath ?? "", pane.cwd, this.now);
+            const seen = await readOpenCodeUsage(this.openCodeDbPath ?? "", {
+              ...(await paneResolveOpts(pane, snap.agents, this.herdr, processStartedAt)),
+              now: this.now,
+            });
             if (!seen) return; // level 3: no safe session for this directory, and that is fine
             tokens = seen.tokens;
             model = seen.modelId;

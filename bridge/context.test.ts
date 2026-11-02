@@ -99,6 +99,7 @@ function tracker(
     db,
     reads,
     reported,
+    client,
     t: new ContextTracker(
       db,
       client,
@@ -232,25 +233,27 @@ describe("ContextTracker", () => {
     const dbPath = join(dir, "opencode.db");
     const db = new Database(dbPath);
     db.exec(
-      `CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT NOT NULL,
+      `CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT NOT NULL, parent_id TEXT,
         time_created INTEGER, time_updated INTEGER, model TEXT);
        CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
-        type TEXT NOT NULL, seq INTEGER NOT NULL, data TEXT NOT NULL);`,
+        type TEXT NOT NULL, seq INTEGER NOT NULL, time_created INTEGER DEFAULT 0, data TEXT NOT NULL);`,
     );
     db.prepare(
       `INSERT INTO session_v2 (id, directory, time_created, time_updated, model)
-       VALUES ('s-oc', '/repo', 0, 1000, ?)`,
-    ).run(JSON.stringify({ id: "muse-spark-1.3-contributor-free", providerID: "opencode" }));
+       VALUES ('s-oc', '/repo', ?, 1000, ?)`,
+    ).run(Date.now(), JSON.stringify({ id: "muse-spark-1.3-contributor-free", providerID: "opencode" }));
     db.prepare(
       `INSERT INTO session_message (id, session_id, type, seq, data) VALUES ('m1', 's-oc', 'assistant', 1, ?)`,
     ).run(JSON.stringify({ tokens: { input: 50_000, output: 1, cache: { read: 0, write: 0 } } }));
     db.close();
 
     // No transcript reads at all — the transcript source is never consulted for this kind.
-    const { t, reads, reported } = tracker({}, () => 2000, {
+    const { t, reads, reported, client } = tracker({}, () => 2000, {
       window: 1_000_000,
       openCodeDbPath: dbPath,
     });
+    // The pane's agent: a process started before the session (pid 1 started at boot).
+    (client as unknown as { paneProcess: () => Promise<{ pid: number }> }).paneProcess = async () => ({ pid: 1 });
     await t.update(snapshot([pane("w1:p1", { agent: "opencode" })]));
     expect(reads).toEqual([]);
     expect(t.enrich([pane("w1:p1")])[0]!.ctxPct).toBe(5);

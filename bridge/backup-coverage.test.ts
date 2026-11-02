@@ -28,6 +28,7 @@ const PERSISTENCE: Record<string, string> = {
   "pairing.ts": "node.toml / peers.toml — the peers' secrets, kept out of the backup on purpose (ADR 0049)",
   "opencode-transcript.ts": "reads opencode's own database, read-only",
   "opencode-usage.ts": "reads opencode's own database, read-only",
+  "opencode-store.ts": "reads opencode's own database, read-only",
   "push.ts": "state dir file — walked by collectFiles",
   "server.ts": "uploads/ under the state dir — walked by collectFiles",
   "snooze.ts": "state dir file — walked by collectFiles",

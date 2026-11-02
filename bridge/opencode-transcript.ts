@@ -1,8 +1,7 @@
 // OpenCode transcript history — the reading view for `opencode` panes.
 //
 // WHY A SECOND READER. OpenCode keeps its conversations in a sqlite database
-// (`~/.local/share/opencode/opencode.db`, tables `session_v2` + `session_message` —
-// see opencode-usage.ts), not in Claude-Code-shaped JSONL files. The history route
+// (`~/.local/share/opencode/opencode*.db` — see opencode-store.ts), not in Claude-Code-shaped JSONL files. The history route
 // (server.ts) used to gate on `adapter.context` — "does this agent write a transcript
 // transcript.ts can parse" — which is false for opencode, so every opencode pane
 // answered `no-session`: a pane WITH a running agent and a full conversation on disk
@@ -10,7 +9,7 @@
 // directly into the same `TranscriptEntry[]` shape, so the phone renders one
 // conversation either way.
 //
-// SHAPE OF THE SOURCE (verified 2026-09-22 against the live db on this machine):
+// SHAPE OF THE SOURCE (2.x, verified 2026-09-22 and 2026-11-02 on opencode v2.0.12):
 //   session_v2:    id, directory, time_created, time_updated (ms epoch), model (JSON)
 //   session_message: id, session_id, type ('user'|'assistant'), seq, time_created,
 //     data (JSON):
@@ -22,47 +21,23 @@
 // A `reasoning` block's `text` is empty in practice (encrypted payload kept server-
 // side), exactly like Claude's empty `thinking` blocks — skipped unless non-blank.
 //
-// PANE → SESSION LINK. herdr reports no `agent_session` for opencode panes, so like
-// the gauge (opencode-usage.ts) this resolves BY DIRECTORY — but only across ROOT
-// sessions (`parent_id IS NULL`): OpenCode files every subagent run (Task tool) as a
-// CHILD session in the same directory, so a fan-out of parallel workers reads as a
-// dozen live sessions for one pane. Subagents never own a pane — they run in-process
-// inside their parent — so the pane's conversation is always a root, and scoring
-// children can only lock the view onto a thread that dies with its worker (the
-// `after` cursor would follow a finished subagent while the pane keeps working).
-// The parent's conversation already carries each subagent exchange as a tool call
-// with its result, so nothing the user needs is lost.
-//
-// With at most one live root the clock decides; with several, the pane's mirror
-// names the session outright (see below). A `sessionId` herdr may report one day
-// (`ses_…`, never a uuid) is honoured directly when it exists in the store.
-//
-// RESOLUTION BY CONTENT. A fan-out of parallel agents in one directory (a dozen
-// live sessions, one pane each) makes the clock rule refuse every pane — which is
-// exactly when the transcript matters most. The terminal mirror is ground truth
-// here as it is for the Claude reader (transcript.ts): herdr hands it back per
-// PANE ID, so matching what the pane is showing against each candidate session's
-// recent prose identifies the right session outright, no clock involved. An
-// outright winner is demanded (pickByContent) — a tie stays a refusal, because
-// guessing on a tie is how the wrong transcript gets served with confidence.
+// 1.x stores (session/message/part) are rebuilt into this same shape by opencode-store.ts,
+// which also owns the pane → session link (reported id, then directory with the start and
+// mirror rules) shared with the gauge.
 //
 // Never throws: no db, no session, an ambiguous directory, or a corrupt row all read
 // as null — "nothing to serve", which the route answers as `no-log`.
 
-import { existsSync } from "node:fs";
-import { Database } from "bun:sqlite";
-
 import { IMAGE_TYPES } from "./gallery.ts";
-import { OPENCODE_LIVE_MS } from "./opencode-usage.ts";
 import {
-  flatten,
-  mirrorFragments,
-  pageEntries,
-  pickByContent,
-  stripAnsi,
-  summarizeToolInput,
-  type TranscriptEntry,
-} from "./transcript.ts";
+  messageRows,
+  openOpenCodeStore,
+  resolveOpenCodeSession,
+  toolResultText,
+  type MessageRow,
+  type ResolveOpts,
+} from "./opencode-store.ts";
+import { pageEntries, stripAnsi, summarizeToolInput, type TranscriptEntry } from "./transcript.ts";
 
 /** Per-text-part cap — the same generosity as the Claude reader (transcript.ts). */
 const MAX_TEXT_CHARS = 20_000;
@@ -116,181 +91,6 @@ function isoTime(ms: unknown): string {
   return typeof ms === "number" && Number.isFinite(ms) && ms > 0
     ? new Date(ms).toISOString()
     : "";
-}
-
-interface MessageRow {
-  id: string;
-  type: string;
-  time_created: number;
-  data: string;
-}
-
-/** Most sessions ever scored against one mirror — bounded like the Claude reader. */
-const MAX_CONTENT_CANDIDATES = 12;
-
-/** Newest messages read per candidate when scoring — the mirror only ever shows recent turns. */
-const CONTENT_TAIL_MESSAGES = 40;
-
-/**
- * The session backing `cwd`: newest first wins, unless several are live.
- *
- * Several live sessions means several panes in one directory, and the clock cannot tell them
- * apart — so with no `mirror` this refuses (null), exactly like the gauge. With the pane's
- * terminal mirror, each candidate's recent prose is scored against what the pane is actually
- * showing, and an outright winner is served; a tie stays a refusal.
- */
-export function resolveOpenCodeSession(
-  dbPath: string,
-  cwd: string,
-  now: () => number = Date.now,
-  mirror?: string | null,
-): string | null {
-  try {
-    if (!cwd || !dbPath || !existsSync(dbPath)) return null;
-    const db = new Database(dbPath, { readonly: true });
-    try {
-      const sessions = db
-        .query<{ id: string; time_updated: number }, [string, string]>(
-          `SELECT id, time_updated FROM session_v2
-           WHERE (directory = $a OR directory = $b)
-             AND (parent_id IS NULL OR parent_id = '') ORDER BY time_updated DESC`,
-        )
-        .all(cwd, cwd.endsWith("/") ? cwd.slice(0, -1) : `${cwd}/`);
-      if (sessions.length === 0) return null;
-      const at = now();
-      const live = sessions.filter(
-        (s) => Number.isFinite(s.time_updated) && at - s.time_updated < OPENCODE_LIVE_MS,
-      );
-      // One live session at most: the clock decides, and no content read is spent confirming
-      // what is already certain.
-      if (live.length < 2) return sessions[0]!.id;
-      if (!mirror) return null; // several panes, no ground truth supplied — refuse
-      // Score the newest sessions LIVE OR NOT: the pane's own session may have gone quiet
-      // while its siblings keep writing (a supervisor pane watching finished workers reads
-      // exactly like that), and the mirror shows it regardless of any clock. An outright
-      // winner is still demanded — a tie stays a refusal.
-      return pickByMirror(db, sessions.slice(0, MAX_CONTENT_CANDIDATES), mirror);
-    } finally {
-      db.close();
-    }
-  } catch {
-    return null;
-  }
-}
-
-/**
- * All matchable prose of one message's data JSON: the user text, every assistant text (and
- * non-empty reasoning) block, and every tool call — BOTH its input and its result. The mirror
- * shows both sides of a call (OpenCode echoes the command it runs, then its output), and the
- * input is often the most distinctive line on screen (a `$ cat lot-001a.tsv …` one-liner rarely
- * repeats across sibling sessions doing neighbouring lots). Corrupt or textless rows contribute
- * nothing; they must not fail the whole score.
- */
-function messageProse(data: string): string {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(data) as Record<string, unknown>;
-  } catch {
-    return "";
-  }
-  const out: string[] = [];
-  if (typeof parsed.text === "string") out.push(parsed.text);
-  const content = Array.isArray(parsed.content) ? parsed.content : [];
-  for (const raw of content) {
-    if (raw === null || typeof raw !== "object") continue;
-    const block = raw as Record<string, unknown>;
-    if ((block.type === "text" || block.type === "reasoning") && typeof block.text === "string") {
-      out.push(block.text);
-    } else if (block.type === "tool") {
-      const state =
-        block.state !== null && typeof block.state === "object"
-          ? (block.state as Record<string, unknown>)
-          : {};
-      // Input first: scalar values flattened (the command run, the file read) — one line each.
-      if (state.input !== null && typeof state.input === "object") {
-        for (const value of Object.values(state.input as Record<string, unknown>)) {
-          if (typeof value === "string" && value.trim() !== "") out.push(value);
-        }
-      }
-      const result = toolResultText(state.content);
-      if (result !== "") out.push(result);
-    }
-  }
-  return out.join("\n");
-}
-
-/**
- * A mirror fragment with OpenCode's own shell-echo marker removed. The TUI renders a tool's
- * command as `$ <cmd>`, while the session store holds the bare `<cmd>` in the tool input —
- * without this the most distinctive lines on screen (the exact commands this pane ran) never
- * match anything. Applied to the FRAGMENT side only, so a literal `$` inside prose still
- * matches verbatim; counted once per fragment either way (see {@link pickByMirror}).
- */
-function deEcho(fragment: string): string {
-  return fragment.replace(/^\$\s+/, "");
-}
-
-/**
- * Which of the live sessions the mirror belongs to — null when the evidence doesn't single
- * one out (no distinctive line on screen, or two sessions showing the same words). Only the
- * tail of each session is read: the mirror is a viewport onto its newest turns. Each fragment
- * counts at most once, verbatim or de-echoed.
- */
-function pickByMirror(
-  db: InstanceType<typeof Database>,
-  candidates: { id: string }[],
-  mirror: string,
-): string | null {
-  const fragments = mirrorFragments(mirror);
-  if (fragments.length === 0) return null;
-  const rows = db.query<{ data: string }, [string, number]>(
-    `SELECT data FROM session_message WHERE session_id = $id ORDER BY seq DESC LIMIT $n`,
-  );
-  const scores: { path: string; hits: number }[] = [];
-  for (const { id } of candidates) {
-    try {
-      const prose = flatten(
-        rows.all(id, CONTENT_TAIL_MESSAGES).map((r) => messageProse(r.data)).join("\n"),
-      ).replace(/\n/g, " ");
-      scores.push({
-        path: id,
-        hits: fragments.filter((f) => prose.includes(f) || prose.includes(deEcho(f))).length,
-      });
-    } catch {
-      continue; // unreadable session — it simply scores nothing
-    }
-  }
-  return pickByContent(scores);
-}
-
-/** True when `sessionId` names a session the store actually holds. */
-function hasSession(dbPath: string, sessionId: string): boolean {
-  try {
-    const db = new Database(dbPath, { readonly: true });
-    try {
-      const row = db
-        .query<{ id: string }, [string]>(`SELECT id FROM session_v2 WHERE id = $id LIMIT 1`)
-        .get(sessionId);
-      return row !== null;
-    } finally {
-      db.close();
-    }
-  } catch {
-    return false;
-  }
-}
-
-/** Flatten a tool block's `state.content` — in practice always `[{type:'text'}]`. */
-function toolResultText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((b) =>
-      b !== null && typeof b === "object" && typeof (b as { text?: unknown }).text === "string"
-        ? (b as { text: string }).text
-        : "",
-    )
-    .filter(Boolean)
-    .join("\n");
 }
 
 /**
@@ -358,28 +158,14 @@ export function parseOpenCodeMessages(rows: MessageRow[]): TranscriptEntry[] {
 }
 
 /**
- * Page an opencode pane's conversation — the opencode half of the history route.
- *
- * `sessionId` (a reported `ses_…` id, when herdr ever names one) wins when the store
- * holds it; otherwise the session is resolved by directory with the
- * single-live-candidate rule — or, when several sessions share the directory, by
- * matching the pane's `mirror` against each candidate's recent prose. Null when there
- * is no safe answer: no db, no session for this directory, an undecidable tie, or a
- * session with no renderable turn yet.
+ * Page an opencode pane's conversation — the opencode half of the history route. The session is
+ * opencode-store.ts's pane → session link (a reported id first, then the directory with the start
+ * and mirror rules). Null when there is no safe answer or no renderable turn yet.
  * `queued` is always empty — OpenCode has no pending-input state this reader knows.
  */
 export async function pageOpenCodeHistory(
   dbPath: string,
-  opts: {
-    sessionId?: string | null;
-    cwd: string;
-    limit: number;
-    before?: string;
-    after?: string;
-    now?: () => number;
-    /** The pane's terminal mirror — only consulted when the directory holds several live sessions. */
-    mirror?: string | null;
-  },
+  opts: ResolveOpts & { limit: number; before?: string; after?: string },
 ): Promise<{
   entries: TranscriptEntry[];
   hasMore: boolean;
@@ -387,26 +173,12 @@ export async function pageOpenCodeHistory(
   fileTruncated: false;
   queued: string[];
 } | null> {
+  const store = openOpenCodeStore(dbPath);
+  if (!store) return null;
   try {
-    if (!dbPath || !existsSync(dbPath)) return null;
-    const sessionId =
-      opts.sessionId && hasSession(dbPath, opts.sessionId)
-        ? opts.sessionId
-        : resolveOpenCodeSession(dbPath, opts.cwd, opts.now ?? Date.now, opts.mirror);
+    const sessionId = await resolveOpenCodeSession(store, opts);
     if (!sessionId) return null;
-    const db = new Database(dbPath, { readonly: true });
-    let rows: MessageRow[];
-    try {
-      rows = db
-        .query<MessageRow, [string]>(
-          `SELECT id, type, time_created, data FROM session_message
-           WHERE session_id = $id ORDER BY seq ASC`,
-        )
-        .all(sessionId);
-    } finally {
-      db.close();
-    }
-    const entries = parseOpenCodeMessages(rows);
+    const entries = parseOpenCodeMessages(messageRows(store, sessionId));
     if (entries.length === 0) return null;
     const { window, hasMore } = pageEntries(entries, {
       limit: opts.limit,
@@ -416,5 +188,7 @@ export async function pageOpenCodeHistory(
     return { entries: window, hasMore, total: entries.length, fileTruncated: false, queued: [] };
   } catch {
     return null;
+  } finally {
+    store.db.close();
   }
 }

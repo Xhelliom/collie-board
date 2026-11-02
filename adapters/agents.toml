@@ -69,8 +69,12 @@ session_id = false
 clear      = ""
 context    = false
 session_id = false
-# Read from the live session db (session_v2 + newest assistant message tokens), resolved by
-# directory with a single-live-candidate rule — see bridge/opencode-usage.ts. Verified 2026-09-22
-# against ~/.local/share/opencode/opencode.db: per-message `data.tokens`
-# ({input, cache:{read,write}}) and `session_v2.model` ({id, providerID}).
+# Read from the live session db (bridge/opencode-store.ts): the most recently written
+# opencode*.db of $XDG_DATA_HOME/opencode, newest assistant message's `tokens`
+# ({input, cache:{read,write}}) + the session's `model` ({id, providerID}). Verified against real
+# dbs: opencode v2.0.12 `opencode.db` (session_v2 + session_message; 2026-09-22, re-checked
+# 2026-11-02) and opencode 1.15.10 `opencode-stable.db` (session + message + part; 2026-11-02,
+# 343 + 207734 read back = 208077). Pane → session: herdr's reported session first, else a root
+# session of the directory created after the pane's agent started; any ambiguity needs the mirror,
+# and no proof means no gauge — a gauge that might be wrong is worse than no gauge.
 opencode_db = true
