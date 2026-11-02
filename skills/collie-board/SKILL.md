@@ -179,8 +179,9 @@ note files a card linked back by `originCardId`. Steps and verdicts travel throu
 
 `GET /api/recette?repo=<path>&since=<epoch ms or date>&all=1` — delivered cards (done/archived) that
 have steps, newest first, grouped by `usageGroup`: `{groups:[{usage, entries:[{cardId, capability,
-state: todo|ok|ko, deliveredAt, phase, lot, steps:[{id, text, expected?, shot?, verdict}]}]}]}`.
-Fully validated cards are left out unless `all=1`.
+state: todo|ok|ko, deliveredAt, phaseId, phase, runId, lot, prUrl, project, steps:[{id, text, expected?,
+shot?, verdict}]}]}]}`. `prUrl` is the card's PR, or its lot's for a one-PR lot; `project` (the repo's
+name) is set only when no `repo` is given. Fully validated cards are left out unless `all=1`.
 
 ### Run a card on another machine (ADR 0046 §4)
 

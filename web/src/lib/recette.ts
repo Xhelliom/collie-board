@@ -31,6 +31,13 @@ export interface RecetteEntry {
   deliveredAt: number;
   phase: string | null;
   lot: string | null;
+  // The thread back to the delivery (optional: an older bridge does not send them).
+  phaseId?: string | null;
+  runId?: string | null;
+  /** The card's PR, or its lot's for a one-PR lot. */
+  prUrl?: string | null;
+  /** The repo's name — only when the view spans every repo. */
+  project?: string | null;
   steps: RecetteStep[];
 }
 
@@ -76,21 +83,67 @@ export function matchesQuery(e: RecetteEntry, query: string): boolean {
   return [e.capability, ...e.shots, ...e.steps.flatMap((s) => [s.text, s.expected ?? ""])].some((x) => x.toLowerCase().includes(q));
 }
 
-const VISIT_KEY = "collie-board-recette-visit:";
+export interface DeliveryLot {
+  runId: string | null;
+  lot: string | null;
+  /** The PR every entry of the lot shares (a one-PR lot), else null. */
+  prUrl: string | null;
+  /** Its latest delivery. */
+  at: number;
+  entries: RecetteEntry[];
+}
 
-/** When the Recette was last opened for this repo (0: never). */
-export function lastVisit(repo: string | null): number {
+export interface DeliveryPhase {
+  phase: string | null;
+  at: number;
+  lots: DeliveryLot[];
+}
+
+/** « By delivery »: phases, then lots, then entries, each ordered by its latest merge, newest first. Pure. */
+export function byDelivery(entries: readonly RecetteEntry[]): DeliveryPhase[] {
+  const phases = new Map<string, DeliveryPhase & { byLot: Map<string, DeliveryLot> }>();
+  for (const e of [...entries].sort((a, b) => b.deliveredAt - a.deliveredAt)) {
+    const pk = e.phaseId ?? e.phase ?? "";
+    let p = phases.get(pk);
+    if (!p) phases.set(pk, (p = { phase: e.phase, at: e.deliveredAt, lots: [], byLot: new Map() }));
+    const lk = e.runId ?? e.lot ?? "";
+    let l = p.byLot.get(lk);
+    if (!l) {
+      p.byLot.set(lk, (l = { runId: e.runId ?? null, lot: e.lot, prUrl: null, at: e.deliveredAt, entries: [] }));
+      p.lots.push(l);
+    }
+    l.entries.push(e);
+  }
+  return [...phases.values()].map(({ byLot: _, ...p }) => ({
+    ...p,
+    lots: p.lots.map((l) => {
+      const pr = l.entries[0]!.prUrl ?? null;
+      return { ...l, prUrl: l.lot && l.entries.every((e) => (e.prUrl ?? null) === pr) ? pr : null };
+    }),
+  }));
+}
+
+/** « PR #12 » off a GitHub pull URL, « PR » otherwise. Pure. */
+export function prLabel(url: string): string {
+  const n = /\/pull\/(\d+)/.exec(url)?.[1];
+  return n ? `PR #${n}` : "PR";
+}
+
+export type Grouping = "usage" | "delivery";
+const GROUPING_KEY = "collie-board-recette-grouping";
+
+export function loadGrouping(): Grouping {
   try {
-    return Number(localStorage.getItem(VISIT_KEY + (repo ?? "")) ?? 0) || 0;
+    return localStorage.getItem(GROUPING_KEY) === "delivery" ? "delivery" : "usage";
   } catch {
-    return 0;
+    return "usage";
   }
 }
 
-export function markVisit(repo: string | null): void {
+export function saveGrouping(g: Grouping): void {
   try {
-    localStorage.setItem(VISIT_KEY + (repo ?? ""), String(Date.now()));
+    localStorage.setItem(GROUPING_KEY, g);
   } catch {
-    // private mode: every visit is the first
+    // private mode: the choice lasts the visit
   }
 }
