@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.248.5] - 2026-11-02
+
+### Changed
+
+- Recette : boutons de verdict étiquetés (« Ça marche », « Ça ne marche pas », « Passer ») avec info-bulle qui dit leur effet (fa2f052)
+- Recette : aide « Comment ça marche » repliable, liste pleine largeur, étapes et captures côte à côte sur grand écran (fa2f052)
+- Recette : bord coloré par état, pastilles d'état par groupe, survol et focus visibles partout (fa2f052)
+- Recette : fil conducteur par entrée (projet › phase › lot › carte · PR · livré il y a…) et regroupement « Par livraison » (fa2f052)
+- `/api/recette` : chaque entrée porte `prUrl`, `runId`, `phaseId` et `project` (vue tous dépôts) (fa2f052)
+
+### Fixed
+
+- Recette : le filtre « Depuis ma dernière visite » disparaît — revenir sur la page ne masque plus rien (fa2f052)
+
 ## [0.248.4] - 2026-11-02
 
 ### Fixed
