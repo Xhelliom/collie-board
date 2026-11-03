@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.251.0] - 2026-11-03
+
+### Added
+
+- Windows : `herdr plugin install` marche nativement — `scripts/ctl.ts` sous Bun (build, start/stop/restart, uninstall, status, url, version, logs), sans Git Bash (f83cf62)
+- Windows : le bridge tourne dans une tâche planifiée à l'ouverture de session (session de l'utilisateur, non élevée, jamais un service), qui le relance s'il meurt (f83cf62)
+
+### Changed
+
+- Les actions start/stop/restart/uninstall/status/url/version passent par `bun scripts/ctl.ts` sur toutes les plateformes ; sous Linux/macOS il délègue à `collie-board-ctl.sh` — `bun` doit être dans le PATH du serveur herdr (ADR 0050) (f83cf62)
+- `.gitattributes` : tout le texte en LF quel que soit `core.autocrlf`, sauf les captures de panes (f83cf62)
+
 ## [0.250.0] - 2026-11-03
 
 ### Changed
