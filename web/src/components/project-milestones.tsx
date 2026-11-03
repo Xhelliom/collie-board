@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
+import { useFold } from "@/components/fold";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { getLocale, t, useT } from "@/i18n";
@@ -165,6 +166,8 @@ export function SealSheet({
 export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; onReopened: () => void }) {
   const tt = useT();
   const [open, setOpen] = useState<string | null>(null);
+  // `closed` is oldest first: the three most recent lead, the rest is one tap away.
+  const { shown, toggle } = useFold([...closed].reverse(), 3);
   if (closed.length === 0) return null;
 
   async function reopen(p: ProjectPhase) {
@@ -183,7 +186,7 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
         {tt("project.closed.title")} · {closed.length}
       </h2>
       <ul className="flex flex-col gap-2">
-        {closed.map((p) => {
+        {shown.map((p) => {
           const isOpen = open === p.key;
           const date = new Date(p.phase!.closedAt!).toLocaleDateString(getLocale());
           return (
@@ -194,6 +197,7 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
                 aria-expanded={isOpen}
                 className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
               >
+                <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-status-done" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold">{p.title}</span>
                   <span className="block text-xs text-muted-foreground">{tt("project.closed.row", { count: p.steps.length, date })}</span>
@@ -219,6 +223,7 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
           );
         })}
       </ul>
+      {toggle}
     </section>
   );
 }

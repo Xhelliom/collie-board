@@ -84,3 +84,33 @@ export function Fold({ title, state: [open, set], children }: { title: string; s
     </div>
   );
 }
+
+/**
+ * Many sections' open states under one key — `useStoredFold` for a list (lots, phases). Only the
+ * operator's choices are stored; a section never chosen follows the `fallback` its caller computes.
+ */
+export function useStoredFolds(id: string) {
+  const [chosen, setChosen] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FOLD_KEY + id) ?? "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  // `on: null` forgets the choice: the section follows its fallback again.
+  const set = (keys: string[], on: boolean | null) =>
+    setChosen((prev) => {
+      const next = { ...prev };
+      for (const k of keys) {
+        if (on === null) delete next[k];
+        else next[k] = on;
+      }
+      try {
+        localStorage.setItem(FOLD_KEY + id, JSON.stringify(next));
+      } catch {
+        /* private window: the folds just aren't remembered */
+      }
+      return next;
+    });
+  return { isOpen: (key: string, fallback: boolean) => chosen[key] ?? fallback, set };
+}

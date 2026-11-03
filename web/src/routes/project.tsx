@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
-import { ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
-import { Fold, useStoredFold } from "@/components/fold";
+import { Fold, useStoredFold, useStoredFolds } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
@@ -113,6 +113,18 @@ function Bar({ steps, className }: { steps: CardView[]; className?: string }) {
   );
 }
 
+/** An open phase whose every step is done: it only waits for the operator to validate it. */
+const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && p.steps.length > 0 && p.done === p.steps.length);
+
+/** A phase's status at a glance — the dot its heading keeps when folded. */
+function phaseTone(p: ProjectPhase) {
+  if (toValidate(p)) return "bg-amber-500";
+  if (p.steps.some((s) => s.status === "blocked" || s.status === "orphaned")) return "bg-status-blocked";
+  if (p.steps.some((s) => stepGroup(s) === "flight")) return "bg-status-working";
+  if (p.steps.length > 0 && p.done === p.steps.length) return "bg-status-done";
+  return "bg-muted-foreground/50";
+}
+
 export function ProjectRoute() {
   const panel = usePanelWidth();
   const t = useT();
@@ -205,7 +217,6 @@ export function ProjectRoute() {
     todo: v.todo,
   };
   const shownIn = (s: CardView) => filter === "all" || stepGroup(s) === filter;
-  const allOpen = steps.filter(shownIn).every((s) => openIds.has(s.id));
   const latest = cards.reduce((m, c) => Math.max(m, c.updatedAt), 0);
   const named = v.phases.filter((p) => p.phase || p.container).length;
   const activePhases = v.phases.filter((p) => p.phase && p.steps.length > 0);
@@ -223,16 +234,58 @@ export function ProjectRoute() {
   const deliverablesFold = useStoredFold("project-deliverables", false);
   const deliverables = useMemo(() => recentDeliverables(cards, data.facts), [cards, data.facts]);
   const unfold = (p: (s: ProjectPhase) => boolean) => loose.some(p) && looseFold[1](true);
+  // What is finished folds (a done lot, a phase that only waits to be validated); the operator's own choice wins, per device.
+  const folds = useStoredFolds("project-sections");
+  const phaseOpen = (p: ProjectPhase) => folds.isOpen(`phase:${p.key}`, !toValidate(p));
+  const sectionKeys = v.phases.flatMap((p) => [`phase:${p.key}`, ...p.lots.map((l) => `lot:${l.lot.id}`)]);
+  // A link to a step opens what holds it — its phase, its lot, the loose fold — then the step itself.
+  const reveal = (id: string) => {
+    const p = v.phases.find((ph) => ph.steps.some((s) => s.id === id));
+    if (!p) return false;
+    pick("all");
+    unfold((l) => l.key === p.key);
+    folds.set([`phase:${p.key}`, ...p.lots.filter((l) => l.lot.cardIds.includes(id)).map((l) => `lot:${l.lot.id}`)], true);
+    toggle(id, true);
+    requestAnimationFrame(() => go(document.getElementById(`step-${id}`)));
+    setFlash(id);
+    setTimeout(() => setFlash(null), 1600);
+    return true;
+  };
+  // `#step-<id>` in the URL: the same reveal, once, on arrival.
+  useEffect(() => {
+    const m = /^#step-(.+)$/.exec(window.location.hash);
+    if (m) reveal(decodeURIComponent(m[1]!));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- on arrival only
+  }, []);
+  const allOpen = steps.filter(shownIn).every((s) => openIds.has(s.id)) && sectionKeys.every((k) => folds.isOpen(k, true));
+  const unfinished = v.phases.filter((p) => p.steps.length === 0 || p.done < p.steps.length);
 
   // One section of the road map: its heading, its lots and its steps. `k` numbers the steps across the page.
   let k = 0;
   const section = (p: ProjectPhase) => {
     const visible = p.steps.filter(shownIn);
     if (visible.length === 0 && !(filter === "all" && p.phase)) return null;
+    const open = phaseOpen(p);
     return (
       <li key={p.key} className="contents">
         <div id={`phase-${p.key}`} className="flex scroll-mt-16 flex-wrap items-center gap-x-3 gap-y-1 pb-1 pt-4">
-          <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">{p.title || t("project.noPhase")}</h2>
+          <h2 className="min-w-0 text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => folds.set([`phase:${p.key}`], !open)}
+              className="flex min-w-0 items-center gap-2 text-left uppercase hover:text-foreground"
+            >
+              <ChevronRight className={cn("size-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")} />
+              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", phaseTone(p))} />
+              <span className="min-w-0 truncate">{p.title || t("project.noPhase")}</span>
+            </button>
+          </h2>
+          {!open && (
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {p.done} / {p.steps.length}
+            </span>
+          )}
           <span className="h-px flex-1 bg-gradient-to-r from-foreground/25 to-transparent" />
           {p.phase && p.steps.length > 0 && (
             <button
@@ -269,16 +322,19 @@ export function ProjectRoute() {
             </button>
           )}
         </div>
-        {p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
-        {p.phase && !p.phase.closedAt && (
+        {!open && <Bar steps={p.steps} className="pb-1" />}
+        {open && p.goal && <p className="-mt-1 pb-1 text-sm text-muted-foreground">{p.goal}</p>}
+        {open && p.phase && !p.phase.closedAt && (
           <PhaseTemplate phase={p.phase} data={data.templates} flows={data.flows} onChanged={() => {
             forgetProjectSettled();
             void revalidator.revalidate();
           }} />
         )}
-        {visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
-        <PhaseLots
+        {open && visible.length === 0 && <p className="text-sm text-muted-foreground">{t("project.emptyPhase")}</p>}
+        {open && <PhaseLots
           lots={p.lots}
+          isOpen={(id, fallback) => folds.isOpen(`lot:${id}`, fallback)}
+          onFold={(id, on) => folds.set([`lot:${id}`], on)}
           steps={visible}
           byId={byId}
           onLaunched={() => void revalidator.revalidate()}
@@ -303,7 +359,7 @@ export function ProjectRoute() {
               onMove={(phaseId) => void move(s.id, phaseId)}
             />
           )}
-        />
+        />}
       </li>
     );
   };
@@ -347,9 +403,11 @@ export function ProjectRoute() {
   const foldAll = (
     <button
       type="button"
-      onClick={() =>
-        setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)))
-      }
+      onClick={() => {
+        setOpenIds(allOpen ? new Set() : new Set(steps.filter(shownIn).map((s) => s.id)));
+        // Folding all hands the lots and phases back to their default (what is finished folds); opening all opens them.
+        folds.set(sectionKeys, allOpen ? null : true);
+      }}
       aria-label={allOpen ? t("project.foldAll") : t("project.openAll")}
       title={allOpen ? t("project.foldAll") : t("project.openAll")}
       className="shrink-0 rounded-full border bg-card/70 p-2 hover:border-foreground/25"
@@ -474,14 +532,7 @@ export function ProjectRoute() {
                       <li key={c.id}>
                         <button
                           type="button"
-                          onClick={() => {
-                            pick("all");
-                            unfold((p) => p.steps.includes(c));
-                            toggle(c.id, true);
-                            requestAnimationFrame(() => go(document.getElementById(`step-${c.id}`)));
-                            setFlash(c.id);
-                            setTimeout(() => setFlash(null), 1600);
-                          }}
+                          onClick={() => reveal(c.id)}
                           className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-[10px] border px-3 py-2.5 text-left transition-colors hover:border-brand hover:bg-brand/5"
                         >
                           <span className="truncate text-sm font-semibold">{c.title}</span>
@@ -496,14 +547,16 @@ export function ProjectRoute() {
                 </section>
               )}
 
+              {unfinished.length > 0 && (
               <nav aria-label={t("project.phases.aria")} className="-mx-1 grid auto-cols-[minmax(150px,1fr)] grid-flow-col gap-2 overflow-x-auto px-1 pb-2">
-                {v.phases.map((p) => (
+                {unfinished.map((p) => (
                   <button
                     key={p.key}
                     type="button"
                     onClick={() => {
                       pick("all");
                       unfold((l) => l.key === p.key);
+                      folds.set([`phase:${p.key}`], true);
                       requestAnimationFrame(() => go(document.getElementById(`phase-${p.key}`)));
                     }}
                     className={cn(
@@ -519,6 +572,7 @@ export function ProjectRoute() {
                   </button>
                 ))}
               </nav>
+              )}
 
               {/* From sm up the filters keep their bar; on a phone they live behind the header's Filtre button. */}
               <div className="sticky top-0 z-10 -mx-4 hidden items-start justify-between gap-2 bg-background/85 px-4 py-2.5 backdrop-blur sm:flex lg:-mx-6 lg:px-6">

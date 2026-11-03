@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Play, Rocket } from "lucide-react";
+import { ChevronRight, Lock, Play, Rocket } from "lucide-react";
 
 import { HaltReason } from "@/components/halt-reason";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,8 @@ export function PhaseLots({
   byId,
   onLaunched,
   renderStep,
+  isOpen,
+  onFold,
 }: {
   lots: ProjectLot[];
   /** The steps to show (the filter already applied). */
@@ -99,6 +101,9 @@ export function PhaseLots({
   byId: Map<string, CardView>;
   onLaunched: () => void;
   renderStep: (card: CardView, inLot: boolean) => React.ReactNode;
+  /** A lot's open state: `fallback` until the operator chose (a finished lot folds to one line). */
+  isOpen: (lotId: string, fallback: boolean) => boolean;
+  onFold: (lotId: string, open: boolean) => void;
 }) {
   const t = useT();
   const ids = useIdentities();
@@ -137,6 +142,7 @@ export function PhaseLots({
           // ADR 0048 §7: another pair's lot — seen, its buttons greyed with why.
           const owner = lotOwner(pl.lot, ids);
           const ownerName = owner ? personName(owner, ids[pl.lot.repoPath]?.me ?? null, t("people.me")) : null;
+          const open = isOpen(pl.lot.id, planned || !finished);
           return (
             <section
               key={pl.lot.id}
@@ -144,7 +150,23 @@ export function PhaseLots({
               className="flex min-w-0 flex-col gap-2"
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-0.5 pt-1">
-                <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">{pl.lot.name ?? t("run.lot")}</span>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => onFold(pl.lot.id, !open)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold leading-snug"
+                >
+                  <ChevronRight className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")} />
+                  {/* The status at a glance, folded or not. */}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "size-2 shrink-0 rounded-full",
+                      planned ? "bg-muted-foreground/50" : finished ? "bg-status-done" : halted ? "bg-status-blocked" : "bg-status-working",
+                    )}
+                  />
+                  <span className="min-w-0">{pl.lot.name ?? t("run.lot")}</span>
+                </button>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-semibold",
@@ -159,7 +181,7 @@ export function PhaseLots({
                 >
                   {planned ? t("lot.planned") : pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : ownerName ? t("people.runningAt", { name: ownerName }) : t("lot.running")}
                 </span>
-                {pl.lot.maxParallel ? (
+                {open && pl.lot.maxParallel ? (
                   <span className="font-mono text-xs text-muted-foreground">
                     {pl.lot.maxParallel === 1 ? t("lot.oneAtATime") : t("lot.nAtATime", { count: pl.lot.maxParallel })}
                   </span>
@@ -192,19 +214,19 @@ export function PhaseLots({
                   </Button>
                 )}
               </div>
-              {ownerName && (planned || halted) && (
+              {open && ownerName && (planned || halted) && (
                 <p className="flex items-center gap-2 px-0.5 text-xs text-muted-foreground">
                   <Lock className="size-3.5 shrink-0" />
                   <span>{t("lot.ownedBy", { name: ownerName })}</span>
                 </p>
               )}
-              {halted && pl.lot.halted && <HaltReason reason={pl.lot.halted} className="min-w-0 px-0.5" />}
-              {!planned && (
+              {open && halted && pl.lot.halted && <HaltReason reason={pl.lot.halted} className="min-w-0 px-0.5" />}
+              {open && !planned && (
                 <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
                   <i className="block h-full bg-status-done transition-[width] duration-700" style={{ width: `${pct}%` }} />
                 </div>
               )}
-              <ul className="flex flex-col gap-2">{own.map((c) => renderStep(c, true))}</ul>
+              {open && <ul className="flex flex-col gap-2">{own.map((c) => renderStep(c, true))}</ul>}
             </section>
           );
         })}
