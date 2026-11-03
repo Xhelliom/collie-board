@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,7 +42,6 @@ const nodeDeps = (t: PeerRouteDeps): NodeRouteDeps => ({
   json: t.json,
   text: t.text,
   actions: {} as NodeRouteDeps["actions"],
-  autonomyOn: () => false,
   launched: new Map(),
   version: "9.9.9",
 });
@@ -140,9 +139,11 @@ describe("the operator's routes", () => {
     expect((await call(b.d, "/api/peers/invite", "POST")).status).toBe(403);
   });
 
-  it("refuse to overwrite a node.toml edited by hand since the load", async () => {
+  it("refuse to overwrite a node.toml hand-edited into something unreadable", async () => {
     const b = machine("b", new Map());
-    writeFileSync(join(b.stateDir, "node.toml"), `name = "b"\n# mine\n`, { mode: 0o600 });
+    writeFileSync(join(b.stateDir, "node.toml"), `name = \n`, { mode: 0o600 });
+    const t = Date.now() / 1000 + 5;
+    utimesSync(join(b.stateDir, "node.toml"), t, t);
     expect((await call(b.d, "/api/peers/invite", "POST")).status).toBe(409);
   });
 });
@@ -245,6 +246,41 @@ describe("environments, chosen, never typed", () => {
     expect((await env(b.d, { action: "remove", name: "web" })).status).toBe(200);
     expect(b.d.store.view().environments).toEqual([]);
     expect(b.d.store.view().inbound[0]!.launch).toEqual([]);
+  });
+});
+
+describe("« Autoriser le lancement depuis un autre poste »", () => {
+  it("is off for a new peer; one grant makes the environment usable, and withdrawing takes it back", async () => {
+    const machines = new Map<string, PeerRouteDeps>();
+    const a = machine("a", machines);
+    const b = machine("b", machines);
+    const { code } = b.d.store.invite();
+    await call(a.d, "/api/peers/add", "POST", { url: "https://b.ts.net", code });
+    await call(b.d, "/api/peers/environments", "POST", { action: "add", name: "app", repo: "/home/me/git/app", agent: "claude" });
+    const seen = async () => {
+      const res = await handleNodeRoute("/api/node/environments", new Request("https://b.ts.net/api/node/environments", { headers: { authorization: `Bearer ${a.d.store.outbound()[0]!.token}` } }), nodeDeps(b.d));
+      return ((await res!.json()) as { environments: unknown[] }).environments;
+    };
+    expect(await seen()).toEqual([{ name: "app", agent: "claude", remote: null, launch: false }]);
+
+    expect((await call(b.d, "/api/peers/grant", "POST", { name: "a", environment: "app", allow: true })).status).toBe(200);
+    expect(await seen()).toMatchObject([{ name: "app", launch: true }]);
+
+    await call(b.d, "/api/peers/grant", "POST", { name: "a", environment: "app", allow: false });
+    expect(await seen()).toMatchObject([{ name: "app", launch: false }]);
+    expect((await call(b.d, "/api/peers/grant", "POST", { name: "zz", environment: "app", allow: true })).status).toBe(404);
+    expect((await call(b.d, "/api/peers/grant", "POST", { name: "a", environment: "zz", allow: true })).status).toBe(404);
+  });
+
+  it("takes a hand edit of node.toml without a restart, and writes over it afterwards", async () => {
+    const b = machine("b", new Map());
+    const path = join(b.stateDir, "node.toml");
+    writeFileSync(path, `name = "b"\n\n[[environments]]\nname = "hand"\nrepo_path = "/home/me/git/app"\nagent = "claude"\n`, { mode: 0o600 });
+    const t = Date.now() / 1000 + 5;
+    utimesSync(path, t, t); // a distinct mtime, whatever the filesystem's granularity
+    expect(b.d.store.view().environments.map((e) => e.name)).toEqual(["hand"]);
+    expect((await call(b.d, "/api/peers/environments", "POST", { action: "rename", name: "hand", to: "web" })).status).toBe(200);
+    expect(readFileSync(path, "utf8")).toContain('name = "web"');
   });
 });
 

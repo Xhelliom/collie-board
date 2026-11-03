@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
@@ -234,8 +235,6 @@ export interface NodeRouteDeps {
   json: (data: unknown, status?: number) => Response;
   text: (body: string, status: number) => Response;
   actions: NodeActions;
-  /** The owner's autonomy switch for a repo (ADR 0030): off, and no peer launches there. */
-  autonomyOn: (repoPath: string) => boolean;
   /** The panes launched for peers since boot. */
   launched: Map<string, LaunchedPane>;
   /** This plugin's version, for a peer's « Tester la connexion ». */
@@ -281,8 +280,15 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
     // Name, agent and the normalised origin — never the path: a peer names an environment, this
     // machine resolves it (ADR 0046 §2); the origin is how the caller knows which repo it runs.
     // `you`: how this machine sees the caller — what « Tester la connexion » shows (ADR 0049 §6).
+    // `launch`: whether THIS caller may launch there — so its picker says why not before a start.
+    const granted = d.node.peers.find((p) => p.name === peer)?.launch;
     const environments = await Promise.all(
-      d.node.environments.map(async ({ name, agent, repoPath }) => ({ name, agent, remote: normalizeRemote(await originUrl(repoPath)) })),
+      d.node.environments.map(async ({ name, agent, repoPath }) => ({
+        name,
+        agent,
+        remote: normalizeRemote(await originUrl(repoPath)),
+        launch: !granted || granted.includes(name),
+      })),
     );
     return d.json({
       node: d.node.name,
@@ -314,10 +320,8 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
     if (action === "launch") {
       const parsed = parseLaunch(body, node, peer);
       if (!parsed.ok) return refuse(parsed.error, 400, { environment: b.environment ?? null });
+      // The per-peer grant is the only consent asked (ADR 0051): the repo's autonomy is the local orchestrator's.
       const { env, branch } = parsed.value;
-      if (!d.autonomyOn(env.repoPath)) {
-        return refuse(`autonomy is off for environment "${env.name}" on ${node.name} — its owner keeps the hand`, 403, { environment: env.name });
-      }
       const launched = await d.actions.launch(parsed.value);
       d.launched.set(launched.paneId, launched);
       d.audit("node.launch", peer, { environment: env.name, branch, paneId: launched.paneId, prompt: parsed.value.prompt });
@@ -353,6 +357,34 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
   }
 }
 
+/**
+ * `~/.claude.json` with `dir` marked trusted: Claude Code's « Do you trust this folder » never shows
+ * there. Pure. Both slash forms on Windows — shortcut: the key format Claude Code uses there was not
+ * verified live; drop the one it doesn't read once it is.
+ */
+export function withTrustedFolder(config: Record<string, unknown>, dir: string): Record<string, unknown> {
+  const projects = { ...((config.projects as Record<string, Record<string, unknown>> | undefined) ?? {}) };
+  for (const key of new Set([dir, dir.replaceAll("\\", "/")])) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
+  return { ...config, projects };
+}
+
+/** Pre-approve a peer launch's checkout in Claude Code: a remote launch has no one to answer the dialog. Best-effort. */
+export function trustFolder(dir: string, file = join(homedir(), ".claude.json")): void {
+  try {
+    let cfg: Record<string, unknown> = {};
+    try {
+      cfg = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") return; // unreadable or mid-write: never clobber it
+    }
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(withTrustedFolder(cfg, dir), null, 2), { mode: 0o600 });
+    renameSync(tmp, file);
+  } catch (err) {
+    console.warn(`[node] could not pre-trust ${dir}: ${(err as Error).message}`);
+  }
+}
+
 /** The live wiring: herdr for the panes, `git.ts` for the diff, `launchAgent` → `promptAndConfirm` for a launch. */
 export function liveNodeActions(
   herdr: () => HerdrClient | null,
@@ -371,7 +403,15 @@ export function liveNodeActions(
     launch: async ({ peer, env, prompt, branch }) => {
       const c = h();
       const base = (await defaultBranchOf(env.repoPath)) ?? null;
-      const wt = await c.createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40) });
+      // Idempotent like `startCard`: a retry after a launch the caller never heard back from reopens
+      // that checkout, and keeps an agent already in it rather than launching a second one.
+      const wt = await c
+        .createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40) })
+        .catch((createErr) => c.openWorktree({ cwd: env.repoPath, branch }).catch(() => Promise.reject(createErr)));
+      const launched = { paneId: wt.paneId, peer, environment: env.name, branch, checkoutPath: wt.checkoutPath, base };
+      const already = await c.getPane(wt.paneId).then((p) => p.agent?.trim(), () => null);
+      if (already) return launched;
+      if (env.agent === "claude") trustFolder(wt.checkoutPath);
       try {
         await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch));
         await promptAndConfirm(c, wt.paneId, prompt, undefined, { firstAfterLaunch: true });
@@ -380,7 +420,7 @@ export function liveNodeActions(
         await c.closePane(wt.paneId).catch(() => {});
         throw err;
       }
-      return { paneId: wt.paneId, peer, environment: env.name, branch, checkoutPath: wt.checkoutPath, base };
+      return launched;
     },
   };
 }

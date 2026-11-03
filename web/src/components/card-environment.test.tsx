@@ -74,6 +74,15 @@ describe("Lancer sur", () => {
     expect(onChange).toHaveBeenCalledWith({ peer: "test-depot-collie", name: "dev" });
   });
 
+  it("a reached peer with nothing usable says why, before any start", async () => {
+    setPreference("fr");
+    server.use(http.get("/api/repos/environments", () => HttpResponse.json({ remote: "github.com/x/collie", environments: [], unreachable: [], blocked: [{ peer: "dell", reason: "launch-not-granted" }] })));
+    render(<EnvironmentPicker repoPath="/r/collie" value={null} onChange={() => {}} />);
+    const select = await screen.findByLabelText("Lancer sur");
+    const option = [...select.querySelectorAll("option")].at(-1)!;
+    expect([option.textContent, option.disabled]).toEqual(["dell — lancement non accordé à cette machine (Autoriser, sur dell)", true]);
+  });
+
   it("the editor saves the choice on the card, and leaves it out when untouched", async () => {
     envs([{ peer: "test-depot-collie", name: "dev", agent: "claude" }]);
     server.use(http.get("/api/cards", () => HttpResponse.json({ cards: [] })));

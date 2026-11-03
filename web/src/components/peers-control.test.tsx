@@ -145,6 +145,16 @@ describe("PeersControl", () => {
     await waitFor(() => expect(posted).toContainEqual(["environments", { action: "remove", name: "cad" }]));
   });
 
+  test("a new peer may launch nothing; one Allow grants it, the repo's autonomy aside", async () => {
+    const user = userEvent.setup();
+    render(<PeersControl />);
+    const row = await screen.findByTestId("grant-cad-arch-1");
+    expect(row).toHaveTextContent("✓ environment declared · ✗ launch granted");
+    expect(row).not.toHaveTextContent(/autonomy/i);
+    await user.click(within(row).getByRole("button", { name: "Allow" }));
+    await waitFor(() => expect(posted).toContainEqual(["grant", { name: "arch-1", environment: "cad", allow: true }]));
+  });
+
   test("speaks French", async () => {
     setPreference("fr");
     render(<PeersControl />);

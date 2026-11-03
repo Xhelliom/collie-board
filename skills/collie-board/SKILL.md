@@ -190,9 +190,25 @@ machine). Its start then goes to that paired peer, never here; diff and end go t
 
 ```bash
 curl -s "http://127.0.0.1:8788/api/repos/environments?repo=/home/user/git/project"
-# {remote, environments:[{peer, name, agent, remote}], unreachable:[{peer, error}]} — only those whose origin is this repo's
+# {remote, environments:[{peer, name, agent, remote}], blocked:[{peer, reason}], unreachable:[{peer, error}]}
+#   environments: usable ones whose origin is this repo's; blocked: a reached peer with none, and why
 curl -s http://127.0.0.1:8788/api/cards/<id>/remote   # {environment, session, state} — reads the peer once
 ```
+
+**Making a repo launchable from another machine** is the operator's, on the machine that runs the
+agent (the peer), in Settings → Peers — never by an agent (those routes refuse an agent pane), never
+by editing `node.toml` (a hand edit is still taken without a restart). Tell the user the steps when
+`blocked` names a `reason`:
+
+1. Pair both machines (code from that peer's Settings → Peers). A new peer may launch **nothing**.
+2. `no-environment` / `origin-mismatch` — on the peer, *Environments offered*: declare the repo (same
+   `origin` as here; clone it there and add it to its projects first) and an agent.
+3. `launch-not-granted` — under that environment, *Launch from <this machine>* → **Allow**. That
+   grant is the only consent asked (ADR 0051): the repo's autonomy there is not needed and not
+   touched. Claude Code's « trust this folder » is pre-accepted for each checkout a peer launches,
+   so it never blocks a remote start.
+
+A retried start reuses the card's checkout on the peer (and keeps an agent already in it).
 
 ## Publish a deliverable on a card (« Publier un livrable »)
 

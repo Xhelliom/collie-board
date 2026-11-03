@@ -35,6 +35,33 @@ export interface PeerEnvironment {
   name: string;
   agent: string;
   remote: string | null;
+  /** Whether this machine may launch there, as the peer says; absent from an older peer — taken as yes. */
+  launch?: boolean;
+}
+
+/** Why a reachable peer offers nothing usable for this repo — said before a start, not by its refusal. */
+export type BlockedReason = "no-environment" | "origin-mismatch" | "launch-not-granted";
+
+/**
+ * The usable environments for `remote`, and for each peer that has none, why. Pure. Checked in the
+ * order a launch would fail: the environment, then the grant (node.ts parseLaunch).
+ */
+export function diagnoseEnvironments(
+  remote: string | null,
+  byPeer: readonly { peer: string; environments: readonly PeerEnvironment[] }[],
+): { environments: PeerEnvironment[]; blocked: { peer: string; reason: BlockedReason }[] } {
+  const environments: PeerEnvironment[] = [];
+  const blocked: { peer: string; reason: BlockedReason }[] = [];
+  for (const { peer, environments: all } of byPeer) {
+    const same = environmentsForRemote(remote, all);
+    const usable = same.filter((e) => e.launch !== false);
+    environments.push(...usable);
+    if (usable.length > 0) continue;
+    const reason: BlockedReason =
+      all.length === 0 ? "no-environment" : same.length === 0 ? "origin-mismatch" : "launch-not-granted";
+    blocked.push({ peer, reason });
+  }
+  return { environments, blocked };
 }
 
 /** The environments that run the repo whose normalised origin is `remote`. A repo with no origin matches none. */
@@ -110,7 +137,7 @@ export const ok = (r: Call): r is { status: 200; body: Record<string, unknown> }
 
 /**
  * Start a card in its peer environment. Same "the board says no" gates as `startCard` that make sense
- * here (container, predecessor, already running); the rest — autonomy, the grant, the environment
+ * here (container, predecessor, already running); the rest — the grant, the environment
  * itself — is the peer's to refuse, and its reason is journaled on the card.
  */
 export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true; session: RemoteSession } | { ok: false; error: string; kind: "board" | "peer" }> {
@@ -185,6 +212,7 @@ export async function remoteStateOf(d: RemoteDeps, s: RemoteSession): Promise<{ 
 export async function environmentsForRepo(d: Omit<RemoteDeps, "db" | "branchPrefix">, repoPath: string): Promise<{
   remote: string | null;
   environments: PeerEnvironment[];
+  blocked: { peer: string; reason: BlockedReason }[];
   unreachable: { peer: string; error: string }[];
 }> {
   const remote = normalizeRemote(await originUrl(repoPath));
@@ -196,12 +224,21 @@ export async function environmentsForRepo(d: Omit<RemoteDeps, "db" | "branchPref
         unreachable.push({ peer: peer.name, error: peerRefusal(peer.name, "environments", r) });
         return [];
       }
-      return (r.body.environments as Record<string, unknown>[]).flatMap((e) =>
-        typeof e?.name === "string" ? [{ peer: peer.name, name: e.name, agent: String(e.agent ?? ""), remote: typeof e.remote === "string" ? e.remote : null }] : [],
+      const environments = (r.body.environments as Record<string, unknown>[]).flatMap((e) =>
+        typeof e?.name === "string"
+          ? [{
+              peer: peer.name,
+              name: e.name,
+              agent: String(e.agent ?? ""),
+              remote: typeof e.remote === "string" ? e.remote : null,
+              ...(typeof e.launch === "boolean" ? { launch: e.launch } : {}),
+            }]
+          : [],
       );
+      return [{ peer: peer.name, environments }];
     }),
   );
-  return { remote, environments: environmentsForRemote(remote, all.flat()), unreachable };
+  return { remote, ...diagnoseEnvironments(remote, all.flat()), unreachable };
 }
 
 /**

@@ -6,6 +6,7 @@ import type { OutboundPeer } from "./pairing.ts";
 import {
   endOnPeer,
   environmentChangeRefusal,
+  diagnoseEnvironments,
   environmentsForRemote,
   launchRouteFor,
   parseCardEnvironment,
@@ -53,6 +54,25 @@ describe("environmentsForRemote", () => {
   });
   it("offers none for a repo with no origin — not the environments with none either", () => {
     expect(environmentsForRemote(null, envs)).toEqual([]);
+  });
+});
+
+describe("diagnoseEnvironments", () => {
+  const R = "github.com/x/board";
+  const e = (peer: string, name: string, remote: string | null, extra: object = {}) => ({ peer, name, agent: "claude", remote, ...extra });
+  it("keeps the usable ones and says why each other peer has none", () => {
+    const out = diagnoseEnvironments(R, [
+      { peer: "ok", environments: [e("ok", "a", R), e("ok", "b", R, { launch: false })] },
+      { peer: "empty", environments: [] },
+      { peer: "other", environments: [e("other", "c", "github.com/x/cad")] },
+      { peer: "nogrant", environments: [e("nogrant", "d", R, { launch: false })] },
+    ]);
+    expect(out.environments.map((x) => x.name)).toEqual(["a"]);
+    expect(out.blocked).toEqual([
+      { peer: "empty", reason: "no-environment" },
+      { peer: "other", reason: "origin-mismatch" },
+      { peer: "nogrant", reason: "launch-not-granted" },
+    ]);
   });
 });
 

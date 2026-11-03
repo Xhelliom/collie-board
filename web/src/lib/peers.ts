@@ -53,6 +53,9 @@ export const addEnvironment = (name: string, repo: string, agent: string) => pos
 export const renameEnvironment = (name: string, to: string) => post<{ ok: true }>("/api/peers/environments", { action: "rename", name, to });
 export const removeEnvironment = (name: string) => post<{ ok: true }>("/api/peers/environments", { action: "remove", name });
 
+/** « Autoriser le lancement depuis <peer> »: the grant alone (ADR 0051) — the repo's autonomy is not touched. */
+export const grantLaunch = (peer: string, environment: string, allow: boolean) => post<{ ok: true }>("/api/peers/grant", { name: peer, environment, allow });
+
 export const formatCode = (c: string) => `${c.slice(0, 4)}-${c.slice(4)}`;
 
 // The header's machine switcher reads these on mount and on opening its menu, never on a timer: a

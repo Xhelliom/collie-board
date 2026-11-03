@@ -120,7 +120,8 @@ export function EnvironmentPicker({
 
   const offered = envs?.environments ?? [];
   const unreachable = envs?.unreachable ?? [];
-  if (offered.length === 0 && unreachable.length === 0 && !value) return null;
+  const blocked = envs?.blocked ?? [];
+  if (offered.length === 0 && unreachable.length === 0 && blocked.length === 0 && !value) return null;
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{t("cardEnv.label")}</span>
@@ -146,6 +147,11 @@ export function EnvironmentPicker({
         {unreachable.map((u) => (
           <option key={`!${u.peer}`} value={`!${u.peer}`} disabled>
             {t("cardEnv.unreachableOption", { peer: u.peer, error: u.error })}
+          </option>
+        ))}
+        {blocked.map((b) => (
+          <option key={`?${b.peer}`} value={`?${b.peer}`} disabled>
+            {t(`cardEnv.blocked.${b.reason}`, { peer: b.peer })}
           </option>
         ))}
       </select>
