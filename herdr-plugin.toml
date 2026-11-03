@@ -3,11 +3,17 @@ name = "Collie Board"
 version = "0.250.0"
 min_herdr_version = "0.7.0"
 description = "Durable Kanban cards over your Herdr agent herd — worktree per card, handoffs, mobile PWA"
-platforms = ["linux", "macos"]
+platforms = ["linux", "macos", "windows"]
 
-# This plugin is a thin launcher. The actual bridge runs as a systemd --user service so it
-# outlives Herdr restarts (see ARCHITECTURE.md §3). The actions below shell out to
-# scripts/collie-board-ctl.sh, which gets HERDR_SOCKET_PATH / HERDR_PLUGIN_CONFIG_DIR injected.
+# This plugin is a thin launcher. The actual bridge runs supervised outside Herdr so it outlives
+# Herdr restarts (see ARCHITECTURE.md §3): a systemd --user service on Linux, a scheduled task at
+# logon on Windows. The actions get HERDR_SOCKET_PATH / HERDR_PLUGIN_CONFIG_DIR injected.
+#
+# Every action Windows offers is `bun scripts/ctl.ts <id>` on EVERY platform: Herdr refuses two
+# actions with one id whatever their `platforms`, and has no per-platform command (ADR 0050).
+# ctl.ts hands the command to scripts/collie-board-ctl.sh on Linux/macOS, and runs it itself on
+# Windows. The ones it can't run there yet (setup, update) keep the bash command, Linux/macOS only —
+# which also keeps `update` working on a host whose Herdr can't see bun.
 
 # Build the web UI at install time. Herdr runs [[build]] steps ONLY on `herdr plugin install`
 # (GitHub) — NOT on `herdr plugin link` (local dev), which instead builds lazily on first `start`
@@ -18,6 +24,12 @@ platforms = ["linux", "macos"]
 command = ["bash", "scripts/collie-board-ctl.sh", "build"]
 platforms = ["linux", "macos"]
 
+# Windows has no bash: the same build (version gate, both installs, both typechecks, staged swap)
+# from ctl.ts. [[build]] entries carry no id, so one per platform is fine — unlike actions.
+[[build]]
+command = ["bun", "scripts/ctl.ts", "build"]
+platforms = ["windows"]
+
 # First-run bootstrap: preflight, link, and derive the two security settings from `tailscale status`
 # so the safe configuration is the default one. Deliberately starts and publishes nothing.
 [[actions]]
@@ -25,24 +37,25 @@ id = "setup"
 title = "Set up (preflight + config)"
 contexts = ["workspace"]
 command = ["bash", "scripts/collie-board-ctl.sh", "setup"]
+platforms = ["linux", "macos"]
 
 [[actions]]
 id = "start"
 title = "Start web bridge"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "start"]
+command = ["bun", "scripts/ctl.ts", "start"]
 
 [[actions]]
 id = "stop"
 title = "Stop web bridge"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "stop"]
+command = ["bun", "scripts/ctl.ts", "stop"]
 
 [[actions]]
 id = "restart"
 title = "Restart web bridge"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "restart"]
+command = ["bun", "scripts/ctl.ts", "restart"]
 
 # Full teardown: stops + disables the service, removes the systemd --user unit, and resets
 # tailscale serve. Leaves the .env and the checkout (so `start` can bring it right back). See
@@ -51,7 +64,7 @@ command = ["bash", "scripts/collie-board-ctl.sh", "restart"]
 id = "uninstall"
 title = "Uninstall web bridge (remove service)"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "uninstall"]
+command = ["bun", "scripts/ctl.ts", "uninstall"]
 
 # Link-mode plugins ARE their on-disk git checkout (Herdr has no native `plugin update`), so this
 # action pulls + rebuilds + restarts in one step. See scripts/collie-board-ctl.sh → cmd_update.
@@ -60,21 +73,22 @@ id = "update"
 title = "Update plugin"
 contexts = ["workspace"]
 command = ["bash", "scripts/collie-board-ctl.sh", "update"]
+platforms = ["linux", "macos"]
 
 [[actions]]
 id = "url"
 title = "Show bridge URL"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "url"]
+command = ["bun", "scripts/ctl.ts", "url"]
 
 [[actions]]
 id = "status"
 title = "Bridge status"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "status"]
+command = ["bun", "scripts/ctl.ts", "status"]
 
 [[actions]]
 id = "version"
 title = "Show version"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "version"]
+command = ["bun", "scripts/ctl.ts", "version"]

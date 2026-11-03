@@ -1,3 +1,13 @@
+# Every text file is LF, in the index AND in the working tree, whatever core.autocrlf says. Git for
+# Windows installs with core.autocrlf=true, which checks the whole tree out as CRLF: bash scripts stop
+# running (`$'\r': command not found`), and every file hashed at build differs from Linux. A Windows
+# host is a deployment target now (ADR 0046 §7), so the checkout must not depend on how git was set up.
+* text=auto eol=lf
+
+# Pane captures are terminal output byte for byte — most of them CRLF, as the pane wrote them. The
+# parsers are tested against those exact bytes: never convert them, in either direction.
+web/src/fixtures/panes/** -text
+
 # TypeScript sources are text, always. multi-select-action.ts uses a NUL as a map-key separator, and
 # a single such byte makes git classify the whole file as binary — which silently hid every change to
 # the race guard from `git show` and from PR review. The byte is now a source escape, but this keeps
