@@ -75,7 +75,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"
 
 Then `herdr --version` in a fresh terminal. Not found? The install directory isn't on your `PATH` yet.
 
-**3. Install and start Collie Board** — macOS and Linux:
+**3. Install and start Collie Board** — macOS and Linux (Windows: no `setup` yet, see [Windows](#windows-experimental)):
 
 ```bash
 herdr plugin install Xhelliom/collie-board
@@ -91,7 +91,12 @@ bridge and publishes it with `tailscale serve`; it prints the URL ([First run](#
 | --- | --- | --- |
 | **Linux** | `systemd --user` service `collie-board`, auto-restarting | Starts by itself once you run `loginctl enable-linger $USER` ([Surviving reboots](#surviving-reboots)). |
 | **macOS** | No systemd: a `nohup` background process with a pidfile | Not restarted — nothing ships a `launchd` agent. Run the `start` action again after a reboot. |
-| **Windows** | Experimental: you run `bun run bridge/index.ts` yourself; action buttons need Git Bash, no `tailscale serve` | Start it again yourself. Follow [Windows (experimental)](#windows-experimental) — LF checkout, Bun, PATH, front door. |
+| **Windows** | Experimental: a scheduled task at your logon (not a service, not elevated), restarting the bridge when it dies; no `tailscale serve` yet | Starts by itself at your next logon. Follow [Windows (experimental)](#windows-experimental) — Bun, PATH, front door. |
+
+The `start`, `stop`, `restart`, `uninstall`, `status`, `url` and `version` actions run
+`bun scripts/ctl.ts`, so **`bun` must be on the `PATH` of the Herdr server** — the one it inherited
+from the terminal that started it ([ADR 0050](./.adr/0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md)).
+`setup` and `update` don't need it.
 
 **4. Open it on your phone.** Open the `tailnet` URL from the banner (`herdr plugin action invoke url
 --plugin herdr.collie-board` prints it again) with the phone's Tailscale app connected, then install
@@ -1101,17 +1106,32 @@ Three things to get right, none of them Collie-specific:
 
 ## Windows (experimental)
 
-The **bridge** runs on Windows against Herdr's Windows beta; the **launcher** does not. Herdr there
-exposes its control socket as a *named pipe* named after the full socket path, not an AF_UNIX
+The **bridge** runs on Windows against Herdr's Windows beta, and so do the `start`/`stop`/`status`
+actions (no `setup` or managed `tailscale serve` yet). Herdr there exposes its control socket as a *named pipe* named after the full socket path, not an AF_UNIX
 socket, so Collie dials it through `node:net` instead of `Bun.connect` — one shim,
 [`bridge/dial.ts`](./bridge/dial.ts), which explains the mapping at the top of the file.
 
 What that means in practice:
 
-- **Run the bridge directly** — `bun run bridge/index.ts`. There's no systemd unit, and the Herdr
-  action buttons shell out to `bash`, so they only work if Git Bash is on `PATH`. The manifest
-  therefore still declares `linux`/`macos` only, rather than advertising buttons that may not fire.
-- **`tailscale serve` isn't wired up here.** Use the [Variant C](#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale)
+- **Install and start it with Herdr**, as on Linux — no Git Bash needed:
+
+  ```powershell
+  herdr plugin install Xhelliom/collie-board
+  herdr plugin action invoke start --plugin herdr.collie-board
+  ```
+
+  Every action runs `bun scripts/ctl.ts <action>` ([ADR 0050](./.adr/0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md)).
+  `start` builds the UI if needed and registers a **scheduled task, `CollieBoard`**: at your logon,
+  in your session, never elevated — not a service, whose session 0 has no desktop for an agent to
+  drive. The task runs a small supervisor that restarts the bridge 5 s after it dies; logs go to
+  `collie.log` beside the plugin `.env` (`bun scripts/ctl.ts logs`). `stop` ends and disables
+  the task, `uninstall` deletes it; `status`, `url`, `version`, `restart` work as on Linux.
+- **Not on Windows yet: `setup` and `update`.** Write the plugin `.env` yourself — its folder is
+  `herdr plugin config-dir herdr.collie-board` (`%APPDATA%\herdr\plugins\config\herdr.collie-board`),
+  with at least `COLLIE_BOARD_TRUSTED_USER` and `COLLIE_BOARD_PUBLIC_HOSTS` ([Configure](#configure)).
+  To update: `herdr plugin update`, then the `restart` action.
+- **`tailscale serve` isn't managed here yet.** Either publish it yourself
+  (`tailscale serve --bg 8788`, and remove it yourself) or use the [Variant C](#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale)
   posture: loopback bind, your own ingress in front, `COLLIE_BOARD_PUBLIC_HOSTS` pinned. The security
   rules in [§Security](#%EF%B8%8F-security--read-before-you-run-it) are not relaxed on Windows.
 - The socket path defaults to `%APPDATA%\herdr\herdr.sock`; override with `HERDR_SOCKET_PATH`
@@ -1121,11 +1141,11 @@ What that means in practice:
 
 **Installing on Windows** — native, no WSL, no Developer Mode:
 
-- **Bun from `irm bun.sh/install.ps1 | iex`**, not winget: winget's package doesn't put `bunx` on
-  `PATH` without Developer Mode, and the build needs it.
-- **Check the repo out with LF endings**: `git config --global core.autocrlf false` before cloning
-  (or a `.gitattributes` with `* text=auto eol=lf`). CRLF breaks the shell scripts and makes the
-  build's hashes differ from Linux.
+- **Bun from `irm bun.sh/install.ps1 | iex`** preferably: winget's package doesn't put `bunx` on
+  `PATH` without Developer Mode. The build no longer needs it, but your own tooling may.
+- **LF endings come with the repo**: its `.gitattributes` checks every text file out as LF whatever
+  `core.autocrlf` says. A clone made before that is still CRLF on disk — refresh it once with
+  `git rm -r --cached -q . && git reset --hard` on a clean tree.
 - **`git` and `claude` on the PATH of the Herdr *server*, not just your shell.** The server inherits
   the PATH of whoever launched it; one started from a shell older than the Git install fails every
   card start with `worktree_create_failed: program not found`, while its panes, which rebuild their
