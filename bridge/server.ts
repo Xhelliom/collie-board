@@ -176,6 +176,9 @@ export function startServer(opts: {
     // Runtime cap on any request body — a chunked/lying client is cut off here even if its
     // Content-Length is absent or false. The upload handler still does its own precise check.
     maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
+    // Bun's default 10 s cuts a card start mid-launch (worktree + agent ready + prompt): a peer's
+    // launch is given 120 s by its caller (remote-launch.ts), so both sides hold the request longer.
+    idleTimeout: 180,
 
     fetch: (request) => metered(request, async (req) => {
       const url = new URL(req.url);
@@ -214,7 +217,6 @@ export function startServer(opts: {
         json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
         text,
         actions: nodeActions,
-        autonomyOn: (repoPath) => board.autonomyOf(repoPath).enabled,
         launched: nodeLaunched,
         version: updateMonitor.status().current,
       });

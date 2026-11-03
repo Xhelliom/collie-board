@@ -72,6 +72,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0037](./0037-a-finished-turn-is-read-at-the-passage-not-at-done.md) | Un tour fini se lit au passage working→idle, pas à l'état `done` | Accepted |
 | [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) | Multi-machine : un Collie central et des nœuds | Partially superseded by [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md), amended by [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) and [0050](./0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md) |
 | [0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) | L'orchestrateur peut démarrer un lot quand rien ne tourne, si l'opérateur l'a permis | Accepted |
-| [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) | Board partagé par git, de pair à pair, multi-utilisateur | Accepted |
+| [0048](./0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md) | Board partagé par git, de pair à pair, multi-utilisateur | Amended by [0051](./0051-le-droit-launch-par-pair-suffit-l-autonomie-reste-a-l-orchestrateur-local.md) |
 | [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) | Appairage de pairs par code, depuis l'UI | Accepted |
 | [0050](./0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md) | Every action runs `ctl.ts`, because Herdr allows one command per action id | Accepted |
+| [0051](./0051-le-droit-launch-par-pair-suffit-l-autonomie-reste-a-l-orchestrateur-local.md) | Le droit `launch` par pair suffit ; l'autonomie reste à l'orchestrateur local | Accepted |

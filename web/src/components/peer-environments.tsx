@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { boardErrorMessage, fetchRepos, type RepoChoice } from "@/lib/board";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
-import { addEnvironment, removeEnvironment, renameEnvironment, type PeersView } from "@/lib/peers";
+import { addEnvironment, grantLaunch, removeEnvironment, renameEnvironment, type PeersView } from "@/lib/peers";
 
 const field = "rounded-md border bg-background px-3 py-2";
 
 // Settings → Peers → Environments (ADR 0049 §6): a repo picked among the board's known ones and an
 // agent, never a typed path — the bridge checks the repo against its own list before writing node.toml.
-export function PeerEnvironments({ environments, onChange }: { environments: PeersView["environments"]; onChange: () => void }) {
+export function PeerEnvironments({ environments, inbound, onChange }: { environments: PeersView["environments"]; inbound: PeersView["inbound"]; onChange: () => void }) {
   const t = useT();
   const [repos, setRepos] = useState<RepoChoice[]>([]);
   const [repo, setRepo] = useState("");
@@ -112,6 +112,23 @@ export function PeerEnvironments({ environments, onChange }: { environments: Pee
                 </div>
               </div>
             )}
+            {inbound.map((p) => {
+              // The two conditions a launch from `p` meets here (bridge/node.ts, ADR 0051), each with its state.
+              const granted = p.launch === null || p.launch.includes(env.name);
+              return (
+                <div key={p.name} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-2 py-1.5 text-xs" data-testid={`grant-${env.name}-${p.name}`}>
+                  <div className="min-w-0">
+                    <div className="font-medium">{t("peers.grant.from", { peer: p.name })}</div>
+                    <div className="text-muted-foreground">
+                      {t("peers.grant.declared")} · {granted ? "✓" : "✗"} {t("peers.grant.granted")}
+                    </div>
+                  </div>
+                  <Button variant={granted ? "outline" : "default"} size="sm" disabled={busy} onClick={() => void run(() => grantLaunch(p.name, env.name, !granted))}>
+                    {granted ? t("peers.grant.withdraw") : t("peers.grant.allow")}
+                  </Button>
+                </div>
+              );
+            })}
           </li>
         ))}
       </ul>

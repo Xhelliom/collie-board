@@ -112,4 +112,12 @@ export const peers = defineMessages({
   "peers.env.save": { en: "Save", fr: "Enregistrer" },
   "peers.env.cancel": { en: "Cancel", fr: "Annuler" },
   "peers.env.remove": { en: "Remove", fr: "Retirer" },
+  "peers.grant.from": { en: "Launch from {peer}", fr: "Lancement depuis {peer}" },
+  "peers.grant.declared": { en: "✓ environment declared", fr: "✓ environnement déclaré" },
+  "peers.grant.granted": { en: "launch granted", fr: "lancement accordé" },
+  "peers.grant.allow": { en: "Allow", fr: "Autoriser" },
+  "peers.grant.withdraw": { en: "Withdraw", fr: "Retirer" },
+  "cardEnv.blocked.no-environment": { en: "{peer} — offers no environment (declare one in its Settings → Peers)", fr: "{peer} — n'offre aucun environnement (en déclarer un dans ses Réglages → Pairs)" },
+  "cardEnv.blocked.origin-mismatch": { en: "{peer} — no environment with this repo's origin", fr: "{peer} — aucun environnement avec l'origine de ce dépôt" },
+  "cardEnv.blocked.launch-not-granted": { en: "{peer} — launch not granted to this machine (Allow, on {peer})", fr: "{peer} — lancement non accordé à cette machine (Autoriser, sur {peer})" },
 });

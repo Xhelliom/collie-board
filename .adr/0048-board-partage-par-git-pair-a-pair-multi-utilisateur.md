@@ -1,6 +1,6 @@
 # 0048 — Board partagé par git, de pair à pair, multi-utilisateur
 
-**Status:** Accepted
+**Status:** Accepted — amended by [0051](./0051-le-droit-launch-par-pair-suffit-l-autonomie-reste-a-l-orchestrateur-local.md) (§ 4 : l'autonomie ne s'applique plus à un lancement de pair)
 **Date:** 2026-10-23
 **Supersedes (partiellement):** [0046](./0046-multi-machine-un-collie-central-et-des-noeuds.md) — § 1 côté
 central, § 3, les points de § 8 qui supposent un central unique, l'effacement côté nœud de § 6, et

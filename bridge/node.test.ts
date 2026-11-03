@@ -3,7 +3,8 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { digest, handleNodeRoute, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
+import type { HerdrClient } from "./herdr-client.ts";
+import { digest, handleNodeRoute, liveNodeActions, loadNodeConfig, withTrustedFolder, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
 
 const TOKEN_A = "a".repeat(40);
 const TOKEN_B = "b".repeat(40);
@@ -18,6 +19,37 @@ const valid = {
   ],
   environments: [{ name: "arch-2", repo_path: ENV_PATH, agent: "claude" }],
 };
+
+describe("liveNodeActions.launch", () => {
+  it("is idempotent: a retry reopens the checkout left by a launch the caller never heard of, and keeps its agent", async () => {
+    const calls: string[] = [];
+    const herdr = {
+      createWorktree: async () => {
+        calls.push("create");
+        throw new Error("worktree_create_failed: already exists");
+      },
+      openWorktree: async () => (calls.push("open"), { paneId: "w7:p1", workspaceId: "w7", checkoutPath: "/wt/x", alreadyOpen: true }),
+      getPane: async () => ({ agent: "claude" }),
+      startAgent: async () => void calls.push("start"),
+    } as unknown as HerdrClient;
+    const l = await liveNodeActions(() => herdr, async () => ({ ok: true, textDelivered: true })).launch({
+      peer: "a",
+      env: { name: "e", repoPath: mkdtempSync(join(tmpdir(), "collie-node-")), agent: "codex" },
+      prompt: "go",
+      branch: "b",
+    });
+    expect(l).toMatchObject({ paneId: "w7:p1", checkoutPath: "/wt/x", branch: "b" });
+    expect(calls).toEqual(["create", "open"]);
+  });
+});
+
+describe("withTrustedFolder", () => {
+  it("marks the checkout trusted, keeping what Claude Code already wrote", () => {
+    const out = withTrustedFolder({ theme: "dark", projects: { "/a": { x: 1 }, "/b": { hasTrustDialogAccepted: false, y: 2 } } }, "/b");
+    expect(out).toEqual({ theme: "dark", projects: { "/a": { x: 1 }, "/b": { hasTrustDialogAccepted: true, y: 2 } } });
+    expect(Object.keys((withTrustedFolder({}, "C:\\wt\\x").projects as object))).toEqual(["C:\\wt\\x", "C:/wt/x"]);
+  });
+});
 
 describe("parseNodeConfig", () => {
   it("reads name, peers and environments", () => {
@@ -130,7 +162,6 @@ describe("handleNodeRoute", () => {
           return { paneId: "w9:p1", peer: l.peer, environment: l.env.name, branch: l.branch, checkoutPath: "/wt", base: "main" };
         },
       },
-      autonomyOn: () => true,
       launched: new Map<string, LaunchedPane>(),
       version: "1.2.3",
       ...over,
@@ -196,7 +227,7 @@ describe("handleNodeRoute", () => {
 
   it("lists the environments without their paths", async () => {
     const res = (await call("/api/node/environments", deps().d))!;
-    expect(await res.json()).toEqual({ node: "arch-2", version: "1.2.3", you: { peer: "arch-1", login: null }, environments: [{ name: "arch-2", agent: "claude", remote: null }] });
+    expect(await res.json()).toEqual({ node: "arch-2", version: "1.2.3", you: { peer: "arch-1", login: null }, environments: [{ name: "arch-2", agent: "claude", remote: null, launch: true }] });
   });
 
   it("keeps each verb to its routes and knows no other", async () => {
@@ -232,7 +263,7 @@ describe("handleNodeRoute", () => {
     expect(audited.at(-1)).toEqual(["node.launch", "arch-1", { environment: "arch-2", branch: "node/fix", paneId: "w9:p1", prompt: "fix it" }]);
   });
 
-  it("refuses a launch with a reason: undeclared environment, a path or a command, autonomy off", async () => {
+  it("refuses a launch with a reason: undeclared environment, a path or a command — never for the repo's autonomy", async () => {
     const { d, audited, calls } = deps();
     const undeclared = (await post("/api/node/launch", { environment: "other", prompt: "x" }, d))!;
     expect(undeclared.status).toBe(400);
@@ -240,12 +271,7 @@ describe("handleNodeRoute", () => {
     for (const extra of [{ repoPath: "/etc" }, { cwd: "/" }, { command: "rm -rf /" }, { agent: "sh" }, { args: ["--x"] }]) {
       expect((await post("/api/node/launch", { environment: "arch-2", prompt: "x", ...extra }, d))!.status).toBe(400);
     }
-    const off = deps({ autonomyOn: (p) => p !== ENV_PATH });
-    const r = (await post("/api/node/launch", { environment: "arch-2", prompt: "x" }, off.d))!;
-    expect(r.status).toBe(403);
-    expect(((await r.json()) as { error: string }).error).toContain("autonomy is off");
     expect(calls).toEqual([]);
-    expect(off.calls).toEqual([]);
     expect(audited.every(([a, p, detail]) => a === "node.launch" && p === "arch-1" && "refused" in detail)).toBe(true);
   });
 

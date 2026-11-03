@@ -235,7 +235,7 @@ export function PeersControl() {
         </ul>
       </Card>
 
-      <PeerEnvironments environments={view.environments} onChange={load} />
+      <PeerEnvironments environments={view.environments} inbound={view.inbound} onChange={load} />
 
       <Card className="gap-2 p-4" aria-label={t("peers.outbound.title")} role="region">
         <div className="font-medium">{t("peers.outbound.title")}</div>

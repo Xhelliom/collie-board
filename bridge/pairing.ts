@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { chmodSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 
@@ -10,8 +10,8 @@ import { digest, parseNodeFile, readSecretToml, type NodeConfig, type NodeEnviro
 // invitation; A (driving) sends B's URL and the code to its OWN bridge, which calls B's
 // `POST /api/node/pair` once. B answers with a fresh token, stored hashed in its `node.toml`; A stores
 // it in clear in its `peers.toml`. The token travels server to server only — no route reads it back.
-// Both files are rewritten whole by the operator's routes, then replace the config in memory:
-// reloaded on write, no watcher, no loop.
+// Both files are rewritten whole by the operator's routes, then replace the config in memory.
+// node.toml is also re-read when its mtime moves (a hand edit), checked on read — no watcher, no loop.
 
 /** A peer name: the same alphabet as an environment's, nothing a path or a TOML key could hide in. */
 export const PEER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -57,7 +57,7 @@ export function parsePeersFile(raw: unknown): OutboundPeer[] {
 
 // A JSON string is a valid TOML basic string.
 const q = JSON.stringify;
-const HEADER = "# Written by Collie's settings → Peers (ADR 0049). Hand edits are taken at restart; comments are not kept.\n";
+const HEADER = "# Written by Collie's settings → Peers (ADR 0049). Hand edits are taken on the next read; comments are not kept.\n";
 
 export function nodeToml(cfg: NodeConfig): string {
   let s = `${HEADER}name = ${q(cfg.name)}\n`;
@@ -100,7 +100,8 @@ export interface PeersView {
 
 /** `node.toml` and `peers.toml`, as last read or written, plus the one invitation in memory. */
 export class PeerStore {
-  private nodeFile!: { cfg: NodeConfig | null; text: string | null; error?: string };
+  private loadedNode!: { cfg: NodeConfig | null; text: string | null; error?: string };
+  private nodeStamp: string | null = null;
   private outFile!: { peers: OutboundPeer[]; text: string | null; error?: string };
   private invitation: Invitation | null = null;
 
@@ -108,12 +109,32 @@ export class PeerStore {
     private readonly stateDir: string,
     private readonly now: () => number = Date.now,
   ) {
-    const n = readSecretToml(this.nodePath, parseNodeFile);
-    this.nodeFile = { cfg: n.value, text: n.text, ...(n.error ? { error: n.error } : {}) };
-    if (n.error) console.warn(`[node] ${n.error}; /api/node/* stays off`);
+    this.loadNode();
     const o = readSecretToml(this.peersPath, parsePeersFile);
     this.outFile = { peers: o.value ?? [], text: o.text, ...(o.error ? { error: o.error } : {}) };
     if (o.error) console.warn(`[peers] ${o.error}`);
+  }
+
+  private stamp(): string | null {
+    try {
+      const st = statSync(this.nodePath);
+      return `${st.mtimeMs}:${st.size}`;
+    } catch {
+      return null;
+    }
+  }
+
+  private loadNode(): void {
+    this.nodeStamp = this.stamp();
+    const n = readSecretToml(this.nodePath, parseNodeFile);
+    this.loadedNode = { cfg: n.value, text: n.text, ...(n.error ? { error: n.error } : {}) };
+    if (n.error) console.warn(`[node] ${n.error}; /api/node/* stays off`);
+  }
+
+  /** node.toml as on disk: a hand edit since the last read is taken now, without a restart. */
+  private get nodeFile() {
+    if (this.stamp() !== this.nodeStamp) this.loadNode();
+    return this.loadedNode;
   }
 
   private get nodePath() {
@@ -201,6 +222,16 @@ export class PeerStore {
     this.writeNode({ ...cfg, environments: [...cfg.environments, env] });
   }
 
+  /** Grant or withdraw `peer`'s right to launch in `environment`. A hand-written « every environment » peer is narrowed to a list first. */
+  setGrant(peer: string, environment: string, allow: boolean): void {
+    const cfg = this.envConfig(environment);
+    const p = cfg.peers.find((x) => x.name === peer);
+    if (!p) throw new PeerError(`no peer named "${peer}"`, 404);
+    const now = p.launch ?? cfg.environments.map((e) => e.name);
+    const launch = allow ? [...new Set([...now, environment])] : now.filter((e) => e !== environment);
+    this.writeNode({ ...cfg, peers: cfg.peers.map((x) => (x === p ? { ...x, launch } : x)) });
+  }
+
   /** Rename an environment; a peer's `launch` grant follows the new name. */
   renameEnvironment(from: string, to: string): void {
     const cfg = this.envConfig(from);
@@ -240,7 +271,8 @@ export class PeerStore {
   private writeNode(cfg: NodeConfig): void {
     const text = nodeToml(cfg);
     this.write(this.nodePath, this.nodeFile, text);
-    this.nodeFile = { cfg, text };
+    this.loadedNode = { cfg, text };
+    this.nodeStamp = this.stamp();
   }
 
   private writePeers(peers: OutboundPeer[]): void {
@@ -250,7 +282,7 @@ export class PeerStore {
   }
 
   private writable(path: string, loaded: { text: string | null; error?: string }): void {
-    if (loaded.error) throw new PeerError(`${loaded.error} — fix it by hand and restart the bridge`, 409);
+    if (loaded.error) throw new PeerError(`${loaded.error} — fix it by hand`, 409);
     let disk: string | null;
     try {
       disk = readFileSync(path, "utf8");
@@ -498,6 +530,14 @@ export async function handlePeerRoute(pathname: string, req: Request, d: PeerRou
       if (!repoPath) return d.json({ ok: false, error: "repo must be one of the board's known repos" }, 400);
       store.addEnvironment({ name, repoPath, agent: b.agent });
       d.audit("peers.environment.add", { environment: name, repo: repoPath, agent: b.agent });
+      return d.json({ ok: true });
+    }
+    if (pathname === "/api/peers/grant") {
+      // « Autoriser le lancement depuis <peer> »: the grant alone is the consent (ADR 0051) — autonomy is untouched.
+      const environment = typeof b.environment === "string" ? b.environment : "";
+      const allow = b.allow === true;
+      store.setGrant(name, environment, allow);
+      d.audit("peers.grant", { peer: name, environment, allow });
       return d.json({ ok: true });
     }
     if (pathname === "/api/peers/test") {
