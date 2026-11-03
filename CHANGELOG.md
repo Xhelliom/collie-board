@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.250.0] - 2026-11-03
+
+### Changed
+
+- Page projet : un lot fini se replie sur une ligne, une phase à valider sur son en-tête (Valider et barre gardés) (8d17dd2)
+- Page projet : le bandeau ne montre que les phases non finies ; les phases validées, les 3 plus récentes puis « Voir les N autres » (8d17dd2)
+- Page projet : chaque ligne repliée garde une pastille de statut ; le repli choisi à la main est retenu sur l'appareil (8d17dd2)
+- Page projet : un lien vers une étape (« ce qui t'attend », bandeau, `#step-…`) déplie ce qui la contient (8d17dd2)
+
 ## [0.249.0] - 2026-11-02
 
 ### Added
