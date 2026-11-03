@@ -9,6 +9,24 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.252.0] - 2026-11-03
+
+### Added
+
+- Pairs : « Autoriser » par environnement et par pair — le droit de lancer, les conditions affichées avec leur état (77fb520)
+- « Lancer sur » d'une carte : un pair joint sans environnement utilisable dit pourquoi (aucun environnement, origine, lancement non accordé) (77fb520)
+- Un lancement depuis un pair pré-accepte la confiance Claude Code du worktree (77fb520)
+
+### Changed
+
+- Un lancement depuis un pair ne dépend plus de l'autonomie du dépôt : le droit accordé suffit (ADR 0051) (77fb520)
+
+### Fixed
+
+- Démarrage sur un pair : la requête n'est plus coupée à 10 s (502 alors que l'agent tournait) (77fb520)
+- Démarrage sur un pair idempotent : un nouvel essai réutilise le worktree existant et garde l'agent qui y est (77fb520)
+- node.toml modifié à la main est pris sans redémarrage (77fb520)
+
 ## [0.251.0] - 2026-11-03
 
 ### Added
