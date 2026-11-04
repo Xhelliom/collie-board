@@ -562,8 +562,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               >
                 <AArrowUp className="size-4" />
               </Button>
-              {/* Copies the mirror's displayed buffer. Disabled (not hidden) outside a secure context —
-                  navigator.clipboard doesn't exist on plain HTTP, same gate as Push (lib/push.ts). */}
+              {/* Copies the mirror's displayed buffer. Disabled (not hidden),
+                  disabled only when neither the clipboard API nor the legacy copy command exists. */}
               <Button
                 variant="ghost"
                 size="icon"

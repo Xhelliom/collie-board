@@ -33,7 +33,7 @@ export const pane = defineMessages({
   "pane.closeFailed": { en: "Close failed", fr: "Échec de la fermeture" },
   "pane.copy.code": { en: "Copy code block", fr: "Copier le bloc de code" },
   "pane.copy.done": { en: "Copied", fr: "Copié" },
-  "pane.copy.unavailable": { en: "Copy unavailable — requires a secure context (HTTPS)", fr: "Copie indisponible — nécessite un contexte sécurisé (HTTPS)" },
+  "pane.copy.unavailable": { en: "Copy unavailable in this browser", fr: "Copie indisponible dans ce navigateur" },
   "pane.subagents": {
     en: { one: "{count} subagent running", other: "{count} subagents running" },
     fr: { one: "{count} sous-agent en cours", other: "{count} sous-agents en cours" },
