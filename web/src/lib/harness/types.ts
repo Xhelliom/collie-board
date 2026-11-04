@@ -27,4 +27,6 @@ export interface HarnessAdapter {
    *  ("[Pasted text #3]") rather than the draft's text. The text is in the box but not on screen, so
    *  this is the only evidence a big send has that it landed (reply-action.ts). */
   isCollapsedDraft(draft: string): boolean;
+  /** Whether the agent's own input box is at the tail — false while a full-screen choice holds it. */
+  hasInputBox(lines: StyledLine[]): boolean;
 }

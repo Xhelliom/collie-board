@@ -421,3 +421,31 @@ return in ~1 ms, so the trap only shows up on an idle or finished agent. 6.5 s i
 in this bridge (`DEFAULT_TIMEOUT_MS` is 5000), so a caller that asks for `"text"` simply fails —
 which is what made reading mode show a permanent "reconnecting" banner on any done agent. Ask for
 `"ansi"` and strip the SGR codes yourself; they carry no cursor sequences (already verified above).
+
+### First-run screens — what `agent_status` says in front of them (live-probed herdr 0.9.5, Claude Code 2.1.318, 2026-11-04)
+
+Claude Code opened in an untrusted directory holding a `.mcp.json`, read with `agent.get` /
+`herdr agent explain` at each screen:
+
+| screen | `agent_status` | detection rule |
+|---|---|---|
+| folder trust (« Is this a project you created or one you trust? ») | **`blocked`** | `live_blocked_form` |
+| one new repo MCP server (« New MCP server found in this project: … ») | **`blocked`** | `live_blocked_form` |
+| several new repo MCP servers (« N new MCP servers found… » checklist, `Space to select`) | **`idle`** | none — `default_known_agent_idle_fallback` |
+| after the screens, at the input box | `idle` | `live_prompt_box` |
+
+- herdr does not tell these screens apart from any other blocked form: `blocked` means "some dialog",
+  not "the trust prompt". The web tells them apart from the screen (`classifyFooter` +
+  `namesTrustDialog` in `web/src/lib/harness/claude/markers.ts`).
+- The checklist reads **`idle`**, so "blocked" alone misses it. The tell is the missing input box:
+  idle + no `❯` box at the tail = a screen holds the agent (`hasInputBox`, harness adapter).
+- `interactive_ready` is absent from `agent.get` for a pane where Claude was typed into a shell (not
+  started by `agent.start`); for an `agent.start` pane it is `true` behind the trust dialog already
+  (bridge/cards.ts), so it says nothing about these screens.
+- Both 2.1.318 dialogs print their rows **unnumbered** with a `❯` pointer (trust parks it on
+  « No, exit »; MCP on « Continue without… »). One `pane.send_keys` call with `["Down","Enter"]` or
+  `["Up","Up","Enter"]` walks and confirms in order — verified: the latter wrote
+  `enabledMcpjsonServers: ["probe-echo"]` to `.claude/settings.local.json`.
+- A freshly launched agent has **no transcript yet** (`/history` → `no-log`), so reading mode falls
+  back to the terminal on its own; the reading-mode banner matters once a log exists (a relaunch,
+  `claude --continue` with a new server in `.mcp.json`).

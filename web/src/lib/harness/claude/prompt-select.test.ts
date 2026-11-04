@@ -208,3 +208,79 @@ describe("detectPromptSelectRegion — render boundary", () => {
     expect(region!.model).toEqual(detectPromptSelect(lines));
   });
 });
+
+// ── The POINTED, unnumbered first-run dialogs (Claude Code 2.1.278+) ────────────────────────────
+// No digit on screen, so none is synthesised: a tap is the arrow walk from the pointer, then Enter.
+describe("detectPromptSelect — the unnumbered folder-trust and repo-MCP prompts", () => {
+  function pointedScreen(rows: string[], question = "Is this a project you created or one you trust?"): StyledLine[] {
+    return splitLines(
+      parseAnsi(
+        [
+          " Accessing workspace:",
+          "",
+          ` Quick safety check: ${question} (Like your own code).`,
+          "",
+          " Security guide",
+          "",
+          ...rows,
+          "",
+          " Enter to confirm · Esc to cancel",
+        ].join("\n"),
+      ),
+    );
+  }
+
+  it("lifts both rows in screen order, walked with the arrows and confirmed with Enter", () => {
+    const model = detectPromptSelect(fixtureLines("claude--trust-prompt-unnumbered.txt"));
+    expect(model!.family).toBe("trust");
+    expect(model!.question).toContain("Is this a project you created or one you trust?");
+    expect(model!.options.map((o) => o.label)).toEqual(["No, exit", "Yes, I trust this folder"]);
+    expect(model!.options.map((o) => o.keys)).toEqual([["Enter"], ["Down", "Enter"]]);
+  });
+
+  it("reads the narrow (phone-width) captures the same way", () => {
+    for (const name of [
+      "claude--v2283-trust--w50.txt",
+      "claude-lab--trust-prompt--w40.txt",
+      "claude-lab--trust-prompt--w82.txt",
+    ]) {
+      const model = detectPromptSelect(fixtureLines(name));
+      expect(model?.family, name).toBe("trust");
+      expect(model!.options.map((o) => o.label), name).toEqual(["No, exit", "Yes, I trust this folder"]);
+      expect(model!.options.map((o) => o.keys), name).toEqual([["Enter"], ["Down", "Enter"]]);
+    }
+  });
+
+  it("the repo-MCP approval: its title stands for the question, the walk goes UP from the pointer", () => {
+    const model = detectPromptSelect(fixtureLines("claude--v2318-mcp-server.txt"));
+    expect(model!.family).toBe("trust");
+    expect(model!.question).toBe("New MCP server found in this project: probe-echo");
+    expect(model!.options.map((o) => o.label)).toEqual([
+      "Use this MCP server",
+      "Use this and all future MCP servers in this project",
+      "Continue without using this MCP server",
+    ]);
+    expect(model!.options.map((o) => o.keys)).toEqual([["Up", "Up", "Enter"], ["Up", "Enter"], ["Enter"]]);
+  });
+
+  it("stays raw without the dialog's own words (Enter to confirm alone names nothing)", () => {
+    expect(detectPromptSelect(pointedScreen(["   No, exit", " ❯ Yes, continue"], "is this folder OK?"))).toBeNull();
+  });
+
+  it("declines no pointer, two pointers, or a lone row", () => {
+    expect(detectPromptSelect(pointedScreen(["   No, exit", "   Yes, I trust this folder"]))).toBeNull();
+    expect(detectPromptSelect(pointedScreen([" ❯ No, exit", " ❯ Yes, I trust this folder"]))).toBeNull();
+    expect(detectPromptSelect(pointedScreen([" ❯ Yes, I trust this folder"]))).toBeNull();
+  });
+
+  it("a moved pointer changes the signature, so a stale tap is refused", () => {
+    const here = detectPromptSelect(pointedScreen([" ❯ No, exit", "   Yes, I trust this folder"]))!;
+    const moved = detectPromptSelect(pointedScreen(["   No, exit", " ❯ Yes, I trust this folder"]))!;
+    expect(here.signature).not.toBe(moved.signature);
+  });
+
+  it("does not match once the dialog has scrolled off the tail", () => {
+    const withTail = fixtureText("claude--trust-prompt-unnumbered.txt") + "\n● Wrote the file\n  ⎿  done\n";
+    expect(detectPromptSelect(splitLines(parseAnsi(withTail)))).toBeNull();
+  });
+});

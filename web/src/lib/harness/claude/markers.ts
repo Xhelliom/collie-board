@@ -58,6 +58,20 @@ export function isMultiStepHeader(text: string): boolean {
 /** The single-choice dialog families Claude Code renders, discriminated by their footer hint bar. */
 export type PromptFamily = "select" | "permission" | "trust" | "plan";
 
+// The first-run dialogs' own words. "Enter to confirm" alone names nothing — the /effort slider
+// prints it too, and a wrong family takes every button off the screen (upstream ADR 0053) — so the
+// `trust` family needs one of these on screen. Read off claude--trust-prompt*.txt and
+// claude--v2318-mcp-server.txt (one server; several get a checklist this grammar doesn't read).
+const TRUST_QUESTION = /is this a project you created or one you trust/i;
+const TRUST_OPTION = /yes,\s*i trust this folder/i;
+export const MCP_TITLE = /new mcp server found in this project/i;
+
+/** True when the folder-trust dialog's title or option row, or the repo-MCP approval title, is on
+ *  screen — the evidence `classifyFooter` needs before it claims the `trust` family. */
+export function namesTrustDialog(texts: string[]): boolean {
+  return texts.some((t) => TRUST_QUESTION.test(t) || TRUST_OPTION.test(t) || MCP_TITLE.test(t));
+}
+
 /**
  * Classify a candidate footer line — the hint bar at the very bottom of a Claude dialog — into a
  * dialog family, or null when it isn't a recognised menu footer. The footer is the single most
@@ -65,17 +79,18 @@ export type PromptFamily = "select" | "permission" | "trust" | "plan";
  * confirm phrase pins the keystroke recipe:
  *
  *   - "Enter to select …"  → select     (AskUserQuestion: the digit THEN Enter)
- *   - "Enter to confirm …" → trust      (folder-trust prompt: the digit alone)
+ *   - "Enter to confirm …" → trust      (folder-trust / repo-MCP prompt, only with its own words on
+ *                                       screen — see namesTrustDialog: the digit alone, or the walk)
  *   - "… Tab to amend …"   → permission (edit/bash "Do you want to proceed?": the digit alone)
  *   - "ctrl+g to edit …" or a "~/.claude/plans/…" path → plan (ExitPlanMode: the digit alone)
  *
  * Case-insensitive and anchored only on the confirm phrase, so per-install extra hints
  * (ctrl+e to explain, ↑/↓ to navigate, …) don't disturb the classification.
  */
-export function classifyFooter(text: string): PromptFamily | null {
+export function classifyFooter(text: string, texts: string[]): PromptFamily | null {
   const t = text.toLowerCase();
   if (/\benter to select\b/.test(t)) return "select";
-  if (/\benter to confirm\b/.test(t)) return "trust";
+  if (/\benter to confirm\b/.test(t)) return namesTrustDialog(texts) ? "trust" : null;
   if (/ctrl\+g to edit\b/.test(t) || /\.claude\/plans\//.test(t)) return "plan";
   if (/\btab to amend\b/.test(t)) return "permission";
   return null;

@@ -53,17 +53,25 @@ describe("isBoxBorder", () => {
 
 describe("classifyFooter", () => {
   it("maps each dialog family off its footer hint bar", () => {
-    expect(classifyFooter("Enter to select · ↑/↓ to navigate · Esc to cancel")).toBe("select");
-    expect(classifyFooter("Enter to confirm · Esc to cancel")).toBe("trust");
-    expect(classifyFooter("Esc to cancel · Tab to amend")).toBe("permission");
-    expect(classifyFooter("Esc to cancel · Tab to amend · ctrl+e to explain")).toBe("permission");
-    expect(classifyFooter("ctrl+g to edit in  nano  · ~/.claude/plans/velvet-toasting-turtle.md")).toBe("plan");
+    expect(classifyFooter("Enter to select · ↑/↓ to navigate · Esc to cancel", [])).toBe("select");
+    expect(classifyFooter("Enter to confirm · Esc to cancel", [" ❯ Yes, I trust this folder"])).toBe("trust");
+    expect(classifyFooter("Esc to cancel · Tab to amend", [])).toBe("permission");
+    expect(classifyFooter("Esc to cancel · Tab to amend · ctrl+e to explain", [])).toBe("permission");
+    expect(classifyFooter("ctrl+g to edit in  nano  · ~/.claude/plans/velvet-toasting-turtle.md", [])).toBe("plan");
+  });
+
+  it("claims `trust` only with the dialog's own words on screen (the /effort slider says Enter to confirm too)", () => {
+    const footer = "Enter to confirm · Esc to cancel";
+    expect(classifyFooter(footer, [" Quick safety check: Is this a project you created or one you trust?"])).toBe("trust");
+    expect(classifyFooter(footer, ["  New MCP server found in this project: probe-echo"])).toBe("trust");
+    expect(classifyFooter(footer, [" ◐ medium · /effort", footer])).toBeNull();
+    expect(classifyFooter(footer, [])).toBeNull();
   });
 
   it("returns null for a non-footer line (statusline / hint / prose)", () => {
-    expect(classifyFooter("⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents")).toBeNull();
-    expect(classifyFooter("← for agents")).toBeNull();
-    expect(classifyFooter("Do you want to proceed?")).toBeNull();
+    expect(classifyFooter("⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents", [])).toBeNull();
+    expect(classifyFooter("← for agents", [])).toBeNull();
+    expect(classifyFooter("Do you want to proceed?", [])).toBeNull();
   });
 });
 

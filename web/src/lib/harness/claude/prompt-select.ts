@@ -14,6 +14,7 @@ import {
   isHorizontalRule,
   isMultiStepHeader,
   lineText,
+  MCP_TITLE,
   type PromptFamily,
 } from "./markers";
 
@@ -152,7 +153,7 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
   let fi = texts.length - 1;
   while (fi >= 0 && isBlank(texts[fi]!)) fi--;
   if (fi < 0) return null;
-  const family = classifyFooter(texts[fi]!);
+  const family = classifyFooter(texts[fi]!, texts);
   if (!family) return null;
 
   // 2. Numbered option rows just above the footer. The menu is the trailing 1,2,…,m run of them
@@ -163,9 +164,11 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
     const parsed = parseOptionRow(texts[i]!);
     if (parsed) rows.push({ index: i, n: parsed.n, label: parsed.label });
   }
-  if (rows.length < 2) return null;
   const menu = trailingMenuRows(rows);
-  if (menu.length < 2) return null; // ≥2 rows numbered 1,2,…,m — else not a single-choice menu tail.
+  if (menu.length < 2) {
+    // No numbered menu: the first-run dialogs (folder trust, repo MCP) print theirs unnumbered.
+    return family === "trust" ? detectPointedRegion(texts, fi, family) : null;
+  }
   // A menu numbered past 9 would need a two-key digit ("10"), which Herdr's send_keys rejects — so
   // up-levelling it into buttons would emit an unsendable keystroke plan. Real Claude menus are ≤6
   // options; bail to the raw mirror + keys pad rather than render a broken button. (menu is
@@ -189,17 +192,8 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
     }
   }
 
-  // 3. Question = the nearest line above the first option that contains "?", stopping at a rule so
-  //    the search can't cross out of the dialog. Every dialog's prompt carries a "?".
-  let question = "";
-  for (let i = firstOpt - 1, seen = 0; i >= 0 && seen < QUESTION_SCAN_LIMIT; i--, seen++) {
-    const t = texts[i]!;
-    if (isHorizontalRule(t)) break;
-    if (t.includes("?")) {
-      question = t.trim();
-      break;
-    }
-  }
+  // 3. Question = the nearest line above the first option that contains "?" (see findQuestion).
+  const question = findQuestion(texts, firstOpt);
   if (!question) return null;
 
   // 4. Build the options, attaching any description continuation lines and dropping free-text rows.
@@ -226,6 +220,46 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
 
   const signature = regionSignature(texts, firstOpt, fi);
   return { model: { question, options, family, signature }, startLine: firstOpt };
+}
+
+/** The question = the nearest line above `firstOpt` carrying "?", stopping at a rule so the search
+ *  can't cross out of the dialog. The repo-MCP dialog asks none, so its title stands in. */
+function findQuestion(texts: string[], firstOpt: number): string {
+  for (let i = firstOpt - 1, seen = 0; i >= 0 && seen < QUESTION_SCAN_LIMIT; i--, seen++) {
+    const t = texts[i]!;
+    if (isHorizontalRule(t)) break;
+    if (t.includes("?") || MCP_TITLE.test(t)) return t.trim();
+  }
+  return "";
+}
+
+const POINTER = /^❯\s*/;
+
+/**
+ * The UNNUMBERED shape (Claude Code 2.1.278+ on the folder-trust and repo-MCP dialogs, see
+ * claude--trust-prompt-unnumbered.txt / claude--v2318-mcp-server.txt): one block of rows against the
+ * footer, exactly one carrying the `❯` pointer. No digit is on screen, so none is synthesised: a tap
+ * walks the pointer with the arrows and confirms with the Enter the footer names. The pointer's
+ * column is in `signature`, so a pointer that moved since the render refuses the tap (race guard).
+ */
+function detectPointedRegion(texts: string[], fi: number, family: PromptFamily): PromptRegion | null {
+  let last = fi - 1;
+  while (last >= 0 && fi - last <= MAX_FOOTER_GAP && isBlank(texts[last]!)) last--;
+  if (last < 0 || isBlank(texts[last]!)) return null;
+  let first = last;
+  while (first - 1 >= 0 && last - first < 9 && !isBlank(texts[first - 1]!)) first--;
+  if (first - 1 >= 0 && !isBlank(texts[first - 1]!)) return null; // >9 rows: not a menu we walk
+  const rows = texts.slice(first, last + 1).map((t) => t.trim());
+  const pointer = rows.findIndex((t) => POINTER.test(t));
+  if (rows.length < 2 || pointer === -1 || rows.findLastIndex((t) => POINTER.test(t)) !== pointer) return null;
+  const question = findQuestion(texts, first);
+  if (!question) return null;
+  const options: PromptOption[] = rows.map((t, i) => ({
+    label: t.replace(POINTER, ""),
+    keys: [...Array<string>(Math.abs(i - pointer)).fill(i > pointer ? "Down" : "Up"), "Enter"],
+  }));
+  const signature = regionSignature(texts, first, fi);
+  return { model: { question, options, family, signature }, startLine: first };
 }
 
 /**
