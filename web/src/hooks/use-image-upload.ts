@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ClipboardEvent, Dispatch, SetStateAction } from "react";
 
 import * as api from "@/lib/api";
@@ -25,15 +25,33 @@ export interface UseImageUploadOptions {
   session?: string;
   /** Refuse uploads (a gone pane, a read-only device). */
   disabled?: boolean;
+  /** The draft — read to show only the thumbnails whose path is still in it. */
+  text: string;
   /** The draft the path is appended to. */
   setText: Dispatch<SetStateAction<string>>;
   /** Ran after a path lands — the composer re-focuses its input so the keyboard stays up. */
   onAppended?: () => void;
 }
 
+/** An image this draft carries: its host path, and a local URL to show it (null when it can't be). */
+export interface AttachedImage {
+  path: string;
+  url: string | null;
+}
+
 export interface ImageUpload {
   uploading: boolean;
-  /** Upload one file and append its host path to the draft. Used by a file picker and by paste. */
+  /** A pasted / picked image waiting in the preview (Attach as is, or Edit first). */
+  pending: File | null;
+  /** Hand an image to the preview — what paste and the picker both do. */
+  pick(file: File): void;
+  /** Close the preview without uploading. */
+  dismiss(): void;
+  /** The images whose path is still in the draft, oldest first. */
+  images: AttachedImage[];
+  /** Take an image's path back out of the draft. */
+  remove(path: string): void;
+  /** Upload one file and append its host path to the draft — the preview's Attach. */
   uploadImage(file: File): Promise<void>;
   /**
    * Paste handler. Only intercepts when the clipboard actually carries an image file — a plain text
@@ -46,18 +64,29 @@ export function useImageUpload({
   paneId,
   session,
   disabled,
+  text,
   setText,
   onAppended,
 }: UseImageUploadOptions): ImageUpload {
   const [uploading, setUploading] = useState(false);
+  const [pending, setPending] = useState<File | null>(null);
+  const [attached, setAttached] = useState<AttachedImage[]>([]);
+  // Object URLs outlive nothing: revoked when the surface goes away.
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
   async function uploadImage(file: File) {
     if (disabled) return;
+    setPending(null);
     setUploading(true);
     try {
       const res = await api.uploadImage(paneId, file, session);
       if (res.ok) {
         const path = res.path;
+        // jsdom has no createObjectURL; the thumbnail then falls back to an icon.
+        const url = URL.createObjectURL?.(file) ?? null;
+        if (url) urls.current.push(url);
+        setAttached((prev) => [...prev, { path, url }]);
         setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${path}` : path));
         onAppended?.();
         setStatus(t("pane.imageAdded"), "success");
@@ -80,12 +109,24 @@ export function useImageUpload({
         const file = item.getAsFile();
         if (file) {
           e.preventDefault();
-          void uploadImage(file);
+          setPending(file);
           return;
         }
       }
     }
   }
 
-  return { uploading, uploadImage, onPaste };
+  function pick(file: File) {
+    if (!disabled) setPending(file);
+  }
+
+  function remove(path: string) {
+    setText((prev) => prev.split(path).join("").replace(/ {2,}/g, " ").trim());
+    setAttached((prev) => prev.filter((a) => a.path !== path));
+  }
+
+  // A sent (cleared) or hand-edited draft drops the thumbnail with the path.
+  const images = attached.filter((a) => text.includes(a.path));
+
+  return { uploading, pending, pick, dismiss: () => setPending(null), images, remove, uploadImage, onPaste };
 }

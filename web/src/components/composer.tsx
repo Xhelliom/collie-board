@@ -7,6 +7,7 @@ import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useImageUpload } from "@/hooks/use-image-upload";
+import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { setStatus } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -167,10 +168,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [sending, setSending] = useState(false);
   // Upload + clipboard paste, shared with every other draft box that can carry a screenshot
   // (hooks/use-image-upload.ts) — on success the host path is appended here and the keyboard stays up.
-  const { uploading, uploadImage, onPaste: onPasteImage } = useImageUpload({
+  const upload = useImageUpload({
     paneId,
     session,
     disabled: locked,
+    text: input,
     setText: setInput,
     onAppended: () => focusInputEnd(),
   });
@@ -261,7 +263,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // is SAFE on its own — it lives on the "❯" line and its preview re-derives after a reload — so it
   // never holds. When held, the self-updater shows the "tap to update" banner instead and updates once
   // the hold clears (see lib/self-update.ts). Keyed by pane so panes don't clobber each other's hold.
-  useHoldReload(`composer:${paneId}`, input.trim() !== "" || uploading);
+  useHoldReload(`composer:${paneId}`, input.trim() !== "" || upload.uploading);
 
   // Write-through for the module-scoped draft map above — every keystroke, and the clear on send,
   // land here so the NEXT mount of this paneId (a pane switch and back) seeds from it.
@@ -459,11 +461,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     focusInputEnd();
   }
 
-  async function onPickImage(e: ChangeEvent<HTMLInputElement>) {
+  function onPickImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    await uploadImage(file);
+    if (file) upload.pick(file);
   }
 
   return (
@@ -608,6 +609,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             buttons, Send at the end (redesign §5 "Composer collapses to one row on desktop"). The
             `⌘⏎ pour envoyer` hint only makes sense once a physical keyboard is the norm, so it's
             desktop-only too. */}
+        <ImagePreviewSheet upload={upload} />
+        <AttachedImages upload={upload} className="mb-2" />
         <div className="lg:flex lg:items-end lg:gap-2">
           <div className="relative lg:min-w-0 lg:flex-1">
             {/* Reply input — full width, its own line below `lg` (UI_AUDIT C1). No side buttons
@@ -623,7 +626,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   onSendClick();
                 }
               }}
-              onPaste={onPasteImage}
+              onPaste={upload.onPaste}
               placeholder={
                 gone
                   ? tr("pane.input.gone")
@@ -709,12 +712,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 variant="ghost"
                 size="icon"
                 className="size-11 text-muted-foreground"
-                disabled={uploading || locked}
+                disabled={upload.uploading || locked}
                 onPointerDown={(e) => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
                 aria-label={tr("pane.attach")}
               >
-                {uploading ? (
+                {upload.uploading ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <ImagePlus className="size-4" />

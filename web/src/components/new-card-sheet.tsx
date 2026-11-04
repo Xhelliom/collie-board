@@ -15,6 +15,7 @@ import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { useLongPress } from "@/hooks/use-long-press";
 import { useImageUpload } from "@/hooks/use-image-upload";
+import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 
 interface NewCardSheetProps {
   open: boolean;
@@ -68,18 +69,17 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   // composer uses on a live pane, from the same hook, so there is one mechanism and not two. The
   // card has no pane, so the upload is owned by the sheet: `new-card` names the saved file and the
   // audit line. The board is always the primary session, so no `session` is passed.
-  const { uploading, uploadImage, onPaste } = useImageUpload({ paneId: "new-card", setText });
+  const upload = useImageUpload({ paneId: "new-card", text, setText });
   const fileRef = useRef<HTMLInputElement>(null);
 
   // The picker, not just the paste. On the phone this sheet is the ONLY way in — a dictated card is
   // typed with the on-screen keyboard, which has no "paste an image" of its own, so a paste-only
   // wiring meant the feature existed and could not be reached. Same input/button pair as the
   // composer's, over the same `uploadImage`.
-  async function onPickImage(e: ChangeEvent<HTMLInputElement>) {
+  function onPickImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    await uploadImage(file);
+    if (file) upload.pick(file);
   }
 
   useEffect(() => {
@@ -222,6 +222,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
       }
     >
       <div className="flex flex-col gap-3">
+        <ImagePreviewSheet upload={upload} />
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
             {t("newcard.what")}
@@ -229,7 +230,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onPaste={onPaste}
+            onPaste={upload.onPaste}
             rows={5}
             placeholder={t("newcard.placeholder")}
             className="rounded-lg border border-brand/35 bg-background px-3 py-2 text-[15px] leading-[1.5] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -237,6 +238,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
           {/* The shared toasts sit under the header, behind this sheet, so the button carries the
               upload's state itself — an upload that takes a few seconds says so where the user is
               looking, and there is one control rather than a control plus a toast. */}
+          <AttachedImages upload={upload} className="px-1" />
           <div className="flex px-1">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
             <Button
@@ -244,11 +246,11 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 px-2 text-xs text-muted-foreground"
-              disabled={uploading}
+              disabled={upload.uploading}
               onClick={() => fileRef.current?.click()}
             >
-              {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-              {uploading ? t("newcard.uploading") : t("newcard.attach")}
+              {upload.uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+              {upload.uploading ? t("newcard.uploading") : t("newcard.attach")}
             </Button>
           </div>
         </label>
