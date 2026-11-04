@@ -217,7 +217,20 @@ export function classifyUserText(
     return summary ? { role: "note", text: summary } : null;
   }
 
-  return text.trim() === "" ? null : { role: "user", text };
+  const said = unwrapPastes(text);
+  return said.trim() === "" ? null : { role: "user", text: said };
+}
+
+/**
+ * A paste as Claude Code records it (measured on 2.1.318, 2026-11-04):
+ * `"\n\n<pasted_content id=\"7b22\">\n…\n</pasted_content id=\"7b22\">\n\n"`. Every long reply from
+ * the phone lands this way, and the operator never typed the tags.
+ */
+const PASTED_CONTENT = /(^|\n)<pasted_content id="([0-9a-f]+)">\n?([\s\S]*?)\n?<\/pasted_content(?:\s+id="\2")?>/g;
+
+/** The text with each recorded paste replaced by what was pasted, then trimmed. A tag with no matching close is left as it is. */
+export function unwrapPastes(text: string): string {
+  return text.includes("<pasted_content ") ? text.replace(PASTED_CONTENT, "$1$3").trim() : text;
 }
 
 function clamp(text: string, max: number): { text: string; truncated?: boolean } {
@@ -395,8 +408,10 @@ export function parseTranscript(
         if (block === null || typeof block !== "object") continue;
         const b = block as Record<string, unknown>;
         if (b.type === "text" && typeof b.text === "string") {
-          if (b.text.trim() !== "")
-            parts.push({ kind: "text", ...clamp(stripAnsi(b.text), MAX_TEXT_CHARS) });
+          if (b.text.trim() !== "") {
+            const said = stripAnsi(b.text);
+            parts.push({ kind: "text", ...clamp(type === "user" ? unwrapPastes(said) : said, MAX_TEXT_CHARS) });
+          }
         } else if (b.type === "thinking" && typeof b.thinking === "string") {
           if (b.thinking.trim() !== "")
             parts.push({ kind: "thinking", ...clamp(stripAnsi(b.thinking), MAX_TEXT_CHARS) });
