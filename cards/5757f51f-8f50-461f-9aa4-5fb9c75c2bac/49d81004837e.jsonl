@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793800692191.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"5fa9205a-3bb7-49d5-aa6b-dd4936bb56b0"}}
 {"v":1,"hlc":"1793800692191.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Markdown : une liste numérotée coupée par une puce garde sa numérotation","status":"backlog"},"ts":1793800682789}}
 {"v":1,"hlc":"1793800692194.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"23a348cd-9808-4f58-abd9-bd4f01c495ea"}}
+{"v":1,"hlc":"1793810208207.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
