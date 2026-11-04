@@ -179,6 +179,13 @@ describe("parseMarkdown", () => {
     expect(blocks[1]).toMatchObject({ ordered: true });
   });
 
+  it("a numbered list split by an indented bullet keeps counting from its own number", () => {
+    const blocks = parseMarkdown("1. un\n2. deux\n   - détail\n3. trois");
+    expect(blocks).toHaveLength(3);
+    expect(blocks[0]).not.toHaveProperty("start");
+    expect(blocks[2]).toMatchObject({ ordered: true, start: 3 });
+  });
+
   it("reads a rule as a rule, not a bullet", () => {
     expect(parseMarkdown("---")).toEqual([{ kind: "rule" }]);
   });

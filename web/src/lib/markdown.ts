@@ -42,7 +42,7 @@ export type MdBlock =
   | { kind: "paragraph"; spans: MdSpan[] }
   /** Fenced code. `text` is verbatim — never inline-parsed. */
   | { kind: "code"; lang: string; text: string }
-  | { kind: "list"; ordered: boolean; items: MdSpan[][] }
+  | { kind: "list"; ordered: boolean; items: MdSpan[][]; start?: number }
   | { kind: "quote"; spans: MdSpan[] }
   /**
    * A GFM table. Every row is padded/truncated to `headers.length` HERE, so the renderer can index
@@ -125,6 +125,7 @@ const FENCE = /^\s*(?:```|~~~)\s*(\S*)/;
 const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const UL_ITEM = /^\s*[-*+]\s+(.*)$/;
 const OL_ITEM = /^\s*\d+[.)]\s+(.*)$/;
+const OL_NUMBER = /^\s*(\d+)/;
 const QUOTE = /^\s*>\s?(.*)$/;
 /** One delimiter cell: `---`, `:---`, `---:`, `:---:`. */
 const DELIM_CELL = /^:?-+:?$/;
@@ -267,7 +268,9 @@ export function parseMarkdown(source: string): MdBlock[] {
         items.push(parseInline(item[1] ?? ""));
         i++;
       }
-      blocks.push({ kind: "list", ordered, items });
+      // Blocks don't nest: a bullet under "2." ends the list, so "3." must carry its own number.
+      const start = ordered ? Number(OL_NUMBER.exec(line)![1]) : 1;
+      blocks.push(start === 1 ? { kind: "list", ordered, items } : { kind: "list", ordered, items, start });
       continue;
     }
 

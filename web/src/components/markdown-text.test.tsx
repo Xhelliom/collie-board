@@ -140,3 +140,12 @@ describe("MarkdownText — colour accents", () => {
     expect(container.querySelector("pre .text-diff-add mark")?.textContent).toBe("needle");
   });
 });
+
+describe("MarkdownText — ordered lists", () => {
+  it("a numbered item after a bullet shows its own number, not 1", () => {
+    const { container } = render(<MarkdownText text={"1. un\n2. deux\n   - détail\n3. trois"} />);
+    const ols = container.querySelectorAll("ol");
+    expect(ols[0]!.hasAttribute("start")).toBe(false);
+    expect(ols[1]!.getAttribute("start")).toBe("3");
+  });
+});
