@@ -9,3 +9,6 @@
 {"v":1,"hlc":"1793810228527.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1793810228528.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793810216514}}
 {"v":1,"hlc":"1793810228528.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2115},"ts":1793810218470}}
+{"v":1,"hlc":"1793810296648.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"manual_checks":[{"id":"1slkeqpsrdmjq","text":"Ouvrir la réponse d un agent avec « 1. 2. », une puce indentée, puis « 3. »","expected":"Le dernier élément affiche 3, pas 1"}],"capability":"Lire une liste numérotée coupée par une puce avec les bons numéros","usage_group":"Lire la sortie des agents"}}
+{"v":1,"hlc":"1793810296649.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
+{"v":1,"hlc":"1793810296649.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1793810296603}}
