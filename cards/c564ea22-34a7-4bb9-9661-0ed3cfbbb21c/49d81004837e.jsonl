@@ -2,3 +2,8 @@
 {"v":1,"hlc":"1793800344183.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Sécurité : une origine loopback n’est acceptée que sur le port du bridge","status":"backlog"},"ts":1793800340102}}
 {"v":1,"hlc":"1793800344183.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8c67cfb0-1aee-4c33-a49a-7775dd574ffb"}}
 {"v":1,"hlc":"1793803951576.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793803955539.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/securite-une-origine-loopback-n-est-acceptee-que"}}
+{"v":1,"hlc":"1793803955539.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793803955539.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793803955382}}
+{"v":1,"hlc":"1793803962464.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793803962464.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793803959768}}
