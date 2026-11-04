@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.253.0] - 2026-11-04
+
+### Added
+
+- Tiroir de l'orchestrateur : coller (Ctrl+V) ou joindre une image, son chemin rejoint le message (d3a642f)
+- Coller ou choisir une image ouvre un aperçu : « Joindre » envoie l'original, « Retoucher » recadre et dessine stylo, cercle, flèche (PNG) (d3a642f)
+- Vignette avec ✕ au-dessus de la saisie pour chaque image jointe (composer, orchestrateur, nouvelle carte), et indicateur pendant l'envoi (d3a642f)
+
 ## [0.252.1] - 2026-11-04
 
 ### Fixed
