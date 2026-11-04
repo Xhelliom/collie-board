@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1793738665173.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":null,"name":"Coller une image","position":0,"launched_at":null,"max_parallel":1,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1793738659835,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
+{"v":1,"hlc":"1793803964796.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1793803962853}}
