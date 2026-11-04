@@ -176,7 +176,17 @@ export default defineConfig({
     port: 5173,
     allowedHosts,
     proxy: {
-      "/api": { target: BRIDGE, changeOrigin: true },
+      "/api": {
+        target: BRIDGE,
+        changeOrigin: true,
+        // changeOrigin rewrites Host to the bridge's, so the dev page's own Origin no longer matches it;
+        // relay it as the bridge's Origin — only when the request is same-origin to this dev server.
+        configure: (proxy) =>
+          proxy.on("proxyReq", (proxyReq, req) => {
+            const origin = req.headers.origin;
+            if (origin && origin.replace(/^https?:\/\//, "") === req.headers.host) proxyReq.setHeader("origin", new URL(BRIDGE).origin);
+          }),
+      },
     },
   },
 });
