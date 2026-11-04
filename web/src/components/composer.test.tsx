@@ -787,6 +787,7 @@ describe("Composer — reload-guard hold (no-SW self-update safety gate)", () =>
     const file = new File(["x"], "shot.png", { type: "image/png" });
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" })); // the preview's Attach
 
     await waitFor(() => expect(isReloadHeld()).toBe(true)); // uploading → held
     release();
@@ -829,8 +830,13 @@ describe("Composer — clipboard image paste", () => {
     const item = { kind: "file", type: "image/png", getAsFile: () => file };
 
     fireEvent.paste(box, { clipboardData: { items: [item] } });
+    // The paste opens the preview first; Attach sends the original.
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
 
     await waitFor(() => expect(box).toHaveValue("/tmp/shot.png"));
+    // Its thumbnail sits above the input; the ✕ takes the path back out of the draft.
+    fireEvent.click(screen.getByRole("button", { name: "Remove image shot.png" }));
+    expect(box).toHaveValue("");
   });
 
   it("leaves a plain-text paste alone — no upload, nothing written by the paste handler", () => {

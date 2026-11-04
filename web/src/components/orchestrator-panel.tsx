@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
-import { Maximize2, Package, Send } from "lucide-react";
+import { ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
@@ -10,6 +10,8 @@ import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deli
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { ChatInput } from "@/components/ui/chat/chat-input";
+import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { autonomyPath, boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
@@ -73,6 +75,9 @@ export function OrchestratorPanel({
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
+  // A screenshot goes up under the orchestrator's own pane, its path into the draft — the composer's hook.
+  const upload = useImageUpload({ paneId: state?.paneId ?? "orchestrator", disabled: !state?.paneId, text: draft, setText: setDraft });
+  const fileRef = useRef<HTMLInputElement>(null);
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
   const [delivOpen, setDelivOpen] = useState(false);
@@ -277,6 +282,8 @@ export function OrchestratorPanel({
           <p className="mt-1.5 text-muted-foreground">{t("orch.memoryEmpty")}</p>
         )}
       </details>
+      <ImagePreviewSheet upload={upload} />
+      <AttachedImages upload={upload} />
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -294,9 +301,31 @@ export function OrchestratorPanel({
             e.preventDefault();
             void send();
           }}
+          onPaste={upload.onPaste}
           rows={1}
           placeholder={t("orch.placeholder")}
         />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = ""; // allow re-picking the same file
+            if (file) upload.pick(file);
+          }}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          className="size-11 shrink-0 px-0 text-muted-foreground"
+          disabled={upload.uploading || !state?.paneId}
+          onClick={() => fileRef.current?.click()}
+          aria-label={t("pane.attach")}
+        >
+          {upload.uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+        </Button>
         <Button type="submit" variant="brand" className="size-11 shrink-0 px-0" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
           <Send className="size-4" />
         </Button>

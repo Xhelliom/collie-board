@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -67,6 +67,32 @@ describe("OrchestratorPanel", () => {
     await screen.findByLabelText("Message à l'orchestrateur");
     expect(sent).toEqual({ text: "Range-les en deux phases", submit: true });
     expect(screen.getByLabelText("Message à l'orchestrateur")).toHaveValue("");
+  });
+
+  it("a pasted image opens the preview; Attach uploads it under its pane and its path joins the draft", async () => {
+    let owner = "";
+    server.use(
+      http.post(/\/api\/pane\/[^/]+\/upload$/, ({ request }) => {
+        owner = decodeURIComponent(new URL(request.url).pathname.split("/")[3]);
+        return HttpResponse.json({ ok: true, path: "/tmp/shot.png" });
+      }),
+    );
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    const box = await screen.findByLabelText("Message à l'orchestrateur");
+    await userEvent.type(box, "regarde");
+    const file = new File(["x"], "shot.png", { type: "image/png" });
+    fireEvent.paste(box, { clipboardData: { items: [{ kind: "file", type: "image/png", getAsFile: () => file }] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Joindre" }));
+    await waitFor(() => expect(box).toHaveValue("regarde /tmp/shot.png"));
+    expect(owner).toBe("w1:p2");
+    // The thumbnail's ✕ takes the path back out.
+    fireEvent.click(screen.getByRole("button", { name: "Retirer l'image shot.png" }));
+    expect(box).toHaveValue("regarde");
+  });
+
+  it("offers the picker as a button too, for a phone", async () => {
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    expect(await screen.findByRole("button", { name: "Joindre une image" })).toBeEnabled();
   });
 
   it("sends on Enter, on Super+Enter, and keeps Shift+Enter for a newline", async () => {

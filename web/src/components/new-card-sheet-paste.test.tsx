@@ -31,6 +31,7 @@ describe("NewCardSheet — clipboard image paste", () => {
     const file = new File(["x"], "shot.png", { type: "image/png" });
 
     fireEvent.paste(box, { clipboardData: { items: [{ kind: "file", type: "image/png", getAsFile: () => file }] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" })); // the preview's Attach
 
     await waitFor(() => expect(box).toHaveValue("/tmp/shot.png"));
   });
@@ -44,6 +45,7 @@ describe("NewCardSheet — clipboard image paste", () => {
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
 
     fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
 
     await waitFor(() => expect(box).toHaveValue("/tmp/picked.png"));
   });
