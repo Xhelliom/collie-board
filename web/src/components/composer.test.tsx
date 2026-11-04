@@ -268,6 +268,13 @@ describe("Composer — send", () => {
   });
 });
 
+describe("Composer — browser spellchecker", () => {
+  it("turns spellcheck off: a tap on an underlined word hides the Android keyboard", () => {
+    renderComposer();
+    expect(screen.getByPlaceholderText(/type a reply/i)).toHaveAttribute("spellcheck", "false");
+  });
+});
+
 describe("Composer — destructive-input confirm", () => {
   it("holds a destructive command for a second tap, then sends", async () => {
     const user = userEvent.setup();

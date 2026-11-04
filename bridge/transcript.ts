@@ -21,7 +21,8 @@
 //   plus bookkeeping rows we ignore (mode, permission-mode, ai-title, file-history-*, queue-operation…).
 // Human turns carry a STRING content; a `user` row whose content is a LIST is tool-result traffic,
 // not something the user typed — we fold those into the tool call that produced them rather than
-// rendering 705 fake "user" turns. `isSidechain` marks subagent traffic (dropped by default);
+// rendering 705 fake "user" turns. `isMeta` marks a row the operator did not write (see parseTranscript).
+// `isSidechain` marks subagent traffic (dropped by default);
 // `isCompactSummary` marks the summary Claude writes when a session is compacted.
 //
 // A message typed while the agent is mid-turn (steered straight into the running turn, "surfaced
@@ -334,6 +335,8 @@ interface RawRow {
   timestamp?: unknown;
   isSidechain?: unknown;
   isCompactSummary?: unknown;
+  isMeta?: unknown;
+  promptSource?: unknown;
   message?: { role?: unknown; content?: unknown } | unknown;
   attachment?: { type?: unknown; prompt?: unknown } | unknown;
 }
@@ -386,6 +389,11 @@ export function parseTranscript(
     }
     if (type !== "user" && type !== "assistant") continue;
     if (row.isSidechain === true && !opts.includeSidechains) continue;
+    // `isMeta`: the operator did not write this row. With `promptSource: "system"` it is a prompt
+    // Claude sent on its own (a wake-up, the continuation after a usage limit) that the next turn
+    // answers — kept, as a note. Every other meta row (a skill body, an image's source path, a
+    // caveat) is addressed to the model and dropped.
+    if (row.isMeta === true && row.promptSource !== "system") continue;
 
     const message = row.message;
     if (message === null || typeof message !== "object") continue;
@@ -394,7 +402,7 @@ export function parseTranscript(
     const ts = typeof row.timestamp === "string" ? row.timestamp : "";
     const parts: TranscriptPart[] = [];
     // Set by a `user` row whose string content turns out to be injected plumbing rather than speech.
-    let roleOverride: "note" | undefined;
+    let roleOverride: "note" | undefined = row.isMeta === true ? "note" : undefined;
 
     if (typeof content === "string") {
       // A string content is the HUMAN-turn carrier — but Claude Code also routes injected plumbing
