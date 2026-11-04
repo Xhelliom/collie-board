@@ -96,6 +96,30 @@ move:
     first and wrong hypothesis.
   - A `\n` inside `text` is delivered as a real newline keypress, not as pasted content. What the TUI
     does with it (submit vs. insert) is the harness's choice, not something the paste framing hides.
+- **Bracketed-paste markers pass through unchanged.** Live-probed 2026-11-04 (herdr 0.9.5): a
+  `send_text` of `ESC[200~aaaaaaaaaa\nZ ESC[201~` into `cat -v` came back as `^[[200~aaaaaaaaaa` /
+  `Z^[[201~` — herdr neither strips the markers nor checks whether the program enabled bracketed-paste
+  mode (DECSET 2004). A program that did not would show them as text, so frame only for a harness
+  known to read them.
+- **Long text into Claude Code — measured on Linux, herdr 0.9.5, Claude Code 2.1.318 (2026-11-04).**
+  Each send checked in the session's `.jsonl` after submit:
+
+  | Send | Size | Arrived |
+  | --- | --- | --- |
+  | `send_text` raw, one line | 4,931 chars | whole |
+  | `send_text` raw, 1,000 lines | 4,931 chars | whole |
+  | `send_text` raw, one line | 13,331 chars | whole |
+  | `send_text` framed `ESC[200~ … ESC[201~`, 2,400 lines | 13,329 chars | whole |
+  | `agent.prompt`, 2,400 lines | 13,329 chars | whole, and submitted |
+
+  Raw or framed, Claude Code shows `[Pasted text #N]` and records the turn wrapped in
+  `<pasted_content id="…">…</pasted_content id="…">` (stripped by `unwrapPastes`, `bridge/transcript.ts`).
+  Upstream measured the failure on **macOS** (herdr 0.9.0, Claude Code 2.1.288: 12,029 chars sent,
+  787 received): the PTY there hands Claude ~1 KB reads, Claude makes each read over 800 characters its
+  own paste, and a short last read wipes the earlier ones. Not reproduced on Linux, whose reads are
+  larger. Collie Board frames a reply over 800 characters to a Claude pane anyway (`bridge/paste.ts`),
+  for macOS hosts. `agent.prompt` could not be probed for framing (herdr refuses a target that is not
+  the pane's foreground agent), so card prompts stay unframed — whole on Linux, unmeasured on macOS.
 - **An ack means "herdr took the bytes", never "the TUI acted on them".** Both `send_text` and
   `send_keys` return before the target program has read, let alone rendered, anything. So a
   successful RPC pair is not evidence a reply was delivered — a focused TUI dialog can swallow the

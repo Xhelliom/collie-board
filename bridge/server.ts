@@ -22,6 +22,7 @@ import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
+import { asPaste } from "./paste.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
@@ -167,7 +168,8 @@ export function startServer(opts: {
   registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
-    (h, paneId, txt, submit) => sendReplySteps(h, paneId, txt, submit, cfg.submitKeys),
+    (h, paneId, txt, submit) =>
+      sendReplySteps(h, paneId, asPaste(registry.get()?.engine.current(), paneId, txt), submit, cfg.submitKeys),
   );
 
   const server = Bun.serve({
@@ -380,7 +382,7 @@ export function startServer(opts: {
         if (!action && req.method === "GET") return readPane(herdr, cfg, paneId, url, req);
         if (action === "history" && req.method === "GET")
           return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
-        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt));
+        if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt), rt.engine);
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
@@ -946,6 +948,7 @@ async function replyPane(
   device: string | null,
   session: string,
   onDelivered: (text: string) => void,
+  engine: StateEngine,
 ): Promise<Response> {
   let body: { text?: string; submit?: boolean };
   try {
@@ -956,7 +959,7 @@ async function replyPane(
   const txt = body.text ?? "";
   const submit = body.submit ?? true;
   const ae = req.headers.get("accept-encoding");
-  const outcome = await sendReplySteps(herdr, paneId, txt, submit, cfg.submitKeys);
+  const outcome = await sendReplySteps(herdr, paneId, asPaste(engine.current(), paneId, txt), submit, cfg.submitKeys);
   // Audit the attempt regardless of outcome — text may have landed even when the submit failed.
   audit.record({
     action: "reply",
