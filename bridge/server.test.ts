@@ -95,13 +95,34 @@ describe("checkAccess — same-origin / CSRF gate", () => {
     expect(r).toEqual({ ok: false, reason: "cross-origin rejected" });
   });
 
-  test("always allows a localhost / 127.0.0.1 origin (loopback by design)", () => {
+  test("allows a loopback origin on the bridge's own port", () => {
     expect(
       checkAccess(req({ origin: "http://localhost:8787", host: "collie.example.ts.net" }), cfg()),
     ).toEqual({ ok: true });
     expect(checkAccess(req({ origin: "http://127.0.0.1:8787", host: "anything" }), cfg())).toEqual({
       ok: true,
     });
+  });
+
+  test("rejects a loopback origin on another port (a local dev server, a trap page)", () => {
+    const post = (origin: string) =>
+      checkAccess({ ...req({ origin, host: "127.0.0.1:8787" }), method: "POST" } as unknown as Request, cfg(), "write");
+    expect(post("http://127.0.0.1:5173")).toEqual({ ok: false, reason: "cross-origin rejected" });
+    expect(post("http://localhost:3000")).toEqual({ ok: false, reason: "cross-origin rejected" });
+    expect(post("http://[::1]:8788")).toEqual({ ok: false, reason: "cross-origin rejected" });
+    expect(post("http://localhost")).toEqual({ ok: false, reason: "cross-origin rejected" });
+  });
+
+  test("allows a loopback origin on another port when listed in allowedOrigins", () => {
+    const c = cfg({ allowedOrigins: ["http://localhost:5173"] });
+    expect(checkAccess(req({ origin: "http://localhost:5173", host: "127.0.0.1:8787" }), c, "write")).toEqual({
+      ok: true,
+    });
+  });
+
+  test("a local agent's write with no Origin (curl, MCP's x-collie-pane) is unchanged", () => {
+    const r = { ...req({ host: "127.0.0.1:8787", "x-collie-pane": "w1:p1" }), method: "POST" } as unknown as Request;
+    expect(checkAccess(r, cfg(), "write")).toEqual({ ok: true });
   });
 
   test("allows an explicitly-configured extra origin (COLLIE_BOARD_ALLOWED_ORIGINS)", () => {

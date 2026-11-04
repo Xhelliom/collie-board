@@ -97,8 +97,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   "referrer-policy": "no-referrer",
 };
 
-// Loopback Host/Origin forms (with an optional port). Loopback is always trusted — only tailscaled
-// (or a co-located proxy) can reach the bridge's port, so a loopback caller is the on-host operator.
+// Loopback Host/Origin forms (with an optional port). A loopback Host is trusted — only tailscaled (or a
+// co-located proxy) can reach the bridge's port; a loopback Origin only on that port (see checkAccess).
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 
 const PANE_ROUTE = /^\/api\/pane\/([^/]+)(?:\/(reply|keys|upload|close|rename|history))?$/;
@@ -1302,15 +1302,19 @@ export function checkAccess(
 
   const origin = req.headers.get("origin");
   if (origin) {
-    let originHost = "";
+    let url: URL;
     try {
-      originHost = new URL(origin).host;
+      url = new URL(origin);
     } catch {
       return { ok: false, reason: "bad origin" };
     }
+    const originPort = url.port || (url.protocol === "https:" ? "443" : "80");
+    // A loopback Origin is the bridge itself only on the bridge's own port: any other local page (a dev
+    // server an agent started, a trap opened in the host's browser) could otherwise POST text/plain
+    // — no CORS preflight — into a terminal. Upstream b4d3b01.
     const allowed =
-      originHost === host ||
-      LOOPBACK_HOST.test(originHost) ||
+      url.host === host ||
+      (LOOPBACK_HOST.test(url.host) && originPort === String(cfg.port)) ||
       cfg.allowedOrigins.includes(origin);
     if (!allowed) return { ok: false, reason: "cross-origin rejected" };
   } else if (level === "write" && req.method !== "GET" && !LOOPBACK_HOST.test(host)) {
