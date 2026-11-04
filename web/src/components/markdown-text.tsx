@@ -251,6 +251,7 @@ function Block({ block }: { block: MdBlock }) {
       const Tag = block.ordered ? "ol" : "ul";
       return (
         <Tag
+          start={block.start}
           className={`ml-4 space-y-0.5 ${block.ordered ? "list-decimal" : "list-disc"} marker:text-muted-foreground`}
         >
           {block.items.map((item, i) => (
