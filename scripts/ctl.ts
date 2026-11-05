@@ -494,8 +494,11 @@ async function superviseWindows(c: Ctx, args: string[]): Promise<number> {
     } catch {
       /* a locked or vanished log is not a reason to stop supervising */
     }
-    const fd = openSync(c.logFile, "a");
     const started = Date.now();
+    // Timestamped, because the bridge's own lines aren't: without it a log of several runs can't be
+    // told apart — which run warned, which supervisor started it.
+    writeFileSync(c.logFile, `[ctl] ${new Date(started).toISOString()} starting bridge (supervisor pid ${process.pid})\n`, { flag: "a" });
+    const fd = openSync(c.logFile, "a");
     const code = await new Promise<number | null>((done) => {
       const child = spawn(c.bun, ["run", join(c.root, "bridge", "index.ts")], {
         cwd: c.root,
@@ -507,7 +510,7 @@ async function superviseWindows(c: Ctx, args: string[]): Promise<number> {
       child.once("error", () => done(null));
     });
     closeSync(fd);
-    writeFileSync(c.logFile, `[ctl] bridge exited (code ${code}) after ${Math.round((Date.now() - started) / 1000)}s; restarting in 5s\n`, { flag: "a" });
+    writeFileSync(c.logFile, `[ctl] ${new Date().toISOString()} bridge exited (code ${code}) after ${Math.round((Date.now() - started) / 1000)}s; restarting in 5s\n`, { flag: "a" });
     await Bun.sleep(5000);
   }
 }
