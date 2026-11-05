@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1793866678771.0005.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":"45ff80b5-1af0-44fd-9691-9a1599d2fd11","name":"Explorer la V2","position":0,"launched_at":null,"max_parallel":2,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1793866676592,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
+{"v":1,"hlc":"1793868002332.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"position":20}}
