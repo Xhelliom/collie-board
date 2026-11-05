@@ -108,6 +108,15 @@ export function stripChrome(lines: StyledLine[]): StyledLine[] {
  * footer (`● main` / `◯ …` rows), which is a different thing and would swamp a phone. Empty array
  * when there is no box at the tail, so `[]` and "nothing to show" are the same case.
  */
+/** Whether the input box sits at the tail. An idle agent without one is held by a full-screen
+ *  choice (e.g. the multi-server MCP checklist, which herdr reports `idle`, not `blocked`). */
+export function hasInputBox(lines: StyledLine[]): boolean {
+  const texts = lines.map(lineText);
+  let end = lines.length;
+  while (end > 0 && isBlank(texts[end - 1]!)) end--;
+  return end > 0 && locateInputBox(texts, end) !== null;
+}
+
 export function extractStatusLines(lines: StyledLine[]): string[] {
   const texts = lines.map(lineText);
   let end = lines.length;

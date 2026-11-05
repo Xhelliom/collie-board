@@ -21,7 +21,8 @@ import { useDisplayPrefs } from "@/hooks/use-display-prefs";
 import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
-import { closePane, fetchHistory } from "@/lib/api";
+import { closePane, fetchHistory, sendKeys } from "@/lib/api";
+import { BlockedScreenBanner } from "@/components/blocked-screen-banner";
 import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
 import { collectImages, openLightbox } from "@/lib/lightbox";
 import { setStatus } from "@/lib/status";
@@ -266,6 +267,15 @@ export function AgentChat({
     [display, agent?.agent, grammarsOn],
   );
   const dialogPresent = dialogBlock !== null;
+  // A screen the transcript can't show holds the agent: herdr says `blocked` (folder trust, one repo
+  // MCP server), or it says `idle` while the input box is gone (the multi-server MCP checklist) —
+  // HERDR_API.md § first-run screens. Reading mode shows it in a banner unless a grammar lifted it.
+  const terminalScreenHolds = useMemo(() => {
+    if (dialogBlock || !display) return false;
+    if (agent?.status === "blocked") return true;
+    const adapter = agent?.status === "idle" ? adapterFor(agent.agent) : undefined;
+    return !!adapter && !adapter.hasInputBox(splitLines(parseAnsi(display)));
+  }, [dialogBlock, display, agent?.status, agent?.agent]);
 
   // Both are threaded to the composer: the RAW value (live) plus a stabilised one. extractInputDraft
   // is stateless, so it can't distinguish a stranded draft from the ~350ms flash where our OWN
@@ -984,6 +994,20 @@ export function AgentChat({
 
         {/* The screen's body: the terminal mirror, or the reading view over the same conversation.
             Everything below (statusline, gauge, composer) belongs to both and doesn't move. */}
+        {/* A screen the transcript can't show (folder trust, repo MCP…) and no grammar lifted into
+            buttons: its tail + raw keys, so reading mode isn't blind to a stuck agent. */}
+        {reading && terminalScreenHolds && (
+          <BlockedScreenBanner
+            display={display}
+            disabled={readOnly || gone}
+            onShowTerminal={() => setReading(false)}
+            onKeys={(keys) =>
+              void sendKeys(paneId, keys, session)
+                .then((res) => (res.ok ? revalidator.revalidate() : setStatus(res.error ?? tr("pane.keys.failed"), "error")))
+                .catch(() => setStatus(tr("pane.keys.failed"), "error"))
+            }
+          />
+        )}
         {reading ? (
           <ReadingView
             paneId={paneId}

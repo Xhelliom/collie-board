@@ -34,6 +34,9 @@ const FAMILY_CAPTION: Record<PromptFamily, () => string> = {
 // not repeated here). Each row leads with its terminal-menu digit (KeyBadge) so the mapping is
 // visible. One option can be in flight at a time — its spinner shows and the rest lock, preventing a
 // double-send.
+// An unnumbered dialog's options are an arrow walk: the pointed row shows the terminal's own glyph.
+const KEY_BADGE: Record<string, string> = { Enter: "❯", Up: "↑", Down: "↓" };
+
 export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBlockProps) {
   const [sending, setSending] = useState<number | null>(null);
 
@@ -57,7 +60,7 @@ export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBl
             <OptionButton
               key={index}
               tone={busy ? "busy" : "default"}
-              keyLabel={option.keys[0]}
+              keyLabel={KEY_BADGE[option.keys[0]!] ?? option.keys[0]}
               label={option.label}
               description={option.description}
               disabled={disabled || sending !== null}

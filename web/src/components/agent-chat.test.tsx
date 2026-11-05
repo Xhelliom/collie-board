@@ -1,4 +1,6 @@
 import { useState, type ComponentProps } from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -589,7 +591,9 @@ describe("AgentChat — history affordance", () => {
 // to a terminal's columns. The state is a display pref, so it's per device and survives a reload.
 describe("AgentChat — terminal / reading toggle", () => {
   // An agent pane, integration or not — the bridge finds the transcript either way.
-  const withTranscript = () => fixtureAgents[0]!;
+  // Working, not the fixture's `blocked`: a blocked agent (or an idle one with no input box on
+  // screen) adds the terminal-screen banner to reading mode.
+  const withTranscript = () => ({ ...fixtureAgents[0]!, status: "working" as const });
   beforeEach(() => localStorage.clear());
 
   it("is hidden on a bare shell, which has no transcript to read", () => {
@@ -840,5 +844,64 @@ describe("AgentChat — session artifacts affordance", () => {
     renderChat({ agent: cardAgent, agents: [cardAgent] });
     await user.click(screen.getAllByRole("button", { name: "More" })[0]!);
     expect(await screen.findByText("Artifacts")).toBeInTheDocument();
+  });
+});
+
+// A screen the transcript never shows (folder trust, repo MCP…): reading mode must not be blind to it.
+describe("AgentChat — reading mode, an agent blocked on a terminal screen", () => {
+  beforeEach(() => localStorage.clear()); // Reading is the default view
+  const blocked = () => ({ ...fixtureAgents[0]!, status: "blocked" as const });
+  const fixture = (name: string) =>
+    readFileSync(join(import.meta.dirname, "..", "fixtures", "panes", name), "utf8");
+
+  it("shows the screen's tail as text and answers it with a key, without leaving reading mode", async () => {
+    let sent: unknown = null;
+    server.use(
+      http.post(/\/api\/pane\/[^/]+\/keys$/, async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    const user = userEvent.setup();
+    const agent = blocked();
+    renderChat({ agent, agents: [agent], text: "Pick one\n<img src=x onerror=alert(1)>\n Enter to go" });
+
+    const banner = await screen.findByRole("region", { name: /waiting for an answer in the terminal/i });
+    expect(within(banner).getByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument();
+    expect(banner.querySelector("img")).toBeNull();
+    await user.click(within(banner).getByRole("button", { name: "Send Enter" }));
+    await waitFor(() => expect(sent).toMatchObject({ keys: ["Enter"] }));
+    expect(screen.getByRole("button", { name: /reading view/i })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(within(banner).getByRole("button", { name: /show terminal/i }));
+    expect(screen.getByRole("button", { name: /terminal view/i })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("a recognised first-run screen gets its named choices instead (repo MCP approval)", async () => {
+    const agent = blocked();
+    renderChat({ agent, agents: [agent], text: fixture("claude--v2318-mcp-server.txt") });
+    expect(await screen.findByRole("button", { name: /continue without using this mcp server/i })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /waiting for an answer/i })).not.toBeInTheDocument();
+  });
+
+  it("also shows for an idle agent held by a screen with no input box (the MCP checklist herdr calls idle)", async () => {
+    const agent = { ...fixtureAgents[0]!, status: "idle" as const };
+    renderChat({ agent, agents: [agent], text: fixture("claude--v2318-mcp-checklist.txt") });
+    const banner = await screen.findByRole("region", { name: /waiting for an answer in the terminal/i });
+    expect(within(banner).getByText(/Enable selected/)).toBeInTheDocument();
+  });
+
+  it("not for an idle agent at its own input box", async () => {
+    const agent = { ...fixtureAgents[0]!, status: "idle" as const };
+    renderChat({ agent, agents: [agent], text: fixture("claude--fresh-idle.txt") });
+    await screen.findByText("One commit: abc1234.");
+    expect(screen.queryByRole("region", { name: /waiting for an answer/i })).not.toBeInTheDocument();
+  });
+
+  it("is gone once the agent is working again", async () => {
+    const agent = { ...fixtureAgents[0]!, status: "working" as const };
+    renderChat({ agent, agents: [agent], text: "Pick one\n Enter to go" });
+    await screen.findByText("One commit: abc1234.");
+    expect(screen.queryByRole("region", { name: /waiting for an answer/i })).not.toBeInTheDocument();
   });
 });

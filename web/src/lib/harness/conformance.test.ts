@@ -25,6 +25,9 @@ const NEUTRAL = [
   "claude--send-inflight.txt",
   "claude--rename-resolved.txt",
   "claude--draft-wrapped.txt",
+  // The multi-server MCP checklist: no grammar reads it (Space-toggle rows), so it stays raw and the
+  // reading-mode banner shows it with raw keys instead.
+  "claude--v2318-mcp-checklist.txt",
   // Input boxes with the background-agents footer below them — still composer chrome (stripped), not a
   // dialog, so they must stay raw / lift no interactive block.
   "claude--draft-footer-empty.txt",

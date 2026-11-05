@@ -24,6 +24,10 @@ pane over capturing real work sessions.
 | `claude--fresh-idle.txt` | Fresh session: empty input box between rules, statusline, usage-limit banner, shell MOTD scrollback above | `idle` |
 | `claude--done.txt` | Completed turn: `⏺ Write(hello.txt)` call, `⎿` result, `●` summary, idle input box | `done` |
 | `claude--trust-prompt.txt` | Folder-trust dialog: `❯ 1. Yes… / 2. No…`, "Enter to confirm · Esc to cancel" | `blocked` |
+| `claude--trust-prompt-unnumbered.txt` | Folder-trust dialog, 2.1.278+ unnumbered shape: `❯ No, exit` / `Yes, I trust this folder` (from upstream) | `blocked` |
+| `claude--v2283-trust--w50.txt` · `claude-lab--trust-prompt--w40.txt` · `--w82.txt` | The unnumbered trust dialog at narrow (phone) widths, question wrapped (from upstream) | `blocked` |
+| `claude--v2318-mcp-server.txt` | One new repo MCP server: three unnumbered rows, pointer on "Continue without…", no `?` in the title | `blocked` |
+| `claude--v2318-mcp-checklist.txt` | Several new repo MCP servers: `[✔]` checklist, "Space to select · Esc to reject all" — no grammar reads it | **`idle`** |
 | `claude--select-menu.txt` | AskUserQuestion: chip line, question, numbered options **with description sub-lines**, "Type something." free-text row, separated "5. Chat about this", "Enter to select · ↑/↓ · Esc" footer | `blocked` |
 | `claude--select-multi.txt` | **Multi-question** AskUserQuestion: a stepper header `←  ☒ Focus area  ☐ Scope  ☐ Workflow  ✔ Submit  →` above the current question, "Tab/Arrow keys to navigate" footer. prompt-select deliberately BAILS on this; since T7 the wizard grammar (`grammar/wizard.ts`) claims it | `blocked` |
 | `claude--permission-edit.txt` | Edit permission: diff preview, "Do you want to create hello.txt?", `❯ 1. Yes / 2. Yes, allow all edits… (shift+tab) / 3. No`, "Esc to cancel · Tab to amend" | `blocked` |
