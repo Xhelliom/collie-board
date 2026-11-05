@@ -351,6 +351,13 @@ describe("sendReplySteps — two-step send & partial-failure clarity", () => {
 });
 
 describe("paneReadResponse — pane read → REST body", () => {
+  test("a key on the screen leaves masked: the mirror and the reading mode read this body", () => {
+    const key = ["ghp_", "placeholder0000000000000000000000"].join("");
+    const body = paneReadResponse("w1:p1", { text: `\u001b[32m${key}\u001b[0m`, truncated: false, revision: 1 } as never);
+    expect(body.text).not.toContain(key);
+    expect(body.text).toContain("ghp_•");
+  });
+
   test("passes text, truncated, and the monotonic revision through", () => {
     const read: PaneRead = { pane_id: "w1:p1", text: "hello", truncated: true, revision: 42 };
     expect(paneReadResponse("w1:p1", read)).toEqual({

@@ -42,6 +42,19 @@ async function fileEndpoints(dir: string): Promise<string[]> {
 const gone = (endpoint: string) => Object.assign(new Error(`${endpoint} gone`), { statusCode: 410 });
 
 describe("Push — broadcast delivery & pruning", () => {
+  test("a key in the alert's text reaches the lock screen masked", async () => {
+    const payloads: string[] = [];
+    const push = new Push(await tempCfg(), (_s, payload) => {
+      payloads.push(payload as string);
+      return Promise.resolve();
+    });
+    enable(push, [sub("live")]);
+    const key = ["sk-", "PLACEHOLDERplaceholder0000"].join("");
+    await push.notify("Agent fini", `export OPENAI_API_KEY=${key}`);
+    expect(payloads[0]).not.toContain(key);
+    expect(payloads[0]).toContain("•");
+  });
+
   test("a 410 response prunes the subscription and persists the pruned set", async () => {
     const cfg = await tempCfg();
     const sender: PushSender = (s) =>

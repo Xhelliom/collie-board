@@ -54,6 +54,7 @@ import {
   readWorktreeFile,
   worktreePathFor,
 } from "./git.ts";
+import { redactDeep, redactText } from "./redact.ts";
 import { parseGate } from "./gate.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
@@ -1360,7 +1361,8 @@ async function route(
       const mode = q.get("mode");
       if (mode === "read") return ctx.json({ ok: false, error: "reading a file is not offered on a peer's checkout" }, 409);
       const r = await diffOnPeer(remoteDeps(ctx), remote, mode === "file" ? (q.get("path") ?? "") : null, q.get("untracked") === "1");
-      return r.status === 200 ? json(r.body) : ctx.json(r.body, r.status);
+      // Masked here too: a peer on an older build sends its diff unmasked.
+      return r.status === 200 ? json(redactDeep(r.body)) : ctx.json(r.body, r.status);
     }
     if (!card.repoPath || !card.branch) {
       return ctx.json({ ok: false, error: "this card has no branch yet", kind: "no-branch" }, 409);
@@ -1377,7 +1379,7 @@ async function route(
       const path = url.searchParams.get("path") ?? "";
       const result = await readWorktreeFile(cwd, path);
       if (!result.ok) return ctx.json({ ok: false, error: result.error }, 400);
-      return json({ ok: true, path, text: result.text, truncated: result.truncated });
+      return json({ ok: true, path, text: redactText(result.text), truncated: result.truncated });
     }
     if (url.searchParams.get("mode") === "file") {
       const path = url.searchParams.get("path") ?? "";
@@ -1385,7 +1387,7 @@ async function route(
         untracked: url.searchParams.get("untracked") === "1",
       });
       if (!result.ok) return ctx.json({ ok: false, error: result.error }, 400);
-      return json({ ok: true, path, diff: result.diff, truncated: result.truncated });
+      return json({ ok: true, path, diff: redactText(result.diff), truncated: result.truncated });
     }
     return json({ ok: true, ...(await diffStat(cwd, await baseOf(card))), cwd });
   }

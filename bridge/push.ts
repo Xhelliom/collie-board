@@ -1,6 +1,7 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Config } from "./config.ts";
+import { redactText } from "./redact.ts";
 
 // Optional Web Push (VAPID). Zero hard dependency: if `web-push` isn't installed or VAPID keys
 // aren't configured, push is silently disabled and the rest of the bridge works unchanged.
@@ -134,7 +135,9 @@ export class Push {
     if (msg.cardId !== undefined) data.cardId = msg.cardId;
     // Per-message collapse topic — update alerts must not share the herd slot (see UPDATE_SEND_OPTIONS).
     const options = msg.type === "update" ? UPDATE_SEND_OPTIONS : SEND_OPTIONS;
-    await this.broadcast(JSON.stringify({ ...msg, data }), options);
+    // A push lands on a lock screen: an agent's last words can hold a key.
+    const masked = { ...msg, title: msg.title && redactText(msg.title), body: msg.body && redactText(msg.body) };
+    await this.broadcast(JSON.stringify({ ...masked, data }), options);
   }
 
   /** Convenience for a one-off render (used by the manual push-test script). */
