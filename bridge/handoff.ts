@@ -22,7 +22,7 @@ import type { Config } from "./config.ts";
 import { agentNameFor, isAgentGone, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the outgoing agent writes its note, relative to the card's checkout. */
@@ -112,7 +112,7 @@ export type HandoffError =
  */
 export async function requestHandoff(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cardId: string,
   /** Injectable so the tests don't pay promptAndConfirm's settle window. */
   sleep?: (ms: number) => Promise<void>,
@@ -150,7 +150,7 @@ export class HandoffCoordinator {
 
   constructor(
     private readonly db: BoardDb,
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly cfg: Config,
     private readonly now: () => number = Date.now,
   ) {}
@@ -240,7 +240,7 @@ export async function readHandoffNote(card: Card, since = 0): Promise<string | n
  */
 export async function swapToFreshSession(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   card: Card,
   session: CardSession,

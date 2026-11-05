@@ -4,7 +4,7 @@ import type { Config } from "./config.ts";
 import { startCard } from "./cards.ts";
 import { BoardDb } from "./db.ts";
 import { owedStep } from "./flows.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackPrompt, sendBackToWorker, stepPrompt, workerStep } from "./pipeline.ts";
 
 describe("pipeline (ADR 0031)", () => {
@@ -99,7 +99,7 @@ function fakeHerdr(opts: { failStart?: boolean } = {}) {
       prompts.push(o.text);
     },
     async sendPaneKeys() {},
-  } as unknown as HerdrClient;
+  } as unknown as Mux;
   return { client, starts, closed, closedTabs, prompts, opts };
 }
 

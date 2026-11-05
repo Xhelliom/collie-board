@@ -88,7 +88,7 @@ import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
@@ -168,7 +168,7 @@ export interface BoardContext {
   copilot: CopilotCoordinator;
   engine: StateEngine;
   /** The primary session's socket client — starting a card and handing it off both drive Herdr. */
-  herdr: HerdrClient;
+  herdr: Mux;
   cfg: Config;
   audit: Pick<AuditLog, "record">;
   /** The session name this board is bound to — recorded in the audit trail. */

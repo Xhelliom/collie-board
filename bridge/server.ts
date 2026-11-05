@@ -13,7 +13,7 @@ import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
-import type { HerdrClient, PaneRead } from "./herdr-client.ts";
+import type { Mux, PaneRead } from "./mux/mux.ts";
 import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
@@ -667,7 +667,7 @@ export function startupWarnings(cfg: Config): string[] {
 }
 
 async function readPane(
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   paneId: string,
   url: URL,
@@ -912,7 +912,7 @@ async function resolvePanePage(
   return page;
 }
 
-/** Just the two one-shot RPCs a reply needs — real HerdrClient in the bridge, fake in tests. */
+/** Just the two one-shot RPCs a reply needs — real Mux in the bridge, fake in tests. */
 export interface ReplySender {
   sendPaneText(paneId: string, text: string): Promise<void>;
   sendPaneKeys(paneId: string, keys: string[]): Promise<void>;
@@ -969,7 +969,7 @@ export async function sendReplySteps(
 }
 
 async function replyPane(
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   paneId: string,
   req: Request,
@@ -1008,7 +1008,7 @@ async function replyPane(
 }
 
 async function keysPane(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   req: Request,
   audit: AuditLog,
@@ -1036,7 +1036,7 @@ async function keysPane(
 // Close a pane ("kill the agent"). Structural op — strictly less powerful than the text/keys
 // injection the bridge already allows, so it stays within the existing remote-shell threat model.
 async function closePane(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   req: Request,
   audit: AuditLog,
@@ -1058,7 +1058,7 @@ async function closePane(
 // The body's `label` must be a string or null; a blank string clears (so a user can wipe a label by
 // saving an empty field), which we send to Herdr as `label: null`.
 async function renamePane(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   req: Request,
   audit: AuditLog,
@@ -1104,7 +1104,7 @@ export function normalizeTabLabel(
 // bridge already allows, so it stays within the existing remote-shell threat model. A tab has no
 // "clear" (see normalizeTabLabel): a blank label is a 400, not a reset to the tab number.
 async function renameTab(
-  herdr: HerdrClient,
+  herdr: Mux,
   tabId: string,
   req: Request,
   audit: AuditLog,
@@ -1134,7 +1134,7 @@ async function renameTab(
 // the bridge already allows via pane.close — so it stays within the existing remote-shell threat
 // model. No body: the tab id is in the path.
 async function closeTab(
-  herdr: HerdrClient,
+  herdr: Mux,
   tabId: string,
   req: Request,
   audit: AuditLog,
@@ -1155,7 +1155,7 @@ async function closeTab(
 // it). Structural — no more privilege than typing into an existing pane (you can already spawn a
 // shell that way). `cwd` omitted => inherits the workspace dir. session.* stays unexposed.
 async function createTab(
-  herdr: HerdrClient,
+  herdr: Mux,
   engine: StateEngine,
   req: Request,
   audit: AuditLog,
@@ -1196,7 +1196,7 @@ async function createTab(
 // when the client doesn't specify one (typing a path on a phone is painful) — it's a shell, so you
 // can cd from there. Same structural-only threat model as createTab.
 async function createWorkspace(
-  herdr: HerdrClient,
+  herdr: Mux,
   req: Request,
   audit: AuditLog,
   device: string | null,

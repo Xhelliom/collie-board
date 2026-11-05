@@ -1,7 +1,7 @@
 import { basename, dirname, join } from "node:path";
 
 import type { EventPoker } from "./event-poker.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { NotificationCoordinator } from "./notifications.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { SessionSummary } from "./types.ts";
@@ -81,7 +81,7 @@ export function discoverSessionSockets(
 
 /** The live per-session pieces a factory builds. push/snooze/notify-prefs/audit stay process-global. */
 export interface SessionParts {
-  herdr: HerdrClient;
+  herdr: Mux;
   engine: StateEngine;
   poker: EventPoker;
   notifications: NotificationCoordinator;
@@ -96,7 +96,7 @@ export interface SessionRuntime extends SessionParts {
 
 /**
  * Builds (and starts + wires) the runtime for one session. Injected into the registry so the bridge
- * supplies the real HerdrClient/StateEngine/EventPoker/NotificationCoordinator wiring while tests can
+ * supplies the real Mux/StateEngine/EventPoker/NotificationCoordinator wiring while tests can
  * pass fakes. `isPrimary` is threaded so the factory can pick the primary's bare notification tag.
  */
 export type SessionFactory = (name: string, socketPath: string, isPrimary: boolean) => SessionParts;

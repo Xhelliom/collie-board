@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { digest, handleNodeRoute, liveNodeActions, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
 import { withTrustedFolder } from "./cards.ts";
 
@@ -32,7 +32,7 @@ describe("liveNodeActions.launch", () => {
       openWorktree: async () => (calls.push("open"), { paneId: "w7:p1", workspaceId: "w7", checkoutPath: "/wt/x", alreadyOpen: true }),
       getPane: async () => ({ agent: "claude" }),
       startAgent: async () => void calls.push("start"),
-    } as unknown as HerdrClient;
+    } as unknown as Mux;
     const l = await liveNodeActions(() => herdr, async () => ({ ok: true, textDelivered: true })).launch({
       peer: "a",
       env: { name: "e", repoPath: mkdtempSync(join(tmpdir(), "collie-node-")), agent: "codex" },

@@ -47,7 +47,7 @@ The browser never touches the socket directly; the bridge is the only thing that
         ▼
    Collie (this project)
      • static web app + small JSON API (browser polls /api/snapshot)
-     • herdr-client adapter (the ONLY code that knows socket method names)
+     • mux adapter, bridge/mux/herdr09.ts (the ONLY code that knows socket method names)
      • snapshot poll, event-poked (see §5)
         │  newline-delimited JSON over Unix socket
         ▼
@@ -131,7 +131,7 @@ app. Closing this needs the server-side blocking-message capture described above
 
 ## 5. Architecture notes
 
-- **The `herdr-client` adapter is the only module that knows socket method names** (`pane.read`,
+- **The herdr 0.9 adapter (`bridge/mux/herdr09.ts`, behind the `Mux` interface of `bridge/mux/mux.ts`) is the only module that knows socket method names** (`pane.read`,
   `agent.send`, `events.subscribe`, …). It translates to/from an internal domain model
   (`AgentStatus`, `AgentView`, `SnapshotResponse` — `bridge/types.ts`), so a Herdr API rename is a
   one-file fix, not a shatter.

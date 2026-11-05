@@ -1,5 +1,5 @@
 // Pure decoders for Herdr's newline-delimited JSON wire protocol. Kept separate from the socket
-// adapter (herdr-client.ts) so the parsing/discrimination is importable and unit-testable without
+// adapter (mux/herdr09.ts) so the parsing/discrimination is importable and unit-testable without
 // touching Bun.connect. Protocol facts are documented in HERDR_API.md.
 
 /**

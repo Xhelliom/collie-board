@@ -1,4 +1,4 @@
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { record, timed } from "./route-cost.ts";
 import { SeenPanes } from "./seen.ts";
 import {
@@ -112,7 +112,7 @@ export class StateEngine {
   private panesPrint = "";
 
   constructor(
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly pollMs: number,
     private readonly now: () => number = Date.now,
   ) {

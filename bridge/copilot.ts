@@ -31,7 +31,7 @@ import {
 } from "./db.ts";
 import { agentNameFor, isCommitFollowUp, launchAgent, promptAndConfirm } from "./cards.ts";
 import { baseOf } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the copilot writes its answers, relative to its own working directory. */
@@ -1027,7 +1027,7 @@ export class Copilot {
   private requestsSinceReset = 0;
 
   constructor(
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly cfg: Config,
     /** The copilot's own working directory — it needs one, and it must not be a real repo. */
     private readonly workDir: string,

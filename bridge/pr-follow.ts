@@ -5,7 +5,7 @@
 import type { BoardDb, Card } from "./db.ts";
 import { parseGate, runGate, type GateResult } from "./gate.ts";
 import { worktreePathFor, type PrStatus } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeWhenReady, notePrOutcome, prStatusFor, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -108,7 +108,7 @@ export class PrFollower {
 }
 
 /** The real ports, gated like a run (ADR 0027/0029): the repo's gate runs once in the card's checkout. */
-export function prFollowHook(db: BoardDb, herdr: HerdrClient): (snap: EngineSnapshot) => void {
+export function prFollowHook(db: BoardDb, herdr: Mux): (snap: EngineSnapshot) => void {
   const follower = new PrFollower(db, {
     prStatus: (card) => prStatusFor(card, Date.now, true),
     gate: async (card, runId) => {

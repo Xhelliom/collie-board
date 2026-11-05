@@ -1,125 +1,29 @@
-import type { AgentStatus } from "./types.ts";
-import { dialHerdr, type DialMode, type SockHandle } from "./dial.ts";
-import { decodeReplyLine, decodeStreamLine } from "./wire.ts";
-import { record } from "./route-cost.ts";
+import type { AgentStatus } from "../types.ts";
+import { dialHerdr, type DialMode, type SockHandle } from "../dial.ts";
+import { decodeReplyLine, decodeStreamLine } from "../wire.ts";
+import { record } from "../route-cost.ts";
+import type {
+  CreatedShell,
+  CreatedWorktree,
+  Mux,
+  PaneRead,
+  ReadFormat,
+  ReadSource,
+  WireAgent,
+  WirePane,
+  WireSnapshot,
+  WireTab,
+  WireWorkspace,
+} from "./mux.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The Herdr socket adapter. THIS IS THE ONLY FILE that knows Herdr's method names
-// and wire shapes. Everything else talks to the typed methods below, so a Herdr
+// The herdr 0.9 engine behind `Mux` (mux.ts). THIS IS THE ONLY FILE that knows herdr's method
+// names and wire shapes. Everything else talks to the typed methods below, so a Herdr
 // API change is a one-file fix. Protocol facts are documented in HERDR_API.md.
 //
 // Key fact: RPC is ONE-SHOT — the server closes the connection after a single
 // response. So every request opens a fresh connection, reads one line, closes.
 // ─────────────────────────────────────────────────────────────────────────────
-
-/** Raw wire shape of a workspace from `workspace.list`. */
-interface WireWorkspace {
-  workspace_id: string;
-  number: number;
-  label: string;
-  focused: boolean;
-  pane_count: number;
-  tab_count: number;
-  active_tab_id: string;
-  agent_status: AgentStatus;
-}
-
-/** Raw wire shape of a tab from `tab.list`. */
-interface WireTab {
-  tab_id: string;
-  workspace_id: string;
-  number: number;
-  label: string;
-  focused: boolean;
-  pane_count: number;
-  agent_status: AgentStatus;
-}
-
-/** Raw wire shape of a pane from `pane.list` (and, identically, inside `session.snapshot`). */
-export interface WirePane {
-  pane_id: string;
-  terminal_id: string;
-  workspace_id: string;
-  tab_id: string;
-  focused: boolean;
-  cwd: string;
-  foreground_cwd?: string;
-  agent?: string | null;
-  agent_status: AgentStatus;
-  /** User-set pane label (herdr `pane.rename`). Present only once set — the key disappears when
-   *  cleared with `label: null`, so absent/null both read as "no label". */
-  label?: string | null;
-  revision: number;
-  /**
-   * The agent's OWN session identity, as the agent reported it to Herdr (herdr ≥ 0.7.2). For Claude
-   * this is `{kind:"id", value:"<uuid>"}` — the uuid naming its on-disk session log, which is how
-   * Collie serves real conversation history for a pane whose terminal keeps no scrollback (see
-   * transcript.ts). Optional + defensively typed: older servers omit it, and `kind` may be something
-   * other than "id" for other agents.
-   */
-  agent_session?: {
-    source?: string;
-    agent?: string;
-    kind?: string;
-    value?: string;
-  } | null;
-  /**
-   * Scroll geometry (herdr ≥ 0.7.2); optional so older servers that omit it still typecheck.
-   *
-   * `max_offset_from_bottom` is how far the pane can scroll UP — the depth of its scrollback ring —
-   * so `max_offset_from_bottom + viewport_rows` is the line count a `pane.read source:"recent"` can
-   * return. Live-verified on a sandbox pane (2026-07-26): 95+31 → 127 lines read, 498+31 → 530 (the
-   * +1 is the trailing newline). Exact once scrollback exists; an OVER-estimate on a near-empty
-   * screen, where trailing blank rows are trimmed from the read (0+31 → 4 lines read).
-   *
-   * Gate "is there more to load" on this, never on `PaneRead.truncated` — which is a lie on every
-   * server this plugin supports the floor of. Through 0.7.x it is ALWAYS false, even when a read
-   * demonstrably cut scrollback off (200 requested of 6895 available still reports
-   * `truncated: false`). 0.8.0 fixed it (upstream #1717, live-verified 2026-08-07: 5 of 66 lines →
-   * `true`, 100 of 66 → `false`), but `min_herdr_version` is 0.7.0, so switching would silently
-   * report "nothing more to fetch" to anyone on an older server. `scroll` is right on both.
-   */
-  scroll?: {
-    offset_from_bottom: number;
-    max_offset_from_bottom: number;
-    viewport_rows: number;
-  } | null;
-}
-
-/**
- * Raw shape of `session.snapshot` — the whole herd in one reply, superseding the three parallel
- * list calls. `agents`/`layouts`/`focused_*` are carried too but intentionally unused: agents stay
- * derived from `panes` so there's one code path. Older servers predate the method (see StateEngine).
- */
-export interface WireSnapshot {
-  version: string;
-  protocol: number;
-  workspaces: WireWorkspace[];
-  tabs: WireTab[];
-  panes: WirePane[];
-}
-
-/** The freshly-created shell pane returned by tab.create / workspace.create (`root_pane`). */
-export interface CreatedShell {
-  paneId: string;
-  workspaceId: string;
-  workspaceLabel?: string;
-  tabId: string;
-  cwd: string;
-}
-
-export interface PaneRead {
-  pane_id: string;
-  text: string;
-  truncated: boolean;
-  revision: number;
-}
-
-// SNAKE_case on the wire — `recent-unwrapped` (the CLI's `--source` spelling, and what this type
-// said until 2026-07-30) is rejected with `invalid_request: unknown variant`. Live-probed against
-// herdr's socket; the hyphenated form has never worked.
-type ReadSource = "visible" | "recent" | "recent_unwrapped";
-type ReadFormat = "text" | "ansi";
 
 let idCounter = 0;
 
@@ -149,32 +53,6 @@ interface WireWorktreeResult {
   already_open?: boolean;
 }
 
-/**
- * Raw `agent.get` reply. A superset of {@link WirePane} with the launch-state fields — which are
- * present ONLY on agent records, and only while they mean something (herdr omits them once settled,
- * so `undefined` reads as "not launching" / "unknown", never as false).
- */
-export interface WireAgent extends WirePane {
-  name?: string | null;
-  /** True while herdr is still bringing the agent up; `agent.prompt` is refused until it clears. */
-  launch_pending?: boolean;
-  /** True once the agent's TUI will accept a prompt. THE readiness signal. */
-  interactive_ready?: boolean;
-}
-
-/** A worktree-backed workspace, ready to launch an agent in. */
-export interface CreatedWorktree {
-  /** Absolute path of the checkout — the cwd every `git` call for this card runs in. */
-  checkoutPath: string;
-  branch: string | null;
-  workspaceId: string;
-  workspaceLabel: string;
-  tabId: string;
-  paneId: string;
-  /** True when the workspace was already open, so nothing was created. */
-  alreadyOpen: boolean;
-}
-
 function toCreatedWorktree(r: WireWorktreeResult): CreatedWorktree {
   return {
     checkoutPath: r.worktree.path,
@@ -187,7 +65,7 @@ function toCreatedWorktree(r: WireWorktreeResult): CreatedWorktree {
   };
 }
 
-export class HerdrClient {
+export class Herdr09 implements Mux {
   constructor(
     private readonly socketPath: string,
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,

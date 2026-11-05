@@ -10,7 +10,7 @@ import { Database } from "bun:sqlite";
 import { BUILTIN_ADAPTERS } from "./adapters.ts";
 import { ContextTracker } from "./context.ts";
 import { BoardDb } from "./db.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { TranscriptSource } from "./transcript.ts";
 import type { AgentView } from "./types.ts";
@@ -62,7 +62,7 @@ function fakeHerdr() {
     async paneProcess() {
       return null;
     },
-  } as unknown as HerdrClient;
+  } as unknown as Mux;
   return { client, reported };
 }
 

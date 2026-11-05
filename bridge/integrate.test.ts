@@ -28,7 +28,7 @@ import {
 import { BoardDb, type CardSession } from "./db.ts";
 import { foldIntoLot } from "./lot.ts";
 import { prUrlOf } from "./cards.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { Config } from "./config.ts";
 import {
   armAutoMerge,
@@ -496,7 +496,7 @@ describe("reopening a filed card whose PR conflicts (ADR 0014, case 2)", () => {
     const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
     store.patchCard(card.id, { branch: "board/x" });
     store.openSession({ cardId: card.id, paneId: "w1:p1", agentKind: "claude" });
-    const r = await reopenForPr(store, {} as HerdrClient, {} as Config, store.getCard(card.id)!);
+    const r = await reopenForPr(store, {} as Mux, {} as Config, store.getCard(card.id)!);
     expect(r).toEqual({ ok: false, error: { kind: "refused", message: expect.stringContaining("already has an agent") } });
   });
 });
@@ -613,7 +613,7 @@ describe("a landed card keeps the diff its review reads", () => {
     // A fake gh: the real one reaches for the network and once hung CI past the 5 s timeout.
     const noPr = fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } }).git;
     expect((await mergeCard(store, store.getCard(card.id)!, noPr)).ok).toBe(true);
-    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
+    expect((await cleanupCard(store, {} as Mux, store.getCard(card.id)!)).ok).toBe(true);
     expect(await worktreePathFor(repo, "board/x")).toBeNull();
 
     // What the route guard and a relaunched review both read — as often as they are asked.
@@ -656,7 +656,7 @@ describe("a landed card keeps the diff its review reads", () => {
     it("not after a local `--no-ff` merge: the predecessor's commits are already in the base", async () => {
       const t = await fixture();
       expect((await mergeCard(t.store, t.store.getCard(t.card.id)!, fakeGit({ "pr view": { ok: false, stderr: "no pull requests found" } }).git)).ok).toBe(true);
-      expect((await cleanupCard(t.store, {} as HerdrClient, t.store.getCard(t.card.id)!)).ok).toBe(true);
+      expect((await cleanupCard(t.store, {} as Mux, t.store.getCard(t.card.id)!)).ok).toBe(true);
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
       expect(t.moved()).toBe(false);
       await rm(t.repo, { recursive: true, force: true });
@@ -664,7 +664,7 @@ describe("a landed card keeps the diff its review reads", () => {
 
     it("not after a discard: that work is thrown away, there is nothing to merge", async () => {
       const t = await fixture();
-      expect((await cleanupCard(t.store, {} as HerdrClient, t.store.getCard(t.card.id)!, { discard: true })).ok).toBe(true);
+      expect((await cleanupCard(t.store, {} as Mux, t.store.getCard(t.card.id)!, { discard: true })).ok).toBe(true);
       expect(t.store.getCard(t.next.id)!.baseRef).toBe("main");
       expect(t.moved()).toBe(false);
       await rm(t.repo, { recursive: true, force: true });
@@ -696,12 +696,12 @@ describe("a landed card keeps the diff its review reads", () => {
     const card = store.createCard({ title: "x", repoPath: repo, baseRef: "board/lot-x" });
     store.patchCard(card.id, { branch: "board/x", workspaceId: "wGONE" });
     // Not landed by the board: the late commit is nowhere else, so the refusal stands — and says so.
-    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(false);
+    expect((await cleanupCard(store, {} as Mux, store.getCard(card.id)!)).ok).toBe(false);
     expect(store.listEvents(card.id).some((e) => e.type === "card.cleanup_refused")).toBe(true);
 
     store.recordEvent(card.id, "card.lot_merged", {});
     // …and its workspace is gone from herdr: git removes the checkout instead.
-    const gone = { removeWorktree: async () => { throw new Error("herdr worktree.remove: workspace_not_found: workspace wGONE not found"); } } as unknown as HerdrClient;
+    const gone = { removeWorktree: async () => { throw new Error("herdr worktree.remove: workspace_not_found: workspace wGONE not found"); } } as unknown as Mux;
     expect((await cleanupCard(store, gone, store.getCard(card.id)!)).ok).toBe(true);
     expect(await worktreePathFor(repo, "board/x")).toBeNull();
     expect(await branchExists(repo, "board/x")).toBe(false);
@@ -730,7 +730,7 @@ describe("a landed card keeps the diff its review reads", () => {
     const store = new BoardDb(":memory:");
     const card = store.createCard({ title: "x", repoPath: repo, baseRef: "board/lot-x" });
     store.patchCard(card.id, { branch: "board/x" });
-    expect((await cleanupCard(store, {} as HerdrClient, store.getCard(card.id)!)).ok).toBe(true);
+    expect((await cleanupCard(store, {} as Mux, store.getCard(card.id)!)).ok).toBe(true);
     expect(await worktreePathFor(repo, "board/x")).toBeNull();
     expect(await branchExists(repo, "board/x")).toBe(false);
     expect(await branchExists(repo, "board/lot-x")).toBe(true);

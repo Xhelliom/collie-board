@@ -20,7 +20,7 @@ import type { Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
@@ -696,7 +696,7 @@ export const isLeadPane = (paneId: string): boolean => paneId === leadPane();
  */
 export function runHook(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   snapshot: () => EngineSnapshot,
   adapters: Record<string, AgentAdapter>,

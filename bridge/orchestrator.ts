@@ -11,7 +11,7 @@ import { basename } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { samePath } from "./paths.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -141,7 +141,7 @@ export const ASK_NOTE_PROMPT =
   "Mets à jour ta note de mémoire maintenant (PUT /api/orchestrator/memory avec le skill collie-board) : où on en est, ce qui est écarté, la prochaine question. Puis réponds « prêt ».";
 
 export interface OrchestratorDeps {
-  herdr: HerdrClient;
+  herdr: Mux;
   cfg: Config;
   snapshot: () => EngineSnapshot;
   /** Injectable so the tests don't wait on herdr's real settle times. */

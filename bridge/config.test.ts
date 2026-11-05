@@ -30,6 +30,7 @@ const KEYS = [
   "HERDR_SOCKET_PATH",
   "HERDR_PLUGIN_STATE_DIR",
   "COLLIE_BOARD_HERDR_DIAL",
+  "COLLIE_BOARD_MUX",
 ];
 
 let saved: Record<string, string | undefined>;
@@ -216,6 +217,12 @@ describe("loadConfig", () => {
   test("an unrecognised dial mode falls back to auto rather than dialling nothing", () => {
     process.env.COLLIE_BOARD_HERDR_DIAL = "carrier-pigeon";
     expect(loadConfig().dialMode).toBe("auto");
+  });
+
+  test("the mux defaults to herdr09, and an unknown engine falls back to it", () => {
+    expect(loadConfig().mux).toBe("herdr09");
+    process.env.COLLIE_BOARD_MUX = "tmux";
+    expect(loadConfig().mux).toBe("herdr09");
   });
 });
 
