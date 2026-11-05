@@ -32,3 +32,7 @@
 {"v":1,"hlc":"1793915464494.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.resolve_requested","payload":{"branch":"board/pairs-un-reglage-autoriser-le-lancement-depuis-u","base":"origin/main","via":"pr","paneId":"wW1:p1"},"ts":1793915449440}}
 {"v":1,"hlc":"1793915580724.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1793915580725.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1793915580702}}
+{"v":1,"hlc":"1793915584389.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793915584389.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"working","reason":"review refused: board/pairs-un-reglage-autoriser-le-lancement-depuis-u has nothing vs main — no commit, no file; the work was never done"},"ts":1793915580736}}
+{"v":1,"hlc":"1793915584389.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
+{"v":1,"hlc":"1793915584389.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1793915583955}}
