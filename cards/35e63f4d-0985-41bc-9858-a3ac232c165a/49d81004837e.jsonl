@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793866678771.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"45ff80b5-1af0-44fd-9691-9a1599d2fd11"}}
 {"v":1,"hlc":"1793866678771.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"ADR : Collie V2 sur herdr-core, centrée projet et orchestrateur","status":"backlog"},"ts":1793866668864}}
 {"v":1,"hlc":"1793866678771.0008.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9a996edb-cd19-4f88-84be-d599c7653ce6"}}
+{"v":1,"hlc":"1793871657773.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
