@@ -86,6 +86,7 @@ export const pane = defineMessages({
   "pane.quick.retry": { en: "retry", fr: "réessayer" },
   "pane.quick.skip": { en: "skip", fr: "passer" },
   "pane.reading": { en: "Reading", fr: "Lecture" },
+  "pane.file.failed": { en: "Couldn't open this file.", fr: "Impossible d'ouvrir ce fichier." },
   "pane.readingView": { en: "Reading view", fr: "Vue lecture" },
   "pane.reading.queue": { en: "Queue ({count})", fr: "File d'attente ({count})" },
   "pane.reading.writing": { en: "Still writing — this turn appears when the agent finishes it.", fr: "Écriture en cours — ce tour apparaît quand l'agent l'a terminé." },
