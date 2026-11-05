@@ -1090,3 +1090,68 @@ describe("Composer — slash-command type-ahead", () => {
     expect(await screen.findByPlaceholderText(/Search \d+ commands/)).toBeInTheDocument();
   });
 });
+
+describe("Composer — Stop, queued Send now, long paste", () => {
+  function keysHandler(sent: string[][]) {
+    return http.post(/\/api\/pane\/[^/]+\/keys$/, async ({ request }) => {
+      sent.push(((await request.json()) as { keys: string[] }).keys);
+      return HttpResponse.json({ ok: true });
+    });
+  }
+
+  it("shows Stop only during a turn, and Stop presses Escape", async () => {
+    const user = userEvent.setup();
+    const sent: string[][] = [];
+    server.use(keysHandler(sent));
+    renderComposer({ working: true });
+    await user.click(screen.getByRole("button", { name: /stop the agent/i }));
+    await waitFor(() => expect(sent).toEqual([["Escape"]]));
+  });
+
+  it("hides Stop when no turn runs", () => {
+    renderComposer();
+    expect(screen.queryByRole("button", { name: /stop the agent/i })).toBeNull();
+  });
+
+  it("offers Send now for a message sent mid-turn, which presses ctrl+Enter", async () => {
+    const user = userEvent.setup();
+    const sent: string[][] = [];
+    server.use(keysHandler(sent));
+    renderComposer({ working: true });
+    await user.type(screen.getByPlaceholderText(/type a reply/i), "also fix the tests");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Send now" }));
+    await waitFor(() => expect(sent).toEqual([["ctrl+Enter"]]));
+    expect(screen.queryByRole("button", { name: "Send now" })).toBeNull();
+  });
+
+  it("collapses a long paste into a chip and sends it whole", async () => {
+    const user = userEvent.setup();
+    const typed: string[] = [];
+    server.use(replyHandler((t) => typed.push(t)));
+    renderComposer();
+    const box = screen.getByPlaceholderText(/type a reply/i);
+    const long = "l1\nl2\nl3\nl4\nl5";
+    fireEvent.paste(box, { clipboardData: { items: [], getData: () => long } });
+    await waitFor(() => expect(box).toHaveValue("[Collé #1]"));
+    expect(screen.getByRole("button", { name: "Edit [Collé #1]" })).toBeInTheDocument();
+
+    await user.type(box, " check this");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(typed).toEqual([`${long} check this`]));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Edit [Collé #1]" })).toBeNull());
+  });
+
+  it("lets the chip's text be edited before send", async () => {
+    const user = userEvent.setup();
+    const typed: string[] = [];
+    server.use(replyHandler((t) => typed.push(t)));
+    renderComposer();
+    const box = screen.getByPlaceholderText(/type a reply/i);
+    fireEvent.paste(box, { clipboardData: { items: [], getData: () => "x".repeat(300) } });
+    await user.click(await screen.findByRole("button", { name: "Edit [Collé #1]" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Edit [Collé #1]" }), { target: { value: "edited" } });
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(typed).toEqual(["edited"]));
+  });
+});
