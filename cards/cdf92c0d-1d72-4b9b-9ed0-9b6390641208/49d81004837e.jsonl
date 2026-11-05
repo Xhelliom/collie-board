@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793884947285.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Extraire l'interface Mux : herdr 0.9 derrière, comportement inchangé","status":"backlog"},"ts":1793884946837}}
 {"v":1,"hlc":"1793884947285.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"2923a00f-4cb6-4c07-88cd-eeccf1db2a21"}}
 {"v":1,"hlc":"1793885884106.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793885896101.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/extraire-l-interface-mux-herdr-0-9-derriere-comp"}}
+{"v":1,"hlc":"1793885896101.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793885896101.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793885886846}}
+{"v":1,"hlc":"1793885896101.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793885896101.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793885890738}}
+{"v":1,"hlc":"1793885896101.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2407},"ts":1793885893114}}
