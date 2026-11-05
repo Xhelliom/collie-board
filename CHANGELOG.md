@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.260.0] - 2026-11-05
+
+### Added
+
+- Composer : un bouton Stop (Échap) à côté d'Envoyer pendant un tour de l'agent (ef815d3)
+- Composer : un message envoyé pendant un tour de Claude reste affiché « En attente » avec « Envoyer maintenant » (ctrl+Entrée) (ef815d3)
+- Composer : un collage de 5 lignes ou 300 caractères devient une pastille `[Collé #N]` modifiable, développée à l'envoi (ef815d3)
+
 ## [0.259.0] - 2026-11-05
 
 ### Added
