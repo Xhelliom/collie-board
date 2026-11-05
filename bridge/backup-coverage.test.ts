@@ -31,6 +31,7 @@ const PERSISTENCE: Record<string, string> = {
   "opencode-usage.ts": "reads opencode's own database, read-only",
   "opencode-store.ts": "reads opencode's own database, read-only",
   "push.ts": "state dir file — walked by collectFiles",
+  "rollback.ts": "update-target in the plugin config dir, consumed and deleted by the next update — nothing to restore",
   "server.ts": "uploads/ under the state dir — walked by collectFiles",
   "snooze.ts": "state dir file — walked by collectFiles",
   "update.ts": "state dir file — walked by collectFiles",

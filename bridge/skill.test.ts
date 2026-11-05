@@ -68,6 +68,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/subscribe": "web push subscription",
   "/api/tab": "herdr tab creation from the app",
   "/api/update/check": "the app's update banner",
+  "/api/update/rollback": "the operator's roll back in Settings, which restarts the bridge — refused to an agent pane",
   "/api/workspace": "herdr workspace creation from the app",
 };
 
