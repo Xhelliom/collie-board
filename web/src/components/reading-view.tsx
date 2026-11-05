@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Clock, Loader2 } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { FileLinksProvider } from "@/components/file-links";
 import { TranscriptView } from "@/components/transcript-view";
+import { PromptPin } from "@/components/prompt-pin";
+import { pinFor } from "@/lib/prompt-pin";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { QuestionHeading } from "@/components/option-button";
 import { PromptSelectBlock } from "@/components/prompt-select-block";
@@ -194,9 +196,40 @@ export function ReadingView({
     listRef.current?.scrollToBottom();
   }, []);
 
+  // The turn crossing the top edge, re-measured on scroll and when turns arrive — no timer.
+  const [topUuid, setTopUuid] = useState<string | null>(null);
+  useEffect(() => {
+    const el = listRef.current?.getScrollElement();
+    if (!el) return;
+    const measure = () => {
+      const edge = el.getBoundingClientRect().top;
+      let top: string | null = null;
+      for (const row of el.querySelectorAll<HTMLElement>("[data-turn]")) {
+        const r = row.getBoundingClientRect();
+        if (r.height === 0) continue; // folded inside a closed "N steps"
+        if (r.top > edge) break;
+        top = row.dataset.turn ?? null;
+      }
+      setTopUuid(top);
+    };
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => el.removeEventListener("scroll", measure);
+  }, [entries]);
+  const pin = useMemo(() => pinFor(entries, topUuid), [entries, topUuid]);
+  const backToPrompt = () => {
+    const el = listRef.current?.getScrollElement();
+    el?.querySelector<HTMLElement>(`[data-turn="${CSS.escape(pin!.uuid)}"]`)?.scrollIntoView({ block: "start" });
+  };
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="min-h-0 min-w-0 flex-1">
+      <div className="relative min-h-0 min-w-0 flex-1">
+        {pin && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 px-3 pt-1">
+            <PromptPin pin={pin} onTap={backToPrompt} />
+          </div>
+        )}
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {entries.length === 0 ? (
             <div className="px-2 py-16 text-center text-sm text-muted-foreground">

@@ -71,6 +71,36 @@ describe("ReadingView", () => {
     dialogBlock: null as Block | null,
   };
 
+  // A long answer scrolls its prompt off the top: the prompt stays pinned there, and a tap goes back.
+  it("pins the prompt the top turn answers, and a tap scrolls back to it", async () => {
+    server.use(
+      http.get(/\/api\/pane\/[^/]+\/history/, () =>
+        HttpResponse.json({
+          paneId: "w1:p1",
+          available: true,
+          entries: [{ ...turn("u1", "fix the login bug"), role: "user" }, turn("a1", "a very long answer")],
+          hasMore: false,
+          total: 2,
+          fileTruncated: false,
+          queued: [],
+        }),
+      ),
+    );
+    // The prompt sits above the scroller's top edge (y=0), the answer straddles it.
+    const rects: Record<string, [number, number]> = { u1: [-300, 80], a1: [-200, 900] };
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const [top, height] = rects[(this as HTMLElement).dataset?.turn ?? ""] ?? [0, 0];
+      return { top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON() {} } as DOMRect;
+    });
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    render(<ReadingView {...props} />);
+    const pin = await screen.findByRole("button", { name: /fix the login bug/ });
+    await userEvent.click(pin);
+    expect(scrolled.mock.contexts[0]).toHaveAttribute("data-turn", "u1");
+    vi.restoreAllMocks();
+  });
+
   it("renders the transcript's prose (the default MSW history fixture)", async () => {
     render(<ReadingView {...props} />);
     expect(await screen.findByText("One commit: abc1234.")).toBeInTheDocument();
