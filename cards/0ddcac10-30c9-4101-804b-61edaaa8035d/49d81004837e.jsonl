@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793884947286.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"1bd82478-c4e7-4546-86ee-55aebb0bab61"}}
 {"v":1,"hlc":"1793884947286.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Sonde herdr-core sur Windows","status":"backlog"},"ts":1793884946929}}
 {"v":1,"hlc":"1793884947287.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"4471bf11-932b-4cf9-bae6-7f84160ecf8c"}}
+{"v":1,"hlc":"1793916688223.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
