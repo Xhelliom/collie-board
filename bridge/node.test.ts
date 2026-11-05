@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { HerdrClient } from "./herdr-client.ts";
-import { digest, handleNodeRoute, liveNodeActions, loadNodeConfig, withTrustedFolder, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
+import { digest, handleNodeRoute, liveNodeActions, loadNodeConfig, parseLaunch, parseNodeConfig, peerFor, type LaunchedPane, type LaunchRequest, type NodeConfig, type NodeRouteDeps } from "./node.ts";
+import { withTrustedFolder } from "./cards.ts";
 
 const TOKEN_A = "a".repeat(40);
 const TOKEN_B = "b".repeat(40);

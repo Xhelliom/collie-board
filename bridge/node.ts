@@ -1,9 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 
-import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, launchAgent, promptAndConfirm, trustFolder } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
 import { redactDeep } from "./redact.ts";
@@ -355,34 +354,6 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
     return d.json({ ok: true });
   } catch (err) {
     return refuse((err as Error).message, 502);
-  }
-}
-
-/**
- * `~/.claude.json` with `dir` marked trusted: Claude Code's « Do you trust this folder » never shows
- * there. Pure. Both slash forms on Windows — shortcut: the key format Claude Code uses there was not
- * verified live; drop the one it doesn't read once it is.
- */
-export function withTrustedFolder(config: Record<string, unknown>, dir: string): Record<string, unknown> {
-  const projects = { ...((config.projects as Record<string, Record<string, unknown>> | undefined) ?? {}) };
-  for (const key of new Set([dir, dir.replaceAll("\\", "/")])) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
-  return { ...config, projects };
-}
-
-/** Pre-approve a peer launch's checkout in Claude Code: a remote launch has no one to answer the dialog. Best-effort. */
-export function trustFolder(dir: string, file = join(homedir(), ".claude.json")): void {
-  try {
-    let cfg: Record<string, unknown> = {};
-    try {
-      cfg = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== "ENOENT") return; // unreadable or mid-write: never clobber it
-    }
-    const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(withTrustedFolder(cfg, dir), null, 2), { mode: 0o600 });
-    renameSync(tmp, file);
-  } catch (err) {
-    console.warn(`[node] could not pre-trust ${dir}: ${(err as Error).message}`);
   }
 }
 

@@ -14,6 +14,8 @@
 // Nothing here writes runtime state INTO the database beyond those three facts: a card's live
 // status, cwd and agent all still come from the snapshot on every read.
 
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentAdapter } from "./adapters.ts";
@@ -615,6 +617,9 @@ async function agentInPane(herdr: HerdrClient, paneId: string): Promise<string |
  *    select and its Enter answers "Yes, I trust this folder". Nothing is typed, nothing runs, and
  *    the pane looks perfectly normal afterwards. This hits EVERY card, because every card gets a
  *    brand-new worktree directory, and it is silent.
+ *    **No longer true (herdr 0.9.5 + Claude Code 2.1.318, HERDR_API.md):** the default is now
+ *    « No, exit », herdr reports the dialog as `blocked` and refuses the prompt (`agent_blocked`).
+ *    `blocked` counts as landed below, so no Enter ever reaches it; `startCard` pre-trusts instead.
  *
  * So: read the state back and look, the same rule `web/src/lib/reply-action.ts` applies to replies.
  * An agent that received a prompt is `working` (or `blocked`); one still `idle` did not.
@@ -623,6 +628,38 @@ async function agentInPane(herdr: HerdrClient, paneId: string): Promise<string |
  * modal can appear. Re-sending a follow-up whose turn merely finished inside the settle window
  * would make the agent do the work twice.
  */
+
+/**
+ * `~/.claude.json` with `dir` marked trusted: Claude Code's « Do you trust this folder » never shows
+ * there. Pure. Both slash forms on Windows — shortcut: the key format Claude Code uses there was not
+ * verified live; drop the one it doesn't read once it is.
+ */
+export function withTrustedFolder(config: Record<string, unknown>, dir: string): Record<string, unknown> {
+  const projects = { ...((config.projects as Record<string, Record<string, unknown>> | undefined) ?? {}) };
+  for (const key of new Set([dir, dir.replaceAll("\\", "/")])) projects[key] = { ...projects[key], hasTrustDialogAccepted: true };
+  return { ...config, projects };
+}
+
+/**
+ * Pre-approve a checkout in Claude Code, for every launch (a card, a peer's): since Claude Code 2.1.x
+ * the trust dialog defaults to « No, exit », and herdr 0.9 refuses to prompt past it (HERDR_API.md).
+ * `$CLAUDE_CONFIG_DIR/.claude.json` when set — where Claude Code reads it. Best-effort.
+ */
+export function trustFolder(dir: string, file = join(process.env.CLAUDE_CONFIG_DIR || homedir(), ".claude.json")): void {
+  try {
+    let cfg: Record<string, unknown> = {};
+    try {
+      cfg = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") return; // unreadable or mid-write: never clobber it
+    }
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(withTrustedFolder(cfg, dir), null, 2), { mode: 0o600 });
+    renameSync(tmp, file);
+  } catch (err) {
+    console.warn(`[board] could not pre-trust ${dir}: ${(err as Error).message}`);
+  }
+}
 
 /**
  * Launch an agent in a pane and don't return until it will accept a prompt.
@@ -866,6 +903,8 @@ export async function startCard(
     const wait = opts.sleep ?? sleep;
     const args = modelArgs(kind, template?.model, opts.adapters);
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
+    // A repo never opened in Claude Code puts its trust dialog up, cursor on « No, exit ».
+    if (kind === "claude") trustFolder(worktree.checkoutPath);
     await launchAgent(herdr, worktree.paneId, kind, agentNameFor(branch), wait, args);
     if (step && template) {
       // Journaled once up, as `swapRole` does. The previous bilan is spent only when its report is in
@@ -898,7 +937,7 @@ export async function startCard(
   // to settle, say), which is a message to an agent that already has its role.
   const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
   try {
-    // First prompt after a launch: a fresh worktree means Claude Code's trust dialog is up.
+    // First prompt after a launch: the draft may sit unsubmitted (the trust dialog is pre-empted above).
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });
     db.recordEvent(cardId, "card.prompted", { chars: text.length });
   } catch (err) {
