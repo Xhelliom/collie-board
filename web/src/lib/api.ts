@@ -459,6 +459,16 @@ export function checkForUpdates(): Promise<UpdateInfo> {
   return req<UpdateInfo>("/api/update/check", { method: "POST" });
 }
 
+/** The release before the running one (dotted `X.Y.Z`), or null — what Settings offers to go back to. */
+export function fetchPreviousRelease(): Promise<{ previous: string | null }> {
+  return req<{ previous: string | null }>("/api/update/rollback");
+}
+
+/** Reinstall the previous release through the update action; the bridge restarts on it. */
+export function rollBack(): Promise<{ target: string }> {
+  return req<{ target: string }>("/api/update/rollback", { method: "POST" });
+}
+
 /**
  * Upload an image; the bridge saves it to a host file and returns the path to reference in a
  * message. Uses multipart/form-data (NOT the JSON `req` helper — the browser sets the boundary).

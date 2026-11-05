@@ -310,6 +310,26 @@ update_checkout() {
     echo "       herdr plugin install Xhelliom/collie-board --yes" >&2
     return 1
   fi
+  # A rollback (Settings → Updates, bridge/rollback.ts) leaves the tag to go back to here: this
+  # update then lands on that tag instead of the newest. Read once and removed, so the next is plain.
+  local target_file="${CONFIG_DIR}/update-target" target=""
+  if [ -f "$target_file" ]; then
+    target="$(tr -d '[:space:]' <"$target_file")"
+    rm -f "$target_file"
+    if ! [[ "$target" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "error: ignoring a malformed rollback target '${target}'" >&2
+      return 1
+    fi
+    echo "rolling Collie Board back to ${target}…"
+    if [ "$(git -C "$PLUGIN_ROOT" rev-parse --is-shallow-repository)" = true ]; then
+      git -C "$PLUGIN_ROOT" fetch --depth 1 origin "refs/tags/${target}"
+    else
+      git -C "$PLUGIN_ROOT" fetch origin "refs/tags/${target}"
+    fi
+    git -C "$PLUGIN_ROOT" checkout -q --detach --force FETCH_HEAD
+    echo "→ now at $(git -C "$PLUGIN_ROOT" log -1 --format='%h %s')"
+    return
+  fi
   if ! is_managed_checkout; then
     echo "updating Collie Board (git pull --ff-only)…"
     git -C "$PLUGIN_ROOT" pull --ff-only

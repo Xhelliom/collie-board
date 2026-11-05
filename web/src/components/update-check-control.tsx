@@ -5,6 +5,7 @@ import { useRevalidator, useRouteLoaderData } from "react-router";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { RollbackControl } from "@/components/rollback-control";
 import { checkForUpdates } from "@/lib/api";
 import { ago } from "@/lib/project-facts";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
@@ -65,7 +66,7 @@ export function UpdateCheckControl() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 border-t border-border/60 p-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-border/60 p-3">
         <Button variant="outline" size="sm" disabled={busy} onClick={check}>
           {busy ? (
             <>
@@ -81,6 +82,7 @@ export function UpdateCheckControl() {
         {!busy && !error && upToDate && (
           <span className="text-xs text-muted-foreground">{t("settings.updates.upToDate")}</span>
         )}
+        <RollbackControl />
       </div>
     </Card>
   );

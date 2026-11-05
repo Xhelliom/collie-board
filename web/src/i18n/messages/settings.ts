@@ -188,6 +188,10 @@ export const settings = defineMessages({
   "settings.updates.failed": { en: "Couldn't check.", fr: "Vérification impossible." },
   "settings.updates.upToDate": { en: "Up to date", fr: "À jour" },
   "settings.updates.copy": { en: "Copy command: {command}", fr: "Copier la commande : {command}" },
+  "settings.updates.rollback": { en: "Roll back to {version}", fr: "Revenir à {version}" },
+  "settings.updates.rollbackConfirm": { en: "Tap again to roll back", fr: "Touchez encore pour revenir" },
+  "settings.updates.rollingBack": { en: "Going back to {version} — the bridge restarts on it in a minute or so.", fr: "Retour à {version} lancé — le bridge redémarre dessus d'ici une minute." },
+  "settings.updates.rollbackFailed": { en: "Couldn't roll back.", fr: "Retour arrière impossible." },
   "settings.build.updating": { en: "updating…", fr: "mise à jour…" },
   "settings.build.stale": { en: "new build — tap to update", fr: "nouveau build — touchez pour mettre à jour" },
 });

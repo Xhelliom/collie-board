@@ -575,6 +575,29 @@ test_update_fast_forwards_a_linked_clone() {
   assert_eq "$(git -C "$root" rev-parse --is-shallow-repository)" "false"
 }
 
+# A rollback (Settings → Updates) leaves the tag in update-target: the update lands on that tag,
+# not the newest, on a shallow managed checkout — and consumes the file so the next one is plain.
+test_update_rolls_back_to_the_target_tag() {
+  setup_case update-rollback
+  stage_origin
+  git_q -C "$ORIGIN_DIR" tag -a v1.0.0 -m "Collie 1.0.0"
+  advance_origin
+  local root="${CASE_DIR}/managed"
+  mkdir -p "$root"
+  git_q -C "$root" init -q
+  git_q -C "$root" remote add origin "$ORIGIN_DIR"
+  git_q -C "$root" fetch -q --depth 1 origin HEAD
+  git_q -C "$root" checkout -q --detach FETCH_HEAD
+  mkdir -p "$CONFIG_DIR"; echo "v1.0.0" > "${CONFIG_DIR}/update-target"
+
+  local out; out="$(run_update_checkout "$root")" || fail "rollback update_checkout failed: $out"
+  assert_contains "$out" "rolling Collie Board back to v1.0.0"
+  assert_eq "$(cat "${root}/VERSION")" "v1"
+  [ -e "${CONFIG_DIR}/update-target" ] && fail "the rollback target should be consumed"
+  run_update_checkout "$root" >/dev/null || fail "the update after a rollback failed"
+  assert_eq "$(cat "${root}/VERSION")" "v2"
+}
+
 # A checkout that isn't a git repo at all (a copied tree) must fail with the reinstall command, not a
 # raw git error about a missing origin.
 test_update_reports_a_non_git_checkout() {
@@ -638,6 +661,7 @@ test_setup_never_rewrites_existing_config
 
 test_update_advances_a_herdr_managed_checkout
 test_update_fast_forwards_a_linked_clone
+test_update_rolls_back_to_the_target_tag
 test_update_reports_a_non_git_checkout
 test_registry_refresh_skips_a_managed_checkout
 
