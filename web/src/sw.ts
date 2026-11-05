@@ -4,6 +4,7 @@ import { NavigationRoute, registerRoute } from "workbox-routing";
 import { clientsClaim } from "workbox-core";
 
 import { decidePush, type PushPayload } from "./lib/push-decision";
+import { recordSlot, showBadge, slotCount } from "./lib/app-badge";
 
 // Custom service worker (vite-plugin-pwa `injectManifest`). It does everything the old generated
 // Workbox SW did — precache the app shell + SPA-fallback navigations — PLUS the two handlers a
@@ -54,6 +55,16 @@ async function handlePush(event: PushEvent): Promise<void> {
   } catch {
     // Non-JSON / empty push — fall back to a plain-text body so we never silently drop it.
     payload = { body: event.data?.text() };
+  }
+
+  // The icon's count first: it holds whatever the notification below decides (suppress included).
+  const count = slotCount(payload);
+  if (count !== undefined && payload.tag !== undefined) {
+    try {
+      await showBadge(self.navigator, await recordSlot(self.caches, self.location.origin, payload.tag, count));
+    } catch {
+      // Cache Storage refused: the notification matters more than the count.
+    }
   }
 
   const decision = decidePush(payload, await anyVisibleClient());

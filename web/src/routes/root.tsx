@@ -9,6 +9,7 @@ import { useConnectionLost } from "@/hooks/use-connection-lost";
 import { UpdateAvailableBanner } from "@/components/update-available-banner";
 import { Toaster } from "@/components/ui/sonner";
 import { clearErrorStatus } from "@/lib/status";
+import { showBadge, waitingCount } from "@/lib/app-badge";
 import { ConnectionBanner } from "@/components/connection-banner";
 import { DogGallop } from "@/components/dog-gallop";
 import { AppNav } from "@/components/app-nav";
@@ -40,6 +41,12 @@ export function RootLayout() {
   usePollBusy();
   useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
   usePushSetup();
+  // The icon's count from what the page sees — only when it sees everything (one session, a fresh
+  // snapshot); otherwise the service worker's per-push sum stands.
+  const badge = data.error || data.session !== undefined || data.sessions.length > 1 ? null : waitingCount(data.agents);
+  useEffect(() => {
+    if (badge !== null) void showBadge(navigator, badge);
+  }, [badge]);
   // An error has no TTL: left standing, it would resurface on the next screen, far from what failed.
   const { pathname } = useLocation();
   useEffect(() => clearErrorStatus(), [pathname]);
