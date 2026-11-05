@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793800692203.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"5fa9205a-3bb7-49d5-aa6b-dd4936bb56b0"}}
 {"v":1,"hlc":"1793800692203.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Les chemins de fichiers affichés par l'agent deviennent des liens","status":"backlog"},"ts":1793800683235}}
 {"v":1,"hlc":"1793800692204.0007.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"b1fc9362-1ab1-4dea-a1b5-fe94094cf122"}}
+{"v":1,"hlc":"1793868004146.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
