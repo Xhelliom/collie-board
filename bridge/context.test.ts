@@ -177,6 +177,7 @@ describe("ContextTracker", () => {
     const running = [
       JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_A", name: "Agent", input: { description: "Relecture" } }] } }),
       JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "toolu_A" }] }, toolUseResult: { status: "async_launched" } }),
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_T", name: "TodoWrite", input: { todos: [{ content: "Tester", status: "in_progress" }] } }] } }),
       log(100_000),
     ].join("\n");
     const { t } = tracker({ "id:s-1": running, "id:s-2": running });
@@ -185,7 +186,9 @@ describe("ContextTracker", () => {
 
     const [claude, other] = t.enrich([pane("w1:p1"), pane("w1:p2", { agent: "pi" })]);
     expect(claude!.subagents).toEqual(["Relecture"]);
+    expect(claude!.tasks).toEqual([{ text: "Tester", status: "in_progress" }]);
     expect(other!.subagents).toBeUndefined();
+    expect(other!.tasks).toBeUndefined();
   });
 
   it("never reads an agent whose transcript format we can't parse", async () => {
