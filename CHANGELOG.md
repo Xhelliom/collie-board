@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.257.0] - 2026-11-05
+
+### Added
+
+- Clés d'API, JWT, clés PEM, `Bearer …` et `password=` masqués (•) dans le terminal, le mode lecture, l'historique, les diffs et les push (8a42bbe)
+- `COLLIE_BOARD_REDACT=off` coupe le masque (8a42bbe)
+
+### Fixed
+
+- Windows : `collie.log` horodate chaque lancement et chaque arrêt du bridge par le superviseur (5849f8d)
+
 ## [0.256.0] - 2026-11-05
 
 ### Added
