@@ -126,3 +126,59 @@ describe("CardDiff — Markdown reader", () => {
     expect(screen.queryByRole("button", { name: /read the document/i })).not.toBeInTheDocument();
   });
 });
+
+// Line comments: tap lines, write a note, and the batch goes to the agent as ONE prompt. The batch
+// outlives an unmount (a Back out of the card), and is dropped once sent.
+describe("CardDiff — line comments", () => {
+  const stat = { ok: true, base: "abc123", cwd: "/w", files: [{ path: "a.ts", added: 2, removed: 1, kind: "text" }], added: 2, removed: 1 };
+  const patch = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -10,2 +10,3 @@\n keep\n-old\n+new one\n+new two";
+
+  it("collects a comment, keeps it across a remount, and sends one message", async () => {
+    sessionStorage.clear();
+    const user = userEvent.setup();
+    server.use(
+      http.get("/api/cards/c2/diff", ({ request }) =>
+        new URL(request.url).searchParams.get("mode")
+          ? HttpResponse.json({ ok: true, path: "a.ts", diff: patch, truncated: false })
+          : HttpResponse.json(stat),
+      ),
+    );
+    const sent: string[] = [];
+    const onSend = async (text: string) => {
+      sent.push(text);
+    };
+    const first = render(<CardDiff cardId="c2" statusKey="review" onSend={onSend} />);
+
+    await user.click(await screen.findByText("a.ts"));
+    await user.click(await screen.findByText("+new one"));
+    await user.click(screen.getByText("+new two"));
+    await user.type(screen.getByPlaceholderText(/your comment/i), "rename these");
+    await user.click(screen.getByRole("button", { name: /add comment/i }));
+    expect(screen.getByText("1 comment")).toBeInTheDocument();
+
+    first.unmount();
+    render(<CardDiff cardId="c2" statusKey="review" onSend={onSend} />);
+    expect(await screen.findByText("1 comment")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /send to the agent/i }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toContain("`a.ts` (+11–12)\n> +new one\n> +new two\n\nrename these");
+    expect(screen.queryByText("1 comment")).not.toBeInTheDocument();
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it("offers no commenting when the card has no agent to send to", async () => {
+    server.use(
+      http.get("/api/cards/c3/diff", ({ request }) =>
+        new URL(request.url).searchParams.get("mode")
+          ? HttpResponse.json({ ok: true, path: "a.ts", diff: patch, truncated: false })
+          : HttpResponse.json(stat),
+      ),
+    );
+    const user = userEvent.setup();
+    render(<CardDiff cardId="c3" statusKey="done" />);
+    await user.click(await screen.findByText("a.ts"));
+    await user.click(await screen.findByText("+new one"));
+    expect(screen.queryByPlaceholderText(/your comment/i)).not.toBeInTheDocument();
+  });
+});

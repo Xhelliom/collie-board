@@ -920,7 +920,20 @@ export function CardRoute() {
                   </Section>
                 )}
 
-                <CardDiff cardId={card.id} statusKey={card.status} remote={Boolean(card.environment)} alreadyPresent={report?.issue === "present"} />
+                <CardDiff
+                  cardId={card.id}
+                  statusKey={card.status}
+                  remote={Boolean(card.environment)}
+                  alreadyPresent={report?.issue === "present"}
+                  onSend={
+                    card.runtime
+                      ? async (text) => {
+                          await promptCard(card.id, text);
+                          revalidator.revalidate();
+                        }
+                      : undefined
+                  }
+                />
 
                 <Section label={t("card.section.rework")}>
                   <div className="flex flex-wrap gap-2">
