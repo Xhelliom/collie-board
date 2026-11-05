@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.256.0] - 2026-11-05
+
+### Added
+
+- Icône de l'appli installée : une pastille compte les agents qui attendent (bloqués + finis pas encore ouverts), à chaque push et à l'ouverture (19e4e38)
+
 ## [0.255.0] - 2026-11-05
 
 ### Added
