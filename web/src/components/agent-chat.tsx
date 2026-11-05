@@ -12,6 +12,7 @@ import {
   Images,
   Loader2,
   ScrollText,
+  Maximize2,
   Search,
   TerminalSquare,
   XCircle,
@@ -60,7 +61,7 @@ import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-sel
 import type { PreviewBlockAction } from "@/components/preview-select-block";
 import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
 import { shortCwd } from "@/lib/format";
-import { historyPath, paneArtifactsPath, spacePath } from "@/lib/nav";
+import { historyPath, paneArtifactsPath, spacePath, zoomPath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
 import type { AgentView, BridgeStatus, DeviceAuth, TabView } from "@/lib/types";
 import type {
@@ -729,6 +730,17 @@ export function AgentChat({
                 <Search className="size-4" />
               </button>
             )}
+            {display && !reading && (
+              <button
+                type="button"
+                onClick={() => navigate(zoomPath(paneId, session))}
+                aria-label={tr("zoom.open")}
+                title={tr("zoom.open")}
+                className="-mr-1 flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted/60"
+              >
+                <Maximize2 className="size-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setDrawer("more")}
@@ -873,6 +885,17 @@ export function AgentChat({
                 className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
               >
                 <Search className="size-4" />
+              </button>
+            )}
+            {display && !reading && (
+              <button
+                type="button"
+                onClick={() => navigate(zoomPath(paneId, session))}
+                aria-label={tr("zoom.open")}
+                title={tr("zoom.open")}
+                className="flex size-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
+              >
+                <Maximize2 className="size-4" />
               </button>
             )}
             {agent && historyAvailable && (

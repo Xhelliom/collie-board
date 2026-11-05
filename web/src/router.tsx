@@ -7,6 +7,7 @@ import { SpacesRoute } from "@/routes/spaces";
 import { DetailRoute } from "@/routes/detail";
 import { HistoryRoute } from "@/routes/history";
 import { ArtifactsRoute } from "@/routes/artifacts";
+import { ZoomRoute } from "@/routes/zoom";
 import { SettingsRoute } from "@/routes/settings";
 import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
@@ -116,6 +117,8 @@ export const router = createBrowserRouter([
         // navigation; the view pages back through it with direct api calls.
         shouldRevalidate: () => false,
       },
+      // Polled like the pane itself (same loader), so the zoomed output stays live.
+      { path: "pane/:paneId/zoom", loader: paneLoader, element: <ZoomRoute />, errorElement: <PaneError /> },
       {
         path: "pane/:paneId/artifacts",
         loader: paneArtifactsLoader,
