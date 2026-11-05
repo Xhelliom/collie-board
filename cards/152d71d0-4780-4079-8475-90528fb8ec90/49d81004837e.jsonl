@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793800692197.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"5fa9205a-3bb7-49d5-aa6b-dd4936bb56b0"}}
 {"v":1,"hlc":"1793800692197.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Un agent fini que j'ai ouvert est marqué vu, et sa notification s'efface","status":"backlog"},"ts":1793800682943}}
 {"v":1,"hlc":"1793800692199.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"0bc0b667-beda-426d-aa8c-a5231e19ca11"}}
+{"v":1,"hlc":"1793865924856.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
