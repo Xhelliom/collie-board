@@ -76,4 +76,4 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0049](./0049-appairage-de-pairs-par-code-depuis-l-ui.md) | Appairage de pairs par code, depuis l'UI | Accepted |
 | [0050](./0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md) | Every action runs `ctl.ts`, because Herdr allows one command per action id | Accepted |
 | [0051](./0051-le-droit-launch-par-pair-suffit-l-autonomie-reste-a-l-orchestrateur-local.md) | Le droit `launch` par pair suffit ; l'autonomie reste à l'orchestrateur local | Accepted |
-| [0052](./0052-collie-v2-sur-herdr-core.md) | Collie V2 sur herdr-core : même cerveau, nouveau moteur, le projet au centre | Proposed |
+| [0052](./0052-collie-v2-sur-herdr-core.md) | Collie V2 sur herdr-core : même cerveau, nouveau moteur, le projet au centre | Accepted |

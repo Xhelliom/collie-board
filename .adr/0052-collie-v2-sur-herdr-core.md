@@ -1,6 +1,7 @@
 # 0052 — Collie V2 sur herdr-core : même cerveau, nouveau moteur, le projet au centre
 
-**Statut : proposé** — à trancher par l'opérateur (options §4, nom §7, phases §8).
+**Statut : accepté (05/11)** — accepté par l'opérateur le 2026-11-05, la phase 5 soumise aux critères
+de sortie du §8 et non à une date.
 
 Sources : la sonde `HERDR_CORE_API.md` (hc 0.1.18, herdr-app 0.1.13, Claude Code 2.1.318, mesurée le
 2026-11-05, branche `board/sonde-herdr-core-ce-que-collie-peut-faire-avec-h`) et le prototype
@@ -149,7 +150,24 @@ Chaque phase est utilisable seule et réversible par config.
 | **2 — hc en lecture** | `hc.ts` : snapshot, `events.subscribe`, statut OSC 7501, `terminal.read` ; bridge en `mux = "hc"` sur une machine de test | la PWA affiche le troupeau hc et ses statuts, sans rien lancer |
 | **3 — hc en écriture** | `terminal.run` + labels `collie.card`, worktrees en git, `send {if:"idle"}`, `HC_TERMINAL_ID` relayé, sous-agents par `children_of` | une carte va de « lancer » à « PR » sous hc |
 | **4 — Le projet au centre** | accueil par projets, espaces/onglets retirés de l'UI, mod herdr-app branché sur les mêmes vues ; hc devient le défaut | recette faite sur téléphone et dans herdr-app |
-| **5 — Sortie de herdr 0.9** | retrait de `herdr09.ts`, de `herdr-plugin.toml`, `ctl.ts` + lanceur `collie-board`, version canonique dans `package.json` (ADR amendant 0016 et la règle « Update notice ») ; nœuds d'ADR 0046 sur `hc machine` ; nom tranché | plus aucune référence à la socket herdr 0.9 |
+| **5 — Sortie de herdr 0.9** (sur critères, sans date — voir ci-dessous) | retrait de `herdr09.ts`, de `herdr-plugin.toml`, `ctl.ts` + lanceur `collie-board`, version canonique dans `package.json` (ADR amendant 0016 et la règle « Update notice ») ; nœuds d'ADR 0046 sur `hc machine` ; nom tranché | plus aucune référence à la socket herdr 0.9 |
+
+**Critères de sortie de la phase 5.** Aucune date : on ne retire la couche herdr 0.9 que quand les
+quatre critères tiennent ensemble :
+
+1. le protocole hc **n'a pas cassé depuis 2 mois** ;
+2. **toutes les machines de l'opérateur tournent sur hc** — ici, dev, Dell, Windows ;
+3. les harnais utilisés hors Claude **annoncent leur statut (OSC 7501)**, ou gardent l'adaptateur
+   écran comme repli ;
+4. herdr 0.9 **ne reçoit plus de correctifs**.
+
+Tant qu'un critère manque, **les deux moteurs coexistent derrière l'interface `Mux`, choisie par
+machine** (`mux = "hc"` ou `"herdr"` dans la config de chaque bridge).
+
+**Windows.** herdr-app et herdr-core existent aussi sous Windows, avec un *named pipe* à la place de
+la socket Unix. L'adaptateur `hc.ts` doit donc ouvrir l'un ou l'autre selon la plateforme ; ce que
+le named pipe change (chemin, permissions, `events.subscribe` en flux) est **à mesurer en phase 2**,
+sur la machine Windows, avant que le critère 2 puisse tenir.
 
 ## Conséquences
 
