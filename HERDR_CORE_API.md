@@ -466,3 +466,73 @@ status` n'en démarre jamais, donc ailleurs oui **[supposé, d'après la doc]**)
 4. **Coexistence** : rien n'oblige à basculer d'un coup — **[supposé]** un second client `hc` derrière
    la même interface que `HerdrClient`, choisi par config, permettrait de faire tourner les deux pendant
    la migration. C'est la voie que la règle « garder la surface amont étroite » impose de toute façon.
+
+---
+
+## 7. Windows (Collie Windows, ADR 0050)
+
+**État au 2026-11-05 : non mesuré.** La sonde devait tourner sur le poste Windows de l'opérateur
+(`dell-5550-stef`, Tailscale actif) ; aucun accès shell depuis l'hôte Linux (SSH port 22 fermé, pas
+de `hc machine` configurée). Cette section sépare donc ce qui est **lu** de ce qui reste **à mesurer**,
+et donne la sonde à lancer sur place — copier les sorties ici en passant l'étiquette à **[mesuré]**.
+
+### Ce qui est lu **[doc]**
+
+- Installeur `irm https://releases.herdr.dev/app/install.ps1 | iex` (lu, 103 lignes) : app dans
+  `%LOCALAPPDATA%\Programs\herdr-app` (ajoutée au PATH utilisateur, raccourci menu Démarrer), puis
+  `releases.herdr.dev/core/install.ps1` **seulement si** `%LOCALAPPDATA%\Programs\herdr-core\herdr-core.exe`
+  et `herdr-core` dans le PATH sont absents. Prérequis : `curl.exe` et `tar.exe` de `System32`
+  (Windows 10 1803+). Un core déjà installé n'est pas mis à jour par cet installeur.
+- `hc --skill` (0.1.18) : sous Windows **`hc server status` ne démarre jamais de core** ; il faut ouvrir
+  Herdr ou lancer `hc server start` dans un terminal de bureau normal. Un démarrage par SSH élevé peut
+  bloquer la session de bureau du même utilisateur. Un nouveau terminal relit PATH et l'environnement.
+- Config : `%APPDATA%\herdr-core\config.toml` (`shell = ["…"]` remplace PowerShell, le shell par défaut).
+- Transport : named pipe à la place de `$XDG_RUNTIME_DIR/herdr-core/default.sock` (donnée du ticket) ;
+  **le nom du pipe n'est écrit nulle part** dans `hc --skill` ni dans l'installeur.
+- Templates de `hc` : demandent `sh` dans le PATH (Git for Windows). Ticket connu : `hc machine add`
+  plante depuis Windows (OpenSSH).
+
+### Ce qui reste **[à mesurer]**
+
+| Point | Question | Résultat |
+|---|---|---|
+| Installation | versions `hc`/`herdr-app`, core démarré par l'app ou à la main | — |
+| Nom du pipe | `\\.\pipe\…` effectif | — |
+| Statut Claude | OSC 7501 remonte-t-il (`reported:true`, `idle`→`working`→`done`) sous ConPTY ? | — |
+| `hc send` | attend-il la disponibilité comme sous Linux ? prompt soumis ? | — |
+| Écran de confiance | curseur sur « No, exit » comme sous Linux (§2c) ? | — |
+| Bun → pipe | `node:net` `connect({path})` sur le pipe, `hello` répond ? connexion persistante ? | — |
+
+### Sonde à lancer sur le poste Windows
+
+PowerShell, dans un terminal de bureau (pas SSH), avec Git for Windows, Bun et Claude Code installés :
+
+```powershell
+hc --version; herdr-app --version; claude --version
+hc server start; hc server status
+[IO.Directory]::GetFiles('\\.\pipe\') | Select-String herdr     # nom du pipe
+
+$wt = Join-Path $env:TEMP "hc-probe-$(Get-Random)"; git init -q $wt     # dossier neuf → écran de confiance
+Start-Job { hc events --json > "$env:TEMP\hc-events.jsonl" } | Out-Null
+hc run --bg --no-parent --name probe1 --label collie.card=test --cwd $wt claude
+1..10 | % { Start-Sleep 1; hc get probe1 }    # status / reported / turn
+hc read probe1                                 # où est le curseur du dialogue de confiance ?
+# Si le dialogue est là : hc keys probe1 down enter  (ne PAS envoyer un Enter aveugle)
+hc send probe1 "dis juste OK"; hc wait probe1; hc get probe1
+Get-Content "$env:TEMP\hc-events.jsonl" | Select-String probe1    # suite des statuts
+hc kill probe1; hc rm probe1
+```
+
+Bun, une requête JSON-RPC sur le pipe (`bun probe-pipe.ts '\\.\pipe\<nom>'`) :
+
+```ts
+import { connect } from "node:net";
+const s = connect({ path: process.argv[2] }, () =>
+  s.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "hello", params: {} }) + "\n"));
+s.on("data", (b) => { console.log(b.toString()); s.end(); });
+s.on("error", (e) => { console.error("ERR", e.message); process.exit(1); });
+```
+
+Le résultat attendu, si le pipe parle le même protocole que la socket Linux (§0) : une ligne
+`{"id":1,"result":{"features":[…],"methods":[…]}}`. Une erreur `ENOENT` = mauvais nom ; un silence =
+framing différent (le core annonce `framed` dans ses `features`).
