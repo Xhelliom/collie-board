@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793884947285.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"c9472a48-4c92-4b96-b64c-31f7c107f57f"}}
 {"v":1,"hlc":"1793884947285.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Extraire l'interface Mux : herdr 0.9 derrière, comportement inchangé","status":"backlog"},"ts":1793884946837}}
 {"v":1,"hlc":"1793884947285.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"2923a00f-4cb6-4c07-88cd-eeccf1db2a21"}}
+{"v":1,"hlc":"1793885884106.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
