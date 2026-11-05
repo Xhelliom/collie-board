@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793866678771.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"ADR : Collie V2 sur herdr-core, centrée projet et orchestrateur","status":"backlog"},"ts":1793866668864}}
 {"v":1,"hlc":"1793866678771.0008.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9a996edb-cd19-4f88-84be-d599c7653ce6"}}
 {"v":1,"hlc":"1793871657773.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793871675805.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/adr-collie-v2-sur-herdr-core-centree-projet-et-o"}}
+{"v":1,"hlc":"1793871675805.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793871675805.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793871661307}}
+{"v":1,"hlc":"1793871675805.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793871675805.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793871665715}}
+{"v":1,"hlc":"1793871675805.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3643},"ts":1793871668650}}
