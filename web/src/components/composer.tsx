@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, ClipboardEvent, ReactNode } from "react";
 import { useRevalidator } from "react-router";
-import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Terminal, WrapText, X, Zap } from "lucide-react";
+import { AArrowDown, AArrowUp, Check, Copy, ImagePlus, Keyboard, Loader2, PanelsTopLeft, Send, Slash, SlidersHorizontal, Square, Terminal, WrapText, X, Zap } from "lucide-react";
 
 import type { DisplayPrefs } from "@/hooks/use-display-prefs";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
@@ -25,6 +25,8 @@ import { isSelfEcho, normalizeDraft } from "@/hooks/use-terminal-draft";
 import { sendGuardedReply } from "@/lib/reply-action";
 import { TerminalDraftPreview } from "@/components/terminal-draft-preview";
 import { boardErrorMessage } from "@/lib/board";
+import { PasteChips } from "@/components/paste-chips";
+import { expandPastes, isCollapsiblePaste, liveChips, pasteMarker, type PasteChip } from "@/lib/paste-chips";
 
 // Per-pane draft persistence: `input` below is local state, and AgentChat remounts Composer wholesale
 // (`key={paneId}` in routes/detail.tsx) on every pane switch — without this, navigating away and back
@@ -33,10 +35,15 @@ import { boardErrorMessage } from "@/lib/board";
 // grow it forever. Only Composer reads this, so a plain Map is enough — no need for the
 // useSyncExternalStore pub/sub lib/idle.ts and lib/status.ts use for state shared across components.
 const DRAFT_MAX = 20;
-const drafts = new Map<string, string>();
+// A draft keeps its paste chips with it — a marker without its chip would be sent literally.
+interface Draft {
+  input: string;
+  pastes: PasteChip[];
+}
+const drafts = new Map<string, Draft>();
 
-function saveDraft(paneId: string, value: string): void {
-  if (value === "") {
+function saveDraft(paneId: string, value: Draft): void {
+  if (value.input === "") {
     drafts.delete(paneId);
     return;
   }
@@ -101,6 +108,8 @@ interface ComposerProps {
   /** Ask this session's card to hand off. Undefined for a hand-launched pane (no card to hand off) —
    * the Quick dock then omits the row rather than showing a dead button. */
   onHandoff?: () => Promise<void>;
+  /** The agent is mid-turn: Stop shows, and a message sent now waits in the agent's queue. */
+  working?: boolean;
 }
 
 // The composer cluster at the bottom of the pane view — everything a phone keyboard can't do on its
@@ -156,7 +165,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff },
+  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff, working = false },
   ref,
 ) {
   const tr = useT();
@@ -164,7 +173,12 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Every write affordance is off when the pane is gone OR this device is read-only.
   const locked = gone || readOnly;
 
-  const [input, setInput] = useState(() => drafts.get(paneId) ?? "");
+  const [input, setInput] = useState(() => drafts.get(paneId)?.input ?? "");
+  // Long pastes collapsed to a `[Collé #N]` marker in `input` (lib/paste-chips.ts).
+  const [pastes, setPastes] = useState<PasteChip[]>(() => drafts.get(paneId)?.pastes ?? []);
+  const chips = liveChips(input, pastes);
+  // A message sent mid-turn waits in Claude Code's queue until the turn ends; "Send now" hands it over.
+  const [queued, setQueued] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   // Upload + clipboard paste, shared with every other draft box that can carry a screenshot
   // (hooks/use-image-upload.ts) — on success the host path is appended here and the keyboard stays up.
@@ -268,8 +282,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Write-through for the module-scoped draft map above — every keystroke, and the clear on send,
   // land here so the NEXT mount of this paneId (a pane switch and back) seeds from it.
   useEffect(() => {
-    saveDraft(paneId, input);
-  }, [paneId, input]);
+    saveDraft(paneId, { input, pastes });
+  }, [paneId, input, pastes]);
+
+  // The turn ended: the queue went in on its own.
+  useEffect(() => {
+    if (!working) setQueued(null);
+  }, [working]);
 
   // Preview appearance latch. A STABLE, non-echo, not-already-handled draft flips the preview on —
   // this is the ONLY gate that waits for the 1.5s stability, so a blip or an in-flight send never
@@ -322,6 +341,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }
 
   const commands = commandsFor(agent);
+  const showStop = working && !isShell && !locked;
 
   function focusInputImmediately() {
     const el = inputRef.current;
@@ -378,7 +398,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       // key. A "stalled" outcome means nothing was submitted and the draft must survive (#34).
       const res = await sendGuardedReply({ paneId, text: t, agent, session });
       if (res.status === "sent") {
-        if (isDraft) setInput(""); // phone-owned input — clear it once the reply is on its way
+        if (isDraft) {
+          setInput(""); // phone-owned input — clear it once the reply is on its way
+          setPastes([]);
+        }
         // Remember what/when we sent, so the next few polls recognise this text echoing on the "❯"
         // line as our own in-flight reply rather than a stranded draft (suppressEcho above).
         lastSentRef.current = { text: t, at: Date.now() };
@@ -398,6 +421,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         sentTimer.current = setTimeout(() => setJustSent(false), 1500);
         const preview = t.length > 60 ? `${t.slice(0, 57)}…` : t;
         setLastSent(preview);
+        if (working) setQueued(preview);
         if (lastSentTimerRef.current) clearTimeout(lastSentTimerRef.current);
         lastSentTimerRef.current = setTimeout(() => setLastSent(null), 6000);
         onSent(); // you just acted — snap the mirror back to the live tail to see the result
@@ -420,13 +444,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // "Really send?" state instead of sending; the confirming second tap goes through. Non-destructive
   // input sends immediately (and any stray armed state is cleared).
   function onSendClick() {
-    const reason = isDestructiveInput(input);
+    const full = expandPastes(input, chips);
+    const reason = isDestructiveInput(full);
     if (reason && !sendConfirm.confirm("send")) {
       setStatus(tr("pane.send.destructive", { reason }), "info");
       return;
     }
     sendConfirm.reset();
-    send(input, true);
+    send(full, true);
   }
   const confirmingSend = sendConfirm.pending === "send";
 
@@ -461,6 +486,31 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     focusInputEnd();
   }
 
+  // An image goes to the upload hook; a long text becomes a chip and its marker lands at the caret.
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    upload.onPaste(e);
+    if (e.defaultPrevented || locked) return;
+    const pasted = e.clipboardData.getData?.("text/plain") ?? "";
+    if (!isCollapsiblePaste(pasted)) return;
+    e.preventDefault();
+    const n = Math.max(0, ...chips.map((c) => c.n)) + 1;
+    const el = e.currentTarget;
+    const start = el.selectionStart ?? input.length;
+    const end = el.selectionEnd ?? start;
+    setInput(`${input.slice(0, start)}${pasteMarker(n)}${input.slice(end)}`);
+    setPastes([...chips, { n, text: pasted }]);
+  }
+
+  function removePaste(n: number) {
+    setInput((prev) => prev.split(pasteMarker(n)).join(""));
+    setPastes((prev) => prev.filter((c) => c.n !== n));
+  }
+
+  function sendQueuedNow() {
+    pressKeys(["ctrl+Enter"]); // Claude Code's key for "hand the queued message to the turn now"
+    setQueued(null);
+  }
+
   function onPickImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
@@ -482,10 +532,25 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </div>
         )}
 
+        {queued && agent === "claude" && !locked && !dialogPresent && (
+          <div className="mb-2 flex items-center gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium">{tr("pane.queued")}</span> {queued}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 px-2 text-xs font-medium"
+              onClick={sendQueuedNow}
+            >
+              {tr("pane.sendNow")}
+            </Button>
+          </div>
+        )}
         {/* File input stays mounted here (not inside the keyboard-only key row) so the picker
             callback survives the keyboard collapsing. Attach-image fires it from the action row below
             (always visible, not gated behind the keyboard-open quick keys); structural commands
-            (New tab/space, Kill) and Stop (Esc, in the Keys dock) live elsewhere. */}
+            (New tab/space, Kill) live elsewhere; Stop (Esc) sits beside Send during a turn. */}
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickImage} />
         {/* Keys / Quick / View dock — a single in-flow site ABOVE the action row (so the toggle you
             tapped stays put and the panel grows over the mirror, not the input). Whichever of the
@@ -611,6 +676,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             desktop-only too. */}
         <ImagePreviewSheet upload={upload} />
         <AttachedImages upload={upload} className="mb-2" />
+        <PasteChips
+          chips={chips}
+          onEdit={(n, text) => setPastes((prev) => prev.map((c) => (c.n === n ? { ...c, text } : c)))}
+          onRemove={removePaste}
+        />
         <div className="lg:flex lg:items-end lg:gap-2">
           <div className="relative lg:min-w-0 lg:flex-1">
             {/* Reply input — full width, its own line below `lg` (UI_AUDIT C1). No side buttons
@@ -626,7 +696,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   onSendClick();
                 }
               }}
-              onPaste={upload.onPaste}
+              onPaste={onPaste}
               placeholder={
                 gone
                   ? tr("pane.input.gone")
@@ -734,10 +804,23 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               >
                 <SlidersHorizontal className="size-4" />
               </Button>
+              {/* Stop: Escape interrupts the agent's turn — there only while one runs. */}
+              {showStop && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="ml-auto size-11 shrink-0 rounded-full"
+                  onClick={() => pressKeys(["Escape"])}
+                  aria-label={tr("pane.stop")}
+                  title={tr("pane.stop")}
+                >
+                  <Square className="size-4 fill-current" />
+                </Button>
+              )}
               {confirmingSend ? (
                 <Button
                   variant="destructive"
-                  className="ml-auto h-11 shrink-0 rounded-full px-4 text-sm font-semibold"
+                  className={`${showStop ? "" : "ml-auto "}h-11 shrink-0 rounded-full px-4 text-sm font-semibold`}
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send.really")}
@@ -748,7 +831,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 <Button
                   variant="brand"
                   size="icon"
-                  className="ml-auto size-11 shrink-0 rounded-full"
+                  className={`${showStop ? "" : "ml-auto "}size-11 shrink-0 rounded-full`}
                   onClick={onSendClick}
                   disabled={locked || !input.trim() || sending}
                   aria-label={tr("pane.send")}
