@@ -449,3 +449,25 @@ Claude Code opened in an untrusted directory holding a `.mcp.json`, read with `a
 - A freshly launched agent has **no transcript yet** (`/history` → `no-log`), so reading mode falls
   back to the terminal on its own; the reading-mode banner matters once a log exists (a relaunch,
   `claude --continue` with a new server in `.mcp.json`).
+
+### A card launch in a never-trusted folder (live-probed herdr 0.9.5, Claude Code 2.1.318, 2026-11-05)
+
+The board's own launch path (`agent.start` → `agent.prompt`), on a fresh `git init` outside any
+approved project:
+
+- **A worktree of an approved repo shows no dialog** — measured: `git worktree add` of
+  collie-board → `agent.start` returns `agent_started`, `idle`, input box up. Claude Code resolves
+  trust through the repo, so the dialog only hits a repo **never opened in Claude Code**.
+- In that case the cursor is on **« No, exit »**. `agent.start` answers
+  `agent_not_ready: agent … is blocked during startup` (`blocked`, `launch_pending: true`, no
+  `interactive_ready`) — contrary to the note above for older builds, it does not report ready.
+- Our retry of that "transient" code then hits **`agent_name_taken`** (the agent is there, on the
+  dialog) → the card start fails, Claude left on the dialog. It does not exit.
+- `agent.prompt` is **refused**: `agent_blocked: … is blocked and requires interactive input`.
+  Nothing is typed, no Enter is sent. And `promptAndConfirm` counts `blocked` as landed, so its
+  rescue Enter never reaches the dialog either. **No blind Enter is possible on 0.9.5** — the
+  « No, exit » risk measured by hc (HERDR_CORE_API.md §2c) is hc's `send`, not ours.
+- The fix is upstream of the dialog: `startCard` (like a peer launch) writes
+  `projects[<checkout>].hasTrustDialogAccepted: true` to `~/.claude.json` (`trustFolder`,
+  bridge/cards.ts) before `agent.start`. Measured: same fresh folder, pre-trusted → `agent_started`,
+  `idle`, no dialog.

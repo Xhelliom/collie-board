@@ -752,6 +752,21 @@ describe("startCard", () => {
     expect(store.openSessionFor(card.id)!.paneId).toBe("wZ:p1");
   });
 
+  it("pre-trusts a Claude checkout before the agent starts — the dialog defaults to « No, exit »", async () => {
+    const store = db();
+    const card = store.createCard({ title: "never opened", repoPath: "/repo", baseRef: "main", status: "ready" });
+    const { client } = fakeHerdr();
+    const file = join(process.env.CLAUDE_CONFIG_DIR!, ".claude.json");
+    let trustedAtStart: unknown;
+    const startAgent = client.startAgent;
+    client.startAgent = async () => {
+      trustedAtStart = JSON.parse(readFileSync(file, "utf8")).projects["/wt/board/never-opened"]?.hasTrustDialogAccepted;
+      return startAgent();
+    };
+    expect((await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} })).ok).toBe(true);
+    expect(trustedAtStart).toBe(true);
+  });
+
   it("falls back to opening the worktree when the checkout already exists (the relaunch path)", async () => {
     const store = db();
     const card = store.createCard({ title: "ship it", repoPath: "/repo", branch: "board/ship-it" });

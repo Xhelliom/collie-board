@@ -1,0 +1,3 @@
+[test]
+# Every `startCard` in a test pre-trusts its fake checkout: never in the real ~/.claude.json.
+preload = ["./bridge/test-preload.ts"]
