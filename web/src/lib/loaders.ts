@@ -391,6 +391,7 @@ async function loadPane(paneId: string, session: string | undefined, lines: numb
       session,
       request?.signal,
       rawTerminalPref(),
+      true,
     );
     const text = read.text || lastPaneText.get(key) || "";
     rememberPaneText(key, text);

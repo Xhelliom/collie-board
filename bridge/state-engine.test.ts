@@ -106,6 +106,22 @@ function makeEngine() {
 }
 
 describe("StateEngine — transition detection", () => {
+  test("a finished pane opened in the app reads idle, until its next finish", async () => {
+    const { herdr, engine, transitions, poll } = makeEngine();
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    await poll();
+    herdr.panes = [pane("w1:p1", "w1", "done", "claude")];
+    await poll();
+    engine.seen.mark("w1:p1"); // the app's pane screen read it
+    await poll(); // herdr still says done — the desk never focused it
+    expect(engine.current().agents[0]!.status).toBe("idle");
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    await poll();
+    herdr.panes = [pane("w1:p1", "w1", "done", "claude")];
+    await poll();
+    expect(transitions.map((t) => t.to)).toEqual(["done", "idle", "working", "done"]);
+  });
+
   test("does not fire a transition on the first sighting of a pane", async () => {
     const { herdr, transitions, poll } = makeEngine();
     herdr.panes = [pane("w1:p1", "w1", "blocked", "claude")];
