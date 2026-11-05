@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Clock, Loader2 } from "lucide-react";
 
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
+import { FileLinksProvider } from "@/components/file-links";
 import { TranscriptView } from "@/components/transcript-view";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { QuestionHeading } from "@/components/option-button";
@@ -203,7 +204,9 @@ export function ReadingView({
             </div>
           ) : (
             <ButtonsPaneContext.Provider value={orchestrator ? paneId : null}>
-              <TranscriptView entries={entries} agent={agent} />
+              <FileLinksProvider paneId={paneId} session={session} entries={entries}>
+                <TranscriptView entries={entries} agent={agent} />
+              </FileLinksProvider>
             </ButtonsPaneContext.Provider>
           )}
           {/* The open dialog, if any — same native card the mirror shows, at the tail of the
