@@ -23,6 +23,7 @@ import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { SEEN_HEADER } from "./seen.ts";
+import { redactAnsi, redactDeep } from "./redact.ts";
 import { asPaste } from "./paste.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
@@ -719,7 +720,7 @@ export function isPaneGone(message: string): boolean {
  * standing up Bun.serve / the socket client.
  */
 export function paneReadResponse(paneId: string, read: PaneRead): PaneReadResponse {
-  return { paneId, text: read.text, truncated: read.truncated, revision: read.revision };
+  return { paneId, text: redactAnsi(read.text), truncated: read.truncated, revision: read.revision };
 }
 
 /**
@@ -806,7 +807,7 @@ async function paneHistory(
     const page = await resolvePanePage(cfg, transcripts, herdr, adapters, pane, url, agents);
     if (page === null) return unavailable("no-log");
     // ETag on the body: a followed idle pane answers 304 (the parse is cached by size/mtime).
-    return conditionalJson({ paneId, available: true, ...page } satisfies PaneHistoryResponse, req);
+    return conditionalJson({ paneId, available: true, ...redactDeep(page) } satisfies PaneHistoryResponse, req);
   } catch (err) {
     return text(`transcript read failed: ${(err as Error).message}`, 502);
   }

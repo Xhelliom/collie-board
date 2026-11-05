@@ -6,6 +6,7 @@ import { isAbsolute, join } from "node:path";
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
 import type { HerdrClient } from "./herdr-client.ts";
+import { redactDeep } from "./redact.ts";
 
 // The peer surface (ADR 0046 §2 and §4, as revised by decision bed340b1: no central). Every machine
 // is a full Collie with its board on; `/api/node/*` is one more surface the OTHER peers
@@ -303,7 +304,7 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
     if (!launched) return d.text("not a pane launched for a peer", 404);
     // `diffFile` refuses an unsafe path (`isSafeDiffPath`); the checkout is this machine's, never the caller's.
     const diff = await d.actions.diff(launched, q.get("path"), q.get("untracked") === "1");
-    return (diff as { ok?: boolean }).ok === false ? d.json(diff, 400) : d.json(diff);
+    return (diff as { ok?: boolean }).ok === false ? d.json(diff, 400) : d.json(redactDeep(diff));
   }
   const pane = NODE_PANE_ROUTE.exec(pathname);
   if (pane) return d.readPane(decodeURIComponent(pane[1]!));
