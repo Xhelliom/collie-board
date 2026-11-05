@@ -30,6 +30,7 @@ import {
   type TranscriptSource,
 } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
+import { agentWork, type AgentTask } from "./agent-work.ts";
 import { runningSubagents } from "./subagents.ts";
 import type { AgentView } from "./types.ts";
 
@@ -83,6 +84,9 @@ export class ContextTracker {
    *  rules as {@link occupancy}: in memory only, dropped with the pane. */
   private readonly subagents = new Map<string, string[]>();
 
+  /** paneId → its task list and running background commands (agent-work.ts). Same rules. */
+  private readonly work = new Map<string, { tasks: AgentTask[]; background: string[] }>();
+
   constructor(
     private readonly db: BoardDb,
     private readonly herdr: HerdrClient,
@@ -128,6 +132,7 @@ export class ContextTracker {
         this.lastRead.delete(paneId);
         this.occupancy.delete(paneId);
         this.subagents.delete(paneId);
+        this.work.delete(paneId);
       }
     }
 
@@ -199,6 +204,9 @@ export class ContextTracker {
               const running = runningSubagents(text);
               if (running.length > 0) this.subagents.set(paneId, running);
               else this.subagents.delete(paneId);
+              const work = agentWork(text);
+              if (work.tasks.length > 0 || work.background.length > 0) this.work.set(paneId, work);
+              else this.work.delete(paneId);
             }
             const usage = latestUsage(text);
             if (!usage) return;
@@ -228,15 +236,18 @@ export class ContextTracker {
    * figure for is returned untouched, so "absent stays absent" and the UI simply renders no gauge.
    */
   enrich(panes: AgentView[]): AgentView[] {
-    if (this.occupancy.size === 0 && this.subagents.size === 0) return panes;
+    if (this.occupancy.size === 0 && this.subagents.size === 0 && this.work.size === 0) return panes;
     return panes.map((p) => {
       const seen = this.occupancy.get(p.paneId);
       const subagents = this.subagents.get(p.paneId);
-      if (seen === undefined && subagents === undefined) return p;
+      const work = this.work.get(p.paneId);
+      if (seen === undefined && subagents === undefined && work === undefined) return p;
       return {
         ...p,
         ...(seen && { ctxPct: seen.pct, ctxTokens: seen.tokens }),
         ...(subagents && { subagents }),
+        ...(work?.tasks.length && { tasks: work.tasks }),
+        ...(work?.background.length && { background: work.background }),
       };
     });
   }

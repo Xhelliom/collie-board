@@ -1,6 +1,7 @@
 // Domain model for the bridge. These are OUR types, decoupled from Herdr's wire shapes
 // (which live only in herdr-client.ts). The rest of the app talks in these terms.
 
+import type { AgentTask } from "./agent-work.ts";
 import type { TranscriptEntry } from "./transcript.ts";
 
 // Re-exported so the wire surface has ONE import site: a consumer of PaneHistoryResponse gets the
@@ -90,6 +91,11 @@ export interface AgentView {
   /** Short descriptions of the subagents this pane's Claude session has running (subagents.ts),
    *  overlaid by `ContextTracker.enrich` at its cadence. Absent when none — or not a Claude pane. */
   subagents?: string[];
+  /** The task list of this pane's Claude session (agent-work.ts), same overlay and cadence. Absent
+   *  when there is none, or when every task is done. */
+  tasks?: AgentTask[];
+  /** Labels of the commands it left running in the background (agent-work.ts). Absent when none. */
+  background?: string[];
   /**
    * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
    * Set only by an observed transition: a pane already idle/done when the bridge started has no

@@ -224,6 +224,36 @@ describe("AgentChat — subagents in flight", () => {
   });
 });
 
+describe("AgentChat — tasks and background commands", () => {
+  it.each([
+    ["terminal", false],
+    ["reading", true],
+  ])("counts them in the %s view and opens the list on tap", async (_view, readingPick) => {
+    localStorage.setItem("collie:display-prefs:v3", JSON.stringify({ readingPick }));
+    renderChat({
+      agent: {
+        ...fixtureAgents[0]!,
+        tasks: [
+          { text: "Lire le code", status: "completed" },
+          { text: "Écrire le parseur", status: "in_progress" },
+          { text: "Tester", status: "pending" },
+        ],
+        background: ["Serveur de dev"],
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /1\/3 tasks.*1 command running/ }));
+    expect(await screen.findByText("Écrire le parseur")).toBeInTheDocument();
+    expect(screen.getByLabelText("In progress")).toBeInTheDocument();
+    expect(screen.getByLabelText("Done")).toBeInTheDocument();
+    expect(screen.getByText("Serveur de dev")).toBeInTheDocument();
+  });
+
+  it("shows no mark when the agent has neither", () => {
+    renderChat();
+    expect(screen.queryByText(/tasks?$|commands? running/)).toBeNull();
+  });
+});
+
 describe("AgentChat — read-only device", () => {
   it("disables the composer and shows the banner when the device isn't authorised", () => {
     renderChat({ device: { enforced: true, device: "spare-phone", authorized: false } });

@@ -68,6 +68,11 @@ export interface AgentView {
   /** Short descriptions of the subagents this pane's Claude session has running (bridge
    *  `subagents.ts`, overlaid at the gauge's cadence). Absent when none — or not a Claude pane. */
   subagents?: string[];
+  /** The task list of this pane's Claude session (bridge `agent-work.ts`), same overlay and cadence.
+   *  Absent when there is none, or when every task is done. */
+  tasks?: { text: string; status: "pending" | "in_progress" | "completed" }[];
+  /** Labels of the commands it left running in the background. Absent when none. */
+  background?: string[];
   /**
    * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
    * Set only by an observed transition: a pane already idle/done when the bridge started has no

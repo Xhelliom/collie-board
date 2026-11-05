@@ -38,6 +38,18 @@ export const pane = defineMessages({
     en: { one: "{count} subagent running", other: "{count} subagents running" },
     fr: { one: "{count} sous-agent en cours", other: "{count} sous-agents en cours" },
   },
+  "pane.work.tasks": {
+    en: { one: "{done}/{count} task", other: "{done}/{count} tasks" },
+    fr: { one: "{done}/{count} tâche", other: "{done}/{count} tâches" },
+  },
+  "pane.work.background": {
+    en: { one: "{count} command running", other: "{count} commands running" },
+    fr: { one: "{count} commande en cours", other: "{count} commandes en cours" },
+  },
+  "pane.work.title": { en: "Agent's work", fr: "Travail de l'agent" },
+  "pane.work.status.completed": { en: "Done", fr: "Fait" },
+  "pane.work.status.in_progress": { en: "In progress", fr: "En cours" },
+  "pane.work.status.pending": { en: "To do", fr: "À faire" },
   "pane.ctxUnits": { en: "Toggle context units", fr: "Changer l'unité du contexte" },
   "pane.dock.close": { en: "Close {title}", fr: "Fermer {title}" },
   "pane.draft.takeOver": { en: "Take over", fr: "Reprendre" },
