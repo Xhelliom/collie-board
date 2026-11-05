@@ -1,6 +1,6 @@
 import { useT } from "@/i18n";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, ChevronRight, FileDiff, FileText, RefreshCw } from "lucide-react";
+import { BookOpen, ChevronRight, FileDiff, FileText, MessageSquare, RefreshCw, Send, X } from "lucide-react";
 
 import { useFold } from "@/components/fold";
 import { MarkdownText } from "@/components/markdown-text";
@@ -16,6 +16,7 @@ import {
   type DiffStat,
 } from "@/lib/board";
 import { isApiErrorStatus } from "@/lib/api";
+import { formatBatch, loadComments, lineKey, makeComment, numberDiff, saveComments, type DiffComment } from "@/lib/diff-comments";
 import { cn } from "@/lib/utils";
 
 // "What has the agent actually written." `--stat` first — a file list with bars is the only diff
@@ -28,14 +29,46 @@ import { cn } from "@/lib/utils";
 // (CLAUDE.md → Security posture) and it applies with full force here: a diff is attacker-influenced
 // content by definition — it is literally whatever the agent, or a file it read, wrote.
 
-/** `remote`: the checkout is on a peer, which serves the patch but never a file to read. */
-export function CardDiff({ cardId, statusKey, remote = false, alreadyPresent = false }: { cardId: string; statusKey: string; remote?: boolean; alreadyPresent?: boolean }) {
+/**
+ * `remote`: the checkout is on a peer, which serves the patch but never a file to read.
+ * `onSend`: the card's live agent takes a prompt — only then can lines be commented on.
+ */
+export function CardDiff({
+  cardId,
+  statusKey,
+  remote = false,
+  alreadyPresent = false,
+  onSend,
+}: {
+  cardId: string;
+  statusKey: string;
+  remote?: boolean;
+  alreadyPresent?: boolean;
+  onSend?: (text: string) => Promise<void>;
+}) {
   const t = useT();
   const [stat, setStat] = useState<DiffStat | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notStarted, setNotStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<DiffFile | null>(null);
+  // The batch of line comments, kept across a Back (sessionStorage) until it is sent.
+  const [comments, setComments] = useState<DiffComment[]>(() => loadComments(cardId));
+  const [sending, setSending] = useState(false);
+  useEffect(() => saveComments(cardId, comments), [cardId, comments]);
+
+  const send = async () => {
+    if (!onSend) return;
+    setSending(true);
+    try {
+      await onSend(formatBatch(t("diff.comment.intro"), comments));
+      setComments([]);
+    } catch (e) {
+      setError(boardErrorMessage(e));
+    } finally {
+      setSending(false);
+    }
+  };
 
   // 57 files were ~2200 px in the middle of the card: the first eight, the rest behind a count.
   const { shown, toggle } = useFold(stat?.files ?? [], 8);
@@ -127,7 +160,47 @@ export function CardDiff({ cardId, statusKey, remote = false, alreadyPresent = f
         </div>
       )}
 
-      <FileDiffSheet cardId={cardId} file={open} remote={remote} onClose={() => setOpen(null)} />
+      {comments.length > 0 && (
+        <div className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-card p-2.5">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <MessageSquare className="size-3.5" />
+            {t("diff.comment.batch", { count: comments.length })}
+          </span>
+          {comments.map((c, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs">
+              <span className="min-w-0 flex-1">
+                <span className="font-mono text-muted-foreground">
+                  {c.path} ({c.label})
+                </span>{" "}
+                {c.note}
+              </span>
+              <button
+                type="button"
+                aria-label={t("diff.comment.remove")}
+                onClick={() => setComments((cs) => cs.filter((_, j) => j !== i))}
+                className="shrink-0 p-0.5 text-muted-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ))}
+          {onSend && (
+            <Button size="sm" className="mt-1 h-9 gap-2" disabled={sending} onClick={() => void send()}>
+              <Send className="size-4" />
+              {sending ? t("diff.comment.sending") : t("diff.comment.send")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <FileDiffSheet
+        cardId={cardId}
+        file={open}
+        remote={remote}
+        onClose={() => setOpen(null)}
+        comments={comments}
+        onComment={onSend ? (c) => setComments((cs) => [...cs, c]) : undefined}
+      />
     </section>
   );
 }
@@ -161,11 +234,15 @@ function FileDiffSheet({
   file,
   remote,
   onClose,
+  comments,
+  onComment,
 }: {
   cardId: string;
   file: DiffFile | null;
   remote: boolean;
   onClose: () => void;
+  comments: readonly DiffComment[];
+  onComment?: (c: DiffComment) => void;
 }) {
   const t = useT();
   const [body, setBody] = useState<string>("");
@@ -180,12 +257,19 @@ function FileDiffSheet({
   // away. Every other file keeps exactly the diff it always had.
   const markdown = file !== null && !remote && isMarkdownPath(file.path);
   const prose = file !== null && (override?.path === file.path ? override.prose : markdown);
+  // Indices of the tapped lines and the note being written for them.
+  const [selected, setSelected] = useState<number[]>([]);
+  const [note, setNote] = useState("");
+  const lines = numberDiff(body);
+  const commented = new Set(comments.filter((c) => c.path === file?.path).flatMap((c) => c.keys));
 
   useEffect(() => {
     if (!file) return;
     let cancelled = false;
     setBody("");
     setError(null);
+    setSelected([]);
+    setNote("");
     const load = prose
       ? fetchWorktreeFile(cardId, file.path).then((r) => ({ body: r.text, truncated: r.truncated }))
       : fetchDiffFile(cardId, file.path, file.kind === "untracked").then((r) => ({
@@ -238,19 +322,61 @@ function FileDiffSheet({
            pane mirror, which has a user-facing toggle and so has to decide in JS. */
         <div className="max-h-[60vh] overflow-auto rounded-lg border bg-background">
           <pre className="p-2 font-mono text-xs leading-snug sm:min-w-max">
-            {body.split("\n").map((line, i) => (
+            {lines.map((line, i) => (
               <div
                 key={i}
+                onClick={
+                  onComment && line.code
+                    ? () => setSelected((s) => (s.includes(i) ? s.filter((j) => j !== i) : [...s, i].sort((a, b) => a - b)))
+                    : undefined
+                }
+                aria-selected={onComment && line.code ? selected.includes(i) : undefined}
                 className={cn(
-                  "whitespace-pre-wrap break-all sm:whitespace-pre sm:break-normal",
-                  lineClass(line),
+                  "whitespace-pre-wrap break-all border-l-2 border-transparent sm:whitespace-pre sm:break-normal",
+                  lineClass(line.text),
+                  onComment && line.code && "cursor-pointer",
+                  line.code && commented.has(lineKey(line)) && "border-status-working",
+                  selected.includes(i) && "bg-primary/15",
                 )}
               >
-                {line || " "}
+                {line.text || " "}
               </div>
             ))}
           </pre>
         </div>
+      )}
+      {onComment && !prose && !error && body !== "" && (
+        selected.length === 0 ? (
+          <p className="pt-2 text-xs text-muted-foreground">{t("diff.comment.hint")}</p>
+        ) : (
+          <div className="flex flex-col gap-2 pt-2">
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder={t("diff.comment.placeholder")}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-base outline-none sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="h-9 flex-1"
+                disabled={note.trim() === ""}
+                onClick={() => {
+                  onComment(makeComment(file!.path, selected.map((i) => lines[i]!), note));
+                  setSelected([]);
+                  setNote("");
+                }}
+              >
+                {t("diff.comment.add")}
+              </Button>
+              <Button variant="outline" size="sm" className="h-9" onClick={() => { setSelected([]); setNote(""); }}>
+                {t("diff.comment.cancel")}
+              </Button>
+            </div>
+          </div>
+        )
       )}
       {truncated && (
         <p className="pt-2 text-xs text-muted-foreground">
