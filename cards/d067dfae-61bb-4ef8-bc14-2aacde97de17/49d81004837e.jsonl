@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793800692200.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Commenter des lignes du diff et les renvoyer à l'agent d'un coup","status":"backlog"},"ts":1793800683098}}
 {"v":1,"hlc":"1793800692204.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"b1fc9362-1ab1-4dea-a1b5-fe94094cf122"}}
 {"v":1,"hlc":"1793870156784.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793870175689.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/commenter-des-lignes-du-diff-et-les-renvoyer-a-l"}}
+{"v":1,"hlc":"1793870175689.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793870175689.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793870159593}}
+{"v":1,"hlc":"1793870175690.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793870175690.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793870163467}}
+{"v":1,"hlc":"1793870175690.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2437},"ts":1793870165913}}
