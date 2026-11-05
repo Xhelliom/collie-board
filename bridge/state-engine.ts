@@ -1,5 +1,6 @@
 import type { HerdrClient } from "./herdr-client.ts";
 import { record, timed } from "./route-cost.ts";
+import { SeenPanes } from "./seen.ts";
 import {
   type AgentStatus,
   type AgentView,
@@ -75,6 +76,8 @@ export class StateEngine {
   private tabs: TabView[] = [];
   private bridge: BridgeStatus = "disconnected";
   private readonly prevStatus = new Map<string, AgentStatus>();
+  /** Panes opened in the app since they finished — a seen `done` reads `idle` (bridge/seen.ts). */
+  readonly seen = new SeenPanes();
   // paneId → when its CURRENT status was entered (epoch ms). Only a real transition writes here, so
   // a pane first seen already idle/done stays absent rather than claiming it just switched — the UI
   // omits the age instead of inventing one. In memory only (`session` ephemeral), dropped with the pane.
@@ -233,7 +236,7 @@ export class StateEngine {
           workspaceNumber: ws?.number ?? 0,
           tabId: p.tab_id,
           agent,
-          status: p.agent_status,
+          status: this.seen.status(p.pane_id, p.agent_status),
           cwd: p.cwd,
           focused: p.focused,
           kind,
@@ -320,6 +323,7 @@ export class StateEngine {
         this.statusSince.delete(id);
         this.sessionNameRead.delete(id);
         this.sessionNames.delete(id); // drop the cached name so a reused pane id starts clean
+        this.seen.forget(id);
         for (const fn of this.removeListeners) fn(id);
       }
 

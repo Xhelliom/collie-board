@@ -22,6 +22,7 @@ import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
 import type { StateEngine } from "./state-engine.ts";
+import { SEEN_HEADER } from "./seen.ts";
 import { asPaste } from "./paste.ts";
 import { processStartedAt } from "./proc.ts";
 import { metered, routeCostSnapshot } from "./route-cost.ts";
@@ -379,7 +380,11 @@ export function startServer(opts: {
         // `history` is a read, so it gets no device attribution (nothing is written to attribute).
         const device = action && action !== "history" ? deviceAuth(req, cfg).device : null;
 
-        if (!action && req.method === "GET") return readPane(herdr, cfg, paneId, url, req);
+        if (!action && req.method === "GET") {
+          // The app's own pane screen says so with a header (bridge/seen.ts) — a finished agent you open is seen.
+          if (req.headers.has(SEEN_HEADER)) rt.engine.seen.mark(paneId);
+          return readPane(herdr, cfg, paneId, url, req);
+        }
         if (action === "history" && req.method === "GET")
           return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
         if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt), rt.engine);

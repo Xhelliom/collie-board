@@ -202,6 +202,9 @@ export async function fetchPane(
   // serves, so a 304 can only mean byte-identical text — a source switch always mismatches and
   // refetches in full.
   unwrapped = false,
+  // The pane SCREEN only: tells the bridge you are looking at it, so a finished agent reads seen
+  // (bridge/seen.ts). The grammar callers read the pane without you looking, and leave it off.
+  seen = false,
 ): Promise<PaneReadResponse> {
   const params = new URLSearchParams();
   if (lines) params.set("lines", String(lines));
@@ -215,6 +218,7 @@ export async function fetchPane(
   const cached = paneCache.get(cacheKey);
   const headers: Record<string, string> = {};
   if (cached) headers["if-none-match"] = cached.etag;
+  if (seen) headers["x-collie-seen"] = "1";
 
   const res = await fetch(url, { signal: withTimeout(signal, GET_TIMEOUT_MS), headers });
   captureBuild(res); // pane polls carry the build header too (incl. 304s) — keep the store fresh
