@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.261.0] - 2026-11-05
+
+### Added
+
+- Diff d'une carte : toucher des lignes, y attacher un commentaire, puis « Envoyer à l'agent » en un seul message (fichier, lignes, extrait, commentaire) (2d5eab4)
+- Le lot de commentaires en cours survit à un retour arrière (gardé pour l'onglet) (2d5eab4)
+- Pane : un repère sous l'en-tête compte les tâches de l'agent Claude et ses commandes en arrière-plan ; un tap ouvre la liste (5cf7e59)
+
 ## [0.260.0] - 2026-11-05
 
 ### Added
