@@ -1202,6 +1202,7 @@ export function AgentChat({
               agents.length + shellPanes.length > 1 ? () => setDrawer("switcher") : undefined
             }
             onHandoff={cardId ? () => runHandoff(cardId) : undefined}
+            working={agent?.status === "working"}
           />
         </div>
       </div>
