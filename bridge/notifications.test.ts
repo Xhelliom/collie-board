@@ -377,6 +377,12 @@ describe("makeNotifySink", () => {
     ]);
   });
 
+  test("render carries the outstanding count as the icon badge", () => {
+    const push = new RecordingPush();
+    makeNotifySink(push, { isMuted: () => false }, "collie:herd").render(summary, 3);
+    expect(push.sent[0]?.badge).toBe(3);
+  });
+
   test("clear maps to a clear push on the herd tag", () => {
     const push = new RecordingPush();
     makeNotifySink(push, { isMuted: () => false }, "collie:herd").clear();

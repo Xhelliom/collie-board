@@ -53,8 +53,8 @@ export interface HerdSummary {
 }
 
 export interface NotifySink {
-  /** Render (or replace) the herd's single notification. */
-  render(summary: HerdSummary): void;
+  /** Render (or replace) the herd's single notification; `badge` = how many alerts are outstanding. */
+  render(summary: HerdSummary, badge?: number): void;
   /** Close the herd notification — nothing is outstanding any more. */
   clear(): void;
 }
@@ -83,9 +83,10 @@ export function makeNotifySink(
   sessionName?: string,
 ): NotifySink {
   return {
-    render: (s) => {
+    render: (s, badge) => {
       if (mute.isMuted()) return;
       const msg: PushMessage = { title: s.title, body: s.body, tag: herdTag, paneId: s.paneId, renotify: s.renotify };
+      if (badge !== undefined) msg.badge = badge;
       if (sessionName !== undefined) msg.session = sessionName;
       if (s.cardId !== undefined) msg.cardId = s.cardId;
       void push.send(msg);
@@ -371,7 +372,7 @@ export class NotificationCoordinator<H = unknown> {
       this.sink.clear();
       return;
     }
-    this.sink.render(this.summarize(renotify));
+    this.sink.render(this.summarize(renotify), this.outstanding.size);
   }
 
   private summarize(renotify: boolean): HerdSummary {
