@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.255.0] - 2026-11-05
+
+### Added
+
+- Ouvrir un agent fini dans l'appli le marque vu : sa notification s'efface et il quitte les « finis » (66ecfe5)
+- Sortie d'un pane en plein écran : pincer jusqu'à ×6, déplacer, double-tap, lignes jamais repliées (b77eb7e)
+
 ## [0.254.0] - 2026-11-05
 
 ### Added

@@ -71,6 +71,8 @@ export interface PushMessage {
    *  an older cached SW that predates the field simply ignores it and opens the pane. */
   cardId?: string;
   renotify?: boolean;
+  /** How many alerts this herd slot holds — the app icon's count (web/src/lib/app-badge.ts). A clear is 0. */
+  badge?: number;
 }
 
 export class Push {
