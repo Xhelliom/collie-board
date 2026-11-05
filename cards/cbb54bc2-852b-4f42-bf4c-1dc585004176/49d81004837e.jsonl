@@ -3,3 +3,8 @@
 {"v":1,"hlc":"1793884947282.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Écran de confiance : vérifier et blinder le lancement sous herdr 0.9","status":"backlog"},"ts":1793884946720}}
 {"v":1,"hlc":"1793884947284.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"860a770f-7afe-4854-adc5-400c0b1bbd04"}}
 {"v":1,"hlc":"1793884963101.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793884972452.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/ecran-de-confiance-verifier-et-blinder-le-lancem"}}
+{"v":1,"hlc":"1793884972452.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793884972452.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793884966263}}
+{"v":1,"hlc":"1793884972453.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793884972453.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793884970889}}
