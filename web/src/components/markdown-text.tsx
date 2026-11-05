@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { ActionButtons, parseButtons, useButtonsPane } from "@/components/action-buttons";
 import { BoardLinkCard, useCanLinkCards } from "@/components/board-link-card";
 import { parseBoardLink } from "@/lib/board-link";
+import { FileLinksContext, splitFileRefs } from "@/lib/files-link";
 import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
 import { splitHighlight } from "@/lib/transcript-search";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
@@ -42,6 +43,32 @@ function Hit({ text }: { text: string }) {
   );
 }
 
+// Literal text whose paths existing in the pane's folder open the file (components/file-links.tsx).
+// Outside a FileLinksProvider — or with no existing path in it — it is exactly <Hit>.
+function FileText({ text }: { text: string }) {
+  const links = useContext(FileLinksContext);
+  const pieces = useMemo(() => (links ? splitFileRefs(text) : []), [links, text]);
+  if (!links || !pieces.some((p) => p.ref && links.has(p.ref.path))) return <Hit text={text} />;
+  return (
+    <>
+      {pieces.map((p, i) =>
+        p.ref && links.has(p.ref.path) ? (
+          <button
+            key={i}
+            type="button"
+            onClick={() => links.open(p.ref!)}
+            className="inline cursor-pointer text-left text-primary underline underline-offset-2 break-all"
+          >
+            <Hit text={p.text} />
+          </button>
+        ) : (
+          <Hit key={i} text={p.text} />
+        ),
+      )}
+    </>
+  );
+}
+
 // Emphasis and links hold child spans (agents nest them — ``**`sha`**`` is routine), so this recurses
 // through <Spans>. `code` is the leaf.
 function Span({ span }: { span: MdSpan }) {
@@ -61,13 +88,13 @@ function Span({ span }: { span: MdSpan }) {
     case "code":
       return (
         <code className="code-inline rounded bg-muted px-1 py-0.5 font-mono text-md-code break-all">
-          <Hit text={span.text} />
+          <FileText text={span.text} />
         </code>
       );
     case "link":
       return <LinkSpan span={span} />;
     default:
-      return <Hit text={span.text} />;
+      return <FileText text={span.text} />;
   }
 }
 

@@ -6,6 +6,7 @@ import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
+import { handleFilesRoute } from "./files-view.ts";
 import { handleGalleryRoute } from "./gallery.ts";
 import { withCardFields } from "./cards.ts";
 import type { ContextTracker } from "./context.ts";
@@ -394,6 +395,20 @@ export function startServer(opts: {
         if (action === "close" && req.method === "POST") return closePane(herdr, paneId, req, audit, device, session);
         if (action === "rename" && req.method === "POST") return renamePane(herdr, paneId, req, audit, device, session);
         return text("method not allowed", 405);
+      }
+
+      // ── Files the agent names in its prose, read-only (bridge/files-view.ts — the fork's addition) ──
+      if (pathname.startsWith("/api/pane/") && /\/files?(\/exists)?$/.test(pathname)) {
+        const denied = guard(req, cfg, "read");
+        if (denied) return denied;
+        const rt = registry.get(sessionName);
+        if (!rt) return unknownSession();
+        const res = await handleFilesRoute(pathname, req, (paneId) => {
+          const snap = rt.engine.current();
+          if (snap.bridge === "disconnected") return undefined;
+          return [...snap.agents, ...snap.shellPanes].find((a) => a.paneId === paneId)?.cwd;
+        });
+        if (res) return secure(res);
       }
 
       // ── Session artifacts (the fork's addition) ──────────────────────────

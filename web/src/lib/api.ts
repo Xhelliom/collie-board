@@ -547,3 +547,22 @@ export function paneArtifactUrl(paneId: string, path: string, session?: string):
     session,
   );
 }
+
+/**
+ * Which of `paths` (relative to the pane's folder) exist there as files — the one grouped check
+ * the reading view makes before it turns a path into a link (bridge/files-view.ts). A read: it
+ * bypasses the busy bar on purpose.
+ */
+export async function fetchExistingFiles(paneId: string, paths: string[], session?: string): Promise<string[]> {
+  const { existing } = await doReq<{ existing: string[] }>(
+    withSession(`/api/pane/${encodeURIComponent(paneId)}/files/exists`, session),
+    { method: "POST", body: JSON.stringify({ paths }) },
+    GET_TIMEOUT_MS,
+  );
+  return existing;
+}
+
+/** The URL of one file under the pane's folder — confined bridge-side, a refusal is a 404. */
+export function paneFileUrl(paneId: string, path: string, session?: string): string {
+  return withSession(`/api/pane/${encodeURIComponent(paneId)}/file?path=${encodeURIComponent(path)}`, session);
+}
