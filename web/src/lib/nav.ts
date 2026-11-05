@@ -24,6 +24,11 @@ export function paneArtifactsPath(paneId: string, session?: string): string {
   return `/pane/${encodeURIComponent(paneId)}/artifacts${sessionSearch(session)}`;
 }
 
+/** The pane's output full screen, pinch-zoomable. A child of the pane, so "back" lands on the mirror. */
+export function zoomPath(paneId: string, session?: string): string {
+  return `/pane/${encodeURIComponent(paneId)}/zoom${sessionSearch(session)}`;
+}
+
 /**
  * A space's detail route (its tabs + panes). Deep-linkable; carries the session like panePath.
  * `tabId`, when given, seeds the route's own tab selection (redesign §9: a tab chip on the Spaces
