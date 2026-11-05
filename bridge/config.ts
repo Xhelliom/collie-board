@@ -89,6 +89,11 @@ export interface Config {
    * absent value means the same thing as `auto` at the one place it's consumed.
    */
   dialMode?: DialMode;
+  /**
+   * The multiplexer engine (`bridge/mux/`, ADR 0052). Only `herdr09` so far; `hc` comes in phase 2.
+   * Set via `COLLIE_BOARD_MUX`. Optional for the same reason as {@link dialMode}: absent = `herdr09`.
+   */
+  mux?: "herdr09";
   /** TCP port the bridge listens on (loopback only). `tailscale serve` proxies to it. */
   port: number;
   /**
@@ -291,6 +296,7 @@ export function loadConfig(): Config {
   return {
     socketPath: process.env.HERDR_SOCKET_PATH ?? defaultSocketPath(),
     dialMode: envEnum("COLLIE_BOARD_HERDR_DIAL", ["auto", "net", "bun"] as const, "auto"),
+    mux: envEnum("COLLIE_BOARD_MUX", ["herdr09"] as const, "herdr09"),
     port: envInt("COLLIE_BOARD_PORT", 8788, { min: 1, max: 65535 }),
     host: process.env.COLLIE_BOARD_HOST ?? "127.0.0.1",
     pollMs: envInt("COLLIE_BOARD_POLL_MS", 1500, { min: 250 }),

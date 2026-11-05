@@ -25,7 +25,7 @@ import {
   PROMPT_CACHE_TTL_MS,
 } from "./db.ts";
 import { handoffPrompt, NO_AGENT, readHandoffNote, swapToFreshSession } from "./handoff.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /**
@@ -48,7 +48,7 @@ export class AutoHandoff {
 
   constructor(
     private readonly db: BoardDb,
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -140,7 +140,7 @@ export type ResumeError = { kind: "refused" | "herdr"; message: string };
  */
 export async function answerAutoHandoff(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   cardId: string,
   accept: boolean,

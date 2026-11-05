@@ -56,7 +56,7 @@ import {
   type Integration,
   type PrStatus,
 } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 
 export type IntegrateError =
   | { kind: "refused"; message: string }
@@ -578,7 +578,7 @@ const NO_AGENT = "this card has no running agent — start it again to resolve t
  */
 export async function resolveConflict(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   card: Card,
   /** The gesture that hit the conflict: a merge settles against the local base, a PR against origin's. */
   via: "merge" | "pr" = "merge",
@@ -655,7 +655,7 @@ const refused = (message: string): { ok: false; error: IntegrateError } => ({
  */
 export async function reopenForPr(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   card: Card,
 ): Promise<Result<{ paneId: string }>> {
@@ -749,7 +749,7 @@ export function rebindDependents(db: BoardDb, deletedBranch: string, resolvedBas
 
 export async function cleanupCard(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   card: Card,
   /**
    * DISCARD: throw the work away instead of refusing to.

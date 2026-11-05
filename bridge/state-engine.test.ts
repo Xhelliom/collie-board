@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
 import { StateEngine, type EngineSnapshot } from "./state-engine.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { AgentStatus } from "./types.ts";
 import { resetRouteCost, routeCostSnapshot } from "./route-cost.ts";
 
 // The state engine polls Herdr, shapes the snapshot, and fires status transitions (which drive push
-// notifications). We exercise it with a fake HerdrClient whose returned panes change between polls.
+// notifications). We exercise it with a fake Mux whose returned panes change between polls.
 
 interface FakePane {
   pane_id: string;
@@ -96,7 +96,7 @@ class FakeHerdr {
 
 function makeEngine() {
   const herdr = new FakeHerdr();
-  const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+  const engine = new StateEngine(herdr as unknown as Mux, 1500);
   const transitions: Array<{ pane: string; from: AgentStatus; to: AgentStatus }> = [];
   engine.onTransition((a, from, to) => transitions.push({ pane: a.paneId, from, to }));
   const removed: string[] = [];
@@ -229,7 +229,7 @@ describe("StateEngine — in-flight guard", () => {
 
   test("skips a tick while the previous poll is still in flight", async () => {
     const herdr = new GatedHerdr([pane("w1:p1", "w1", "idle", "claude")]);
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     const poll = () => (engine as unknown as { poll(): Promise<void> }).poll();
 
     const first = poll(); // starts the poll, hangs on the gate
@@ -334,7 +334,7 @@ describe("StateEngine — snapshot vs legacy path", () => {
       listPanes: () => ((listCalls++), Promise.resolve([])),
       listTabs: () => ((listCalls++), Promise.resolve([])),
     };
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     await drivePoll(engine);
     expect(listCalls).toBe(0);
     expect(engine.current().agents.map((a) => a.paneId)).toEqual(["w1:p1"]);
@@ -357,7 +357,7 @@ describe("StateEngine — snapshot vs legacy path", () => {
       listPanes: () => Promise.resolve([pane("w1:p1", "w1", "idle", "claude")]),
       listTabs: () => Promise.resolve([]),
     };
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     await drivePoll(engine);
     // Same-tick fallback: one snapshot attempt, then the list path, connected with real data.
     expect(snapCalls).toBe(1);
@@ -382,7 +382,7 @@ describe("StateEngine — snapshot vs legacy path", () => {
       listPanes: () => Promise.resolve([]),
       listTabs: () => Promise.resolve([]),
     };
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     await drivePoll(engine);
     expect(snapCalls).toBe(1);
     expect(listCalls).toBe(0); // no fallback on a transient error
@@ -415,7 +415,7 @@ describe("StateEngine — session name enrichment", () => {
 
   function makeNameEngine() {
     const herdr = new NameHerdr();
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     const poll = () => (engine as unknown as { poll(): Promise<void> }).poll();
     const agent = (id: string) => engine.current().agents.find((a) => a.paneId === id)!;
     return { herdr, engine, poll, agent };
@@ -548,7 +548,7 @@ describe("StateEngine — poke / cadence / onUpdate", () => {
 
   test("pokeNow queues exactly one follow-up poll when one is already in flight", async () => {
     const herdr = new GatedSnapshot();
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     // Mark started without the interval firing: drive polls by hand.
     (engine as unknown as { started: boolean }).started = true;
     const poll = () => (engine as unknown as { poll(): Promise<void> }).poll();
@@ -566,7 +566,7 @@ describe("StateEngine — poke / cadence / onUpdate", () => {
 
   test("pokeNow is a no-op once stopped", async () => {
     const herdr = new GatedSnapshot();
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500);
     engine.pokeNow(); // never started → no-op
     expect(herdr.calls).toBe(0);
   });
@@ -670,7 +670,7 @@ describe("StateEngine — backoff on an unreachable session", () => {
       return down ? Promise.reject(new Error("ECONNREFUSED")) : FakeHerdr.prototype.sessionSnapshot.call(herdr);
     };
     let clock = 0;
-    const engine = new StateEngine(herdr as unknown as HerdrClient, 1500, () => clock);
+    const engine = new StateEngine(herdr as unknown as Mux, 1500, () => clock);
     const tick = async () => {
       (engine as unknown as { tick(): void }).tick();
       await Bun.sleep(0);

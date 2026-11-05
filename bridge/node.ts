@@ -4,7 +4,7 @@ import { isAbsolute, join } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm, trustFolder } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { redactDeep } from "./redact.ts";
 
 // The peer surface (ADR 0046 §2 and §4, as revised by decision bed340b1: no central). Every machine
@@ -359,8 +359,8 @@ async function nodeAction(action: string, peer: string, body: unknown, node: Nod
 
 /** The live wiring: herdr for the panes, `git.ts` for the diff, `launchAgent` → `promptAndConfirm` for a launch. */
 export function liveNodeActions(
-  herdr: () => HerdrClient | null,
-  reply: (h: HerdrClient, ...a: Parameters<NodeActions["reply"]>) => ReturnType<NodeActions["reply"]>,
+  herdr: () => Mux | null,
+  reply: (h: Mux, ...a: Parameters<NodeActions["reply"]>) => ReturnType<NodeActions["reply"]>,
 ): NodeActions {
   const h = () => {
     const c = herdr();

@@ -17,7 +17,7 @@ import { BoardDb, isAutoHandoffPending } from "./db.ts";
 import { EventPoker } from "./event-poker.ts";
 import { HandoffCoordinator } from "./handoff.ts";
 import { WrapupCoordinator } from "./wrapup.ts";
-import { DEFAULT_TIMEOUT_MS, HerdrClient } from "./herdr-client.ts";
+import { createMux } from "./mux/mux.ts";
 import {
   NotificationCoordinator,
   makeNotifySink,
@@ -114,7 +114,7 @@ let snapshotRef: () => EngineSnapshot = () => ({
   bridge: "disconnected",
 });
 const copilot = new Copilot(
-  new HerdrClient(cfg.socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode),
+  createMux(cfg.socketPath, cfg),
   cfg,
   join(cfg.stateDir, "copilot"),
   () => snapshotRef(),
@@ -180,11 +180,11 @@ if (!updateRepo) {
 let contextTracker: ContextTracker | null = null;
 
 // ── Per-session runtime factory ──────────────────────────────────────────────
-// One HerdrClient + StateEngine + EventPoker + NotificationCoordinator per herdr session. The
+// One Mux + StateEngine + EventPoker + NotificationCoordinator per herdr session. The
 // registry calls this for the primary at construction and for each session discovered later. Push,
 // snooze, notify-prefs, the audit log and the uploads dir stay process-global (shared here).
 const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
-  const herdr = new HerdrClient(socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode);
+  const herdr = createMux(socketPath, cfg);
   const engine = new StateEngine(herdr, cfg.pollMs);
 
   // Event-poked polling: a long-lived events.subscribe stream pokes an immediate re-poll on any herd

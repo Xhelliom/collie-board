@@ -12,7 +12,7 @@ import { agentNameFor, initialPrompt, launchAgent, promptAndConfirm } from "./ca
 import type { Config } from "./config.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import type { BoardDb, BoardEvent, Card, CardSession, AgentTemplate } from "./db.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { resolvePipeline } from "./flows.ts";
 import { composePrompt, modelArgs } from "./templates.ts";
@@ -95,7 +95,7 @@ export function pipelineOf(db: BoardDb, card: Card): AgentTemplate[] {
  */
 async function swapRole(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   card: Card,
   session: CardSession,
@@ -149,7 +149,7 @@ async function swapRole(
 /** The next role takes the branch, told what the step before reported. */
 export async function advancePipeline(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   card: Card,
   session: CardSession,
@@ -171,7 +171,7 @@ export async function advancePipeline(
  */
 export async function sendBackToWorker(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   card: Card,
   session: CardSession,

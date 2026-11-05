@@ -37,7 +37,7 @@ import { promptAndConfirm, releaseSession } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { manualChecksPrompt } from "./recette.ts";
 import { baseOf, diffStat, worktreePathFor } from "./git.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { cleanupCard } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -121,7 +121,7 @@ export function wrapupPrompt(card: Card): string {
  */
 export async function requestWrapup(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   session: CardSession,
   card: Card,
   sleep?: (ms: number) => Promise<void>,
@@ -151,7 +151,7 @@ export async function requestWrapup(
  * against the session that just closed. Callers that need this are the manual "Done" and the
  * merge-and-done gesture, and they must not each rediscover the sequence.
  */
-export function fileAsDone(db: BoardDb, herdr: HerdrClient, card: Card): void {
+export function fileAsDone(db: BoardDb, herdr: Mux, card: Card): void {
   const ending = db.openSessionFor(card.id);
   releaseSession(db, card.id, "done");
   db.setStatus(card.id, "done", "manual");
@@ -170,7 +170,7 @@ export class WrapupCoordinator {
 
   constructor(
     private readonly db: BoardDb,
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly now: () => number = Date.now,
     /** Injectable so a test can watch it get called without a real repo and a real herdr. */
     private readonly cleanup: typeof cleanupCard = cleanupCard,

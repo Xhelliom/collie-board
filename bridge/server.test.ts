@@ -21,7 +21,7 @@ import {
 } from "./server.ts";
 import type { Config } from "./config.ts";
 import { DEFAULT_NOTIFY_PREFS } from "./notify-prefs.ts";
-import type { PaneRead } from "./herdr-client.ts";
+import type { PaneRead } from "./mux/mux.ts";
 
 // checkAccess is the API security gate (same-origin/CSRF + optional Tailscale identity). A
 // regression here silently opens remote shell access, so it gets the most direct coverage.

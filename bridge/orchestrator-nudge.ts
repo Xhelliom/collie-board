@@ -4,7 +4,7 @@
 // `engine.onUpdate`, cursored in memory like board-notify.ts (a restart replays nothing).
 
 import type { BoardDb, BoardEvent, Card } from "./db.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { findOrchestrator } from "./orchestrator.ts";
 import { promptAndConfirm } from "./cards.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -65,7 +65,7 @@ export class OrchestratorNudger {
 
   constructor(
     private readonly db: BoardDb,
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly log?: NotifyLog,
     /** The PR's real state, read when the message is composed — injected so tests need no GitHub. */
     private readonly prState: (card: Card) => Promise<PrStatus | null> = (c) => prStatusFor(c, Date.now, true),

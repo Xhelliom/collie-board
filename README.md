@@ -1260,7 +1260,7 @@ A small Bun process sits between your phone and Herdr — the browser never touc
 Under [Variant C](#variant-c--reverse-proxy-as-the-only-front-door-no-tailscale) a reverse proxy
 replaces the `tailscale serve` box; everything below the front door is identical.
 
-- **One module touches the socket** (`bridge/herdr-client.ts`); everything else speaks the bridge's HTTP API.
+- **One module touches the socket** (`bridge/mux/herdr09.ts`, behind `bridge/mux/mux.ts`); everything else speaks the bridge's HTTP API.
 - **Polling is still the model** — the bridge polls Herdr (via `session.snapshot`, one RPC per tick) and the browser polls `/api/snapshot`; a long-lived Herdr event stream only pokes the bridge's poll to go faster, it never replaces it. No resync logic.
 - **The board adds no second loop.** Card reconciliation, the context gauge, handoff and wrap-up completion and the copilot's review trigger are all `engine.onUpdate` hooks on that same poll. There is no second source of truth and nothing to resync.
 - **The database holds intent, never runtime.** A card's status, cwd and agent are read from the snapshot on every request; SQLite keeps the cards, their session chain, the reviews and an append-only journal. A `disconnected` snapshot is ignored everywhere, so a socket blip can't orphan the whole board.

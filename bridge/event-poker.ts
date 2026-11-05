@@ -1,4 +1,4 @@
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { record } from "./route-cost.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ export class EventPoker {
   private readonly healthListeners = new Set<(healthy: boolean) => void>();
 
   constructor(
-    private readonly client: HerdrClient,
+    private readonly client: Mux,
     opts: EventPokerOpts = {},
   ) {
     this.windowMs = opts.windowMs ?? 1000;

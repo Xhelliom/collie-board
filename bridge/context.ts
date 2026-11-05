@@ -19,7 +19,7 @@
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import { windowForModel, type WindowResolver } from "./context-window.ts";
 import type { BoardDb, CardSession } from "./db.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 import { paneResolveOpts } from "./opencode-store.ts";
 import { readOpenCodeUsage } from "./opencode-usage.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -89,7 +89,7 @@ export class ContextTracker {
 
   constructor(
     private readonly db: BoardDb,
-    private readonly herdr: HerdrClient,
+    private readonly herdr: Mux,
     private readonly source: TranscriptSource,
     private readonly windowTokens: number,
     /** Per-agent divergence — an agent with no readable transcript is skipped entirely. */

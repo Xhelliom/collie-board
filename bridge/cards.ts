@@ -33,7 +33,7 @@ import {
 } from "./db.ts";
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
-import type { CreatedWorktree, HerdrClient } from "./herdr-client.ts";
+import type { CreatedWorktree, Mux } from "./mux/mux.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -467,7 +467,7 @@ const TRANSIENT_CODES = ["agent_pane_busy", "agent_not_ready"];
 /**
  * How long to wait for a freshly launched agent's TUI to accept prompts.
  *
- * `agent.start` returns in milliseconds and does NOT wait (see herdr-client.ts) — the agent stays
+ * `agent.start` returns in milliseconds and does NOT wait (see mux/herdr09.ts) — the agent stays
  * `launch_pending` for seconds afterwards, and a prompt sent in that window is refused with
  * `agent_not_ready`. Claude Code cold-starts in ~2-4 s here; the budget is sized for a cold cache
  * and a slow disk.
@@ -523,7 +523,7 @@ async function retryWhileNotReady<T>(fn: () => Promise<T>, wait: (ms: number) =>
  * treated as "not ready yet" rather than fatal: the pane is being rewritten under us.
  */
 export async function waitForAgentReady(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   wait: (ms: number) => Promise<void> = sleep,
   budgetMs = AGENT_READY_TIMEOUT_MS,
@@ -581,7 +581,7 @@ export function runningCards(db: BoardDb): number {
  * to the old behaviour (try to launch, and let herdr refuse); guessing "yes" on a broken read would
  * hand the card a session with nothing behind it.
  */
-async function agentInPane(herdr: HerdrClient, paneId: string): Promise<string | null> {
+async function agentInPane(herdr: Mux, paneId: string): Promise<string | null> {
   try {
     const pane = await herdr.getPane(paneId);
     return pane.agent?.trim() ? pane.agent : null;
@@ -670,7 +670,7 @@ export function trustFolder(dir: string, file = join(process.env.CLAUDE_CONFIG_D
  * `startAgent` is how you get a pane with a shell prompt and no agent in it.
  */
 export async function launchAgent(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   kind: string,
   name: string,
@@ -683,7 +683,7 @@ export async function launchAgent(
 }
 
 export async function promptAndConfirm(
-  herdr: HerdrClient,
+  herdr: Mux,
   paneId: string,
   text: string,
   wait: (ms: number) => Promise<void> = sleep,
@@ -721,7 +721,7 @@ export async function promptAndConfirm(
 
 export async function startCard(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cfg: Config,
   cardId: string,
   opts: {
@@ -976,7 +976,7 @@ export type FinishNowError =
  */
 export async function finishNow(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   /** The REVIEWED card — the one whose agent does the work, and whose review holds the suggestion. */
   cardId: string,
   todo: { reviewId: string; title: string },
@@ -1140,7 +1140,7 @@ export type RequestCommitError =
  */
 export async function requestCommit(
   db: BoardDb,
-  herdr: HerdrClient,
+  herdr: Mux,
   cardId: string,
   wait?: (ms: number) => Promise<void>,
 ): Promise<{ ok: true; paneId: string } | { ok: false; error: RequestCommitError }> {

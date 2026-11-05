@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 
 import { buildSubscriptions, EventPoker, sameIdSet, type Subscription } from "./event-poker.ts";
-import type { HerdrClient } from "./herdr-client.ts";
+import type { Mux } from "./mux/mux.ts";
 
 // EventPoker owns the stream lifecycle (ack → healthy, events → throttled poke, down → backoff
-// reconnect). The socket itself lives in HerdrClient.subscribeEvents and stays untested; here we
+// reconnect). The socket itself lives in Herdr09.subscribeEvents (mux/herdr09.ts) and stays untested; here we
 // fake it so tests drive ack/event/down synchronously and assert the decisions. Time is bun's fake
 // clock: a real sleep under load (a pre-push beside running lots, a slow CI) made the counts flaky.
 
@@ -47,7 +47,7 @@ class FakeClient {
 
 function makePoker(opts?: { windowMs?: number; backoffMs?: number[] }) {
   const client = new FakeClient();
-  const poker = new EventPoker(client as unknown as HerdrClient, {
+  const poker = new EventPoker(client as unknown as Mux, {
     windowMs: opts?.windowMs ?? 10,
     backoffMs: opts?.backoffMs ?? [10, 20],
   });
