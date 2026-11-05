@@ -26,3 +26,4 @@
 {"v":1,"hlc":"1793871982522.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/245"},"ts":1793871981357}}
 {"v":1,"hlc":"1793871982522.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1793871982523.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1793871981371}}
+{"v":1,"hlc":"1793872008782.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/sonde-herdr-core-ce-que-collie-peut-faire-avec-h","stat":"HERDR_CORE_API.md | +468 -0\n1 files changed, 468 insertions(+), 0 deletions(-)"},"ts":1793872008663}}
