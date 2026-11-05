@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793800692197.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Un agent fini que j'ai ouvert est marqué vu, et sa notification s'efface","status":"backlog"},"ts":1793800682943}}
 {"v":1,"hlc":"1793800692199.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"0bc0b667-beda-426d-aa8c-a5231e19ca11"}}
 {"v":1,"hlc":"1793865924856.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793865939999.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/un-agent-fini-que-j-ai-ouvert-est-marque-vu-et-s"}}
+{"v":1,"hlc":"1793865939999.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793865939999.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793865927845}}
+{"v":1,"hlc":"1793865939999.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793865939999.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793865933227}}
+{"v":1,"hlc":"1793865939999.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2358},"ts":1793865935395}}
