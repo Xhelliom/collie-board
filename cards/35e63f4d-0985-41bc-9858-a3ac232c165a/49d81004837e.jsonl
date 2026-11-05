@@ -24,3 +24,4 @@
 {"v":1,"hlc":"1793872431774.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/246"},"ts":1793872424063}}
 {"v":1,"hlc":"1793872431774.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1793872431774.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1793872424076}}
+{"v":1,"hlc":"1793872441984.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/adr-collie-v2-sur-herdr-core-centree-projet-et-o","stat":".adr/0052-collie-v2-sur-herdr-core.md | +162 -0\n.adr/README.md | +1 -0\n2 files changed, 163 insertions(+), 0 deletions(-)"},"ts":1793872441655}}
