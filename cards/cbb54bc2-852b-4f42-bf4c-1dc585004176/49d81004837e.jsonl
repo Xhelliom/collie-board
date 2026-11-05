@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793884947282.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"f270f542-ba04-4fee-b7d5-672d1c20699b"}}
 {"v":1,"hlc":"1793884947282.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Écran de confiance : vérifier et blinder le lancement sous herdr 0.9","status":"backlog"},"ts":1793884946720}}
 {"v":1,"hlc":"1793884947284.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"860a770f-7afe-4854-adc5-400c0b1bbd04"}}
+{"v":1,"hlc":"1793884963101.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
