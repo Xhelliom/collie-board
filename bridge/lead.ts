@@ -81,9 +81,10 @@ export class Lead extends Copilot {
   private async decide<T>(what: string, build: (outPath: string) => string, parse: (answer: unknown) => T): Promise<T> {
     let problem = "";
     for (let attempt = 1; ; attempt++) {
-      const answer = await this.answer((outPath) => build(outPath) + (problem ? rejected(problem) : ""));
+      const got = await this.answer((outPath) => build(outPath) + (problem ? rejected(problem) : ""));
       try {
-        return parse(answer);
+        if ("malformed" in got) throw new Error(got.malformed);
+        return parse(got.answer);
       } catch (err) {
         problem = (err as Error).message.replace(/^lead: /, "");
         if (attempt >= LEAD_ATTEMPTS) throw new Error(`the lead's ${what} answer was malformed ${attempt} times in a row — ${problem}`);
@@ -91,11 +92,17 @@ export class Lead extends Copilot {
     }
   }
 
-  /** `ask`, but no answer at all is the lead's pane gone quiet, not a malformed answer — say so. */
-  private async answer(build: (outPath: string) => string): Promise<unknown> {
-    const parsed = await this.ask(build);
-    if (parsed === null) throw new LeadSilent(this.lastPane);
-    return parsed;
+  /**
+   * The answer, or an unparseable file to ask again. LeadSilent ONLY for a request typed into the
+   * pane that ran out its deadline: a request that never reached the pane says why, exactly.
+   */
+  private async answer(build: (outPath: string) => string): Promise<{ answer: unknown } | { malformed: string }> {
+    const r = await this.request(build);
+    if ("answer" in r) return r;
+    const { kind, reason, paneId } = r.failure;
+    if (kind === "malformed") return { malformed: reason };
+    if (kind === "silent") throw new LeadSilent(paneId);
+    throw new Error(`the lead was never asked — ${reason}`);
   }
 }
 
