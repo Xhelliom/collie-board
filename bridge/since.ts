@@ -6,8 +6,9 @@
 
 import type { BoardEvent } from "./db.ts";
 
-/** Journal facts that no route gestured, so no audit line will tell of them. */
-export const SINCE_EVENT_TYPES = ["card.pr_merged", "card.pr_closed"];
+/** Journal facts that no route gestured, so no audit line will tell of them. A remote card's stop
+ *  (remote-idle.ts) and what retracts it: cleared, or the session ended. */
+export const SINCE_EVENT_TYPES = ["card.pr_merged", "card.pr_closed", "card.remote_idle", "card.remote_idle_cleared", "card.remote_ended"];
 
 /** Never shown: what the orchestrator does to itself, and the operator's settings around it. */
 const SKIP_ACTION = /^orchestrator\./;

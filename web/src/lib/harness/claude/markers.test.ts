@@ -64,6 +64,7 @@ describe("classifyFooter", () => {
     const footer = "Enter to confirm · Esc to cancel";
     expect(classifyFooter(footer, [" Quick safety check: Is this a project you created or one you trust?"])).toBe("trust");
     expect(classifyFooter(footer, ["  New MCP server found in this project: probe-echo"])).toBe("trust");
+    expect(classifyFooter(footer, ["  Teach auto mode about your environment?"])).toBe("trust");
     expect(classifyFooter(footer, [" ◐ medium · /effort", footer])).toBeNull();
     expect(classifyFooter(footer, [])).toBeNull();
   });

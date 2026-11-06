@@ -263,6 +263,14 @@ describe("detectPromptSelect — the unnumbered folder-trust and repo-MCP prompt
     expect(model!.options.map((o) => o.keys)).toEqual([["Up", "Up", "Enter"], ["Up", "Enter"], ["Enter"]]);
   });
 
+  it("« Teach auto mode » (herdr says idle): lifted into buttons, Not now is one Down then Enter", () => {
+    const model = detectPromptSelect(fixtureLines("claude--v2319-teach-auto-mode.txt"));
+    expect(model!.family).toBe("trust");
+    expect(model!.question).toBe("Teach auto mode about your environment?");
+    expect(model!.options.map((o) => o.label)).toEqual(["Yes", "Not now", "Don't show again"]);
+    expect(model!.options.find((o) => o.label === "Not now")!.keys).toEqual(["Down", "Enter"]);
+  });
+
   it("stays raw without the dialog's own words (Enter to confirm alone names nothing)", () => {
     expect(detectPromptSelect(pointedScreen(["   No, exit", " ❯ Yes, continue"], "is this folder OK?"))).toBeNull();
   });

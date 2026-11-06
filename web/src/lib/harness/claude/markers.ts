@@ -5,6 +5,7 @@
 // separate styled segments). Pure functions, no I/O, no React.
 
 import type { StyledLine } from "../../blocks";
+import { HOLDING_SCREEN_TITLES } from "./holding-screens";
 
 /** The visible text of a line: its segments' text concatenated (the "\n" separator lives between
  *  lines, so a single line's text never contains one). */
@@ -66,10 +67,13 @@ const TRUST_QUESTION = /is this a project you created or one you trust/i;
 const TRUST_OPTION = /yes,\s*i trust this folder/i;
 export const MCP_TITLE = /new mcp server found in this project/i;
 
-/** True when the folder-trust dialog's title or option row, or the repo-MCP approval title, is on
- *  screen — the evidence `classifyFooter` needs before it claims the `trust` family. */
+/** True when the folder-trust dialog's title or option row, the repo-MCP approval title, or a screen
+ *  that holds an `idle` agent (holding-screens.ts) is on screen — the evidence `classifyFooter` needs
+ *  before it claims the `trust` family (a select confirmed by Enter, no digit). */
 export function namesTrustDialog(texts: string[]): boolean {
-  return texts.some((t) => TRUST_QUESTION.test(t) || TRUST_OPTION.test(t) || MCP_TITLE.test(t));
+  return texts.some(
+    (t) => TRUST_QUESTION.test(t) || TRUST_OPTION.test(t) || MCP_TITLE.test(t) || HOLDING_SCREEN_TITLES.some((re) => re.test(t)),
+  );
 }
 
 /**

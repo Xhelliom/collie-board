@@ -32,6 +32,7 @@ import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
 import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
+import { RemoteIdle } from "./remote-idle.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
 import { paneResolveOpts } from "./opencode-store.ts";
@@ -168,7 +169,8 @@ export function startServer(opts: {
   const peers = new PeerStore(cfg.stateDir);
   const nodeLaunched = new Map<string, LaunchedPane>();
   // The paired peers' herds, read on the primary engine's tick (bridge/peer-herd.ts) — no timer.
-  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications });
+  const remoteIdle = new RemoteIdle(opts.board);
+  const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications, onRead: (peer, agents) => remoteIdle.seen(peer, agents) });
   registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,

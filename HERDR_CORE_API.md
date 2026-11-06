@@ -452,6 +452,10 @@ status` n'en démarre jamais, donc ailleurs oui **[supposé, d'après la doc]**)
 - **Plugins et actions** : remplacés par `ctl.ts` + lanceur (§5).
 - **`HERDR_PANE_ID`** : devient `HC_TERMINAL_ID` ; la provenance `agent` (ADR 0010) en dépend.
 - **Statut des autres agents** (Codex, opencode, pi) : à mesurer un par un ; rien sans OSC 7501.
+- **Écrans qui tiennent un agent « idle »** : sous herdr 0.9, « Teach auto mode about your
+  environment? » se dit `idle` ; le bridge relit l'écran au passage à idle et le dit `blocked`
+  (`web/src/lib/harness/claude/holding-screens.ts`, `bridge/state-engine.ts`). Même besoin sous hc,
+  à mesurer : ce que dit OSC 7501 devant ce dialogue, et lire l'écran par `terminal.read` sinon.
 
 ### Ce qui bloque une V2
 

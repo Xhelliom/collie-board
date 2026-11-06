@@ -1,6 +1,7 @@
 import type { Mux } from "./mux/mux.ts";
 import { record, timed } from "./route-cost.ts";
 import { SeenPanes } from "./seen.ts";
+import { holdingScreen } from "../web/src/lib/harness/claude/holding-screens.ts";
 import {
   type AgentStatus,
   type AgentView,
@@ -90,6 +91,9 @@ export class StateEngine {
   // shows up in the text and then the status moves, so a pane is re-read only on a transition (or
   // after a failed read) — never on a quiet poll. Dropped with the pane.
   private readonly sessionNameRead = new Set<string>();
+  // Claude panes herdr calls idle/done whose last read showed a screen holding them (holding-screens.ts):
+  // they read `blocked` from the next poll, and are re-read every poll until the screen goes. Dropped with the pane.
+  private readonly heldByScreen = new Set<string>();
   private readonly transitionListeners = new Set<TransitionListener>();
   private readonly removeListeners = new Set<RemoveListener>();
   // Each listener with the route-cost key its time is metered under (`GET /api/diag/routes`).
@@ -236,7 +240,7 @@ export class StateEngine {
           workspaceNumber: ws?.number ?? 0,
           tabId: p.tab_id,
           agent,
-          status: this.seen.status(p.pane_id, p.agent_status),
+          status: this.screenStatus(p.pane_id, this.seen.status(p.pane_id, p.agent_status)),
           cwd: p.cwd,
           focused: p.focused,
           kind,
@@ -322,6 +326,7 @@ export class StateEngine {
         this.prevStatus.delete(id);
         this.statusSince.delete(id);
         this.sessionNameRead.delete(id);
+        this.heldByScreen.delete(id);
         this.sessionNames.delete(id); // drop the cached name so a reused pane id starts clean
         this.seen.forget(id);
         for (const fn of this.removeListeners) fn(id);
@@ -371,6 +376,12 @@ export class StateEngine {
     }
   }
 
+  /** herdr's idle/done for a pane held by a screen it doesn't call blocked; any other status ends the hold. */
+  private screenStatus(paneId: string, status: AgentStatus): AgentStatus {
+    if (status !== "idle" && status !== "done") this.heldByScreen.delete(paneId);
+    return this.heldByScreen.has(paneId) ? "blocked" : status;
+  }
+
   /**
    * Read each claude pane's recent text and attach its `/rename` session name (see
    * {@link extractClaudeSessionName}) to the view, exactly parallel to `paneLabel`. The name lives
@@ -390,7 +401,9 @@ export class StateEngine {
           const read = await this.herdr.readPane(a.paneId, "recent", SESSION_NAME_READ_LINES, "text");
           const name = extractClaudeSessionName(read.text);
           if (name) this.sessionNames.set(a.paneId, name);
-          this.sessionNameRead.add(a.paneId);
+          if ((a.status === "idle" || a.status === "done" || this.heldByScreen.has(a.paneId)) && holdingScreen(read.text)) this.heldByScreen.add(a.paneId);
+          else this.heldByScreen.delete(a.paneId);
+          if (!this.heldByScreen.has(a.paneId)) this.sessionNameRead.add(a.paneId);
         } catch {
           // Keep whatever's cached (if anything) — a transient read failure must not blank the name.
         }
