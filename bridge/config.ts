@@ -90,10 +90,11 @@ export interface Config {
    */
   dialMode?: DialMode;
   /**
-   * The multiplexer engine (`bridge/mux/`, ADR 0052). Only `herdr09` so far; `hc` comes in phase 2.
-   * Set via `COLLIE_BOARD_MUX`. Optional for the same reason as {@link dialMode}: absent = `herdr09`.
+   * The multiplexer engine (`bridge/mux/`, ADR 0052): `herdr09`, or `hc` (herdr-core, read-only so
+   * far). Set via `COLLIE_BOARD_MUX`. Optional for the same reason as {@link dialMode}: absent = `herdr09`.
+   * With `hc`, {@link socketPath} is the core's socket, never herdr 0.9's.
    */
-  mux?: "herdr09";
+  mux?: "herdr09" | "hc";
   /** TCP port the bridge listens on (loopback only). `tailscale serve` proxies to it. */
   port: number;
   /**
@@ -282,6 +283,17 @@ export function defaultSocketPath(
   return join(home, ".config", "herdr", "herdr.sock");
 }
 
+/**
+ * herdr-core's socket: `COLLIE_BOARD_HC_SOCKET`, else `$XDG_RUNTIME_DIR/herdr-core/default.sock`
+ * (measured on Linux, HERDR_CORE_API.md §0).
+ * shortcut: no Windows named-pipe default yet, set COLLIE_BOARD_HC_SOCKET there until the Windows probe lands.
+ */
+export function hcSocketPath(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.COLLIE_BOARD_HC_SOCKET) return env.COLLIE_BOARD_HC_SOCKET;
+  const runtime = env.XDG_RUNTIME_DIR ?? join("/run/user", String(process.getuid?.() ?? 0));
+  return join(runtime, "herdr-core", "default.sock");
+}
+
 /** `cfg.boardBranchPrefix`, readable where no `Config` is threaded through (`baseOf` in git.ts). */
 export const boardBranchPrefix = (): string => process.env.COLLIE_BOARD_BRANCH_PREFIX ?? "board/";
 
@@ -293,10 +305,13 @@ export function loadConfig(): Config {
 
   const submitKeys = envList("COLLIE_BOARD_SUBMIT_KEYS");
 
+  const mux = envEnum("COLLIE_BOARD_MUX", ["herdr09", "hc"] as const, "herdr09");
+
   return {
-    socketPath: process.env.HERDR_SOCKET_PATH ?? defaultSocketPath(),
+    // HERDR_SOCKET_PATH is herdr 0.9's (the plugin host sets it): an hc bridge must not follow it.
+    socketPath: mux === "hc" ? hcSocketPath() : (process.env.HERDR_SOCKET_PATH ?? defaultSocketPath()),
     dialMode: envEnum("COLLIE_BOARD_HERDR_DIAL", ["auto", "net", "bun"] as const, "auto"),
-    mux: envEnum("COLLIE_BOARD_MUX", ["herdr09"] as const, "herdr09"),
+    mux,
     port: envInt("COLLIE_BOARD_PORT", 8788, { min: 1, max: 65535 }),
     host: process.env.COLLIE_BOARD_HOST ?? "127.0.0.1",
     pollMs: envInt("COLLIE_BOARD_POLL_MS", 1500, { min: 250 }),

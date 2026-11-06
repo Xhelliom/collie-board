@@ -57,6 +57,11 @@ describe("mcp: the pane header (an agent stays an agent)", () => {
     expect(calls.length).toBe(2);
     for (const c of calls) expect(c.headers["x-collie-pane"]).toBe("w1:p2");
   });
+  it("relays hc's HC_TERMINAL_ID the same way: herdr-core exports no HERDR_PANE_ID (ADR 0052)", async () => {
+    const { calls, call } = setup({ HC_TERMINAL_ID: "t11" });
+    await call("launch_lot", { runId: "r1" });
+    expect(calls[0]!.headers["x-collie-pane"]).toBe("t11");
+  });
   it("sends none without HERDR_PANE_ID: the operator's call", async () => {
     const { calls, call } = setup({});
     await call("launch_lot", { runId: "r1" });

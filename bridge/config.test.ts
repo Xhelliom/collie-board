@@ -31,6 +31,8 @@ const KEYS = [
   "HERDR_PLUGIN_STATE_DIR",
   "COLLIE_BOARD_HERDR_DIAL",
   "COLLIE_BOARD_MUX",
+  "COLLIE_BOARD_HC_SOCKET",
+  "XDG_RUNTIME_DIR",
 ];
 
 let saved: Record<string, string | undefined>;
@@ -223,6 +225,17 @@ describe("loadConfig", () => {
     expect(loadConfig().mux).toBe("herdr09");
     process.env.COLLIE_BOARD_MUX = "tmux";
     expect(loadConfig().mux).toBe("herdr09");
+  });
+
+  test("mux=hc dials the core's socket, not the herdr 0.9 one the plugin host exports", () => {
+    process.env.COLLIE_BOARD_MUX = "hc";
+    process.env.HERDR_SOCKET_PATH = "/x/herdr.sock";
+    process.env.XDG_RUNTIME_DIR = "/run/user/7";
+    const cfg = loadConfig();
+    expect(cfg.mux).toBe("hc");
+    expect(cfg.socketPath).toBe(join("/run/user/7", "herdr-core", "default.sock"));
+    process.env.COLLIE_BOARD_HC_SOCKET = "/y/hc.sock";
+    expect(loadConfig().socketPath).toBe("/y/hc.sock");
   });
 });
 

@@ -12,7 +12,7 @@ type Env = Record<string, string | undefined>;
 
 /** The summary to print, or "" — never throws. `fetchImpl` is the test's seam. */
 export async function sinceHook(env: Env, fetchImpl: typeof fetch = fetch): Promise<string> {
-  const pane = env.HERDR_PANE_ID;
+  const pane = env.HERDR_PANE_ID || env.HC_TERMINAL_ID; // hc exports only the latter (ADR 0052)
   if (!pane) return "";
   const base = env.COLLIE_BOARD_URL || `http://127.0.0.1:${env.COLLIE_BOARD_PORT || "8788"}`;
   const headers: Record<string, string> = { "x-collie-pane": pane };

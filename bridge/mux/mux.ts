@@ -1,6 +1,7 @@
 import type { AgentStatus } from "../types.ts";
 import type { Config } from "../config.ts";
 import { DEFAULT_TIMEOUT_MS, Herdr09 } from "./herdr09.ts";
+import { Hc } from "./hc.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The multiplexer the bridge drives — herdr 0.9 today, herdr-core (hc) next (ADR 0052 §4).
@@ -13,7 +14,7 @@ import { DEFAULT_TIMEOUT_MS, Herdr09 } from "./herdr09.ts";
 // call as a failed action, so "not supported" lands on the same path as "herdr said no".
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Which engine a bridge runs on (`COLLIE_BOARD_MUX`). Only herdr 0.9 exists so far. */
+/** Which engine a bridge runs on (`COLLIE_BOARD_MUX`): herdr 0.9, or hc (read-only so far). */
 export type MuxKind = NonNullable<Config["mux"]>;
 
 /** Thrown (as a rejection) by an engine for an operation it has no equivalent for. */
@@ -215,5 +216,7 @@ export function createMux(socketPath: string, cfg: Pick<Config, "mux" | "dialMod
   switch (cfg.mux ?? "herdr09") {
     case "herdr09":
       return new Herdr09(socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode);
+    case "hc":
+      return new Hc(socketPath, cfg.dialMode);
   }
 }
