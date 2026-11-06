@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, FileText, Search } from "lucide-react";
+import { ArrowLeft, FileText, PencilLine, Search } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
 import { DocLinkContext, MarkdownText } from "@/components/markdown-text";
+import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { useT } from "@/i18n";
-import { repoName } from "@/lib/board";
+import { createCard, repoName } from "@/lib/board";
+import { setStatus } from "@/lib/status";
 import { docMatches, fetchDoc, resolveDocLink, searchDocs, type DocDecision, type DocEntry, type DocsIndex } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
@@ -175,6 +177,7 @@ function DocView({ repo, gitRef, path, backTo, open }: { repo: string; gitRef: s
         </Link>
         <span className="min-w-0 flex-1 truncate text-right font-mono text-xs text-muted-foreground">{path}</span>
       </div>
+      <AskEdit repo={repo} gitRef={gitRef} path={path} />
       {loaded.state === "loading" ? (
         <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("docs.loading")}</p>
       ) : loaded.state === "error" ? (
@@ -188,5 +191,72 @@ function DocView({ repo, gitRef, path, backTo, open }: { repo: string; gitRef: s
         </>
       )}
     </article>
+  );
+}
+
+/**
+ * « Demander une modif » : the operator's words become a card on this repo, naming the file — the
+ * agent that takes it opens the PR. The board itself never writes the repo.
+ */
+function AskEdit({ repo, gitRef, path }: { repo: string; gitRef: string; path: string }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    const ask = text.trim();
+    if (!ask || busy) return;
+    setBusy(true);
+    try {
+      const { card } = await createCard({
+        title: t("docs.ask.cardTitle", { path }),
+        spec: `${t("docs.ask.cardFile", { path, ref: gitRef })}\n\n${ask}\n\n${t("docs.ask.cardHow")}`,
+        repoPath: repo,
+      });
+      setStatus(t("docs.ask.created"), "success");
+      void navigate(`/card/${encodeURIComponent(card.id)}`);
+    } catch (e) {
+      setStatus(t("docs.ask.failed", { why: e instanceof Error ? e.message : String(e) }), "error");
+      setBusy(false);
+    }
+  };
+
+  if (!open)
+    return (
+      <Button variant="outline" size="sm" className="self-start" onClick={() => setOpen(true)}>
+        <PencilLine />
+        {t("docs.ask.open")}
+      </Button>
+    );
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-lg border border-border p-2.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <label className="flex flex-col gap-1 text-sm font-semibold">
+        {t("docs.ask.label")}
+        <textarea
+          autoFocus
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          placeholder={t("docs.ask.placeholder")}
+          className={cn("w-full rounded-lg border border-border bg-background p-2 text-sm font-normal", FOCUS)}
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          {t("docs.ask.cancel")}
+        </Button>
+        <Button type="submit" size="sm" disabled={!text.trim() || busy}>
+          {t("docs.ask.submit")}
+        </Button>
+      </div>
+    </form>
   );
 }

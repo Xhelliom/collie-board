@@ -47,7 +47,13 @@ afterEach(() => setPreference("en"));
 const mount = (url: string) =>
   render(
     <RouterProvider
-      router={createMemoryRouter([{ path: "/board/documents", loader: docsLoader, element: <DocumentsRoute /> }], { initialEntries: [url] })}
+      router={createMemoryRouter(
+        [
+          { path: "/board/documents", loader: docsLoader, element: <DocumentsRoute /> },
+          { path: "/card/:cardId", element: <p>card page</p> },
+        ],
+        { initialEntries: [url] },
+      )}
     />,
   );
 
@@ -102,5 +108,25 @@ describe("DocumentsRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: "the door" }));
     expect(await screen.findByText(".adr/0001-door.md")).toBeInTheDocument();
     expect(await screen.findByText("0001 — One door")).toBeInTheDocument();
+  });
+
+  it("« Request a change » files a card naming the file and the operator's words, then opens it", async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post("/api/cards", async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true, card: { id: "c42" } });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp&doc=docs%2Fplan%2Fphase-1.md");
+    await userEvent.click(await screen.findByRole("button", { name: "Request a change" }));
+    const submit = screen.getByRole("button", { name: "Create the card" });
+    expect(submit).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("What should change in this document?"), "Add the exit criteria");
+    await userEvent.click(submit);
+    expect(await screen.findByText("card page")).toBeInTheDocument();
+    expect(body).toMatchObject({ title: "Doc: change docs/plan/phase-1.md", repoPath: "/r/app" });
+    expect(String(body!.spec)).toContain("`docs/plan/phase-1.md`");
+    expect(String(body!.spec)).toContain("Add the exit criteria");
   });
 });

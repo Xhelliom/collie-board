@@ -6,6 +6,7 @@ import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import type { BoardContext } from "./board-routes.ts";
 import type { Config } from "./config.ts";
+import { BoardDb } from "./db.ts";
 import { handleDocsRoute, PAGE_CSP } from "./docs.ts";
 import { isSafePageName, parsePageTree } from "./git.ts";
 import { checkAccess } from "./server.ts";
@@ -34,15 +35,32 @@ function repo(withPages: boolean): string {
   }
   sh(dir, "add", "-A");
   sh(dir, "commit", "-qm", "init");
+  db.setRepoListed(dir, true);
   return dir;
 }
 
+// The routes read only a repo the board knows: these are listed by hand, nothing else is scanned.
+const db = new BoardDb(":memory:");
 const ctx = {
+  db,
+  engine: { current: () => ({ agents: [], shellPanes: [], workspaces: [], tabs: [] }) },
+  cfg: { boardRepoRoots: [join(tmpdir(), "no-scan-root")] },
   guard: () => null,
   json: (data: unknown, status = 200) => Response.json(data, { status }),
   text: (body: string, status: number) => new Response(body, { status }),
 } as unknown as BoardContext;
 const get = (path: string) => handleDocsRoute(new URL(path, "http://h").pathname, new Request(`http://h${path}`), ctx) as Promise<Response>;
+
+describe("docs routes: a known project only", () => {
+  test("a repo the board does not know is refused 403, though it is a git repo", async () => {
+    const dir = repo(false);
+    db.setRepoListed(dir, false);
+    for (const route of ["/api/docs", "/api/docs/file", "/api/docs/pages"])
+      expect((await get(`${route}?repo=${encodeURIComponent(dir)}&path=README.md`)).status).toBe(403);
+    db.setRepoListed(dir, true);
+    expect((await get(`/api/docs/file?repo=${encodeURIComponent(dir)}&path=README.md`)).status).toBe(200);
+  });
+});
 
 describe("custom pages", () => {
   test("a page name can't climb, hide an extension or start like an option", () => {

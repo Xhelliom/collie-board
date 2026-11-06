@@ -26,7 +26,7 @@ export interface McpEnv {
 interface Req { jsonrpc: "2.0"; id?: number | string; method: string; params?: Json }
 type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 type Out = { content: Content[]; isError?: boolean };
-/** A tool only this server has: it reads the agent's disk, or answers more than text — never in the browser's catalog. */
+/** A tool only this server has: it reads the agent's disk, answers more than text, or reads another project's docs — never in the browser's catalog. */
 type McpTool = BoardTool & { content?: (a: Json) => Promise<Content[]> };
 
 const TEXT_EXT = new Set([".md", ".markdown", ".txt", ".csv", ".tsv", ".json", ".log", ".html", ".htm", ".yaml", ".yml"]);
@@ -83,6 +83,31 @@ export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
           const name = String(a.name || basename(file));
           const res = await (await raw("POST", `${dl(cardId)}?name=${encodeURIComponent(name)}`, new Blob([await readFile(file)]))).json();
           return `Livrable publié sur la carte ${cardId} : ${res.name} (${res.mime}, ${Math.max(1, Math.round(res.size / 1024))} Ko).`;
+        },
+      },
+      {
+        name: "read_project_docs", readOnly: true, button: false,
+        description: "Lit la doc d'un projet connu du board (voir list_projects), telle qu'elle est sur sa branche par défaut, en lecture seule. Sans path : la liste des documents par rubrique, puis les décisions. Avec path : le texte de ce fichier. Un dépôt inconnu du board est refusé.",
+        props: {
+          repoPath: { type: "string", description: "Chemin absolu du dépôt (voir list_projects)" },
+          path: { type: "string", description: "Fichier .md relatif au dépôt, tel que listé ; absent : la liste" },
+        },
+        required: ["repoPath"],
+        run: async (a) => {
+          const repo = `repo=${encodeURIComponent(String(a.repoPath))}`;
+          if (a.path) {
+            const f = await api("GET", `/api/docs/file?${repo}&path=${encodeURIComponent(String(a.path))}`);
+            return clip(String(f.text ?? ""), 100_000) + (f.truncated ? "\n\n[tronqué : fichier trop long]" : "");
+          }
+          const ix = await api("GET", `/api/docs?${repo}`);
+          const list = (docs: Json[]) => docs.map((d) => `- ${d.path} — ${oneLine(d.title, 100)}`);
+          const lines = [`Documents sur ${ix.ref} :`];
+          for (const r of [...(ix.rubrics ?? []), { label: "Autres", docs: ix.other ?? [] }]) if (r.docs.length) lines.push(`\n## ${r.label}`, ...list(r.docs));
+          if (ix.decisions?.length) {
+            lines.push("\n## Décisions");
+            for (const d of ix.decisions) lines.push(d.kind === "adr" ? `- ${d.path} — ${oneLine(d.title, 100)}${d.status ? ` (${oneLine(d.status, 30)})` : ""}` : `- roadmap : ${oneLine(d.text, 120)} (${d.status})`);
+          }
+          return lines.length > 1 ? lines.join("\n") : `Aucun Markdown sur ${ix.ref}.`;
         },
       },
       {

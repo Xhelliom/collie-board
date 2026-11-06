@@ -447,8 +447,8 @@ describe("mcp: the catalog is the buttons' catalog (ADR 0042)", () => {
     const { mcp } = setup({ HERDR_PANE_ID: "w:p1" });
     const list = (await mcp.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string; inputSchema: { properties: unknown } }[] } };
     const catalog = createTools(async () => ({}));
-    // Plus the two that read bytes, which a browser button cannot (they live in mcp.ts only).
-    expect(list.result.tools.map((t) => t.name)).toEqual([...catalog.map((t) => t.name), "publish_file", "read_deliverable"]);
+    // Plus the ones only this server has: the two that read bytes, and the read-only doc reader (mcp.ts only).
+    expect(list.result.tools.map((t) => t.name)).toEqual([...catalog.map((t) => t.name), "publish_file", "read_project_docs", "read_deliverable"]);
     for (const t of catalog) expect(list.result.tools.find((x) => x.name === t.name)!.inputSchema.properties).toEqual(t.props);
     // Typing into another agent's pane is never a button.
     expect(catalog.filter((t) => t.button === false).map((t) => t.name)).toEqual(["reply_to_agent", "notify"]);
@@ -461,5 +461,33 @@ describe("mcp: the catalog is the buttons' catalog (ADR 0042)", () => {
     expect(invalidArgs(fin, { cardId: 3 })).toContain("string");
     expect(invalidArgs(fin, { cardId: "c", rm: true })).toContain("rm");
     expect(invalidArgs(fin, [])).not.toBeNull();
+  });
+});
+
+describe("mcp: read_project_docs translates the Documents routes", () => {
+  it("lists by rubric, then reads one file — repo and path encoded, the pane relayed", async () => {
+    const index = {
+      ref: "main",
+      rubrics: [{ id: "plan", label: "Plan", docs: [{ path: "docs/plan/p1.md", title: "Phase 1", size: 9 }] }],
+      other: [{ path: "NOTES.md", title: "NOTES.md", size: 3 }],
+      decisions: [{ kind: "adr", path: ".adr/0001-a.md", title: "0001 — A", status: "Accepted", date: null }],
+    };
+    const { calls, call } = setup({ HERDR_PANE_ID: "w:p" }, {
+      "GET /api/docs": { body: index },
+      "GET /api/docs/file": { body: { path: "docs/plan/p1.md", text: "# Phase 1", truncated: false } },
+    });
+    const list = await call("read_project_docs", { repoPath: "/r/other" });
+    expect(list.text).toContain("## Plan\n- docs/plan/p1.md — Phase 1");
+    expect(list.text).toContain("## Autres\n- NOTES.md");
+    expect(list.text).toContain(".adr/0001-a.md — 0001 — A (Accepted)");
+    expect((await call("read_project_docs", { repoPath: "/r/other", path: "docs/plan/p1.md" })).text).toBe("# Phase 1");
+    expect(calls.map((c) => c.url)).toEqual(["/api/docs?repo=%2Fr%2Fother", "/api/docs/file?repo=%2Fr%2Fother&path=docs%2Fplan%2Fp1.md"]);
+    for (const c of calls) expect(c.headers["x-collie-pane"]).toBe("w:p");
+  });
+  it("relays the bridge's refusal of a repo it does not know", async () => {
+    const { call } = setup({}, { "GET /api/docs": { status: 403, text: "unknown repository: not one of the board's projects" } });
+    const r = await call("read_project_docs", { repoPath: "/etc" });
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain("unknown repository");
   });
 });
