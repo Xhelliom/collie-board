@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.275.0] - 2026-11-06
+
+### Added
+
+- Documents : barre de rubriques collante qui saute à chaque section (9e3bcd9)
+- Documents : sections repliables ; une recherche les déplie (9e3bcd9)
+- Documents : décisions en aperçu de 5, « Voir les N décisions », filtres décidé / penché / ouvert (9e3bcd9)
+
+### Changed
+
+- Documents : le bilan de doc est une section repliée tant qu’il a des écarts (9e3bcd9)
+
 ## [0.274.0] - 2026-11-06
 
 ### Added
