@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1793953423283.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"V2 — 3 : herdr-core en écriture","goal":"Le board lance et pilote des agents sous hc, lit 0.9 et hc côte à côte, et migre un agent Claude au repos de 0.9 vers hc.","position":32,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1793953413954}}
+{"v":1,"hlc":"1793969043738.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1793969037677}}
