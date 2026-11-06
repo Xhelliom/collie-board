@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { insertEntry, nextVersion, parseFragment, planRelease, setVersion } from "./release.ts";
+import { foldUpstream, insertEntry, nextVersion, parseFragment, planRelease, setVersion } from "./release.ts";
 
 // The release is cut by CI with nobody watching, so what it must never do is guess: a malformed
 // fragment fails it, and everything it writes is derived from the fragments and nothing else.
@@ -52,5 +52,26 @@ describe("the files it writes", () => {
 
   it("refuses a version it cannot parse rather than inventing one", () => {
     expect(() => nextVersion("1.2", "patch")).toThrow();
+  });
+});
+
+describe("### Upstream", () => {
+  const md = "# U\n\n| File | Change |\n|---|---|\n| `bridge/server.ts` | one import |\n| `bridge/config.ts` | a block |\n\nRebasing.\n";
+
+  it("stays out of the CHANGELOG, and a malformed line fails the release", () => {
+    const f = frag("a.md", "bump: patch\n\n### Fixed\n- a fix\n\n### Upstream\n- `bridge/server.ts`: one route");
+    expect(planRelease("1.0.0", [f], "2026-11-06", () => null).entry).not.toContain("one route");
+    expect(() => frag("b.md", "bump: patch\n\n### Fixed\n- x\n\n### Upstream\n- server.ts one route")).toThrow("b.md");
+    expect(() => frag("c.md", "bump: patch\n\n### Upstream\n- `a.ts`: x")).toThrow("c.md");
+  });
+
+  it("appends to the row of the same file, else adds a row at the table's end", () => {
+    const out = foldUpstream(md, [
+      { file: "`bridge/server.ts`", change: "one route" },
+      { file: "`bridge/index.ts`", change: "one hook" },
+    ]);
+    expect(out).toBe(
+      "# U\n\n| File | Change |\n|---|---|\n| `bridge/server.ts` | one import ; one route |\n| `bridge/config.ts` | a block |\n| `bridge/index.ts` | one hook |\n\nRebasing.\n",
+    );
   });
 });
