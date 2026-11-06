@@ -5,15 +5,26 @@
 
 import type { BoardContext } from "./board-routes.ts";
 import type { DecisionStatus } from "./db.ts";
-import { defaultBranchOf, docsOnRef, grepDocsOnRef, readDocOnRef, type DocLine, type TreeDoc } from "./git.ts";
+import { defaultBranchOf, docsOnRef, grepDocsOnRef, isSafePageName, pagesOnRef, PAGES_DIR, readDocOnRef, type DocLine, type TreeDoc } from "./git.ts";
 import { repoPathOf } from "./paths.ts";
 import { redactText } from "./redact.ts";
+import { scrubHtml } from "./scrub.ts";
 import { repoRootOf } from "./repos.ts";
 
 export const DOCS_ROUTE = "/api/docs";
 const DOCS_FILE = "/api/docs/file";
 const DOCS_SEARCH = "/api/docs/search";
 const MAX_QUERY = 200;
+const PAGES = "/api/docs/pages";
+const PAGE = "/api/docs/page";
+
+/**
+ * The CSP of a custom page — its own, never the board's (that one is only set on the app's static
+ * files, server.ts). `sandbox` without allowances: opaque origin, no script, no form, no navigation of
+ * the board; `default-src 'none'`: nothing leaves — no fetch, no remote image, font or stylesheet.
+ * Only the page's inline CSS and `data:` images/fonts render. ADR 0053.
+ */
+export const PAGE_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";
 
 export interface Rubric {
   id: string;
@@ -146,7 +157,7 @@ async function rubricsFor(root: string, ref: string, docs: readonly TreeDoc[]): 
 }
 
 export async function handleDocsRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
-  if (pathname !== DOCS_ROUTE && pathname !== DOCS_FILE && pathname !== DOCS_SEARCH) return null;
+  if (![DOCS_ROUTE, DOCS_FILE, DOCS_SEARCH, PAGES, PAGE].includes(pathname)) return null;
   if (req.method !== "GET") return ctx.text("method not allowed", 405);
   const denied = ctx.guard("read");
   if (denied) return denied;
@@ -163,6 +174,18 @@ export async function handleDocsRoute(pathname: string, req: Request, ctx: Board
     const doc = await readDocOnRef(root, ref, path);
     if (!doc) return ctx.text("no such document on the default branch", 404);
     return ctx.json({ ref, path, text: redactText(doc.text), truncated: doc.truncated });
+  }
+
+  if (pathname === PAGES) return ctx.json({ ref, pages: await pagesOnRef(root, ref) });
+
+  if (pathname === PAGE) {
+    const name = q.get("name") ?? "";
+    const page = isSafePageName(name) ? await readDocOnRef(root, ref, `${PAGES_DIR}${name}.html`, undefined, /\.html$/) : null;
+    if (!page) return ctx.text("no such page on the default branch", 404);
+    // Agent HTML: scrubbed (scripts, frames, external styles, on* dropped), then inert under PAGE_CSP.
+    return new Response(scrubHtml(redactText(page.text)), {
+      headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": PAGE_CSP, "cache-control": "no-store" },
+    });
   }
 
   if (pathname === DOCS_SEARCH) {

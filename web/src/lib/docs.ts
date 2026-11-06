@@ -57,3 +57,10 @@ export const docMatches = (d: DocEntry, query: string, inText: ReadonlySet<strin
   const needle = query.trim().toLowerCase();
   return !needle || d.title.toLowerCase().includes(needle) || d.path.toLowerCase().includes(needle) || inText.has(d.path);
 };
+
+/** The project's custom pages — `docs/pages/<name>.html` on its default branch (bridge/docs.ts). */
+export const fetchPages = (repo: string, signal?: AbortSignal): Promise<{ ref: string; pages: { name: string; size: number }[] }> =>
+  apiRequest(`/api/docs/pages?${q(repo)}`, { signal });
+
+/** The iframe's src: served scrubbed under its own sandbox CSP, never the board's. */
+export const pageUrl = (repo: string, name: string): string => `/api/docs/page?${q(repo)}&name=${encodeURIComponent(name)}`;

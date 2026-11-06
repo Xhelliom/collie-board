@@ -332,8 +332,8 @@ export interface TreeDoc {
  * shape. It is only ever looked up in a tree (which cannot hold `..`), and always after `--` — this
  * is the belt to that brace. Pure + exported.
  */
-export function isSafeDocPath(path: string): boolean {
-  if (!path || path.length > 512 || !/\.md$/i.test(path)) return false;
+export function isSafeDocPath(path: string, ext: RegExp = /\.md$/i): boolean {
+  if (!path || path.length > 512 || !ext.test(path)) return false;
   if (path.startsWith("/") || path.startsWith("-") || /[\\\0]/.test(path)) return false;
   return path.split("/").every((s) => s !== "" && s !== "." && s !== "..");
 }
@@ -354,14 +354,37 @@ export async function docsOnRef(repoPath: string, ref: string, git: GitRunner = 
   return r.ok ? parseDocTree(r.stdout) : null;
 }
 
+/** Where a project's custom pages live: one `<name>.html` per tab, top level only. */
+export const PAGES_DIR = "docs/pages/";
+
+/** A page name: letters, digits, `_` and `-`, no dot — so it can't climb or hide an extension. Pure. */
+export const isSafePageName = (name: string): boolean => name.length <= 80 && /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u.test(name);
+
+/** `git ls-tree -z -l -- docs/pages/` records → the pages' names, sorted. Pure + exported. */
+export function parsePageTree(stdout: string): { name: string; size: number }[] {
+  const out: { name: string; size: number }[] = [];
+  for (const rec of stdout.split("\0")) {
+    const m = /^(?:100644|100755) blob [0-9a-f]+ +(\d+)\tdocs\/pages\/([^/]+)\.html$/s.exec(rec);
+    if (m && isSafePageName(m[2]!)) out.push({ name: m[2]!, size: Number(m[1]) });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The custom pages on `ref` — empty when `docs/pages/` is absent or the ref unreadable. */
+export async function pagesOnRef(repoPath: string, ref: string, git: GitRunner = runGit): Promise<{ name: string; size: number }[]> {
+  const r = await git(["ls-tree", "-z", "-l", "--full-tree", ref, "--", PAGES_DIR], repoPath);
+  return r.ok ? parsePageTree(r.stdout) : [];
+}
+
 /** One doc's text on `ref`: its blob found by `ls-tree … -- <path>`, then `cat-file`. Null: bad path or absent. */
 export async function readDocOnRef(
   repoPath: string,
   ref: string,
   path: string,
   git: GitRunner = runGit,
+  ext: RegExp = /\.md$/i,
 ): Promise<{ text: string; truncated: boolean } | null> {
-  if (!isSafeDocPath(path)) return null;
+  if (!isSafeDocPath(path, ext)) return null;
   const ls = await git(["ls-tree", "-z", "-l", "--full-tree", ref, "--", path], repoPath);
   const m = ls.ok ? /^(?:100644|100755) blob ([0-9a-f]+) +(\d+)\t(.+)$/s.exec(ls.stdout.split("\0")[0] ?? "") : null;
   if (!m || m[3] !== path) return null;

@@ -288,6 +288,37 @@ Read a repo's docs as they stand on its default branch (from git's tree — neve
   (`kind:"adr"`, status and date read in the file) merged with the roadmap's (`kind:"roadmap"`), newest first.
 - `GET /api/docs/file?repo=<path>&path=<repo-relative .md>` — `{ path, text, truncated }`; 404 when absent.
 - `GET /api/docs/search?repo=<path>&q=<text>` — `{ paths }` whose text contains `q` (case-insensitive).
+- `GET /api/docs/pages?repo=<path>` — `{ ref, pages:[{name,size}] }`: the custom pages (below).
+- `GET /api/docs/page?repo=<path>&name=<name>` — that page's HTML, scrubbed, under its own sandbox CSP.
+
+### A custom project page
+
+When a project needs a page nothing generic covers (a marketing plan, an art direction), write
+**`docs/pages/<name>.html`** and merge it to the default branch: the project views then show a tab
+`<name>`. `<name>` is letters, digits, `-` and `_` only (no dot, no sub-folder). The page is shown
+**inert** in a sandboxed iframe (ADR 0053): **no script** (stripped, and would not run), no form, no
+network — no external stylesheet, font or image, no fetch. So it must be self-contained: CSS in a
+`<style>`, images as `data:` URIs or inline `<svg>`. Minimal template:
+
+```html
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan marketing</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; color: #1a1a1a; background: #fff; }
+  h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
+  @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } }
+</style>
+</head>
+<body>
+  <h1>Plan marketing</h1>
+  <p>…</p>
+</body>
+</html>
+```
 
 ## Plan a project: phases, lots, roadmap
 
