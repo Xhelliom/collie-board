@@ -12,6 +12,7 @@ import { lotView } from "./lot.ts";
 import { resumeRun } from "./run.ts";
 import { assignedElsewhere, lotOwnerRefusal } from "./claim.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
+import { repoPathOf, samePath } from "./paths.ts";
 
 const MAX_NAME = 200;
 const MAX_GOAL = 2_000;
@@ -37,6 +38,11 @@ async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {
 const name = (v: unknown) => (typeof v === "string" && v.trim() !== "" && v.length <= MAX_NAME ? v.trim() : null);
 const goal = (v: unknown) => (typeof v === "string" && v.length <= MAX_GOAL ? v.trim() : null);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/** An optional `?repo=` filter, in the spelling the rows are stored under (`repoPathOf`); passed as-is when not absolute. */
+const repoQuery = (req: Request): string | undefined => {
+  const q = new URL(req.url).searchParams.get("repo");
+  return q === null ? undefined : (repoPathOf(q) ?? q);
+};
 
 /** A run with the ids of its cards — what a planner needs to read a lot. */
 
@@ -57,14 +63,15 @@ export async function handleProjectRoute(
     if (req.method === "GET") {
       const denied = guard("read");
       if (denied) return denied;
-      return ctx.json({ phases: db.listPhases(new URL(req.url).searchParams.get("repo") ?? undefined) });
+      return ctx.json({ phases: db.listPhases(repoQuery(req)) });
     }
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
     const denied = guard("write");
     if (denied) return denied;
     const b = await bodyOf(req);
     if (!b) return ctx.text("bad body", 400);
-    if (typeof b.repoPath !== "string" || !b.repoPath.startsWith("/")) return ctx.text("repoPath must be an absolute path", 400);
+    const repoPath = repoPathOf(b.repoPath);
+    if (!repoPath) return ctx.text("repoPath must be an absolute path", 400);
     const n = name(b.name);
     if (!n) return ctx.text("name required", 400);
     const g = b.goal === undefined ? "" : goal(b.goal);
@@ -74,7 +81,7 @@ export async function handleProjectRoute(
     if (b.templateId !== undefined && b.templateId !== null && (typeof b.templateId !== "string" || !db.getTemplate(b.templateId))) return ctx.text("templateId: no such template", 400);
     const phase = db.createPhase({
       templateId: (b.templateId as string | null | undefined) ?? null,
-      repoPath: b.repoPath,
+      repoPath,
       name: n,
       goal: g,
       position: b.position === undefined ? undefined : (b.position as number),
@@ -107,16 +114,17 @@ export async function handleProjectRoute(
     };
 
     if (milestone === "seal") {
-      if (typeof b.repoPath !== "string" || !b.repoPath.startsWith("/")) return ctx.text("repoPath must be an absolute path", 400);
+      const repoPath = repoPathOf(b.repoPath);
+      if (!repoPath) return ctx.text("repoPath must be an absolute path", 400);
       const n = name(b.name);
       if (!n) return ctx.text("name required", 400);
       const g = b.goal === undefined ? "" : goal(b.goal);
       if (g === null) return ctx.text("bad goal", 400);
-      const to = target(b.repoPath, null);
+      const to = target(repoPath, null);
       if (!to.ok) return ctx.text(to.why, 400);
       if (b.cardIds !== undefined && (!Array.isArray(b.cardIds) || b.cardIds.length > 1000 || !b.cardIds.every((c) => typeof c === "string")))
         return ctx.text("cardIds must be a list of card ids", 400);
-      const sealed = db.sealPhase({ repoPath: b.repoPath, name: n, goal: g, note, moveOpenTo: to.id, cardIds: b.cardIds as string[] | undefined });
+      const sealed = db.sealPhase({ repoPath, name: n, goal: g, note, moveOpenTo: to.id, cardIds: b.cardIds as string[] | undefined });
       if (!sealed.phase) return ctx.text("no finished card without a phase to file", 400);
       audit("phase.seal", { phaseId: sealed.phase.id, name: n, moved: sealed.moved });
       // Journaled for the orchestrator nudger (ADR 0028): the gesture is the operator's (agent panes are refused above).
@@ -204,8 +212,7 @@ export async function handleProjectRoute(
   if (pathname === RUNS && req.method === "GET") {
     const denied = guard("read");
     if (denied) return denied;
-    const repo = new URL(req.url).searchParams.get("repo") ?? undefined;
-    return ctx.json({ runs: db.listRuns(repo).map((r) => lotView(db, r)) });
+    return ctx.json({ runs: db.listRuns(repoQuery(req)).map((r) => lotView(db, r)) });
   }
 
   const runMatch = RUN.exec(pathname);
@@ -317,15 +324,19 @@ export async function handleProjectRoute(
     if (denied) return denied;
     const b = await bodyOf(req);
     if (!b) return ctx.text("bad body", 400);
-    if (typeof b.repoPath !== "string" || !b.repoPath.startsWith("/")) return ctx.text("repoPath must be an absolute path", 400);
+    const repoPath = repoPathOf(b.repoPath);
+    if (!repoPath) return ctx.text("repoPath must be an absolute path", 400);
     const d = parseDecision(b);
     if (!d.ok) return ctx.text(d.error, 400);
-    if (d.value.itemId && !db.getRoadmap(b.repoPath)?.items.some((i) => i.id === d.value.itemId))
+    if (d.value.itemId && !db.getRoadmap(repoPath)?.items.some((i) => i.id === d.value.itemId))
       return ctx.text("itemId: no such roadmap item", 400);
-    if (d.value.cardId && db.getCard(d.value.cardId)?.repoPath !== b.repoPath) return ctx.text("cardId: no such card in this repo", 400);
+    if (d.value.cardId) {
+      const card = db.getCard(d.value.cardId);
+      if (!card?.repoPath || !samePath(card.repoPath, repoPath)) return ctx.text("cardId: no such card in this repo", 400);
+    }
     try {
-      const { roadmap, decision } = db.upsertDecision(b.repoPath, d.value);
-      audit("roadmap.decision", { repoPath: b.repoPath, id: decision.id, status: decision.status, ...(decision.cardId ? { cardId: decision.cardId } : {}) });
+      const { roadmap, decision } = db.upsertDecision(repoPath, d.value);
+      audit("roadmap.decision", { repoPath, id: decision.id, status: decision.status, ...(decision.cardId ? { cardId: decision.cardId } : {}) });
       return ctx.json({ decision, revision: roadmap.revision });
     } catch (err) {
       return ctx.text((err as Error).message, 409);
@@ -336,8 +347,8 @@ export async function handleProjectRoute(
       const denied = guard("read");
       if (denied) return denied;
       const q = new URL(req.url).searchParams;
-      const repo = q.get("repo");
-      if (!repo || !repo.startsWith("/")) return ctx.text("repo must be an absolute path", 400);
+      const repo = repoPathOf(q.get("repo"));
+      if (!repo) return ctx.text("repo must be an absolute path", 400);
       const roadmap = db.getRoadmap(repo) ?? { repoPath: repo, vision: "", items: [], decisions: [], revision: 0, updatedAt: 0 };
       const format = q.get("format");
       if (format === "md" || format === "steps") {
@@ -349,7 +360,7 @@ export async function handleProjectRoute(
             : stepsMarkdown(basename(repo), {
                 phases: db.listPhases(repo),
                 lots: db.listRuns(repo),
-                cards: db.listCards().filter((c) => c.repoPath === repo),
+                cards: db.listCards().filter((c) => !!c.repoPath && samePath(c.repoPath, repo)),
               });
         return new Response(text, { headers: { "content-type": "text/markdown; charset=utf-8" } });
       }
