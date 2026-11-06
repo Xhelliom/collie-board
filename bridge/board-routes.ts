@@ -29,7 +29,8 @@ import {
   wouldCycle,
 } from "./cards.ts";
 import { cardsSummary } from "./cards-summary.ts";
-import type { Config } from "./config.ts";
+import { hcSocketPath, type Config } from "./config.ts";
+import { Hc } from "./mux/hc.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type {
   BoardDb,
@@ -63,7 +64,7 @@ import { handleFlowRoute } from "./flow-routes.ts";
 import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
-import type { AgentAdapter } from "./adapters.ts";
+import { adapterFor, BUILTIN_ADAPTERS, type AgentAdapter } from "./adapters.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
@@ -89,6 +90,7 @@ import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { Mux } from "./mux/mux.ts";
+import { migrateBlock, migrateToHc } from "./migrate-hc.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
@@ -150,7 +152,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|migrate-hc|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /**
  * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
@@ -187,6 +189,8 @@ export interface BoardContext {
   /** The machines this one drives (`peers.toml`), for a card that runs in a peer's environment. Absent: none. */
   peers?: { outbound(): readonly OutboundPeer[] };
   fetch?: typeof fetch;
+  /** The hc core beside the bridge's own engine, for « Migrer vers herdr-core ». Absent: the default socket. */
+  hc?: Mux;
 }
 
 const remoteDeps = (ctx: BoardContext): RemoteDeps => ({
@@ -1610,6 +1614,32 @@ async function route(
       return ctx.json({ ok: false, error: result.error.message, kind: result.error.kind }, status);
     }
     return json({ ok: true, card: view(id) });
+  }
+
+  // ── migrate-hc: GET says whether « Migrer vers herdr-core » is offered, POST does it (migrate-hc.ts) ──
+  if (action === "migrate-hc" && (req.method === "GET" || req.method === "POST")) {
+    const denied = ctx.guard(req.method === "GET" ? "read" : "write");
+    if (denied) return denied;
+    const card = db.getCard(id);
+    if (!card) return text("card not found", 404);
+    const session = db.openSessionFor(id);
+    const pane = session?.paneId ? ctx.engine.current().agents.find((a) => a.paneId === session.paneId) : undefined;
+    // hc itself, never createMux: that builds the bridge's own engine (both engines, once they are read together).
+    const hc = ctx.hc ?? new Hc(hcSocketPath(), ctx.cfg.dialMode);
+    // The hc probe only once the cheap reasons have passed: a socket dial per card view otherwise.
+    const pre = migrateBlock({ pane, adapter: pane && adapterFor(ctx.adapters ?? BUILTIN_ADAPTERS, pane.agent), hcUp: true });
+    const block = pre ?? ((await hc.ping()) ? null : "hc-down");
+    if (req.method === "GET") return json({ available: block === null, ...(block ? { reason: block } : {}) });
+    if (block) return ctx.json({ ok: false, error: `migration impossible: ${block}`, kind: block }, 409);
+    const result = await migrateToHc({ db, herdr: ctx.herdr, hc, sessionId: session!.id, pane: pane!, name: card.branch ?? card.title });
+    ctx.audit.record({
+      action: "card.migrate-hc",
+      session: ctx.session,
+      device: ctx.device,
+      detail: { cardId: id, ok: result.ok, ...(result.ok ? {} : { kind: result.kind, error: result.message }) },
+    });
+    if (!result.ok) return ctx.json({ ok: false, error: result.message, kind: result.kind }, 502);
+    return json({ ok: true, paneId: result.paneId, card: view(id) });
   }
 
   // ── resume: answer the offer of an automatic handoff (auto-handoff.ts) ────
