@@ -980,6 +980,12 @@ export const fetchRepoIntegration = (repo: string, signal?: AbortSignal): Promis
 export const setRepoIntegration = (path: string, integration: RepoIntegration): Promise<{ ok: true; integration: RepoIntegration }> =>
   apiRequest("/api/repos/integration", { method: "POST", body: JSON.stringify({ path, integration }) });
 
+/** Whether a lot's end opens the « docs(plan) » PR for this repo. On by default. */
+export const fetchPlanExport = (repo: string, signal?: AbortSignal): Promise<{ enabled: boolean }> =>
+  apiRequest(`/api/repos/plan-export?repo=${encodeURIComponent(repo)}`, { signal });
+export const setPlanExport = (path: string, enabled: boolean): Promise<{ ok: true; enabled: boolean }> =>
+  apiRequest("/api/repos/plan-export", { method: "POST", body: JSON.stringify({ path, enabled }) });
+
 /** A repo's shared board (ADR 0048 §1): off (`share: null`) until the operator's gesture. */
 export interface RepoShare {
   share: string | null;

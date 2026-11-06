@@ -26,6 +26,7 @@ import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
 import { bilanPrompt, BILAN_REL_PATH, Lead, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
+import { exportPlanAtLotEnd } from "./plan-export.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
 
@@ -88,6 +89,8 @@ export interface RunPorts {
   advance(card: Card, role: AgentTemplate, report: string | null): Promise<void>;
   /** ADR 0031: a send-back about the code goes back to the worker role at `index`, in a fresh session. */
   sendBack(card: Card, failure: string, index: number): Promise<void>;
+  /** Once, right after `run.finished` is journaled: the « docs(plan) » PR (plan-export.ts). Fire and forget. */
+  lotFinished?(run: Run): void;
 }
 
 /** What a member needs next, read from the card, its journal and its pane. Null: nothing, for now. */
@@ -327,6 +330,7 @@ export class RunCoordinator {
       if (members.length === 0) continue;
       if (runState(run, members) === "finished") {
         this.db.recordRunEvent(null, "run.finished", { runId: run.id });
+        this.ports.lotFinished?.(open);
         continue;
       }
       let slots = this.ports.freeSlots() - this.starting;
@@ -721,6 +725,10 @@ export function runHook(
     },
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
     direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
+    lotFinished: (run) =>
+      void exportPlanAtLotEnd(db, run).then((r) =>
+        r.ok ? console.info(`[plan] lot ${run.id}: ${"skipped" in r ? `not exported — ${r.skipped}` : `PR ${r.url ?? "opened"}`}`) : console.warn(`[plan] lot ${run.id}: export failed — ${r.error}`),
+      ),
     mergeDirect: async (card) => {
       const held = await exclusive(integrating, card.id, () => mergeCard(db, db.getCard(card.id) ?? card, undefined, { direct: true }));
       if (held.busy) return { ok: false, error: { kind: "busy", message: "a gesture holds the card" } };

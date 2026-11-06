@@ -6,8 +6,10 @@ import {
   AUTONOMY_SECTION,
   boardErrorMessage,
   fetchAutonomy,
+  fetchPlanExport,
   fetchRepoIntegration,
   saveAutonomy,
+  setPlanExport,
   setRepoIntegration,
   type Autonomy,
   type RepoIntegration,
@@ -21,6 +23,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   const t = useT();
   const [a, setA] = useState<Autonomy | null>(null);
   const [integration, setIntegration] = useState<RepoIntegration | null>(null);
+  const [planExport, setPlanExportOn] = useState<boolean | null>(null);
   // What is typed in the rounds field, so it can be emptied to type another number; null = the saved value.
   const [rounds, setRounds] = useState<string | null>(null);
 
@@ -28,11 +31,15 @@ export function AutonomySettings({ repo }: { repo: string }) {
     const ac = new AbortController();
     setA(null);
     setIntegration(null);
+    setPlanExportOn(null);
     fetchAutonomy(repo, ac.signal)
       .then((r) => setA(r.autonomy))
       .catch(() => {});
     fetchRepoIntegration(repo, ac.signal)
       .then((r) => setIntegration(r.integration))
+      .catch(() => {});
+    fetchPlanExport(repo, ac.signal)
+      .then((r) => setPlanExportOn(r.enabled))
       .catch(() => {});
     return () => ac.abort();
   }, [repo]);
@@ -51,6 +58,15 @@ export function AutonomySettings({ repo }: { repo: string }) {
   async function saveIntegration(mode: RepoIntegration) {
     try {
       setIntegration((await setRepoIntegration(repo, mode)).integration);
+      setStatus(t("orch.autoSaved"), "success", 2000);
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  }
+
+  async function savePlanExport(on: boolean) {
+    try {
+      setPlanExportOn((await setPlanExport(repo, on)).enabled);
       setStatus(t("orch.autoSaved"), "success", 2000);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
@@ -130,6 +146,15 @@ export function AutonomySettings({ repo }: { repo: string }) {
               />
             </div>
             <p className="text-xs text-muted-foreground">{t("orch.directHint")}</p>
+          </>
+        )}
+        {planExport !== null && (
+          <>
+            <div className="flex items-center justify-between gap-3">
+              <span>{t("orch.planExport")}</span>
+              <Switch checked={planExport} onCheckedChange={(on) => void savePlanExport(on)} aria-label={t("orch.planExport")} />
+            </div>
+            <p className="text-xs text-muted-foreground">{t("orch.planExportHint")}</p>
           </>
         )}
       </div>

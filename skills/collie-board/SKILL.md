@@ -595,9 +595,16 @@ A repo may also be set to **merge direct** (ADR 0043) — the user's setting too
 finished, the card's branch is merged into the base in the repo's own checkout and pushed if there is an origin. A
 dirty checkout, or one not on the base, halts the card with the reason — tell the user, do not clean it yourself.
 
+At the **end of every lot**, the board opens one **« docs(plan) » PR** that writes `docs/plan/roadmap.md` (= the
+`format=md` roadmap), `docs/plan/etapes.md` (= `format=steps`) and `docs/plan/lots/<lot>.md` (the lot's bilan) on
+the base. The user merges it; the board never pushes the base. Do not open that PR yourself, nor commit `docs/plan/`
+in a card's work. The export is on by default and the user's switch alone (`POST /api/repos/plan-export` with
+`{path, enabled}` is refused from a pane). A lot another pair launched is exported by that pair, not here.
+
 ```bash
 curl -s "$B/api/repos" | jq '.repos[] | {path, gate}'        # gate = the command, or absent
 curl -s "$B/api/repos/integration?repo=/abs/repo"           # {"integration":"pr"|"direct"}
+curl -s "$B/api/repos/plan-export?repo=/abs/repo"           # {"enabled":true|false} — the end-of-lot plan PR
 curl -s "$B/api/project/facts[?repo=/abs/repo]"                # per card, read off its journal: gate result, the lead's
                                                               # verdict and reason, review verdict, PR + auto-merge,
                                                               # times sent back, template, start/end

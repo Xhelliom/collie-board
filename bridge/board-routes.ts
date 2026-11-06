@@ -105,6 +105,7 @@ const REPOS_LISTED_ROUTE = "/api/repos/listed";
 const REPOS_GATE_ROUTE = "/api/repos/gate";
 /** `/api/repos/integration` — how a run lands a repo's cards: a PR, or a merge direct (ADR 0043). */
 const REPOS_INTEGRATION_ROUTE = "/api/repos/integration";
+const REPOS_PLAN_EXPORT_ROUTE = "/api/repos/plan-export";
 /** `/api/repos/gate/suggest` — the copilot's suggestion for it. Returned, never saved. */
 const REPOS_GATE_SUGGEST_ROUTE = "/api/repos/gate/suggest";
 /** `/api/repos/environments?repo=` — the paired peers' environments whose origin is this repo's (ADR 0046 §4). */
@@ -587,6 +588,34 @@ async function route(
     ctx.db.setRepoIntegration(path.trim(), integration);
     ctx.audit.record({ action: "repo.integration", session: ctx.session, device: ctx.device, detail: { path: path.trim(), integration } });
     return ctx.json({ ok: true, integration });
+  }
+
+  // Whether a lot's end opens the « docs(plan) » PR (plan-export.ts). On by default; the operator's
+  // switch, like the integration mode — an agent pane may read it, never set it.
+  if (pathname === REPOS_PLAN_EXPORT_ROUTE) {
+    if (req.method === "GET") {
+      const denied = ctx.guard("read");
+      if (denied) return denied;
+      const repo = new URL(req.url).searchParams.get("repo");
+      if (!repo) return ctx.text("repo required", 400);
+      return ctx.json({ enabled: ctx.db.planExportOf(repo) });
+    }
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("the plan export is the operator's setting — an agent pane may not change it", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { path, enabled } = (body ?? {}) as { path?: unknown; enabled?: unknown };
+    if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    if (typeof enabled !== "boolean") return ctx.text("enabled must be a boolean", 400);
+    ctx.db.setPlanExport(path.trim(), enabled);
+    ctx.audit.record({ action: "repo.plan_export", session: ctx.session, device: ctx.device, detail: { path: path.trim(), enabled } });
+    return ctx.json({ ok: true, enabled });
   }
 
   // The board's switches: whether a review's follow-up suggestions become cards, and how many agents
