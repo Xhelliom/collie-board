@@ -9,7 +9,8 @@ import { useFold } from "@/components/fold";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
 import { boardPath, cardPath, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
-import { byLot, herdCounts, tileLot, type DashboardView, type RepoTile, type TileLot } from "@/lib/dashboard";
+import { byLot, herdCounts, tileLot, type DashboardView, type OrchestratorMood, type RepoTile, type TileLot } from "@/lib/dashboard";
+import { fetchRecette } from "@/lib/recette";
 import { panePath } from "@/lib/nav";
 import { ago, rich } from "@/lib/project-facts";
 import type { AgentView, NotifyLogEntry } from "@/lib/types";
@@ -165,7 +166,9 @@ function LotLine({ lot }: { lot: TileLot }) {
   );
 }
 
-function ProjectTile({ repo, lot }: { repo: RepoTile; lot?: TileLot | null }) {
+const MOOD_TONE: Record<OrchestratorMood, string> = { idle: "text-muted-foreground", working: "text-status-working", waiting: "font-semibold text-status-blocked" };
+
+function ProjectTile({ repo, lot, mood, toTest = 0 }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number }) {
   const t = useT();
   return (
     <Link
@@ -191,7 +194,9 @@ function ProjectTile({ repo, lot }: { repo: RepoTile; lot?: TileLot | null }) {
         {repo.current.length === 0 && <span>{t("home.project.idle", { count: repo.closedCount })}</span>}
         {repo.active > 0 && <span className="text-status-working">{t("home.project.flight", { count: repo.active })}</span>}
         {repo.waiting > 0 && <span className="font-semibold text-brand">{t("home.project.waiting", { count: repo.waiting })}</span>}
+        {toTest > 0 && <span className="font-semibold text-brand">{t("recette.chip", { count: toTest })}</span>}
       </div>
+      {mood && <div className={cn("text-xs", MOOD_TONE[mood])}>{t(`home.orch.${mood}`)}</div>}
     </Link>
   );
 }
@@ -232,7 +237,26 @@ export function useRepoLots(paths: string[], stamp: string): Record<string, Tile
   return lots;
 }
 
-export function ProjectTiles({ repos: all, lots = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null> }) {
+/** Each repo's « to test » count (recette entries never tried), in one request for every repo — read
+ *  with the lots, on the same `stamp`, so a delivery shows without a timer of its own. */
+export function useRepoToTest(paths: string[], stamp: string): Record<string, number> {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const key = paths.join("\n");
+  useEffect(() => {
+    if (!key) return setCounts({});
+    const ac = new AbortController();
+    void fetchRecette(null, ac.signal).then((r) => r.groups.flatMap((g) => g.entries), () => []).then((all) => {
+      if (ac.signal.aborted) return;
+      const out: Record<string, number> = {};
+      for (const e of all) if (e.state === "todo" && e.repoPath) out[e.repoPath] = (out[e.repoPath] ?? 0) + 1;
+      setCounts(out);
+    });
+    return () => ac.abort();
+  }, [key, stamp]);
+  return counts;
+}
+
+export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number> }) {
   const t = useT();
   const repos = byLot(all, lots);
   const { shown, toggle } = useFold(repos, 3);
@@ -242,7 +266,7 @@ export function ProjectTiles({ repos: all, lots = {} }: { repos: RepoTile[]; lot
       <h2 className={sectionTitle}>{t("home.projects")}</h2>
       <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
         {shown.map((r) => (
-          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} />
+          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} mood={moods[r.path]} toTest={toTest[r.path]} />
         ))}
       </div>
       {toggle}
