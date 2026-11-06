@@ -111,3 +111,12 @@ export function herdCounts(agents: AgentView[]): [number, number, number] {
   const [n, w, o] = AGENT_GROUPS.map((g) => groupMembers(agents, g).length);
   return [n ?? 0, w ?? 0, o ?? 0];
 }
+
+/** What a project's orchestrator is doing, read off the snapshot — no request. Absent counts as at rest. */
+export type OrchestratorMood = "idle" | "working" | "waiting";
+export function orchestratorMood(agents: readonly AgentView[], repoPath: string): OrchestratorMood {
+  // Same match as the bridge's findOrchestrator: its own label AND the repo's directory.
+  const trim = (p: string) => p.replace(/\/+$/, "");
+  const a = agents.find((x) => x.workspaceLabel === `orchestrator-${repoName(repoPath)}` && trim(x.cwd) === trim(repoPath));
+  return a?.status === "blocked" ? "waiting" : a?.status === "working" ? "working" : "idle";
+}

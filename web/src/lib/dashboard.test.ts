@@ -1,4 +1,4 @@
-import { byLot, dashboardOf, herdCounts, tileLot } from "./dashboard";
+import { byLot, dashboardOf, herdCounts, orchestratorMood, tileLot } from "./dashboard";
 import type { CardView, Lot, Phase } from "./board";
 import type { AgentView } from "./types";
 
@@ -62,5 +62,19 @@ describe("tileLot / byLot", () => {
     const repos = ["/a", "/b", "/c", "/d", "/e"].map((path) => ({ path }));
     const lots = { "/b": fin(1), "/c": { ...fin(0), finishedAt: null }, "/d": fin(5) };
     expect(byLot(repos, lots).map((r) => r.path)).toEqual(["/c", "/d", "/b", "/a", "/e"]);
+  });
+});
+
+describe("orchestratorMood", () => {
+  const orch = (status: AgentView["status"], extra: Partial<AgentView> = {}) =>
+    ({ paneId: "o", workspaceLabel: "orchestrator-app", cwd: "/g/app", status, ...extra }) as AgentView;
+  it("reads the repo's orchestrator off the snapshot: blocked waits for you, working works, else at rest", () => {
+    expect(orchestratorMood([orch("blocked")], "/g/app")).toBe("waiting");
+    expect(orchestratorMood([orch("working")], "/g/app/")).toBe("working");
+    expect(orchestratorMood([orch("idle")], "/g/app")).toBe("idle");
+    expect(orchestratorMood([], "/g/app")).toBe("idle");
+  });
+  it("never takes another directory's pane with the same label for it", () => {
+    expect(orchestratorMood([orch("blocked", { cwd: "/other/app" })], "/g/app")).toBe("idle");
   });
 });

@@ -90,6 +90,25 @@ describe("HomeRoute cold start", () => {
     expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
   });
 
+  it("shows each project's orchestrator state and its « to test » count, from one recette request for every repo", async () => {
+    const urls: string[] = [];
+    server.use(http.get("/api/recette", ({ request }) => (urls.push(request.url), HttpResponse.json({ groups: [{ usage: null, entries: [
+      { repoPath: "/home/me/repo", state: "todo" }, { repoPath: "/home/me/repo", state: "todo" }, { repoPath: "/home/me/repo", state: "ok" },
+    ] }] }))));
+    const orch = { ...data.agents[0], paneId: "o1", workspaceLabel: "orchestrator-repo", cwd: "/home/me/repo", status: "blocked" as const };
+    data.agents.push(orch);
+    try {
+      await coldHome(async () => HttpResponse.json({ cards: [card, { ...card, id: "c2", repoPath: "/home/me/other" }] }));
+      expect(await screen.findByText("2 to test")).toBeInTheDocument();
+      expect(screen.getByText("Orchestrator awaits your decision")).toBeInTheDocument();
+      expect(screen.getByText("Orchestrator at rest")).toBeInTheDocument();
+      expect(urls).toHaveLength(1);
+      expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
+    } finally {
+      data.agents.pop();
+    }
+  });
+
   it("keeps a cards failure in the card blocks, the triage untouched", async () => {
     await coldHome(async () => HttpResponse.json({ error: "boom" }, { status: 500 }));
     await waitFor(() => expect(screen.getAllByText("Cards unavailable.")).toHaveLength(2));

@@ -20,11 +20,13 @@ import {
   UsageRings,
   useRepoLots,
   useRepoPhases,
+  useRepoToTest,
 } from "@/components/home-dashboard";
 import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
 import { repoName, reposOf } from "@/lib/board";
 import { useListedRepos } from "@/lib/listed-repos";
-import { dashboardOf } from "@/lib/dashboard";
+import { dashboardOf, orchestratorMood } from "@/lib/dashboard";
+import type { AgentView } from "@/lib/types";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { remoteAgents } from "@/lib/peers";
@@ -86,7 +88,7 @@ export function HomeRoute() {
               </div>
               <aside className="flex flex-col gap-6">
                 <CardBlock board={board} fallback={<ProjectTilesSkeleton />} label={t("home.projects")}>
-                  {(b) => <Projects board={b} />}
+                  {(b) => <Projects board={b} agents={data.agents} />}
                 </CardBlock>
                 <OpenPrs />
                 <UsageRings />
@@ -118,7 +120,7 @@ function Kpis({ board }: { board: BoardData }) {
   return <HomeKpis dash={dash} />;
 }
 
-function Projects({ board }: { board: BoardData }) {
+function Projects({ board, agents }: { board: BoardData; agents: AgentView[] }) {
   const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
   const listed = useListedRepos();
   const dash = useMemo(() => {
@@ -128,6 +130,10 @@ function Projects({ board }: { board: BoardData }) {
     return { ...d, repos: [...d.repos, ...extra.map((path) => ({ path, name: repoName(path), current: [], active: 0, waiting: 0, closedCount: 0, updatedAt: 0 }))] };
   }, [board.cards, phases, listed]);
   const stamp = useMemo(() => board.cards.map((c) => `${c.id}:${c.status}:${c.updatedAt}`).join(), [board.cards]);
-  const lots = useRepoLots(useMemo(() => dash.repos.map((r) => r.path), [dash.repos]), stamp);
-  return <ProjectTiles repos={dash.repos} lots={lots} />;
+  const paths = useMemo(() => dash.repos.map((r) => r.path), [dash.repos]);
+  const lots = useRepoLots(paths, stamp);
+  const toTest = useRepoToTest(paths, stamp);
+  // This machine's agents only: a peer's orchestrator runs on its own paths.
+  const moods = useMemo(() => Object.fromEntries(paths.map((p) => [p, orchestratorMood(agents, p)])), [paths, agents]);
+  return <ProjectTiles repos={dash.repos} lots={lots} moods={moods} toTest={toTest} />;
 }
