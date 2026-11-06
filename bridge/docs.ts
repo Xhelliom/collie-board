@@ -9,7 +9,9 @@ import { defaultBranchOf, docsOnRef, grepDocsOnRef, isSafePageName, pagesOnRef, 
 import { repoPathOf } from "./paths.ts";
 import { redactText } from "./redact.ts";
 import { scrubHtml } from "./scrub.ts";
-import { repoRootOf } from "./repos.ts";
+import { listRepos, repoRootOf, scanRootsFor } from "./repos.ts";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 
 export const DOCS_ROUTE = "/api/docs";
 const DOCS_FILE = "/api/docs/file";
@@ -156,6 +158,15 @@ async function rubricsFor(root: string, ref: string, docs: readonly TreeDoc[]): 
   return defaultRubrics();
 }
 
+/**
+ * The repo's root when the board knows it (its card, herd, scan or hand-listed repos — hidden ones
+ * included), else null: these routes read any known project, never an arbitrary path on disk.
+ */
+export async function knownRepoRoot(repo: string, known: readonly string[]): Promise<string | null> {
+  const root = await repoRootOf(repo).catch(() => null);
+  return root && (known.includes(root) || known.includes(repo)) ? root : null;
+}
+
 export async function handleDocsRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {
   if (![DOCS_ROUTE, DOCS_FILE, DOCS_SEARCH, PAGES, PAGE].includes(pathname)) return null;
   if (req.method !== "GET") return ctx.text("method not allowed", 405);
@@ -164,8 +175,9 @@ export async function handleDocsRoute(pathname: string, req: Request, ctx: Board
   const q = new URL(req.url).searchParams;
   const repo = repoPathOf(q.get("repo"));
   if (!repo) return ctx.text("repo must be an absolute path", 400);
-  const root = await repoRootOf(repo).catch(() => null);
-  if (!root) return ctx.text("not a git repository", 404);
+  const known = await listRepos(ctx.db, ctx.engine.current(), scanRootsFor(ctx.cfg.boardRepoRoots, homedir(), existsSync));
+  const root = await knownRepoRoot(repo, known.map((r) => r.path));
+  if (!root) return ctx.text("unknown repository: not one of the board's projects", 403);
   const ref = await defaultBranchOf(root).catch(() => undefined);
   if (!ref) return ctx.text("no default branch", 404);
 

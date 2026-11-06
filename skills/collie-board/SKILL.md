@@ -282,7 +282,12 @@ plus one "what we build" module (game · product · tool · infra). Ask its §3 
 module; on an existing repo **propose a mapping, move nothing yourself**, migrate by PR. Its
 `json doc-paths` block is the machine-readable path list.
 
-Read a repo's docs as they stand on its default branch (from git's tree — never the working copy):
+Read a repo's docs as they stand on its default branch (from git's tree — never the working copy).
+Any project the board knows (`GET /api/repos`, hidden ones included) can be read this way, read-only —
+another repo's too; a path the board does not know is refused **403**. With the MCP server:
+`read_project_docs {repoPath}` lists them by rubric then the decisions, `read_project_docs {repoPath, path}`
+reads one file. To change a doc, never write it from the board: the operator's « Demander une modif »
+files a card (the file + what to change) and the agent that takes it opens the PR.
 - `GET /api/docs?repo=<path>` — `{ ref, rubrics:[{id,label,docs:[{path,title,size}]}], other, decisions }`:
   every `.md` classed by those rubrics (`other` = outside the convention), and `decisions` = the ADRs
   (`kind:"adr"`, status and date read in the file) merged with the roadmap's (`kind:"roadmap"`), newest first.

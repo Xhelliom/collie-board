@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
-import { buildIndex, docMeta, META_PATTERN, parseDocPaths, rubricOf } from "./docs.ts";
+import { buildIndex, docMeta, knownRepoRoot, META_PATTERN, parseDocPaths, rubricOf } from "./docs.ts";
 import { docsOnRef, grepDocsOnRef, isSafeDocPath, readDocOnRef, type GitRunner } from "./git.ts";
 
 function sh(cwd: string, ...args: string[]): string {
@@ -119,5 +119,16 @@ describe("the convention's doc-paths", () => {
       { path: "a.md", line: 2, text: "**Statut :** ✅ décidé" },
     ]);
     expect(m.get("a.md")).toEqual({ title: "First", status: "✅ décidé", date: null });
+  });
+});
+
+describe("knownRepoRoot: another project's docs, never an arbitrary path", () => {
+  test("a repo the board knows reads, from its root or a folder in it; an unknown one is refused", async () => {
+    const dir = repo();
+    const root = sh(dir, "rev-parse", "--show-toplevel").trim();
+    expect(await knownRepoRoot(dir, [root])).toBe(root);
+    expect(await knownRepoRoot(join(dir, "docs"), [root])).toBe(root);
+    expect(await knownRepoRoot(dir, ["/elsewhere"])).toBeNull();
+    expect(await knownRepoRoot(tmpdir(), [tmpdir()])).toBeNull();
   });
 });
