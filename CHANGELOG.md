@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.274.0] - 2026-11-06
+
+### Added
+
+- Documents : bandeau « Bilan de doc » — chaque écart à la convention en une ligne (index, ADR, plan, module, AGENTS trop long ou en double, décisions à deux endroits, fichier > 30 Ko, ligne Statut manquante). (79de179)
+- Documents : bouton « Mettre la doc aux normes » — crée une carte dont l'agent pose ses questions (décision ouverte liée à la carte) puis propose une correspondance par PR, sans rien supprimer. (79de179)
+- `GET /api/docs` : champ `bilan`. (79de179)
+
 ## [0.273.0] - 2026-11-06
 
 ### Added
