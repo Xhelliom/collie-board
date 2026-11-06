@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793953447273.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"herdr-core en écriture : lancer et piloter sous hc","status":"backlog"},"ts":1793953440001}}
 {"v":1,"hlc":"1793953447274.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"696de895-e439-4fca-9fe8-345d1fea38ca"}}
 {"v":1,"hlc":"1793961788982.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793961800250.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/herdr-core-en-ecriture-lancer-et-piloter-sous-hc"}}
+{"v":1,"hlc":"1793961800250.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793961800250.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793961791386}}
+{"v":1,"hlc":"1793961800250.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793961800250.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793961796024}}
+{"v":1,"hlc":"1793961800250.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3494},"ts":1793961797363}}
