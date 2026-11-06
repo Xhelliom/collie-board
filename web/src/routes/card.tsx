@@ -38,6 +38,7 @@ import { ApiError } from "@/lib/api";
 import { AgentIcon } from "@/components/agent-icon";
 import { AppHeader } from "@/components/app-header";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
+import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -686,6 +687,14 @@ export function CardRoute() {
                       }}
                     />
                     <AutoHandoffChoice card={card} onChanged={() => revalidator.revalidate()} />
+                    <MigrateHcButton
+                      card={card}
+                      onDone={(message, ok) => {
+                        if (ok) setStatus(message, "success");
+                        else setStatus(message, "error", null);
+                        revalidator.revalidate();
+                      }}
+                    />
                   </>
                 ) : (
                   <>

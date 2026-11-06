@@ -180,7 +180,7 @@ describe("hc writes", () => {
     expect(wt.checkoutPath).toMatch(/\.herdr\/worktrees\/collie-board\/board-x$/);
     expect(wt).toMatchObject({ paneId: "t7", workspaceId: "hc", alreadyOpen: false });
     expect(written).toEqual([
-      { method: "terminal.run", params: { cwd: wt.checkoutPath, labels: { "collie.cwd": wt.checkoutPath, "collie.name": "Carte" }, no_parent: true } },
+      { method: "terminal.run", params: { cwd: wt.checkoutPath, labels: { "collie.cwd": wt.checkoutPath, "collie.name": "Carte" }, env: { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" }, no_parent: true } },
     ].map((w) => expect.objectContaining(w)));
   });
 

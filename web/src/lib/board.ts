@@ -892,6 +892,20 @@ export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
   });
 }
 
+/** Whether « Migrer vers herdr-core » is offered for this card's agent, and why not (bridge/migrate-hc.ts). */
+export function migrateHcAvailability(id: string, signal?: AbortSignal): Promise<{ available: boolean; reason?: string }> {
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/migrate-hc`, { signal }, GET_TIMEOUT_MS);
+}
+
+/**
+ * Close the card's Claude pane under herdr 0.9 and resume its conversation under hc. Two agent
+ * launches in the worst case (hc, then 0.9 again), hence the long timeout. Rejects with the bridge's
+ * message when hc refused — the agent is then back under 0.9.
+ */
+export function migrateCardToHc(id: string): Promise<{ ok: true; paneId: string }> {
+  return apiRequest(`/api/cards/${encodeURIComponent(id)}/migrate-hc`, { method: "POST" }, INTEGRATION_TIMEOUT_MS);
+}
+
 /**
  * Answer the offer of an automatic handoff: `accept` replaces the pane with a fresh agent opened on
  * the stored note and returns its pane; declining drops the offer and leaves the session as it is.

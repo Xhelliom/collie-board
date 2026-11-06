@@ -346,7 +346,10 @@ export class Hc implements Mux {
 
   private async shell(cwd: string, label?: string): Promise<string> {
     const labels: Record<string, string> = { [CWD_LABEL]: cwd, ...(label ? { [NAME_LABEL]: label } : {}) };
-    return (await this.request<{ address: string }>("terminal.run", { cwd, labels, no_parent: true })).address;
+    // A core started from inside a Claude pane hands CLAUDE_CODE_CHILD_SESSION=1 down, and Claude then
+    // writes no transcript; `env` only adds, so force it back (HERDR_CORE_API.md §3, measured).
+    const env = { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" };
+    return (await this.request<{ address: string }>("terminal.run", { cwd, labels, env, no_parent: true })).address;
   }
 
   private shellIn(paneId: string, cwd: string): CreatedShell {

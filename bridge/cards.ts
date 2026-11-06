@@ -277,6 +277,13 @@ export function releaseSession(db: BoardDb, cardId: string, status: CardStatus):
 }
 
 /**
+ * Open sessions whose pane this snapshot cannot show: mid-migration, or migrated to hc on a herdr09
+ * bridge (migrate-hc.ts). Reconcile leaves them be instead of orphaning them. In memory on purpose
+ * (`session` is ephemeral): after a restart, a bridge that cannot see the pane orphans it — true.
+ */
+export const outOfSight = new Set<string>();
+
+/**
  * Reconcile the whole board against one snapshot. Called from the state engine's update hook, so it
  * runs at exactly the poll cadence and nowhere else.
  *
@@ -289,6 +296,7 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
   const panes = panesById(snap);
 
   for (const session of db.listOpenSessions()) {
+    if (outOfSight.has(session.id)) continue;
     const card = db.getCard(session.cardId);
     if (!card) continue;
     const pane = session.paneId ? panes.get(session.paneId) : undefined;
