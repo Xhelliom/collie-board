@@ -863,7 +863,9 @@ case "${1:-}" in
   stop)    cmd_stop ;;
   restart) cmd_restart ;;
   uninstall) cmd_uninstall ;;
-  update)  cmd_update ;;
+  # `update-bash` is `update` for a host whose Herdr can't see bun: the bridge's button invokes it
+  # on Linux/macOS, so it never depends on bun being on Herdr's PATH (ADR 0050).
+  update|update-bash)  cmd_update ;;
   _apply-update) cmd_apply_update ;;  # internal: second half of `update`, run post-pull
   build)   cmd_build ;;
   serve)   cmd_serve; echo "open: $(bridge_url)" ;;

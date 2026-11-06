@@ -5,6 +5,7 @@ import { useRevalidator, useRouteLoaderData } from "react-router";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ApplyUpdateControl } from "@/components/apply-update-control";
 import { RollbackControl } from "@/components/rollback-control";
 import { checkForUpdates } from "@/lib/api";
 import { ago } from "@/lib/project-facts";
@@ -82,6 +83,7 @@ export function UpdateCheckControl() {
         {!busy && !error && upToDate && (
           <span className="text-xs text-muted-foreground">{t("settings.updates.upToDate")}</span>
         )}
+        {update?.releaseAvailable && update.latest && <ApplyUpdateControl latest={update.latest} />}
         <RollbackControl />
       </div>
     </Card>
