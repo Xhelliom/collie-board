@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1793969523978.0001.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":null,"name":"Lead des lots de pair","position":53,"launched_at":null,"max_parallel":1,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1793969522042,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
 {"v":1,"hlc":"1793985428227.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1793985421167}}
+{"v":1,"hlc":"1793986292336.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1793986282566}}
