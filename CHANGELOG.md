@@ -9,6 +9,22 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.272.0] - 2026-11-06
+
+### Added
+
+- Documents : bouton « Demander une modif » sur un document — crée une carte (fichier + demande) ; l'agent fait la PR, le board n'écrit pas le dépôt. (b16ae7f)
+- MCP : outil `read_project_docs` — liste par rubrique et lecture d'un fichier de la doc d'un projet connu, en lecture seule. (b16ae7f)
+
+### Changed
+
+- Routes `/api/docs*` : lisent tout dépôt connu du board ; un chemin inconnu est refusé (403). (b16ae7f)
+
+### Fixed
+
+- Lancement distant : le pair répond dès que le pane existe, l'agent démarre ensuite — plus de 502 sur un démarrage lent (a61f4f4)
+- Lancement distant : une relance pendant le démarrage ne lance pas un second agent ; un échec de réouverture du worktree dit les deux erreurs (a61f4f4)
+
 ## [0.271.1] - 2026-11-06
 
 ### Changed
