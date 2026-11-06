@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import type { BoardContext } from "./board-routes.ts";
-import { loadConfig } from "./config.ts";
+import type { Config } from "./config.ts";
 import { handleDocsRoute, PAGE_CSP } from "./docs.ts";
 import { isSafePageName, parsePageTree } from "./git.ts";
 import { checkAccess } from "./server.ts";
@@ -82,7 +82,8 @@ describe("custom pages", () => {
     expect(server).toContain(
       `"default-src 'self'; connect-src 'self'; img-src 'self' data:; " +\n  "style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; " +\n  "manifest-src 'self'; base-uri 'none'; frame-ancestors 'none'"`,
     );
-    const cfg = loadConfig();
+    // Only the fields checkAccess reads, pinned — loadConfig() would pick up the host's .env (public hosts…).
+    const cfg = { publicHosts: [], allowedOrigins: [], port: 8788, trustedUser: "" } as unknown as Config;
     const req = (origin?: string) => new Request("http://h/api/cards", { headers: { host: "h", ...(origin ? { origin } : {}) } });
     expect(checkAccess(req("null"), cfg).ok).toBe(false);
     expect(checkAccess(req("http://h"), cfg).ok).toBe(true);
