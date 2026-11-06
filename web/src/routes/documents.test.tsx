@@ -21,6 +21,11 @@ const INDEX: DocsIndex = {
     { kind: "roadmap", id: "d1", text: "The repo is the source of truth", status: "decided", date: "2026-11-06" },
     { kind: "adr", path: ".adr/0001-door.md", title: "0001 — One door", status: "Accepted", date: "2026-09-01" },
   ],
+  bilan: [
+    { code: "missing", rubric: "index", label: "Où chercher quoi" },
+    { code: "tooBig", path: "plan/dette.md", size: 140_000 },
+    { code: "noStatus", count: 5, paths: ["docs/a.md", "docs/b.md", "docs/c.md"] },
+  ],
 };
 
 const FILES: Record<string, string> = {
@@ -128,5 +133,34 @@ describe("DocumentsRoute", () => {
     expect(body).toMatchObject({ title: "Doc: change docs/plan/phase-1.md", repoPath: "/r/app" });
     expect(String(body!.spec)).toContain("`docs/plan/phase-1.md`");
     expect(String(body!.spec)).toContain("Add the exit criteria");
+  });
+
+  it("shows the doc check one gap per line, and « Bring the docs up to standard » files a card that asks first", async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post("/api/cards", async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true, card: { id: "c43" } });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    expect(await screen.findByText("No « Où chercher quoi »")).toBeInTheDocument();
+    expect(screen.getByText("plan/dette.md is 140 KB: split it past 30")).toBeInTheDocument();
+    expect(screen.getByText("5 files in docs/ without a Status line: docs/a.md, docs/b.md, docs/c.md, …")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Bring the docs up to standard" }));
+    expect(await screen.findByText("card page")).toBeInTheDocument();
+    expect(body).toMatchObject({ title: "Doc: bring app up to the convention", repoPath: "/r/app" });
+    const spec = String(body!.spec);
+    expect(spec).toContain("- plan/dette.md is 140 KB");
+    expect(spec).toContain('"open"');
+    expect(spec).toContain("cardId");
+    expect(spec).toContain("Delete nothing");
+  });
+
+  it("says when the docs hold to the convention, with no button", async () => {
+    server.use(http.get("/api/docs", () => HttpResponse.json({ ...INDEX, bilan: [] })));
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    expect(await screen.findByText("✅ The docs follow the convention.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Bring the docs up to standard" })).toBeNull();
   });
 });
