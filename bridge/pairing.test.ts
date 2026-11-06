@@ -242,6 +242,10 @@ describe("environments, chosen, never typed", () => {
     expect((await env(b.d, { action: "rename", name: "app", to: "web" })).status).toBe(200);
     expect(b.d.store.view().environments.map((e) => e.name)).toEqual(["web"]);
     expect(b.d.store.view().inbound[0]!.launch).toEqual(["web"]);
+    expect((await env(b.d, { action: "agent", name: "web", agent: "codex" })).status).toBe(200);
+    expect((await env(b.d, { action: "agent", name: "web", agent: "sh" })).status).toBe(400);
+    expect(b.d.store.view().environments).toEqual([{ name: "web", repoPath: "/home/me/git/app", agent: "codex" }]);
+    expect(b.d.store.view().inbound[0]!.launch).toEqual(["web"]);
     expect((await env(b.d, { action: "rename", name: "nope", to: "x" })).status).toBe(404);
     expect((await env(b.d, { action: "remove", name: "web" })).status).toBe(200);
     expect(b.d.store.view().environments).toEqual([]);

@@ -240,6 +240,12 @@ export class PeerStore {
     this.writeNode({ ...cfg, peers, environments: cfg.environments.map((e) => (e.name === from ? { ...e, name: to } : e)) });
   }
 
+  /** Change the agent an environment runs; its name, and so every grant, stays. */
+  setEnvironmentAgent(name: string, agent: string): void {
+    const cfg = this.envConfig(name);
+    this.writeNode({ ...cfg, environments: cfg.environments.map((e) => (e.name === name ? { ...e, agent } : e)) });
+  }
+
   /** Remove an environment, and every grant to launch in it. */
   removeEnvironment(name: string): void {
     const cfg = this.envConfig(name);
@@ -523,8 +529,13 @@ export async function handlePeerRoute(pathname: string, req: Request, d: PeerRou
         d.audit("peers.environment.rename", { environment: name, to });
         return d.json({ ok: true });
       }
-      if (b.action !== "add") return d.json({ ok: false, error: "action must be add, rename or remove" }, 400);
+      if (b.action !== "add" && b.action !== "agent") return d.json({ ok: false, error: "action must be add, rename, agent or remove" }, 400);
       if (typeof b.agent !== "string" || !d.agents().includes(b.agent)) return d.json({ ok: false, error: `unknown agent "${String(b.agent)}"` }, 400);
+      if (b.action === "agent") {
+        store.setEnvironmentAgent(name, b.agent);
+        d.audit("peers.environment.agent", { environment: name, agent: b.agent });
+        return d.json({ ok: true });
+      }
       // Chosen in the board's own list, never resolved from what was typed (ADR 0049 §6).
       const repoPath = (await d.knownRepos()).find((r) => r === b.repo);
       if (!repoPath) return d.json({ ok: false, error: "repo must be one of the board's known repos" }, 400);

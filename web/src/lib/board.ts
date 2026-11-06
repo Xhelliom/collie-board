@@ -681,6 +681,8 @@ export interface CardEnvironment {
 export function fetchRepoEnvironments(repo: string): Promise<{
   remote: string | null;
   environments: (CardEnvironment & { agent: string })[];
+  /** Same repo, but the peer has not granted this machine a launch there: shown greyed. Absent on an older bridge. */
+  denied?: (CardEnvironment & { agent: string })[];
   /** A reached peer with nothing usable for this repo, and why — said before a start, not by its refusal. */
   blocked?: { peer: string; reason: "no-environment" | "origin-mismatch" | "launch-not-granted" }[];
   unreachable: { peer: string; error: string }[];

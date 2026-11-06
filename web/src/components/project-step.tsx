@@ -143,6 +143,12 @@ export function StepItem({
           ) : (
             card.runId && !inLot && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">{t("step.inRun")}</span>
           )}
+          {/* Where it runs when not here (ADR 0046 §4): said whether or not it is running. */}
+          {card.environment && (
+            <span title={card.environment.name} className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              {t("cardEnv.on", { peer: card.environment.peer })}
+            </span>
+          )}
           {hold?.step ? (
             <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
           ) : (

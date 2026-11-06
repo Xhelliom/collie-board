@@ -51,6 +51,7 @@ export const testPeer = (name: string) => post<{ test: TestResult }>("/api/peers
 /** Declare, rename or remove an environment. `repo` is a path from `/api/repos`, checked against the bridge's own list. */
 export const addEnvironment = (name: string, repo: string, agent: string) => post<{ ok: true }>("/api/peers/environments", { action: "add", name, repo, agent });
 export const renameEnvironment = (name: string, to: string) => post<{ ok: true }>("/api/peers/environments", { action: "rename", name, to });
+export const setEnvironmentAgent = (name: string, agent: string) => post<{ ok: true }>("/api/peers/environments", { action: "agent", name, agent });
 export const removeEnvironment = (name: string) => post<{ ok: true }>("/api/peers/environments", { action: "remove", name });
 
 /** « Autoriser le lancement depuis <peer> »: the grant alone (ADR 0051) — the repo's autonomy is not touched. */

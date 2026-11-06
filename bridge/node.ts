@@ -287,6 +287,8 @@ export async function handleNodeRoute(pathname: string, req: Request, d: NodeRou
         name,
         agent,
         remote: normalizeRemote(await originUrl(repoPath)),
+        // Absent `launch` is only a hand-written 0046 peer (« every environment », as parseLaunch
+        // enforces too); pairing always writes `launch = []`, so ADR 0051's default stays closed.
         launch: !granted || granted.includes(name),
       })),
     );
