@@ -7,3 +7,4 @@
 {"v":1,"hlc":"1793953243266.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.remote_launched","payload":{"peer":"Dell-5550-Stef","environment":"collie-board","paneId":"wF:p1","branch":"board/sonde-windows-mesures-sur-le-poste"},"ts":1793953241761}}
 {"v":1,"hlc":"1793953243266.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1793953243266.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"working","reason":"launched on Dell-5550-Stef (collie-board)"},"ts":1793953241770}}
+{"v":1,"hlc":"1793956435495.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"agent_kind":"claude"}}
