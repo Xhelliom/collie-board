@@ -1,11 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
-import { docMatches, docsLoader, resolveDocLink, type DocsIndex } from "@/lib/docs";
+import { decisionStatus, docMatches, docsLoader, resolveDocLink, type DocsIndex } from "@/lib/docs";
 import { server } from "@/test/setup";
 
 import { DocumentsRoute } from "./documents";
@@ -20,6 +20,7 @@ const INDEX: DocsIndex = {
   decisions: [
     { kind: "roadmap", id: "d1", text: "The repo is the source of truth", status: "decided", date: "2026-11-06" },
     { kind: "adr", path: ".adr/0001-door.md", title: "0001 — One door", status: "Accepted", date: "2026-09-01" },
+    ...[1, 2, 3, 4, 5].map((n) => ({ kind: "roadmap" as const, id: `o${n}`, text: `Open question ${n}`, status: "open" as const, date: "2026-08-01" })),
   ],
   bilan: [
     { code: "missing", rubric: "index", label: "Où chercher quoi" },
@@ -69,6 +70,15 @@ describe("docs helpers", () => {
     expect(resolveDocLink("README.md", "../x.md")).toBeNull();
   });
 
+  it("classes an ADR's free-text status, and keeps a roadmap decision's own", () => {
+    const adr = (status: string | null) => ({ kind: "adr" as const, path: "a.md", title: "a", status, date: null });
+    expect(decisionStatus(adr("Accepted — superseded by 0036"))).toBe("decided");
+    expect(decisionStatus(adr("Proposed"))).toBe("leaning");
+    expect(decisionStatus(adr("Ouvert"))).toBe("open");
+    expect(decisionStatus(adr(null))).toBe("decided");
+    expect(decisionStatus({ kind: "roadmap", id: "x", text: "x", status: "leaning", date: null })).toBe("leaning");
+  });
+
   it("matches on title, path, or the bridge's text hits", () => {
     const d = { path: "NOTES.md", title: "Notes", size: 1 };
     expect(docMatches(d, "", new Set())).toBe(true);
@@ -86,10 +96,10 @@ describe("DocumentsRoute", () => {
 
   it("lists the rubrics, « Other » and the merged decisions with their statuses", async () => {
     mount("/board/documents?repo=%2Fr%2Fapp");
-    expect(await screen.findByText("Plan par phase")).toBeInTheDocument();
-    expect(screen.getByText("Other")).toBeInTheDocument();
+    expect(await screen.findAllByText("Plan par phase")).toHaveLength(2); // the bar and the section
+    expect(screen.getAllByText("Other")).toHaveLength(2);
     expect(screen.getByText("The repo is the source of truth")).toBeInTheDocument();
-    expect(screen.getByText("✅ Decided")).toBeInTheDocument();
+    expect(screen.getAllByText("✅ Decided")).toHaveLength(2); // the row and its filter
     expect(screen.getByText("Accepted")).toBeInTheDocument();
   });
 
@@ -103,6 +113,29 @@ describe("DocumentsRoute", () => {
     await userEvent.type(box, "girafe");
     expect(await screen.findByText("Notes")).toBeInTheDocument();
     expect(screen.queryByText("Phase 1")).toBeNull();
+  });
+
+  it("previews five decisions, folds a section, jumps from the bar, and a search unfolds its hits", async () => {
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    expect(await screen.findByText("Open question 3")).toBeInTheDocument();
+    expect(screen.queryByText("Open question 4")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "See the 7 decisions" }));
+    expect(screen.getByText("Open question 5")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "❓ Open" }));
+    expect(screen.queryByText("The repo is the source of truth")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "❓ Open" }));
+
+    const fold = screen.getByRole("button", { name: /Plan par phase/, expanded: true });
+    await userEvent.click(fold);
+    expect(screen.queryByText("Phase 1")).toBeNull();
+    const bar = screen.getByRole("navigation", { name: "Sections" });
+    await userEvent.click(within(bar).getByRole("button", { name: "Plan par phase" }));
+    expect(screen.getByText("Phase 1")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Plan par phase/, expanded: true }));
+    await userEvent.type(screen.getByPlaceholderText("Search titles and text"), "phase");
+    expect(screen.getByText("Phase 1")).toBeInTheDocument();
   });
 
   it("opens a document as text, and follows its relative .md link in place", async () => {
@@ -144,7 +177,9 @@ describe("DocumentsRoute", () => {
       }),
     );
     mount("/board/documents?repo=%2Fr%2Fapp");
-    expect(await screen.findByText("No « Où chercher quoi »")).toBeInTheDocument();
+    // Folded while it has gaps, so the rubrics stay on screen.
+    await userEvent.click(await screen.findByRole("button", { name: /Doc check/, expanded: false }));
+    expect(screen.getByText("No « Où chercher quoi »")).toBeInTheDocument();
     expect(screen.getByText("plan/dette.md is 140 KB: split it past 30")).toBeInTheDocument();
     expect(screen.getByText("5 files in docs/ without a Status line: docs/a.md, docs/b.md, docs/c.md, …")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Bring the docs up to standard" }));

@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, FileText, PencilLine, Search, Wand2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, PencilLine, Search, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
 import { DocLinkContext, MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 import { useT } from "@/i18n";
 import { createCard, repoName } from "@/lib/board";
 import { setStatus } from "@/lib/status";
-import { bilanLine, docMatches, fetchDoc, resolveDocLink, searchDocs, type DocDecision, type DocEntry, type DocsIndex } from "@/lib/docs";
+import { bilanLine, decisionStatus, docMatches, fetchDoc, resolveDocLink, searchDocs, type DecisionStatus, type DocDecision, type DocEntry, type DocsIndex } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
 // The Documents tab: the repo's Markdown as it stands on its default branch, one section per rubric
@@ -21,6 +22,9 @@ const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 const ROW = cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-muted/60", FOCUS);
 /** Text search waits for the typing to settle — a request per keystroke would be a poll by another name. */
 const SEARCH_DELAY_MS = 300;
+/** Decisions shown before « See the N decisions »: enough to read what moved, short enough to reach the rubrics. */
+const DECISIONS_PREVIEW = 5;
+const STATUSES: readonly DecisionStatus[] = ["decided", "leaning", "open"];
 
 export function DocumentsRoute() {
   const t = useT();
@@ -52,6 +56,10 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
   const t = useT();
   const [query, setQuery] = useState("");
   const [inText, setInText] = useState<ReadonlySet<string>>(new Set());
+  // The doc check starts folded when it has gaps: a long list on top would push the rubrics off the screen.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set(index.bilan?.length ? ["bilan"] : []));
+  const [showAll, setShowAll] = useState(false);
+  const [statuses, setStatuses] = useState<ReadonlySet<DecisionStatus>>(new Set());
 
   useEffect(() => {
     const needle = query.trim();
@@ -73,10 +81,35 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
     .map((r) => ({ ...r, docs: r.docs.filter(keep) }))
     .filter((r) => r.docs.length > 0);
   const needle = query.trim().toLowerCase();
-  const decisions = index.decisions.filter((d) =>
-    d.kind === "adr" ? keep({ path: d.path, title: d.title, size: 0 }) : !needle || d.text.toLowerCase().includes(needle),
+  const decisions = index.decisions.filter(
+    (d) =>
+      (statuses.size === 0 || statuses.has(decisionStatus(d))) &&
+      (d.kind === "adr" ? keep({ path: d.path, title: d.title, size: 0 }) : !needle || d.text.toLowerCase().includes(needle)),
   );
   const total = index.rubrics.reduce((n, r) => n + r.docs.length, index.other.length);
+  // A search shows every hit: the five-line preview is for browsing, not for finding.
+  const preview = !showAll && !needle && decisions.length > DECISIONS_PREVIEW;
+  const shown = preview ? decisions.slice(0, DECISIONS_PREVIEW) : decisions;
+  const nav = [
+    ...(index.decisions.length > 0 ? [{ id: "decisions", label: t("docs.decisions") }] : []),
+    ...sections.map((r) => ({ id: r.id, label: r.label })),
+  ];
+  const toggle = (id: string) =>
+    setClosed((c) => {
+      const next = new Set(c);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const jump = (id: string) => {
+    setClosed((c) => (c.has(id) ? new Set([...c].filter((x) => x !== id)) : c));
+    document.getElementById(`docs-${id}`)?.scrollIntoView({ block: "start" });
+  };
+  const flip = (s: DecisionStatus) =>
+    setStatuses((c) => {
+      const next = new Set(c);
+      if (!next.delete(s)) next.add(s);
+      return next;
+    });
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -86,13 +119,29 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // A new search unfolds everything, so a hit is never hidden in a section folded earlier.
+            setClosed(new Set());
+          }}
           placeholder={t("docs.search")}
           className={cn("h-10 w-full rounded-lg border border-border bg-background pl-8 pr-3 text-sm", FOCUS)}
         />
       </label>
 
-      {!needle && index.bilan && <DocBilan repo={repo} gitRef={index.ref} issues={index.bilan} />}
+      {nav.length > 1 && (
+        <nav aria-label={t("docs.sections")} className="sticky -top-3 z-10 -mx-3 -my-2 flex gap-1.5 overflow-x-auto bg-background px-3 py-2 lg:-top-5 lg:-mx-5 lg:px-5">
+          {nav.map((n) => (
+            <Chip key={n.id} label={n.label} active={false} onClick={() => jump(n.id)} />
+          ))}
+        </nav>
+      )}
+
+      {!needle && index.bilan && (
+        <Section id="bilan" label={t("docs.bilan.title")} count={index.bilan.length} open={!closed.has("bilan")} onToggle={toggle}>
+          <DocBilan repo={repo} gitRef={index.ref} issues={index.bilan} />
+        </Section>
+      )}
 
       {total === 0 && index.decisions.length === 0 ? (
         <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("docs.empty", { ref: index.ref })}</p>
@@ -100,18 +149,26 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
         <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("docs.noMatch")}</p>
       ) : null}
 
-      {decisions.length > 0 && (
-        <section className="flex flex-col gap-1">
-          <SectionLabel className="mx-1">{t("docs.decisions")}</SectionLabel>
-          {decisions.map((d) => (
-            <DecisionRow key={d.kind === "adr" ? d.path : d.id} decision={d} href={d.kind === "adr" ? hrefOf(d.path) : null} />
+      {index.decisions.length > 0 && (!needle || decisions.length > 0) && (
+        <Section id="decisions" label={t("docs.decisions")} count={decisions.length} open={!closed.has("decisions")} onToggle={toggle}>
+          <div role="group" aria-label={t("docs.statusFilter")} className="flex flex-wrap gap-1.5 px-1 pb-1">
+            {STATUSES.map((s) => (
+              <Chip key={s} label={t(`docs.status.${s}`)} active={statuses.has(s)} onClick={() => flip(s)} />
+            ))}
+          </div>
+          {shown.map((d) => (
+            <DecisionRow key={d.kind === "adr" ? d.path : d.id} decision={d} href={d.kind === "adr" ? hrefOf(d.path) : null} clamp={preview} />
           ))}
-        </section>
+          {preview && (
+            <button type="button" onClick={() => setShowAll(true)} className={cn(ROW, "justify-center font-semibold text-primary")}>
+              {t("docs.seeAll", { count: decisions.length })}
+            </button>
+          )}
+        </Section>
       )}
 
       {sections.map((r) => (
-        <section key={r.id} className="flex flex-col gap-1">
-          <SectionLabel className="mx-1">{r.label}</SectionLabel>
+        <Section key={r.id} id={r.id} label={r.label} count={r.docs.length} open={!closed.has(r.id)} onToggle={toggle}>
           {r.docs.map((d) => (
             <Link key={d.path} to={hrefOf(d.path)} className={ROW}>
               <FileText className="size-4 shrink-0 text-muted-foreground" />
@@ -121,9 +178,23 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
               </span>
             </Link>
           ))}
-        </section>
+        </Section>
       ))}
     </div>
+  );
+}
+
+function Section({ id, label, count, open, onToggle, children }: { id: string; label: string; count: number; open: boolean; onToggle: (id: string) => void; children: ReactNode }) {
+  return (
+    // scroll-mt clears the sticky bar when a chip jumps here.
+    <section id={`docs-${id}`} className="flex scroll-mt-14 flex-col gap-1">
+      <button type="button" aria-expanded={open} onClick={() => onToggle(id)} className={cn("flex items-center gap-1.5 rounded-lg px-1 py-1 text-left hover:bg-muted/60", FOCUS)}>
+        <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/70 transition-transform", open && "rotate-90")} />
+        <SectionLabel>{label}</SectionLabel>
+        <span className="text-xs tabular-nums text-muted-foreground/70">{count}</span>
+      </button>
+      {open && children}
+    </section>
   );
 }
 
@@ -154,8 +225,7 @@ function DocBilan({ repo, gitRef, issues }: { repo: string; gitRef: string; issu
   };
 
   return (
-    <section className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
-      <SectionLabel>{t("docs.bilan.title")}</SectionLabel>
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
       {issues.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("docs.bilan.ok")}</p>
       ) : (
@@ -173,20 +243,20 @@ function DocBilan({ repo, gitRef, issues }: { repo: string; gitRef: string; issu
           </Button>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
-function DecisionRow({ decision: d, href }: { decision: DocDecision; href: string | null }) {
+function DecisionRow({ decision: d, href, clamp }: { decision: DocDecision; href: string | null; clamp: boolean }) {
   const t = useT();
   const status = d.kind === "roadmap" ? t(`docs.status.${d.status}`) : d.status;
   const body = (
     <span className="min-w-0 flex-1">
-        <span className="block font-medium">{d.kind === "adr" ? d.title : d.text}</span>
-        <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-          {status && <span>{status}</span>}
-          {d.date && <span>{d.date}</span>}
-          {d.kind === "roadmap" && <span>{t("docs.roadmap")}</span>}
+        <span className={cn("block font-medium", clamp && "truncate")}>{d.kind === "adr" ? d.title : d.text}</span>
+        <span className={cn("flex gap-x-2 text-xs text-muted-foreground", clamp ? "whitespace-nowrap" : "flex-wrap")}>
+          {status && <span className="min-w-0 truncate">{status}</span>}
+          {d.date && <span className="shrink-0">{d.date}</span>}
+          {d.kind === "roadmap" && <span className="shrink-0">{t("docs.roadmap")}</span>}
         </span>
     </span>
   );

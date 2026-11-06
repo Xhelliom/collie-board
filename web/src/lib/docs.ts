@@ -16,7 +16,19 @@ export interface DocEntry {
 
 export type DocDecision =
   | { kind: "adr"; path: string; title: string; status: string | null; date: string | null }
-  | { kind: "roadmap"; id: string; text: string; status: "decided" | "leaning" | "open"; date: string | null };
+  | { kind: "roadmap"; id: string; text: string; status: DecisionStatus; date: string | null };
+
+export type DecisionStatus = "decided" | "leaning" | "open";
+
+/** The filter class of a decision: a roadmap one says it; an ADR's free-text status is read — a proposal
+ *  or draft leans, an open/undecided one is open, anything else (Accepted, Superseded…) was decided. Pure. */
+export function decisionStatus(d: DocDecision): DecisionStatus {
+  if (d.kind === "roadmap") return d.status;
+  const s = d.status?.toLowerCase() ?? "";
+  if (/propos|draft|brouillon|piste|lean/.test(s)) return "leaning";
+  if (/open|ouvert|undecided/.test(s)) return "open";
+  return "decided";
+}
 
 export interface DocsIndex {
   ref: string;
