@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793952943270.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"1bd82478-c4e7-4546-86ee-55aebb0bab61"}}
 {"v":1,"hlc":"1793952943270.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Sonde Windows : mesures sur le poste","status":"backlog"},"ts":1793952933752}}
 {"v":1,"hlc":"1793952943270.0007.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"a7186eae-e2cf-46c5-9696-69f660a00f57"}}
+{"v":1,"hlc":"1793952956239.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"a7186eae-e2cf-46c5-9696-69f660a00f57","reason":"start failed: this card runs in collie-board on Dell-5550-Stef — start it from its card"},"ts":1793952955283}}
