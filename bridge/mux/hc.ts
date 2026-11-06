@@ -14,6 +14,7 @@ import {
   type WireWorkspace,
 } from "./mux.ts";
 import { DEFAULT_TIMEOUT_MS } from "./herdr09.ts";
+import { addWorktreeAt, runGit, worktreeDirFor, worktreePathFor, type GitRunner } from "../git.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The herdr-core (`hc`) engine behind `Mux` — READ ONLY (ADR 0052 phase 2). THE ONLY FILE that knows
@@ -25,11 +26,30 @@ import { DEFAULT_TIMEOUT_MS } from "./herdr09.ts";
 //   carries in the agent's environment — so provenance (ADR 0010) matches the snapshot.
 // - hc has no workspace and no tab: the snapshot has ONE synthetic space holding every terminal.
 // - The status is the program's own (OSC 7501), never read off the screen.
-// - Every write rejects with MuxUnsupported until phase 3.
+// - Writes (phase 3): a pane is a shell run in its directory, the agent is typed into it, a prompt is
+//   `terminal.send` and its `started`. Worktrees are git's (bridge/git.ts). No tab, no paste without
+//   Enter, no pane metadata: those reject with MuxUnsupported.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** The one space (and tab) every hc terminal is shown in. */
 export const HC_SPACE = "hc";
+
+/** Labels the bridge puts on the terminals it runs: the directory (how a worktree's shell is found again), the pane's name. */
+const CWD_LABEL = "collie.cwd";
+const NAME_LABEL = "collie.name";
+
+/** `send` waits ~3 s of quiet, then a few seconds for `working` (measured 1.8 s total). */
+const SEND_TIMEOUT_MS = 20_000;
+
+/** herdr 0.9's key names (`Enter`, `Escape`, `shift+tab`) → hc's (`enter`, `esc`, `shift+tab`). */
+export function hcKey(key: string): string {
+  return key === "Escape" ? "esc" : key.toLowerCase();
+}
+
+/** One shell line from an argv, POSIX-quoted. shortcut: POSIX shells only; a Windows core's cmd.exe needs its own quoting. */
+export function shellLine(argv: string[]): string {
+  return argv.map((a) => (/^[\w@%+=:,./-]+$/.test(a) ? a : `'${a.replaceAll("'", `'\\''`)}'`)).join(" ");
+}
 
 /** The transport: dial the core and hand back a socket. Injected so the Windows named pipe (and tests) plug in. */
 export type HcDial = (handlers: DialHandlers) => Promise<SockHandle>;
@@ -82,7 +102,7 @@ export function toWirePane(t: HcTerminal): WirePane {
     ...(t.foreground ? { foreground_cwd: t.foreground.cwd } : {}),
     agent: hcAgent(t),
     agent_status: hcStatus(t.status?.state),
-    label: t.name ?? null,
+    label: t.labels?.[NAME_LABEL] || t.name || null,
     revision: t.turn ?? 0,
   };
 }
@@ -147,7 +167,13 @@ let seq = 0;
 export class Hc implements Mux {
   private readonly dial: HcDial;
 
-  constructor(socketPath: string, dialMode: DialMode = "auto", dial?: HcDial, private readonly timeoutMs = DEFAULT_TIMEOUT_MS) {
+  constructor(
+    socketPath: string,
+    dialMode: DialMode = "auto",
+    dial?: HcDial,
+    private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
+    private readonly git: GitRunner = runGit,
+  ) {
     this.dial = dial ?? ((h) => dialHerdr(socketPath, h, dialMode));
   }
 
@@ -211,7 +237,7 @@ export class Hc implements Mux {
     return end;
   }
 
-  private request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  private request<T>(method: string, params: Record<string, unknown> = {}, timeoutMs = this.timeoutMs): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let settled = false;
       const end = this.open(
@@ -229,7 +255,7 @@ export class Hc implements Mux {
           if (!settled) reject(new Error(`hc ${method}: ${reason}`));
         },
       );
-      const timer = setTimeout(() => end(`timed out after ${this.timeoutMs}ms`), this.timeoutMs);
+      const timer = setTimeout(() => end(`timed out after ${timeoutMs}ms`), timeoutMs);
     });
   }
 
@@ -295,10 +321,6 @@ export class Hc implements Mux {
     return toWirePane(await this.request<HcTerminal>("terminal.get", { terminal: paneId }));
   }
 
-  async getAgent(target: string): Promise<WireAgent> {
-    return this.getPane(target);
-  }
-
   /** Plain text, no ANSI (that would be `terminal.attach`); `visible` is the screen alone. */
   async readPane(paneId: string, source: ReadSource, lines: number): Promise<PaneRead> {
     const r = await this.request<{ text: string; complete: boolean }>("terminal.read", {
@@ -313,22 +335,103 @@ export class Hc implements Mux {
     return t.foreground ? { pid: t.foreground.pid, cwd: t.foreground.cwd, name: t.foreground.name } : null;
   }
 
-  // ── Writes: phase 3 ──
+  // ── Writes (phase 3) ──
+  // Every pane we open is the machine's SHELL, run where the work is: the pane (= the terminal's
+  // address, forever) must exist before its agent, because the card's session records it first and
+  // provenance (HC_TERMINAL_ID) is that address. `startAgent` then types the agent's command into it.
+
   private no(op: string): Promise<never> {
     return Promise.reject(new MuxUnsupported("hc", op));
   }
-  createWorkspace(): Promise<CreatedShell> { return this.no("createWorkspace"); }
-  createTab(): Promise<CreatedShell> { return this.no("createTab"); }
+
+  private async shell(cwd: string, label?: string): Promise<string> {
+    const labels: Record<string, string> = { [CWD_LABEL]: cwd, ...(label ? { [NAME_LABEL]: label } : {}) };
+    return (await this.request<{ address: string }>("terminal.run", { cwd, labels, no_parent: true })).address;
+  }
+
+  private shellIn(paneId: string, cwd: string): CreatedShell {
+    return { paneId, workspaceId: HC_SPACE, workspaceLabel: HC_SPACE, tabId: HC_SPACE, cwd };
+  }
+
+  async createWorkspace(opts: { cwd: string; label?: string }): Promise<CreatedShell> {
+    return this.shellIn(await this.shell(opts.cwd, opts.label), opts.cwd);
+  }
+
+  /** No tab to inherit a directory from: a tab without a cwd would open in the core's. */
+  async createTab(_workspaceId: string, opts: { label?: string; cwd?: string } = {}): Promise<CreatedShell> {
+    if (!opts.cwd) return this.no("createTab without a cwd");
+    return this.shellIn(await this.shell(opts.cwd, opts.label), opts.cwd);
+  }
+
   renameTab(): Promise<void> { return this.no("renameTab"); }
   closeTab(): Promise<void> { return this.no("closeTab"); }
-  sendPaneText(): Promise<void> { return this.no("sendPaneText"); }
-  sendPaneKeys(): Promise<void> { return this.no("sendPaneKeys"); }
-  closePane(): Promise<void> { return this.no("closePane"); }
-  renamePane(): Promise<void> { return this.no("renamePane"); }
   reportPaneMetadata(): Promise<void> { return this.no("reportPaneMetadata"); }
-  createWorktree(): Promise<CreatedWorktree> { return this.no("createWorktree"); }
-  openWorktree(): Promise<CreatedWorktree> { return this.no("openWorktree"); }
-  removeWorktree(): Promise<void> { return this.no("removeWorktree"); }
-  startAgent(): Promise<void> { return this.no("startAgent"); }
-  promptAgent(): Promise<void> { return this.no("promptAgent"); }
+  /** hc only pastes WITH Enter (`terminal.send`); a reply's own Enter after it could answer a dialog. */
+  sendPaneText(): Promise<void> { return this.no("sendPaneText"); }
+
+  async sendPaneKeys(paneId: string, keys: string[]): Promise<void> {
+    await this.request("terminal.keys", { terminal: paneId, keys: keys.map(hcKey) });
+  }
+
+  /** `kill` refuses a program already gone; `rm` is what takes the terminal off the list. */
+  async closePane(paneId: string): Promise<void> {
+    await this.request("terminal.kill", { terminal: paneId }).catch(() => {});
+    await this.request("terminal.rm", { terminal: paneId });
+  }
+
+  async renamePane(paneId: string, label: string | null): Promise<void> {
+    await this.request("terminal.label", { terminal: paneId, labels: { [NAME_LABEL]: label ?? "" } });
+  }
+
+  // ── Worktrees: git's (bridge/git.ts), hc has none ──
+
+  async createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string }): Promise<CreatedWorktree> {
+    const checkout = worktreeDirFor(opts.cwd, opts.branch);
+    const added = await addWorktreeAt(opts.cwd, checkout, opts.branch, opts.base ?? null, this.git);
+    if (!added.ok) throw new Error(`git worktree add: ${added.error}`);
+    return this.worktree(checkout, opts.branch, await this.shell(checkout, opts.label), false);
+  }
+
+  /** Idempotent through the label: the live shell already in that checkout, else a new one. */
+  async openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
+    const checkout = await worktreePathFor(opts.cwd, opts.branch, this.git);
+    if (!checkout) throw new Error(`no worktree for ${opts.branch}`);
+    const r = await this.request<{ terminals: HcTerminal[] }>("terminal.list", { labels: { [CWD_LABEL]: checkout } });
+    const live = r.terminals.find((t) => t.state === "live");
+    return this.worktree(checkout, opts.branch, live?.address ?? (await this.shell(checkout, opts.label)), !!live);
+  }
+
+  private worktree(checkoutPath: string, branch: string, paneId: string, alreadyOpen: boolean): CreatedWorktree {
+    return { checkoutPath, branch, workspaceId: HC_SPACE, workspaceLabel: HC_SPACE, tabId: HC_SPACE, paneId, alreadyOpen };
+  }
+
+  /** No workspace holds the checkout: say so in the words integrate.ts falls back to git on. */
+  removeWorktree(): Promise<void> {
+    return Promise.reject(new Error("hc: workspace_not_found (worktrees are git's)"));
+  }
+
+  // ── Agents — only through launchAgent()/promptAndConfirm() ──
+
+  /** Types the agent's command into the pane's shell; readiness is `getAgent`'s, as for herdr 0.9. */
+  async startAgent(opts: { paneId: string; kind: string; name: string; args?: string[] }): Promise<void> {
+    await this.request("terminal.send", { terminal: opts.paneId, text: shellLine([opts.kind, ...(opts.args ?? [])]) }, SEND_TIMEOUT_MS);
+  }
+
+  /**
+   * Ready = the program reports its own status (OSC 7501). Claude's trust dialog is up BEFORE it
+   * probes for it (HERDR_CORE_API.md §2c), so a dialog is never ready and nothing is typed into it.
+   */
+  async getAgent(target: string): Promise<WireAgent> {
+    const t = await this.request<HcTerminal>("terminal.get", { terminal: target });
+    return { ...toWirePane(t), interactive_ready: hcAgent(t) !== null };
+  }
+
+  /**
+   * `terminal.send` waits for the box to be quiet, pastes, presses Enter, and says whether the agent
+   * went `working` (`started`; null = it reports no status). hc itself refuses a `blocked` agent.
+   */
+  async promptAgent(opts: { target: string; text: string }): Promise<boolean | null> {
+    const r = await this.request<{ started?: boolean | null }>("terminal.send", { terminal: opts.target, text: opts.text }, SEND_TIMEOUT_MS);
+    return r.started ?? null;
+  }
 }

@@ -22,7 +22,8 @@
 // unwinding afterwards — see `checkIntegration`, which is the gate all three share.
 
 import { existsSync } from "node:fs";
-import { join, posix, resolve, win32 } from "node:path";
+import { homedir } from "node:os";
+import { basename, join, posix, resolve, win32 } from "node:path";
 import { boardBranchPrefix } from "./config.ts";
 import { normalizePath, pathKey } from "./paths.ts";
 
@@ -984,6 +985,33 @@ export async function removeWorktreeAt(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const r = await git(["worktree", "remove", "--force", "--", checkout], repoPath);
   return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "worktree remove failed" };
+}
+
+/**
+ * Where the bridge puts a checkout it makes itself (herdr-core has no worktrees, ADR 0052): herdr's own
+ * layout, `~/.herdr/worktrees/<repo>/<branch, / → ->`, so both engines find the same directory.
+ */
+export function worktreeDirFor(repoPath: string, branch: string, home = homedir()): string {
+  return join(home, ".herdr", "worktrees", basename(normalizePath(repoPath)), branch.replaceAll("/", "-"));
+}
+
+/**
+ * `git worktree add`: `branch` checked out when it exists, else cut from `base`. Fails when the
+ * directory exists — the relaunch case, which opens the checkout instead (see `startCard`).
+ */
+export async function addWorktreeAt(
+  repoPath: string,
+  checkout: string,
+  branch: string,
+  base: string | null,
+  git: GitRunner = runGit,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!branch || branch.startsWith("-") || base?.startsWith("-")) return { ok: false, error: `not a branch name: ${branch}` };
+  const args = base && !(await branchExists(repoPath, branch, git))
+    ? ["worktree", "add", "-b", branch, "--", checkout, base]
+    : ["worktree", "add", "--", checkout, branch];
+  const r = await git(args, repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n")[0] ?? "worktree add failed" };
 }
 
 /** The real `gh` runner. Same rules as {@link runGit}: argv only, hard timeout, no tty. */

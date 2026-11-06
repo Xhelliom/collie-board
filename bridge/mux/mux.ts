@@ -14,7 +14,7 @@ import { Hc } from "./hc.ts";
 // call as a failed action, so "not supported" lands on the same path as "herdr said no".
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Which engine a bridge runs on (`COLLIE_BOARD_MUX`): herdr 0.9, or hc (read-only so far). */
+/** Which engine a bridge runs on (`COLLIE_BOARD_MUX`): herdr 0.9, or hc. */
 export type MuxKind = NonNullable<Config["mux"]>;
 
 /** Thrown (as a rejection) by an engine for an operation it has no equivalent for. */
@@ -208,7 +208,8 @@ export interface Mux {
   // ── Agents — only through launchAgent()/promptAndConfirm() in cards.ts ──
   startAgent(opts: { paneId: string; kind: string; name: string; args?: string[]; timeoutMs?: number }): Promise<void>;
   getAgent(target: string): Promise<WireAgent>;
-  promptAgent(opts: { target: string; text: string; until?: AgentStatus[]; timeoutMs?: number }): Promise<void>;
+  /** hc says whether the prompt took (`started`; null = it can't tell); herdr 0.9 says nothing (void). */
+  promptAgent(opts: { target: string; text: string; until?: AgentStatus[]; timeoutMs?: number }): Promise<boolean | null | void>;
 }
 
 /** The engine `cfg.mux` names, on that socket. One per herdr session (see index.ts). */

@@ -5,7 +5,9 @@ import { describe, expect, it } from "bun:test";
 
 import type { DialHandlers, SockHandle } from "../dial.ts";
 import { MuxUnsupported, type Mux } from "./mux.ts";
-import { decodeHcLine, Hc, hcAgent, hcSnapshot, hcStatus, type HcTerminal } from "./hc.ts";
+import { decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, shellLine, type HcTerminal } from "./hc.ts";
+import { launchAgent, promptAndConfirm } from "../cards.ts";
+import type { GitRunner } from "../git.ts";
 
 const shell: HcTerminal = {
   address: "t1",
@@ -142,20 +144,105 @@ describe("Hc engine over an injected transport", () => {
     sub.close();
     expect(down).toBe("closed");
   });
+});
 
-  it("refuses every write with MuxUnsupported, without touching the socket", async () => {
+// ── Writes (phase 3). Replies are hc 0.1.18's, measured (HERDR_CORE_API.md §2). ──
+
+const reply = (result: unknown) => [`{"id":$ID,"jsonrpc":"2.0","result":${JSON.stringify(result)}}`];
+const noWait = async () => {};
+/** Claude's trust dialog: live, nothing reported yet (§2c). */
+const trustScreen: HcTerminal = { address: "t5", argv: ["/bin/zsh"], cwd: "/wt", state: "live", status: null, turn: 0 };
+const claudeIdle: HcTerminal = { ...trustScreen, status: { app: "claude-code", state: "idle" } };
+
+describe("hc writes", () => {
+  it("speaks hc's key names and quotes an argv for the shell", () => {
+    expect(["Enter", "Escape", "shift+tab", "Up", "ctrl+c"].map(hcKey)).toEqual(["enter", "esc", "shift+tab", "up", "ctrl+c"]);
+    expect(shellLine(["claude", "--model", "opus 4", "it's"])).toBe(`claude --model 'opus 4' 'it'\\''s'`);
+  });
+
+  it("still refuses what hc has no equivalent for, without touching the socket", async () => {
     const { dial, written } = fakeDial(() => []);
     const hc: Mux = new Hc("/unused", "auto", dial);
-    const writes = [
-      hc.sendPaneText("t3", "hi"),
-      hc.sendPaneKeys("t3", ["Enter"]),
-      hc.startAgent({ paneId: "t3", kind: "claude", name: "x" }),
-      hc.promptAgent({ target: "t3", text: "hi" }),
-      hc.createWorktree({ cwd: "/r", branch: "b" }),
-      hc.createTab("hc"),
-      hc.closePane("t3"),
-    ];
-    for (const w of writes) await expect(w).rejects.toBeInstanceOf(MuxUnsupported);
+    for (const w of [hc.sendPaneText("t3", "hi"), hc.renameTab("hc", "x"), hc.closeTab("hc"), hc.createTab("hc")]) {
+      await expect(w).rejects.toBeInstanceOf(MuxUnsupported);
+    }
     expect(written).toEqual([]);
+    // integrate.ts falls back to `git worktree remove` on exactly these words.
+    await expect(hc.removeWorktree({ workspaceId: "hc" })).rejects.toThrow("workspace_not_found");
+  });
+
+  it("creates a worktree with git, then runs a labelled shell in it: the pane", async () => {
+    const gitCalls: string[][] = [];
+    const git: GitRunner = async (args) => (gitCalls.push(args), { ok: args[0] === "worktree", stdout: "", stderr: "" });
+    const { dial, written } = fakeDial(() => reply({ address: "t7", argv: ["/bin/zsh"], cwd: "/x" }));
+    const wt = await new Hc("/unused", "auto", dial, 5000, git).createWorktree({ cwd: "/src/collie-board", branch: "board/x", base: "main", label: "Carte" });
+    expect(gitCalls.at(-1)).toEqual(["worktree", "add", "-b", "board/x", "--", wt.checkoutPath, "main"]);
+    expect(wt.checkoutPath).toMatch(/\.herdr\/worktrees\/collie-board\/board-x$/);
+    expect(wt).toMatchObject({ paneId: "t7", workspaceId: "hc", alreadyOpen: false });
+    expect(written).toEqual([
+      { method: "terminal.run", params: { cwd: wt.checkoutPath, labels: { "collie.cwd": wt.checkoutPath, "collie.name": "Carte" }, no_parent: true } },
+    ].map((w) => expect.objectContaining(w)));
+  });
+
+  it("reopens a worktree on the live shell already in it, found by its label", async () => {
+    const git: GitRunner = async () => ({ ok: true, stdout: "worktree /wt\nbranch refs/heads/board/x\n", stderr: "" });
+    const { dial, written } = fakeDial(() => reply({ terminals: [claudeIdle] }));
+    const wt = await new Hc("/unused", "auto", dial, 5000, git).openWorktree({ cwd: "/src", branch: "board/x" });
+    expect(wt).toMatchObject({ checkoutPath: "/wt", paneId: "t5", alreadyOpen: true });
+    expect(written.map((w) => [w.method, w.params])).toEqual([["terminal.list", { labels: { "collie.cwd": "/wt" } }]]);
+  });
+
+  it("closes a pane: kill (refused when it already exited), then rm", async () => {
+    const { dial, written } = fakeDial((req) =>
+      req.method === "terminal.kill" ? ['{"error":{"code":-32000,"data":{"kind":"finished"},"message":"t5 finished"},"id":$ID,"jsonrpc":"2.0"}'] : reply({}),
+    );
+    await new Hc("/unused", "auto", dial).closePane("t5");
+    expect(written.map((w) => w.method)).toEqual(["terminal.kill", "terminal.rm"]);
+  });
+});
+
+/** A core whose terminal t5 answers `get` from `states` in turn (the last one repeats). */
+function core(states: HcTerminal[], send: Record<string, unknown>) {
+  let gets = 0;
+  return fakeDial((req) => {
+    if (req.method === "terminal.get") return reply(states[Math.min(gets++, states.length - 1)]);
+    if (req.method === "terminal.send") return reply(send);
+    return reply({ status: "idle", turn: 0 });
+  });
+}
+
+describe("launchAgent / promptAndConfirm on hc", () => {
+  it("launches by typing the agent into the shell, and waits for it to report itself", async () => {
+    const { dial, written } = core([trustScreen, claudeIdle], { started: null, status: null, turn: 0 });
+    await launchAgent(new Hc("/unused", "auto", dial), "t5", "claude", "x", noWait, ["--model", "opus"]);
+    expect(written[0]).toMatchObject({ method: "terminal.send", params: { terminal: "t5", text: "claude --model opus" } });
+    expect(written.filter((w) => w.method === "terminal.get")).toHaveLength(2);
+  });
+
+  it("never presses Enter on a trust dialog: the launch fails instead", async () => {
+    const { dial, written } = core([trustScreen], { started: null, status: null, turn: 0 });
+    await expect(launchAgent(new Hc("/unused", "auto", dial), "t5", "claude", "x", noWait)).rejects.toThrow(/did not become ready/);
+    const hcp = new Hc("/unused", "auto", dial);
+    await promptAndConfirm(hcp, "t5", "dis juste OK", noWait, { firstAfterLaunch: true });
+    expect(written.some((w) => w.method === "terminal.keys")).toBe(false);
+  });
+
+  it("send said started: done, one send, nothing else", async () => {
+    const { dial, written } = core([claudeIdle], { started: true, status: "idle", turn: 0 });
+    await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "Réponds juste: PRET", noWait, { firstAfterLaunch: true });
+    expect(written.map((w) => w.method)).toEqual(["terminal.send"]);
+  });
+
+  it("send said null in front of an idle agent: one Enter submits the draft (§2b), never a resend", async () => {
+    const working: HcTerminal = { ...claudeIdle, status: { app: "claude-code", state: "working" } };
+    const { dial, written } = core([claudeIdle, working], { started: null, status: null, turn: 0 });
+    await promptAndConfirm(new Hc("/unused", "auto", dial), "t5", "Réponds juste: R5", noWait, { firstAfterLaunch: true });
+    expect(written.map((w) => w.method)).toEqual(["terminal.send", "terminal.get", "terminal.keys", "terminal.get"]);
+    expect(written[2]!.params.keys).toEqual(["enter"]);
+  });
+
+  it("a blocked agent: hc refuses the send, and that is the caller's error", async () => {
+    const { dial } = fakeDial(() => ['{"error":{"code":-32000,"data":{"kind":"blocked","hint":"typing would answer its dialog"},"message":"t3 is blocked"},"id":$ID,"jsonrpc":"2.0"}']);
+    await expect(promptAndConfirm(new Hc("/unused", "auto", dial), "t3", "bleu", noWait)).rejects.toThrow("blocked: t3 is blocked");
   });
 });
