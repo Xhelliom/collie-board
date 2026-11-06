@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   BILAN_REL_PATH,
@@ -9,6 +12,7 @@ import {
   toConflictDecision,
   Lead,
   LEAD_ATTEMPTS,
+  LeadSilent,
   parseIssue,
   toTriageDecision,
   triagePrompt,
@@ -160,7 +164,7 @@ describe("a malformed answer is asked again", () => {
   function lead(answers: unknown[]) {
     const l = new Lead(...([null, null, "/tmp/unused", () => null] as unknown as ConstructorParameters<typeof Lead>));
     const prompts: string[] = [];
-    (l as unknown as { ask: (b: (o: string) => string) => Promise<unknown> }).ask = async (b) => (prompts.push(b("out.json")), answers.shift());
+    (l as unknown as { request: (b: (o: string) => string) => Promise<unknown> }).request = async (b) => (prompts.push(b("out.json")), { answer: answers.shift() });
     return { l, prompts };
   }
   const input = { ...brief, verdict: "ok", notes: null, followUps: [] };
@@ -178,5 +182,52 @@ describe("a malformed answer is asked again", () => {
     const { l, prompts } = lead(Array.from({ length: LEAD_ATTEMPTS }, () => ({ verdict: { accept: true }, followUps: [] })));
     await expect(l.triage(input)).rejects.toThrow(`the lead's triage answer was malformed ${LEAD_ATTEMPTS} times in a row — missing or empty "reason" in the verdict`);
     expect(prompts).toHaveLength(LEAD_ATTEMPTS);
+  });
+});
+
+describe("the lead is silent only when a typed request ran out its deadline", () => {
+  /** A real Lead over a fake herd whose lead agent writes `reply(n)` as its answer file — or nothing. */
+  function leadWith(reply: (n: number) => string | null, failPrompt = false) {
+    const dir = mkdtempSync(join(tmpdir(), "lead-test-"));
+    const snap = { agents: [{ paneId: "wL:p1", cwd: dir, status: "idle" }], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" };
+    let n = 0;
+    const herdr = {
+      async getAgent() {
+        return { agent: "claude", interactive_ready: true, agent_status: "working" };
+      },
+      async promptAgent(opts: { text: string }) {
+        if (failPrompt) throw new Error("herdr agent.prompt: agent_blocked");
+        const rel = readFileSync(join(dir, /Read (\S+\.md)/.exec(opts.text)![1]!), "utf8").match(/\.board\/out\/\w+\.json/)![0];
+        const body = reply(++n);
+        if (body !== null) writeFileSync(join(dir, rel), body);
+      },
+      async sendPaneKeys() {},
+    };
+    const cfg = { boardAgentKind: "claude", boardCopilotKind: "" };
+    return new Lead(...([herdr, cfg, dir, () => snap, {}, { timeoutMs: 120, pollMs: 10 }] as unknown as ConstructorParameters<typeof Lead>));
+  }
+  const input = { ...brief, statSummary: " a.ts | 1 +" };
+
+  it("an answer with a raw Windows path is read — the Dell's lead answered, and was called silent", async () => {
+    const l = leadWith(() => String.raw`{"decision": "finished", "reason": "C:\Users\steph\wt\card holds the fix"}`);
+    expect(await l.check(input)).toEqual({ decision: "finished", reason: String.raw`C:\Users\steph\wt\card holds the fix` });
+  });
+
+  it("an answer file that is not JSON is asked again with the parse error, never called silence", async () => {
+    const l = leadWith((n) => (n === 1 ? "finished, all good" : '{"decision": "finished", "reason": "ok"}'));
+    expect(await l.check(input)).toEqual({ decision: "finished", reason: "ok" });
+  });
+
+  it("a request that never reached the pane says why, not « the lead is not answering »", async () => {
+    const err = await leadWith(() => null, true).check(input).catch((e: Error) => e);
+    expect(err).not.toBeInstanceOf(LeadSilent);
+    expect((err as Error).message).toContain("the lead was never asked");
+    expect((err as Error).message).toContain("agent_blocked");
+  });
+
+  it("a typed request with no answer by the deadline is LeadSilent, naming the pane", async () => {
+    const err = await leadWith(() => null).check(input).catch((e: Error) => e);
+    expect(err).toBeInstanceOf(LeadSilent);
+    expect((err as LeadSilent).paneId).toBe("wL:p1");
   });
 });

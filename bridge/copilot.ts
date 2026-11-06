@@ -87,7 +87,30 @@ export function parseJsonish(raw: string): unknown | null {
   try {
     return JSON.parse(body);
   } catch {
-    return null;
+    // A Windows path written raw (`"C:\Users\…"`) is an invalid escape: double each lone backslash.
+    try {
+      return JSON.parse(body.replace(/\\(["\\/bfnrtu])|\\/g, (m, c: string | undefined) => (c ? m : "\\\\")));
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Why a request brought back no answer. `silent`: the request was typed into the pane and the
+ * deadline ran out with no answer file — the one case where the pane itself must be looked at.
+ * `malformed`: a file came, and it is not JSON. `failed`: the request never reached the pane.
+ */
+export type AskFailure = { kind: "silent" | "malformed" | "failed"; reason: string; paneId: string | null };
+export type AskOutcome = { answer: unknown } | { failure: AskFailure };
+
+/** What JSON.parse says of an answer that did not parse. Pure. */
+function jsonError(text: string): string {
+  try {
+    JSON.parse(text);
+    return "not an object";
+  } catch (err) {
+    return (err as Error).message;
   }
 }
 
@@ -1070,9 +1093,6 @@ export class Copilot {
     return this._paneId;
   }
 
-  /** The pane the last request went to — kept after a failure drops `paneId`, so a caller can name it. */
-  protected lastPane: string | null = null;
-
   /** Where the answers land on disk. */
   private outPathFor(id: string): { abs: string; rel: string } {
     return { abs: join(this.workDir, OUT_DIR, `${id}.json`), rel: `${OUT_DIR}/${id}.json` };
@@ -1083,22 +1103,28 @@ export class Copilot {
    * costs one agent turn at a time rather than N in parallel against a shared quota.
    */
   ask(buildPrompt: (outPath: string) => string): Promise<unknown | null> {
-    if (!this.enabled) return Promise.resolve(null);
-    const run = this.queue.then(() => this.run(buildPrompt)).catch(() => null);
+    return this.request(buildPrompt).then((r) => ("answer" in r ? r.answer : null));
+  }
+
+  /** `ask`, saying why there is no answer — the lead halts on each reason differently. */
+  protected request(buildPrompt: (outPath: string) => string): Promise<AskOutcome> {
+    if (!this.enabled) return Promise.resolve({ failure: { kind: "failed", reason: `the ${this.tag} is switched off`, paneId: null } });
+    const failed = (err: unknown): AskOutcome => ({ failure: { kind: "failed", reason: (err as Error).message, paneId: null } });
+    const run = this.queue.then(() => this.run(buildPrompt)).catch(failed);
     // The queue must never adopt a rejection, or one failure would poison every later request.
     this.queue = run.catch(() => null);
     return run;
   }
 
-  private async run(buildPrompt: (outPath: string) => string): Promise<unknown | null> {
+  private async run(buildPrompt: (outPath: string) => string): Promise<AskOutcome> {
     const id = crypto.randomUUID().slice(0, 8);
     const { abs, rel } = this.outPathFor(id);
     const promptRel = `${PROMPT_DIR}/${id}.md`;
     const promptAbs = join(this.workDir, promptRel);
     try {
       await this.ensurePane();
-      if (!this._paneId) return null;
-      this.lastPane = this._paneId;
+      if (!this._paneId) return { failure: { kind: "failed", reason: `the ${this.tag} has no pane`, paneId: null } };
+      const paneId = this._paneId;
       await mkdir(join(this.workDir, OUT_DIR), { recursive: true, mode: 0o700 });
       // Stale file from a previous run with the same id would be read as this answer.
       await rm(abs, { force: true });
@@ -1124,18 +1150,21 @@ export class Copilot {
         undefined,
         { firstAfterLaunch: first },
       );
-      const answer = await this.awaitFile(abs);
-      if (answer === null) {
-        console.warn(`[${this.tag}] no answer at ${rel} within the deadline — see pane ${this._paneId}`);
-      }
-      return answer;
+      const got = await this.awaitFile(abs);
+      if ("answer" in got) return got;
+      const failure: AskFailure = got.bad === null
+        ? { kind: "silent", reason: `no answer at ${rel} within the deadline`, paneId }
+        : { kind: "malformed", reason: `the answer file ${rel} is not valid JSON (${got.bad})`, paneId };
+      console.warn(`[${this.tag}] ${failure.reason} — see pane ${paneId}`);
+      return { failure };
     } catch (err) {
       // Never rethrow — the copilot is optional by design — but never go quiet either. A silent
       // catch here is exactly what made a swallowed first prompt take an hour to find.
-      console.warn(`[${this.tag}] request failed: ${(err as Error).message}`);
+      const reason = `request failed: ${(err as Error).message}`;
+      console.warn(`[${this.tag}] ${reason}`);
       // The pane may be the problem; drop it so the next request rebuilds one.
       this._paneId = null;
-      return null;
+      return { failure: { kind: "failed", reason, paneId: null } };
     } finally {
       await rm(abs, { force: true }).catch(() => {});
       await rm(promptAbs, { force: true }).catch(() => {});
@@ -1143,19 +1172,25 @@ export class Copilot {
   }
 
   /** Poll for the answer file. Its APPEARANCE is the completion signal — see the header. */
-  private async awaitFile(abs: string): Promise<unknown | null> {
+  /** `bad`: the last unparseable content seen, its parse error — null when no file ever came. */
+  private async awaitFile(abs: string): Promise<{ answer: unknown } | { bad: string | null }> {
     const poll = this.timing.pollMs ?? POLL_MS;
     const deadline = Date.now() + (this.timing.timeoutMs ?? REQUEST_TIMEOUT_MS);
+    let last: string | null = null;
+    let bad: string | null = null;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, poll));
       const file = Bun.file(abs);
       if (!(await file.exists())) continue;
-      // A file that exists but doesn't parse yet is very likely a half-written write; one retry
-      // costs a poll interval, and the deadline still bounds us.
-      const parsed = parseJsonish(await file.text());
-      if (parsed !== null) return parsed;
+      const text = await file.text();
+      const parsed = parseJsonish(text);
+      if (parsed !== null) return { answer: parsed };
+      // Unparseable once is likely a half-written write; the same text two polls running is the answer.
+      if (text === last) return { bad: jsonError(text) };
+      last = text;
+      bad = jsonError(text);
     }
-    return null;
+    return { bad };
   }
 
   /**
