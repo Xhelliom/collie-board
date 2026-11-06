@@ -83,9 +83,20 @@ export interface PeerHerdView {
   state: "pending" | "connected" | "disconnected";
   error: string | null;
   agents: AgentView[];
+  /** Its pair id (ADR 0048); absent from an older bridge. */
+  pair?: string | null;
 }
 
 export const fetchHerd = (signal?: AbortSignal) => apiRequest<{ peers: PeerHerdView[] }>("/api/herd", { signal });
+
+/**
+ * A pane id written by the pair `pair` (a synced journal event), as this app routes it: `<paneId>@<peer>`
+ * when that pair is one of our peers, the bare id otherwise (ours, or no pair named). Pure.
+ */
+export const pairPaneId = (paneId: string, pair: string | undefined, peers: readonly PeerHerdView[]): string => {
+  const peer = pair ? peers.find((p) => p.pair === pair)?.peer : undefined;
+  return peer ? `${paneId}@${peer}` : paneId;
+};
 
 /** The peers' agents, each under the id the relay routes on (`<paneId>@<peer>`, lib/api.ts). */
 export const remoteAgents = (peers: readonly PeerHerdView[]): AgentView[] =>
