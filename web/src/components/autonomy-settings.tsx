@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Check, Copy } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { Switch } from "@/components/ui/switch";
+import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import {
   AUTONOMY_SECTION,
   boardErrorMessage,
@@ -15,6 +17,36 @@ import {
   type RepoIntegration,
 } from "@/lib/board";
 import { setStatus } from "@/lib/status";
+
+// The Claude Code allow rule an autonomous launch needs, or each one waits on a prompt in the
+// orchestrator's pane. Shown, never written: the bridge does not touch the user's Claude settings.
+// shortcut: the default port — the UI does not know COLLIE_BOARD_PORT; the hint says to adjust it.
+export const LAUNCH_PERMISSION = "Bash(curl -s -X POST http://127.0.0.1:8788/api/runs/*/launch*)";
+
+function LaunchPermission() {
+  const t = useT();
+  const { canCopy, copied, copy } = useCopy();
+  return (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-background/60 p-2.5">
+      <span className="text-xs">{t("orch.autoPerm")}</span>
+      <div className="flex items-start gap-2">
+        <code className="min-w-0 flex-1 break-all font-mono text-[11px]">{LAUNCH_PERMISSION}</code>
+        <button
+          type="button"
+          disabled={!canCopy}
+          onClick={() => void copy(LAUNCH_PERMISSION)}
+          aria-label={t("orch.autoPermCopy")}
+          title={canCopy ? LAUNCH_PERMISSION : copyUnavailableTitle()}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/60 active:bg-muted disabled:pointer-events-none disabled:opacity-50"
+        >
+          {copied ? <Check className="size-3 text-status-done" /> : <Copy className="size-3" />}
+          {copied ? t("card.copied") : t("orch.autoPermCopy")}
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("orch.autoPermHint")}</p>
+    </div>
+  );
+}
 
 // How far the project's orchestrator may go without the operator (ADR 0030). The operator's screen
 // alone: the bridge refuses this write from any agent pane. Off by default; the bounds are prudent
@@ -81,6 +113,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
           <Switch checked={a.enabled} onCheckedChange={(enabled) => void save({ enabled })} aria-label={t("orch.autoOn")} />
         </div>
         <p className="text-xs text-muted-foreground">{t("orch.autoHint")}</p>
+        {a.enabled && <LaunchPermission />}
         <div className="flex items-center justify-between gap-3">
           <span className={a.enabled ? undefined : "opacity-50"}>{t("orch.autoIdle")}</span>
           <Switch

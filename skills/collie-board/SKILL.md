@@ -546,6 +546,16 @@ code.
   ADR 0047), you may launch a planned lot whenever **no lot of this repo is running** — the bridge checks
   at your request, counts it in the chain and refuses past the same bounds. `POST /api/runs` without
   `planned` stays refused in every case.
+  **The call carries `x-collie-pane: ${HERDR_PANE_ID}`** — the header is what makes the bridge check
+  the autonomy and its bounds; a launch without it would pass for the user's own tap. For it not to
+  wait on a confirmation in your pane, the user allows it once in Claude Code (`permissions.allow` of
+  the repo's `.claude/settings.json` or of `~/.claude/settings.json`; Settings → Autonomy shows the
+  line, copiable): `Bash(curl -s -X POST http://127.0.0.1:8788/api/runs/*/launch*)` — other port if
+  `COLLIE_BOARD_PORT` is set. You never write that file yourself; propose the line to the user.
+  ```bash
+  curl -s -X POST "http://127.0.0.1:${COLLIE_BOARD_PORT:-8788}/api/runs/<id>/launch" \
+    -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}"
+  ```
   On a **shared** repo a lot belongs to its creator (ADR 0048 §7): `GET /api/runs` gives `createdBy` /
   `createdPair`, and launching or resuming another pair's lot is refused `403` — to you and to the user
   alike. Never launch a lot that is not this pair's, nor one holding a card assigned to someone else.

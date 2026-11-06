@@ -193,6 +193,21 @@ settle, or on a blocked worker — it never answers a permission prompt — and 
 **finishes**. An `explore` card (brainstorm, design question) is judged on its written conclusion
 and the cards it proposes, not on a diff. There is no global autopilot switch: consent is per set.
 
+**Autonomy** (Settings → Autonomy, per repo, off by default —
+[ADR 0030](./.adr/0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md)) lets the project's orchestrator launch
+the next planned lot itself. Its launch is a `curl` in its pane, so Claude Code asks you to confirm
+each one unless you allow it once, in `permissions.allow` of the repo's `.claude/settings.json` or of
+`~/.claude/settings.json` (the setting shows the line, copiable; adjust the port if you set
+`COLLIE_BOARD_PORT`):
+
+```
+Bash(curl -s -X POST http://127.0.0.1:8788/api/runs/*/launch*)
+```
+
+The call must carry `x-collie-pane` — that header is what makes the bridge check the autonomy and
+its bounds; a call without it would pass for your own tap. The board never writes your Claude Code
+settings.
+
 ### Board configuration
 
 | Variable | Default | What it does |
