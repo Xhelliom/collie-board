@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.267.1] - 2026-11-06
+
+### Fixed
+
+- Windows : roadmap, phases, décisions et mémoire d'orchestrateur acceptent un dépôt `C:\…` ou `C:/…`, rangés sous une seule clé (celle de /api/repos) (226dac7)
+- Sous Windows, l'en-tête projet, le sélecteur de dépôt et les onglets affichent le nom du dépôt, plus son chemin (9bca16b)
+
 ## [0.267.0] - 2026-11-06
 
 ### Added
