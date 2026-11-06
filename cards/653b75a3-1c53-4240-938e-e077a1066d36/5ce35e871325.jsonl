@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1793969436358.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le lead et le copilote approuvent leur dossier avant de lancer Claude","status":"backlog"},"ts":1793969433839}}
 {"v":1,"hlc":"1793969436359.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"f57a73c4-400f-4f19-9798-db212e2961a6"}}
 {"v":1,"hlc":"1793998858008.0000.5ce35e871325","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"5ce35e871325","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793998863262.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/le-lead-et-le-copilote-approuvent-leur-dossier-a"}}
+{"v":1,"hlc":"1793998863262.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793998863262.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793998863059}}
