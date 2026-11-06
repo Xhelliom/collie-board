@@ -4,7 +4,7 @@ import { ChevronDown, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, 
 
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
-import { loadRepoScope, saveRepoScope, withListedRepos } from "@/lib/board";
+import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,7 @@ export function BoardTabs({ repos = [], actions }: { repos?: RepoOption[]; actio
   // The repos with cards, then the ones the operator added by hand — never every repo the bridge knows.
   const all = withListedRepos(repos, listed);
   // The scope stays selectable even when nothing in the current list uses it any more.
-  const options = repo && !all.some((r) => r.path === repo) ? [{ path: repo, name: repo.split("/").pop() || repo }, ...all] : all;
+  const options = repo && !all.some((r) => r.path === repo) ? [{ path: repo, name: repoName(repo) }, ...all] : all;
 
   function pick(next: string) {
     const value = next || null;
