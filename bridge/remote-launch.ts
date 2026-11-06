@@ -49,19 +49,22 @@ export type BlockedReason = "no-environment" | "origin-mismatch" | "launch-not-g
 export function diagnoseEnvironments(
   remote: string | null,
   byPeer: readonly { peer: string; environments: readonly PeerEnvironment[] }[],
-): { environments: PeerEnvironment[]; blocked: { peer: string; reason: BlockedReason }[] } {
+): { environments: PeerEnvironment[]; denied: PeerEnvironment[]; blocked: { peer: string; reason: BlockedReason }[] } {
   const environments: PeerEnvironment[] = [];
+  // Same repo, but this machine holds no grant there: listed greyed, so the picker says whose grant is missing.
+  const denied: PeerEnvironment[] = [];
   const blocked: { peer: string; reason: BlockedReason }[] = [];
   for (const { peer, environments: all } of byPeer) {
     const same = environmentsForRemote(remote, all);
     const usable = same.filter((e) => e.launch !== false);
     environments.push(...usable);
+    denied.push(...same.filter((e) => e.launch === false));
     if (usable.length > 0) continue;
     const reason: BlockedReason =
       all.length === 0 ? "no-environment" : same.length === 0 ? "origin-mismatch" : "launch-not-granted";
     blocked.push({ peer, reason });
   }
-  return { environments, blocked };
+  return { environments, denied, blocked };
 }
 
 /** The environments that run the repo whose normalised origin is `remote`. A repo with no origin matches none. */

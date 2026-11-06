@@ -196,14 +196,14 @@ curl -s http://127.0.0.1:8788/api/cards/<id>/remote   # {environment, session, s
 ```
 
 **Making a repo launchable from another machine** is the operator's, on the machine that runs the
-agent (the peer), in Settings → Peers — never by an agent (those routes refuse an agent pane), never
+agent (the peer), in that project's settings, *Run from another machine* — never by an agent (those routes refuse an agent pane), never
 by editing `node.toml` (a hand edit is still taken without a restart). Tell the user the steps when
 `blocked` names a `reason`:
 
 1. Pair both machines (code from that peer's Settings → Peers). A new peer may launch **nothing**.
-2. `no-environment` / `origin-mismatch` — on the peer, *Environments offered*: declare the repo (same
-   `origin` as here; clone it there and add it to its projects first) and an agent.
-3. `launch-not-granted` — under that environment, *Launch from <this machine>* → **Allow**. That
+2. `no-environment` / `origin-mismatch` — on the peer, the repo's settings: *Offer this repo to the
+   other machines* (same `origin` as here; clone it there and add it to its projects first), an agent.
+3. `launch-not-granted` — same section, tick *Allow launching from <this machine>*. That
    grant is the only consent asked (ADR 0051): the repo's autonomy there is not needed and not
    touched. Claude Code's « trust this folder » is pre-accepted for each checkout a peer launches,
    so it never blocks a remote start.

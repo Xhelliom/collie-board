@@ -303,10 +303,11 @@ tools (not read-only): `reply_to_agent`, `create_card`, `launch_lot`, `finish_ca
   machine to be driven shows a single-use 10-minute code, *Add a peer* on the other takes its URL and
   that code. The token goes bridge to bridge (hashed in `node.toml`, clear in `peers.toml`, both
   `0600`, both kept out of the backup) and never reaches a browser; *Revoke* takes effect at once.
-  *Environments offered* declares where a peer may run an agent — a repo picked among the board's
-  known ones and an agent, never a typed path — live without a restart; *Test the connection* shows
+  A repo is offered to the peers, with its agent and which peer may launch in it, from that
+  project's own settings (*Run from another machine*) — never a typed path — live without a
+  restart; Settings → Peers keeps a summary; *Test the connection* shows
   the peer's version, panes, environments and how it sees this machine, or why it can't.
-  A paired peer reads; it may launch only in environments granted by hand (`launch = [...]`).
+  A paired peer reads; it may launch only where it was allowed (`launch = [...]`).
   [ADR 0049](./.adr/0049-appairage-de-pairs-par-code-depuis-l-ui.md).
 - **No event sourcing.** State is the snapshot poll, as in Collie. Nothing to resync.
   A repo's board shared over git (opt-in, [ADR 0048](./.adr/0048-board-partage-par-git-pair-a-pair-multi-utilisateur.md))

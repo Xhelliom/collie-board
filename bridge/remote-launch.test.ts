@@ -69,6 +69,7 @@ describe("diagnoseEnvironments", () => {
       { peer: "nogrant", environments: [e("nogrant", "d", R, { launch: false })] },
     ]);
     expect(out.environments.map((x) => x.name)).toEqual(["a"]);
+    expect(out.denied.map((x) => x.name)).toEqual(["b", "d"]);
     expect(out.blocked).toEqual([
       { peer: "empty", reason: "no-environment" },
       { peer: "other", reason: "origin-mismatch" },

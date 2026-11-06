@@ -83,6 +83,29 @@ describe("Lancer sur", () => {
     expect([option.textContent, option.disabled]).toEqual(["dell — lancement non accordé à cette machine (Autoriser, sur dell)", true]);
   });
 
+  it("an environment not granted is greyed with whose grant is missing, and its peer's line goes", async () => {
+    setPreference("fr");
+    server.use(
+      http.get("/api/repos/environments", () =>
+        HttpResponse.json({
+          remote: "github.com/x/collie",
+          environments: [{ peer: "arch", name: "dev", agent: "claude" }],
+          denied: [{ peer: "dell", name: "win", agent: "claude" }],
+          unreachable: [],
+          blocked: [{ peer: "dell", reason: "launch-not-granted" }],
+        }),
+      ),
+    );
+    render(<EnvironmentPicker repoPath="/r/collie" value={null} onChange={() => {}} />);
+    const select = await screen.findByLabelText("Lancer sur");
+    const options = [...select.querySelectorAll("option")].map((o) => [o.textContent, o.disabled]);
+    expect(options).toEqual([
+      ["Cette machine", false],
+      ["dev · arch", false],
+      ["win · dell — lancement non accordé par dell", true],
+    ]);
+  });
+
   it("the editor saves the choice on the card, and leaves it out when untouched", async () => {
     envs([{ peer: "test-depot-collie", name: "dev", agent: "claude" }]);
     server.use(http.get("/api/cards", () => HttpResponse.json({ cards: [] })));

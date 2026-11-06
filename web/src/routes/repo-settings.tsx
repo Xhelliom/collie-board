@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/app-header";
 import { AutonomySettings } from "@/components/autonomy-settings";
 import { BoardTabs } from "@/components/board-tabs";
 import { GateSheet } from "@/components/gate-sheet";
+import { RepoOffer } from "@/components/repo-offer";
 import { calm } from "@/components/kpi";
 import { ShareSettings } from "@/components/share-settings";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -58,6 +59,8 @@ export function RepoSettingsRoute() {
             <AutonomySettings repo={repo} />
             <SectionLabel>{t("project.share.fold")}</SectionLabel>
             <ShareSettings repo={repo} />
+            <SectionLabel>{t("repoOffer.title")}</SectionLabel>
+            <RepoOffer repo={repo} />
             <SectionLabel>{t("gate.control.title")}</SectionLabel>
             <button
               type="button"

@@ -1,179 +1,51 @@
-import { useEffect, useState } from "react";
-import { Boxes, Loader2 } from "lucide-react";
+import { Link } from "react-router";
+import { Boxes, ChevronRight } from "lucide-react";
 
 import { useT } from "@/i18n";
-import { AGENT_KIND_LABEL, AGENT_KIND_OPTIONS } from "@/components/agent-kind-picker";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { boardErrorMessage, fetchRepos, type RepoChoice } from "@/lib/board";
-import { usePendingConfirm } from "@/hooks/use-pending-confirm";
-import { addEnvironment, grantLaunch, removeEnvironment, renameEnvironment, type PeersView } from "@/lib/peers";
+import { repoName, settingsPath } from "@/lib/board";
+import type { PeersView } from "@/lib/peers";
 
-const field = "rounded-md border bg-background px-3 py-2";
-
-// Settings → Peers → Environments (ADR 0049 §6): a repo picked among the board's known ones and an
-// agent, never a typed path — the bridge checks the repo against its own list before writing node.toml.
-export function PeerEnvironments({ environments, inbound, onChange }: { environments: PeersView["environments"]; inbound: PeersView["inbound"]; onChange: () => void }) {
+// Settings → Peers → Environments: a summary only. A repo is offered, and its launch rights set, in
+// that project's own settings (components/repo-offer.tsx) — it is a setting of the repo, not of the pairing.
+export function PeerEnvironments({ environments, inbound }: { environments: PeersView["environments"]; inbound: PeersView["inbound"] }) {
   const t = useT();
-  const [repos, setRepos] = useState<RepoChoice[]>([]);
-  const [repo, setRepo] = useState("");
-  const [agent, setAgent] = useState<string>(AGENT_KIND_OPTIONS[0]);
-  const [name, setName] = useState("");
-  const [editing, setEditing] = useState<{ from: string; to: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { pending, confirm } = usePendingConfirm(4000);
-
-  useEffect(() => {
-    const ctl = new AbortController();
-    fetchRepos({}, ctl.signal)
-      .then((r) => setRepos(r.repos))
-      .catch((e) => !ctl.signal.aborted && setError(boardErrorMessage(e)));
-    return () => ctl.abort();
-  }, []);
-
-  async function run(fn: () => Promise<unknown>) {
-    setError(null);
-    setBusy(true);
-    try {
-      await fn();
-      return true;
-    } catch (e) {
-      setError(boardErrorMessage(e));
-      return false;
-    } finally {
-      setBusy(false);
-      onChange();
-    }
-  }
-
-  const add = (e: React.FormEvent) => {
-    e.preventDefault();
-    void run(() => addEnvironment(name, repo, agent)).then((ok) => ok && (setName(""), setRepo("")));
-  };
-
   return (
     <Card className="gap-3 p-4" aria-label={t("peers.env.title")} role="region">
       <div className="flex items-start gap-3">
         <Boxes className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0">
           <div className="font-medium">{t("peers.env.title")}</div>
-          <p className="text-sm text-muted-foreground">{t("peers.env.hint")}</p>
+          <p className="text-sm text-muted-foreground">{t("peers.env.summaryHint")}</p>
         </div>
       </div>
-      {error && <p className="text-sm text-status-blocked">{error}</p>}
       {environments.length === 0 && <p className="text-sm text-muted-foreground">{t("peers.none")}</p>}
       <ul className="flex flex-col divide-y">
-        {environments.map((env) => (
-          <li key={env.name} className="flex flex-col gap-1.5 py-2">
-            {editing?.from === env.name ? (
-              <form
-                className="flex flex-wrap items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void run(() => renameEnvironment(env.name, editing.to)).then((ok) => ok && setEditing(null));
-                }}
+        {environments.map((env) => {
+          // `launch` null: a hand-written peer, every environment (bridge/node.ts).
+          const allowed = inbound.filter((p) => p.launch === null || p.launch.includes(env.name)).map((p) => p.name);
+          return (
+            <li key={env.name}>
+              <Link
+                to={settingsPath(env.repoPath)}
+                aria-label={`${env.name} — ${t("peers.env.open")}`}
+                className="flex items-center justify-between gap-3 py-2 text-sm hover:bg-accent/50"
+                data-testid={`env-${env.name}`}
               >
-                <input
-                  aria-label={t("peers.env.name")}
-                  required
-                  autoFocus
-                  value={editing.to}
-                  onChange={(e) => setEditing({ ...editing, to: e.target.value })}
-                  className={`${field} min-w-0 flex-1`}
-                />
-                <Button type="submit" size="sm" disabled={busy}>
-                  {t("peers.env.save")}
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>
-                  {t("peers.env.cancel")}
-                </Button>
-              </form>
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 text-sm">
-                  <div className="font-medium">{env.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {env.repoPath} · {AGENT_KIND_LABEL[env.agent as keyof typeof AGENT_KIND_LABEL] ?? env.agent}
-                  </div>
-                </div>
-                <div className="flex shrink-0 gap-1.5">
-                  <Button variant="outline" size="sm" disabled={busy} onClick={() => setEditing({ from: env.name, to: env.name })}>
-                    {t("peers.env.rename")}
-                  </Button>
-                  <Button
-                    variant={pending === `remove:${env.name}` ? "destructive" : "outline"}
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => confirm(`remove:${env.name}`) && void run(() => removeEnvironment(env.name))}
-                  >
-                    {pending === `remove:${env.name}` ? t("peers.confirm") : t("peers.env.remove")}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {inbound.map((p) => {
-              // The two conditions a launch from `p` meets here (bridge/node.ts, ADR 0051), each with its state.
-              const granted = p.launch === null || p.launch.includes(env.name);
-              return (
-                <div key={p.name} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-2 py-1.5 text-xs" data-testid={`grant-${env.name}-${p.name}`}>
-                  <div className="min-w-0">
-                    <div className="font-medium">{t("peers.grant.from", { peer: p.name })}</div>
-                    <div className="text-muted-foreground">
-                      {t("peers.grant.declared")} · {granted ? "✓" : "✗"} {t("peers.grant.granted")}
-                    </div>
-                  </div>
-                  <Button variant={granted ? "outline" : "default"} size="sm" disabled={busy} onClick={() => void run(() => grantLaunch(p.name, env.name, !granted))}>
-                    {granted ? t("peers.grant.withdraw") : t("peers.grant.allow")}
-                  </Button>
-                </div>
-              );
-            })}
-          </li>
-        ))}
+                <span className="min-w-0">
+                  <span className="block font-medium">
+                    {env.name} <span className="font-normal text-muted-foreground">· {repoName(env.repoPath)}</span>
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {allowed.length > 0 ? t("peers.env.allowed", { peers: allowed.join(", ") }) : t("peers.env.nobody")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </li>
+          );
+        })}
       </ul>
-      <form onSubmit={add} className="flex flex-col gap-2">
-        <label className="flex flex-col gap-1 text-sm">
-          {t("peers.env.repo")}
-          <select
-            required
-            value={repo}
-            onChange={(e) => {
-              setRepo(e.target.value);
-              // The repo's name is the natural default; the operator may change it.
-              if (!name) setName(repos.find((r) => r.path === e.target.value)?.name ?? "");
-            }}
-            className={field}
-          >
-            <option value="" disabled>
-              {t("peers.env.pickRepo")}
-            </option>
-            {repos.map((r) => (
-              <option key={r.path} value={r.path}>
-                {r.name} — {r.path}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          {t("peers.env.agent")}
-          <select value={agent} onChange={(e) => setAgent(e.target.value)} className={field}>
-            {AGENT_KIND_OPTIONS.map((k) => (
-              <option key={k} value={k}>
-                {AGENT_KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          {t("peers.env.name")}
-          <input required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} className={field} />
-        </label>
-        <Button type="submit" className="self-start" disabled={busy}>
-          {busy && <Loader2 className="animate-spin" />}
-          {t("peers.env.add")}
-        </Button>
-      </form>
     </Card>
   );
 }

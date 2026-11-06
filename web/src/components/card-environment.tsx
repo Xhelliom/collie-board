@@ -120,8 +120,10 @@ export function EnvironmentPicker({
 
   const offered = envs?.environments ?? [];
   const unreachable = envs?.unreachable ?? [];
-  const blocked = envs?.blocked ?? [];
-  if (offered.length === 0 && unreachable.length === 0 && blocked.length === 0 && !value) return null;
+  const denied = envs?.denied ?? [];
+  // A peer whose environments are listed greyed below needs no second line saying the same thing.
+  const blocked = (envs?.blocked ?? []).filter((b) => !denied.some((d) => d.peer === b.peer));
+  if (offered.length === 0 && denied.length === 0 && unreachable.length === 0 && blocked.length === 0 && !value) return null;
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-muted-foreground">{t("cardEnv.label")}</span>
@@ -139,6 +141,11 @@ export function EnvironmentPicker({
         {offered.map((o) => (
           <option key={keyOf(o)} value={keyOf(o)}>
             {t("cardEnv.option", { name: o.name, peer: o.peer })}
+          </option>
+        ))}
+        {denied.map((d) => (
+          <option key={`-${keyOf(d)}`} value={`-${keyOf(d)}`} disabled>
+            {t("cardEnv.deniedOption", { name: d.name, peer: d.peer })}
           </option>
         ))}
         {value && !offered.some((o) => keyOf(o) === keyOf(value)) && (

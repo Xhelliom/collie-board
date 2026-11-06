@@ -54,6 +54,16 @@ describe("StepItem with the journal's facts", () => {
     expect(list).toHaveTextContent("GitHub would not merge it by itself");
   });
 
+  it("says which machine it runs on — « sur {pair} », the environment as its title", () => {
+    setPreference("fr");
+    render(
+      <MemoryRouter>
+        <StepItem card={{ ...card, environment: { peer: "dell", name: "win-sonde" } }} index={0} next={false} open={false} flash={false} predecessor={undefined} facts={undefined} onToggle={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("sur dell")).toHaveAttribute("title", "win-sonde");
+  });
+
   it("is still a card without facts", () => {
     mount(undefined);
     expect(screen.getByRole("list", { name: "Who did what" })).toHaveTextContent("claude — finished");

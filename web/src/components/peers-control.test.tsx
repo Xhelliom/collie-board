@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 
 import { server } from "@/test/setup";
+import { MemoryRouter } from "react-router";
+
 import { PeersControl } from "@/components/peers-control";
 import { setPreference } from "@/i18n";
 import type { PeersView } from "@/lib/peers";
@@ -53,7 +55,7 @@ beforeEach(() => {
 
 describe("PeersControl", () => {
   test("lists who drives this machine and who it drives, with identity and launch grant", async () => {
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const inbound = await screen.findByRole("region", { name: /who drives this machine/i });
     expect(within(inbound).getByText("arch-1")).toBeInTheDocument();
     expect(within(inbound).getByText(/me@github/)).toBeInTheDocument();
@@ -63,7 +65,7 @@ describe("PeersControl", () => {
 
   test("an invitation shows its code, a countdown, and can be cancelled", async () => {
     const user = userEvent.setup();
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const invite = await screen.findByRole("region", { name: /invite a peer/i });
     await user.click(within(invite).getByRole("button", { name: /invite a peer/i }));
     expect(await screen.findByTestId("invite-code")).toHaveTextContent("ABCD-EFGH");
@@ -74,13 +76,13 @@ describe("PeersControl", () => {
 
   test("a burned invitation says by whom", async () => {
     view.invitation = { state: "burned", at: Date.now(), login: "eve@github" };
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     expect(await screen.findByText(/burned by a wrong attempt — eve@github/i)).toBeInTheDocument();
   });
 
   test("adding a peer sends url and code to this bridge, then offers the reciprocal pairing", async () => {
     const user = userEvent.setup();
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const add = await screen.findByRole("region", { name: /add a peer/i });
     await user.type(within(add).getByLabelText(/address/i), "https://b.ts.net");
     await user.type(within(add).getByLabelText(/^code/i), "abcd-efgh");
@@ -93,7 +95,7 @@ describe("PeersControl", () => {
 
   test("revoke takes two taps; test shows the outcome", async () => {
     const user = userEvent.setup();
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const inbound = await screen.findByRole("region", { name: /who drives this machine/i });
     await user.click(within(inbound).getByRole("button", { name: /revoke/i }));
     expect(posted).toEqual([]);
@@ -115,49 +117,25 @@ describe("PeersControl", () => {
   ])("test the connection says %o readably", async (result, text) => {
     testResult = result;
     const user = userEvent.setup();
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const outbound = await screen.findByRole("region", { name: /machines this one drives/i });
     await user.click(within(outbound).getByRole("button", { name: /test the connection/i }));
     expect(await within(outbound).findByRole("status")).toHaveTextContent(text);
   });
 
-  test("an environment is declared from a known repo and an agent, never a typed path; renamed; removed", async () => {
-    const user = userEvent.setup();
-    render(<PeersControl />);
-    const envs = await screen.findByRole("region", { name: /environments offered/i });
-    expect(within(envs).getByText("cad")).toBeInTheDocument();
-    await waitFor(() => expect(within(envs).getByRole("option", { name: /app — \/home\/me\/git\/app/ })).toBeInTheDocument());
-    await user.selectOptions(within(envs).getByLabelText(/repository/i), "/home/me/git/app");
-    await user.selectOptions(within(envs).getByLabelText(/agent/i), "codex");
-    expect(within(envs).getByLabelText(/^name/i)).toHaveValue("app");
-    await user.click(within(envs).getByRole("button", { name: /declare/i }));
-    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "add", name: "app", repo: "/home/me/git/app", agent: "codex" }]));
-
-    await user.click(within(envs).getByRole("button", { name: /rename/i }));
-    const input = within(envs).getByDisplayValue("cad");
-    await user.clear(input);
-    await user.type(input, "cad-win");
-    await user.click(within(envs).getByRole("button", { name: /save/i }));
-    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "rename", name: "cad", to: "cad-win" }]));
-
-    await user.click(within(envs).getByRole("button", { name: /remove/i }));
-    await user.click(within(envs).getByRole("button", { name: /tap again/i }));
-    await waitFor(() => expect(posted).toContainEqual(["environments", { action: "remove", name: "cad" }]));
-  });
-
-  test("a new peer may launch nothing; one Allow grants it, the repo's autonomy aside", async () => {
-    const user = userEvent.setup();
-    render(<PeersControl />);
-    const row = await screen.findByTestId("grant-cad-arch-1");
-    expect(row).toHaveTextContent("✓ environment declared · ✗ launch granted");
-    expect(row).not.toHaveTextContent(/autonomy/i);
-    await user.click(within(row).getByRole("button", { name: "Allow" }));
-    await waitFor(() => expect(posted).toContainEqual(["grant", { name: "arch-1", environment: "cad", allow: true }]));
+  test("environments are a summary — repo, allowed peers — linking to the project's settings", async () => {
+    view = { ...view, inbound: [...view.inbound, { name: "dell", login: null, pairedAt: null, launch: ["cad"] }] };
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
+    const row = await screen.findByTestId("env-cad");
+    expect(row).toHaveTextContent("cad · cad");
+    expect(row).toHaveTextContent("allowed: dell");
+    expect(row).toHaveAttribute("href", "/board/settings?repo=%2Fhome%2Fme%2Fgit%2Fcad");
+    expect(screen.queryByRole("button", { name: /declare|allow/i })).not.toBeInTheDocument();
   });
 
   test("speaks French", async () => {
     setPreference("fr");
-    render(<PeersControl />);
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
     expect(await screen.findByRole("region", { name: /qui pilote cette machine/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /inviter un pair/i })).toBeInTheDocument();
     expect(screen.getByText(/aucune identité Tailscale|me@github/)).toBeInTheDocument();
