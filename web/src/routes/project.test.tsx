@@ -593,7 +593,8 @@ describe("ProjectRoute", () => {
     await screen.findByRole("complementary", { name: "Orchestrator" });
     expect(screen.queryByRole("region", { name: "Autonomy" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Autonomy" })).toBeNull();
+    // Nor does the orchestrator panel point at them any more: autonomy is a Settings matter only.
     const aside = screen.getByRole("complementary", { name: "Orchestrator" });
-    expect(within(aside).getByRole("link", { name: /Autonomy/ })).toHaveAttribute("href", "/board/settings?repo=%2Fr%2Fapp#project-autonomy");
+    expect(within(aside).queryByRole("link", { name: /Autonomy/ })).toBeNull();
   });
 });

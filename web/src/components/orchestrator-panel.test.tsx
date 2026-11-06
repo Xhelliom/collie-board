@@ -25,6 +25,10 @@ function mount(repo: string | null, state: OrchestratorState | null, entries: Tr
   render(<RouterProvider router={router} />);
 }
 
+// The rare actions live behind the header's ⋯ button; each pick closes the menu.
+const openMenu = async () => userEvent.click(await screen.findByRole("button", { name: "Actions de l'orchestrateur" }));
+const item = (name: string) => screen.getByRole("menuitem", { name });
+
 // The texts asserted here are in one language, whatever the browser says.
 beforeEach(() => setPreference("fr"));
 afterEach(() => setPreference("en"));
@@ -138,12 +142,15 @@ describe("OrchestratorPanel", () => {
     render(<RouterProvider router={router} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/le contexte se remplit/i);
     // Restarting is always on offer: a note that was not needed must not block it.
-    expect(screen.getByRole("button", { name: "Repartir à neuf" })).toBeEnabled();
-    await userEvent.click(screen.getByRole("button", { name: "Lui demander de noter" }));
+    await openMenu();
+    expect(item("Repartir à neuf")).toBeEnabled();
+    await userEvent.click(item("Lui demander de noter"));
     expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }]);
     // …and asking changes nothing about it, only shows that the note is awaited.
     expect(await screen.findByText(/en attente de sa note/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Repartir à neuf" })).toBeEnabled();
+    await openMenu();
+    expect(item("Lui demander de noter")).toBeDisabled();
+    expect(item("Repartir à neuf")).toBeEnabled();
   });
 
   it("opens the second tap once the note's date has advanced past the one at the ask", async () => {
@@ -158,10 +165,12 @@ describe("OrchestratorPanel", () => {
     const Panel = () => <OrchestratorPanel repo="/g/app" state={useLoaderData() as OrchestratorState} entries={[]} memory={null} />;
     const router = createMemoryRouter([{ path: "/p", loader: () => state.current, element: <Panel /> }], { initialEntries: ["/p"] });
     render(<RouterProvider router={router} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Lui demander de noter" }));
+    await openMenu();
+    await userEvent.click(item("Lui demander de noter"));
     state.current = { ...state.current, memoryUpdatedAt: 200 };
     await router.revalidate();
-    const restart = await screen.findByRole("button", { name: "Repartir à neuf" });
+    await openMenu();
+    const restart = item("Repartir à neuf");
     await waitFor(() => expect(restart).toBeEnabled());
     await userEvent.click(restart);
     await waitFor(() => expect(calls).toEqual([{ repoPath: "/g/app", step: "ask" }, { repoPath: "/g/app", step: "restart" }]));
@@ -174,7 +183,8 @@ describe("OrchestratorPanel", () => {
       ),
     );
     mount("/g/app", { paneId: "w1:p2", running: true, ctxPct: 20 });
-    await userEvent.click(await screen.findByRole("button", { name: "Repartir à neuf" }));
+    await openMenu();
+    await userEvent.click(item("Repartir à neuf"));
     expect(await screen.findByRole("alert")).toHaveTextContent(/« Repartir à neuf » a échoué : L'ancien orchestrateur n'a pas pu être fermé/);
   });
 
@@ -217,6 +227,16 @@ describe("OrchestratorPanel", () => {
 
   it("shows the memory note read-only, or says there is none yet", async () => {
     mount("/g/app", { paneId: "w1:p2", running: true }, [], { note: "écarté : le mode coop", updatedAt: Date.now() });
-    expect(await screen.findByText("écarté : le mode coop")).toBeInTheDocument();
+    expect(screen.queryByText("écarté : le mode coop")).toBeNull();
+    await openMenu();
+    expect(screen.getByText("écarté : le mode coop")).toBeInTheDocument();
+  });
+
+  it("keeps the thread alone between header and composer: no autonomy link, no inline actions", async () => {
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    await screen.findByLabelText("Message à l'orchestrateur");
+    expect(screen.queryByRole("link", { name: "Autonomie" })).toBeNull();
+    expect(screen.queryByText("Lui demander de noter")).toBeNull();
+    expect(screen.queryByText("Mémoire")).toBeNull();
   });
 });

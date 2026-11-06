@@ -22,6 +22,7 @@ export const orchestrator = defineMessages({
     en: "The context is filling up — renew the orchestrator. It writes its note, then a new one starts from that note.",
     fr: "Le contexte se remplit — renouvelle l'orchestrateur. Il écrit sa note, puis un nouveau repart de cette note.",
   },
+  "orch.menu": { en: "Orchestrator actions", fr: "Actions de l'orchestrateur" },
   "orch.askNote": { en: "Ask it to take notes", fr: "Lui demander de noter" },
   "orch.restart": { en: "Start afresh", fr: "Repartir à neuf" },
   "orch.restartFailed": { en: "Starting afresh failed: {reason}", fr: "« Repartir à neuf » a échoué : {reason}" },

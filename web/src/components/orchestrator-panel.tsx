@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useRevalidator } from "react-router";
-import { ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
+import { Ellipsis, ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
@@ -12,7 +12,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { useImageUpload } from "@/hooks/use-image-upload";
-import { autonomyPath, boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
+import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
 import { sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
@@ -31,8 +31,6 @@ import type { TranscriptEntry } from "@/lib/types";
 /** The context occupancy from which the panel proposes a hand-over (ADR 0023). */
 export const HANDOVER_PCT = 50;
 
-// Autonomy is a setting of the project (ADR 0030): the panel only points at its block on the page —
-// through the project's URL, so the right repo's page is the one that scrolls (routes/project.tsx).
 // The newest deliverable's date at the last opening of the list, per repo: a comfort of this device only.
 const seenKey = (repo: string) => `collie.orch-deliverables-seen:${repo}`;
 function loadSeen(repo: string): number {
@@ -49,8 +47,6 @@ function saveSeen(repo: string, ts: number): void {
     // Private mode: the dot comes back on the next mount, nothing worse.
   }
 }
-
-const AUTONOMY_LINK = "inline-flex min-h-11 items-center self-start text-xs font-semibold text-muted-foreground underline underline-offset-2";
 
 export function OrchestratorPanel({
   repo,
@@ -81,6 +77,8 @@ export function OrchestratorPanel({
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
   const [delivOpen, setDelivOpen] = useState(false);
+  // The rare actions (note, restart, memory) sit behind one header button, so the thread keeps the height.
+  const [menuOpen, setMenuOpen] = useState(false);
   // Why the last "Repartir à neuf" failed, kept beside the button until the next try.
   const [restartError, setRestartError] = useState<string | null>(null);
 
@@ -170,9 +168,6 @@ export function OrchestratorPanel({
         <Button variant="brand" className="self-start" disabled={busy} onClick={() => void start()}>
           {busy ? t("orch.starting") : t("orch.start")}
         </Button>
-        <Link to={autonomyPath(repo)} data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
-          {t("orch.auto")}
-        </Link>
       </div>
     );
   }
@@ -215,6 +210,60 @@ export function OrchestratorPanel({
             <Maximize2 className="size-3" />
             {t("orch.fullscreen")}
           </Link>
+          {asked !== null && (state.memoryUpdatedAt ?? 0) <= asked.base && (
+            <span className="text-[11px] text-muted-foreground">{t("orch.waitingNote")}</span>
+          )}
+          {/* Same hand-rolled menu as pane-menu.tsx: an absolute list plus a click-outside layer. */}
+          <span className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              onKeyDown={(e) => e.key === "Escape" && setMenuOpen(false)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label={t("orch.menu")}
+              className="-my-2 -mr-2 inline-flex size-11 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/60"
+            >
+              <Ellipsis className="size-4" />
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setMenuOpen(false)} />
+                <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lg">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={busy || asked !== null}
+                    onClick={() => (setMenuOpen(false), void renew("ask"))}
+                    className="min-h-11 rounded-lg px-2.5 text-left font-medium hover:bg-muted/60 disabled:opacity-50"
+                  >
+                    {t("orch.askNote")}
+                  </button>
+                  {/* Never gated on the note: an orchestrator with nothing new to record writes nothing, and the
+                      last note it wrote is then what its successor reads. */}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={busy}
+                    onClick={() => (setMenuOpen(false), void renew("restart"))}
+                    className="min-h-11 rounded-lg px-2.5 text-left font-medium text-brand hover:bg-muted/60 disabled:opacity-50"
+                  >
+                    {t("orch.restart")}
+                  </button>
+                  <details className="border-t border-border/60 px-2.5 pt-1.5">
+                    <summary className="flex min-h-11 cursor-pointer select-none items-center text-xs font-semibold text-muted-foreground">
+                      {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
+                    </summary>
+                    {memory ? (
+                      <p className="mb-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{memory.note}</p>
+                    ) : (
+                      <p className="mb-1.5 text-muted-foreground">{t("orch.memoryEmpty")}</p>
+                    )}
+                  </details>
+                </div>
+              </>
+            )}
+          </span>
         </span>
       </div>
       <BottomSheet open={delivOpen} onClose={() => setDelivOpen(false)} title={t("orch.deliverables")}>
@@ -222,31 +271,16 @@ export function OrchestratorPanel({
           <DeliverableLinks items={deliverables} onLeave={() => (setDelivOpen(false), onLeave?.())} />
         </div>
       </BottomSheet>
-      {state.paneId && (
-        <div
-          role={full ? "alert" : undefined}
-          className={cn("flex flex-col gap-2 text-sm", full && "rounded-lg border border-status-working/50 bg-status-working/10 p-2.5")}
-        >
-          {full && <span>{t("orch.handover")}</span>}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="h-8 px-3 text-xs" disabled={busy || asked !== null} onClick={() => void renew("ask")}>
-              {t("orch.askNote")}
-            </Button>
-            {/* Never gated on the note: an orchestrator with nothing new to record writes nothing, and the
-                last note it wrote is then what its successor reads. */}
-            <Button variant="brand" className="h-8 px-3 text-xs" disabled={busy} onClick={() => void renew("restart")}>
-              {t("orch.restart")}
-            </Button>
-            {asked !== null && (state.memoryUpdatedAt ?? 0) <= asked.base && (
-              <span className="text-xs text-muted-foreground">{t("orch.waitingNote")}</span>
-            )}
-          </div>
-          {restartError && (
-            <p role="alert" className="text-xs text-destructive">
-              {restartError}
-            </p>
-          )}
-        </div>
+      {/* Past the threshold the warning stays in sight: the actions it asks for are in the ⋯ menu. */}
+      {full && (
+        <p role="alert" className="rounded-lg border border-status-working/50 bg-status-working/10 p-2.5 text-sm">
+          {t("orch.handover")}
+        </p>
+      )}
+      {restartError && (
+        <p role="alert" className="text-xs text-destructive">
+          {restartError}
+        </p>
       )}
       <div
         ref={scroller}
@@ -269,19 +303,6 @@ export function OrchestratorPanel({
           <p className="p-2 text-sm text-muted-foreground">{t("orch.warmingUp")}</p>
         )}
       </div>
-      <Link to={autonomyPath(repo)} data-vaul-no-drag onClick={onLeave} className={AUTONOMY_LINK}>
-        {t("orch.auto")}
-      </Link>
-      <details className="border-t border-border/60 py-1.5 text-sm">
-        <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">
-          {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
-        </summary>
-        {memory ? (
-          <p className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{memory.note}</p>
-        ) : (
-          <p className="mt-1.5 text-muted-foreground">{t("orch.memoryEmpty")}</p>
-        )}
-      </details>
       <ImagePreviewSheet upload={upload} />
       <AttachedImages upload={upload} />
       <form
