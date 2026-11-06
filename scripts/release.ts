@@ -32,6 +32,11 @@ export interface Fragment {
 const BUMPS: Bump[] = ["patch", "minor", "major"];
 /** Keep a Changelog's order; any other heading follows, in the order first seen. */
 const ORDER = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"];
+/**
+ * `### Upstream` is not a CHANGELOG section: its bullets, `- \`bridge/server.ts\`: what changed`, are
+ * folded into UPSTREAM.md's table by this one writer, so two branches never edit the same row.
+ */
+export const UPSTREAM = "Upstream";
 
 /** Parse one fragment, or throw naming it — a malformed fragment must fail the release, loudly. */
 export function parseFragment(name: string, text: string): Fragment {
@@ -54,7 +59,8 @@ export function parseFragment(name: string, text: string): Fragment {
       throw new Error(`${name}: unexpected line "${line.trim()}"`);
     }
   }
-  if (![...sections.values()].some((b) => b.length)) throw new Error(`${name}: no "- " line to release`);
+  for (const b of sections.get(UPSTREAM) ?? []) parseUpstream(name, b);
+  if (![...sections].some(([h, b]) => h !== UPSTREAM && b.length)) throw new Error(`${name}: no "- " line to release`);
   return { name, bump, sections };
 }
 
@@ -83,6 +89,7 @@ export function planRelease(
   for (const f of fragments) {
     const hash = hashOf(f.name);
     for (const [heading, bullets] of f.sections) {
+      if (heading === UPSTREAM) continue;
       const cited = bullets.map((b) => (hash && !/\([0-9a-f]{7,}\)\s*$/.test(b) ? `${b} (${hash})` : b));
       merged.set(heading, [...(merged.get(heading) ?? []), ...cited]);
     }
@@ -96,6 +103,31 @@ export function planRelease(
     .map((h) => `### ${h}\n\n${merged.get(h)!.join("\n")}`)
     .join("\n\n");
   return { version, entry: `## [${version}] - ${date}\n\n${body}\n` };
+}
+
+/** `- \`a.ts\` · \`b.ts\`: change` → the table's File cell and its Change text. */
+export function parseUpstream(name: string, bullet: string): { file: string; change: string } {
+  const m = /^- (.+?`)\s*:\s+([\s\S]+)$/.exec(bullet);
+  if (!m) throw new Error(`${name}: an Upstream line is "- \`path/file.ts\`: what changed"`);
+  return { file: m[1]!.trim(), change: m[2]!.replace(/\s*\n\s*/g, " ").trim() };
+}
+
+/**
+ * Fold `### Upstream` bullets into UPSTREAM.md's `| File | Change |` table: appended to the row whose
+ * File cell is exactly the same, else a new row at the table's end.
+ */
+export function foldUpstream(md: string, entries: readonly { file: string; change: string }[]): string {
+  const lines = md.split("\n");
+  const head = lines.findIndex((l) => /^\|\s*File\s*\|\s*Change\s*\|/.test(l));
+  if (head === -1) throw new Error("UPSTREAM.md has no | File | Change | table");
+  for (const { file, change } of entries) {
+    let end = head + 2;
+    while (lines[end]?.startsWith("|")) end++;
+    const row = lines.slice(head + 2, end).findIndex((l) => l.split("|")[1]?.trim() === file);
+    if (row === -1) lines.splice(end, 0, `| ${file} | ${change} |`);
+    else lines[head + 2 + row] = lines[head + 2 + row]!.replace(/\s*\|\s*$/, ` ; ${change} |`);
+  }
+  return lines.join("\n");
 }
 
 /** Put the entry above the newest `## [x.y.z]` heading — below the file's own preamble. */
@@ -138,6 +170,11 @@ async function main(root: string): Promise<void> {
   for (const pkg of ["package.json", "web/package.json"]) {
     const path = join(root, pkg);
     await Bun.write(path, setVersion(await Bun.file(path).text(), version, "json"));
+  }
+  const upstream = fragments.flatMap((f) => (f.sections.get(UPSTREAM) ?? []).map((b) => parseUpstream(f.name, b)));
+  if (upstream.length) {
+    const path = join(root, "UPSTREAM.md");
+    await Bun.write(path, foldUpstream(await Bun.file(path).text(), upstream));
   }
   for (const n of names) rmSync(join(dir, n));
   console.log(version);
