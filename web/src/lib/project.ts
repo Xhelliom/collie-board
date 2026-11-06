@@ -133,3 +133,42 @@ export function projectOf(cards: CardView[], phaseRows: Phase[] = [], lotRows: L
     next: ordered.find((s) => s.status === "ready" && dependencyMet(s.dependsOn ? byId.get(s.dependsOn) : null)) ?? null,
   };
 }
+
+// Words too common to name a theme (fr + en), and the verbs a card title usually starts with.
+const STOP = new Set(
+  ("les des une pour dans sur par avec sans que qui quand plus tout tous toute cette ces son ses leur aux " +
+    "est sont pas mais elle elles ils lui même entre depuis vers chez " +
+    "the and for with from into when that this not but all its their are was " +
+    "ajouter corriger afficher permettre rendre faire mettre garder passer montrer " +
+    "add fix show make allow keep move use update").split(" "),
+);
+
+/** A name to start a milestone from: the one card's title, else the words most of the titles share,
+ *  else null (the caller falls back to « divers <date> »). The operator can always rewrite it. */
+export function proposeMilestoneName(titles: string[]): string | null {
+  const clean = titles.map((t) => t.trim()).filter(Boolean);
+  if (clean.length === 1) return clean[0].slice(0, 200);
+  // Count each word once per title; display it as first seen.
+  const count = new Map<string, { n: number; shown: string; first: number }>();
+  let order = 0;
+  for (const title of clean) {
+    const seen = new Set<string>();
+    for (const w of title.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []) {
+      const key = w.toLowerCase().replace(/^[ldjmnst][’']/, "");
+      if (key.length < 3 || STOP.has(key) || seen.has(key)) continue;
+      seen.add(key);
+      const e = count.get(key) ?? { n: 0, shown: w.replace(/^[ldjmnst][’']/i, ""), first: order++ };
+      e.n++;
+      count.set(key, e);
+    }
+  }
+  const min = Math.max(2, Math.ceil(clean.length / 3));
+  const theme = [...count.values()]
+    .filter((e) => e.n >= min)
+    .sort((a, b) => b.n - a.n || a.first - b.first)
+    .slice(0, 3)
+    .map((e) => e.shown);
+  if (theme.length === 0) return null;
+  const name = theme.join(" · ");
+  return name[0].toUpperCase() + name.slice(1);
+}

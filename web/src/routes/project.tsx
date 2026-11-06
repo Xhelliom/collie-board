@@ -22,9 +22,9 @@ import { Kpi, calm, useCountUp } from "@/components/kpi";
 import { StepItem, STEP_TONE } from "@/components/project-step";
 import { boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
-import { useT, type MessageKey } from "@/i18n";
+import { getLocale, useT, type MessageKey } from "@/i18n";
 import { ago, rich } from "@/lib/project-facts";
-import { projectOf, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
+import { projectOf, proposeMilestoneName, stepGroup, type ProjectPhase, type StepGroup } from "@/lib/project";
 import { lotHold } from "@/lib/lot-hold";
 import { saveLastProject } from "@/lib/quick-access";
 import { setStatus } from "@/lib/status";
@@ -224,6 +224,9 @@ export function ProjectRoute() {
   // into its first milestone. This is what `POST /api/phases/seal` files when it is not given a list.
   const unfiled = v.phases.filter((p) => !p.phase).flatMap((p) => p.steps.filter((s) => s.status === "done"));
   const looseDone = unfiled.length;
+  // The seal sheet opens on a name the operator can keep or rewrite — never an empty field to fill.
+  const milestoneName = (steps: CardView[]) =>
+    proposeMilestoneName(steps.map((s) => s.title)) ?? t("project.seal.misc", { date: new Date().toLocaleDateString(getLocale()) });
   // The page leads with the phases in progress; what no phase has taken folds below them — unless no phase
   // exists at all, and then it is the work itself.
   const phased = v.phases.some((p) => p.phase);
@@ -313,7 +316,7 @@ export function ProjectRoute() {
               type="button"
               onClick={() => {
                 const done = p.steps.filter((s) => s.status === "done");
-                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title });
+                setSealing({ count: done.length, cardIds: done.map((s) => s.id), name: p.container?.title ?? milestoneName(done) });
               }}
               aria-label={p.container ? undefined : t("project.seal.aria")}
               className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
@@ -596,7 +599,7 @@ export function ProjectRoute() {
                   <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("project.unfiled", { count: looseDone })}</p>
                   <button
                     type="button"
-                    onClick={() => setSealing({ count: looseDone })}
+                    onClick={() => setSealing({ count: looseDone, name: milestoneName(unfiled) })}
                     className="shrink-0 rounded-full border bg-card/70 px-3.5 py-1.5 font-mono text-xs font-medium hover:border-foreground/25"
                   >
                     {t("project.sealAll")}
