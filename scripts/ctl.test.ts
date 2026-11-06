@@ -8,6 +8,7 @@ import {
   checkVersions,
   collieVersion,
   dnsNameFromStatus,
+  isReleaseTag,
   main,
   parseEnv,
   PLUGIN_ID,
@@ -282,12 +283,19 @@ describe("main — the routing", () => {
   });
 
   it("refuses what isn't ported yet on Windows, saying what to do instead", async () => {
-    for (const cmd of ["setup", "serve", "unserve", "update"]) {
+    for (const cmd of ["setup", "serve", "unserve"]) {
       const { calls, d } = deps("win32");
       expect(await main([cmd], d)).toBe(2);
       expect(calls.windows).toBeUndefined();
       expect(calls.err[0]).toContain(`'${cmd}' is not available on Windows yet`);
     }
+  });
+});
+
+describe("isReleaseTag", () => {
+  it("takes only the vX.Y.Z a rollback leaves, never a ref git would read as an option", () => {
+    expect(isReleaseTag("v0.270.1")).toBe(true);
+    for (const bad of ["0.270.1", "v1.0.0-rc", "--upload-pack=x", "v1.0.0\nrm", ""]) expect(isReleaseTag(bad)).toBe(false);
   });
 });
 
@@ -314,10 +322,18 @@ describe("herdr-plugin.toml", () => {
       const platforms = a.platforms ?? manifest.platforms;
       if (platforms.includes("windows")) {
         expect(a.command).toEqual(["bun", "scripts/ctl.ts", a.id]);
-        expect(["setup", "serve", "unserve", "update"]).not.toContain(a.id);
+        expect(["setup", "serve", "unserve"]).not.toContain(a.id);
       } else {
         expect(a.command).toEqual(["bash", "scripts/collie-board-ctl.sh", a.id]);
       }
     }
+  });
+
+  // `update` is ctl.ts everywhere so the banner's `invoke update` works on Windows; `update-bash` keeps
+  // a Linux/macOS host whose Herdr can't see bun updatable — it is what the bridge's button invokes there.
+  it("updates through ctl.ts everywhere, with a bash twin for a Herdr that can't see bun", () => {
+    const byId = Object.fromEntries(manifest.actions.map((a) => [a.id, a]));
+    expect(byId.update?.platforms).toBeUndefined();
+    expect(byId["update-bash"]?.platforms).toEqual(["linux", "macos"]);
   });
 });

@@ -464,9 +464,26 @@ export function fetchPreviousRelease(): Promise<{ previous: string | null }> {
   return req<{ previous: string | null }>("/api/update/rollback");
 }
 
+// The bridge holds these two answers until the update action fails or restarts it (~3 min at most).
+const UPDATE_WAIT_MS = 180_000;
+
 /** Reinstall the previous release through the update action; the bridge restarts on it. */
 export function rollBack(): Promise<{ target: string }> {
-  return req<{ target: string }>("/api/update/rollback", { method: "POST" });
+  return req<{ target: string }>("/api/update/rollback", { method: "POST" }, UPDATE_WAIT_MS);
+}
+
+/** Update plugin, UI and bridge to the newest release through the update action; the bridge restarts on it. */
+export function applyUpdate(): Promise<{ started: true }> {
+  return req<{ started: true }>("/api/update/apply", { method: "POST" }, UPDATE_WAIT_MS);
+}
+
+/**
+ * Did this update request really fail? A success restarts the bridge under the pending request, so a
+ * dropped connection, a timeout or a proxy's 5xx mean "under way" — only the bridge's own refusal (a
+ * 4xx, or its `update-failed`) is a failure, and the running version is still the old one.
+ */
+export function isUpdateRefusal(e: unknown): e is ApiError {
+  return e instanceof ApiError && (e.status < 500 || e.kind === "update-failed");
 }
 
 /**

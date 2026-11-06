@@ -1,6 +1,6 @@
 # 0050 — Every action runs `ctl.ts`, because Herdr allows one command per action id
 
-**Status:** Accepted
+**Status:** Accepted — its `update` clause superseded by [0054](./0054-update-runs-ctl-ts-everywhere-with-a-bash-twin-the-bridge-invokes.md)
 **Date:** 2026-11-03
 
 ## Context

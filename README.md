@@ -753,7 +753,9 @@ scripts/collie-board-ctl.sh update    # or: herdr plugin action invoke update --
 ```
 
 It advances the checkout, rebuilds the UI and restarts the bridge (re-execing itself, so it's safe
-even when the update rewrites the script). Confirm via the footer build stamp.
+even when the update rewrites the script). Confirm via the footer build stamp. The same works on
+Windows. On a Linux/macOS host whose Herdr doesn't see bun on its `PATH`, invoke `update-bash`
+instead — or tap **Update** in Settings → Updates, which uses it there (ADR 0054).
 
 How it advances depends on how you installed, because `herdr plugin install` does **not** clone — it
 `git fetch --depth 1` + `checkout --detach`es, leaving a detached, shallow checkout:

@@ -8,7 +8,7 @@
 // still owns those platforms; on Windows it runs the command itself. ADR 0050 has the reasoning,
 // ADR 0046 §7 the plan: this file catches up with the shell script, which then goes away.
 //
-// What runs natively on Windows today (lot 1): build, start, stop, restart, uninstall, status, url,
+// What runs natively on Windows today: build, start, stop, restart, uninstall, update, status, url,
 // version, logs, push-test. `setup` and the `tailscale serve` front door come in the next lot; until
 // then the bridge is published by hand (README → Windows).
 //
@@ -470,6 +470,71 @@ function uninstallWindows(c: Ctx): number {
   return 0;
 }
 
+const git = (c: Ctx, ...args: string[]) => runLoud(["git", "-C", c.root, ...args], c.root);
+/** A Herdr-managed install is a detached checkout; a linked one sits on a branch — `is_managed_checkout`. */
+const isManagedCheckout = (c: Ctx) => run(["git", "-C", c.root, "symbolic-ref", "-q", "HEAD"]).code !== 0;
+
+/** A rollback target as `update_checkout` accepts it: `vX.Y.Z`, nothing else. */
+export const isReleaseTag = (s: string) => /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(s);
+
+/**
+ * `update_checkout` from collie-board-ctl.sh, with git argv instead of bash: land on the rollback
+ * target the bridge left (`update-target`, read once and removed), else `git pull --ff-only` on a
+ * linked checkout, else fetch + detach onto origin HEAD for a Herdr-managed one — the same move Herdr's
+ * own reinstall makes, minus a second [[build]]. `--force`: `bun install` may have rewritten tracked
+ * lockfiles. Shallow stays shallow, a full clone is never truncated.
+ */
+async function updateCheckout(c: Ctx): Promise<number> {
+  if (run(["git", "-C", c.root, "rev-parse", "--git-dir"]).code !== 0) {
+    console.error(`error: ${c.root} is not a git checkout — refresh it with:\n       herdr plugin install Xhelliom/collie-board --yes`);
+    return 1;
+  }
+  const shallow = run(["git", "-C", c.root, "rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
+  const fetchDetach = async (ref: string) => {
+    if ((await git(c, "fetch", ...(shallow ? ["--depth", "1"] : []), "origin", ref)) !== 0) return 1;
+    if ((await git(c, "checkout", "-q", "--detach", "--force", "FETCH_HEAD")) !== 0) return 1;
+    console.log(`→ now at ${run(["git", "-C", c.root, "log", "-1", "--format=%h %s"]).stdout.trim()}`);
+    return 0;
+  };
+  const targetFile = join(c.configDir, "update-target");
+  if (existsSync(targetFile)) {
+    const target = readOr(targetFile).trim();
+    rmSync(targetFile, { force: true });
+    if (!isReleaseTag(target)) {
+      console.error(`error: ignoring a malformed rollback target '${target}'`);
+      return 1;
+    }
+    console.log(`rolling Collie Board back to ${target}…`);
+    return fetchDetach(`refs/tags/${target}`);
+  }
+  if (!isManagedCheckout(c)) {
+    console.log("updating Collie Board (git pull --ff-only)…");
+    return git(c, "pull", "--ff-only");
+  }
+  console.log("updating Collie Board (Herdr-managed checkout: fetch + detach onto origin HEAD)…");
+  return fetchDetach("HEAD");
+}
+
+/**
+ * Second half of `update`, run from the freshly checked-out ctl.ts: build (version gate + staged
+ * swap — a failed build leaves the running bridge and its web/dist alone), restart, and re-link a
+ * linked install so Herdr learns new actions (never a managed one: that would block `plugin install`).
+ */
+async function applyUpdate(c: Ctx): Promise<number> {
+  if ((await build(c)) !== 0) {
+    console.error("error: build failed — the running version is untouched");
+    return 1;
+  }
+  stopWindows(c);
+  if ((await startWindows(c)) !== 0) return 1;
+  if (!isManagedCheckout(c)) {
+    const linked = run(["herdr", "plugin", "link", c.root]);
+    console.log(linked.code === 0 ? "herdr registry refreshed (re-linked)" : `note: couldn't re-link — run: herdr plugin link "${c.root}"`);
+  }
+  console.log("✓ update complete");
+  return 0;
+}
+
 const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -534,7 +599,6 @@ const NOT_YET_ON_WINDOWS: Record<string, string> = {
   setup: "write the plugin .env by hand (COLLIE_BOARD_TRUSTED_USER, COLLIE_BOARD_PUBLIC_HOSTS — README → Configure)",
   serve: "publish it yourself: tailscale serve --bg <port>  (README → Windows)",
   unserve: "remove the mapping you published: tailscale serve --https=443 off",
-  update: "herdr plugin update, then: herdr plugin action invoke restart --plugin herdr.collie-board",
 };
 
 export interface MainDeps {
@@ -570,6 +634,12 @@ async function windows(cmd: string, rest: string[]): Promise<number> {
       return startWindows(c);
     case "uninstall":
       return uninstallWindows(c);
+    case "update":
+      if ((await updateCheckout(c)) !== 0) return 1;
+      // The checkout may have rewritten this very file: the rest runs from the fresh copy.
+      return runLoud([c.bun, join(c.root, "scripts", "ctl.ts"), "_apply-update"], c.root);
+    case "_apply-update":
+      return applyUpdate(c);
     case "_run":
       return superviseWindows(c, rest);
     case "status":

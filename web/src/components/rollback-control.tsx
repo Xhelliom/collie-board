@@ -4,7 +4,7 @@ import { Loader2, Undo2 } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
-import { fetchPreviousRelease, rollBack } from "@/lib/api";
+import { fetchPreviousRelease, isUpdateRefusal, rollBack } from "@/lib/api";
 
 // t("settings.updates.rollback") — go back to the release before the running one. The bridge hands
 // the tag to the existing update action, which reinstalls it and restarts the bridge on it.
@@ -28,8 +28,8 @@ export function RollbackControl() {
     try {
       await rollBack();
       setState("done");
-    } catch {
-      setState("failed");
+    } catch (e) {
+      setState(isUpdateRefusal(e) ? "failed" : "done"); // a dropped request is the restart: under way
     }
   }
 

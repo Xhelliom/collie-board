@@ -134,4 +134,44 @@ describe("UpdateCheckControl", () => {
     expect(await screen.findByText(/whether a new collie version is available/i)).toBeInTheDocument();
     expect(screen.queryByText(/up to date/i)).toBeNull();
   });
+
+  describe("the update button", () => {
+    const newer: UpdateInfo = { ...upToDate, latest: "0.12.0", releaseAvailable: true };
+
+    it("is offered only when a newer release exists", async () => {
+      renderControl(upToDate);
+      await screen.findByText(/running v0\.11\.0/i);
+      expect(screen.queryByRole("button", { name: /update to/i })).toBeNull();
+    });
+
+    it("says the update is under way while the bridge restarts under the request", async () => {
+      let posted = false;
+      server.use(
+        http.post("/api/update/apply", () => {
+          posted = true;
+          return HttpResponse.error(); // the restart drops the pending request
+        }),
+      );
+      const user = userEvent.setup();
+      renderControl(newer);
+      await user.click(await screen.findByRole("button", { name: /update to 0\.12\.0/i }));
+      await waitFor(() => expect(posted).toBe(true));
+      expect(await screen.findByText(/reloads on the new version/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /updating to 0\.12\.0/i })).toBeDisabled();
+    });
+
+    it("shows why an update failed, and lets it be tried again", async () => {
+      server.use(
+        http.post("/api/update/apply", () =>
+          HttpResponse.json({ error: "fatal: Not possible to fast-forward", kind: "update-failed" }, { status: 502 }),
+        ),
+      );
+      const user = userEvent.setup();
+      renderControl(newer);
+      await user.click(await screen.findByRole("button", { name: /update to 0\.12\.0/i }));
+      expect(await screen.findByText(/current version keeps running/i)).toBeInTheDocument();
+      expect(screen.getByText("fatal: Not possible to fast-forward")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /update to 0\.12\.0/i })).not.toBeDisabled();
+    });
+  });
 });

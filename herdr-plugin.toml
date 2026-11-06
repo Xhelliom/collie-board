@@ -12,8 +12,8 @@ platforms = ["linux", "macos", "windows"]
 # Every action Windows offers is `bun scripts/ctl.ts <id>` on EVERY platform: Herdr refuses two
 # actions with one id whatever their `platforms`, and has no per-platform command (ADR 0050).
 # ctl.ts hands the command to scripts/collie-board-ctl.sh on Linux/macOS, and runs it itself on
-# Windows. The ones it can't run there yet (setup, update) keep the bash command, Linux/macOS only —
-# which also keeps `update` working on a host whose Herdr can't see bun.
+# Windows. The one it can't run there yet (setup) keeps the bash command, Linux/macOS only.
+# `update-bash` is `update` without bun: a host whose Herdr can't see bun can still update.
 
 # Build the web UI at install time. Herdr runs [[build]] steps ONLY on `herdr plugin install`
 # (GitHub) — NOT on `herdr plugin link` (local dev), which instead builds lazily on first `start`
@@ -66,13 +66,21 @@ title = "Uninstall web bridge (remove service)"
 contexts = ["workspace"]
 command = ["bun", "scripts/ctl.ts", "uninstall"]
 
-# Link-mode plugins ARE their on-disk git checkout (Herdr has no native `plugin update`), so this
-# action pulls + rebuilds + restarts in one step. See scripts/collie-board-ctl.sh → cmd_update.
+# The plugin IS its on-disk git checkout, so this action advances it (pull, or fetch + detach for a
+# Herdr-managed install) + rebuilds + restarts in one step. See scripts/ctl.ts → updateCheckout.
 [[actions]]
 id = "update"
 title = "Update plugin"
 contexts = ["workspace"]
-command = ["bash", "scripts/collie-board-ctl.sh", "update"]
+command = ["bun", "scripts/ctl.ts", "update"]
+
+# The same update straight through bash, for a Linux/macOS host whose Herdr doesn't see bun on its
+# PATH (ADR 0050). Settings → Updates invokes this one there, so the button never needs bun on PATH.
+[[actions]]
+id = "update-bash"
+title = "Update plugin (without bun on Herdr's PATH)"
+contexts = ["workspace"]
+command = ["bash", "scripts/collie-board-ctl.sh", "update-bash"]
 platforms = ["linux", "macos"]
 
 [[actions]]

@@ -22,7 +22,7 @@ import type { Push, PushSubscription } from "./push.ts";
 import { herdTagFor, type SessionRegistry } from "./sessions.ts";
 import type { Snooze } from "./snooze.ts";
 import type { UpdateMonitor } from "./update.ts";
-import { handleRollback } from "./rollback.ts";
+import { handleRollback, handleUpdate } from "./rollback.ts";
 import type { StateEngine } from "./state-engine.ts";
 import { SEEN_HEADER } from "./seen.ts";
 import { redactAnsi, redactDeep } from "./redact.ts";
@@ -608,6 +608,12 @@ export function startServer(opts: {
         const denied = guard(req, cfg, req.method === "GET" ? "read" : "write");
         if (denied) return denied;
         return handleRollback(req, updateMonitor.status().current);
+      }
+      // Update to the newest release through the same update action — fork-only, POST only.
+      if (pathname === "/api/update/apply") {
+        const denied = guard(req, cfg, "write");
+        if (denied) return denied;
+        return handleUpdate(req);
       }
 
       // ── Static PWA (with SPA fallback) ───────────────────────────────────
