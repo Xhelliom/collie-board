@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.271.0] - 2026-11-06
+
+### Added
+
+- Réglages → Mises à jour : bouton « Mettre à jour » quand une version plus récente existe ; l'échec s'affiche avec sa raison (476bb19)
+- Action `update` sur Windows (ctl.ts) ; action `update-bash` pour un Linux/macOS dont Herdr ne voit pas bun (476bb19)
+
+### Changed
+
+- Le retour arrière montre aussi la raison d'un échec de l'action update (476bb19)
+
 ## [0.270.2] - 2026-11-06
 
 ### Fixed
