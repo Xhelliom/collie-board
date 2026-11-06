@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793953447273.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"5c3b155e-913e-41b4-95fa-71032eda1b67"}}
 {"v":1,"hlc":"1793953447273.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Lire herdr 0.9 et herdr-core en parallèle","status":"backlog"},"ts":1793953440013}}
 {"v":1,"hlc":"1793953447274.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"696de895-e439-4fca-9fe8-345d1fea38ca"}}
+{"v":1,"hlc":"1793962932970.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
