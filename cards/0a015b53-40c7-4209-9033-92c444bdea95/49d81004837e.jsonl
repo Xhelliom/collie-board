@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793966375331.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Sous-agents sous hc : children_of et --no-notify","status":"backlog"},"ts":1793966369224}}
 {"v":1,"hlc":"1793966375334.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"24e615cf-d9c0-4d1d-bd75-191cf2888e02"}}
 {"v":1,"hlc":"1793966392982.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793966411240.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/sous-agents-sous-hc-children-of-et-no-notify"}}
+{"v":1,"hlc":"1793966411240.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793966411240.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793966396003}}
+{"v":1,"hlc":"1793966411240.0007.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793966411240.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793966400072}}
+{"v":1,"hlc":"1793966411240.0009.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2104},"ts":1793966402431}}

@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793966375332.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le troupeau par projet : espaces et onglets retirés sous hc","status":"backlog"},"ts":1793966369256}}
 {"v":1,"hlc":"1793966375334.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"24e615cf-d9c0-4d1d-bd75-191cf2888e02"}}
 {"v":1,"hlc":"1793966389915.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793966394990.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/le-troupeau-par-projet-espaces-et-onglets-retire"}}
+{"v":1,"hlc":"1793966394990.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793966394990.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793966393776}}
+{"v":1,"hlc":"1793966411240.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793966411240.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793966397975}}
+{"v":1,"hlc":"1793966411240.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2153},"ts":1793966399967}}
