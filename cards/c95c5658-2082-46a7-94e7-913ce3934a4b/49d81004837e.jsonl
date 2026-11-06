@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1793954683469.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Modèle de convention de documentation (socle + 4 modules)","status":"backlog"},"ts":1793954677516}}
 {"v":1,"hlc":"1793954683471.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ad33f321-b891-4090-bc16-00da2cc410e7"}}
 {"v":1,"hlc":"1793982152895.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793982156862.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/modele-de-convention-de-documentation-socle-4-mo"}}
+{"v":1,"hlc":"1793982156862.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793982156862.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793982156125}}
+{"v":1,"hlc":"1793982165762.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793982165762.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793982161479}}
+{"v":1,"hlc":"1793982165762.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3370},"ts":1793982163175}}
