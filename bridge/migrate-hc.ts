@@ -1,6 +1,6 @@
 import type { AgentAdapter } from "./adapters.ts";
 import type { BoardDb } from "./db.ts";
-import type { Mux, MuxKind } from "./mux/mux.ts";
+import type { Mux } from "./mux/mux.ts";
 import type { AgentView } from "./types.ts";
 import { agentNameFor, launchAgent, outOfSight } from "./cards.ts";
 
@@ -10,23 +10,29 @@ import { agentNameFor, launchAgent, outOfSight } from "./cards.ts";
 // HERDR_CORE_API.md §3: the conversation comes back and the session id does not change, so the card's
 // transcript, context gauge and agentSessionId follow without remapping.
 //
-// Limit (until « Lire herdr 0.9 et herdr-core en parallèle »): a herdr09 bridge does not read hc, so
-// the migrated session is put out of reconcile's sight (`outOfSight`) instead of being orphaned — the
-// card keeps its column and its session points at the hc terminal, but nothing mirrors its status.
+// A bridge that does not read hc yet cannot see the migrated terminal: the session is put out of
+// reconcile's sight (`outOfSight`) instead of being orphaned, until its pane shows up in a snapshot —
+// then reconcile follows it as any other (cards.ts).
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether a pane is herdr 0.9's — read off its id: hc's addresses are `t` + HEX (measured: t17, t18,
+ * t1b, t1c in a row); 0.9's all carry a `:` (`wW8:p1`). Never `cfg.mux`, which (with both engines
+ * read) only names where NEW panes are launched.
+ */
+export const isHerdr09Pane = (paneId: string): boolean => !/^t[0-9a-f]+$/.test(paneId);
 
 /** Why the button is not offered. One reason, the first that holds. */
 export type MigrateBlock = "not-herdr09" | "no-pane" | "not-claude" | "no-session-id" | "busy" | "hc-down";
 
 /** Whether « Migrer vers herdr-core » may be offered for this pane. Null = yes. */
 export function migrateBlock(input: {
-  mux: MuxKind;
   pane: AgentView | undefined;
   adapter: AgentAdapter | undefined;
   hcUp: boolean;
 }): MigrateBlock | null {
-  if (input.mux !== "herdr09") return "not-herdr09";
   if (!input.pane) return "no-pane";
+  if (!isHerdr09Pane(input.pane.paneId)) return "not-herdr09";
   if (!input.adapter?.sessionId) return "not-claude";
   if (!input.pane.agentSessionId) return "no-session-id";
   if (input.pane.status !== "idle" && input.pane.status !== "done") return "busy";

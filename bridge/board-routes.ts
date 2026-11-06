@@ -30,6 +30,7 @@ import {
 } from "./cards.ts";
 import { cardsSummary } from "./cards-summary.ts";
 import { hcSocketPath, type Config } from "./config.ts";
+import { Hc } from "./mux/hc.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type {
   BoardDb,
@@ -88,7 +89,7 @@ import { fileAsDone } from "./wrapup.ts";
 import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
-import { createMux, type Mux } from "./mux/mux.ts";
+import type { Mux } from "./mux/mux.ts";
 import { migrateBlock, migrateToHc } from "./migrate-hc.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
@@ -1623,10 +1624,10 @@ async function route(
     if (!card) return text("card not found", 404);
     const session = db.openSessionFor(id);
     const pane = session?.paneId ? ctx.engine.current().agents.find((a) => a.paneId === session.paneId) : undefined;
-    const hc = ctx.hc ?? createMux(hcSocketPath(), { mux: "hc", dialMode: ctx.cfg.dialMode });
-    const mux = ctx.cfg.mux ?? "herdr09";
+    // hc itself, never createMux: that builds the bridge's own engine (both engines, once they are read together).
+    const hc = ctx.hc ?? new Hc(hcSocketPath(), ctx.cfg.dialMode);
     // The hc probe only once the cheap reasons have passed: a socket dial per card view otherwise.
-    const pre = migrateBlock({ mux, pane, adapter: pane && adapterFor(ctx.adapters ?? BUILTIN_ADAPTERS, pane.agent), hcUp: true });
+    const pre = migrateBlock({ pane, adapter: pane && adapterFor(ctx.adapters ?? BUILTIN_ADAPTERS, pane.agent), hcUp: true });
     const block = pre ?? ((await hc.ping()) ? null : "hc-down");
     if (req.method === "GET") return json({ available: block === null, ...(block ? { reason: block } : {}) });
     if (block) return ctx.json({ ok: false, error: `migration impossible: ${block}`, kind: block }, 409);
