@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.268.0] - 2026-11-06
+
+### Added
+
+- Fin de lot : une PR « docs(plan) » met `docs/plan/` à jour (roadmap, étapes, bilan du lot) ; l'opérateur la merge (a8d6cb0)
+- Réglage par dépôt « Exporter le plan à chaque fin de lot » (actif par défaut), `GET/POST /api/repos/plan-export` (a8d6cb0)
+
 ## [0.267.1] - 2026-11-06
 
 ### Fixed
