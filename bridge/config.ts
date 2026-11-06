@@ -90,9 +90,9 @@ export interface Config {
    */
   dialMode?: DialMode;
   /**
-   * The multiplexer engine (`bridge/mux/`, ADR 0052): `herdr09`, or `hc` (herdr-core, read-only so
-   * far). Set via `COLLIE_BOARD_MUX`. Optional for the same reason as {@link dialMode}: absent = `herdr09`.
-   * With `hc`, {@link socketPath} is the core's socket, never herdr 0.9's.
+   * The engine NEW panes are launched on (`bridge/mux/`, ADR 0052 §4.2): `herdr09` or `hc`. Both are
+   * read at once whatever this says. Set via `COLLIE_BOARD_MUX`. Optional for the same reason as
+   * {@link dialMode}: absent = `herdr09`. {@link socketPath} stays herdr 0.9's; hc's is `hcSocketPath()`.
    */
   mux?: "herdr09" | "hc";
   /** TCP port the bridge listens on (loopback only). `tailscale serve` proxies to it. */
@@ -308,8 +308,8 @@ export function loadConfig(): Config {
   const mux = envEnum("COLLIE_BOARD_MUX", ["herdr09", "hc"] as const, "herdr09");
 
   return {
-    // HERDR_SOCKET_PATH is herdr 0.9's (the plugin host sets it): an hc bridge must not follow it.
-    socketPath: mux === "hc" ? hcSocketPath() : (process.env.HERDR_SOCKET_PATH ?? defaultSocketPath()),
+    // herdr 0.9's, always: hc is read beside it, on its own socket (hcSocketPath, ADR 0052 §4.2).
+    socketPath: process.env.HERDR_SOCKET_PATH ?? defaultSocketPath(),
     dialMode: envEnum("COLLIE_BOARD_HERDR_DIAL", ["auto", "net", "bun"] as const, "auto"),
     mux,
     port: envInt("COLLIE_BOARD_PORT", 8788, { min: 1, max: 65535 }),

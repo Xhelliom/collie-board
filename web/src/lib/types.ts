@@ -20,6 +20,8 @@ export interface AgentView {
   kind?: "agent" | "shell";
   /** User-set pane label (herdr `pane.rename`), when one is set; absent when the pane is unlabelled. */
   paneLabel?: string;
+  /** The engine the pane runs on — present only while the herd mixes herdr 0.9 and hc. */
+  engine?: "herdr09" | "hc";
   /**
    * Claude's OWN session name (set in-agent via `/rename`), derived bridge-side from the pane text.
    * Claude-only; absent for unnamed sessions and non-claude panes. Shown below an explicit `paneLabel`

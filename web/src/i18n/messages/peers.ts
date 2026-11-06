@@ -20,6 +20,8 @@ export const peers = defineMessages({
   "cardEnv.option": { en: "{name} · {peer}", fr: "{name} · {peer}" },
   "cardEnv.unreachableOption": { en: "{peer} — unreachable: {error}", fr: "{peer} — injoignable : {error}" },
   "cardEnv.on": { en: "on {peer}", fr: "sur {peer}" },
+  "cardEnv.engine.hc": { en: "hc", fr: "hc" },
+  "cardEnv.engine.herdr09": { en: "0.9", fr: "0.9" },
   "cardEnv.hint": {
     en: "Only the peers' environments whose origin is this repo's. Started there, never here instead.",
     fr: "Seuls les environnements des pairs dont l'origine est ce dépôt. Lancée là-bas, jamais ici à la place.",

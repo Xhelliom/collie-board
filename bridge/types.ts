@@ -30,6 +30,8 @@ export interface AgentView {
   kind?: "agent" | "shell";
   /** User-set pane label (herdr `pane.rename`), when one is set; absent when the pane is unlabelled. */
   paneLabel?: string;
+  /** The engine the pane runs on (ADR 0052 §4.2) — set only while the herd mixes engines, for the badge. */
+  engine?: "herdr09" | "hc";
   /**
    * Claude's OWN session name, set in-agent via `/rename` and read out of the pane's rendered text
    * (see `extractClaudeSessionName` in state-engine.ts). Claude-only and derived, not a wire field —

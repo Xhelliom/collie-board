@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { defaultSocketPath, loadConfig } from "./config.ts";
+import { defaultSocketPath, hcSocketPath, loadConfig } from "./config.ts";
 
 // loadConfig is the deployment contract — env vars in, a resolved Config out. Pure (just reads
 // process.env + homedir), so we drive it by mutating the environment and restoring it after.
@@ -227,15 +227,16 @@ describe("loadConfig", () => {
     expect(loadConfig().mux).toBe("herdr09");
   });
 
-  test("mux=hc dials the core's socket, not the herdr 0.9 one the plugin host exports", () => {
+  test("mux=hc only picks where new panes launch: socketPath stays herdr 0.9's, hc has its own", () => {
     process.env.COLLIE_BOARD_MUX = "hc";
     process.env.HERDR_SOCKET_PATH = "/x/herdr.sock";
     process.env.XDG_RUNTIME_DIR = "/run/user/7";
     const cfg = loadConfig();
     expect(cfg.mux).toBe("hc");
-    expect(cfg.socketPath).toBe(join("/run/user/7", "herdr-core", "default.sock"));
+    expect(cfg.socketPath).toBe("/x/herdr.sock");
+    expect(hcSocketPath()).toBe(join("/run/user/7", "herdr-core", "default.sock"));
     process.env.COLLIE_BOARD_HC_SOCKET = "/y/hc.sock";
-    expect(loadConfig().socketPath).toBe("/y/hc.sock");
+    expect(hcSocketPath()).toBe("/y/hc.sock");
   });
 });
 
