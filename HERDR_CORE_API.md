@@ -313,6 +313,31 @@ le téléphone sans un droit explicite.
 jamais relancée**. Exit ou kill : fini pour de bon. `server restart` garde les programmes. → un agent
 de carte survit à un redémarrage du core, pas à un reboot (là, notre handoff reste nécessaire).
 
+### Reprendre sous hc une conversation Claude née ailleurs (`claude --resume`) **[mesuré le 2026-11-06]**
+
+hc 0.1.18, Claude Code 2.1.319. Session créée hors hc (`claude -p --session-id $SID "Retiens ce mot
+secret : PAMPLEMOUSSE-42…"`), puis reprise dans le **même cwd** :
+
+```
+$ hc run --bg --no-parent --name probe-resume --cwd $WT claude --resume $SID
+0,1 s state null · 0,6 s null · 1,1 s idle turn 0         ← prêt en ~1 s, l'historique est à l'écran
+$ hc send --if idle probe-resume "Quel était le mot secret ? Réponds par le mot seul."
+{"started":true,"status":"idle","turn":0}
+$ hc wait probe-resume  →  {"status":"done","turn":1}     écran : ● PAMPLEMOUSSE-42
+```
+
+- **La conversation est rendue** : l'écran montre les tours précédents et Claude répond avec le
+  contexte. Aucun écran de confiance (cwd déjà approuvé).
+- **Même id de session** : `$SID.jsonl` passe de 39 à 62 lignes, aucun nouveau fichier. Le
+  transcript, la jauge de contexte et `agentSessionId` suivent l'agent sans rien remapper.
+- **Piège d'environnement** : le core hérite l'environnement de **celui qui l'a démarré**, et
+  `terminal.run {env}` ne fait qu'ajouter. Ici le core avait été démarré depuis un pane Claude :
+  chaque terminal recevait `CLAUDE_CODE_CHILD_SESSION=1` (→ Claude n'écrit **aucun transcript**,
+  bandeau « Transcript saving is off ») et un `HERDR_PANE_ID` périmé. `env -u` côté client n'y change
+  rien ; `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` dans l'env du lancement rétablit l'écriture
+  (mesuré : bandeau absent, transcript complété). → démarrer le core hors de tout agent (service de
+  l'OS), ou poser cette variable dans `terminal.run {env}`.
+
 ### Stockage `doc.get/set` **[mesuré : param `name` requis]**
 
 Document JSON opaque versionné (≤ 1 MiB), évènement `doc` à chaque écriture. **[supposé]** inutile pour
