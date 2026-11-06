@@ -32,4 +32,26 @@ export const docs = defineMessages({
   "docs.ask.cardTitle": { en: "Doc: change {path}", fr: "Doc : modifier {path}" },
   "docs.ask.cardFile": { en: "File: `{path}` (as on {ref})", fr: "Fichier : `{path}` (tel que sur {ref})" },
   "docs.ask.cardHow": { en: "Edit this file accordingly and open a PR.", fr: "Modifier ce fichier en conséquence et ouvrir une PR." },
+  "docs.bilan.title": { en: "Doc check", fr: "Bilan de doc" },
+  "docs.bilan.ok": { en: "✅ The docs follow the convention.", fr: "✅ La doc suit la convention." },
+  "docs.bilan.missing": { en: "No « {label} »", fr: "Pas de « {label} »" },
+  "docs.bilan.noModule": {
+    en: "No « what we build » part (game, product, tool or infra)",
+    fr: "Pas de partie « ce qu'on construit » (jeu, produit, outil ou infra)",
+  },
+  "docs.bilan.agentsLong": { en: "{path} is too long ({kb} KB, aim under 15)", fr: "{path} trop long ({kb} Ko, viser moins de 15)" },
+  "docs.bilan.agentsMany": { en: "Agent instructions written several times: {paths}", fr: "Instructions d'agents écrites plusieurs fois : {paths}" },
+  "docs.bilan.decisionsTwice": { en: "Decisions in two places: ADRs and {paths}", fr: "Décisions à deux endroits : les ADR et {paths}" },
+  "docs.bilan.tooBig": { en: "{path} is {kb} KB: split it past 30", fr: "{path} fait {kb} Ko : à découper au-delà de 30" },
+  "docs.bilan.noStatus": {
+    en: { one: "{count} file in docs/ without a Status line: {paths}", other: "{count} files in docs/ without a Status line: {paths}" },
+    fr: { one: "{count} fichier de docs/ sans ligne Statut : {paths}", other: "{count} fichiers de docs/ sans ligne Statut : {paths}" },
+  },
+  "docs.fix.open": { en: "Bring the docs up to standard", fr: "Mettre la doc aux normes" },
+  "docs.fix.created": { en: "Card created: its agent will ask you first", fr: "Carte créée : son agent te posera d'abord ses questions" },
+  "docs.fix.cardTitle": { en: "Doc: bring {repo} up to the convention", fr: "Doc : mettre {repo} aux normes" },
+  "docs.fix.cardSpec": {
+    en: "Bring this repo's documentation up to the documentation convention (Collie Board's docs/conventions/DOC_CONVENTION.md: the Overgate base + ONE « what we build » module).\n\nGaps found on {ref}:\n{gaps}\n\n1. Read the repo: its docs and its agent instruction files.\n2. Before proposing anything, ask the operator: open ONE decision linked to this card (`POST /api/roadmap/decision` with `status: \"open\"` and this card's `cardId`, see the collie-board skill) asking: what we build (game, product, tool, infra), who reads the docs, solo or team, and which existing docs are authoritative. Wait for the answer (the decision turns leaning or decided).\n3. Propose a mapping: a table « convention rubric → existing file », each row keep / rename / split / create.\n4. Make it a PR (one per coherent batch), links fixed in the same PR. Delete nothing, move nothing outside a PR; a rubric already covered elsewhere is mapped (a `doc-paths` block in docs/README.md), not moved.",
+    fr: "Mettre la doc de ce dépôt aux normes de la convention de documentation (docs/conventions/DOC_CONVENTION.md de Collie Board : socle Overgate + UN module « ce qu'on construit »).\n\nÉcarts relevés sur {ref} :\n{gaps}\n\n1. Lis le dépôt : sa doc et ses fichiers d'instructions d'agents.\n2. Avant de proposer quoi que ce soit, pose tes questions à l'opérateur : ouvre UNE décision liée à cette carte (`POST /api/roadmap/decision` avec `status: \"open\"` et le `cardId` de cette carte, voir le skill collie-board) qui demande : ce qu'on construit (jeu, produit, outil, infra), qui lit la doc, solo ou équipe, et quelle doc existante fait foi. Attends la réponse (la décision passe en piste ou décidé).\n3. Propose une correspondance : un tableau « rubrique de la convention → fichier existant », chaque ligne garder / renommer / découper / créer.\n4. Fais-en une PR (une par lot cohérent), liens réparés dans la même PR. Ne supprime rien, ne déplace rien hors PR ; une rubrique déjà couverte ailleurs est mappée (bloc `doc-paths` dans docs/README.md), pas déplacée.",
+  },
 });

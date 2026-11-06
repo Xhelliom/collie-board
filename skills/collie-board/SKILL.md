@@ -291,6 +291,10 @@ files a card (the file + what to change) and the agent that takes it opens the P
 - `GET /api/docs?repo=<path>` — `{ ref, rubrics:[{id,label,docs:[{path,title,size}]}], other, decisions }`:
   every `.md` classed by those rubrics (`other` = outside the convention), and `decisions` = the ADRs
   (`kind:"adr"`, status and date read in the file) merged with the roadmap's (`kind:"roadmap"`), newest first.
+  `bilan` = the gaps to the convention, one `{code,…}` each (`missing`, `noModule`, `agentsLong`,
+  `agentsMany`, `decisionsTwice`, `tooBig`, `noStatus`); empty when the docs follow it. Its « Mettre la
+  doc aux normes » files a card: the agent asks first (an open decision with the card's `cardId`), then
+  proposes a mapping by PR — nothing moved or deleted outside one.
 - `GET /api/docs/file?repo=<path>&path=<repo-relative .md>` — `{ path, text, truncated }`; 404 when absent.
 - `GET /api/docs/search?repo=<path>&q=<text>` — `{ paths }` whose text contains `q` (case-insensitive).
 - `GET /api/docs/pages?repo=<path>` — `{ ref, pages:[{name,size}] }`: the custom pages (below).
