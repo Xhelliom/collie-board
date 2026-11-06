@@ -699,7 +699,21 @@ export async function promptAndConfirm(
   // "It landed" = the agent is doing something. `idle` after a prompt means it never saw it.
   const landed = (s: AgentStatus | undefined) => s === "working" || s === "blocked";
 
-  await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
+  const started = await retryWhileNotReady(() => herdr.promptAgent({ target: paneId, text }), wait);
+  if (started === true) return;
+  if (started !== undefined) {
+    // hc said it did not take (HERDR_CORE_API.md §2b): the draft sits in the box. Enter submits it —
+    // but ONLY in front of an agent reporting itself at rest. Without a status, what is on screen may
+    // be the trust dialog, where an Enter answers « No, exit » (§2c). Never resent: no double work.
+    const agent = await herdr.getAgent(paneId).catch(() => null);
+    if (agent?.agent && (agent.agent_status === "idle" || agent.agent_status === "done")) {
+      await herdr.sendPaneKeys(paneId, ["Enter"]);
+      await wait(PROMPT_SETTLE_MS);
+      if (landed(await status())) return;
+    }
+    console.warn(`[board] pane ${paneId}: prompt did not take`);
+    return;
+  }
   await wait(PROMPT_SETTLE_MS);
   if (landed(await status())) return;
 

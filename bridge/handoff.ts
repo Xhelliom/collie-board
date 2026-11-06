@@ -250,7 +250,9 @@ export async function swapToFreshSession(
 
   // New pane FIRST, then close the old one. The other order risks taking the workspace down with its
   // last pane, which would take the worktree's window with it.
-  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
+  // The checkout, said out loud: hc has no workspace for the new pane to inherit it from.
+  const cwd = (card.repoPath && card.branch && (await worktreePathFor(card.repoPath, card.branch).catch(() => null))) || undefined;
+  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd });
 
   db.closeSession(session.id, "handoff");
   try {

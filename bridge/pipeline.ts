@@ -106,7 +106,9 @@ async function swapRole(
   wait?: (ms: number) => Promise<void>,
 ): Promise<void> {
   if (!card.workspaceId || !session.paneId) throw new Error("card has no workspace or pane");
-  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40) });
+  // The checkout, said out loud: hc has no workspace for the new pane to inherit it from.
+  const cwd = (card.repoPath && card.branch && (await worktreePathFor(card.repoPath, card.branch).catch(() => null))) || undefined;
+  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd });
   db.closeSession(session.id, "pipeline");
   try {
     await herdr.closePane(session.paneId);
