@@ -489,9 +489,12 @@ export interface RepoScope {
   name: string;
 }
 
-/** The last segment of a repo path — what the picker already shows (`RepoChoice.name`). */
+/**
+ * The last segment of a repo path — what the picker already shows (`RepoChoice.name`). Cuts on `/`
+ * AND `\`: on a Windows host the repo path is `C:\Users\…\repo`.
+ */
 export function repoName(path: string): string {
-  return path.replace(/\/+$/, "").split("/").pop() || path;
+  return path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || path;
 }
 
 /**

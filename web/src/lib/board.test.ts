@@ -251,6 +251,12 @@ describe("repoName", () => {
     expect(repoName("/home/me/git/collie-board/")).toBe("collie-board");
   });
 
+  it("cuts a Windows path on backslashes too", () => {
+    expect(repoName("C:\\Users\\steph\\git\\collie-board")).toBe("collie-board");
+    expect(repoName("C:\\Users\\x\\repo\\")).toBe("repo");
+    expect(repoName("C:/Users/x/repo")).toBe("repo");
+  });
+
   it("falls back to the path itself rather than to an empty chip", () => {
     expect(repoName("/")).toBe("/");
   });

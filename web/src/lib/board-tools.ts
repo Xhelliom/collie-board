@@ -73,7 +73,9 @@ const q = (o: Record<string, string | undefined>) => {
 };
 const id = (s: string) => encodeURIComponent(s);
 const repoOf = (s: string) => s.replace(/\/+$/, "");
-const repoName = (s: string) => repoOf(s).split("/").pop() || s;
+// `/` AND `\` — on a Windows host a repo path is `C:\Users\…\repo` (same cut as lib/board.ts repoName;
+// this file is shared with the bridge, so it cannot import it).
+const repoName = (s: string) => s.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || s;
 
 export function createTools(api: BoardApi): BoardTool[] {
   const cardTitle = async (cardId: string) => `« ${oneLine((await api("GET", `/api/cards/${id(cardId)}`)).card?.title, 80)} »`;
