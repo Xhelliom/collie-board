@@ -2,3 +2,9 @@
 {"v":1,"hlc":"1793955367517.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Tiroir de l orchestrateur : raccourcis repliés derrière un bouton, zone de lecture au maximum","status":"backlog"},"ts":1793955363550}}
 {"v":1,"hlc":"1793955367518.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"cb36a990-7d88-43d9-85e9-b8b80d451e72"}}
 {"v":1,"hlc":"1793961031586.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793961043591.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/tiroir-de-l-orchestrateur-raccourcis-replies-der"}}
+{"v":1,"hlc":"1793961043591.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793961043591.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793961034863}}
+{"v":1,"hlc":"1793961043591.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793961043591.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793961038952}}
+{"v":1,"hlc":"1793961043591.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2766},"ts":1793961041539}}
