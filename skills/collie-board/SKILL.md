@@ -273,6 +273,15 @@ curl -s -X POST http://127.0.0.1:8788/api/board/notify \
 - `404` = no herdr agent in that pane (header wrong or not in herdr).
 - Don't send one per step: a milestone, or something the user must see.
 
+## Organise a repo's documentation
+
+When asked to set up or tidy a project's docs, follow
+[`docs/conventions/DOC_CONVENTION.md`](../../docs/conventions/DOC_CONVENTION.md) (in the Collie Board
+repo): a common base (`docs/README.md` index, short `AGENTS.md`, ADRs, plan by phase, statuses ✅🟡❓)
+plus one "what we build" module (game · product · tool · infra). Ask its §3 questions to pick the
+module; on an existing repo **propose a mapping, move nothing yourself**, migrate by PR. Its
+`json doc-paths` block is the machine-readable path list.
+
 ## Plan a project: phases, lots, roadmap
 
 A project is one repo: **roadmap → phase → lot → card**. You prepare all of it; **you never
