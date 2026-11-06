@@ -57,6 +57,10 @@ export type MdBlock =
 // bare word) renders as plain text — a link is the one place this view could otherwise hand a URL
 // straight to the browser.
 const SAFE_SCHEME = /^(https?:|mailto:)/i;
+const RELATIVE_MD = /^[^:?#]+\.md(#\S*)?$/i;
+
+/** A relative link to another Markdown file — what the Documents page opens in place. */
+export const isDocHref = (href: string): boolean => RELATIVE_MD.test(href);
 
 /** The href to use for a link, or null when it must not become one. */
 export function safeHref(raw: string): string | null {
@@ -65,6 +69,9 @@ export function safeHref(raw: string): string | null {
   // Scheme-relative ("//evil.com") inherits the page scheme and is a real navigation — allow it, it
   // can only ever be http(s) here. A rooted or relative path stays same-origin, which is harmless.
   if (href.startsWith("/") || href.startsWith("#")) return href;
+  // A relative link to another Markdown file (`docs/plan.md`, `../ADR.md#ctx`): no scheme, so it can
+  // only stay same-origin — the Documents page opens it in place (components/markdown-text.tsx).
+  if (RELATIVE_MD.test(href)) return href;
   return SAFE_SCHEME.test(href) ? href : null;
 }
 

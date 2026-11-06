@@ -319,6 +319,92 @@ export async function readWorktreeFile(
   };
 }
 
+// ── The repo's documentation, read off a ref's TREE — never a checkout (the Documents page) ─────
+
+/** One Markdown file of a ref's tree. */
+export interface TreeDoc {
+  path: string;
+  size: number;
+}
+
+/**
+ * A doc path a client may name: relative, `.md`, no `..`/`.` segment, no backslash, no NUL, no option
+ * shape. It is only ever looked up in a tree (which cannot hold `..`), and always after `--` — this
+ * is the belt to that brace. Pure + exported.
+ */
+export function isSafeDocPath(path: string): boolean {
+  if (!path || path.length > 512 || !/\.md$/i.test(path)) return false;
+  if (path.startsWith("/") || path.startsWith("-") || /[\\\0]/.test(path)) return false;
+  return path.split("/").every((s) => s !== "" && s !== "." && s !== "..");
+}
+
+/** `git ls-tree -r -z -l` records → regular `.md` blobs. Symlinks and submodules stay out. Pure + exported. */
+export function parseDocTree(stdout: string): TreeDoc[] {
+  const out: TreeDoc[] = [];
+  for (const rec of stdout.split("\0")) {
+    const m = /^(100644|100755) blob [0-9a-f]+ +(\d+)\t(.+)$/s.exec(rec);
+    if (m && /\.md$/i.test(m[3]!)) out.push({ path: m[3]!, size: Number(m[2]) });
+  }
+  return out;
+}
+
+/** Every Markdown file on `ref`, or null when the ref can't be read. */
+export async function docsOnRef(repoPath: string, ref: string, git: GitRunner = runGit): Promise<TreeDoc[] | null> {
+  const r = await git(["ls-tree", "-r", "-z", "-l", "--full-tree", ref, "--"], repoPath);
+  return r.ok ? parseDocTree(r.stdout) : null;
+}
+
+/** One doc's text on `ref`: its blob found by `ls-tree … -- <path>`, then `cat-file`. Null: bad path or absent. */
+export async function readDocOnRef(
+  repoPath: string,
+  ref: string,
+  path: string,
+  git: GitRunner = runGit,
+): Promise<{ text: string; truncated: boolean } | null> {
+  if (!isSafeDocPath(path)) return null;
+  const ls = await git(["ls-tree", "-z", "-l", "--full-tree", ref, "--", path], repoPath);
+  const m = ls.ok ? /^(?:100644|100755) blob ([0-9a-f]+) +(\d+)\t(.+)$/s.exec(ls.stdout.split("\0")[0] ?? "") : null;
+  if (!m || m[3] !== path) return null;
+  const blob = await git(["cat-file", "blob", m[1]!], repoPath);
+  if (!blob.ok) return null;
+  const truncated = Number(m[2]) > MAX_DIFF_BYTES;
+  return { text: truncated ? blob.stdout.slice(0, MAX_DIFF_BYTES) : blob.stdout, truncated };
+}
+
+/** A matched line of {@link grepDocsOnRef}. */
+export interface DocLine {
+  path: string;
+  line: number;
+  text: string;
+}
+
+/**
+ * `git grep` over the `.md` files of `ref`'s tree. `-n` mode: every matching line (`ref:path\0n\0text`);
+ * `-l` mode: the paths only. The pattern is the operand of `-e`, so it is never read as an option.
+ */
+export async function grepDocsOnRef(
+  repoPath: string,
+  ref: string,
+  pattern: string,
+  /** `lines`: a regex, every matching line. `paths`: a literal, case-insensitive, the files only. */
+  mode: "lines" | "paths",
+  git: GitRunner = runGit,
+): Promise<DocLine[]> {
+  const flags = mode === "lines" ? ["-n", "-E"] : ["-l", "-i", "-F"];
+  const r = await git(["grep", "-I", "-z", ...flags, "-e", pattern, ref, "--", "*.md"], repoPath);
+  // Exit 1 is "no match", not a failure — both read as nothing found.
+  if (!r.ok) return [];
+  const prefix = `${ref}:`;
+  const strip = (p: string) => (p.startsWith(prefix) ? p.slice(prefix.length) : p);
+  if (mode === "paths") return r.stdout.split("\0").filter(Boolean).map((p) => ({ path: strip(p), line: 0, text: "" }));
+  const out: DocLine[] = [];
+  for (const row of r.stdout.split("\n")) {
+    const [p, n, ...rest] = row.split("\0");
+    if (p && n) out.push({ path: strip(p), line: Number(n), text: rest.join("\0") });
+  }
+  return out;
+}
+
 /**
  * A one-screen `--stat` summary of a {@link DiffStat}, as text — the copilot's review input (both
  * {@link cardDiffSummary} and {@link cwdDiffSummary} format through this one place). Pure + exported.

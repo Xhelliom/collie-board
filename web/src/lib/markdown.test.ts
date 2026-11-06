@@ -14,6 +14,8 @@ describe("safeHref", () => {
     ["mailto", "mailto:a@b.com"],
     ["rooted path", "/pane/w1:p1"],
     ["fragment", "#section"],
+    ["relative .md", "docs/plan/phase-1.md"],
+    ["parent .md with anchor", "../ADR.md#context"],
   ])("allows %s", (_label, href) => {
     expect(safeHref(href)).toBe(href);
   });
@@ -25,6 +27,7 @@ describe("safeHref", () => {
     ["data:", "data:text/html,<script>alert(1)</script>"],
     ["vbscript:", "vbscript:msgbox(1)"],
     ["a bare word", "notaurl"],
+    ["a scheme dressed as .md", "javascript:alert(1)//x.md"],
     ["empty", "   "],
   ])("refuses %s", (_label, href) => {
     expect(safeHref(href)).toBeNull();

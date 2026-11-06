@@ -15,6 +15,8 @@ import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
 import { RepoSettingsRoute } from "@/routes/repo-settings";
 import { RecetteRoute } from "@/routes/recette";
+import { DocumentsRoute } from "@/routes/documents";
+import { docsLoader } from "@/lib/docs";
 import { recetteLoader } from "@/lib/recette";
 import { ProjectRoute } from "@/routes/project";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
@@ -79,6 +81,14 @@ export const router = createBrowserRouter([
         element: <RecetteRoute />,
         errorElement: <RootError to={boardPath()} />,
         // Not polled: the list reads the deliverables off disk, and only moves on a verdict — refetched then.
+        shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
+      },
+      {
+        path: "board/documents",
+        loader: docsLoader,
+        element: <DocumentsRoute />,
+        errorElement: <RootError to={boardPath()} />,
+        // Not polled (read on open): only a change of repo reads the index again — opening a document doesn't.
         shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
       },
       { path: "board/settings", element: <RepoSettingsRoute />, errorElement: <RootError to={boardPath()} /> },
