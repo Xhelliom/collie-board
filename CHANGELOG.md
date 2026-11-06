@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.273.0] - 2026-11-06
+
+### Added
+
+- « Jalonner… » pré-remplit le nom du jalon (thème commun des cartes scellées, sinon « divers <date> »), toujours éditable (0f7879f)
+
 ## [0.272.1] - 2026-11-06
 
 ### Changed
