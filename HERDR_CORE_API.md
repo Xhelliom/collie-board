@@ -277,7 +277,37 @@ $ hc wait --children all probe2      {"children":[{"exit_code":0,"reason":"exit"
 - Un enfant **meurt avec son parent** sauf `--outlive-parent` **[doc ; `die_with_parent:true` mesuré]**.
 - Le bridge n'étant pas dans un terminal hc, ses lancements n'ont pas de parent (`--no-parent` par
   prudence). Nos sous-agents de carte (`bridge/subagents.ts`) deviennent des `children_of` lisibles
-  directement, sans fouiller les transcripts **[supposé]**.
+  directement, sans fouiller les transcripts **[mesuré, ci-dessous]**.
+
+**`--no-notify` et `children_of`, mesurés le 2026-11-06 (hc 0.1.18, Claude Code 2.1.319)** :
+
+```
+$ hc run --bg --no-parent --name nprobe-p --cwd <dossier neuf> -- claude --model haiku
+$ hc keys nprobe-p down enter                         # écran de confiance → turn 0, idle
+$ hc run --bg --parent nprobe-p --name nprobe-a -- sh -c 'sleep 3; echo fini-a'
+$ hc get nprobe-a        {"parent":"t1d","notify":true}
+  15 s plus tard : nprobe-p turn 1, done ; écran « <hc>t1j nprobe-a exited (exit 0)… fini-a </hc> » + une réponse
+$ hc run --bg --parent nprobe-p --no-notify --name nprobe-b -- sh -c 'sleep 3; echo fini-b'
+$ hc get nprobe-b        {"parent":"t1d","notify":false}
+  12 s plus tard : nprobe-p toujours turn 1, « fini-b » absent de l'écran
+```
+
+- La note **coûte bien un tour** (turn 0 → 1, une réponse de Claude) ; `--no-notify` l'empêche
+  (turn inchangé). Un parent qui n'est pas un agent (`cat`) ne reçoit rien.
+- **`notify` est une propriété de l'enfant, fixée par qui le lance** (`no_notify` de `terminal.run`).
+  Le bridge n'a **aucun levier** sur un enfant que l'agent lance lui-même : pas de variable
+  d'environnement lue par le CLI pour ce défaut, pas de réglage côté parent, pas de méthode pour le
+  changer après coup (`terminal.label` ne touche que les labels). Seul autre interrupteur :
+  `notes = false` global dans la config du core, qui appartient à l'opérateur. Claude Code n'appelle
+  jamais `hc` de lui-même (aucune occurrence de `HC_TERMINAL_ID` ou de `--no-notify` dans son binaire)
+  : ses sous-agents `Agent` restent internes, un enfant n'existe que si l'agent tape `hc run`.
+  **D'où** : une carte lancée sous hc reçoit dans son prompt la consigne `hc run --no-notify`
+  (`HC_NO_NOTIFY_HINT`, `bridge/mux/hc.ts`) ; sous 0.9 le prompt ne change pas.
+- `terminal.list` **n'a pas** de filtre `children_of` (seuls `all` et `labels`) — `events.subscribe`
+  l'a. Mais chaque terminal de la liste porte `parent` : le bridge lit les enfants vivants d'un
+  terminal dans le `terminal.list` qu'il fait déjà à chaque instantané (`hcChildren`), sans appel de
+  plus. Leurs noms (label `collie.name`, sinon `name`, sinon l'adresse) deviennent les `subagents` du
+  pane, affichés comme aujourd'hui ; sous hc le transcript n'est plus lu pour eux.
 
 ### Variables d'environnement d'un terminal **[mesuré]**
 

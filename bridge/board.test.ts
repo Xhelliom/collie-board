@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
+import { HC_NO_NOTIFY_HINT } from "./mux/hc.ts";
 import {
   agentNameFor,
   commitRequestPrompt,
@@ -750,6 +751,23 @@ describe("startCard", () => {
     expect(after.branch).toBe("board/ship-it");
     expect(after.workspaceId).toBe("wZ");
     expect(store.openSessionFor(card.id)!.paneId).toBe("wZ:p1");
+  });
+
+  it("asks an agent launched under hc to start its helpers with --no-notify, and only under hc", async () => {
+    const sent = async (workspaceId: string) => {
+      const store = db();
+      const card = store.createCard({ title: "ship it", repoPath: "/repo", baseRef: "main", status: "ready" });
+      const { client } = fakeHerdr();
+      const createWorktree = client.createWorktree;
+      client.createWorktree = async (o: { branch: string }) => ({ ...(await createWorktree(o)), workspaceId });
+      let text = "";
+      const promptAgent = client.promptAgent;
+      (client as { promptAgent: (o: { text: string }) => Promise<void> }).promptAgent = async (o) => ((text = o.text), promptAgent());
+      expect((await startCard(store, client as never, startCfg, card.id, { sleep: async () => {} })).ok).toBe(true);
+      return text;
+    };
+    expect(await sent("hc")).toContain(HC_NO_NOTIFY_HINT);
+    expect(await sent("wZ")).not.toContain("--no-notify");
   });
 
   it("pre-trusts a Claude checkout before the agent starts — the dialog defaults to « No, exit »", async () => {

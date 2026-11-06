@@ -34,6 +34,7 @@ import {
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import type { CreatedWorktree, Mux } from "./mux/mux.ts";
+import { HC_NO_NOTIFY_HINT, HC_SPACE } from "./mux/hc.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -962,7 +963,8 @@ export async function startCard(
     : undefined;
   // The brief goes in front of the card's first prompt — never in front of a special one (a conflict
   // to settle, say), which is a message to an agent that already has its role.
-  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
+  const hcHint = worktree.workspaceId === HC_SPACE ? `\n\n${HC_NO_NOTIFY_HINT}` : "";
+  const text = opts.promptText ?? step?.prompt ?? composePrompt(template?.brief ?? "", `${initialPrompt(card, after)}${hcHint}\n\n${bilanPrompt()}\n\n${manualChecksPrompt(card.id)}`);
   try {
     // First prompt after a launch: the draft may sit unsubmitted (the trust dialog is pre-empted above).
     await promptAndConfirm(herdr, worktree.paneId, text, opts.sleep ?? sleep, { firstAfterLaunch: true });

@@ -249,6 +249,8 @@ export class StateEngine {
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".
           ...(typeof p.label === "string" && p.label.length > 0 ? { paneLabel: p.label } : {}),
           ...(mixed && p.engine ? { engine: p.engine } : {}),
+          // hc's children_of (mux/hc.ts): the subagents, read off the engine instead of a transcript.
+          ...(p.children?.length ? { subagents: p.children } : {}),
           // The agent's own session, in either kind herdr defines: an "id" naming an on-disk
           // transcript, or a "path" naming the file outright — which is how an agent whose sessions
           // aren't filed by cwd reports one (a Codex rollout is filed by DATE, so dropping the path

@@ -191,6 +191,17 @@ describe("ContextTracker", () => {
     expect(other!.tasks).toBeUndefined();
   });
 
+  it("leaves an hc pane's subagents to the engine (children_of), never to the transcript", async () => {
+    const running = [
+      JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", id: "toolu_A", name: "Agent", input: { description: "Relecture" } }] } }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "toolu_A" }] }, toolUseResult: { status: "async_launched" } }),
+      log(100_000),
+    ].join("\n");
+    const { t } = tracker({ "id:s-1": running });
+    await t.update(snapshot([pane("t3", { agentSessionId: "s-1", workspaceId: "hc" })]));
+    expect(t.enrich([pane("t3", { workspaceId: "hc", subagents: ["worker"] })])[0]!.subagents).toEqual(["worker"]);
+  });
+
   it("never reads an agent whose transcript format we can't parse", async () => {
     const { t, reads } = tracker({ "cwd:/repo": log(100_000) });
     // `codex` is context:false in the shipped table — level 3, and no wasted scan either.
