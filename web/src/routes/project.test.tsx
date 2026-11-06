@@ -446,8 +446,12 @@ describe("ProjectRoute", () => {
       mount([card({ id: "a", status: "done" }), card({ id: "b", status: "done" }), card({ id: "c", status: "ready" })]);
       await userEvent.click(await screen.findByRole("button", { name: /Validate the finished steps as a milestone/ }));
       const confirm = screen.getByRole("button", { name: "Validate" });
+      const field = screen.getByLabelText("Name of the milestone");
+      // Titles « a », « b » share no theme: the field opens on « misc <date> », editable, never imposed.
+      expect(field).toHaveValue(`misc ${new Date().toLocaleDateString("en")}`);
+      await userEvent.clear(field);
       expect(confirm).toBeDisabled();
-      await userEvent.type(screen.getByLabelText("Name of the milestone"), "v1");
+      await userEvent.type(field, "v1");
       await userEvent.click(confirm);
       await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "v1", cardIds: ["a", "b"] }));
     });
@@ -469,6 +473,7 @@ describe("ProjectRoute", () => {
       ]);
       expect(await screen.findByText(/3 finished steps are in no validated phase/)).toBeInTheDocument();
       await userEvent.click(screen.getByRole("button", { name: "Validate everything finished…" }));
+      await userEvent.clear(screen.getByLabelText("Name of the milestone"));
       await userEvent.type(screen.getByLabelText("Name of the milestone"), "Historique");
       await userEvent.click(screen.getByRole("button", { name: "Validate" }));
       await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "Historique" }));
