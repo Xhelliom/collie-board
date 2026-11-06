@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.262.1] - 2026-11-06
+
+### Changed
+
+- Tiroir Orchestrateur : « Lui demander de noter », « Repartir à neuf » et la Mémoire passent dans un menu ⋯ de l'en-tête ; la conversation prend toute la hauteur. (1e53981)
+- Tiroir Orchestrateur : plus de lien « Autonomie » (il reste dans les réglages du projet). (1e53981)
+
 ## [0.262.0] - 2026-11-06
 
 ### Added
