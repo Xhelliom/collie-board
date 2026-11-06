@@ -2,7 +2,7 @@
 // two views can't drift apart. "Needs you" first (accented), then active work, then everything else.
 import type { MessageKey } from "@/i18n";
 import { repoName } from "./board";
-import type { AgentStatus, AgentView } from "./types";
+import type { AgentStatus, AgentView, WorkspaceView } from "./types";
 
 export interface AgentGroup {
   key: string;
@@ -44,5 +44,36 @@ export function groupMembers(agents: AgentView[], g: AgentGroup): AgentView[] {
  * `findOrchestrator`: its workspace is labelled `orchestrator-<repo basename>` AND it runs in that
  * repo — nothing declared, so an operator's own session in the repo is never taken for it.
  */
-export const isOrchestrator = (a: Pick<AgentView, "workspaceLabel" | "cwd">): boolean =>
-  !!a.cwd && a.workspaceLabel === `orchestrator-${repoName(a.cwd)}`;
+export const isOrchestrator = (a: Pick<AgentView, "workspaceId" | "workspaceLabel" | "paneLabel" | "cwd">): boolean =>
+  // hc has no workspace: the label the bridge gave the orchestrator's space is its pane's (bridge/mux/hc.ts).
+  !!a.cwd && (isHcAgent(a) ? a.paneLabel : a.workspaceLabel) === `orchestrator-${repoName(a.cwd)}`;
+
+/** The one synthetic space hc shows every terminal in (bridge/mux/hc.ts `HC_SPACE`): hc has no spaces, no tabs. */
+export const HC_SPACE = "hc";
+
+export const isHcAgent = (a: Pick<AgentView, "workspaceId">): boolean => a.workspaceId === HC_SPACE;
+
+/** Spaces and tabs are herdr 0.9's: hidden when every space is hc's. An empty list (0.9 with nothing open, or no snapshot yet) keeps them. */
+export const showsSpaces = (workspaces: readonly Pick<WorkspaceView, "workspaceId">[]): boolean =>
+  workspaces.length === 0 || workspaces.some((w) => w.workspaceId !== HC_SPACE);
+
+/** The project a pane works in: its cwd's repo — a card's worktree (`~/.herdr/worktrees/<repo>/<branch>`, bridge/git.ts) names it. */
+export function projectOf(cwd: string): string {
+  return /\/\.herdr\/worktrees\/([^/]+)\//.exec(`${cwd}/`)?.[1] ?? repoName(cwd);
+}
+
+/**
+ * The hc herd by project (ADR 0052 phase 4): projects by name, and in each the orchestrator first,
+ * then the cards' agents, then every other terminal. Sort is stable, so the bridge's order holds within a rank.
+ */
+export function projectGroups(agents: AgentView[]): { project: string; members: AgentView[] }[] {
+  const rank = (a: AgentView) => (isOrchestrator(a) ? 0 : a.cardId ? 1 : 2);
+  const byProject = new Map<string, AgentView[]>();
+  for (const a of agents) {
+    const p = projectOf(a.cwd);
+    byProject.set(p, [...(byProject.get(p) ?? []), a]);
+  }
+  return [...byProject]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([project, members]) => ({ project, members: members.sort((x, y) => rank(x) - rank(y)) }));
+}

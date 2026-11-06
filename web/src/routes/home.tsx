@@ -28,6 +28,7 @@ import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { remoteAgents } from "@/lib/peers";
+import { showsSpaces } from "@/lib/agent-groups";
 
 // Dashboard home screen (redesign §1 "Herd"). Purpose: answer "which agent needs me right now", and
 // nothing else — Spaces and the Board are nav destinations now (app-nav.tsx), not rows on this
@@ -51,7 +52,7 @@ export function HomeRoute() {
           install). Settings is a nav destination now, not a header gear. */}
       <AppHeader
         title={t("home.title")}
-        subtitle={t("home.spaces", { count: data.workspaces.length })}
+        subtitle={showsSpaces(data.workspaces) ? t("home.spaces", { count: data.workspaces.length }) : undefined}
         icon={
           <span className="lg:hidden">
             <NavMark gallop={false} lost={false} size={32} />

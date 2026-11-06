@@ -14,6 +14,7 @@ import { BuildStamp } from "@/components/build-stamp";
 import { homePath, spacePath, spacesPath, settingsPath } from "@/lib/nav";
 import { boardPath, loadRepoScope, projectPath, repoName, reposOf, saveRepoScope, withListedRepos } from "@/lib/board";
 import { loadLastProject } from "@/lib/quick-access";
+import { showsSpaces } from "@/lib/agent-groups";
 import { SidebarQuick } from "@/components/sidebar-quick";
 import type { BoardData } from "@/lib/board-loaders";
 import type { HomeData } from "@/lib/loaders";
@@ -55,6 +56,9 @@ const NAV_ITEMS: readonly NavItem[] = [
  *  its min-h-14 + 0.875rem + safe area, plus the 1px border. Nothing at `lg`, where the bar is hidden. */
 export const ABOVE_TAB_BAR = "max-lg:pb-[calc(3.5rem+0.875rem+1px+env(safe-area-inset-bottom))]";
 const MAIN_NAV_ITEMS = NAV_ITEMS.filter((item) => item.key !== "settings");
+/** Spaces are herdr 0.9's: a herd with none of its agents has no Spaces tab (ADR 0052 phase 4). */
+const navItems = <T extends NavItem>(items: readonly T[], data: HomeData): readonly T[] =>
+  showsSpaces(data.workspaces) ? items : items.filter((item) => item.key !== "spaces");
 const SETTINGS_ITEM = NAV_ITEMS.find((item) => item.key === "settings")!;
 
 /** The root paths (and their detail views) the tab bar / sidebar active-state matches against (session query ignored). */
@@ -129,7 +133,7 @@ function Sidebar({ data }: { data: HomeData }) {
       </button>
 
       <div className="flex flex-col gap-0.5">
-        {MAIN_NAV_ITEMS.map((item) => {
+        {navItems(MAIN_NAV_ITEMS, data).map((item) => {
           const isActive = item.key === active;
           // Herd's is an ALERT (needs-you) — Spaces' is plain information (how many are open).
           const alertCount = item.key === "herd" && blocked > 0 ? blocked : undefined;
@@ -276,7 +280,7 @@ function HomeSpacesList({ data }: { data: HomeData }) {
   const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
-  if (location.pathname !== "/" || data.workspaces.length === 0) return null;
+  if (location.pathname !== "/" || data.workspaces.length === 0 || !showsSpaces(data.workspaces)) return null;
 
   return (
     <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
@@ -310,7 +314,7 @@ function MobileTabBar({ data }: { data: HomeData }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-border bg-chrome px-1 pb-[calc(env(safe-area-inset-bottom)+0.875rem)] lg:hidden">
-      {NAV_ITEMS.map((item) => {
+      {navItems(NAV_ITEMS, data).map((item) => {
         const isActive = item.key === active;
         const isHerd = item.key === "herd";
         return (

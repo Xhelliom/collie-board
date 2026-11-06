@@ -53,7 +53,7 @@ import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { ResumeOffer } from "@/components/auto-handoff";
 import { ReadingView } from "@/components/reading-view";
 import { LastTurnButtons } from "@/components/last-turn-buttons";
-import { isOrchestrator } from "@/lib/agent-groups";
+import { isHcAgent, isOrchestrator, projectOf } from "@/lib/agent-groups";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
@@ -62,7 +62,7 @@ import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-sel
 import type { PreviewBlockAction } from "@/components/preview-select-block";
 import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
 import { shortCwd } from "@/lib/format";
-import { historyPath, paneArtifactsPath, spacePath, zoomPath } from "@/lib/nav";
+import { historyPath, homePath, paneArtifactsPath, spacePath, zoomPath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
 import type { AgentView, BridgeStatus, DeviceAuth, TabView } from "@/lib/types";
 import type {
@@ -590,6 +590,9 @@ export function AgentChat({
 
   // The breadcrumb's pane menu switches WITHIN this space (agents and shells alike) — the whole-herd
   // list belongs to the pane switcher. Empty while the pane isn't in the snapshot yet.
+  // hc has no space nor tab: the breadcrumb names the project instead (ADR 0052 phase 4).
+  const hc = !!agent && isHcAgent(agent);
+  const place = agent ? (hc ? projectOf(agent.cwd) : agent.workspaceLabel) : "";
   const spacePanes = agent
     ? [...agents, ...shellPanes].filter((p) => p.workspaceId === agent.workspaceId)
     : [];
@@ -605,7 +608,8 @@ export function AgentChat({
   // back up out of the pane, so it slides backward.
   function openSpace(workspaceId: string) {
     closeDrawer();
-    navigate(spacePath(workspaceId, session));
+    // hc has no spaces: its overview is the herd, grouped by project.
+    navigate(isHcAgent({ workspaceId }) ? homePath(session) : spacePath(workspaceId, session));
   }
 
   // Tapping the terminal mirror focuses the composer so you can start typing right away. Two bails:
@@ -629,7 +633,7 @@ export function AgentChat({
   const paneTitle = agent
     ? (agent.paneLabel ??
       agent.sessionName ??
-      `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`)
+      (hc ? place : `${agent.workspaceLabel}${tabLabel ? ` › ${tabLabel}` : ""}`))
     : tr("pane.agentGone");
 
   // The card this pane backs — undefined for a hand-launched pane (`withCardFields` resolves none).
@@ -765,7 +769,7 @@ export function AgentChat({
           <button
             type="button"
             onClick={() => openSpace(agent.workspaceId)}
-            aria-label={tr("pane.openOverview", { space: agent.workspaceLabel })}
+            aria-label={tr("pane.openOverview", { space: place })}
             className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1 py-0.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/60"
           >
             {isShell ? (
@@ -813,9 +817,9 @@ export function AgentChat({
                     onClick={() => openSpace(agent.workspaceId)}
                     className="max-w-[12rem] truncate transition-colors hover:text-foreground"
                   >
-                    {agent.workspaceLabel}
+                    {place}
                   </button>
-                  {tabLabel && (
+                  {tabLabel && !hc && (
                     <>
                       <span className="shrink-0 text-muted-foreground/50">›</span>
                       <button
@@ -970,9 +974,9 @@ export function AgentChat({
                 onClick={() => openSpace(agent.workspaceId)}
                 className="max-w-[40%] truncate text-muted-foreground transition-colors hover:text-foreground"
               >
-                {agent.workspaceLabel}
+                {place}
               </button>
-              {tabLabel && (
+              {tabLabel && !hc && (
                 <>
                   <span className="shrink-0 text-muted-foreground/50">›</span>
                   <button

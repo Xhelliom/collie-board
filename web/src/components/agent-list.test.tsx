@@ -186,3 +186,25 @@ describe("AgentList — paired peers", () => {
     expect(screen.queryByText(/win/)).not.toBeInTheDocument();
   });
 });
+
+describe("AgentList — hc agents by project", () => {
+  it("lists hc agents under their project, orchestrator first; 0.9 agents keep the triage", () => {
+    render(
+      <AgentList
+        agents={[
+          agent({ paneId: "w1:p1", status: "working" }),
+          agent({ paneId: "t2", workspaceId: "hc", workspaceLabel: "hc", cwd: "/code/app", paneLabel: "plain", status: "idle" }),
+          agent({ paneId: "t1", workspaceId: "hc", workspaceLabel: "hc", cwd: "/code/app", paneLabel: "orchestrator-app", status: "idle" }),
+        ]}
+        onOpen={() => {}}
+      />,
+    );
+    expect(screen.getByText("Working")).toBeInTheDocument();
+    const app = screen.getByRole("region", { name: "app" });
+    const names = within(app).getAllByRole("button").map((b) => b.textContent ?? "");
+    const orch = names.findIndex((n) => n.includes("orchestrator-app"));
+    const plain = names.findIndex((n) => n.includes("plain"));
+    expect(orch).toBeGreaterThanOrEqual(0);
+    expect(orch).toBeLessThan(plain);
+  });
+});
