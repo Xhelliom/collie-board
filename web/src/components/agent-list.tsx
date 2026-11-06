@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { AGENT_GROUPS, groupMembers, isOrchestrator, type AgentGroup } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers, isHcAgent, isOrchestrator, projectGroups, type AgentGroup } from "@/lib/agent-groups";
 import type { AgentView, BridgeStatus } from "@/lib/types";
 import type { PeerHerdView } from "@/lib/peers";
 import { useFold } from "./fold";
@@ -61,10 +61,12 @@ export function AgentList({
   // Only render groups that actually have members — and nothing at all if every slice is empty, so
   // it adds no stray padding.
   const shown = agents.filter((a) => (!orchOnly || isOrchestrator(a)) && (machine === null || (a.peer ?? "") === machine));
+  // hc's agents have no space to triage within: they line up by project instead (ADR 0052 phase 4).
   const sections = groups
-    .map((g) => ({ g, members: groupMembers(shown, g) }))
+    .map((g) => ({ g, members: groupMembers(shown.filter((a) => !isHcAgent(a)), g) }))
     .filter((s) => s.members.length > 0);
-  if (sections.length === 0 && !orchOnly && machine === null) return null;
+  const projects = projectGroups(shown.filter(isHcAgent));
+  if (sections.length === 0 && projects.length === 0 && !orchOnly && machine === null) return null;
 
   return (
     <div className="flex flex-col gap-7">
@@ -141,6 +143,27 @@ export function AgentList({
               ))}
             </div>
           )}
+        </section>
+      ))}
+      {projects.map(({ project, members }) => (
+        <section key={project} className="flex flex-col gap-2.5" aria-label={project}>
+          <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            {project}
+            <span className="font-semibold tabular-nums opacity-70">({members.length})</span>
+          </h2>
+          <div className="flex flex-col gap-2 lg:max-w-[720px]">
+            {members.map((a) => (
+              <Pinnable key={a.paneId} agent={a}>
+                {a.status === "blocked" ? (
+                  <NeedsYouCard agent={a} onClick={() => onOpen(a.paneId)} />
+                ) : a.status === "working" ? (
+                  <WorkingCard agent={a} onClick={() => onOpen(a.paneId)} />
+                ) : (
+                  <IdleDoneRow agent={a} onClick={() => onOpen(a.paneId)} />
+                )}
+              </Pinnable>
+            ))}
+          </div>
         </section>
       ))}
     </div>

@@ -229,3 +229,24 @@ describe("AppNav — BoardRepoList (the sidebar's screen-scoped repo list)", () 
     expect(router.state.location.search).toContain("repo=");
   });
 });
+
+describe("AppNav — Spaces are herdr 0.9's", () => {
+  beforeEach(() => __resetConnectionHealth());
+
+  it("drops the Spaces tab when every space is hc's", () => {
+    const hcOnly = baseData({ workspaces: [{ workspaceId: "hc", number: 1, label: "hc", focused: false, activeTabId: "hc", tabCount: 1, paneCount: 1 }] });
+    const { sidebar, tabBar } = renderAt("/", hcOnly);
+    expect(within(sidebar).queryByRole("button", { name: /Spaces/ })).toBeNull();
+    expect(within(tabBar!).queryByRole("button", { name: /Spaces/ })).toBeNull();
+  });
+
+  it("keeps it beside a herdr 0.9 space", () => {
+    const mixed = baseData({
+      workspaces: [
+        { workspaceId: "w1", number: 1, label: "proj", focused: false, activeTabId: "w1:t1", tabCount: 1, paneCount: 1 },
+        { workspaceId: "hc", number: 2, label: "hc", focused: false, activeTabId: "hc", tabCount: 1, paneCount: 1 },
+      ],
+    });
+    expect(within(renderAt("/", mixed).tabBar!).getByRole("button", { name: /Spaces/ })).toBeInTheDocument();
+  });
+});
