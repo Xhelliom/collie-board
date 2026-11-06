@@ -28,3 +28,4 @@
 {"v":1,"hlc":"1793982133650.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1793982133650.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1793982128340}}
 {"v":1,"hlc":"1793982154175.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleanup_failed","payload":{"stage":"worktree","error":"herdr worktree.remove: timed out after 5000ms"},"ts":1793982148781}}
+{"v":1,"hlc":"1793982313568.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"130efcdc-c62f-4ada-aeb4-447af29b80b4","reason":"the lead is not answering — its pane is probably waiting for an action (a modal, a quota)","leadSilent":true,"paneId":"wJ:p1"},"ts":1793982311739}}
