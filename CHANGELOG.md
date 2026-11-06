@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.267.0] - 2026-11-06
+
+### Added
+
+- Accueil : chaque projet montre l'état de son orchestrateur (au repos / au travail / attend ta décision) et son « N à tester » (79e1137)
+- Troupeau hc rangé par projet : orchestrateur en tête, puis agents de cartes, puis autres terminaux. (323f8cc)
+- Sous hc, les sous-agents d'un agent sont ses terminaux enfants (`children_of`), plus le transcript. (5a1237e)
+- Une carte lancée sous hc reçoit la consigne `hc run --no-notify` : aucune note hc ne coûte un tour au parent. (5a1237e)
+
+### Changed
+
+- Espaces et onglets retirés de la navigation quand aucun espace herdr 0.9 n'existe ; un pane hc nomme son projet au lieu d'« hc › hc ». (323f8cc)
+
 ## [0.266.0] - 2026-11-06
 
 ### Added
