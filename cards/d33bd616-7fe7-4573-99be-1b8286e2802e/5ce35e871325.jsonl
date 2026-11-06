@@ -27,3 +27,4 @@
 {"v":1,"hlc":"1793981809551.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1793981809528}}
 {"v":1,"hlc":"1793982133650.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1793982133650.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1793982128340}}
+{"v":1,"hlc":"1793982154175.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleanup_failed","payload":{"stage":"worktree","error":"herdr worktree.remove: timed out after 5000ms"},"ts":1793982148781}}
