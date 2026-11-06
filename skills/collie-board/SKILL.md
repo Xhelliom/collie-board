@@ -18,7 +18,7 @@ description: >-
 # Collie Board — cards over the local HTTP API
 
 The bridge already exposes everything. There is no CLI: use `curl`. (An MCP server, `bridge/mcp.ts`, wraps this same API for
-MCP clients; same guards, `HERDR_PANE_ID` relayed as `x-collie-pane`. Its `message_orchestrator(repoPath, text)` types `[vocal] <text>` into the live orchestrator's pane — a message from the operator by voice; it starts nothing if none lives. `notify` is offered only to a client with a pane. `project_roadmap(repoPath, format?, phase?)` reads the roadmap — `md` or `steps`, clipped — then the cards of the open phases, or of one, with status, flow and lot.) Works **only on the machine running the bridge** — the API is bound to
+MCP clients; same guards, `HERDR_PANE_ID` (or hc's `HC_TERMINAL_ID`) relayed as `x-collie-pane`. Its `message_orchestrator(repoPath, text)` types `[vocal] <text>` into the live orchestrator's pane — a message from the operator by voice; it starts nothing if none lives. `notify` is offered only to a client with a pane. `project_roadmap(repoPath, format?, phase?)` reads the roadmap — `md` or `steps`, clipped — then the cards of the open phases, or of one, with status, flow and lot.) Works **only on the machine running the bridge** — the API is bound to
 loopback, and a loopback request with no `Origin` header is what the gate lets
 write.
 
@@ -80,7 +80,7 @@ curl -s http://127.0.0.1:8788/api/diag/routes | jq -r '.routes[] | "\(.totalMs)m
 ```bash
 curl -s -X POST http://127.0.0.1:8788/api/cards \
   -H 'content-type: application/json' \
-  -H "x-collie-pane: $HERDR_PANE_ID" \
+  -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}" \
   -d '{
     "title": "Short imperative title",
     "spec": "What to do and why, in a couple of sentences.",
@@ -91,7 +91,7 @@ curl -s -X POST http://127.0.0.1:8788/api/cards \
 
 ### Always send `x-collie-pane`
 
-`$HERDR_PANE_ID` is in the environment of every herdr pane. Sending it is what marks the card
+`$HERDR_PANE_ID` is in the environment of every herdr pane (`$HC_TERMINAL_ID` under herdr-core). Sending it is what marks the card
 **agent** on the board — the same way the copilot's own cards are marked **auto** — and links it
 back to the card this session is working in, so the user can tell "the agent decided to file this"
 from "I dictated this". Without it the card is indistinguishable from one the user typed, which is
@@ -137,7 +137,7 @@ gets one row that expands rather than fifteen loose cards:
 ```bash
 parent=$(curl -s -X POST http://127.0.0.1:8788/api/cards \
   -H 'content-type: application/json' \
-  -H "x-collie-pane: $HERDR_PANE_ID" \
+  -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}" \
   -d '{"title":"Audit du 29/07 — 6 constats"}' | jq -r .card.id)
 ```
 
@@ -163,7 +163,7 @@ deliverable of the card in `shot`. Purely internal work (tests, refactor, invisi
 
 ```bash
 curl -s -X PATCH http://127.0.0.1:8788/api/cards/<id> -H 'content-type: application/json' \
-  -H "x-collie-pane: $HERDR_PANE_ID" -d '{
+  -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}" -d '{
   "capability": "Lancer une carte sur dev depuis l’éditeur",
   "usageGroup": "Piloter une autre machine",
   "manualChecks": [{"text": "Choisir « dev » dans Environnement", "expected": "le chip dev apparaît", "shot": "dev.png"}]
@@ -227,7 +227,7 @@ repoPath}` and `read_deliverable {cardId, name}` read them back (an image comes 
 marked as yours. Your card id is the `cardId` of your pane in `GET /api/snapshot`.
 
 ```bash
-H=(-H "x-collie-pane: $HERDR_PANE_ID")
+H=(-H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}")
 curl -s -X POST "http://127.0.0.1:8788/api/cards/<id>/deliverables?name=chart.png" "${H[@]}" \
   --data-binary @chart.png                     # → {name, size, mime}; a taken name gets "-2"
 curl -s http://127.0.0.1:8788/api/cards/<id>/deliverables          # [{name, size, mime, publishedAt, by}]
@@ -247,7 +247,7 @@ is away:
 ```bash
 curl -s -X POST http://127.0.0.1:8788/api/board/notify \
   -H 'content-type: application/json' \
-  -H "x-collie-pane: $HERDR_PANE_ID" \
+  -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}" \
   -d '{"message":"Tests pass, starting the migration"}'
 ```
 
@@ -259,7 +259,7 @@ curl -s -X POST http://127.0.0.1:8788/api/board/notify \
 
 ```bash
 curl -s -X POST http://127.0.0.1:8788/api/board/notify \
-  -H 'content-type: application/json' -H "x-collie-pane: $HERDR_PANE_ID" \
+  -H 'content-type: application/json' -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}" \
   -d '{"message":"Deployed to staging — check the login page","kind":"done","persistent":true}'
 ```
 
@@ -276,7 +276,7 @@ curl -s -X POST http://127.0.0.1:8788/api/board/notify \
 ## Plan a project: phases, lots, roadmap
 
 A project is one repo: **roadmap → phase → lot → card**. You prepare all of it; **you never
-launch a lot** — launching is the user's tap. Always send `x-collie-pane: $HERDR_PANE_ID`:
+launch a lot** — launching is the user's tap. Always send `x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}`:
 the launch routes refuse any request that carries it (`403`), which is the guarantee.
 
 The project tab's **orchestrator** is this same skill running in a pane the user starts
@@ -301,7 +301,7 @@ user's quota — and its pane id is what `$HERDR_PANE_ID` carries when it plans.
   card answers with the lot's PR.
 
 ```bash
-B=http://127.0.0.1:8788; H=(-H 'content-type: application/json' -H "x-collie-pane: $HERDR_PANE_ID")
+B=http://127.0.0.1:8788; H=(-H 'content-type: application/json' -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}")
 
 # roadmap: read it first, write it back with the revision you read (0 when there is none).
 curl -s "$B/api/roadmap?repo=/abs/repo"                       # {roadmap:{vision,items,revision}}

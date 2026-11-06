@@ -5,7 +5,7 @@
 // themselves are the catalog the orchestrator's buttons share (web/src/lib/board-tools.ts, ADR 0042).
 //
 // Run: `bun run bridge/mcp.ts`. Env: COLLIE_BOARD_URL | COLLIE_BOARD_PORT, COLLIE_BOARD_DEVICE_HEADER
-// + COLLIE_BOARD_DEVICE, HERDR_PANE_ID (relayed as x-collie-pane: an agent stays an agent).
+// + COLLIE_BOARD_DEVICE, HERDR_PANE_ID or hc's HC_TERMINAL_ID (relayed as x-collie-pane: an agent stays an agent).
 
 import { readFile, stat } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
@@ -19,6 +19,8 @@ export interface McpEnv {
   COLLIE_BOARD_DEVICE_HEADER?: string;
   COLLIE_BOARD_DEVICE?: string;
   HERDR_PANE_ID?: string;
+  /** herdr-core's pane id (ADR 0052): hc exports no HERDR_PANE_ID. */
+  HC_TERMINAL_ID?: string;
 }
 
 interface Req { jsonrpc: "2.0"; id?: number | string; method: string; params?: Json }
@@ -34,7 +36,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export function createMcp(env: McpEnv, fetchFn: typeof fetch = fetch) {
   const base = (env.COLLIE_BOARD_URL || `http://127.0.0.1:${env.COLLIE_BOARD_PORT || 8788}`).replace(/\/+$/, "");
-  const pane = env.HERDR_PANE_ID?.trim();
+  const pane = env.HERDR_PANE_ID?.trim() || env.HC_TERMINAL_ID?.trim();
   const dev = env.COLLIE_BOARD_DEVICE_HEADER?.trim();
   const headers: Record<string, string> = {};
   // A convention, not an authentication (ADR 0039): it is what keeps an agent that plugged this server in an agent.

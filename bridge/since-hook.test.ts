@@ -38,6 +38,12 @@ describe("sinceHook", () => {
     expect(readFileSync(cursorFile, "utf8")).toBe("43\n");
   });
 
+  it("sends hc's HC_TERMINAL_ID as the pane when HERDR_PANE_ID is absent", async () => {
+    const seen: { url?: string; headers?: HeadersInit }[] = [];
+    await sinceHook({ HC_TERMINAL_ID: "t11", XDG_STATE_HOME: state, COLLIE_BOARD_PORT: "9999" }, fakeFetch(204, "", seen));
+    expect((seen[0]!.headers as Record<string, string>)["x-collie-pane"]).toBe("t11");
+  });
+
   it("is silent on 204, a non-JSON body, or a dead bridge", async () => {
     expect(await sinceHook(env, fakeFetch(204, ""))).toBe("");
     expect(await sinceHook(env, fakeFetch(200, "<html>"))).toBe("");

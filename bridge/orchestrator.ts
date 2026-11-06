@@ -59,7 +59,7 @@ export function orchestratorPrompt(
     "",
     "Ton rôle : planifier le travail de CE dépôt avec l'opérateur, en discutant avec lui. Tu prépares la roadmap, les",
     "phases, les lots (runs planifiés, avec leur plafond `maxParallel`) et les cartes, avec le skill `collie-board`",
-    "(curl sur le bridge, header `x-collie-pane: $HERDR_PANE_ID` sur chaque appel).",
+    "(curl sur le bridge, header `x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}` sur chaque appel).",
     "",
     "Règles :",
     "- Tu prépares, tu ne lances JAMAIS : lancer un lot est le geste de l'opérateur (ses routes te refusent d'ailleurs).",

@@ -78,7 +78,7 @@ export function manualChecksPrompt(cardId: string): string {
     "user can now DO (« Lancer une carte sur dev depuis l'éditeur »), `usageGroup` the use it serves",
     "(« Piloter une autre machine »). A step may point at a deliverable you published: \"shot\":\"<its name>\".",
     `  curl -s -X PATCH "http://127.0.0.1:\${COLLIE_BOARD_PORT:-8788}/api/cards/${cardId}" -H 'content-type: application/json' \\`,
-    `    -H "x-collie-pane: $HERDR_PANE_ID" -d '{"capability":"…","usageGroup":"…","manualChecks":[{"text":"…","expected":"…"}]}'`,
+    `    -H "x-collie-pane: \${HERDR_PANE_ID:-$HC_TERMINAL_ID}" -d '{"capability":"…","usageGroup":"…","manualChecks":[{"text":"…","expected":"…"}]}'`,
     "Purely internal work (tests, refactor, an invisible fix): write nothing.",
   ].join("\n");
 }
