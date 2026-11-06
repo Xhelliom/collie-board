@@ -5,3 +5,5 @@
 {"v":1,"hlc":"1793969034862.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/windows-afficher-le-nom-du-depot-pas-son-chemin"}}
 {"v":1,"hlc":"1793969034862.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
 {"v":1,"hlc":"1793969034862.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793969034156}}
+{"v":1,"hlc":"1793969094673.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793969094673.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793969094656}}
