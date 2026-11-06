@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.264.0] - 2026-11-06
+
+### Added
+
+- Le bridge lit herdr 0.9 et hc à la fois : troupeaux fusionnés, chaque action routée vers le moteur du pane (7be8ca5)
+- Badge moteur (`0.9` / `hc`) sur les panes quand le troupeau mêle les deux (7be8ca5)
+
+### Changed
+
+- `COLLIE_BOARD_MUX` ne choisit plus que le moteur des nouveaux lancements ; un moteur absent ne vide plus l'autre (7be8ca5)
+
 ## [0.263.0] - 2026-11-06
 
 ### Added
