@@ -391,13 +391,14 @@ describe("RunCoordinator (ADR 0017)", () => {
     const a = db.createCard({ title: "a", repoPath: "/r" });
     db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
     db.openSession({ cardId: a.id, paneId: "p" });
+    db.setPairId("dell");
     const w = world(db);
     land(db, a);
     w.checks.push(new LeadSilent("lead:1"));
     w.coord.update(snap({ p: "idle" }));
     await flush();
     const p = events(db, a, "run.halted")[0]!.payload as { reason: string; leadSilent?: true; paneId?: string };
-    expect(p).toMatchObject({ leadSilent: true, paneId: "lead:1" });
+    expect(p).toMatchObject({ leadSilent: true, paneId: "lead:1", pair: "dell" });
     expect(p.reason).not.toContain("not an object");
   });
 

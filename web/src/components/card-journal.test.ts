@@ -3,6 +3,7 @@ import { setPreference } from "@/i18n";
 
 import { describeEvent, editedByHandSince, fieldList } from "./card-journal";
 import type { BoardEvent } from "@/lib/board";
+import { pairPaneId, type PeerHerdView } from "@/lib/peers";
 
 function event(type: string, payload: unknown = {}): BoardEvent {
   return { id: 1, cardId: "c1", type, payload, ts: 0 };
@@ -143,5 +144,14 @@ describe("describeEvent in French", () => {
     expect(describeEvent(ev("run.gate", { ok: true, command: "make" }))).toBe("Barrière verte (make)");
     expect(describeEvent(ev("copilot.refined", { instruction: "x", subtasks: 2 }))).toBe("Corrigée sur ta consigne : “x” — et 2 sous-tâches");
     expect(fieldList({ title: "t", spec: "s" })).toBe("le titre et la spec");
+  });
+});
+
+describe("pairPaneId", () => {
+  const peers = [{ peer: "dell", pair: "p-dell", state: "connected", error: null, agents: [] }] as PeerHerdView[];
+  it("routes a peer's pane through the relay, keeps a local one bare", () => {
+    expect(pairPaneId("w1:p2", "p-dell", peers)).toBe("w1:p2@dell");
+    expect(pairPaneId("w1:p2", "p-mine", peers)).toBe("w1:p2");
+    expect(pairPaneId("w1:p2", undefined, peers)).toBe("w1:p2");
   });
 });
