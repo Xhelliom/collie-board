@@ -184,7 +184,7 @@ let contextTracker: ContextTracker | null = null;
 // registry calls this for the primary at construction and for each session discovered later. Push,
 // snooze, notify-prefs, the audit log and the uploads dir stay process-global (shared here).
 const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
-  const herdr = createMux(socketPath, cfg);
+  const herdr = createMux(socketPath, cfg, isPrimary);
   const engine = new StateEngine(herdr, cfg.pollMs);
 
   // Event-poked polling: a long-lived events.subscribe stream pokes an immediate re-poll on any herd

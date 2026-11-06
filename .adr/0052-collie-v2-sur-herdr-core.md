@@ -1,6 +1,6 @@
 # 0052 — Collie V2 sur herdr-core : même cerveau, nouveau moteur, le projet au centre
 
-**Statut : accepté (05/11)** — accepté par l'opérateur le 2026-11-05, la phase 5 soumise aux critères
+**Statut : accepté (05/11), §4.2 amendé le 06/11 (lecture des deux moteurs)** — accepté par l'opérateur le 2026-11-05, la phase 5 soumise aux critères
 de sortie du §8 et non à une date.
 
 Sources : la sonde `HERDR_CORE_API.md` (hc 0.1.18, herdr-app 0.1.13, Claude Code 2.1.318, mesurée le
@@ -85,11 +85,20 @@ PWA ; ses premières écritures (lancer un lot, répondre à l'orchestrateur) so
 
 ### 4.2 Coexistence herdr 0.9 et hc
 
-- Un seul moteur actif par bridge, choisi par config (`mux = "herdr" | "hc"`), défaut `herdr` jusqu'à
+- ~~Un seul moteur actif par bridge, choisi par config (`mux = "herdr" | "hc"`), défaut `herdr` jusqu'à
   la phase 4. Pas de bridge qui parle aux deux à la fois : deux sources pour un même snapshot, c'est
-  deux vérités sur « le troupeau ».
-- Les agents déjà lancés sous 0.9 finissent sous 0.9 ; la bascule se fait projet vide (aucun lot en
-  cours), comme une mise à jour.
+  deux vérités sur « le troupeau ».~~ ~~Les agents déjà lancés sous 0.9 finissent sous 0.9 ; la bascule
+  se fait projet vide (aucun lot en cours), comme une mise à jour.~~
+- **Amendé le 2026-11-06 : le bridge lit les deux moteurs à la fois.** La crainte des « deux vérités »
+  ne tient pas : **chaque pane appartient à un seul moteur**, donc un même pane n'a jamais deux
+  sources. Un `CompositeMux` (`bridge/mux/composite.ts`) fusionne les deux troupeaux ; le moteur d'un
+  pane se lit sur son id (hc : `t<n>` et l'espace `hc` ; 0.9 : `w…`), donc les ids 0.9 déjà stockés
+  (cartes, sessions, URLs `/pane/<id>`) ne changent pas. Toute action va au moteur propriétaire ;
+  seul un **nouveau** lancement suit la config (`mux = "herdr09" | "hc"`, défaut `herdr09`). Un moteur
+  absent ou déconnecté ne vide pas l'autre (ses derniers panes tiennent une minute, le temps d'un
+  hoquet) ; seuls les deux en panne font un snapshot `disconnected`. La migration se fait **agent par
+  agent** — un agent 0.9 finit sous 0.9 pendant que les nouveaux naissent sous hc — au lieu d'une
+  bascule projet vide.
 - Le manifeste `herdr-plugin.toml` et ses 9 actions restent tant que 0.9 est supporté ; ensuite
   `scripts/ctl.ts` + un lanceur `collie-board <action>` (sonde §5), version canonique dans
   `package.json` — ce qui amende ADR 0016 et la règle « Update notice » de CLAUDE.md (ADR à écrire à ce

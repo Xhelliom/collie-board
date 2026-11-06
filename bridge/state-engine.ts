@@ -226,6 +226,8 @@ export class StateEngine {
     try {
       const { workspaces, panes, tabs } = await this.fetchWire();
       const wsById = new Map(workspaces.map((w) => [w.workspace_id, w]));
+      // The engine badge only says something when there is more than one engine to tell apart.
+      const mixed = new Set(panes.map((p) => p.engine)).size > 1;
 
       const toView = (
         p: (typeof panes)[number],
@@ -246,6 +248,7 @@ export class StateEngine {
           kind,
           // A user-set pane label (herdr pane.rename); omitted when unset so "absent stays absent".
           ...(typeof p.label === "string" && p.label.length > 0 ? { paneLabel: p.label } : {}),
+          ...(mixed && p.engine ? { engine: p.engine } : {}),
           // The agent's own session, in either kind herdr defines: an "id" naming an on-disk
           // transcript, or a "path" naming the file outright — which is how an agent whose sessions
           // aren't filed by cwd reports one (a Codex rollout is filed by DATE, so dropping the path

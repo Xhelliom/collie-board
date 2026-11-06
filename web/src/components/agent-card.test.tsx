@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 
 import type { AgentView } from "@/lib/types";
-import { AgentCard, IdleDoneRow } from "./agent-card";
+import { AgentCard, IdleDoneRow, WorkingCard } from "./agent-card";
 
 // Focused on the two board-card fields G1/G2 added (branch, ctx%) — everything else about this row
 // is exercised indirectly through the routes that render it.
@@ -59,5 +59,19 @@ describe("idle/done age", () => {
   it("omits it for a status the note says nothing about", () => {
     render(<AgentCard agent={agent({ status: "working", statusSince: fiveMinAgo })} onClick={() => {}} />);
     expect(screen.queryByText(/ago/)).toBeNull();
+  });
+});
+
+// ADR 0052 §4.2: the bridge sets `engine` only while the herd mixes herdr 0.9 and hc.
+describe("engine badge", () => {
+  it("names the engine when the bridge says which", () => {
+    render(<WorkingCard agent={agent({ paneId: "t3", engine: "hc" })} onClick={() => {}} />);
+    expect(screen.getByText("hc")).toBeInTheDocument();
+  });
+
+  it("shows nothing for a single-engine herd", () => {
+    render(<WorkingCard agent={agent()} onClick={() => {}} />);
+    expect(screen.queryByText("0.9")).toBeNull();
+    expect(screen.queryByText("hc")).toBeNull();
   });
 });

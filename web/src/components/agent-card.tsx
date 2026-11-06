@@ -37,14 +37,24 @@ export function settledFor(agent: AgentView): string | null {
   return agent.statusSince === undefined ? null : timeAgo(agent.statusSince);
 }
 
-/** « sur dev » — where a paired peer's agent runs, in a card tile's words (ADR 0046 §4). */
+/** « sur dev » — where a paired peer's agent runs, in a card tile's words (ADR 0046 §4) — and, while
+ *  the herd mixes herdr 0.9 and hc, which engine the pane runs on (ADR 0052 §4.2). */
 export function PeerChip({ agent }: { agent: AgentView }) {
   const t = useT();
-  if (!agent.peer) return null;
+  if (!agent.peer && !agent.engine) return null;
   return (
     <span className="flex shrink-0 items-center gap-1 font-mono text-[11px] text-muted-foreground">
-      <Monitor className="size-3 shrink-0" />
-      {t("cardEnv.on", { peer: agent.peer })}
+      {agent.peer && (
+        <>
+          <Monitor className="size-3 shrink-0" />
+          {t("cardEnv.on", { peer: agent.peer })}
+        </>
+      )}
+      {agent.engine && (
+        <span className="rounded border border-border px-1 leading-4" title={agent.engine}>
+          {t(`cardEnv.engine.${agent.engine}`)}
+        </span>
+      )}
     </span>
   );
 }

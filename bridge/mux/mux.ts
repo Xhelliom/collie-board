@@ -1,13 +1,14 @@
 import type { AgentStatus } from "../types.ts";
-import type { Config } from "../config.ts";
+import { hcSocketPath, type Config } from "../config.ts";
 import { DEFAULT_TIMEOUT_MS, Herdr09 } from "./herdr09.ts";
 import { Hc } from "./hc.ts";
+import { CompositeMux } from "./composite.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The multiplexer the bridge drives — herdr 0.9 today, herdr-core (hc) next (ADR 0052 §4).
 // `Mux` is cut to what the consumers actually call, nothing more; the data shapes below are still
-// herdr 0.9's, because that is what every consumer reads. One engine per bridge, picked by
-// `cfg.mux` in {@link createMux}.
+// herdr 0.9's, because that is what every consumer reads. The primary session reads BOTH engines
+// through {@link CompositeMux}; `cfg.mux` only picks where a new pane is launched.
 //
 // An engine that cannot do something (hc has no workspace, no tab, no focus) rejects with
 // {@link MuxUnsupported} instead of inventing a result: every consumer already treats a rejected
@@ -63,6 +64,8 @@ export interface WirePane {
    *  cleared with `label: null`, so absent/null both read as "no label". */
   label?: string | null;
   revision: number;
+  /** The engine this pane lives on — stamped by {@link CompositeMux}, never by an engine itself. */
+  engine?: MuxKind;
   /**
    * The agent's OWN session identity, as the agent reported it to Herdr (herdr ≥ 0.7.2). For Claude
    * this is `{kind:"id", value:"<uuid>"}` — the uuid naming its on-disk session log, which is how
@@ -212,12 +215,12 @@ export interface Mux {
   promptAgent(opts: { target: string; text: string; until?: AgentStatus[]; timeoutMs?: number }): Promise<boolean | null | void>;
 }
 
-/** The engine `cfg.mux` names, on that socket. One per herdr session (see index.ts). */
-export function createMux(socketPath: string, cfg: Pick<Config, "mux" | "dialMode">): Mux {
-  switch (cfg.mux ?? "herdr09") {
-    case "herdr09":
-      return new Herdr09(socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode);
-    case "hc":
-      return new Hc(socketPath, cfg.dialMode);
-  }
+/**
+ * herdr 0.9 on `socketPath`, plus — on the primary session — hc on its own socket, merged by
+ * {@link CompositeMux}; new panes go to `cfg.mux`. Other herdr sessions are 0.9 alone (one hc per machine).
+ */
+export function createMux(socketPath: string, cfg: Pick<Config, "mux" | "dialMode">, withHc = true): Mux {
+  const herdr09 = new Herdr09(socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode);
+  if (!withHc) return herdr09;
+  return new CompositeMux({ herdr09, hc: new Hc(hcSocketPath(), cfg.dialMode) }, cfg.mux ?? "herdr09");
 }
