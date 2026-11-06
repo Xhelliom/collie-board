@@ -364,6 +364,8 @@ export function liveNodeActions(
   herdr: () => Mux | null,
   reply: (h: Mux, ...a: Parameters<NodeActions["reply"]>) => ReturnType<NodeActions["reply"]>,
 ): NodeActions {
+  // Panes whose agent is still being started: a retry meanwhile must not launch a second one.
+  const starting = new Set<string>();
   const h = () => {
     const c = herdr();
     if (!c) throw new Error("herdr is not connected");
@@ -381,19 +383,32 @@ export function liveNodeActions(
       // that checkout, and keeps an agent already in it rather than launching a second one.
       const wt = await c
         .createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40) })
-        .catch((createErr) => c.openWorktree({ cwd: env.repoPath, branch }).catch(() => Promise.reject(createErr)));
+        .catch((createErr) =>
+          c.openWorktree({ cwd: env.repoPath, branch }).catch((openErr) =>
+            Promise.reject(new Error(`${(createErr as Error).message} — reopening it failed too: ${(openErr as Error).message}`)),
+          ),
+        );
       const launched = { paneId: wt.paneId, peer, environment: env.name, branch, checkoutPath: wt.checkoutPath, base };
+      if (starting.has(wt.paneId)) return launched;
       const already = await c.getPane(wt.paneId).then((p) => p.agent?.trim(), () => null);
       if (already) return launched;
       if (env.agent === "claude") trustFolder(wt.checkoutPath);
-      try {
-        await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch));
-        await promptAndConfirm(c, wt.paneId, prompt, undefined, { firstAfterLaunch: true });
-      } catch (err) {
-        // A pane no peer can `end` would sit on the owner's machine: close it, keep the checkout.
-        await c.closePane(wt.paneId).catch(() => {});
-        throw err;
-      }
+      // Answered once the pane exists: the agent's start and first prompt take up to a minute, longer
+      // than any hop between the caller and here waits (its fetch, a proxy, the phone's request).
+      starting.add(wt.paneId);
+      void (async () => {
+        try {
+          await launchAgent(c, wt.paneId, env.agent, agentNameFor(branch));
+          await promptAndConfirm(c, wt.paneId, prompt, undefined, { firstAfterLaunch: true });
+        } catch (err) {
+          // A pane with no agent would sit on the owner's machine: close it, keep the checkout — the
+          // caller's card then reads its pane gone, and a relaunch reopens the checkout.
+          console.warn(`[node] launch for ${peer} in ${env.name} failed: ${(err as Error).message}`);
+          await c.closePane(wt.paneId).catch(() => {});
+        } finally {
+          starting.delete(wt.paneId);
+        }
+      })();
       return launched;
     },
   };

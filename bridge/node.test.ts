@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -41,6 +41,69 @@ describe("liveNodeActions.launch", () => {
     });
     expect(l).toMatchObject({ paneId: "w7:p1", checkoutPath: "/wt/x", branch: "b" });
     expect(calls).toEqual(["create", "open"]);
+  });
+});
+
+describe("liveNodeActions.launch — a slow, untrusted, relaunched start", () => {
+  const env = () => ({ name: "e", repoPath: mkdtempSync(join(tmpdir(), "collie-node-")), agent: "claude" });
+  const claudeJson = () => JSON.parse(readFileSync(join(process.env.CLAUDE_CONFIG_DIR!, ".claude.json"), "utf8"));
+
+  it("answers once the pane exists, with the checkout pre-trusted, while the agent is still starting", async () => {
+    const calls: string[] = [];
+    const checkoutPath = mkdtempSync(join(tmpdir(), "collie-wt-"));
+    const herdr = {
+      createWorktree: async () => ({ paneId: "w1:p1", workspaceId: "w1", checkoutPath, alreadyOpen: false }),
+      getPane: async () => ({ agent: null }),
+      startAgent: () => {
+        calls.push("start");
+        expect(claudeJson().projects[checkoutPath]?.hasTrustDialogAccepted).toBe(true);
+        return new Promise<void>(() => {}); // the agent takes its time
+      },
+      closePane: async () => void calls.push("close"),
+    } as unknown as Mux;
+    const actions = liveNodeActions(() => herdr, async () => ({ ok: true, textDelivered: true }));
+    const l = await actions.launch({ peer: "a", env: env(), prompt: "go", branch: "b" });
+    expect(l.paneId).toBe("w1:p1");
+    expect(calls).toEqual(["start"]);
+    // A retry meanwhile (the caller gave up waiting) gets the same pane, never a second agent.
+    expect((await actions.launch({ peer: "a", env: env(), prompt: "go", branch: "b" })).paneId).toBe("w1:p1");
+    expect(calls).toEqual(["start"]);
+  });
+
+  it("closes the pane when the agent never comes up, and a relaunch reopens the same checkout", async () => {
+    const calls: string[] = [];
+    let created = false;
+    const herdr = {
+      createWorktree: async () => {
+        calls.push("create");
+        if (created) throw new Error("worktree_create_failed: already exists");
+        created = true;
+        return { paneId: "w2:p1", workspaceId: "w2", checkoutPath: "/wt/y", alreadyOpen: false };
+      },
+      openWorktree: async () => (calls.push("open"), { paneId: "w2:p2", workspaceId: "w2", checkoutPath: "/wt/y", alreadyOpen: true }),
+      getPane: async () => ({ agent: null }),
+      startAgent: async () => {
+        calls.push("start");
+        throw new Error("boom");
+      },
+      closePane: async () => void calls.push("close"),
+    } as unknown as Mux;
+    const actions = liveNodeActions(() => herdr, async () => ({ ok: true, textDelivered: true }));
+    await actions.launch({ peer: "a", env: env(), prompt: "go", branch: "b" });
+    await Bun.sleep(0);
+    expect(calls).toEqual(["create", "start", "close"]);
+    const again = await actions.launch({ peer: "a", env: env(), prompt: "go", branch: "b" });
+    expect(again).toMatchObject({ paneId: "w2:p2", checkoutPath: "/wt/y" });
+    expect(calls.slice(3, 5)).toEqual(["create", "open"]);
+  });
+
+  it("names both failures when the checkout can neither be created nor reopened", async () => {
+    const herdr = {
+      createWorktree: async () => Promise.reject(new Error("worktree_create_failed: already exists")),
+      openWorktree: async () => Promise.reject(new Error("worktree_not_found")),
+    } as unknown as Mux;
+    const launch = liveNodeActions(() => herdr, async () => ({ ok: true, textDelivered: true })).launch({ peer: "a", env: env(), prompt: "go", branch: "b" });
+    await expect(launch).rejects.toThrow("already exists — reopening it failed too: worktree_not_found");
   });
 });
 

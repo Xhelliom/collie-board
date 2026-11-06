@@ -10,7 +10,7 @@ import { PEER_NAME, peerCall, type OutboundPeer } from "./pairing.ts";
 // machine never sits where `reconcile()` would read it — the journal holds the launch, and only the
 // peer that runs the pane reconciles it (ADR 0048 §4). No loop either: the peer is read on a tap.
 
-/** The peer's launch creates a worktree, starts the agent and confirms its first prompt. */
+/** The peer's launch creates (or reopens) a worktree and answers; the agent starts there afterwards (node.ts). */
 const LAUNCH_TIMEOUT_MS = 120_000;
 
 export const REMOTE_LAUNCHED = "card.remote_launched";
