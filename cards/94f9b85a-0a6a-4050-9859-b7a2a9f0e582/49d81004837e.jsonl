@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793966387267.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"549d9248-9d21-4fac-9014-c90bf0b14305"}}
 {"v":1,"hlc":"1793966387267.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mod herdr-app branché : ouvrir le vrai terminal, quelques actions","status":"backlog"},"ts":1793966377048}}
 {"v":1,"hlc":"1793966387267.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"2434dbe0-15cf-4ac4-b363-fc4879b5b3a9"}}
+{"v":1,"hlc":"1793967176992.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
