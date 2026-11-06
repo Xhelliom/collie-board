@@ -433,6 +433,7 @@ Claude Code opened in an untrusted directory holding a `.mcp.json`, read with `a
 | one new repo MCP server (« New MCP server found in this project: … ») | **`blocked`** | `live_blocked_form` |
 | several new repo MCP servers (« N new MCP servers found… » checklist, `Space to select`) | **`idle`** | none — `default_known_agent_idle_fallback` |
 | after the screens, at the input box | `idle` | `live_prompt_box` |
+| « Teach auto mode about your environment? » (Claude Code 2.1.319, after a finished turn — seen on a peer 2026-11-06) | **`idle`** | — the board reads it `blocked` (`holding-screens.ts`, read at the passage to idle) |
 
 - herdr does not tell these screens apart from any other blocked form: `blocked` means "some dialog",
   not "the trust prompt". The web tells them apart from the screen (`classifyFooter` +

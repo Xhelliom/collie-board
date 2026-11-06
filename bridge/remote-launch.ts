@@ -80,6 +80,14 @@ export function launchRouteFor(environment: CardEnvironment | null, outbound: re
     : { kind: "refused", error: `${environment.name}: ${environment.peer} is not a paired peer of this machine` };
 }
 
+/**
+ * A card started on a peer outside a lot: no lead will push it and open its PR (a lot's prompt is
+ * `startCard`'s, not this one), so its agent does — the PR is how its work reaches this board, which
+ * attaches it and files the card at its merge (remote-idle.ts).
+ */
+export const DELIVER_PROMPT =
+  "When the work is done and committed, deliver it yourself: push your branch (`git push -u origin HEAD`) and open its pull request (`gh pr create --fill`). The board follows that PR to its merge — work left unpushed on this machine never reaches it.";
+
 /** The card's session on a peer. */
 export interface RemoteSession {
   peer: string;
@@ -160,7 +168,7 @@ export async function startOnPeer(d: RemoteDeps, card: Card): Promise<{ ok: true
   if (refused) return failed(refused, "board");
 
   const branch = card.branch ?? branchFromTitle(card.title, d.branchPrefix);
-  const r = await call(d, peer, "/api/node/launch", { body: { environment, prompt: initialPrompt(card), branch }, timeoutMs: LAUNCH_TIMEOUT_MS });
+  const r = await call(d, peer, "/api/node/launch", { body: { environment, prompt: `${initialPrompt(card)}\n\n${DELIVER_PROMPT}`, branch }, timeoutMs: LAUNCH_TIMEOUT_MS });
   if (!ok(r) || typeof r.body.paneId !== "string") return failed(peerRefusal(peer.name, environment, r), "peer", peer.name);
   const session = { peer: peer.name, environment, paneId: r.body.paneId, branch: typeof r.body.branch === "string" ? r.body.branch : branch };
   d.db.recordEvent(card.id, REMOTE_LAUNCHED, session);

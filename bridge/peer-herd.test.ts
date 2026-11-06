@@ -74,6 +74,19 @@ describe("PeerHerd", () => {
     expect(seen).toHaveLength(2);
   });
 
+  it("hands each connected answer's agents to onRead — never an unreachable peer's", async () => {
+    let t = 0;
+    let answer: unknown = SNAP;
+    const { fetch } = fakeFetch(() => (answer instanceof Error ? answer : Response.json(answer)));
+    const reads: string[] = [];
+    const herd = new PeerHerd({ fetch, outbound: () => [DEV], onRead: async (peer, agents) => void reads.push(`${peer} ${agents.map((a) => a.status).join()}`) }, () => t);
+    await herd.update(LOCAL);
+    answer = new Error("timeout");
+    t += READ_EVERY_MS;
+    await herd.update(LOCAL);
+    expect(reads).toEqual(["dev blocked"]);
+  });
+
   it("keeps one call in flight per peer", async () => {
     let t = 0;
     let release!: () => void;

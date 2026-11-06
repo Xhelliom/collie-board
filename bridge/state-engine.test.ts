@@ -490,6 +490,27 @@ describe("StateEngine — session name enrichment", () => {
     expect(reads).toBe(0);
   });
 
+  test("« Teach auto mode » under an idle herdr reads blocked, once per transition, until answered", async () => {
+    const { herdr, engine, poll, agent } = makeNameEngine();
+    const moves: string[] = [];
+    engine.onTransition((a, from, to) => moves.push(`${a.paneId} ${from}→${to}`));
+    const fixture = await Bun.file(new URL("../web/src/fixtures/panes/claude--v2319-teach-auto-mode.txt", import.meta.url)).text();
+    herdr.panes = [pane("w1:p1", "w1", "working", "claude")];
+    await poll();
+    herdr.panes = [pane("w1:p1", "w1", "idle", "claude")];
+    herdr.texts.set("w1:p1", fixture);
+    await poll(); // the passage to idle reads the screen
+    await poll();
+    expect(agent("w1:p1").status).toBe("blocked");
+    await poll();
+    expect(moves).toEqual(["w1:p1 working→idle", "w1:p1 idle→blocked"]);
+    herdr.texts.set("w1:p1", plainBox); // « Not now »: the input box is back, herdr still says idle
+    await poll();
+    await poll();
+    expect(agent("w1:p1").status).toBe("idle");
+    expect(moves.at(-1)).toBe("w1:p1 blocked→idle");
+  });
+
   test("picks up a /rename once the status moves", async () => {
     const { herdr, poll, agent } = makeNameEngine();
     herdr.panes = [pane("w1:p1", "w1", "working", "claude")];

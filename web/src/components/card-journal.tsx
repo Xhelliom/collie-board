@@ -325,6 +325,10 @@ export function describeEvent(event: BoardEvent): string {
       return t("journal.remoteLaunched", { peer: String(p.peer), environment: String(p.environment), branch: String(p.branch) });
     case "card.remote_ended":
       return t("journal.remoteEnded", { peer: String(p.peer), environment: String(p.environment) });
+    case "card.remote_idle":
+      return t("journal.remoteIdle", { peer: String(p.peer), environment: String(p.environment) });
+    case "card.remote_idle_cleared":
+      return p.why === "pr" ? t("journal.remoteIdleClearedPr") : t("journal.remoteIdleCleared");
     case "card.split_from":
       return p.after ? t("journal.splitAfter", { after: String(p.after) }) : t("journal.split");
     case "card.reopened":

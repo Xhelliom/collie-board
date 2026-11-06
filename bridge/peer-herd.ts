@@ -47,6 +47,8 @@ export interface PeerHerdDeps {
   outbound: () => readonly OutboundPeer[];
   /** The primary session's coordinator: a remote agent waiting on you takes the herd's usual slot. */
   alerts?: () => Pick<{ arm(key: string, alert: Alert): void; retract(key: string): void }, "arm" | "retract"> | undefined;
+  /** Each answer of a connected peer, its agents as read — a remote card's transitions (remote-idle.ts). */
+  onRead?: (peer: string, agents: readonly Record<string, unknown>[]) => Promise<void>;
 }
 
 export class PeerHerd {
@@ -81,6 +83,7 @@ export class PeerHerd {
     try {
       Object.assign(s, herdOf(peer.name, await call(this.d, peer, "/api/node/snapshot")), { at: this.now() });
       this.raise(peer.name, s.agents);
+      if (s.state === "connected") await this.d.onRead?.(peer.name, s.agents);
     } finally {
       s.busy = false;
     }

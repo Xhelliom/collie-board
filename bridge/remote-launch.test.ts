@@ -4,6 +4,7 @@ import { BoardDb, type BoardEvent } from "./db.ts";
 import { normalizeRemote } from "./git.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import {
+  DELIVER_PROMPT,
   endOnPeer,
   environmentChangeRefusal,
   diagnoseEnvironments,
@@ -143,6 +144,8 @@ describe("startOnPeer / endOnPeer", () => {
     expect(calls[0]!.url).toBe("https://dev.example.ts.net/api/node/launch");
     expect(calls[0]!.body).toMatchObject({ environment: "dev-board", branch: "board/lancer-chez-le-pair" });
     expect(Object.keys(calls[0]!.body as object).sort()).toEqual(["branch", "environment", "prompt"]);
+    // Outside a lot nobody pushes for it: its prompt says to push and open the PR (the lot's is startCard's).
+    expect((calls[0]!.body as { prompt: string }).prompt.endsWith(DELIVER_PROMPT)).toBe(true);
     expect(db.getCard(card.id)!.status).toBe("working");
     expect(db.openSessionFor(card.id)).toBeNull(); // no local session for reconcile() to orphan
     const again = await startOnPeer(d, db.getCard(card.id)!);

@@ -112,6 +112,8 @@ export function prFollowHook(db: BoardDb, herdr: Mux): (snap: EngineSnapshot) =>
   const follower = new PrFollower(db, {
     prStatus: (card) => prStatusFor(card, Date.now, true),
     gate: async (card, runId) => {
+      // Opened by an agent on a peer (remote-idle.ts): nobody here reviewed it, and its checkout is there.
+      if (card.environment) return { runId, ok: false, why: "a card run on a peer — its PR is merged by hand, the board files the card at the merge" };
       const command = card.repoPath ? db.repoGate(card.repoPath) : null;
       if (!command) return { runId, ok: true, why: "no gate set" };
       const ran = db.listEvents(card.id, 200).find((e) => e.type === "run.gate" && (e.payload as { runId?: string }).runId === runId);

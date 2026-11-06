@@ -1,0 +1,12 @@
+● Commité en local sur board/sonde-windows — 3 fichiers, bun test vert.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Teach auto mode about your environment?
+
+  Auto mode works better when it knows your environment. Takes about a minute.
+
+  ❯ Yes
+    Not now
+    Don't show again
+
+  Enter to confirm · Esc to cancel

@@ -443,7 +443,7 @@ pane header. Write your note when asked.
 
 The user creates and edits cards, settles decisions, launches or deletes lots, merges PRs by hand — none
 of it reaches your conversation. `GET /api/orchestrator/since?since=<ts>` lists it: the repo's audited
-gestures (yours, i.e. your pane's, left out) and the PRs merged or closed, newer than `since` (ms epoch).
+gestures (yours, i.e. your pane's, left out) and the PRs merged or closed — plus a remote card stopped with no PR (`card.remote_idle`) and what retracts it (`card.remote_idle_cleared`, `card.remote_ended`) — newer than `since` (ms epoch).
 It answers only the orchestrator's own pane (`204` for any other) and derives the repo from it.
 
 ```bash
