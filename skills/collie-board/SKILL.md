@@ -291,6 +291,10 @@ files a card (the file + what to change) and the agent that takes it opens the P
 - `GET /api/docs?repo=<path>` — `{ ref, rubrics:[{id,label,docs:[{path,title,size}]}], other, decisions }`:
   every `.md` classed by those rubrics (`other` = outside the convention), and `decisions` = the ADRs
   (`kind:"adr"`, status and date read in the file) merged with the roadmap's (`kind:"roadmap"`), newest first.
+  `bilan` = the gaps to the convention, one `{code,…}` each (`missing`, `noModule`, `agentsLong`,
+  `agentsMany`, `decisionsTwice`, `tooBig`, `noStatus`); empty when the docs follow it. Its « Mettre la
+  doc aux normes » files a card: the agent asks first (an open decision with the card's `cardId`), then
+  proposes a mapping by PR — nothing moved or deleted outside one.
 - `GET /api/docs/file?repo=<path>&path=<repo-relative .md>` — `{ path, text, truncated }`; 404 when absent.
 - `GET /api/docs/search?repo=<path>&q=<text>` — `{ paths }` whose text contains `q` (case-insensitive).
 - `GET /api/docs/pages?repo=<path>` — `{ ref, pages:[{name,size}] }`: the custom pages (below).
@@ -551,6 +555,16 @@ code.
   ADR 0047), you may launch a planned lot whenever **no lot of this repo is running** — the bridge checks
   at your request, counts it in the chain and refuses past the same bounds. `POST /api/runs` without
   `planned` stays refused in every case.
+  **The call carries `x-collie-pane: ${HERDR_PANE_ID}`** — the header is what makes the bridge check
+  the autonomy and its bounds; a launch without it would pass for the user's own tap. For it not to
+  wait on a confirmation in your pane, the user allows it once in Claude Code (`permissions.allow` of
+  the repo's `.claude/settings.json` or of `~/.claude/settings.json`; Settings → Autonomy shows the
+  line, copiable): `Bash(curl -s -X POST http://127.0.0.1:8788/api/runs/*/launch*)` — other port if
+  `COLLIE_BOARD_PORT` is set. You never write that file yourself; propose the line to the user.
+  ```bash
+  curl -s -X POST "http://127.0.0.1:${COLLIE_BOARD_PORT:-8788}/api/runs/<id>/launch" \
+    -H "x-collie-pane: ${HERDR_PANE_ID:-$HC_TERMINAL_ID}"
+  ```
   On a **shared** repo a lot belongs to its creator (ADR 0048 §7): `GET /api/runs` gives `createdBy` /
   `createdPair`, and launching or resuming another pair's lot is refused `403` — to you and to the user
   alike. Never launch a lot that is not this pair's, nor one holding a card assigned to someone else.

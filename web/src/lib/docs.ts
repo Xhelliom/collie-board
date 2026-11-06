@@ -1,5 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 
+import { t } from "@/i18n";
+
 import { apiRequest } from "./api";
 import { loadRepoScope } from "./board";
 
@@ -33,6 +35,39 @@ export interface DocsIndex {
   rubrics: { id: string; label: string; docs: DocEntry[] }[];
   other: DocEntry[];
   decisions: DocDecision[];
+  /** The gaps to the doc convention (bridge/docs.ts docBilan) — empty when it holds. */
+  bilan?: BilanIssue[];
+}
+
+export type BilanIssue =
+  | { code: "missing"; rubric: string; label: string }
+  | { code: "noModule" }
+  | { code: "agentsLong"; path: string; size: number }
+  | { code: "agentsMany"; paths: string[] }
+  | { code: "decisionsTwice"; paths: string[] }
+  | { code: "tooBig"; path: string; size: number }
+  | { code: "noStatus"; count: number; paths: string[] };
+
+const kb = (size: number) => Math.round(size / 1000);
+
+/** One gap, one line, in the operator's language. Pure. */
+export function bilanLine(i: BilanIssue): string {
+  switch (i.code) {
+    case "missing":
+      return t("docs.bilan.missing", { label: i.label });
+    case "noModule":
+      return t("docs.bilan.noModule");
+    case "agentsLong":
+      return t("docs.bilan.agentsLong", { path: i.path, kb: kb(i.size) });
+    case "agentsMany":
+      return t("docs.bilan.agentsMany", { paths: i.paths.join(", ") });
+    case "decisionsTwice":
+      return t("docs.bilan.decisionsTwice", { paths: i.paths.join(", ") });
+    case "tooBig":
+      return t("docs.bilan.tooBig", { path: i.path, kb: kb(i.size) });
+    case "noStatus":
+      return t("docs.bilan.noStatus", { count: i.count, paths: i.paths.join(", ") + (i.count > i.paths.length ? ", …" : "") });
+  }
 }
 
 const q = (repo: string) => `repo=${encodeURIComponent(repo)}`;

@@ -47,6 +47,15 @@ export const orchestrator = defineMessages({
     en: "At the end of a lot only, never on a timer. Validating a phase stays yours.",
     fr: "À la fin d'un lot seulement, jamais sur un minuteur. Valider une phase reste à toi.",
   },
+  "orch.autoPerm": {
+    en: "For the orchestrator to launch without asking you in its pane, allow this in Claude Code:",
+    fr: "Pour que l'orchestrateur lance sans te demander dans son pane, autorise ceci dans Claude Code :",
+  },
+  "orch.autoPermCopy": { en: "Copy", fr: "Copier" },
+  "orch.autoPermHint": {
+    en: "In permissions.allow of the repo's .claude/settings.json, or of ~/.claude/settings.json. Another port if COLLIE_BOARD_PORT is set. The board never writes it for you.",
+    fr: "Dans permissions.allow du .claude/settings.json du dépôt, ou de ~/.claude/settings.json. Autre port si COLLIE_BOARD_PORT est défini. Le board ne l'écrit jamais à ta place.",
+  },
   "orch.autoIdle": { en: "May start a lot when nothing is running", fr: "Peut démarrer un lot quand rien ne tourne" },
   "orch.autoIdleHint": {
     en: "When it asks and none of this project's lots is running. Counted in the chain, same bounds.",

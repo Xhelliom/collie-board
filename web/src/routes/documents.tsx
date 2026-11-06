@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, ChevronRight, FileText, PencilLine, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, FileText, PencilLine, Search, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
@@ -11,7 +11,7 @@ import { SectionLabel } from "@/components/ui/section-label";
 import { useT } from "@/i18n";
 import { createCard, repoName } from "@/lib/board";
 import { setStatus } from "@/lib/status";
-import { decisionStatus, docMatches, fetchDoc, resolveDocLink, searchDocs, type DecisionStatus, type DocDecision, type DocEntry, type DocsIndex } from "@/lib/docs";
+import { bilanLine, decisionStatus, docMatches, fetchDoc, resolveDocLink, searchDocs, type DecisionStatus, type DocDecision, type DocEntry, type DocsIndex } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
 // The Documents tab: the repo's Markdown as it stands on its default branch, one section per rubric
@@ -56,7 +56,8 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
   const t = useT();
   const [query, setQuery] = useState("");
   const [inText, setInText] = useState<ReadonlySet<string>>(new Set());
-  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  // The doc check starts folded when it has gaps: a long list on top would push the rubrics off the screen.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set(index.bilan?.length ? ["bilan"] : []));
   const [showAll, setShowAll] = useState(false);
   const [statuses, setStatuses] = useState<ReadonlySet<DecisionStatus>>(new Set());
 
@@ -136,6 +137,12 @@ function DocList({ repo, index, hrefOf }: { repo: string; index: DocsIndex; href
         </nav>
       )}
 
+      {!needle && index.bilan && (
+        <Section id="bilan" label={t("docs.bilan.title")} count={index.bilan.length} open={!closed.has("bilan")} onToggle={toggle}>
+          <DocBilan repo={repo} gitRef={index.ref} issues={index.bilan} />
+        </Section>
+      )}
+
       {total === 0 && index.decisions.length === 0 ? (
         <p className="px-2 py-16 text-center text-sm text-muted-foreground">{t("docs.empty", { ref: index.ref })}</p>
       ) : sections.length === 0 && decisions.length === 0 ? (
@@ -188,6 +195,55 @@ function Section({ id, label, count, open, onToggle, children }: { id: string; l
       </button>
       {open && children}
     </section>
+  );
+}
+
+/**
+ * The gaps to the doc convention, one line each, and « Mettre la doc aux normes »: a card whose agent
+ * asks the operator first (an open decision on the card), then proposes a mapping by PR. The board
+ * neither moves nor deletes anything itself.
+ */
+function DocBilan({ repo, gitRef, issues }: { repo: string; gitRef: string; issues: NonNullable<DocsIndex["bilan"]> }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
+  const fix = async () => {
+    setBusy(true);
+    try {
+      const { card } = await createCard({
+        title: t("docs.fix.cardTitle", { repo: repoName(repo) }),
+        spec: t("docs.fix.cardSpec", { ref: gitRef, gaps: issues.map((i) => `- ${bilanLine(i)}`).join("\n") }),
+        repoPath: repo,
+      });
+      setStatus(t("docs.fix.created"), "success");
+      void navigate(`/card/${encodeURIComponent(card.id)}`);
+    } catch (e) {
+      setStatus(t("docs.ask.failed", { why: e instanceof Error ? e.message : String(e) }), "error");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border p-2.5">
+      {issues.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("docs.bilan.ok")}</p>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-1 text-sm">
+            {issues.map((i, n) => (
+              <li key={n} className="break-words">
+                {bilanLine(i)}
+              </li>
+            ))}
+          </ul>
+          <Button variant="outline" size="sm" className="self-start" disabled={busy} onClick={() => void fix()}>
+            <Wand2 />
+            {t("docs.fix.open")}
+          </Button>
+        </>
+      )}
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CardView, Phase } from "@/lib/board";
-import { projectOf } from "@/lib/project";
+import { projectOf, proposeMilestoneName } from "@/lib/project";
 
 let n = 0;
 const card = (o: Partial<CardView> & { id: string }): CardView =>
@@ -151,3 +151,26 @@ describe("projectOf: milestones (ADR 0025)", () => {
   });
 });
 
+
+describe("proposeMilestoneName", () => {
+  it("takes the one card's title as it is", () => {
+    expect(proposeMilestoneName(["Corriger le push sur iOS"])).toBe("Corriger le push sur iOS");
+  });
+  it("names the theme the titles share, most shared first", () => {
+    expect(
+      proposeMilestoneName([
+        "Ajouter les notifications push",
+        "Corriger le son des notifications",
+        "Notifications : regrouper par carte",
+        "Rendre le push silencieux la nuit",
+      ]),
+    ).toBe("Notifications · push");
+  });
+  it("ignores elisions and stop words", () => {
+    expect(proposeMilestoneName(["Afficher l'historique", "Filtrer l’historique par date"])).toBe("Historique");
+  });
+  it("returns null when nothing is shared, so the caller says « divers <date> »", () => {
+    expect(proposeMilestoneName(["Thème sombre", "Export PDF", "Raccourcis clavier"])).toBeNull();
+    expect(proposeMilestoneName([])).toBeNull();
+  });
+});

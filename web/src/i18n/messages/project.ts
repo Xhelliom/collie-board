@@ -260,6 +260,7 @@ export const project = defineMessages({
   },
   "project.seal.name": { en: "Name of the milestone", fr: "Nom du jalon" },
   "project.seal.placeholder": { en: "e.g. v1", fr: "ex. v1" },
+  "project.seal.misc": { en: "misc {date}", fr: "divers {date}" },
   "project.seal.done": {
     en: { one: "{count} step filed under “{name}”.", other: "{count} steps filed under “{name}”." },
     fr: { one: "{count} étape rangée dans « {name} ».", other: "{count} étapes rangées dans « {name} »." },

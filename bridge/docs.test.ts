@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
-import { buildIndex, docMeta, knownRepoRoot, META_PATTERN, parseDocPaths, rubricOf } from "./docs.ts";
+import { buildIndex, docBilan, docMeta, knownRepoRoot, META_PATTERN, parseDocConvention, parseDocPaths, rubricOf } from "./docs.ts";
 import { docsOnRef, grepDocsOnRef, isSafeDocPath, readDocOnRef, type GitRunner } from "./git.ts";
 
 function sh(cwd: string, ...args: string[]): string {
@@ -119,6 +119,78 @@ describe("the convention's doc-paths", () => {
       { path: "a.md", line: 2, text: "**Statut :** ✅ décidé" },
     ]);
     expect(m.get("a.md")).toEqual({ title: "First", status: "✅ décidé", date: null });
+  });
+});
+
+describe("docBilan: the gaps to the convention", () => {
+  const convention = parseDocConvention(readFileSync(join(import.meta.dir, "../docs/conventions/DOC_CONVENTION.md"), "utf8"))!;
+  /** A tree from `path size` pairs; every file under docs/ gets a status line unless `bare`. */
+  const tree = (spec: Record<string, number>, bare: string[] = []) => {
+    const docs = Object.entries(spec).map(([path, size]) => ({ path, size }));
+    const lines = docs.filter((d) => !bare.includes(d.path)).map((d) => ({ path: d.path, line: 3, text: "**Statut :** ✅ décidé" }));
+    return { docs, lines };
+  };
+
+  test("an Overgate-shaped tree (socle + jeu module) has none", () => {
+    const { docs, lines } = tree({
+      "AGENTS.md": 5017,
+      "CLAUDE.md": 40,
+      "README.md": 5620,
+      "CHANGELOG.md": 90_000,
+      "changes/README.md": 900,
+      ".claude/rules/docs.md": 1740,
+      "docs/README.md": 1200,
+      "docs/adr/README.md": 1956,
+      "docs/adr/0000-template.md": 656,
+      "docs/adr/0001-git-lfs-with-locking.md": 1780,
+      "docs/plan/README.md": 800,
+      "docs/plan/P1-socle/README.md": 2400,
+      "docs/plan/P1-socle/bilan.md": 1800,
+      "docs/dev/README.md": 1992,
+      "docs/dev/testing.md": 19_689,
+      "docs/gdd/01-vision.md": 2242,
+      "docs/gdd/decisions.md": 6000,
+      "docs/features/README.md": 7070,
+      "docs/architecture/README.md": 1499,
+      "docs/LORE.md": 10_810,
+    });
+    expect(docBilan(docs, lines, convention)).toEqual([]);
+  });
+
+  test("a CrewDesign-shaped tree lists each gap once", () => {
+    const { docs, lines } = tree(
+      {
+        "AGENTS.md": 18_000,
+        "CLAUDE.md": 16_000,
+        "GEMINI.md": 9000,
+        "README.md": 4000,
+        "docs/adr/0001-postgres.md": 2000,
+        "plan/decisions.md": 37_000,
+        "plan/dette-technique.md": 140_000,
+        "specs/spec-assemblage.md": 12_000,
+        "docs/ops/backup.md": 3000,
+        "docs/ops/deploy.md": 3000,
+        "docs/ARCHITECTURE.md": 8000,
+      },
+      ["docs/ops/backup.md", "docs/ops/deploy.md", "docs/ARCHITECTURE.md"],
+    );
+    expect(docBilan(docs, lines, convention)).toEqual([
+      { code: "missing", rubric: "index", label: "Où chercher quoi" },
+      { code: "missing", rubric: "dev", label: "Comment on travaille" },
+      { code: "missing", rubric: "vision", label: "Vision" },
+      { code: "agentsLong", path: "AGENTS.md", size: 18_000 },
+      { code: "agentsLong", path: "CLAUDE.md", size: 16_000 },
+      { code: "agentsMany", paths: ["AGENTS.md", "CLAUDE.md", "GEMINI.md"] },
+      { code: "decisionsTwice", paths: ["plan/decisions.md"] },
+      { code: "tooBig", path: "plan/decisions.md", size: 37_000 },
+      { code: "tooBig", path: "plan/dette-technique.md", size: 140_000 },
+      { code: "noStatus", count: 3, paths: ["docs/ARCHITECTURE.md", "docs/ops/backup.md", "docs/ops/deploy.md"] },
+    ]);
+  });
+
+  test("a tree with no « what we build » rubric says so", () => {
+    const { docs, lines } = tree({ "AGENTS.md": 100, "docs/README.md": 100, "docs/adr/0001-a.md": 100, "docs/plan/README.md": 100, "docs/dev/README.md": 100 });
+    expect(docBilan(docs, lines, convention)).toEqual([{ code: "noModule" }]);
   });
 });
 
