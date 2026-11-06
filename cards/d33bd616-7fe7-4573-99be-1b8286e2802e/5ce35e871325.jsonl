@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1793916163693.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Windows : afficher le nom du dépôt, pas son chemin complet","status":"backlog"},"ts":1793916163600}}
 {"v":1,"hlc":"1793916163694.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"130efcdc-c62f-4ada-aeb4-447af29b80b4"}}
 {"v":1,"hlc":"1793969028338.0000.5ce35e871325","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"5ce35e871325","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793969034862.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/windows-afficher-le-nom-du-depot-pas-son-chemin"}}
+{"v":1,"hlc":"1793969034862.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793969034862.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793969034156}}
