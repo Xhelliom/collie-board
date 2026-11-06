@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1793884947284.0002.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"V2 — 1 : interface moteur","goal":"Le board parle à herdr derrière une interface Mux ; herdr 0.9 en est la première implémentation ; diff de comportement nul.","position":30,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1793884946795}}
+{"v":1,"hlc":"1793963827803.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1793963823714}}
