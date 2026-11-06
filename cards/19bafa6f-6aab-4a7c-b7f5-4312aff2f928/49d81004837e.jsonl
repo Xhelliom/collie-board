@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1793995047774.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"UPSTREAM.md : finir les conflits à chaque carte qui touche server.ts","status":"backlog"},"ts":1793995039111}}
 {"v":1,"hlc":"1793995047774.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"cf7eb4d1-83ac-4234-a2e0-887d472382d1"}}
 {"v":1,"hlc":"1793995467786.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1793995472998.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/upstream-md-finir-les-conflits-a-chaque-carte-qu"}}
+{"v":1,"hlc":"1793995472998.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1793995472998.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793995471937}}
