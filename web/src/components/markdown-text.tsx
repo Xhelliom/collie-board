@@ -5,7 +5,7 @@ import { ActionButtons, parseButtons, useButtonsPane } from "@/components/action
 import { BoardLinkCard, useCanLinkCards } from "@/components/board-link-card";
 import { parseBoardLink } from "@/lib/board-link";
 import { FileLinksContext, splitFileRefs } from "@/lib/files-link";
-import { parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
+import { isDocHref, parseMarkdown, type MdBlock, type MdSpan } from "@/lib/markdown";
 import { splitHighlight } from "@/lib/transcript-search";
 import { copyUnavailableTitle, useCopy } from "@/hooks/use-copy";
 import { useT } from "@/i18n";
@@ -21,6 +21,9 @@ import { useT } from "@/i18n";
 // The active find query, threaded via context rather than a prop drilled through every nested span —
 // highlighting is a cross-cutting display concern, and the AST walk is already recursive.
 const QueryContext = createContext("");
+
+/** Where a relative `.md` link goes when the text is itself a document (the Documents page). Absent: a plain link. */
+export const DocLinkContext = createContext<((href: string) => void) | null>(null);
 
 /** Literal text with find hits marked. Still text nodes — `<mark>` is structure, never parsed markup. */
 function Hit({ text }: { text: string }) {
@@ -101,8 +104,16 @@ function Span({ span }: { span: MdSpan }) {
 // A link to the board's own card/session becomes a live card; every other link stays a link.
 function LinkSpan({ span }: { span: Extract<MdSpan, { kind: "link" }> }) {
   const canLink = useCanLinkCards();
+  const openDoc = useContext(DocLinkContext);
   const board = canLink ? parseBoardLink(span.href) : null;
   if (board) return <BoardLinkCard link={board} label={<Spans spans={span.spans} />} />;
+  if (openDoc && isDocHref(span.href)) {
+    return (
+      <button type="button" onClick={() => openDoc(span.href)} className="inline cursor-pointer text-left text-primary underline underline-offset-2 break-all">
+        <Spans spans={span.spans} />
+      </button>
+    );
+  }
   // `href` was scheme-checked in the parser. noreferrer/noopener because these URLs come from
   // agent output, and target=_blank keeps the PWA shell alive behind the tap.
   return (

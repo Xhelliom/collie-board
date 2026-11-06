@@ -282,6 +282,13 @@ plus one "what we build" module (game · product · tool · infra). Ask its §3 
 module; on an existing repo **propose a mapping, move nothing yourself**, migrate by PR. Its
 `json doc-paths` block is the machine-readable path list.
 
+Read a repo's docs as they stand on its default branch (from git's tree — never the working copy):
+- `GET /api/docs?repo=<path>` — `{ ref, rubrics:[{id,label,docs:[{path,title,size}]}], other, decisions }`:
+  every `.md` classed by those rubrics (`other` = outside the convention), and `decisions` = the ADRs
+  (`kind:"adr"`, status and date read in the file) merged with the roadmap's (`kind:"roadmap"`), newest first.
+- `GET /api/docs/file?repo=<path>&path=<repo-relative .md>` — `{ path, text, truncated }`; 404 when absent.
+- `GET /api/docs/search?repo=<path>&q=<text>` — `{ paths }` whose text contains `q` (case-insensitive).
+
 ## Plan a project: phases, lots, roadmap
 
 A project is one repo: **roadmap → phase → lot → card**. You prepare all of it; **you never

@@ -9,6 +9,7 @@ import { orchestrator } from "./messages/orchestrator";
 import { project } from "./messages/project";
 import { prs } from "./messages/prs";
 import { recette } from "./messages/recette";
+import { docs } from "./messages/docs";
 import { sheets } from "./messages/sheets";
 import { templates } from "./messages/templates";
 import { flows } from "./messages/flows";
@@ -27,7 +28,7 @@ const params = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!).so
 
 describe("the message catalog", () => {
   it("has no key defined in two areas — the spread would let the last one win silently", () => {
-    const all = [common, board, card, project, prs, recette, sheets, orchestrator, languageMessages, templates, flows, home, settings, gallery, history, spaces, pane, shell, peers, people].flatMap((a) => Object.keys(a));
+    const all = [common, board, card, project, prs, recette, docs, sheets, orchestrator, languageMessages, templates, flows, home, settings, gallery, history, spaces, pane, shell, peers, people].flatMap((a) => Object.keys(a));
     expect(all.filter((k, i) => all.indexOf(k) !== i)).toEqual([]);
     expect(Object.keys(CATALOG).length).toBe(all.length);
   });
