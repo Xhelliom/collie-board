@@ -25,3 +25,4 @@
 {"v":1,"hlc":"1793982010324.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"130efcdc-c62f-4ada-aeb4-447af29b80b4","reason":"the lead is not answering — its pane is probably waiting for an action (a modal, a quota)","leadSilent":true,"paneId":"wJ:p1"},"ts":1793982009581}}
 {"v":1,"hlc":"1793982125111.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1793982125111.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1793982124216}}
+{"v":1,"hlc":"1793982154175.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleanup_failed","payload":{"stage":"worktree","error":"herdr worktree.remove: timed out after 5000ms"},"ts":1793982152315}}
