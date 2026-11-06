@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { BookOpen, ChevronDown, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
+import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
 import { loadRepoScope, repoName, saveRepoScope, withListedRepos } from "@/lib/board";
+import { fetchPages } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,18 @@ export function BoardTabs({ repos = [], actions }: { repos?: RepoOption[]; actio
   const repo = params.get("repo") ?? loadRepoScope();
   const q = repo ? `?repo=${encodeURIComponent(repo)}` : "";
   const [adding, setAdding] = useState(false);
+  // The repo's custom pages (docs/pages/*.html on main), one tab each — read when the row mounts, never polled.
+  const [pages, setPages] = useState<string[]>([]);
+  useEffect(() => {
+    setPages([]);
+    if (!repo) return;
+    const ctl = new AbortController();
+    fetchPages(repo, ctl.signal)
+      .then((r) => setPages(r.pages.map((p) => p.name)))
+      .catch(() => {});
+    return () => ctl.abort();
+  }, [repo]);
+  const pageOpen = pathname === "/board/page" ? params.get("name") : null;
   const listed = useListedRepos();
   // The repos with cards, then the ones the operator added by hand — never every repo the bridge knows.
   const all = withListedRepos(repos, listed);
@@ -82,6 +95,23 @@ export function BoardTabs({ repos = [], actions }: { repos?: RepoOption[]; actio
             <span className={active === tab.key ? undefined : "hidden sm:inline"}>{t(tab.label)}</span>
           </Link>
         ))}
+        {repo &&
+          pages.map((name) => (
+            <Link
+              key={`page:${name}`}
+              to={`/board/page${q}&name=${encodeURIComponent(name)}`}
+              replace
+              aria-current={pageOpen === name ? "page" : undefined}
+              title={name}
+              className={cn(
+                "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition-colors",
+                pageOpen === name ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/60",
+              )}
+            >
+              <FileCode className="size-4" />
+              {name}
+            </Link>
+          ))}
       </div>
       {/* The repo picker and its + / unlist share ONE row, also on a phone: the header is three lines
           tall otherwise, on a screen that is mostly list. */}

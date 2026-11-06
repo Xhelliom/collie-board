@@ -18,4 +18,8 @@ export const docs = defineMessages({
   "docs.status.decided": { en: "✅ Decided", fr: "✅ Décidé" },
   "docs.status.leaning": { en: "🟡 Leaning", fr: "🟡 Piste" },
   "docs.status.open": { en: "❓ Open", fr: "❓ Ouvert" },
+  "docs.page.fullscreen": { en: "Full screen", fr: "Plein écran" },
+  "docs.page.exit": { en: "Exit full screen (Esc)", fr: "Quitter le plein écran (Échap)" },
+  "docs.page.frame": { en: "Project page {name}", fr: "Page projet {name}" },
+  "docs.page.note": { en: "Shown inert: no script, no network.", fr: "Affichée inerte : ni script, ni réseau." },
 });

@@ -16,6 +16,7 @@ import { PrsRoute } from "@/routes/prs";
 import { RepoSettingsRoute } from "@/routes/repo-settings";
 import { RecetteRoute } from "@/routes/recette";
 import { DocumentsRoute } from "@/routes/documents";
+import { CustomPageRoute } from "@/routes/custom-page";
 import { docsLoader } from "@/lib/docs";
 import { recetteLoader } from "@/lib/recette";
 import { ProjectRoute } from "@/routes/project";
@@ -91,6 +92,7 @@ export const router = createBrowserRouter([
         // Not polled (read on open): only a change of repo reads the index again — opening a document doesn't.
         shouldRevalidate: ({ currentUrl, nextUrl }) => currentUrl.searchParams.get("repo") !== nextUrl.searchParams.get("repo"),
       },
+      { path: "board/page", element: <CustomPageRoute />, errorElement: <RootError to={boardPath()} /> },
       { path: "board/settings", element: <RepoSettingsRoute />, errorElement: <RootError to={boardPath()} /> },
       {
         path: "card/:cardId",
