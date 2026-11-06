@@ -39,6 +39,18 @@ web/src/components/subagents-line.tsx   « N sous-agents en cours » (brick 40)
 
 What was touched in upstream files, and why — this list is the thing to keep short:
 
+**Don't edit this table on a branch.** Two cards that both lengthen the `bridge/server.ts` row
+conflicted every time. Put the line in your `changes/<slug>.md` fragment instead, under its own
+heading. The File cell is written exactly as in the table:
+
+```
+### Upstream
+- `bridge/server.ts`: the `/api/foo` route, dispatched to `foo-routes.ts`
+```
+
+The release on `main` (`scripts/release.ts`) adds it to the row with that exact File cell, or opens
+a new row. Until then, the cost waiting to fold is `grep -A99 '### Upstream' changes/*.md`.
+
 | File | Change |
 |---|---|
 | `bridge/server.ts` | `parseNotifyPrefsPatch` takes its key list from `DEFAULT_NOTIFY_PREFS` instead of carrying its own copy — a preference added elsewhere was silently unwritable; `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`, `/api/runs`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` + `DELETE /api/notifications/log/:id` + `POST /api/notifications/log/:id/read` routes and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21; `serveStatic` takes the request's `Accept-Encoding` and hands the file to `precompressed()` (`bridge/precompressed.ts`) — brick 37; `fetch` wrapped in `metered()` and one `GET /api/diag/routes` block (`bridge/route-cost.ts`) — fork-only; `MAX_REQUEST_BODY_BYTES` raised 12 → 26 MB for a card deliverable (ADR 0045) — fork-only; one import, `liveNodeActions()` at start and one dispatch block for `/api/node/*` (`bridge/node.ts`, ADR 0046) — fork-only; one import, a `PeerStore` (replacing `loadNodeConfig()`, reloaded on write and on a changed mtime) and one dispatch block for `/api/peers/*` + `/api/node/pair` (`bridge/pairing.ts`, ADR 0049), the board's repo list and adapter names handed to it, and the plugin version handed to `/api/node/*`; `/api/node/snapshot` carries this pair's id (`board.pairId()`), so a synced halt names the peer whose pane it is; the `PeerStore` handed to the board context, for a card launched in a peer environment (`bridge/remote-launch.ts`) — fork-only; one import, a `PeerHerd` hooked on the primary engine's `onUpdate` and one dispatch block for `/api/herd*` (`bridge/peer-herd.ts`, decision 77740d3b), its `onRead` handed to a `RemoteIdle` (`bridge/remote-idle.ts`) — fork-only; `idleTimeout: 180` (a peer launch outlasts Bun's 10 s) — fork-only; `checkAccess` accepts a loopback Origin only on the bridge's own port — upstream's fix b4d3b01 (1.26.0), backported, drops on rebase; `replyPane` takes the engine so `asPaste()` (`bridge/paste.ts`) can frame a long reply to a Claude pane; the pane GET marks the pane seen when the app sends `x-collie-seen` (`bridge/seen.ts`) — upstream does the same through its `activity.ts` ledger (1.25.0); ours is a header + one line, fork-only; the pane read and the history page masked by `bridge/redact.ts` (one call each) — upstream's own idea, 1.18.0, rewritten; one import + one dispatch block for `/api/pane/:id/files/exists` + `/api/pane/:id/file` (`bridge/files-view.ts`) — upstream's own idea, 1.17/1.18, rewritten; one import + one dispatch block for `/api/update/rollback` (`bridge/rollback.ts`) — upstream's own idea, 1.23.0, rewritten; one dispatch block for `/api/update/apply` (same file, ADR 0054) — fork-only |

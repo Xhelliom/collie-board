@@ -54,7 +54,7 @@ jobs:
           bash scripts/check-version.sh
           git config user.name "github-actions[bot]"
           git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
-          git add -A CHANGELOG.md herdr-plugin.toml package.json web/package.json changes/
+          git add -A CHANGELOG.md UPSTREAM.md herdr-plugin.toml package.json web/package.json changes/
           git commit -m "chore(release): $VERSION"
           git tag -a "v$VERSION" -m "Collie $VERSION"
           # Atomic: the commit and its tag land together or not at all. A main that moved meanwhile

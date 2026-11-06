@@ -139,7 +139,9 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
 
 - **Keep the upstream surface narrow.** New behaviour goes in new files with a hook, not into
   `server.ts`/`index.ts`. The list of touched upstream files is in `UPSTREAM.md` and is meant to stay
-  short — that list *is* the rebase cost.
+  short — that list *is* the rebase cost. **Don't edit its table on a branch.** Instead, add
+  `### Upstream` + ``- `bridge/server.ts`: what changed`` to your `changes/` fragment. The release on
+  `main` folds it into the right row, so two cards never touch the same line.
 - **No new poll loop.** Anything periodic hangs off `engine.onUpdate`. If it's expensive, throttle it
   *inside* the consumer (see `ContextTracker`), don't add a timer.
 - **A board event that notifies must say how it retracts.** The board may raise its own alerts, in
