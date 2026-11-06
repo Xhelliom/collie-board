@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.271.1] - 2026-11-06
+
+### Changed
+
+- La release replie la section `### Upstream` des fragments dans le tableau d'UPSTREAM.md : deux cartes ne s'y conflictent plus (4a3b635)
+
 ## [0.271.0] - 2026-11-06
 
 ### Added
