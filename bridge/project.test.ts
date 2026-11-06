@@ -247,6 +247,10 @@ describe("roadmap", () => {
     expect(parseRoadmapBody({ ...base, items: [{ name: "a", status: "later" }] }).ok).toBe(false);
     expect(parseRoadmapBody({ ...base, items: [{ id: "i", name: "a" }, { id: "i", name: "b" }] }).ok).toBe(false);
     expect(parseRoadmapBody(base).ok).toBe(true);
+    // A Windows repo, in either spelling, is keyed as /api/repos spells it.
+    expect(parseRoadmapBody({ ...base, repoPath: "C:/Users/me/repo" }, "win32")).toMatchObject({ ok: true, value: { repoPath: "C:\\Users\\me\\repo" } });
+    expect(parseRoadmapBody({ ...base, repoPath: "C:\\Users\\me\\repo" }, "win32").ok).toBe(true);
+    expect(parseRoadmapBody({ ...base, repoPath: "C:repo" }, "win32").ok).toBe(false);
   });
 
   it("exports Markdown, one way", async () => {
@@ -630,5 +634,39 @@ describe("one PR for the lot over the routes (ADR 0041)", () => {
     } finally {
       process.env.PATH = path;
     }
+  });
+});
+
+// Windows — the shapes an orchestrator on win32 sends. `/api/repos` and cards spell `C:\x`; git and
+// a hand-typed path spell `C:/x`. Both must reach the same roadmap and phases (win32 host only:
+// off win32 a drive letter is not an absolute path, and that branch is covered by `paths.test.ts`).
+describe.skipIf(process.platform !== "win32")("a Windows repo path on the project routes", () => {
+  const back = "C:\\Users\\me\\git\\sw-to-crew";
+  const fwd = "C:/Users/me/git/sw-to-crew/";
+  const enc = encodeURIComponent;
+
+  it("accepts C:\\ and C:/ on the roadmap, phases and decisions, under one key", async () => {
+    const db = new BoardDb(":memory:");
+    expect((await call(db, "GET", `/api/roadmap?repo=${enc(back)}`)).status).toBe(200);
+    const put = await call(db, "PUT", "/api/roadmap", { repoPath: back, revision: 0, items: [{ id: "i1", name: "P1" }] });
+    expect(put.status).toBe(200);
+    expect(put.body.roadmap.repoPath).toBe(back);
+    // The other spelling reads it back, and writes with the revision it read.
+    expect((await call(db, "GET", `/api/roadmap?repo=${enc(fwd)}`)).body.roadmap.revision).toBe(1);
+    expect((await call(db, "PUT", "/api/roadmap", { repoPath: fwd, revision: 1, items: [{ id: "i1", name: "P1" }] })).body.roadmap.revision).toBe(2);
+
+    const card = db.createCard({ title: "a", repoPath: back });
+    const dec = await call(db, "POST", "/api/roadmap/decision", { repoPath: fwd, text: "Go", status: "open", itemId: "i1", cardId: card.id });
+    expect(dec.status).toBe(200);
+    expect(db.getRoadmap(back)!.decisions.map((d) => d.text)).toEqual(["Go"]);
+
+    const phase = await call(db, "POST", "/api/phases", { repoPath: fwd, name: "Foundations" });
+    expect(phase.status).toBe(201);
+    expect(phase.body.phase.repoPath).toBe(back);
+    expect((await call(db, "GET", `/api/phases?repo=${enc(fwd)}`)).body.phases).toHaveLength(1);
+    expect((await call(db, "GET", `/api/phases?repo=${enc(back)}`)).body.phases).toHaveLength(1);
+
+    expect((await call(db, "POST", "/api/phases", { repoPath: "sw-to-crew", name: "x" })).status).toBe(400);
+    expect((await call(db, "GET", "/api/roadmap?repo=C%3Arepo")).status).toBe(400); // drive-relative: not a repo
   });
 });

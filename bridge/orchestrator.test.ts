@@ -313,6 +313,16 @@ describe("/api/orchestrator/memory and /renew", () => {
   };
   const q = `?repo=${encodeURIComponent(repo)}`;
 
+  it.skipIf(process.platform !== "win32")("on win32, C:\\ and C:/ name one note — the key is the /api/repos spelling", async () => {
+    const db = new BoardDb(":memory:");
+    const fwd = repo.replaceAll("\\", "/");
+    expect((await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: fwd, note: "from git" })).status).toBe(200);
+    expect((await call("GET", `/api/orchestrator/memory${q}`, ctx(db))).body.memory.note).toBe("from git");
+    await call("PUT", "/api/orchestrator/memory", ctx(db), { repoPath: repo, note: "from herdr" });
+    expect((await call("GET", `/api/orchestrator/memory?repo=${encodeURIComponent(fwd)}`, ctx(db))).body.memory.note).toBe("from herdr");
+    expect(db.getMemory(repo)?.note).toBe("from herdr");
+  });
+
   it("keeps one note per repo, last writer wins, bounded", async () => {
     const db = new BoardDb(":memory:");
     expect((await call("GET", `/api/orchestrator/memory${q}`, ctx(db))).body.memory).toBeNull();

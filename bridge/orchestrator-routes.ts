@@ -3,7 +3,7 @@
 // operator's quota, so nothing starts it on its own.
 
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 
 import type { BoardContext } from "./board-routes.ts";
 import { MAX_ROUNDS_LIMIT, MEMORY_MAX_CHARS } from "./db.ts";
@@ -11,6 +11,7 @@ import { askOrchestratorNote, findOrchestrator, restartOrchestrator, startOrches
 import { PANE_HEADER } from "./board-routes.ts";
 import { isMaxChain, isMaxRounds } from "./autonomy.ts";
 import { SINCE_EVENT_TYPES, sinceChanges } from "./since.ts";
+import { repoPathOf } from "./paths.ts";
 
 export const ORCHESTRATOR_ROUTE = "/api/orchestrator";
 const MEMORY_ROUTE = `${ORCHESTRATOR_ROUTE}/memory`;
@@ -32,8 +33,14 @@ function auditTail(path: string): string[] {
   return buf.length > AUDIT_TAIL ? lines.slice(1) : lines; // the first line of a cut is partial
 }
 
-/** The root of a repository — the same bar as `/api/repos/gate/suggest`: the path lands in a prompt. */
-const isRepoRoot = (p: unknown): p is string => typeof p === "string" && isAbsolute(p) && existsSync(join(p, ".git"));
+/**
+ * The root of a repository — the same bar as `/api/repos/gate/suggest`: the path lands in a prompt —
+ * in the spelling the board keys it by (`repoPathOf`), so `C:/x` and `C:\x` find one memory, not two.
+ */
+const repoRootOf = (p: unknown): string | null => {
+  const repo = repoPathOf(p);
+  return repo && existsSync(join(repo, ".git")) ? repo : null;
+};
 
 const depsOf = (ctx: BoardContext): OrchestratorDeps => ({
   herdr: ctx.herdr,
@@ -95,8 +102,8 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      const repo = new URL(req.url).searchParams.get("repo");
-      if (!isRepoRoot(repo)) return ctx.text("repo must be the root of a repository", 400);
+      const repo = repoRootOf(new URL(req.url).searchParams.get("repo"));
+      if (!repo) return ctx.text("repo must be the root of a repository", 400);
       return ctx.json({ autonomy: ctx.db.autonomyOf(repo) });
     }
     if (req.method !== "PUT") return ctx.text("method not allowed", 405);
@@ -105,8 +112,9 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     const denied = ctx.guard("write");
     if (denied) return denied;
     const b = await bodyOf(req);
-    if (!b || !isRepoRoot(b.repoPath)) return ctx.text("repoPath must be the root of a repository", 400);
-    const cur = ctx.db.autonomyOf(b.repoPath);
+    const repoPath = repoRootOf(b?.repoPath);
+    if (!b || !repoPath) return ctx.text("repoPath must be the root of a repository", 400);
+    const cur = ctx.db.autonomyOf(repoPath);
     const enabled = b.enabled ?? cur.enabled;
     const stopOnRed = b.stopOnRed ?? cur.stopOnRed;
     const startWhenIdle = b.startWhenIdle ?? cur.startWhenIdle;
@@ -116,8 +124,8 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
       return ctx.text("enabled, stopOnRed and startWhenIdle must be booleans", 400);
     if (!isMaxChain(maxChain)) return ctx.text("maxChain must be a whole number from 1, or null for unlimited", 400);
     if (!isMaxRounds(maxRounds)) return ctx.text(`maxRounds must be a whole number from 1 to ${MAX_ROUNDS_LIMIT}`, 400);
-    const autonomy = ctx.db.setAutonomy(b.repoPath, { enabled, maxChain, stopOnRed, startWhenIdle, maxRounds });
-    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath, enabled, maxChain, stopOnRed, startWhenIdle, maxRounds } });
+    const autonomy = ctx.db.setAutonomy(repoPath, { enabled, maxChain, stopOnRed, startWhenIdle, maxRounds });
+    ctx.audit.record({ action: "orchestrator.autonomy", session: ctx.session, device: ctx.device, detail: { repoPath, enabled, maxChain, stopOnRed, startWhenIdle, maxRounds } });
     return ctx.json({ autonomy });
   }
 
@@ -126,19 +134,20 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
-      const repo = new URL(req.url).searchParams.get("repo");
-      if (!isRepoRoot(repo)) return ctx.text("repo must be the root of a repository", 400);
+      const repo = repoRootOf(new URL(req.url).searchParams.get("repo"));
+      if (!repo) return ctx.text("repo must be the root of a repository", 400);
       return ctx.json({ memory: ctx.db.getMemory(repo) });
     }
     if (req.method !== "PUT") return ctx.text("method not allowed", 405);
     const denied = ctx.guard("write");
     if (denied) return denied;
     const b = await bodyOf(req);
-    if (!b || !isRepoRoot(b.repoPath)) return ctx.text("repoPath must be the root of a repository", 400);
+    const repoPath = repoRootOf(b?.repoPath);
+    if (!b || !repoPath) return ctx.text("repoPath must be the root of a repository", 400);
     if (typeof b.note !== "string" || b.note.length > MEMORY_MAX_CHARS)
       return ctx.text(`note must be text of at most ${MEMORY_MAX_CHARS} characters`, 400);
-    const memory = ctx.db.putMemory(b.repoPath, b.note.trim());
-    ctx.audit.record({ action: "orchestrator.memory", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath, chars: memory.note.length } });
+    const memory = ctx.db.putMemory(repoPath, b.note.trim());
+    ctx.audit.record({ action: "orchestrator.memory", session: ctx.session, device: ctx.device, detail: { repoPath, chars: memory.note.length } });
     return ctx.json({ memory });
   }
 
@@ -150,17 +159,18 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     const denied = ctx.guard("write");
     if (denied) return denied;
     const b = await bodyOf(req);
-    if (!b || !isRepoRoot(b.repoPath)) return ctx.text("repoPath must be the root of a repository", 400);
+    const repoPath = repoRootOf(b?.repoPath);
+    if (!b || !repoPath) return ctx.text("repoPath must be the root of a repository", 400);
     if (b.step !== "ask" && b.step !== "restart") return ctx.text('step must be "ask" or "restart"', 400);
     try {
       if (b.step === "ask") {
-        const paneId = await askOrchestratorNote(depsOf(ctx), b.repoPath);
+        const paneId = await askOrchestratorNote(depsOf(ctx), repoPath);
         if (!paneId) return ctx.json({ ok: false, error: "no orchestrator is running for this repo", kind: "no-session" }, 409);
-        ctx.audit.record({ action: "orchestrator.renew_ask", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath } });
+        ctx.audit.record({ action: "orchestrator.renew_ask", session: ctx.session, device: ctx.device, detail: { repoPath } });
         return ctx.json({ ok: true, paneId });
       }
-      const r = await restartOrchestrator(depsOf(ctx), b.repoPath);
-      ctx.audit.record({ action: "orchestrator.renew_restart", session: ctx.session, device: ctx.device, detail: { repoPath: b.repoPath } });
+      const r = await restartOrchestrator(depsOf(ctx), repoPath);
+      ctx.audit.record({ action: "orchestrator.renew_restart", session: ctx.session, device: ctx.device, detail: { repoPath } });
       return ctx.json({ ok: true, paneId: r.paneId, started: r.started });
     } catch (err) {
       return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
@@ -172,8 +182,8 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
   if (req.method === "GET") {
     const denied = ctx.guard("read");
     if (denied) return denied;
-    const repo = new URL(req.url).searchParams.get("repo");
-    if (!isRepoRoot(repo)) return ctx.text("repo must be the root of a repository", 400);
+    const repo = repoRootOf(new URL(req.url).searchParams.get("repo"));
+    if (!repo) return ctx.text("repo must be the root of a repository", 400);
     const paneId = findOrchestrator(ctx.engine.current(), repo);
     return ctx.json({
       paneId,
@@ -194,8 +204,8 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
   } catch {
     return ctx.text("bad body", 400);
   }
-  const { repoPath } = (body ?? {}) as { repoPath?: unknown };
-  if (!isRepoRoot(repoPath)) return ctx.text("repoPath must be the root of a repository", 400);
+  const repoPath = repoRootOf((body as { repoPath?: unknown } | null)?.repoPath);
+  if (!repoPath) return ctx.text("repoPath must be the root of a repository", 400);
   try {
     const r = await startOrchestrator(depsOf(ctx), repoPath);
     ctx.audit.record({ action: "orchestrator.start", session: ctx.session, device: ctx.device, detail: { repoPath, started: r.started } });

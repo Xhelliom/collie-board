@@ -20,6 +20,7 @@ import {
   type RoadmapStatus,
   type Run,
 } from "./db.ts";
+import { repoPathOf } from "./paths.ts";
 
 const MAX_ITEMS = 200;
 const MAX_VISION = 20_000;
@@ -62,10 +63,12 @@ export function awaitingOn(decisions: readonly Decision[] | undefined, cardId: s
 /** Shape of `PUT /api/roadmap`: `vision`, `items`, optional `decisions`, and the `revision` the caller read (0 for none). */
 export function parseRoadmapBody(
   v: unknown,
+  platform: NodeJS.Platform = process.platform,
 ): Parsed<{ repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number }> {
   if (typeof v !== "object" || v === null) return { ok: false, error: "bad body" };
   const o = v as Record<string, unknown>;
-  if (typeof o.repoPath !== "string" || !o.repoPath.startsWith("/")) return { ok: false, error: "repoPath must be an absolute path" };
+  const repoPath = repoPathOf(o.repoPath, platform);
+  if (!repoPath) return { ok: false, error: "repoPath must be an absolute path" };
   if (typeof o.revision !== "number" || !Number.isInteger(o.revision) || o.revision < 0)
     return { ok: false, error: "revision must be the whole number you read (0 for a new roadmap)" };
   const vision = o.vision ?? "";
@@ -102,7 +105,7 @@ export function parseRoadmapBody(
       decisions.push({ ...d.value, id, itemId: d.value.itemId ?? null });
     }
   }
-  return { ok: true, value: { repoPath: o.repoPath, vision: vision.trim(), items, ...(decisions ? { decisions } : {}), revision: o.revision } };
+  return { ok: true, value: { repoPath, vision: vision.trim(), items, ...(decisions ? { decisions } : {}), revision: o.revision } };
 }
 
 const MARK: Record<DecisionStatus, string> = { decided: "✅ Décidé", leaning: "🟡 Piste privilégiée", open: "❓ Questions ouvertes" };

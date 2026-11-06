@@ -25,3 +25,18 @@ export function pathKey(path: string, platform: NodeJS.Platform = process.platfo
 export function samePath(a: string, b: string, platform: NodeJS.Platform = process.platform): boolean {
   return pathKey(a, platform) === pathKey(b, platform);
 }
+
+/**
+ * A repo path a caller sent, as the key the board files it under — or null when it is not absolute.
+ * On win32 `C:\x`, `C:/x` and `C:\x\` are one repo, stored in the `\` spelling `/api/repos` hands out
+ * (`normalizePath`), so the roadmap, phases and orchestrator memory are found whichever one a caller
+ * sends. Off win32: absolute means a leading `/`, and the path is kept byte for byte.
+ */
+export function repoPathOf(v: unknown, platform: NodeJS.Platform = process.platform): string | null {
+  if (typeof v !== "string" || v === "") return null;
+  if (platform !== "win32") return v.startsWith("/") ? v : null;
+  if (/^[A-Za-z]:[\\/]/.test(v) || /^[\\/]{2}[^\\/]/.test(v)) return normalizePath(v, platform);
+  // A single leading `/` was accepted before drive paths were, and is kept as it was sent: resolving
+  // it would move it onto the current drive and lose every row already filed under it.
+  return /^\/(?!\/)/.test(v) ? v : null;
+}
