@@ -20,18 +20,21 @@ export interface PeerHerdView {
   /** Its panes, each with `peer` set; empty while not connected. */
   agents: Record<string, unknown>[];
   shellPanes: Record<string, unknown>[];
+  /** Its pair id (ADR 0048), as its last answer gave it — kept while it is down; null before. */
+  pair: string | null;
   /** When the last answer (or failure) came back; null before the first. */
   at: number | null;
 }
 
 /** What one `/api/node/snapshot` call says of a peer. Pure. */
-export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes"> {
+export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes"> & Partial<Pick<PeerHerdView, "pair">> {
   const down = (error: string) => ({ state: "disconnected" as const, error, agents: [], shellPanes: [] });
   if (!ok(r)) return down(peerRefusal(peer, "snapshot", r));
   if (r.body.bridge === "disconnected") return down(`${peer}: its herdr is disconnected`);
   const tag = (v: unknown) =>
     (Array.isArray(v) ? v : []).filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null).map((p) => ({ ...p, peer }));
-  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes) };
+  const pair = typeof r.body.pair === "string" ? { pair: r.body.pair } : {};
+  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes), ...pair };
 }
 
 interface Slot extends PeerHerdView {
@@ -75,7 +78,7 @@ export class PeerHerd {
 
   private async read(peer: OutboundPeer): Promise<void> {
     let s = this.slots.get(peer.name);
-    if (!s) this.slots.set(peer.name, (s = { peer: peer.name, state: "pending", error: null, agents: [], shellPanes: [], at: null, busy: false, lastRead: -Infinity }));
+    if (!s) this.slots.set(peer.name, (s = { peer: peer.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null, busy: false, lastRead: -Infinity }));
     const now = this.now();
     if (s.busy || now - s.lastRead < READ_EVERY_MS) return;
     s.busy = true;
@@ -121,8 +124,8 @@ export class PeerHerd {
     return this.d.outbound().map((p) => {
       const s = this.slots.get(p.name);
       return s
-        ? { peer: s.peer, state: s.state, error: s.error, agents: s.agents, shellPanes: s.shellPanes, at: s.at }
-        : { peer: p.name, state: "pending", error: null, agents: [], shellPanes: [], at: null };
+        ? { peer: s.peer, state: s.state, error: s.error, agents: s.agents, shellPanes: s.shellPanes, pair: s.pair, at: s.at }
+        : { peer: p.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null };
     });
   }
 }

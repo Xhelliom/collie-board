@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { RotateCcw, Sparkles, User } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useRouteLoaderData } from "react-router";
 
 import { CollapsibleText } from "@/components/collapsible-text";
 import { stripAnsi } from "@/components/halt-reason";
 import { t, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { panePath } from "@/lib/nav";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
+import { pairPaneId } from "@/lib/peers";
 import { ago as timeAgo } from "@/lib/project-facts";
 import type { BoardEvent } from "@/lib/board";
 
@@ -130,12 +132,18 @@ function JournalRow({
 
 /** A halt because the lead went quiet: the fix is in its pane (a modal, a quota), so link to it. */
 function LeadPaneLink({ event }: { event: BoardEvent }) {
-  const paneId = event.type === "run.halted" ? (event.payload as { paneId?: unknown } | null)?.paneId : undefined;
-  if (typeof paneId !== "string") return null;
+  const p = event.type === "run.halted" ? (event.payload as { paneId?: unknown; pair?: unknown } | null) : null;
+  if (typeof p?.paneId !== "string") return null;
+  return <LeadPaneAnchor paneId={p.paneId} pair={typeof p.pair === "string" ? p.pair : undefined} />;
+}
+
+/** A halt synced from a peer's lot names that peer's pane: open it through the relay (ADR 0048 §7). */
+function LeadPaneAnchor({ paneId, pair }: { paneId: string; pair?: string }) {
+  const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   return (
     <>
       {" · "}
-      <Link to={panePath(paneId)} className="text-primary underline underline-offset-2">
+      <Link to={panePath(pairPaneId(paneId, pair, root?.peers ?? []))} className="text-primary underline underline-offset-2">
         {t("journal.leadPane")}
       </Link>
     </>

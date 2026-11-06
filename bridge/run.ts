@@ -679,7 +679,9 @@ export class RunCoordinator {
   }
 
   private halt(run: Run, cardId: string, reason: string, silent: { leadSilent?: true; paneId?: string; infra?: true } = {}): void {
-    this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason, ...silent });
+    // The pair names whose herd `paneId` lives in, once the halt syncs to another pair (ADR 0048 §7).
+    const pair = this.db.pairId();
+    this.db.recordRunEvent(cardId, "run.halted", { runId: run.id, reason, ...silent, ...(silent.paneId && pair && { pair }) });
   }
 }
 

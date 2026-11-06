@@ -217,7 +217,8 @@ export function startServer(opts: {
         node: peers.node(),
         access: () => guard(req, cfg, "read"),
         audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
-        snapshot: primarySnap,
+        // Its pair id rides along, so a peer can tell which of its peers a synced pane id belongs to.
+        snapshot: () => ({ ...primarySnap(), pair: board.pairId() }),
         readPane: async (paneId) => {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();

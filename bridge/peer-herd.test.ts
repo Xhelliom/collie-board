@@ -27,6 +27,8 @@ describe("herdOf", () => {
     expect(h.state).toBe("connected");
     expect(h.agents).toEqual([{ paneId: "w1:p1", status: "blocked", peer: "dev" }]);
     expect(h.shellPanes).toEqual([{ paneId: "w1:p2", peer: "dev" }]);
+    expect(h.pair).toBeUndefined();
+    expect(herdOf("dev", { status: 200, body: { ...SNAP, pair: "dell" } }).pair).toBe("dell");
   });
   it("is disconnected when unreachable, refused, or its herdr is down", () => {
     expect(herdOf("dev", { error: "timeout" })).toMatchObject({ state: "disconnected", agents: [] });
@@ -118,7 +120,7 @@ describe("PeerHerd", () => {
     const herd = new PeerHerd({ fetch, outbound: () => [DEV] });
     await herd.update({ ...LOCAL, bridge: "disconnected" });
     expect(seen).toHaveLength(0);
-    expect(herd.view()).toEqual([{ peer: "dev", state: "pending", error: null, agents: [], shellPanes: [], at: null }]);
+    expect(herd.view()).toEqual([{ peer: "dev", state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null }]);
   });
 
   it("forgets a peer no longer paired", async () => {

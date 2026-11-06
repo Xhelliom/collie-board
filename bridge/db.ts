@@ -657,7 +657,7 @@ export interface RunEventPayloads {
   /** On the card that needs the operator. */
   /** `leadSilent`: the lead wrote no answer (LeadSilent); `paneId` is its pane, which the journal links to. */
   /** `infra`: a red check with nothing to fix in the code — the land step keeps asking GitHub (ADR 0041). */
-  "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string; infra?: true };
+  "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string; infra?: true; pair?: string };
   /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
   "run.resumed": { runId: string };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
