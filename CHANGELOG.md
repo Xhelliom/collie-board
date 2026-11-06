@@ -9,6 +9,24 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.263.0] - 2026-11-06
+
+### Added
+
+- Une carte distante arrêtée sans PR écrit `card.remote_idle` (carte + `/api/orchestrator/since`), retiré à la reprise, à la PR ou à la fin (740e008)
+- La PR ouverte par une carte distante est rattachée à la carte ; son merge la termine (740e008)
+- Une carte distante lancée hors lot reçoit la consigne de pousser sa branche et d'ouvrir sa PR (740e008)
+- Moteur hc en écriture : lancer une carte (worktree git + shell `terminal.run` étiqueté), prompt par `terminal.send`, touches, fermeture, renommage (392cf3c)
+- `promptAndConfirm` lit `started` de hc : une seule Entrée de rattrapage, et seulement devant un agent qui se dit au repos — jamais sur l'écran de confiance (392cf3c)
+
+### Changed
+
+- Relève et pipeline ouvrent leur nouveau pane dans le checkout de la carte (cwd explicite) (392cf3c)
+
+### Fixed
+
+- « Teach auto mode about your environment? » (dit `idle` par herdr) se lit `blocked`, et devient des boutons (« Not now ») (740e008)
+
 ## [0.262.1] - 2026-11-06
 
 ### Changed
