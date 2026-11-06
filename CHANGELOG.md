@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.270.0] - 2026-11-06
+
+### Added
+
+- Pages custom du projet : un onglet par `docs/pages/<nom>.html` de main, affiché inerte (iframe sandbox, sans script ni réseau) (12c8494)
+- Bouton plein écran sur une page custom, sortie par le bouton ou Échap (12c8494)
+- Routes `GET /api/docs/pages` et `/api/docs/page` : la page sert sous sa propre CSP sandbox, celle du board inchangée (12c8494)
+
 ## [0.269.0] - 2026-11-06
 
 ### Added
