@@ -7,3 +7,4 @@
 {"v":1,"hlc":"1793998863262.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793998863059}}
 {"v":1,"hlc":"1793998919392.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1793998919392.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793998919384}}
+{"v":1,"hlc":"1793998930012.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2513},"ts":1793998921588}}
