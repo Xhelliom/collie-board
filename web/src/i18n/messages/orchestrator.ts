@@ -59,6 +59,11 @@ export const orchestrator = defineMessages({
     en: "Off: a run opens a PR per card (default). On: once the gate is green and the lead agrees, the card is merged into main in the repo's checkout, pushed if there is a remote. A dirty checkout, or one not on main, leaves the card in review.",
     fr: "Éteint : un lot ouvre une PR par carte (défaut). Allumé : gate vert et lead d'accord, la carte est mergée dans main dans le checkout du dépôt, poussée s'il y a un remote. Un checkout sale ou pas sur main laisse la carte en review.",
   },
+  "orch.planExport": { en: "Export the plan at the end of each lot", fr: "Exporter le plan à chaque fin de lot" },
+  "orch.planExportHint": {
+    en: "On (default): when a lot ends, the board opens a « docs(plan) » PR updating docs/plan/ — roadmap, steps and the lot's bilan. You merge it; nothing lands on main without you.",
+    fr: "Allumé (défaut) : à la fin d'un lot, le board ouvre une PR « docs(plan) » qui met docs/plan/ à jour — roadmap, étapes et bilan du lot. Tu la merges ; rien n'arrive sur main sans toi.",
+  },
   "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
   "orch.rounds": { en: "Rounds before calling me", fr: "Allers-retours avant de m'appeler" },
   "orch.roundsHint": {

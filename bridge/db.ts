@@ -1258,6 +1258,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   listed     INTEGER NOT NULL DEFAULT 0,
   -- ADR 0048 §1: the remote this repo's board is shared on. NULL = not shared, nothing journaled.
   share      TEXT,
+  -- 0 = the operator turned off the plan export at the end of a lot. NULL: on (the default).
+  plan_export INTEGER,
   updated_at INTEGER NOT NULL
 );
 
@@ -1725,6 +1727,8 @@ export class BoardDb {
       { table: "repo_pref", column: "listed", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0048 §1: no repo was shared before.
       { table: "repo_pref", column: "share", ddl: "TEXT" },
+      // The plan export at the end of a lot: no row turned it off before.
+      { table: "repo_pref", column: "plan_export", ddl: "INTEGER" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -3026,8 +3030,23 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** Whether a lot's end opens the « docs(plan) » PR for this repo (plan-export.ts). On by default. */
+  planExportOf(path: string): boolean {
+    return this.db.query<{ plan_export: number | null }, [string]>("SELECT plan_export FROM repo_pref WHERE path = ?").get(path)?.plan_export !== 0;
+  }
+
+  setPlanExport(path: string, on: boolean): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, plan_export, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET plan_export = excluded.plan_export, updated_at = excluded.updated_at`,
+      )
+      .run(path, on ? null : 0, this.now());
+    this.pruneRepoPref(path);
+  }
+
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────
