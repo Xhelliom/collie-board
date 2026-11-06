@@ -343,7 +343,7 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     expect(r.content[0]!.text).toMatch(/fusionnée dans main et classée terminée/);
     expect(git(repo, "ls-tree", "--name-only", "main")).toContain("x.ts");
     expect(store.getCard(id)!.status).toBe("done");
-  });
+  }, 20_000); // ~15 real git spawns + a merge: ~0.4 s locally, past bun's 5 s default on a loaded CI runner.
 
   it("pr opens the PR and journals card.pr_follow, without filing the card", async () => {
     const { root, store, id, mcp } = world();
