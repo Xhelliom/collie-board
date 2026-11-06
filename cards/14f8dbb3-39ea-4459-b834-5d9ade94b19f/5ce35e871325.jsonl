@@ -5,3 +5,5 @@
 {"v":1,"hlc":"1793969040331.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bridge-accepter-les-chemins-de-depot-windows-roa"}}
 {"v":1,"hlc":"1793969040332.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
 {"v":1,"hlc":"1793969040332.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1793969036157}}
+{"v":1,"hlc":"1793969098335.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1793969098335.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793969097137}}
