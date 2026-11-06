@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.270.1] - 2026-11-06
+
+### Fixed
+
+- Lead : une réponse contenant un chemin Windows brut (`C:\Users\…`) est lue au lieu d'être prise pour un silence de 5 min. (d75651b)
+- Lead : « the lead is not answering » seulement après le délai d'une demande tapée ; une réponse non JSON est redemandée, une demande jamais arrivée au pane dit pourquoi. (d75651b)
+
 ## [0.270.0] - 2026-11-06
 
 ### Added
