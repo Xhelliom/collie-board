@@ -64,6 +64,8 @@ export interface WirePane {
    *  cleared with `label: null`, so absent/null both read as "no label". */
   label?: string | null;
   revision: number;
+  /** hc only: names of the live terminals this one started (its `children_of`) — the agent's subagents. */
+  children?: string[];
   /** The engine this pane lives on — stamped by {@link CompositeMux}, never by an engine itself. */
   engine?: MuxKind;
   /**

@@ -34,6 +34,15 @@ import { addWorktreeAt, runGit, worktreeDirFor, worktreePathFor, type GitRunner 
 /** The one space (and tab) every hc terminal is shown in. */
 export const HC_SPACE = "hc";
 
+/**
+ * Closes a card's opening prompt under hc. A terminal the agent starts with `hc run` is its child, and
+ * hc types a note into the agent when that child ends — a turn spent (HERDR_CORE_API.md §3, measured).
+ * `--no-notify` is set by whoever starts the child and nothing else turns it off (no default, no
+ * per-parent switch, no method after the start), so the agent is the one to pass it.
+ */
+export const HC_NO_NOTIFY_HINT =
+  "Start any helper terminal with `hc run --no-notify …`: without it, hc types a note into this session when the helper ends, and that costs you a turn. The board already shows your helpers (`hc ls`, their parent is you).";
+
 /** Labels the bridge puts on the terminals it runs: the directory (how a worktree's shell is found again), the pane's name. */
 const CWD_LABEL = "collie.cwd";
 const NAME_LABEL = "collie.name";
@@ -62,6 +71,8 @@ export interface HcTerminal {
   state: string;
   name?: string | null;
   labels?: Record<string, string>;
+  /** The terminal that started it (`hc run` from inside a terminal), set once at start. */
+  parent?: string | null;
   turn?: number;
   foreground?: { pid: number; name: string; argv: string[]; cwd: string } | null;
   status?: { state: string; app?: string; kind?: string | null; msg?: string } | null;
@@ -107,8 +118,27 @@ export function toWirePane(t: HcTerminal): WirePane {
   };
 }
 
+/**
+ * hc's `children_of`, read off the one `terminal.list` the snapshot already makes (`terminal.list` has
+ * no such filter; the `parent` it returns is the same fact): each live terminal → the names of its live
+ * children. They are the card agent's subagents under hc, in place of the transcript (subagents.ts).
+ */
+export function hcChildren(live: HcTerminal[]): Map<string, string[]> {
+  const kids = new Map<string, string[]>();
+  for (const t of live) {
+    if (!t.parent) continue;
+    kids.set(t.parent, [...(kids.get(t.parent) ?? []), t.labels?.[NAME_LABEL] || t.name || t.address]);
+  }
+  return kids;
+}
+
 export function hcSnapshot(terminals: HcTerminal[], version = "hc"): WireSnapshot {
-  const panes = terminals.filter((t) => t.state === "live").map(toWirePane);
+  const live = terminals.filter((t) => t.state === "live");
+  const kids = hcChildren(live);
+  const panes = live.map((t): WirePane => {
+    const children = kids.get(t.address);
+    return children ? { ...toWirePane(t), children } : toWirePane(t);
+  });
   const workspace: WireWorkspace = {
     workspace_id: HC_SPACE,
     number: 1,

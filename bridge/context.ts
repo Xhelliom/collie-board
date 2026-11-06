@@ -32,6 +32,7 @@ import {
 import { processStartedAt } from "./proc.ts";
 import { agentWork, type AgentTask } from "./agent-work.ts";
 import { runningSubagents } from "./subagents.ts";
+import { HC_SPACE } from "./mux/hc.ts";
 import type { AgentView } from "./types.ts";
 
 /**
@@ -201,7 +202,8 @@ export class ContextTracker {
             const { text } = await this.source.load(path);
             // Claude only: the one agent whose subagent rows were verified (subagents.ts).
             if (pane.agent === "claude") {
-              const running = runningSubagents(text);
+              // Under hc the engine names them itself (children_of, mux/hc.ts): no transcript guess.
+              const running = pane.workspaceId === HC_SPACE ? [] : runningSubagents(text);
               if (running.length > 0) this.subagents.set(paneId, running);
               else this.subagents.delete(paneId);
               const work = agentWork(text);

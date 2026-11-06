@@ -57,6 +57,22 @@ describe("hc status mapping (OSC 7501 → ours)", () => {
   });
 });
 
+describe("hc children_of → subagents", () => {
+  it("names a terminal's live children (label, else name, else address) on the parent pane only", () => {
+    const kid = (address: string, extra: Partial<HcTerminal>): HcTerminal => ({ ...shell, address, parent: "t3", ...extra });
+    const snap = hcSnapshot([
+      shell,
+      claude,
+      kid("t20", { labels: { "collie.name": "Relecture" } }),
+      kid("t21", { name: "worker" }),
+      kid("t22", {}),
+      kid("t23", { state: "finished", name: "gone" }),
+    ]);
+    expect(snap.panes.find((p) => p.pane_id === "t3")!.children).toEqual(["Relecture", "worker", "t22"]);
+    expect(snap.panes.find((p) => p.pane_id === "t1")!.children).toBeUndefined();
+  });
+});
+
 describe("hc JSON-RPC lines", () => {
   it("decodes a reply, an error, an event and a heartbeat", () => {
     expect(decodeHcLine('{"id":10,"jsonrpc":"2.0","result":{"hidden_finished":0,"terminals":[]}}')).toEqual({
