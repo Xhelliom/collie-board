@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1793866678762.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"V2 herdr-core","goal":"Décider une Collie V2 sur herdr-core (nouveau moteur, PWA + panneau herdr-app), centrée projet et orchestrateur : sonde, prototype, ADR.","position":28,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1793866668820}}
+{"v":1,"hlc":"1793963840339.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1793963834470}}
