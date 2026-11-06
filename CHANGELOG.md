@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.266.0] - 2026-11-06
+
+### Added
+
+- Réglages du projet : section « Exécution depuis un autre poste » — offrir le dépôt, son agent, son nom, et une case « Autoriser le lancement depuis {pair} » par pair (0c9c69f)
+- Page projet : la tuile d'une carte réglée sur un pair affiche « sur {pair} » (0c9c69f)
+
+### Changed
+
+- Réglages → Pairs : les environnements offerts deviennent un résumé (dépôt, pairs autorisés) qui mène aux réglages du projet (0c9c69f)
+- Carte, « Lancer sur » : un environnement du dépôt non accordé reste listé, grisé, « lancement non accordé par {pair} » (0c9c69f)
+
 ## [0.265.0] - 2026-11-06
 
 ### Added
