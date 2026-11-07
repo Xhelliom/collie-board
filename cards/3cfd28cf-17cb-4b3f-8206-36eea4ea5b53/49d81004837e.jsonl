@@ -3,3 +3,10 @@
 {"v":1,"hlc":"1794083683647.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"ea2c300b-1d16-44f9-b53d-705098753065"}}
 {"v":1,"hlc":"1794083683649.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"a56fe6c1-ffe2-469c-9f9f-c25ed436dcf3"}}
 {"v":1,"hlc":"1794084395455.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794084411380.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/mettre-la-doc-aux-normes-ne-plus-citer-overgate"}}
+{"v":1,"hlc":"1794084411380.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794084411380.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794084399551}}
+{"v":1,"hlc":"1794084411381.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"ready"}}
+{"v":1,"hlc":"1794084411381.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"ready","reason":"agent failed to start"},"ts":1794084400824}}
+{"v":1,"hlc":"1794084411381.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.start_failed","payload":{"stage":"agent.start","error":"herdr agent.start: agent_pane_not_found: agent target pane t1p not found"},"ts":1794084400825}}
+{"v":1,"hlc":"1794084411381.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"a56fe6c1-ffe2-469c-9f9f-c25ed436dcf3","reason":"start failed: agent.start: herdr agent.start: agent_pane_not_found: agent target pane t1p not found"},"ts":1794084400827}}
