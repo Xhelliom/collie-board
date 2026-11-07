@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1793981579015.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Windows : les tests bun du bridge passent (27 échecs bloquent le pre-push)","status":"backlog"},"ts":1793981571888}}
 {"v":1,"hlc":"1793981579016.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"124007a1-98e9-4d51-8441-a87b0fff1d99"}}
 {"v":1,"hlc":"1794083525087.0000.5ce35e871325","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"5ce35e871325","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794083537088.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/windows-les-tests-bun-du-bridge-passent-27-echec"}}
+{"v":1,"hlc":"1794083537088.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794083537088.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794083529341}}
