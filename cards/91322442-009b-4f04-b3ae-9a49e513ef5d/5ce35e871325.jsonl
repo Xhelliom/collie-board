@@ -5,3 +5,5 @@
 {"v":1,"hlc":"1794083537088.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/windows-les-tests-bun-du-bridge-passent-27-echec"}}
 {"v":1,"hlc":"1794083537088.0001.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
 {"v":1,"hlc":"1794083537088.0002.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794083529341}}
+{"v":1,"hlc":"1794083586315.0000.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794083586315.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794083586192}}
