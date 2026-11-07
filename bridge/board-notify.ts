@@ -79,10 +79,13 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
     const error = str(e.payload, "error");
     return { status: "blocked", subtitle: oneLine(error ? `${stage} kept: ${error}` : `${stage} kept`) };
   }
-  // B13 — a PR the board opened for a run and GitHub will not merge by itself. Nothing else says so
+  // B15 — a PR the board opened for a run and GitHub will not merge by itself. Nothing else says so
   // (the refusal is journaled, never an HTTP answer), the PR sits open, and there is something to
   // decide: turn the repo setting on, or merge it. A story, not a state — no predicate, so the bell.
+  // NOT when the board merges it itself (`boardMerges`, landPr on a green gate): the operator has
+  // nothing to do, and if that merge is refused in turn, the run's halt says so (`run.halted`).
   if (e.type === "card.automerge_refused") {
+    if ((e.payload as { boardMerges?: unknown } | null)?.boardMerges === true) return null;
     const error = str(e.payload, "error") ?? "";
     return {
       status: "blocked",
@@ -203,7 +206,10 @@ export interface BoardNotifySource {
   eventsAfter(after: number): BoardEvent[];
   getCard(id: string): { id: string; title: string; status: string; repoPath: string | null } | null;
   /** The cards waiting on this one, for B4 ({@link unblocks}) — one unindexed scan, on a `done`. */
-  dependentsOf(id: string): { id: string; title: string; status: string; repoPath: string | null }[];
+  dependentsOf(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null }[];
+  /** For B4: a successor in a launched, unfinished lot is the lot's to start, not the operator's. */
+  getRun(id: string): { launchedAt: number | null } | null;
+  runFinished(id: string): boolean;
   /** The card's live session, for {@link fingerprint} — two indexed reads per armed alert per tick,
    *  of which there are normally none. */
   openSessionFor(id: string): { id: string; handoffRequestedAt: number | null } | null;
@@ -337,7 +343,7 @@ export class BoardNotifier {
       // opened for it, so it is not told.
       if (freed) {
         for (const next of this.db.dependentsOf(card.id)) {
-          if (!UNSTARTED.has(next.status)) continue;
+          if (!UNSTARTED.has(next.status) || this.lotStarts(next.runId)) continue;
           this.raise(next, "ready", oneLine(`“${card.title}” is ${card.status} — this one can start`));
         }
       }
@@ -407,6 +413,11 @@ export class BoardNotifier {
       status: "stalled",
       subtitle: `copilot not answering — ${COPILOT_DOWN_AFTER} reviews in a row timed out; check its pane`,
     });
+  }
+
+  /** Whether a launched lot still running will start this card itself — then B4 has nobody to tell. */
+  private lotStarts(runId: string | null | undefined): boolean {
+    return !!runId && !!this.db.getRun(runId)?.launchedAt && !this.db.runFinished(runId);
   }
 
   /** `run.finished`: a `Done` in the herd's slot, keyed on the run, tapping to its first card. */
