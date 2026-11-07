@@ -17,7 +17,7 @@ import {
 // Both engines at once (ADR 0052 §4.2, amended 2026-11-06): the herd is herdr 0.9's panes AND hc's
 // terminals, merged. Each pane belongs to exactly one engine, so there are never two truths about it.
 //
-// - Ownership is read off the id, never stored: hc's addresses are `t<n>` and its one space/tab is
+// - Ownership is read off the id, never stored: hc's addresses are `t` + base 36 (`t3`, `t1b`, `t1m`: not hex), its one space/tab is
 //   `hc`; herdr 0.9's are `w…`, `w…:t1`, `w…:p1`. So a 0.9 id (card, session, `/pane/<id>` URL)
 //   stays exactly what it was, and HC_TERMINAL_ID still names its pane (provenance, ADR 0010).
 // - Reads are merged; every action goes to the pane's owner; a NEW pane (space, worktree) goes to
@@ -32,7 +32,7 @@ export const STALE_GRACE_MS = 60_000;
 
 /** The engine an id (pane, tab, space, agent target) belongs to. */
 export function ownerOf(id: string): MuxKind {
-  return id === HC_SPACE || /^t\d+$/.test(id) ? "hc" : "herdr09";
+  return id === HC_SPACE || /^t[0-9a-z]+$/.test(id) ? "hc" : "herdr09";
 }
 
 type Part = { snap: WireSnapshot; at: number };

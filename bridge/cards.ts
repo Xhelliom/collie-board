@@ -53,6 +53,14 @@ import type { AgentStatus, AgentView } from "./types.ts";
  */
 const ORPHAN_GRACE_MS = 15_000;
 
+/**
+ * How long a started card's pane may stay a bare shell before the board calls the start failed. The
+ * launch waits 60 s for the agent (`AGENT_READY_TIMEOUT_MS`) after the deps install; a bridge restart
+ * mid-launch (2026-11-06) leaves the shell with nobody to say so — this is who says it.
+ */
+export const NO_AGENT_MS = 10 * 60_000;
+export const NO_AGENT_REASON = "no agent ever came up in this pane — start the card again";
+
 /** How Herdr's agent status maps onto a board column. `unknown` deliberately maps to nothing. */
 const STATUS_COLUMN: Partial<Record<AgentStatus, CardStatus>> = {
   working: "working",
@@ -235,7 +243,7 @@ export function reconcileOne(
   session: CardSession,
   pane: AgentView | undefined,
   now: number,
-): { kind: "orphan" } | { kind: "column"; status: CardStatus } | null {
+): { kind: "orphan" } | { kind: "no-agent" } | { kind: "column"; status: CardStatus } | null {
   if (pane === undefined) {
     // Not yet visible in a snapshot taken moments after the start — give it one grace window.
     if (session.paneId === null) return null;
@@ -250,6 +258,10 @@ export function reconcileOne(
   // Real work takes it back out (the operator asked for more), and so does a question; sitting
   // quietly does not.
   if (card.status === "review" && pane.status === "idle") return null;
+  // A bare shell is not an agent at its prompt: its `idle` must not move a card that never got one.
+  if (pane.kind === "shell") {
+    return card.status === "starting" && now - session.startedAt >= NO_AGENT_MS ? { kind: "no-agent" } : null;
+  }
   const status = STATUS_COLUMN[pane.status];
   if (!status || status === card.status) return null;
   return { kind: "column", status };
@@ -322,6 +334,11 @@ export function reconcile(db: BoardDb, snap: EngineSnapshot, now: number = Date.
     if (action.kind === "orphan") {
       db.closeSession(session.id, "lost");
       db.setStatus(card.id, "orphaned", "pane vanished from snapshot");
+    } else if (action.kind === "no-agent") {
+      // As a failed `agent.start`: the pane stays, so the next start re-opens it and launches there.
+      db.closeSession(session.id, "abandoned");
+      db.setStatus(card.id, "ready", NO_AGENT_REASON);
+      db.recordEvent(card.id, "card.start_failed", { stage: "no-agent", paneId: session.paneId, error: NO_AGENT_REASON });
     } else {
       db.setStatus(card.id, action.status, paneReason(pane?.status));
     }

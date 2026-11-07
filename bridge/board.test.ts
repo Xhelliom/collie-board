@@ -23,6 +23,8 @@ import {
   PUBLISH_HINT,
   reconcile,
   reconcileOne,
+  NO_AGENT_MS,
+  NO_AGENT_REASON,
   releaseSession,
   requestCommit,
   startCard,
@@ -293,6 +295,24 @@ describe("reconcileOne", () => {
 
   it("holds off orphaning inside the grace window — the pane may just not be in the snapshot yet", () => {
     expect(reconcileOne(card("starting"), session(1_000), undefined, 5_000)).toBeNull();
+  });
+
+  it("a bare shell never moves a starting card, and stops it after NO_AGENT_MS", () => {
+    const shell = pane("w1:p1", "idle", { agent: "shell", kind: "shell" });
+    expect(reconcileOne(card("starting"), session(0), shell, NO_AGENT_MS - 1)).toBeNull();
+    expect(reconcileOne(card("starting"), session(0), shell, NO_AGENT_MS)).toEqual({ kind: "no-agent" });
+    expect(reconcileOne(card("blocked"), session(0), shell, NO_AGENT_MS)).toBeNull();
+  });
+
+  it("reconcile closes a no-agent session and puts the card back to ready, journaled", () => {
+    const store = db();
+    const c = store.createCard({ title: "x", repoPath: "/r", status: "starting" });
+    const s = store.openSession({ cardId: c.id, paneId: "w1:p1", agentKind: "claude" });
+    const snap = { ...snapshot([]), shellPanes: [pane("w1:p1", "idle", { agent: "shell", kind: "shell" })] };
+    reconcile(store, snap, s.startedAt + NO_AGENT_MS);
+    expect(store.openSessionFor(c.id)).toBeNull();
+    expect(store.getCard(c.id)!.status).toBe("ready");
+    expect(store.listEvents(c.id, 10).find((e) => e.type === "card.start_failed")!.payload).toMatchObject({ stage: "no-agent", error: NO_AGENT_REASON });
   });
 
   it("orphans once the grace window has passed", () => {

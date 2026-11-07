@@ -176,6 +176,24 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(db.getCard(out.id)!.status).toBe("ready");
   });
 
+  it("a member whose pane never had an agent halts the lot once, with the reason; resume restarts it", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.recordEvent(a.id, "card.start_failed", { stage: "no-agent", error: "no agent ever came up" });
+    const w = world(db);
+    w.coord.update(snap());
+    await flush();
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual([]);
+    expect(events(db, a, "run.halted").map((e) => (e.payload as { reason: string }).reason)).toEqual(["no agent ever came up"]);
+    resumeRun(db, db.getRun(run.id)!);
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual(["start a"]);
+  });
+
   it("starts in dependency order, no more than the free slots", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready", position: 0 });
@@ -1056,6 +1074,42 @@ describe("one PR for the lot (ADR 0041)", () => {
     expect(w.calls.indexOf("done c")).toBeGreaterThan(w.calls.indexOf("pr c"));
     expect(cards.map((c) => db.getCard(c.id)!.status)).toEqual(["done", "done", "done"]);
     expect(db.listEvents(cards[0]!.id, 50).some((e) => e.type === "card.lot_merged")).toBe(true);
+  });
+
+  it("a card set on a peer: started there without the lot branch, the lot's PR left to the local cards, filed at its own PR's merge", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready", position: 0 });
+    const r = db.createCard({ title: "r", repoPath: "/r", status: "ready", position: 1, environment: { peer: "dell", name: "collie-board" } });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id, r.id], foldInCap: 0, integration: "lot" });
+    const w = world(db);
+    const local = w.ports.start;
+    // What `startOnPeer` leaves: the launch journaled, no session row here.
+    w.ports.start = async (id) => {
+      if (!db.getCard(id)!.environment) return local(id);
+      w.calls.push(`peer ${db.getCard(id)!.title}`);
+      db.recordEvent(id, "card.remote_launched", { peer: "dell", environment: "collie-board", paneId: "dell-1", branch: "b/r" });
+      db.setStatus(id, "working", "launched on dell");
+      return { ok: true };
+    };
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls.sort()).toEqual(["lot a", "peer r", "start a"]); // no lot branch for r
+
+    land(db, a);
+    for (let i = 0; i < 8; i++) (w.coord.update(snap({ "p-a": "idle" })), await flush());
+    // a is the last LOCAL card: it opens the lot's PR without waiting on r.
+    expect(w.calls.filter((c) => /^(fold|pr|done) /.test(c))).toEqual(["fold a", "pr a", "done a"]);
+    expect(runState(run, [a, r].map((c) => ({ card: db.getCard(c.id)!, events: db.listEvents(c.id, 200) })))).toBe("running");
+
+    // Stopped on the peer without a PR: the lot halts, once.
+    db.recordEvent(r.id, "card.remote_idle", { peer: "dell" });
+    for (let i = 0; i < 3; i++) (w.coord.update(snap()), await flush());
+    expect(lotView(db, db.getRun(run.id)!).halted).toContain("stopped on dell without a PR");
+    expect(events(db, r, "run.halted")).toHaveLength(1);
+
+    // Its PR merged (the follower files it): the lot is finished.
+    db.setStatus(r.id, "done", "merged");
+    expect(runState(run, [a, r].map((c) => ({ card: db.getCard(c.id)!, events: db.listEvents(c.id, 200) })))).toBe("finished");
   });
 
   it("a lot halted on its PR, every card folded, resumes at the PR: opened, no worker relaunched", async () => {

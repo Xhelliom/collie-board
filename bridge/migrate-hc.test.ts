@@ -29,7 +29,8 @@ describe("migrateBlock — when « Migrer vers herdr-core » is offered", () => 
     expect(isHerdr09Pane("w1:p1")).toBe(true);
     expect(isHerdr09Pane("wW8:p12")).toBe(true);
     expect(isHerdr09Pane("t17")).toBe(false);
-    expect(isHerdr09Pane("t1b")).toBe(false); // hc counts in hex (measured t18 → t1b)
+    expect(isHerdr09Pane("t1b")).toBe(false); 
+    expect(isHerdr09Pane("t1m")).toBe(false); // past hex: measured 2026-11-07
   });
 
   it("offers it for a Claude agent at rest under 0.9 with hc up", () => {

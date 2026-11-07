@@ -33,6 +33,7 @@ import { lotHoldsPush } from "./lot-push.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
 import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
+import { PeerStore } from "./pairing.ts";
 import { startServer } from "./server.ts";
 import {
   deriveConfigRoot,
@@ -45,6 +46,7 @@ import { StateEngine, type EngineSnapshot } from "./state-engine.ts";
 import {
   bridgeStampSync,
   githubTagsFetcher,
+  resolveUpdateRepo,
   UpdateMonitor,
   UpdateStateStore,
 } from "./update.ts";
@@ -136,11 +138,11 @@ const currentVersion = (
 const updateStore = new UpdateStateStore(cfg);
 await updateStore.load();
 
-// The repo the release check + release links point at. This fork has no published releases, and
-// pointing it at upstream would nag about versions this code isn't — so the RELEASE half is opt-in:
-// set COLLIE_BOARD_UPDATE_REPO to `owner/name` once the fork is published. `bridgeStale` (the
-// rebuilt-but-not-restarted detector) is local and keeps working either way.
-const updateRepo = process.env.COLLIE_BOARD_UPDATE_REPO?.trim() || "";
+// The repo the release check + release links point at: COLLIE_BOARD_UPDATE_REPO, else the checkout's
+// GitHub origin (`resolveUpdateRepo`). `bridgeStale` (the rebuilt-but-not-restarted detector) is
+// local and keeps working either way.
+const updateRepo = resolveUpdateRepo(process.env, rootDir);
+console.log(updateRepo ? `[update] release check: ${updateRepo}` : "[update] release check off (no update repo)");
 const updateMonitor = new UpdateMonitor({
   repo: updateRepo,
   current: currentVersion,
@@ -178,6 +180,8 @@ if (!updateRepo) {
 // The context gauge, primary session only (the board is). Built by the factory below, which the
 // registry runs at construction — so it is set well before startServer() reads it.
 let contextTracker: ContextTracker | null = null;
+// The paired peers: one store, shared by the routes (server.ts) and a lot starting a peer's card (run.ts).
+const peers = new PeerStore(cfg.stateDir);
 
 // ── Per-session runtime factory ──────────────────────────────────────────────
 // One Mux + StateEngine + EventPoker + NotificationCoordinator per herdr session. The
@@ -370,7 +374,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
-    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters), "run");
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound()), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
     engine.onUpdate(prFollowHook(board, herdr), "prFollow");
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
@@ -457,6 +461,7 @@ const server = startServer({
   context: contextTracker,
   adapters,
   transcripts,
+  peers,
 });
 
 const shutdown = async () => {

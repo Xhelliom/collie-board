@@ -80,10 +80,56 @@ export const fetchDoc = (repo: string, path: string, signal?: AbortSignal): Prom
 export const searchDocs = (repo: string, query: string, signal?: AbortSignal): Promise<{ paths: string[] }> =>
   apiRequest(`/api/docs/search?${q(repo)}&q=${encodeURIComponent(query)}`, { signal });
 
-export async function docsLoader({ request }: LoaderFunctionArgs): Promise<{ repo: string | null; index: DocsIndex | null }> {
+export async function docsLoader({ request }: LoaderFunctionArgs): Promise<{ repo: string | null; index: DocsIndex | null; pages: string[] }> {
   const repo = new URL(request.url).searchParams.get("repo") ?? loadRepoScope();
-  return { repo, index: repo ? await fetchDocs(repo, request.signal) : null };
+  if (!repo) return { repo, index: null, pages: [] };
+  // The pages are a bonus in the tree: a failure to list them never hides the Markdown.
+  const [index, pages] = await Promise.all([
+    fetchDocs(repo, request.signal),
+    fetchPages(repo, request.signal).then((r) => r.pages.map((p) => p.name), () => [] as string[]),
+  ]);
+  return { repo, index, pages };
 }
+
+/** A folder of the Documents tree — the repo's real folders, as the file paths spell them. */
+export interface DocFolder {
+  name: string;
+  path: string;
+  folders: DocFolder[];
+  files: DocEntry[];
+}
+
+/** The folder tree of `files`, folders first then files, each by name — the explorer's order. Pure. */
+export function docTree(files: readonly DocEntry[]): DocFolder {
+  const root: DocFolder = { name: "", path: "", folders: [], files: [] };
+  for (const f of files) {
+    let at = root;
+    for (const seg of f.path.split("/").slice(0, -1)) {
+      let next = at.folders.find((x) => x.name === seg);
+      if (!next) at.folders.push((next = { name: seg, path: at.path ? `${at.path}/${seg}` : seg, folders: [], files: [] }));
+      at = next;
+    }
+    at.files.push(f);
+  }
+  const sort = (d: DocFolder) => {
+    d.folders.sort((a, b) => a.name.localeCompare(b.name));
+    d.files.sort((a, b) => a.path.localeCompare(b.path));
+    d.folders.forEach(sort);
+  };
+  sort(root);
+  return root;
+}
+
+/** Every file under a folder, its subfolders included. Pure. */
+export const fileCount = (d: DocFolder): number => d.folders.reduce((n, c) => n + fileCount(c), d.files.length);
+
+/** The folders that hold `path`: `docs/plan/a.md` → `docs`, `docs/plan`. Pure. */
+export const folderChain = (path: string): string[] =>
+  path.split("/").slice(0, -1).map((_, i, segs) => segs.slice(0, i + 1).join("/"));
+
+/** A custom page's place in the tree, and back: `roadmap` ⇄ `docs/pages/roadmap.html`. */
+export const pagePath = (name: string): string => `docs/pages/${name}.html`;
+export const pageNameOf = (path: string): string | null => /^docs\/pages\/([^/]+)\.html$/.exec(path)?.[1] ?? null;
 
 /**
  * The repo path a relative link of `from` points at, its `#anchor` dropped — or null when it climbs

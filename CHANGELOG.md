@@ -9,6 +9,64 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.4] - 2026-11-07
+
+### Fixed
+
+- Lot : une carte réglée sur l'environnement d'un pair démarre sur ce pair (comme son bouton) au lieu d'arrêter le lot (34cfc78)
+- Lot : cette carte livre sa propre PR, suivie jusqu'au merge ; la dernière carte locale ouvre la PR du lot sans l'attendre ; un arrêt sans PR sur le pair halte le lot (34cfc78)
+
+## [0.277.3] - 2026-11-07
+
+### Fixed
+
+- Pre-push : sous Windows, la suite `collie-board-ctl.test.sh` est sautée (la CI Linux la joue). (a89f0ef)
+
+## [0.277.2] - 2026-11-07
+
+### Fixed
+
+- Réglages → Mises à jour annonce une nouvelle version sur Windows : sans `COLLIE_BOARD_UPDATE_REPO`, le dépôt vient de l'`origin` GitHub du checkout (`off` coupe la vérification) (2472eb5)
+- `start` / `status` sous Windows affichent le dépôt que lit la vérification (2472eb5)
+
+## [0.277.1] - 2026-11-07
+
+### Fixed
+
+- Sous hc, une carte dont le terminal a une adresse hors hexa (`t1m`) démarre sous hc au lieu d'envoyer `agent.start` à herdr 0.9 (5256f4d)
+
+## [0.277.0] - 2026-11-07
+
+### Added
+
+- Documents : dossier virtuel « Décisions roadmap (N) » filtrable par statut (83a2304)
+- Documents : les pages custom (docs/pages/*.html) dans l'arbre, ouvertes dans le même cadre inerte que leur onglet, avec Plein écran (83a2304)
+
+### Changed
+
+- Documents : l'arbre des dossiers du dépôt remplace les rubriques (chevrons, compte d'un dossier replié, dossiers ouverts retenus par projet) (83a2304)
+- Documents : sur PC le document s'ouvre à droite de l'arbre, sur téléphone en plein écran avec ← ; fil d'Ariane au-dessus (83a2304)
+- Documents : la recherche réduit l'arbre à ses résultats et ouvre leurs dossiers (83a2304)
+
+## [0.276.1] - 2026-11-07
+
+### Fixed
+
+- Fin de lot en autonomie : l'orchestrateur ne se voit plus proposer un lot créé par un autre poste ; s'il n'y a que celui-là, le message le nomme et dit de le lancer depuis ce poste. (090f936)
+- Un pane resté shell nu ne passe plus la carte en « en cours » ; après 10 min sans agent la session s'arrête (raison au journal), la carte revient « prête » et son lot s'arrête (64d6e3f)
+
+## [0.276.0] - 2026-11-07
+
+### Added
+
+- Le bouton Démarrer d'une carte dit quand hc ne répond pas et que le lancement se fera sous herdr 0.9 (8653a44)
+- Sous Windows, le bridge trouve le named pipe de hc sans réglage (8653a44)
+- Doc d'installation de hc (Linux, Windows) : core démarré par herdr-app ou le bureau, jamais par un agent (8653a44)
+
+### Changed
+
+- Un nouveau lancement va sous herdr-core (hc) dès que son core répond, sous herdr 0.9 sinon (`COLLIE_BOARD_MUX=auto`, le nouveau défaut) (8653a44)
+
 ## [0.275.0] - 2026-11-06
 
 ### Added
