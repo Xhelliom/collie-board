@@ -7,7 +7,7 @@ import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PANE_HEADER } from "./board-routes.ts";
 import { summarizeGate } from "./gate.ts";
-import { compareSemver, githubTagsFetcher, parseSemverTag } from "./update.ts";
+import { compareSemver, githubTagsFetcher, parseSemverTag, resolveUpdateRepo } from "./update.ts";
 
 const PLUGIN = "herdr.collie-board";
 const INVOKE_TIMEOUT_MS = 15_000;
@@ -90,7 +90,7 @@ export interface RollbackDeps {
   invoke: () => Promise<string | null>;
 }
 
-const repo = process.env.COLLIE_BOARD_UPDATE_REPO?.trim() || "";
+const repo = resolveUpdateRepo(process.env, join(import.meta.dir, ".."));
 const defaultDeps: RollbackDeps = {
   fetchTags: repo ? githubTagsFetcher(repo) : async () => [],
   configDir: process.env.HERDR_PLUGIN_CONFIG_DIR ?? "",

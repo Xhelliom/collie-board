@@ -1,6 +1,6 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
-import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import type { Config } from "./config.ts";
 import type { UpdateStatus } from "./types.ts";
 
@@ -119,6 +119,62 @@ export function githubReleaseUrl(repo: string, version: string): string {
 
 /** Anonymous HTTPS fetch of a GitHub repo's tags → their names (`["v0.11.0", …]`). Throws on a
  *  non-OK response or timeout so the caller keeps its previous result and retries next tick. */
+/** `owner/name` of a GitHub remote URL (https, ssh or scp-like), or "" for anything else. Pure. */
+export function githubRepoOf(url: string): string {
+  const m = /^(?:https?:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(
+    url.trim(),
+  );
+  return m ? `${m[1]}/${m[2]}` : "";
+}
+
+/** The `url` of `[remote "origin"]` in a git config file's text, or "". Pure. */
+export function originUrlOf(gitConfig: string): string {
+  let inOrigin = false;
+  for (const raw of gitConfig.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith("[")) inOrigin = /^\[remote\s+"origin"\]$/.test(line);
+    else if (inOrigin) {
+      const m = /^url\s*=\s*(.+)$/.exec(line);
+      if (m) return m[1]!.trim();
+    }
+  }
+  return "";
+}
+
+/**
+ * The repo the release check reads. `COLLIE_BOARD_UPDATE_REPO` wins (`off` disables it); left unset,
+ * it is the GitHub `origin` of the checkout the plugin runs from — a `herdr plugin install` from
+ * GitHub, or a clone, already names the repo its releases come from, so no setup step has to (the
+ * Windows node had none, and saw no update). Reads `.git/config` as a file: no `git` subprocess.
+ */
+export function resolveUpdateRepo(
+  env: Record<string, string | undefined>,
+  rootDir: string,
+  read: (path: string) => string | undefined = readOrUndefined,
+): string {
+  const set = env.COLLIE_BOARD_UPDATE_REPO?.trim();
+  if (set) return set.toLowerCase() === "off" ? "" : set;
+  const dotGit = read(join(rootDir, ".git"));
+  // A directory reads as undefined; a worktree's `.git` is a file naming its gitdir, whose
+  // `commondir` holds the shared config.
+  let gitDir = join(rootDir, ".git");
+  const pointer = dotGit && /^gitdir:\s*(.+)$/m.exec(dotGit)?.[1]?.trim();
+  if (pointer) {
+    gitDir = isAbsolute(pointer) ? pointer : join(rootDir, pointer);
+    const common = read(join(gitDir, "commondir"))?.trim();
+    if (common) gitDir = isAbsolute(common) ? common : join(gitDir, common);
+  }
+  return githubRepoOf(originUrlOf(read(join(gitDir, "config")) ?? ""));
+}
+
+function readOrUndefined(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 export function githubTagsFetcher(repo: string): () => Promise<string[]> {
   const url = `https://api.github.com/repos/${repo}/tags?per_page=100`;
   return async () => {

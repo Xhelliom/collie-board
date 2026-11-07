@@ -231,6 +231,12 @@ describe("statusBanner", () => {
       "    proxy     https://p",
     );
   });
+
+  it("names the repo the release check reads, or says it is off", () => {
+    expect(statusBanner({ ...b, updateRepo: "Xhelliom/collie-board" })).toContain("    updates   Xhelliom/collie-board");
+    expect(statusBanner({ ...b, updateRepo: "" }).join("\n")).toContain("updates   off");
+    expect(statusBanner(b).join("\n")).not.toContain("updates");
+  });
 });
 
 describe("tasklistImage", () => {

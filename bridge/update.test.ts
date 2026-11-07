@@ -2,6 +2,9 @@ import { describe, expect, it } from "bun:test";
 
 import {
   compareSemver,
+  githubRepoOf,
+  originUrlOf,
+  resolveUpdateRepo,
   githubReleaseUrl,
   latestReleaseTag,
   parseSemverTag,
@@ -201,5 +204,46 @@ describe("UpdateMonitor", () => {
     expect(monitor.status().bridgeStale).toBe(false);
     tick(6_000); // ...past it, the recompute sees the divergence.
     expect(monitor.status().bridgeStale).toBe(true);
+  });
+});
+
+describe("resolveUpdateRepo", () => {
+  const ORIGIN = '[core]\n\tbare = false\n[remote "upstream"]\n\turl = https://github.com/AltanS/collie.git\n[remote "origin"]\n\turl = https://github.com/Xhelliom/collie-board.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n';
+  const fs = (files: Record<string, string>) => (p: string) => files[p.replaceAll("\\", "/")];
+
+  it("reads owner/name from every GitHub URL shape, and nothing else", () => {
+    expect(githubRepoOf("https://github.com/Xhelliom/collie-board.git")).toBe("Xhelliom/collie-board");
+    expect(githubRepoOf("https://github.com/Xhelliom/collie-board")).toBe("Xhelliom/collie-board");
+    expect(githubRepoOf("git@github.com:Xhelliom/collie-board.git")).toBe("Xhelliom/collie-board");
+    expect(githubRepoOf("ssh://git@github.com/Xhelliom/collie-board.git")).toBe("Xhelliom/collie-board");
+    expect(githubRepoOf("https://gitlab.com/a/b.git")).toBe("");
+    expect(githubRepoOf("C:/git/collie-board")).toBe("");
+  });
+
+  it("takes origin, not the first remote", () => {
+    expect(originUrlOf(ORIGIN)).toBe("https://github.com/Xhelliom/collie-board.git");
+    expect(originUrlOf("[core]\n")).toBe("");
+  });
+
+  it("derives the repo from the checkout's origin when the .env names none (the Windows install)", () => {
+    expect(resolveUpdateRepo({}, "/p", fs({ "/p/.git/config": ORIGIN }))).toBe("Xhelliom/collie-board");
+    expect(resolveUpdateRepo({ COLLIE_BOARD_UPDATE_REPO: " " }, "/p", fs({ "/p/.git/config": ORIGIN }))).toBe(
+      "Xhelliom/collie-board",
+    );
+  });
+
+  it("follows a worktree's .git file to the shared config", () => {
+    const read = fs({ "/w/.git": "gitdir: /r/.git/worktrees/w\n", "/r/.git/worktrees/w/commondir": "../..\n", "/r/.git/config": ORIGIN });
+    expect(resolveUpdateRepo({}, "/w", read)).toBe("Xhelliom/collie-board");
+  });
+
+  it("lets the .env win, and `off` switch it off", () => {
+    const read = fs({ "/p/.git/config": ORIGIN });
+    expect(resolveUpdateRepo({ COLLIE_BOARD_UPDATE_REPO: "me/fork" }, "/p", read)).toBe("me/fork");
+    expect(resolveUpdateRepo({ COLLIE_BOARD_UPDATE_REPO: "off" }, "/p", read)).toBe("");
+  });
+
+  it("is off with no checkout", () => {
+    expect(resolveUpdateRepo({}, "/p", () => undefined)).toBe("");
   });
 });

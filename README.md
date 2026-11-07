@@ -224,7 +224,7 @@ settings.
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
 | `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace. Cosmetic — it is found by directory. |
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
-| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks. Set it to `Xhelliom/collie-board` (or your fork); empty = check off, so it never nags about upstream's versions. |
+| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks. Empty = the GitHub `origin` of the plugin checkout (what `herdr plugin install` cloned); `off` = check off. |
 
 Follow-up cards (on/off and which categories), auto handoff and agents-at-once live in **Settings**,
 not in `.env`. Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) —
@@ -824,10 +824,11 @@ How it advances depends on how you installed, because `herdr plugin install` doe
 Your `.env` and serve state live outside the checkout, so they survive either path. If you pinned a
 version with `--ref`, keep using `herdr plugin install --ref …` — `update` always goes to the latest.
 
-**The in-app "a new release is out" banner is opt-in**: set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board`
-in your `.env` and the app checks that repo's releases and links to the newest one. Left empty the
-check is simply off — it defaults to nothing rather than to upstream, which ships different version
-numbers and would nag about releases this tree doesn't have.
+**The in-app "a new release is out" banner checks the repo the plugin was installed from**: the
+GitHub `origin` of its checkout — `Xhelliom/collie-board` for a `herdr plugin install`, on Windows as
+on Linux, with no setup step. `COLLIE_BOARD_UPDATE_REPO=owner/name` in your `.env` overrides it, and
+`COLLIE_BOARD_UPDATE_REPO=off` turns the check off. `start` / `status` on Windows print the repo it
+reads (`updates …`).
 
 By hand: frontend (`web/`) → `collie-board-ctl.sh build` (live, no restart — served from disk); backend
 (`bridge/`) → `systemctl --user restart collie-board`. Run `scripts/install-hooks.sh` once to enable the
