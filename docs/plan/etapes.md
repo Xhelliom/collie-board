@@ -36,137 +36,137 @@
 - **V2 — 1 : interface moteur** — validated 2026-11-06, 1 step
 - **V2 — 2 : herdr-core en lecture** — validated 2026-11-06, 3 steps
 - **V2 — 3 : herdr-core en écriture** — validated 2026-11-06, 4 steps
+- **Documentation des projets** — validated 2026-11-07, 7 steps
+- **V2 — 4 : le projet au centre** — validated 2026-11-07, 5 steps
+- **divers 07/11/2026** — validated 2026-11-07, 27 steps
+- **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
 
-## Phase 33 — Documentation des projets
+## Phase 36 — Nœud Windows fiable
 
-Sur le téléphone, la doc de chaque projet se lit, classée selon une convention commune (modèle Overgate) ; un projet hors norme se met aux normes par une PR d agent ; le plan arrive dans git à chaque fin de lot.
+Le Dell se pilote comme une machine Linux : tests verts, lead fiable, mise à jour visible, et le board ne laisse plus une carte ou un lot en plan sans le dire.
 
-### Lot — Documentation : convention, page, export (launched, 2 at a time)
+### Lot — Pilotage fiable (launched, 2 at a time)
 
-- **Pages custom du projet : un onglet par page HTML écrite par l agent** — done
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
+- **Fin de lot : ne proposer à l orchestrateur qu un lot que son poste peut lancer** — done
 
-  Certains projets ont besoin d une page qui n entre dans rien de générique (plan marketing, direction artistique…). L agent écrit une page HTML dans le dépôt, sous docs/pages/<nom>.html (synchro git, donc visible depuis les autres postes). La page projet de Collie affiche un onglet par fichier, lu depuis main comme la page Documents.
+  Le message de fin de lot dit « tu peux lancer UN lot, le prochain planifié X (POST …/launch) ». Il a proposé 5 fois de suite « Lead fiable sous Windows » / « Tests Windows au vert », créés par le pair du Dell : le bridge répond 403 « only the pair that created it launches or resumes it » (ADR 0048 §7). Choisir le prochain lot planifié dont createdPair est ce poste ; s il n y en a pas, le dire et nommer le lot de l autre poste comme geste de l opérateur depuis ce poste-là.
+
+  - [x] Le message de fin de lot ne propose jamais un lot créé par un autre pair
+  - [x] Quand le prochain lot est celui d un autre pair, le message dit depuis quel poste le lancer
+- **Une carte de lot reste « en cours » sur un shell nu, sans agent, pendant des heures** — done
+
+  Le 06/11 vers 12:13, le lot « herdr-app et hc par défaut » a démarré ses deux cartes (94f9b85a, 262e9ebd) : panes wWG:p1 et wWH:p1 restés des shells nus jusqu au 07/11, cartes en « working », lot jamais arrêté, aucune alerte. Relancées à la main (pane fermé puis start). Trouver pourquoi launchAgent n a pas lancé Claude (hc ? sous-agents ? course herdr) et faire que le board le voie : une session dont le pane n a jamais eu d agent au bout de N minutes s arrête avec une raison lisible, au lieu de rester « en cours ».
+
+  - [x] Une carte dont le pane reste un shell sans agent est signalée (journal + halte du lot) avec la raison
+  - [x] La relance depuis la carte marche sans fermer le pane à la main
+- **« Mettre la doc aux normes » : ne plus citer Overgate dans la carte créée** — ready
+
+  Le texte de la carte créée par le bouton est écrit en dur dans web/src/i18n/messages/docs.ts (l.57-58) : « socle Overgate + UN module… ». Il part ainsi dans TOUS les projets, alors qu Overgate n est que la source d inspiration. Dire « le socle commun » à la place. Dans docs/conventions/DOC_CONVENTION.md, garder Overgate seulement dans la partie « d où vient cette convention » (§ exemples), pas dans les règles que l agent applique (ex. l.52 « modèle Overgate »).
+
+  - [ ] La carte créée par « Mettre la doc aux normes » ne contient plus le mot Overgate, en français comme en anglais
+  - [ ] DOC_CONVENTION.md ne cite Overgate que comme exemple d origine
+
+### Lot — pre-push Windows (planned, 2 at a time)
+
+- **Un lot démarre aussi ses cartes réglées sur un autre poste** — ready
+
+  07/11 : le lot « Notifications justes, Dell à jour » s arrête sur la carte 9e21430d (environnement collie-board sur Dell-5550-Stef) : « start failed: this card runs in collie-board on Dell-5550-Stef — start it from its card » (bridge/cards.ts:791, startCard refuse tout environnement de pair). Le bouton de la carte passe par startOnPeer (board-routes.ts) ; le lot doit prendre le même chemin pour une carte dont environment est un pair, puis la suivre comme une carte distante (#255).
+
+  - [ ] Un lot qui contient une carte réglée sur le Dell la démarre sur le Dell sans s arrêter
+  - [ ] Sa fin de session et sa PR remontent au lot comme pour une carte locale
+- **pre-push sous Windows : ne pas lancer la suite bash de collie-board-ctl** — backlog
+
+  Sur le Dell, une fois les tests bun verts (1907 pass, 0 fail), le pre-push lance collie-board-ctl.test.sh, qui appelle python : « Python was not found » (alias Microsoft Store) → push refusé. Sous Windows le plugin passe par scripts/ctl.ts, pas par collie-board-ctl.sh : sauter cette suite quand l OS est Windows (uname MINGW/MSYS/CYGWIN ou OS=Windows_NT), avec un message, et laisser la CI Linux la jouer.
+
+  - [ ] Sur le Dell, git push d une branche saine passe sans SKIP_TESTS
+  - [ ] Sous Linux, le pre-push joue toujours collie-board-ctl.test.sh
+
+### Lot — Notifications justes, Dell à jour (launched, one at a time)
+
+- **Notifications : plus de « merge-le toi-même » quand le lot merge, et revue du bruit** — ready
+
+  07/11 20:43 : la cloche dit « Needs you · Fin de lot… PR open — auto-merge is off for this repo; merge it yourself » (B13, bridge/board-notify.ts:82-92), puis la carte est mergée 2 min plus tard par le lot (#286) : alerte fausse. B13 ne doit se lever que si personne ne mergera, pas pour une carte d un lot qui merge lui-même. Puis repasser les alertes du board (NOTIFY_AUDIT.md §6) avec la règle « une alerte = une chose que seul l opérateur peut faire » ; corriger les évidentes, proposer le reste en décisions.
+
+  - [ ] Une carte de lot dont le lot merge la PR ne lève plus B13
+  - [ ] B13 se lève encore pour une PR que personne ne mergera
+  - [ ] NOTIFY_AUDIT.md §6 liste chaque alerte du board avec ce que l opérateur doit faire
+- **Lead et copilote : plus de notification à l opérateur pour leur travail de routine** — ready
+
+  Demande de l opérateur (07/11) : il reçoit encore des notifications du lead. Or bridge/index.ts:297 exclut déjà isLeadPane(agent.paneId) des transitions, comme le copilote. Trouver le trou : leadPane() (run.ts:697) vide ou faux quand le lead est adopté au démarrage (« adopted the existing agent in w8B:p1 »), lead partagé de bridge/lead.ts différent du pane connu de run.ts, session non primaire, lead sous hc (id t…), ou une autre voie que onTransition (digest, cloche, comptage « N agents »). Exclure le lead partout où le copilote l est, par son pane id, sur ce poste comme chez un pair.
   
-  Sécurité (non négociable) : le HTML d un agent est non fiable. Affichage dans une iframe sandbox SANS allow-same-origin, servie depuis une route dédiée avec sa propre CSP stricte (pas d accès réseau sortant, pas de lecture du board). Le CSP du board et checkAccess restent inchangés, jamais d innerHTML dans l app. Premier point à établir : comment servir ces pages sans toucher au CSP du board ; si ce n est pas possible proprement, s arrêter et rendre compte.
+  Capture de l opérateur (07/11) : sa cloche est pleine de « Review · <carte> — Copilot review: complete / partial ». C est l alerte B2 de bridge/board-notify.ts:68-72 (« the copilot has an opinion on a card you have already stopped watching »). Pour une carte DANS un lot, le lead juge la carte : l avis du copilote n est pas pour l opérateur, ne rien lever. Hors lot, garder B2 seulement si le verdict demande quelque chose (partial / changes), pas pour « complete ». Mettre à jour NOTIFY_AUDIT.md §6 (ADR 0011) dans la même PR.
+
+  - [ ] Une demande au lead (passage working → idle/done) n envoie ni push ni entrée de cloche
+  - [ ] Le résumé (digest) ne compte pas le lead
+  - [ ] Un test couvre le lead adopté au démarrage
+  - [ ] Une revue du copilote sur une carte d un lot ne lève ni push ni entrée de cloche
+  - [ ] Hors lot, une revue « complete » ne notifie pas ; une revue qui demande une action notifie encore
+  - [ ] NOTIFY_AUDIT.md §6 décrit la nouvelle règle de B2
+- **Dell : la mise à jour se voit dans Réglages** — working
+
+  Le 06/11 l opérateur dit que le Dell « ne voit pas la maj ». Le plugin y est installé depuis GitHub (pas le clone). Vérifier ce que le Dell lit pour la dernière release (COLLIE_BOARD_UPDATE_REPO dans la config du plugin, setup qui n existe pas sous Windows) et faire que Réglages → Mises à jour annonce une nouvelle version sur Windows comme sur Linux, avec le bouton « Mettre à jour ».
+
+  - [ ] Sur le Dell, une release plus récente apparaît dans Réglages → Mises à jour avec le bouton
+  - [ ] Le setup Windows (ou le premier démarrage) renseigne le dépôt de mise à jour
+
+### Lot — hc : démarrer une carte (launched, one at a time)
+
+- **Sous hc, démarrer une carte échoue : agent.start part vers herdr 0.9 avec un terminal hc** — done
+
+  07/11 20:41, depuis 0.276.0 (hc moteur par défaut, #284) : la carte « Page Documents en explorateur » (eef4e5e1) échoue au démarrage : « herdr agent.start: agent_pane_not_found: agent target pane t1m not found ». t1m est un id de terminal hc : le worktree et le shell sont créés sous hc, puis agent.start est envoyé à herdr 0.9 (bridge/mux/herdr09.ts:506) qui ne connaît pas ce pane. Trouver où le Mux composite (#256) choisit le moteur pour agent.start et faire que le lancement reste sur le moteur qui a créé le pane. Test : un start sous hc ne parle jamais à herdr09 pour un pane hc.
+
+  - [x] Démarrer une carte avec herdr-app ouvert lance l agent sous hc, sans agent_pane_not_found
+  - [x] Avec hc arrêté, la carte démarre sous herdr 0.9 comme annoncé
+  - [x] Un test couvre le routage de agent.start pour un pane hc
+
+### Not in a lot
+
+- **Windows : les tests bun du bridge passent (27 échecs bloquent le pre-push)** — review
+
+  Vécu le 06/11 : sur le poste Windows, le hook pre-push (bun test) échoue avec 27 tests du bridge, tous hors du diff des cartes poussées (artefacts, git worktree, repo picker, processStartedAt, ContextTracker, autonomie…). Aucune carte ne peut pousser sans SKIP_TESTS=1. La CI GitHub (Linux) reste verte.
   
-  Documenter dans skills/collie-board/SKILL.md comment un agent crée une page (chemin, gabarit minimal autonome : CSS inline, pas de script externe). Fragment changes/ + ADR si la route sandbox ferme une option.
-
-  - [x] Un fichier docs/pages/x.html sur main apparaît comme onglet « x » dans la page projet
-  - [x] La page s affiche dans une iframe sandbox sans allow-same-origin ; un script dedans ne peut ni lire le board ni appeler /api
-  - [x] Le CSP et checkAccess du board sont inchangés (test)
-  - [x] Sans dossier docs/pages, aucun onglet en plus
-  - [x] SKILL.md explique à un agent comment créer une page custom
-  - [x] Un bouton plein écran affiche la page custom sur tout l écran (téléphone et bureau), avec une sortie évidente (bouton ou Échap)
-- **Export du plan dans git à chaque fin de lot** — done
-
-  Décision du 06/11 : le board reste l outil du plan ; à chaque fin de lot, une PR « docs(plan) » met à jour docs/plan/ (roadmap détaillée = GET /api/roadmap?format=md, étapes = format=steps, et le bilan du lot). L opérateur la merge ; le board ne pousse jamais sur main. Réutiliser la mécanique de fin de lot existante (pas de nouveau timer : accrocher à l événement de fin de lot) et le chemin habituel des PR d agent/lead ; si le plus simple est que le lead l inclue dans la dernière PR du lot, le dire et le justifier. Vérifier aussi comment arrivent ici les cartes et lots créés par un pair (ex. le Dell : createdBy) et le consigner. Réglage par dépôt pour couper l export (défaut : actif). Tests bun. Fragment bump: minor.
-
-  - [x] À la fin d un lot, une PR met docs/plan/ à jour (roadmap + bilan)
-  - [x] Rien n est poussé sur main sans l opérateur
-  - [x] Accroché à la fin de lot, aucun nouveau timer
-  - [x] Réglage par dépôt pour couper
-  - [x] Tests verts
-- **Page Documents du projet : lire la doc de main sur le téléphone** — done
-  - after: Modèle de convention de documentation (socle + 4 modules)
-
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Nouvel onglet du projet (à côté de Roadmap, PRs, Recette), route /board/documents. Le bridge lit les .md de main via bridge/git.ts seulement (ls-tree / show sur main, argv, chemin validé après --, jamais hors du dépôt), sans checkout. Classement par rubrique selon la section machine-lisible du modèle de convention (carte précédente) ; fichiers hors convention dans « Autres ». Rendu Markdown sûr (pas d innerHTML brut, CSP inchangée), liens internes entre .md cliquables, recherche par titre et texte. « Décisions » : ADR (.adr/ ou docs/adr/, statut lu dans le fichier) fusionnés avec les décisions de la roadmap (✅🟡❓), triés par date. Lu à l ouverture, jamais en boucle (pas de nouveau poll). Nouvelles routes documentées dans skills/collie-board/SKILL.md (skill.test.ts). i18n fr/en. Tests bun (lecture, validation de chemin) et web. Fragment bump: minor.
-
-  - [x] Onglet Documents : la doc de main classée par rubrique, rendue, avec recherche
-  - [x] Décisions = ADR + décisions de roadmap, avec statuts
-  - [x] Lecture via bridge/git.ts uniquement, chemin validé, rien hors du dépôt
-  - [x] Aucune nouvelle boucle de poll ; routes dans le skill
-  - [x] Tests verts
-- **Modèle de convention de documentation (socle + 4 modules)** — done
-
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Doc seulement. Écrire docs/conventions/DOC_CONVENTION.md (ou équivalent, découpé si > 30 Ko) :
-  1. Socle commun : index « où chercher quoi » (docs/README.md), AGENTS.md/CLAUDE.md court qui y renvoie (pas d histoire, les erreurs typiques du projet), ligne **Statut :** en tête de fichier + statuts ✅🟡❓, adr/ (modèle, index avec statut, jamais modifié, remplacé), plan/ par phase (objectif, démo, périmètre dedans/dehors, tickets, bilan), dev/ (comment on travaille), CHANGELOG à fragments (comme changes/ ici), doc à jour dans la même PR, découpe au-delà de ~30 Ko.
-  2. Quatre modules « ce qu on construit » : jeu (gdd/, scenes/, maps/, lore — Overgate), produit/SaaS (vision, specs/ par fonctionnalité, parcours, risques — CrewDesign /home/swetterwald/git/CrewDesign), outil/lib/plugin (usage, référence d API, ARCHITECTURE — Collie), infra/ops (machines, runbooks).
-  3. Les questions qu un agent pose pour choisir le module (type, public, solo/équipe, existant), et la règle « sur un dépôt existant, proposer une correspondance, ne rien déplacer d office, PR ».
-  4. Une section machine-lisible (tableau ou bloc) des chemins par rubrique, que la page Documents et le bilan de doc liront.
-  Citer Overgate et CrewDesign comme exemples (ce qu on reprend, ce qu on évite : fichiers de 100 Ko, décisions à deux endroits, instructions d agents triplées). Référencer ce fichier depuis skills/collie-board/SKILL.md.
-
-  - [x] Socle + 4 modules écrits, chacun avec ses chemins
-  - [x] Questions de choix du module et règle de migration par PR
-  - [x] Section des chemins par rubrique lisible par le code
-  - [x] Cité depuis le skill collie-board
-
-### Lot — Documentation : normes et agents (launched, 2 at a time)
-
-- **Page Documents : naviguer sans tout faire défiler** — review
-
-  Constat de l opérateur, vérifié dans web/src/routes/documents.tsx : la section Décisions est rendue en entier en haut (54 ADR + 106 décisions de roadmap sur collie-board = 160 lignes) avant la première rubrique ; tout est à plat, sans repli ni sommaire.
+  Pour chaque test : corriger le code s'il est faux sous Windows (séparateurs, chemins, casse), sinon rendre le test portable (path.join, fixtures). Un test qui n'a de sens que sous POSIX est marqué skipIf(win32) avec la raison, jamais supprimé.
   
-  Faire : une barre de rubriques en haut (puces Décisions, chaque rubrique, Autres) qui fait sauter à la section et reste visible au défilement ; chaque section repliable ; Décisions montre les 5 plus récentes puis « Voir les N décisions » ; filtres de statut sur les décisions (décidé, penché, ouvert). La recherche garde son comportement et déplie ce qui correspond.
+  Échecs relevés :
+  (fail) isExcludedArtifactPath > drops dependency, build-output, cache and board-scratch dirs by segment [0.40ms]
+  (fail) listWorktreeArtifacts > excludes dependency/build/board files even when the session mentioned them [4.85ms]
+  (fail) paneArtifactsResponse — the listing endpoint > a git failure degrades to mentions-only, not to an error [0.33ms]
+  (fail) orchestrator autonomy (ADR 0030) > validating a phase and the unplanned launch stay refused to it, enabled or not [12.46ms]
+  (fail) (unnamed) [0.45ms]
+  (fail) git — worktree resolution and diff parsing > parses `git worktree list --porcelain` into (path, branch) pairs [0.55ms]
+  (fail) git — worktree resolution and diff parsing > reports a detached worktree with a null branch rather than dropping it [0.25ms]
+  (fail) repo picker > resolves a repo root from a SUBDIRECTORY — a pane's cwd drifts as the agent works [0.56ms]
+  (fail) repo picker > collapses a CARD'S WORKTREE onto its source repo, not a repo of its own [0.31ms]
+  (fail) repo picker > falls back to the toplevel when the git dir isn't a plain <root>/.git [0.29ms]
+  (fail) repo picker > asks git ONCE per distinct cwd, not once per pane [9.41ms]
+  (fail) processStartedAt > agrees with the current process's own start time, on whichever path this platform uses [14.39ms]
+  (fail) ContextTracker > gauges an opencode pane from its session db, resolved by directory [46.06ms]
+  (fail) containedIn > accepts the root and anything under it [0.22ms]
+  (fail) pushDir — where the pre-push hook runs > the card's worktree when it exists [0.35ms]
+  (fail) pairId > drawn once, kept owner-only, the same on every load [6.94ms]
+  (fail) mcp: finish_card end to end, against the bridge's own route > pr opens the PR and journals card.pr_follow, without filing the card [2933.87ms]
+  (fail) defaultOpenCodeDbPath > is opencode's data dir, XDG_DATA_HOME first [0.32ms]
+  (fail) one PR for the lot over the routes (ADR 0041) > GET /api/cards/:id/pr of a card in a lot answers with the lot's PR [758.35ms]
+  (fail) provenance: HC_TERMINAL_ID is relayed wherever HERDR_PANE_ID is > the scan does see the relay sites (a moved file must not pass it silently) [0.38ms]
+  (fail) ClaudeTranscriptSource — rotation following > resolveForProcess follows what the process WRITES, not what it created [5.47ms]
+  (fail) ClaudeTranscriptSource — rotation following > resolveForProcess keeps two agents in one directory apart [2.94ms]
+  (fail) ClaudeTranscriptSource — rotation following > resolveForProcess falls back to the startup log when nothing has been written yet [2.91ms]
+  (fail) ClaudeTranscriptSource — rotation following > resolveForProcess falls back to the clock when the mirror is inconclusive [2.66ms]
+  (fail) ClaudeTranscriptSource — rotation following > resolveForProcess still answers on a filesystem with no birth times [2.78ms]
+  (fail) hc writes > creates a worktree with git, then runs a labelled shell in it: the pane [1.10ms]
+  (fail) hc writes > reopens a worktree on the live shell already in it, found by its label [0.61ms]
 
-  - [ ] Sur collie-board, la première rubrique de documents est visible sans défiler sur un téléphone
-  - [ ] Toucher une puce de la barre amène à sa section ; la barre reste visible
-  - [ ] Décisions affiche 5 lignes puis « Voir les N décisions »
-  - [ ] Chaque section se replie et se déplie
-  - [ ] Une recherche déplie les sections qui ont un résultat
-- **Demander une modif de doc, et lire la doc d un autre projet (API + MCP)** — done
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
+  - [ ] bun test à la racine passe sous Windows
+  - [ ] Aucun test supprimé ; un skip Windows porte sa raison
+  - [ ] La CI Linux reste verte
+- **Le lead et le copilote approuvent leur dossier avant de lancer Claude** — review
 
-  Suite de la page Documents. 1. Sur un document : bouton « Demander une modif » → champ texte → crée une carte (fichier concerné + texte de l opérateur), l agent fait la PR ; aucun éditeur, aucune écriture du board dans le dépôt. 2. Lecture inter-projets en lecture seule : les routes de la page Documents acceptent tout dépôt connu du board ; bridge/mcp.ts expose un outil « lire la doc d un projet » (liste par rubrique + lecture d un fichier) qui traduit ces routes (ADR 0039 : stdio, relaie x-collie-pane, aucune décision propre). Dépôt inconnu du board : refus. Routes et outil documentés dans skills/collie-board/SKILL.md. Tests bun. Fragment bump: minor.
+  V\u00E9cu le 06/11 (Windows, lot \u00AB Windows : chemins de d\u00E9p\u00F4t \u00BB) : le pane du lead est rest\u00E9 sur l'\u00E9cran de confiance de Claude Code (\u00AB Is this a project you trust? \u00BB, d\u00E9faut \u00AB No, exit \u00BB) pour C:\Users\steph\.local\state\collie-board\lead. Le lot s'arr\u00EAte : \u00AB the lead is not answering \u00BB.
+  
+  Cause : bridge/copilot.ts:1191-1194 cr\u00E9e le pane et appelle launchAgent() sans trustFolder(this.workDir), alors que startCard (cards.ts:935) et node.ts:388 le font. Le copilote et le lead (qui en h\u00E9rite) ne sont donc approuv\u00E9s que si quelqu'un a d\u00E9j\u00E0 r\u00E9pondu \u00E0 la main dans ce dossier \u2014 jamais sur une installation neuve.
+  
+  Appeler trustFolder(this.workDir) avant launchAgent quand l'agent est claude.
 
-  - [x] « Demander une modif » crée une carte liée au fichier
-  - [x] Un agent lit la doc d un autre dépôt connu via l API et via MCP, en lecture seule
-  - [x] Dépôt inconnu refusé
-  - [x] Skill à jour, tests verts
-- **Bilan de doc et bouton « Mettre la doc aux normes »** — review
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
-
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Sur la page Documents : un bandeau « bilan de doc » calculé contre le modèle de convention (pas d index, AGENTS/CLAUDE trop long, pas d ADR, décisions à deux endroits, fichier > 30 Ko, pas de ligne Statut…), chaque écart en une ligne. Bouton « Mettre la doc aux normes » : crée une carte (route cartes existante) dont la spec demande à l agent de lire le dépôt, POSER SES QUESTIONS à l opérateur (module : jeu, produit, outil, infra ; public ; existant) via une décision ouverte liée à la carte (roadmap/decision avec cardId), puis proposer une correspondance et faire la PR, sans rien supprimer. Pas d appel direct à agent.start. Tests bun du calcul du bilan (fixtures : arbre type Overgate conforme, type CrewDesign non conforme). i18n. Fragment bump: minor.
-
-  - [ ] Bilan de doc listant les écarts à la convention
-  - [ ] Le bouton crée une carte dont l agent questionne puis propose par PR
-  - [ ] Rien n est déplacé ou supprimé sans PR
-  - [ ] Tests du bilan sur deux arbres types
-
-## Phase 34 — V2 — 4 : le projet au centre
-
-Sous hc, la PWA et herdr-app montrent les projets et leur orchestrateur au centre ; hc devient le moteur par défaut ; recette faite sur téléphone et dans herdr-app (ADR 0052 §8).
-
-### Lot — Le projet au centre : PWA (launched, 3 at a time)
-
-- **Accueil par projets : phase, lot, orchestrateur, à tester** — done
-
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Partir de ce que l item de roadmap « Le projet d abord » a livré (lire l accueil actuel avant de toucher). Chaque projet sur l accueil montre en un coup d œil : phase en cours, lot en cours (et sa progression), état de l orchestrateur (au repos / travaille / attend ta décision), « N à tester ». Un toucher ouvre le projet. Réutiliser les données déjà chargées (pas de nouvel appel par projet si un existe). Tests web. Fragment bump: minor.
-
-  - [x] Chaque projet de l accueil montre phase, lot, état de l orchestrateur et N à tester
-  - [x] Aucune requête par projet en plus si évitable
-  - [x] Tests verts
-- **Le troupeau par projet : espaces et onglets retirés sous hc** — done
-
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). hc n a ni espaces ni onglets. Quand un agent vient de hc, la PWA le range par projet (dépôt de son cwd / label collie.card) : en tête l orchestrateur du projet, puis les agents de cartes, puis les autres terminaux. Les vues espaces/onglets (routes spaces, space/:id, sélecteurs) ne s affichent que s il existe des agents 0.9 ; sans 0.9, elles disparaissent de la navigation. Sous 0.9 seul : aucun changement. Pas de nouvelle boucle de poll. Tests web. Fragment bump: minor.
-
-  - [x] Sous hc, le troupeau est groupé par projet, orchestrateur en tête
-  - [x] Espaces/onglets masqués quand aucun agent 0.9
-  - [x] 0.9 seul inchangé, tests verts
-- **Sous-agents sous hc : children_of et --no-notify** — done
-
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Reste de la phase 3. Sous hc, lire les sous-agents d un agent de carte par children_of (au lieu des transcripts) et les afficher comme aujourd hui ; lancer les agents de carte de sorte que hc ne tape pas de note dans le parent à la fin d un enfant (--no-notify ou équivalent mesuré), sinon le parent perd un tour. Sous 0.9 rien ne change. Mesurer d abord, consigner dans HERDR_CORE_API.md. Tests bun. Fragment bump: minor.
-
-  - [x] Sous hc, les sous-agents d une carte s affichent via children_of
-  - [x] Aucune note hc tapée dans le parent
-  - [x] Mesure consignée, 0.9 inchangé, tests verts
-
-### Lot — herdr-app et hc par défaut (launched, 2 at a time)
-
-- **Mod herdr-app branché : ouvrir le vrai terminal, quelques actions** — working
-
-  ADR 0052 §8 phase 4. herdr-app-mod/ est un prototype en lecture. Sous hc, herdr-app et le board partagent le même core : le bouton orchestrateur doit focaliser le terminal étiqueté collie.pane=<paneId> (et l agent d une carte via collie.card=<id>), la PWA seulement en repli. Ajouter « lancer le lot suivant » et « ouvrir la recette » (lien PWA). Écritures : uniquement des routes existantes, depuis loopback, sans affaiblir checkAccess ni la CSP ; un lancement de lot reste soumis aux mêmes règles (createdBy, autonomie). herdr-app check vert. README du mod à jour. Fragment si code bridge/web touché.
-
-  - [ ] Sous hc, le mod ouvre le vrai terminal de l orchestrateur et des agents de carte
-  - [ ] Lancer le lot suivant et ouvrir la recette depuis le mod
-  - [ ] checkAccess et CSP inchangés, herdr-app check vert
-- **hc moteur par défaut, doc d installation** — working
-
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Passer le défaut de la config de lancement à hc quand hc est joignable (repli 0.9 sinon, dit dans l UI), lecture parallèle conservée. Doc d installation (README + HERDR_CORE_API.md) : Linux et Windows, core démarré par herdr-app ou le bureau, JAMAIS par un agent (il transmet CLAUDE_CODE_CHILD_SESSION, §7). Le bouton Migrer devient visible partout où hc est là. Le manifeste herdr-plugin.toml et ses actions restent (phase 5). Amender l ADR 0052 si le défaut change. Tests bun. Fragment bump: minor.
-
-  - [ ] Nouveau lancement sous hc par défaut quand hc est joignable, sinon 0.9 et dit
-  - [ ] Doc d installation Linux + Windows, core jamais démarré par un agent
-  - [ ] Manifeste herdr inchangé, tests verts
+  - [ ] Le copilote et le lead appellent trustFolder sur leur dossier de travail avant de lancer Claude
+  - [ ] Test : le dossier du lead est marqué hasTrustDialogAccepted avant le lancement
+  - [ ] Sur une installation neuve, un lot lancé ne s'arrête plus sur l'écran de confiance du lead
