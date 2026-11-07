@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.6] - 2026-11-07
+
+### Fixed
+
+- Le lead n'envoie plus de notification après un redémarrage du bridge : son pane est adopté au tick suivant, plus à sa première requête (ca86756)
+- Le lead est exclu du toast du client et des alertes relayées depuis un pair, comme le copilote (ca86756)
+- Cloche : plus de « Copilot review » pour une carte d'un lot (le lead la juge), ni pour un verdict `complete` (ca86756)
+
 ## [0.277.5] - 2026-11-07
 
 ### Fixed
