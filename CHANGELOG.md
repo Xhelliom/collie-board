@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.2] - 2026-11-07
+
+### Fixed
+
+- Réglages → Mises à jour annonce une nouvelle version sur Windows : sans `COLLIE_BOARD_UPDATE_REPO`, le dépôt vient de l'`origin` GitHub du checkout (`off` coupe la vérification) (2472eb5)
+- `start` / `status` sous Windows affichent le dépôt que lit la vérification (2472eb5)
+
 ## [0.277.1] - 2026-11-07
 
 ### Fixed
