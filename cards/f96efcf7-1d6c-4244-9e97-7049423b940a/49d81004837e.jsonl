@@ -13,3 +13,5 @@
 {"v":1,"hlc":"1794084112133.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"ready"}}
 {"v":1,"hlc":"1794084112133.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"ready","reason":"agent failed to start"},"ts":1794084103650}}
 {"v":1,"hlc":"1794084112133.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.start_failed","payload":{"stage":"agent.start","error":"herdr agent.start: agent_pane_not_found: agent target pane t1n not found"},"ts":1794084103651}}
+{"v":1,"hlc":"1794084224184.0009.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794084224184.0010.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"ready","to":"starting","reason":"card started"},"ts":1794084224006}}
