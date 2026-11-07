@@ -1,0 +1,2 @@
+{"v":1,"hlc":"1794083719643.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI","goal":"","position":37,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794083710077}}
+{"v":1,"hlc":"1794083719643.0002.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794083710078}}
