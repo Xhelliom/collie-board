@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.1] - 2026-11-07
+
+### Fixed
+
+- Sous hc, une carte dont le terminal a une adresse hors hexa (`t1m`) démarre sous hc au lieu d'envoyer `agent.start` à herdr 0.9 (5256f4d)
+
 ## [0.277.0] - 2026-11-07
 
 ### Added
