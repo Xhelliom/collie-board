@@ -841,6 +841,14 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
     expect(t.calls.find((a) => a[1] === "merge" && !a.includes("--auto"))).toEqual(["pr", "merge", "board/x", "--squash"]);
     expect(t.merges()).toEqual([{ runId: "r1", merged: true, reason: expect.stringContaining("auto-merge unavailable") }]);
     expect(t.merged()).toBe(1);
+    // The refusal says the board merges it — so the bell does not tell the operator to (B15).
+    expect(t.store.listEvents(t.card.id).find((e) => e.type === "card.automerge_refused")?.payload).toMatchObject({ boardMerges: true });
+  });
+
+  it("a refusal on a red gate leaves nobody to merge — no boardMerges on it", async () => {
+    const t = setup();
+    await t.land({ runId: "r1", ok: false, why: "the gate is red — not merging" });
+    expect(t.store.listEvents(t.card.id).find((e) => e.type === "card.automerge_refused")?.payload).not.toHaveProperty("boardMerges");
   });
 
   it("journals no pr_merged when the direct merge is refused", async () => {

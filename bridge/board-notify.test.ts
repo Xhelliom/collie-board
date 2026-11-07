@@ -47,7 +47,14 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
     dependentsOf: (id: string) =>
       Object.entries(cards)
         .filter(([, c]) => c.dependsOn === id)
-        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
+        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath, runId: c.runId ?? null })),
+    runs: {} as Record<string, { launchedAt: number | null; finished: boolean }>,
+    getRun(id: string) {
+      return this.runs[id] ?? null;
+    },
+    runFinished(id: string) {
+      return this.runs[id]?.finished ?? false;
+    },
     openSessionFor: (id: string) => {
       const c = cards[id];
       return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
@@ -56,7 +63,7 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       Object.entries(cards)
         .filter(([, c]) => c.runId === runId)
         .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
-  } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row> };
+  } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row>; runs: Record<string, { launchedAt: number | null; finished: boolean }> };
 }
 
 interface Row {
@@ -406,6 +413,22 @@ describe("BoardNotifier — B4, the one that opens a door", () => {
     });
   });
 
+  test("a successor in a launched lot is the lot's to start — nobody is told", () => {
+    const db = waiting("ready");
+    db.cards.c2!.runId = "r1";
+    db.runs.r1 = { launchedAt: 1, finished: false };
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.armed.size).toBe(0);
+    // A lot only planned, or already finished, starts nothing: the operator does.
+    db.runs.r1 = { launchedAt: null, finished: false };
+    db.events.push(finished(2));
+    notifier.update();
+    expect([...alerts.armed.keys()]).toEqual(["card:c2"]);
+  });
+
   test("it notifies and STOPS THERE — the gate is still a gate", () => {
     const db = waiting("ready");
     const alerts = sink();
@@ -615,11 +638,15 @@ describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)",
   });
 });
 
-describe("tell: a refused auto-merge (B13)", () => {
+describe("tell: a refused auto-merge (B15)", () => {
   test("says what to do, in the bell", () => {
     const e = { id: 1, cardId: "c", type: "card.automerge_refused", payload: { error: "GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)" }, ts: 1 };
     expect(tell(e)).toEqual({ status: "blocked", subtitle: "PR open — auto-merge is off for this repo; merge it yourself" });
     expect(tell({ ...e, payload: { error: "boom" } })!.subtitle).toBe("PR open — GitHub refused auto-merge: boom");
+  });
+  test("stays silent when the board merges the PR itself — nothing for the operator to do", () => {
+    const e = { id: 1, cardId: "c", type: "card.automerge_refused", payload: { error: "Auto merge is not allowed for this repository", boardMerges: true }, ts: 1 };
+    expect(tell(e)).toBeNull();
   });
 });
 
