@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.276.1] - 2026-11-07
+
+### Fixed
+
+- Fin de lot en autonomie : l'orchestrateur ne se voit plus proposer un lot créé par un autre poste ; s'il n'y a que celui-là, le message le nomme et dit de le lancer depuis ce poste. (090f936)
+- Un pane resté shell nu ne passe plus la carte en « en cours » ; après 10 min sans agent la session s'arrête (raison au journal), la carte revient « prête » et son lot s'arrête (64d6e3f)
+
 ## [0.276.0] - 2026-11-07
 
 ### Added
