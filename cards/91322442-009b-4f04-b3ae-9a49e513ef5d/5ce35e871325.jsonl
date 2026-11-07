@@ -35,3 +35,4 @@
 {"v":1,"hlc":"1794089861654.0001.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/297"},"ts":1794089854145}}
 {"v":1,"hlc":"1794089861654.0002.5ce35e871325","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794089861654.0003.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794089854159}}
+{"v":1,"hlc":"1794089890640.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleanup_failed","payload":{"stage":"worktree","error":"herdr worktree.remove: timed out after 5000ms"},"ts":1794089888088}}
