@@ -221,9 +221,11 @@ describe("loadConfig", () => {
     expect(loadConfig().dialMode).toBe("auto");
   });
 
-  test("the mux defaults to herdr09, and an unknown engine falls back to it", () => {
-    expect(loadConfig().mux).toBe("herdr09");
+  test("the mux defaults to auto (hc while it answers), and an unknown engine falls back to it", () => {
+    expect(loadConfig().mux).toBe("auto");
     process.env.COLLIE_BOARD_MUX = "tmux";
+    expect(loadConfig().mux).toBe("auto");
+    process.env.COLLIE_BOARD_MUX = "herdr09";
     expect(loadConfig().mux).toBe("herdr09");
   });
 
@@ -235,6 +237,7 @@ describe("loadConfig", () => {
     expect(cfg.mux).toBe("hc");
     expect(cfg.socketPath).toBe("/x/herdr.sock");
     expect(hcSocketPath()).toBe(join("/run/user/7", "herdr-core", "default.sock"));
+    expect(hcSocketPath({ USERNAME: "steph" }, "win32")).toBe("\\\\.\\pipe\\herdr-core-steph-default.sock");
     process.env.COLLIE_BOARD_HC_SOCKET = "/y/hc.sock";
     expect(hcSocketPath()).toBe("/y/hc.sock");
   });

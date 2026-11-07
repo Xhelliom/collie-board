@@ -90,11 +90,12 @@ export interface Config {
    */
   dialMode?: DialMode;
   /**
-   * The engine NEW panes are launched on (`bridge/mux/`, ADR 0052 §4.2): `herdr09` or `hc`. Both are
-   * read at once whatever this says. Set via `COLLIE_BOARD_MUX`. Optional for the same reason as
-   * {@link dialMode}: absent = `herdr09`. {@link socketPath} stays herdr 0.9's; hc's is `hcSocketPath()`.
+   * The engine NEW panes are launched on (`bridge/mux/`, ADR 0052 §4.2): `auto` (hc while it answers,
+   * else herdr 0.9 — phase 4), or `herdr09` / `hc` pinned. Both are read at once whatever this says.
+   * Set via `COLLIE_BOARD_MUX`. Optional for the same reason as {@link dialMode}: absent = `auto`.
+   * {@link socketPath} stays herdr 0.9's; hc's is `hcSocketPath()`.
    */
-  mux?: "herdr09" | "hc";
+  mux?: "auto" | "herdr09" | "hc";
   /** TCP port the bridge listens on (loopback only). `tailscale serve` proxies to it. */
   port: number;
   /**
@@ -285,11 +286,12 @@ export function defaultSocketPath(
 
 /**
  * herdr-core's socket: `COLLIE_BOARD_HC_SOCKET`, else `$XDG_RUNTIME_DIR/herdr-core/default.sock`
- * (measured on Linux, HERDR_CORE_API.md §0).
- * shortcut: no Windows named-pipe default yet, set COLLIE_BOARD_HC_SOCKET there until the Windows probe lands.
+ * (measured on Linux, HERDR_CORE_API.md §0), or the named pipe on Windows (measured there, §7).
  */
-export function hcSocketPath(env: NodeJS.ProcessEnv = process.env): string {
+export function hcSocketPath(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
   if (env.COLLIE_BOARD_HC_SOCKET) return env.COLLIE_BOARD_HC_SOCKET;
+  // Measured (HERDR_CORE_API.md, Windows): `\\.\pipe\herdr-core-<user>-<instance>.sock`.
+  if (platform === "win32") return `\\\\.\\pipe\\herdr-core-${env.USERNAME ?? ""}-default.sock`;
   const runtime = env.XDG_RUNTIME_DIR ?? join("/run/user", String(process.getuid?.() ?? 0));
   return join(runtime, "herdr-core", "default.sock");
 }
@@ -305,7 +307,7 @@ export function loadConfig(): Config {
 
   const submitKeys = envList("COLLIE_BOARD_SUBMIT_KEYS");
 
-  const mux = envEnum("COLLIE_BOARD_MUX", ["herdr09", "hc"] as const, "herdr09");
+  const mux = envEnum("COLLIE_BOARD_MUX", ["auto", "herdr09", "hc"] as const, "auto");
 
   return {
     // herdr 0.9's, always: hc is read beside it, on its own socket (hcSocketPath, ADR 0052 §4.2).

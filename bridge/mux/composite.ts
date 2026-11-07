@@ -21,7 +21,8 @@ import {
 //   `hc`; herdr 0.9's are `w…`, `w…:t1`, `w…:p1`. So a 0.9 id (card, session, `/pane/<id>` URL)
 //   stays exactly what it was, and HC_TERMINAL_ID still names its pane (provenance, ADR 0010).
 // - Reads are merged; every action goes to the pane's owner; a NEW pane (space, worktree) goes to
-//   `launch` (`cfg.mux`).
+//   `launch` (`cfg.mux`). `auto` (the default since phase 4) is hc when hc answered the last
+//   snapshot, else herdr 0.9 — and {@link CompositeMux.launchEngine} says it fell back, for the UI.
 // - An engine that fails does not empty the other: its last good panes are kept for a grace while it
 //   blips, then dropped. Only when every engine fails does the snapshot reject (= disconnected).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,12 +41,21 @@ export class CompositeMux implements Mux {
   private readonly last = new Map<MuxKind, Part>();
   /** herdr 0.9 servers predating `session.snapshot` (StateEngine's fallback, per engine here). */
   private readonly listOnly = new Set<MuxKind>();
+  /** Whether hc answered the last snapshot — what `auto` launches on. */
+  private hcUp = false;
 
   constructor(
     private readonly engines: Partial<Record<MuxKind, Mux>>,
-    private readonly launch: MuxKind,
+    private readonly launch: MuxKind | "auto",
     private readonly now: () => number = Date.now,
   ) {}
+
+  /** Where a new pane goes now; `fallback` = `auto` wanted hc and hc is not answering. */
+  launchEngine(): { engine: MuxKind; fallback: boolean } {
+    if (this.launch !== "auto") return { engine: this.launch, fallback: false };
+    if (this.engines.hc && this.hcUp) return { engine: "hc", fallback: false };
+    return { engine: "herdr09", fallback: Boolean(this.engines.hc) };
+  }
 
   private kinds(): MuxKind[] {
     return Object.keys(this.engines) as MuxKind[];
@@ -82,6 +92,7 @@ export class CompositeMux implements Mux {
   async sessionSnapshot(): Promise<WireSnapshot> {
     const kinds = this.kinds();
     const got = await Promise.allSettled(kinds.map((k) => this.fetch(k, this.engines[k]!)));
+    this.hcUp = got[kinds.indexOf("hc")]?.status === "fulfilled";
     if (got.every((g) => g.status === "rejected")) throw (got[0] as PromiseRejectedResult).reason;
     const t = this.now();
     const parts: WireSnapshot[] = [];
@@ -161,7 +172,7 @@ export class CompositeMux implements Mux {
 
   // ── Spaces and tabs: a new space is a launch; the rest goes to the owner ──
   createWorkspace(opts: { cwd: string; label?: string }): Promise<CreatedShell> {
-    return this.on(this.launch, "createWorkspace").createWorkspace(opts);
+    return this.on(this.launchEngine().engine, "createWorkspace").createWorkspace(opts);
   }
   async createTab(workspaceId: string, opts?: { label?: string; cwd?: string }) {
     return (await this.to(workspaceId, "createTab")).createTab(workspaceId, opts);
@@ -185,10 +196,10 @@ export class CompositeMux implements Mux {
 
   // ── Worktrees: a new checkout's pane is a launch; removing one goes to its space's owner ──
   createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string }): Promise<CreatedWorktree> {
-    return this.on(this.launch, "createWorktree").createWorktree(opts);
+    return this.on(this.launchEngine().engine, "createWorktree").createWorktree(opts);
   }
   openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
-    return this.on(this.launch, "openWorktree").openWorktree(opts);
+    return this.on(this.launchEngine().engine, "openWorktree").openWorktree(opts);
   }
   async removeWorktree(opts: { workspaceId: string; force?: boolean }) {
     return (await this.to(opts.workspaceId, "removeWorktree")).removeWorktree(opts);

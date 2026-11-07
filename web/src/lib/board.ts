@@ -894,6 +894,11 @@ export function handoffCard(id: string): Promise<{ ok: true; card: CardView }> {
   });
 }
 
+/** Where a new launch on this machine goes: hc, or herdr 0.9 — `fallback` when hc is not answering. */
+export function fetchLaunchEngine(): Promise<{ engine: "herdr09" | "hc"; fallback: boolean }> {
+  return apiRequest("/api/board/launch-engine", {}, GET_TIMEOUT_MS);
+}
+
 /** Whether « Migrer vers herdr-core » is offered for this card's agent, and why not (bridge/migrate-hc.ts). */
 export function migrateHcAvailability(id: string, signal?: AbortSignal): Promise<{ available: boolean; reason?: string }> {
   return apiRequest(`/api/cards/${encodeURIComponent(id)}/migrate-hc`, { signal }, GET_TIMEOUT_MS);
