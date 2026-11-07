@@ -86,6 +86,8 @@ export interface HomeData {
   /** The copilot's own pane, when it has one — useAgentTransitions leaves it out of the foreground
    *  toast, the same way the bridge already keeps it out of push/history. Null on an older bridge. */
   copilotPaneId: string | null;
+  /** The lead's pane, left out of the toast the same way. Absent before the bridge sends it. */
+  leadPaneId?: string | null;
   /** The session this snapshot was fetched for (undefined = primary) — so children don't re-derive. */
   session: string | undefined;
   /** Active notification snooze deadline (epoch ms), or null when not snoozed. */
@@ -184,6 +186,7 @@ function toHomeData(snap: SnapshotResponse, session: string | undefined, error: 
     tabs: snap.tabs ?? [],
     sessions: snap.sessions ?? [],
     copilotPaneId: snap.copilotPaneId ?? null,
+    leadPaneId: snap.leadPaneId ?? null,
     session,
     snoozedUntil: snap.notifications?.snoozedUntil ?? null,
     notifyCount: snap.notifications?.count ?? 0,

@@ -42,7 +42,7 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       events.filter((e) => types.includes(e.type)).map((e) => e.type).reverse().slice(0, limit),
     getCard: (id: string) => {
       const c = cards[id];
-      return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath } : null;
+      return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath, runId: c.runId ?? null } : null;
     },
     dependentsOf: (id: string) =>
       Object.entries(cards)
@@ -111,6 +111,12 @@ describe("tell", () => {
     });
   });
 
+  test("B2 only for a verdict that asks something — a complete review asks nothing", () => {
+    expect(tell(event(1, "review.created", { verdict: "complete" }))).toBeNull();
+    expect(tell(event(2, "review.created", { verdict: " Complete " }))).toBeNull();
+    expect(tell(event(3, "review.created", { verdict: "drift" }))?.subtitle).toBe("Copilot review: drift");
+  });
+
   test("drops everything else — the filter is the fact, not the trigger", () => {
     for (const type of ["card.merged", "card.status", "session.opened", "wrapup.expired", "copilot.explained"]) {
       expect(tell(event(1, type))).toBeNull();
@@ -118,7 +124,7 @@ describe("tell", () => {
   });
 
   test("survives a payload that isn't the shape it expects", () => {
-    expect(tell(event(1, "review.created", null))?.subtitle).toBe("Copilot review is in");
+    expect(tell(event(1, "review.created", null))).toBeNull();
     expect(tell(event(2, "card.cleanup_failed", { stage: 7 }))?.subtitle).toBe("cleanup kept");
   });
 });
@@ -151,6 +157,17 @@ describe("BoardNotifier", () => {
       title: "Review · Ship the bell",
       body: "collie-board · Copilot review: drift",
     });
+  });
+
+  test("a review on a lot's card tells nothing: the lead judges that card, not the operator", () => {
+    const log = new NotifyLog(() => 0);
+    const db = source([], { c1: { title: "In a lot", status: "review", repoPath: null, session: null, handoff: null, runId: "r1" } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, log, alerts);
+    db.events.push(event(1, "review.created", { verdict: "partial" }));
+    notifier.update();
+    expect(log.recent()).toHaveLength(0);
+    expect(alerts.log).toEqual([]);
   });
 
   test("a fact it can't render still advances the cursor", () => {
@@ -363,13 +380,13 @@ describe("BoardNotifier — the board's own alerts", () => {
     const log = new NotifyLog(() => 0);
     const notifier = new BoardNotifier(db, log);
 
-    db.events.push(orphan(1), event(2, "review.created", { verdict: "complete" }));
+    db.events.push(orphan(1), event(2, "review.created", { verdict: "partial" }));
     notifier.update();
 
     // The orphan produced nothing — an alarm with nowhere to go is not silently turned into a bell
     // entry, because a bell entry cannot be retracted and this fact needs to be.
     expect(log.recent()).toHaveLength(1);
-    expect(log.recent()[0]?.subtitle).toBe("Copilot review: complete");
+    expect(log.recent()[0]?.subtitle).toBe("Copilot review: partial");
   });
 });
 

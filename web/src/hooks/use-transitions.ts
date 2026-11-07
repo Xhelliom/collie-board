@@ -70,6 +70,8 @@ export function useAgentTransitions(
   openPaneId: string | null,
   copilotPaneId: string | null,
   session?: string,
+  /** The lead's pane: the board's other agent, left out for the same reason as the copilot's. */
+  leadPaneId: string | null = null,
 ): void {
   const prev = useRef<Map<string, AgentStatus> | null>(null);
   const navigate = useNavigate();
@@ -85,7 +87,7 @@ export function useAgentTransitions(
       const was = before.get(a.paneId);
       if (!was || was === a.status) continue;
       if (a.paneId === openPaneId) continue; // you're already looking at it
-      if (a.paneId === copilotPaneId) continue; // the board's own agent, not a worker
+      if (a.paneId === copilotPaneId || a.paneId === leadPaneId) continue; // the board's own agents, not workers
       if (a.status !== "blocked" && a.status !== "done") continue;
       const n = describe(a, session);
       // One toast per pane (the id): a blocked→done flip replaces its own notice rather than stacking a second.
@@ -101,5 +103,5 @@ export function useAgentTransitions(
     }
     // `t`/`navigate` are left out on purpose: a re-created one must not re-run the diff.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, openPaneId, copilotPaneId, session]);
+  }, [agents, openPaneId, copilotPaneId, session, leadPaneId]);
 }

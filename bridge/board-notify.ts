@@ -65,11 +65,13 @@ const str = (payload: unknown, key: string): string | null => {
  * Exported for the test: it is the whole editorial judgement of this module.
  */
 export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle"> | null {
-  // B2 — the copilot has an opinion on a card you have already stopped watching. The verdict is
-  // already in the payload (`complete | partial | drift`), so this costs no read.
+  // B2 — the copilot has an opinion on a card you have already stopped watching, and it asks for
+  // something. The verdict is already in the payload (`complete | partial | drift`), so this costs no
+  // read; a `complete` (or no verdict) asks nothing and is not told. A card in a lot is the lead's to
+  // judge, not yours: the notifier drops that one where it reads the card ({@link BoardNotifier}).
   if (e.type === "review.created") {
     const verdict = str(e.payload, "verdict");
-    return { status: "done", subtitle: verdict ? `Copilot review: ${verdict}` : "Copilot review is in" };
+    return verdict && verdict.trim().toLowerCase() !== "complete" ? { status: "done", subtitle: `Copilot review: ${verdict}` } : null;
   }
   // B7 — the worktree or branch is still on your disk because the automatic cleanup refused to
   // touch it. Nothing else reports this: `autoCleanup` is fired by the wrapup coordinator with no
@@ -204,7 +206,7 @@ export interface BoardNotifySource {
   /** The newest `limit` entries' types among `types`, newest first — for {@link copilotDown}. */
   latestEventTypes(types: string[], limit: number): string[];
   eventsAfter(after: number): BoardEvent[];
-  getCard(id: string): { id: string; title: string; status: string; repoPath: string | null } | null;
+  getCard(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null } | null;
   /** The cards waiting on this one, for B4 ({@link unblocks}) — one unindexed scan, on a `done`. */
   dependentsOf(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null }[];
   /** For B4: a successor in a launched, unfinished lot is the lot's to start, not the operator's. */
@@ -323,7 +325,8 @@ export class BoardNotifier {
       // deleted since simply has no story left to tell.
       const card = this.db.getCard(e.cardId);
       if (!card) continue;
-      if (said) {
+      // B2 on a lot's card: the lead judges it, the copilot's opinion is not the operator's (§6.3).
+      if (said && !(e.type === "review.created" && card.runId)) {
         this.log.add({
           ...said,
           cwd: card.repoPath ?? "",

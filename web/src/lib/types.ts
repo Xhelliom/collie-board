@@ -196,6 +196,8 @@ export interface SnapshotResponse {
   sessions?: SessionSummary[];
   /** The copilot's own pane, when it has one. Absent/null on an older bridge or a disabled copilot. */
   copilotPaneId?: string | null;
+  /** The lead's pane, same posture. Absent on an older bridge. */
+  leadPaneId?: string | null;
   /** Version / upgrade status. Absent on an older bridge that doesn't report it. */
   update?: UpdateInfo;
   ts: number;

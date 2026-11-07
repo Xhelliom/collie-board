@@ -1068,6 +1068,18 @@ review l'enrichit silencieusement** — exactement ce que fait le sous-titre du 
 alerte a déjà été rétractée**. Un seul cas la fait exister seule, et c'est le bon : la carte a été
 lue, puis le verdict est tombé.
 
+**B2 resserré (capture opérateur du 07/11/2026).** La cloche se remplissait de « Review · <carte> —
+Copilot review: complete / partial ». Deux cas ne passent plus le test « il y a quelque chose à décider » :
+- **une carte d'un lot** (`card.runId` posé) : c'est le lead qui juge la carte, l'avis du copilot n'est
+  pas pour l'opérateur — ni cloche, ni push (`BoardNotifier.update`, `board-notify.ts`) ;
+- **hors lot, un verdict `complete`** (ou absent) : il ne demande rien. Seul un verdict qui demande
+  quelque chose (`partial`, `drift`…) est encore dit dans la cloche (`tell()`).
+
+Même passe : le **lead** est exclu partout où le copilot l'est, par son pane id — transitions (`index.ts`),
+toast du client, `blocked` relayé depuis un pair (le pair publie ses `boardPaneIds`). Le trou était
+l'adoption au démarrage : le pane du lead n'était connu qu'à sa première requête ; `Copilot.observe()`
+l'adopte désormais au tick suivant le redémarrage.
+
 **Note de priorité sur B4.** C'est le seul événement de la liste qui **ouvre** une possibilité au lieu
 d'en réclamer une, et la gate est explicitement « pas un déclencheur » (`cards.ts:626`) : rien ne doit
 démarrer tout seul. Donc marqueur distinct (`Ready`, jamais `Needs you`) et préférence **off par

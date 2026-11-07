@@ -1254,7 +1254,13 @@ export class Copilot {
    * poll loop; costs nothing when the copilot is idle or disabled.
    */
   observe(snap: EngineSnapshot): void {
-    if (!this._paneId || snap.bridge === "disconnected") return;
+    if (snap.bridge === "disconnected") return;
+    // A restart forgets the pane while the agent keeps running in our directory: adopt it now, not at
+    // the next request — until then its turns would page the operator like a worker's (index.ts).
+    if (!this._paneId) {
+      this._paneId = snap.agents.find((a) => a.cwd === this.workDir)?.paneId ?? null;
+      return;
+    }
     const live = [...snap.agents, ...snap.shellPanes].some((p) => p.paneId === this._paneId);
     if (!live) this._paneId = null;
   }
