@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794084293361.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Dell : mise à jour visible, lead silencieux"}}
 {"v":1,"hlc":"1794084580789.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Notifications justes, Dell à jour"}}
 {"v":1,"hlc":"1794085285994.0000.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1794085278570}}
+{"v":1,"hlc":"1794090569605.0003.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1794090569552}}
