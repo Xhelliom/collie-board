@@ -10,3 +10,8 @@
 {"v":1,"hlc":"1793967195518.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1793967185770}}
 {"v":1,"hlc":"1794082279152.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"orphaned"}}
 {"v":1,"hlc":"1794082279153.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"orphaned","reason":"pane vanished from snapshot"},"ts":1794082273580}}
+{"v":1,"hlc":"1794082290458.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794082290458.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"orphaned","to":"starting","reason":"card started"},"ts":1794082279203}}
+{"v":1,"hlc":"1794082290458.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794082290458.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794082283694}}
+{"v":1,"hlc":"1794082290458.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2237},"ts":1794082286251}}
