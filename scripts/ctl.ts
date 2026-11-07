@@ -23,6 +23,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, r
 import { connect } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { resolveUpdateRepo } from "../bridge/update.ts";
 
 export const PLUGIN_ID = "herdr.collie-board";
 export const TASK_NAME = "CollieBoard";
@@ -220,6 +221,8 @@ export interface Banner {
   port: number;
   env: Record<string, string | undefined>;
   tailnetUrl: string;
+  /** The repo the release check reads (Windows banner only — the bash one has its own lines). */
+  updateRepo?: string;
 }
 
 /** The "is Collie up?" summary `start` and `status` share — same lines as `print_status_banner`. */
@@ -240,6 +243,9 @@ export function statusBanner(b: Banner): string[] {
     );
   } else {
     lines.push(`    tailnet   ${b.tailnetUrl}`);
+  }
+  if (b.updateRepo !== undefined) {
+    lines.push(`    updates   ${b.updateRepo || "off (set COLLIE_BOARD_UPDATE_REPO=owner/name)"}`);
   }
   lines.push("");
   return lines;
@@ -366,6 +372,7 @@ async function printBanner(c: Ctx, waitMs = 5000) {
     port: c.port,
     env: c.env,
     tailnetUrl: tailnetUrl(c),
+    updateRepo: resolveUpdateRepo(c.env, c.root),
   });
   console.log(lines.join("\n"));
 }

@@ -163,9 +163,9 @@ not possible at all, which is the other half of why this way round is the safer 
 - [x] Fork vs standalone → **fork** (above).
 - [ ] Confirm whether the `herdr-plugin` topic gets the fork listed anyway (~30 min refresh). If
       not, decide whether a standalone mirror is worth maintaining.
-- [ ] Set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board` in the plugin `.env` so the in-app update
-      banner works. It is opt-in precisely because pointing it at upstream would nag about versions
-      this tree isn't.
+- [x] The in-app update banner's repo → **the checkout's GitHub origin** when
+      `COLLIE_BOARD_UPDATE_REPO` is unset, 2026-11-07 (a Windows node, with no setup step, never saw
+      an update).
 
 ## i18n migration — a wide upstream diff (ADR 0038)
 
