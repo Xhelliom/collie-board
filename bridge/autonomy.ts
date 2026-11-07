@@ -38,8 +38,14 @@ export type Verdict = { go: true; next: Run } | { go: false; why: string | null 
 export function endOfLot(db: BoardDb, run: Run): Verdict {
   const a = db.autonomyOf(run.repoPath);
   if (!a.enabled) return { go: false, why: null };
-  const next = db.listRuns(run.repoPath).find((r) => r.launchedAt === null && !doneOutsideLot(r, db.runMembers(r.id)));
-  if (!next) return { go: false, why: null };
+  const planned = db.listRuns(run.repoPath).filter((r) => r.launchedAt === null && !doneOutsideLot(r, db.runMembers(r.id)));
+  // ADR 0048 §7: only the pair that created a lot launches it — never offer another pair's.
+  const next = planned.find((r) => db.ownsRun(r));
+  if (!next) {
+    const other = planned[0];
+    if (!other) return { go: false, why: null };
+    return { go: false, why: `le prochain lot planifié « ${other.name ?? "sans nom"} » a été créé sur un autre poste (${other.createdBy ?? "pair"} ${other.createdPair}) — l'opérateur le lance depuis ce poste-là` };
+  }
   if (a.stopOnRed && redCards(db, run).length) return { go: false, why: "un gate ou une CI est rouge" };
   if (a.maxChain !== null && a.chained >= a.maxChain) return { go: false, why: `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte` };
   return { go: true, next };
