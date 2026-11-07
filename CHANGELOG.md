@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.276.0] - 2026-11-07
+
+### Added
+
+- Le bouton Démarrer d'une carte dit quand hc ne répond pas et que le lancement se fera sous herdr 0.9 (8653a44)
+- Sous Windows, le bridge trouve le named pipe de hc sans réglage (8653a44)
+- Doc d'installation de hc (Linux, Windows) : core démarré par herdr-app ou le bureau, jamais par un agent (8653a44)
+
+### Changed
+
+- Un nouveau lancement va sous herdr-core (hc) dès que son core répond, sous herdr 0.9 sinon (`COLLIE_BOARD_MUX=auto`, le nouveau défaut) (8653a44)
+
 ## [0.275.0] - 2026-11-06
 
 ### Added
