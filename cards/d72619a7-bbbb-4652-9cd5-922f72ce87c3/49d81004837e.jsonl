@@ -8,3 +8,4 @@
 {"v":1,"hlc":"1794087041749.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"ready"}}
 {"v":1,"hlc":"1794087041749.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"ready","reason":"agent failed to start"},"ts":1794087028480}}
 {"v":1,"hlc":"1794087041749.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.start_failed","payload":{"stage":"agent.start","error":"herdr agent.start: agent_pane_not_found: agent target pane t1s not found"},"ts":1794087028482}}
+{"v":1,"hlc":"1794087146093.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e85eac05-84aa-41f0-b9d1-232c91b4602e"}}
