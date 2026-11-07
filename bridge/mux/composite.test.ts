@@ -54,7 +54,7 @@ describe("ownerOf", () => {
 });
 
 describe("CompositeMux", () => {
-  const setup = (launch: "herdr09" | "hc" = "herdr09") => {
+  const setup = (launch: "auto" | "herdr09" | "hc" = "herdr09") => {
     const h = fake([pane("w1:p1", "w1")]);
     const c = fake([pane("t3", "hc")]);
     let now = 0;
@@ -112,6 +112,25 @@ describe("CompositeMux", () => {
     await mux.createWorkspace({ cwd: "/r" });
     expect(c.calls.map((x) => x.split(" ")[0])).toEqual(["createWorktree", "createWorkspace"]);
     expect(h.calls).toEqual([]);
+  });
+
+  test("auto launches on hc while hc answers, and says it fell back to herdr 0.9 when it does not", async () => {
+    const { mux, h, c } = setup("auto");
+    expect(mux.launchEngine()).toEqual({ engine: "herdr09", fallback: true }); // no snapshot yet
+    await mux.sessionSnapshot();
+    expect(mux.launchEngine()).toEqual({ engine: "hc", fallback: false });
+    await mux.createWorktree({ cwd: "/r", branch: "b" });
+    expect(c.calls.map((x) => x.split(" ")[0])).toEqual(["createWorktree"]);
+    c.setDown(true);
+    await mux.sessionSnapshot();
+    expect(mux.launchEngine()).toEqual({ engine: "herdr09", fallback: true });
+    await mux.createWorkspace({ cwd: "/r" });
+    expect(h.calls.at(-1)?.split(" ")[0]).toBe("createWorkspace");
+  });
+
+  test("a pinned engine is never a fallback, and a bridge without hc has nothing to fall back from", () => {
+    expect(setup("herdr09").mux.launchEngine()).toEqual({ engine: "herdr09", fallback: false });
+    expect(new CompositeMux({ herdr09: fake([]).mux }, "auto").launchEngine()).toEqual({ engine: "herdr09", fallback: false });
   });
 
   test("an action for an engine the bridge lacks rejects instead of landing elsewhere", async () => {

@@ -55,6 +55,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/peers/test": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/environments": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/grant": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
+  "/api/board/launch-engine": "the card's Start button saying a launch falls back to herdr 0.9",
   "/api/notifications/log": "the bell",
   "/api/notifications/log/read-all": "the bell",
   "/api/notifications/prefs": "notification settings",

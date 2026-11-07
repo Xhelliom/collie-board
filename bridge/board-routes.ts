@@ -31,6 +31,7 @@ import {
 import { cardsSummary } from "./cards-summary.ts";
 import { hcSocketPath, type Config } from "./config.ts";
 import { Hc } from "./mux/hc.ts";
+import { CompositeMux } from "./mux/composite.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type {
   BoardDb,
@@ -117,6 +118,9 @@ const BOARD_PREFS_ROUTE = "/api/board/prefs";
 
 /** `/api/board/pins` — the agent sessions pinned to the quick access (BoardDb `pins`). */
 const BOARD_PINS_ROUTE = "/api/board/pins";
+
+/** `/api/board/launch-engine` — where a new launch goes: hc, or herdr 0.9 and whether as a fallback (ADR 0052 §4.2). */
+const BOARD_LAUNCH_ENGINE_ROUTE = "/api/board/launch-engine";
 
 /** `/api/board/usage` — how much Claude Code quota is left (see usage.ts). */
 const BOARD_USAGE_ROUTE = "/api/board/usage";
@@ -648,6 +652,13 @@ async function route(
     if (denied) return denied;
     const check = new URL(req.url).searchParams.get("check") === "1";
     return ctx.json({ prs: await openPrs(ctx.db, check) });
+  }
+
+  if (pathname === BOARD_LAUNCH_ENGINE_ROUTE && req.method === "GET") {
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    // Not the primary session's composite (a test, a lone 0.9): 0.9, and nothing fell back.
+    return ctx.json(ctx.herdr instanceof CompositeMux ? ctx.herdr.launchEngine() : { engine: "herdr09", fallback: false });
   }
 
   // Pins: the operator's preference, shared by the phone and the PC. Keyed on herdr's agent session,

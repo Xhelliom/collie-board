@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import { endCardRemote, fetchCardRemote, fetchRepoEnvironments, patchCard, type CardEnvironment as Env, type CardRemote, type CardView } from "@/lib/board";
+import { endCardRemote, fetchCardRemote, fetchLaunchEngine, fetchRepoEnvironments, patchCard, type CardEnvironment as Env, type CardRemote, type CardView } from "@/lib/board";
 
 const keyOf = (e: Env | null | undefined) => (e ? `${e.peer}/${e.name}` : "");
 
@@ -66,7 +66,9 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
   }
 
   if (remote === undefined) return null;
-  if (!card.repoPath) return children;
+  // A launch here, about to fall back to herdr 0.9: said beside the button that does it.
+  const start = children && !env ? <><LaunchFallbackNote />{children}</> : children;
+  if (!card.repoPath) return start;
   return (
     <>
       <EnvironmentPicker
@@ -83,9 +85,27 @@ export function CardEnvironment({ card, onChanged, onError, children }: { card: 
           onChanged();
         }}
       />
-      {children}
+      {start}
     </>
   );
+}
+
+/** « hc injoignable : lancé sous herdr 0.9 » — only when the default (hc) is not what a launch gets. */
+function LaunchFallbackNote() {
+  const t = useT();
+  const [fallback, setFallback] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetchLaunchEngine().then(
+      (r) => live && setFallback(r.fallback),
+      () => live && setFallback(false),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!fallback) return null;
+  return <p className="px-1 text-xs text-muted-foreground" data-testid="launch-fallback">{t("cardEnv.launchFallback")}</p>;
 }
 
 /**

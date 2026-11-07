@@ -140,6 +140,7 @@ export function paneTextWithDraft(base = "hello from the pane"): string {
 export const handlers = [
   http.get("/api/snapshot", () => HttpResponse.json(fixtureSnapshot)),
   http.get("/api/board/pins", () => HttpResponse.json({ pins: [] })),
+  http.get("/api/board/launch-engine", () => HttpResponse.json({ engine: "hc", fallback: false })),
   http.get("/api/repos", () => HttpResponse.json({ repos: [], hiddenCount: 0 })),
   http.get("/api/repos/listed", () => HttpResponse.json({ paths: [] })),
   http.get("/api/docs/pages", () => HttpResponse.json({ ref: "main", pages: [] })),
