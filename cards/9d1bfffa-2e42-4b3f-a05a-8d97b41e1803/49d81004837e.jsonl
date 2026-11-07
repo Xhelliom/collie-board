@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794084809402.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"pre-push sous Windows : ne pas lancer la suite bash de collie-board-ctl","status":"backlog"},"ts":1794084807699}}
 {"v":1,"hlc":"1794087146093.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e85eac05-84aa-41f0-b9d1-232c91b4602e"}}
 {"v":1,"hlc":"1794087947304.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794087957544.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/pre-push-sous-windows-ne-pas-lancer-la-suite-bas"}}
+{"v":1,"hlc":"1794087957544.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794087957544.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794087950015}}
+{"v":1,"hlc":"1794087957544.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794087957544.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794087955802}}
+{"v":1,"hlc":"1794087957544.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2197},"ts":1794087956796}}
