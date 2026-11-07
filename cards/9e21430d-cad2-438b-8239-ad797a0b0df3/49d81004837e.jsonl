@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794083683647.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"ea2c300b-1d16-44f9-b53d-705098753065"}}
 {"v":1,"hlc":"1794083683647.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Dell : la mise à jour se voit dans Réglages","status":"backlog"},"ts":1794083677444}}
 {"v":1,"hlc":"1794083695641.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"bd318da9-9ed8-4311-8d93-d049adf93d84"}}
+{"v":1,"hlc":"1794085301989.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"bd318da9-9ed8-4311-8d93-d049adf93d84","reason":"start failed: this card runs in collie-board on Dell-5550-Stef — start it from its card"},"ts":1794085294912}}
