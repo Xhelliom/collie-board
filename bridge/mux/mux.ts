@@ -15,8 +15,8 @@ import { CompositeMux } from "./composite.ts";
 // call as a failed action, so "not supported" lands on the same path as "herdr said no".
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Which engine a bridge runs on (`COLLIE_BOARD_MUX`): herdr 0.9, or hc. */
-export type MuxKind = NonNullable<Config["mux"]>;
+/** An engine: herdr 0.9, or hc. */
+export type MuxKind = Exclude<NonNullable<Config["mux"]>, "auto">;
 
 /** Thrown (as a rejection) by an engine for an operation it has no equivalent for. */
 export class MuxUnsupported extends Error {
@@ -219,10 +219,10 @@ export interface Mux {
 
 /**
  * herdr 0.9 on `socketPath`, plus — on the primary session — hc on its own socket, merged by
- * {@link CompositeMux}; new panes go to `cfg.mux`. Other herdr sessions are 0.9 alone (one hc per machine).
+ * {@link CompositeMux}; new panes go to `cfg.mux` (`auto`: hc while it answers). Other herdr sessions are 0.9 alone (one hc per machine).
  */
 export function createMux(socketPath: string, cfg: Pick<Config, "mux" | "dialMode">, withHc = true): Mux {
   const herdr09 = new Herdr09(socketPath, DEFAULT_TIMEOUT_MS, cfg.dialMode);
   if (!withHc) return herdr09;
-  return new CompositeMux({ herdr09, hc: new Hc(hcSocketPath(), cfg.dialMode) }, cfg.mux ?? "herdr09");
+  return new CompositeMux({ herdr09, hc: new Hc(hcSocketPath(), cfg.dialMode) }, cfg.mux ?? "auto");
 }

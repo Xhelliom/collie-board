@@ -94,11 +94,16 @@ PWA ; ses premières écritures (lancer un lot, répondre à l'orchestrateur) so
   sources. Un `CompositeMux` (`bridge/mux/composite.ts`) fusionne les deux troupeaux ; le moteur d'un
   pane se lit sur son id (hc : `t<n>` et l'espace `hc` ; 0.9 : `w…`), donc les ids 0.9 déjà stockés
   (cartes, sessions, URLs `/pane/<id>`) ne changent pas. Toute action va au moteur propriétaire ;
-  seul un **nouveau** lancement suit la config (`mux = "herdr09" | "hc"`, défaut `herdr09`). Un moteur
+  seul un **nouveau** lancement suit la config (`mux = "herdr09" | "hc"`, ~~défaut `herdr09`~~ —
+  **amendé le 2026-11-07, phase 4 : défaut `auto`**, hc tant que son core répond au dernier snapshot,
+  herdr 0.9 sinon, et le bouton Démarrer de la carte dit ce repli ; `herdr09`/`hc` épinglent un moteur). Un moteur
   absent ou déconnecté ne vide pas l'autre (ses derniers panes tiennent une minute, le temps d'un
   hoquet) ; seuls les deux en panne font un snapshot `disconnected`. La migration se fait **agent par
   agent** — un agent 0.9 finit sous 0.9 pendant que les nouveaux naissent sous hc — au lieu d'une
   bascule projet vide.
+- **Le core hc est démarré par herdr-app ou la session de bureau, jamais par un agent ni par le
+  bridge** (amendé le 2026-11-07) : il transmet son environnement, dont `CLAUDE_CODE_CHILD_SESSION`,
+  qui coupe les transcripts Claude (HERDR_CORE_API.md §8).
 - Le manifeste `herdr-plugin.toml` et ses 9 actions restent tant que 0.9 est supporté ; ensuite
   `scripts/ctl.ts` + un lanceur `collie-board <action>` (sonde §5), version canonique dans
   `package.json` — ce qui amende ADR 0016 et la règle « Update notice » de CLAUDE.md (ADR à écrire à ce
@@ -132,7 +137,8 @@ PWA ; ses premières écritures (lancer un lot, répondre à l'orchestrateur) so
 ## 6. Décision proposée
 
 1. Option **C** : un adaptateur `bridge/mux/` sur `main`, hc derrière une config, 0.9 par défaut
-   jusqu'à ce que hc tienne une semaine d'usage réel.
+   jusqu'à ce que hc tienne une semaine d'usage réel. **Amendé le 2026-11-07 (phase 4)** : hc est le défaut des
+   nouveaux lancements dès que son core répond, 0.9 le repli (§4.2).
 2. L'interface se recentre sur **le projet et l'orchestrateur** (§3), sur les deux écrans.
 3. Le mod herdr-app est un **second écran de lecture** ; le téléphone reste le client complet.
 4. Corriger l'écran de confiance **sur 0.9 d'abord**, indépendamment de la V2.

@@ -158,6 +158,8 @@ export function startServer(opts: {
    * ~/.claude/projects root).
    */
   transcripts: TranscriptStore | null;
+  /** The paired peers — built in index.ts, which a lot's run coordinator shares. */
+  peers: PeerStore;
 }) {
   const { cfg, registry, push, snooze, notifyPrefs, notifyLog, updateMonitor, audit, board, copilot, context, adapters, transcripts } =
     opts;
@@ -166,7 +168,7 @@ export function startServer(opts: {
   // snooze-clears across every live session's coordinator.
   // The peer surface (`bridge/node.ts`), read at boot and replaced by the pairing routes on write
   // (`bridge/pairing.ts`): no peer in node.toml → /api/node/* is a 404.
-  const peers = new PeerStore(cfg.stateDir);
+  const { peers } = opts;
   const nodeLaunched = new Map<string, LaunchedPane>();
   // The paired peers' herds, read on the primary engine's tick (bridge/peer-herd.ts) — no timer.
   const remoteIdle = new RemoteIdle(opts.board);

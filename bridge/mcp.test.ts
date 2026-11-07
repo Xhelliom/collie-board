@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { gitFreeEnv } from "../scripts/test-env.ts";
+import { gitFreeEnv, pathWith, writeFakeBin } from "../scripts/test-env.ts";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import { createMcp, type McpEnv } from "./mcp.ts";
@@ -343,16 +343,15 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     expect(r.content[0]!.text).toMatch(/fusionnée dans main et classée terminée/);
     expect(git(repo, "ls-tree", "--name-only", "main")).toContain("x.ts");
     expect(store.getCard(id)!.status).toBe("done");
-  });
+  }, 20_000); // ~15 real git spawns + a merge: ~0.4 s locally, past bun's 5 s default on a loaded CI runner.
 
   it("pr opens the PR and journals card.pr_follow, without filing the card", async () => {
     const { root, store, id, mcp } = world();
     const bin = join(root, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "gh"), "#!/bin/sh\necho https://github.com/o/r/pull/1\n");
-    chmodSync(join(bin, "gh"), 0o755);
+    writeFakeBin(bin, "gh", { sh: "echo https://github.com/o/r/pull/1", cmd: "echo https://github.com/o/r/pull/1" });
     const path = process.env.PATH;
-    process.env.PATH = `${bin}:${path}`;
+    process.env.PATH = pathWith(bin);
     try {
       const r = await call(mcp, { cardId: id });
       expect(r.content[0]!.text).toMatch(/PR ouverte et suivie.*pull\/1/);

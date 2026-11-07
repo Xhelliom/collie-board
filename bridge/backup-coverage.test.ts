@@ -57,6 +57,7 @@ test("every table of board.db is in the backup", async () => {
   real.close();
 
   const backed = Object.keys((await buildBackup(db, dir)).db);
+  db.close(); // an open handle keeps board.db locked on win32, and the cleanup rm fails EBUSY
   const missing = tables.filter((t) => !backed.includes(t));
   expect(missing, `table(s) in board.db but not in the backup: ${missing.join(", ")}`).toEqual([]);
 });
@@ -66,7 +67,9 @@ test("every file a state-dir writer creates is in the backup", async () => {
   dirs.push(dir);
   const names = ["audit.log", "pair-id", "notify-prefs.json", "push-subscriptions.json", "snooze.json", "update-state.json"];
   for (const n of names) await writeFile(join(dir, n), "{}");
-  const backed = (await buildBackup(new BoardDb(join(dir, "board.db")), dir)).files.map((f) => f.path);
+  const db = new BoardDb(join(dir, "board.db"));
+  const backed = (await buildBackup(db, dir)).files.map((f) => f.path);
+  db.close(); // released before the cleanup rm, which win32 refuses on an open file
   const missing = names.filter((n) => !backed.includes(n));
   expect(missing, `file(s) written to the state dir but not in the backup: ${missing.join(", ")}`).toEqual([]);
 });

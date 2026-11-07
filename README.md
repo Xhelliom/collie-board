@@ -42,7 +42,7 @@ ever persisted.
 - [The board](#the-board) · [Runs](#runs) · [Configuration](#board-configuration) · [Endpoints](#board-endpoints)
 - [A fork of Collie](#a-fork-of-collie)
 - [Security — read first](#%EF%B8%8F-security--read-before-you-run-it)
-- [Requirements](#requirements) · [Install](#install) · [First run](#first-run--what-youll-see)
+- [Requirements](#requirements) · [Install](#install) · [herdr-core (hc)](#herdr-core-hc--the-default-engine-for-new-launches) · [First run](#first-run--what-youll-see)
 - [Configure](#configure) · [Commands](#commands) · [Herdr actions](#herdr-actions)
 - [Update](#update-to-a-new-release) · [Backup](#back-up-your-data) · [Uninstall](#stop-or-uninstall)
 - [Deployment variants](#deployment-variants) · [Windows (experimental)](#windows-experimental)
@@ -224,7 +224,7 @@ settings.
 | `COLLIE_BOARD_COPILOT_CLEAR` | *(from the adapter)* | Override its context-reset command. |
 | `COLLIE_BOARD_COPILOT_WORKSPACE` | `board` | Name of the copilot's workspace. Cosmetic — it is found by directory. |
 | `COLLIE_BOARD_REPO_ROOTS` | *(empty)* | Extra directories to scan for repos in the new-card picker. Rarely needed — see below. |
-| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks. Set it to `Xhelliom/collie-board` (or your fork); empty = check off, so it never nags about upstream's versions. |
+| `COLLIE_BOARD_UPDATE_REPO` | *(empty)* | `owner/name` the in-app update banner checks. Empty = the GitHub `origin` of the plugin checkout (what `herdr plugin install` cloned); `off` = check off. |
 
 Follow-up cards (on/off and which categories), auto handoff and agents-at-once live in **Settings**,
 not in `.env`. Per-agent divergence lives in [`adapters/agents.toml`](./adapters/agents.toml) —
@@ -510,6 +510,45 @@ They differ only in *when* the UI builds: a GitHub install builds at install tim
 > No Herdr? Run `scripts/collie-board-ctl.sh start` directly — same effect (config then lives in
 > `~/.config/collie-board/.env`).
 
+## herdr-core (hc) — the default engine for new launches
+
+Collie Board reads **two engines at once**: herdr 0.9 (the plugin host above) and
+[herdr-core](./HERDR_CORE_API.md) (`hc`, the engine behind **herdr-app**). Every pane stays on the
+engine it was born on; only a **new** launch picks one. By default (`COLLIE_BOARD_MUX=auto`) that is
+**hc whenever its core answers**, and herdr 0.9 otherwise — the card's Start button then says
+*"herdr-core (hc) is not answering: this launch will run under herdr 0.9."*. Pin one engine with
+`COLLIE_BOARD_MUX=hc` or `COLLIE_BOARD_MUX=herdr09`
+([ADR 0052](./.adr/0052-collie-v2-sur-herdr-core.md) §4.2). An agent already running under 0.9 moves
+over with the card's **Migrate to herdr-core** button, offered whenever hc answers.
+
+> **Start the core from herdr-app or your desktop session — never from an agent.** The core hands its
+> own environment to every terminal it starts. Started from a Claude Code pane, it passes on
+> `CLAUDE_CODE_CHILD_SESSION`: every Claude it launches then **writes no transcript** (no history, no
+> context gauge, no resume, no migration) and inherits a stale `HERDR_PANE_ID`. The bridge never
+> starts it either: it only dials the socket and falls back to 0.9 when nobody answers.
+
+**Linux**
+
+1. Install herdr-app (it installs herdr-core with it) from [herdr.dev](https://herdr.dev); you get
+   `herdr-app`, `hc` and `herdr-core` in `~/.local/bin`.
+2. Start the core **from your desktop**: open herdr-app, or add `hc server start` to your desktop
+   session's autostart (a `~/.config/autostart/*.desktop` entry). Not from a Herdr pane running an agent.
+3. Check: `hc server status` from a plain terminal, then the Start button of a card no longer shows
+   the 0.9 notice. The socket is `$XDG_RUNTIME_DIR/herdr-core/default.sock`; override with
+   `COLLIE_BOARD_HC_SOCKET`.
+
+**Windows**
+
+1. Install, in PowerShell: `irm https://releases.herdr.dev/app/install.ps1 | iex` (herdr-app, then
+   herdr-core if absent; needs Windows 10 1803+ and Git for Windows for `sh`).
+2. Start the core **in your desktop session**: open herdr-app, or run `hc server start` in a normal
+   desktop terminal (not over SSH, not from an agent). On Windows `hc server status` never starts one.
+3. Check: `hc server status`. The bridge dials `\\.\pipe\herdr-core-<USERNAME>-default.sock`
+   (measured); override with `COLLIE_BOARD_HC_SOCKET`.
+
+The Herdr plugin (`herdr-plugin.toml`) and its actions stay as they are while herdr 0.9 is supported
+— install, start and update still go through them.
+
 ## First run — what you'll see
 
 The transcripts below are the control script's inline output. **Through `invoke start` you get
@@ -785,10 +824,11 @@ How it advances depends on how you installed, because `herdr plugin install` doe
 Your `.env` and serve state live outside the checkout, so they survive either path. If you pinned a
 version with `--ref`, keep using `herdr plugin install --ref …` — `update` always goes to the latest.
 
-**The in-app "a new release is out" banner is opt-in**: set `COLLIE_BOARD_UPDATE_REPO=Xhelliom/collie-board`
-in your `.env` and the app checks that repo's releases and links to the newest one. Left empty the
-check is simply off — it defaults to nothing rather than to upstream, which ships different version
-numbers and would nag about releases this tree doesn't have.
+**The in-app "a new release is out" banner checks the repo the plugin was installed from**: the
+GitHub `origin` of its checkout — `Xhelliom/collie-board` for a `herdr plugin install`, on Windows as
+on Linux, with no setup step. `COLLIE_BOARD_UPDATE_REPO=owner/name` in your `.env` overrides it, and
+`COLLIE_BOARD_UPDATE_REPO=off` turns the check off. `start` / `status` on Windows print the repo it
+reads (`updates …`).
 
 By hand: frontend (`web/`) → `collie-board-ctl.sh build` (live, no restart — served from disk); backend
 (`bridge/`) → `systemctl --user restart collie-board`. Run `scripts/install-hooks.sh` once to enable the

@@ -153,6 +153,14 @@ describe("CardEnvironment", () => {
     expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByLabelText("Launch on")).toBeNull();
+    expect(screen.queryByTestId("launch-fallback")).toBeNull(); // hc answering: nothing to say
+  });
+
+  it("says beside Start when hc is not answering and the launch falls back to herdr 0.9", async () => {
+    envs([]);
+    server.use(http.get("/api/board/launch-engine", () => HttpResponse.json({ engine: "herdr09", fallback: true })));
+    render(<CardEnvironment card={card()} onChanged={() => {}} onError={() => {}}>{start}</CardEnvironment>);
+    expect(await screen.findByTestId("launch-fallback")).toHaveTextContent("herdr 0.9");
   });
 
   it("running on a peer: says where, hides Start, and ends the session there", async () => {

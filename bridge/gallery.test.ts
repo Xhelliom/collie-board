@@ -87,14 +87,16 @@ describe("galleryRoot", () => {
 
 describe("containedIn", () => {
   test("accepts the root and anything under it", () => {
-    expect(containedIn("/tmp/claude-1", "/tmp/claude-1")).toBe(true);
-    expect(containedIn("/tmp/claude-1", "/tmp/claude-1/p/s/scratchpad/a.png")).toBe(true);
+    // Built with `join`: the callers hand it resolved paths, in the platform's own separator.
+    const root = join("/tmp", "claude-1");
+    expect(containedIn(root, root)).toBe(true);
+    expect(containedIn(root, join(root, "p", "s", "scratchpad", "a.png"))).toBe(true);
   });
 
   test("rejects a sibling that merely shares the prefix", () => {
     // A bare startsWith would accept this one.
-    expect(containedIn("/tmp/claude-1", "/tmp/claude-10/a.png")).toBe(false);
-    expect(containedIn("/tmp/claude-1", "/etc/passwd")).toBe(false);
+    expect(containedIn(join("/tmp", "claude-1"), join("/tmp", "claude-10", "a.png"))).toBe(false);
+    expect(containedIn(join("/tmp", "claude-1"), join("/etc", "passwd"))).toBe(false);
   });
 });
 

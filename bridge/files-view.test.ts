@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { canSymlink } from "../scripts/test-env.ts";
 
 import { existingPaths, handleFilesRoute, paneRoot, parseRelPath, resolveInRoot } from "./files-view.ts";
 
@@ -43,8 +44,12 @@ describe("on disk", () => {
   writeFileSync(join(root, ".env"), "TOKEN=x");
   writeFileSync(join(root, "bin.dat"), new Uint8Array([1, 0, 2]));
   writeFileSync(outside, "nope");
-  symlinkSync(outside, join(root, "out.txt"));
-  symlinkSync(join(root, ".env"), join(root, "env.txt"));
+  // win32 grants a symlink only in Developer Mode or elevated (EPERM otherwise): the symlink cases
+  // skip there (`canSymlink`), the rest of the confinement is still checked.
+  if (canSymlink) {
+    symlinkSync(outside, join(root, "out.txt"));
+    symlinkSync(join(root, ".env"), join(root, "env.txt"));
+  }
   afterAll(() => rmSync(home, { recursive: true, force: true }));
 
   test("paneRoot: a folder below home, never home itself nor outside", async () => {
@@ -59,6 +64,9 @@ describe("on disk", () => {
     expect(await resolveInRoot(root, "src")).toBeNull(); // a folder
     expect(await resolveInRoot(root, "missing.ts")).toBeNull();
     expect(await resolveInRoot(root, "../secret.txt")).toBeNull();
+  });
+
+  test.skipIf(!canSymlink)("resolveInRoot: a symlink never leads out, nor into a dotfile", async () => {
     expect(await resolveInRoot(root, "out.txt")).toBeNull(); // symlink leading out
     expect(await resolveInRoot(root, "env.txt")).toBeNull(); // symlink into a dotfile
   });

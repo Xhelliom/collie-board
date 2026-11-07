@@ -23,6 +23,10 @@ export const peers = defineMessages({
   "cardEnv.on": { en: "on {peer}", fr: "sur {peer}" },
   "cardEnv.engine.hc": { en: "hc", fr: "hc" },
   "cardEnv.engine.herdr09": { en: "0.9", fr: "0.9" },
+  "cardEnv.launchFallback": {
+    en: "herdr-core (hc) is not answering: this launch will run under herdr 0.9.",
+    fr: "herdr-core (hc) ne répond pas : ce lancement se fera sous herdr 0.9.",
+  },
   "cardEnv.hint": {
     en: "Only the peers' environments whose origin is this repo's. Started there, never here instead.",
     fr: "Seuls les environnements des pairs dont l'origine est ce dépôt. Lancée là-bas, jamais ici à la place.",

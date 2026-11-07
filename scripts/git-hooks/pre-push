@@ -47,13 +47,18 @@ EOF
   exit 1
 fi
 
-echo "pre-push: running control-script lifecycle suite (collie-board-ctl.test.sh)…" >&2
-if ! (cd "$ROOT" && bash scripts/collie-board-ctl.test.sh); then
-  cat >&2 <<'EOF'
+# Windows runs the plugin through scripts/ctl.ts, not collie-board-ctl.sh (whose suite needs python): Linux CI plays it.
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* || "${OS:-}" == Windows_NT ]]; then
+  echo "pre-push: Windows — skipping collie-board-ctl.test.sh (the plugin uses scripts/ctl.ts here; Linux CI runs it)" >&2
+else
+  echo "pre-push: running control-script lifecycle suite (collie-board-ctl.test.sh)…" >&2
+  if ! (cd "$ROOT" && bash scripts/collie-board-ctl.test.sh); then
+    cat >&2 <<'EOF'
 ✗ pre-push: collie-board-ctl lifecycle tests failed — push aborted.
   Fix the failing tests, or override once with: SKIP_TESTS=1 git push
 EOF
-  exit 1
+    exit 1
+  fi
 fi
 
 echo "pre-push: running web test suite (vitest)…" >&2

@@ -3,6 +3,7 @@ import type { BoardDb } from "./db.ts";
 import type { Mux } from "./mux/mux.ts";
 import type { AgentView } from "./types.ts";
 import { agentNameFor, launchAgent, outOfSight } from "./cards.ts";
+import { ownerOf } from "./mux/composite.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // « Migrer vers herdr-core » : a Claude card agent at rest under herdr 0.9 is closed there and
@@ -16,11 +17,10 @@ import { agentNameFor, launchAgent, outOfSight } from "./cards.ts";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Whether a pane is herdr 0.9's — read off its id: hc's addresses are `t` + HEX (measured: t17, t18,
- * t1b, t1c in a row); 0.9's all carry a `:` (`wW8:p1`). Never `cfg.mux`, which (with both engines
- * read) only names where NEW panes are launched.
+ * Whether a pane is herdr 0.9's — read off its id by {@link ownerOf}, the composite's one rule. Never
+ * `cfg.mux`, which (with both engines read) only names where NEW panes are launched.
  */
-export const isHerdr09Pane = (paneId: string): boolean => !/^t[0-9a-f]+$/.test(paneId);
+export const isHerdr09Pane = (paneId: string): boolean => ownerOf(paneId) === "herdr09";
 
 /** Why the button is not offered. One reason, the first that holds. */
 export type MigrateBlock = "not-herdr09" | "no-pane" | "not-claude" | "no-session-id" | "busy" | "hc-down";

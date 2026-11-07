@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setPreference } from "@/i18n";
-import { docMatches, docsLoader, resolveDocLink, type DocsIndex } from "@/lib/docs";
+import { decisionStatus, docMatches, docsLoader, docTree, fileCount, folderChain, pageNameOf, resolveDocLink, type DocsIndex } from "@/lib/docs";
 import { server } from "@/test/setup";
 
 import { DocumentsRoute } from "./documents";
@@ -20,6 +20,7 @@ const INDEX: DocsIndex = {
   decisions: [
     { kind: "roadmap", id: "d1", text: "The repo is the source of truth", status: "decided", date: "2026-11-06" },
     { kind: "adr", path: ".adr/0001-door.md", title: "0001 — One door", status: "Accepted", date: "2026-09-01" },
+    ...[1, 2, 3, 4, 5].map((n) => ({ kind: "roadmap" as const, id: `o${n}`, text: `Open question ${n}`, status: "open" as const, date: "2026-08-01" })),
   ],
   bilan: [
     { code: "missing", rubric: "index", label: "Où chercher quoi" },
@@ -42,6 +43,7 @@ beforeEach(() => {
       const path = new URL(request.url).searchParams.get("path")!;
       return path in FILES ? HttpResponse.json({ path, text: FILES[path], truncated: false }) : new HttpResponse("no", { status: 404 });
     }),
+    http.get("/api/docs/pages", () => HttpResponse.json({ ref: "main", pages: [{ name: "roadmap", size: 9 }] })),
     http.get("/api/docs/search", ({ request }) =>
       HttpResponse.json({ paths: new URL(request.url).searchParams.get("q") === "girafe" ? ["NOTES.md"] : [] }),
     ),
@@ -61,12 +63,22 @@ const mount = (url: string) =>
       )}
     />,
   );
+const folder = (name: string) => screen.findByRole("button", { name: new RegExp(`^${name}`) });
 
 describe("docs helpers", () => {
   it("resolves a relative link against the document's folder, and refuses one that climbs out", () => {
     expect(resolveDocLink("docs/plan/a.md", "../adr/b.md#ctx")).toBe("docs/adr/b.md");
     expect(resolveDocLink("README.md", "./docs/x.md")).toBe("docs/x.md");
     expect(resolveDocLink("README.md", "../x.md")).toBeNull();
+  });
+
+  it("classes an ADR's free-text status, and keeps a roadmap decision's own", () => {
+    const adr = (status: string | null) => ({ kind: "adr" as const, path: "a.md", title: "a", status, date: null });
+    expect(decisionStatus(adr("Accepted — superseded by 0036"))).toBe("decided");
+    expect(decisionStatus(adr("Proposed"))).toBe("leaning");
+    expect(decisionStatus(adr("Ouvert"))).toBe("open");
+    expect(decisionStatus(adr(null))).toBe("decided");
+    expect(decisionStatus({ kind: "roadmap", id: "x", text: "x", status: "leaning", date: null })).toBe("leaning");
   });
 
   it("matches on title, path, or the bridge's text hits", () => {
@@ -76,6 +88,18 @@ describe("docs helpers", () => {
     expect(docMatches(d, "girafe", new Set())).toBe(false);
     expect(docMatches(d, "girafe", new Set(["NOTES.md"]))).toBe(true);
   });
+
+  it("builds the folder tree, folders first, and counts what a folder holds", () => {
+    const f = (path: string) => ({ path, title: path, size: 1 });
+    const root = docTree([f("README.md"), f("docs/plan/b.md"), f("docs/a.md"), f(".adr/0001.md")]);
+    expect(root.folders.map((x) => x.path)).toEqual([".adr", "docs"]);
+    expect(root.files.map((x) => x.path)).toEqual(["README.md"]);
+    expect(root.folders[1]!.folders[0]!.path).toBe("docs/plan");
+    expect(fileCount(root.folders[1]!)).toBe(2);
+    expect(folderChain("docs/plan/b.md")).toEqual(["docs", "docs/plan"]);
+    expect(pageNameOf("docs/pages/roadmap.html")).toBe("roadmap");
+    expect(pageNameOf("docs/pages/x/y.html")).toBeNull();
+  });
 });
 
 describe("DocumentsRoute", () => {
@@ -84,35 +108,72 @@ describe("DocumentsRoute", () => {
     expect(await screen.findByText("Pick a project to read its documents.")).toBeInTheDocument();
   });
 
-  it("lists the rubrics, « Other » and the merged decisions with their statuses", async () => {
+  it("shows the real folders folded with their counts, and the roadmap decisions as a virtual folder", async () => {
     mount("/board/documents?repo=%2Fr%2Fapp");
-    expect(await screen.findByText("Plan par phase")).toBeInTheDocument();
-    expect(screen.getByText("Other")).toBeInTheDocument();
+    expect(await folder("\\.adr")).toHaveAttribute("aria-expanded", "false");
+    expect(await folder("docs")).toHaveTextContent("docs2"); // phase-1.md + pages/roadmap.html
+    expect(screen.getByRole("link", { name: /NOTES\.md/ })).toBeInTheDocument(); // a root file needs no folder
+    expect(screen.queryByText("phase-1.md")).toBeNull();
+
+    await userEvent.click(await folder("Roadmap decisions \\(6\\)"));
     expect(screen.getByText("The repo is the source of truth")).toBeInTheDocument();
-    expect(screen.getByText("✅ Decided")).toBeInTheDocument();
-    expect(screen.getByText("Accepted")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "❓ Open" }));
+    expect(screen.queryByText("The repo is the source of truth")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Roadmap decisions \(5\)/ })).toBeInTheDocument();
   });
 
-  it("searches titles at once and text through the bridge", async () => {
+  it("folds and unfolds a folder, and finds it as left on coming back", async () => {
+    const { unmount } = mount("/board/documents?repo=%2Fr%2Fapp");
+    await userEvent.click(await folder("docs"));
+    await userEvent.click(await folder("plan"));
+    expect(screen.getByText("phase-1.md")).toBeInTheDocument();
+    await userEvent.click(await folder("plan"));
+    expect(screen.queryByText("phase-1.md")).toBeNull();
+    await userEvent.click(await folder("plan"));
+    unmount();
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    expect(await screen.findByText("phase-1.md")).toBeInTheDocument();
+  });
+
+  it("a search narrows the tree to its hits and opens their folders — titles at once, text through the bridge", async () => {
     mount("/board/documents?repo=%2Fr%2Fapp");
     const box = await screen.findByPlaceholderText("Search titles and text");
     await userEvent.type(box, "phase");
-    expect(screen.getByText("Phase 1")).toBeInTheDocument();
-    expect(screen.queryByText("Notes")).toBeNull();
+    expect(screen.getByText("phase-1.md")).toBeInTheDocument();
+    expect(screen.queryByText("NOTES.md")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^\.adr/ })).toBeNull();
     await userEvent.clear(box);
     await userEvent.type(box, "girafe");
-    expect(await screen.findByText("Notes")).toBeInTheDocument();
-    expect(screen.queryByText("Phase 1")).toBeNull();
+    expect(await screen.findByText("NOTES.md")).toBeInTheDocument();
+    expect(screen.queryByText("phase-1.md")).toBeNull();
   });
 
-  it("opens a document as text, and follows its relative .md link in place", async () => {
+  it("opens a document beside the tree with its path, as text, and follows its relative .md link in place", async () => {
     mount("/board/documents?repo=%2Fr%2Fapp");
-    await userEvent.click(await screen.findByText("Phase 1"));
+    await userEvent.click(await folder("docs"));
+    await userEvent.click(await folder("plan"));
+    await userEvent.click(screen.getByText("phase-1.md"));
     expect(await screen.findByText(/<script>alert\(1\)<\/script>/)).toBeInTheDocument();
     expect(document.querySelector("article script")).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Path" })).toHaveTextContent("docs › plan › phase-1.md");
+    expect(screen.getByRole("link", { name: /phase-1\.md/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "All documents" })).toBeInTheDocument(); // the phone's ←
     await userEvent.click(screen.getByRole("button", { name: "the door" }));
-    expect(await screen.findByText(".adr/0001-door.md")).toBeInTheDocument();
-    expect(await screen.findByText("0001 — One door")).toBeInTheDocument();
+    expect(await screen.findByText(".adr › 0001-door.md")).toBeInTheDocument();
+    expect(await screen.findByText("0001 — One door", { selector: "article *" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^\.adr/ })).toHaveAttribute("aria-expanded", "true"); // its folder opened
+  });
+
+  it("opens a custom page from docs › pages in the tab's inert frame, with full screen", async () => {
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    await userEvent.click(await folder("docs"));
+    await userEvent.click(await folder("pages"));
+    await userEvent.click(screen.getByRole("link", { name: /roadmap\.html/ }));
+    const frame = await screen.findByTitle("Project page roadmap");
+    expect(frame).toHaveAttribute("sandbox", "");
+    expect(frame).toHaveAttribute("src", "/api/docs/page?repo=%2Fr%2Fapp&name=roadmap");
+    await userEvent.click(screen.getByRole("button", { name: /Full screen/ }));
+    expect(frame.parentElement).toHaveClass("fixed", "inset-0");
   });
 
   it("« Request a change » files a card naming the file and the operator's words, then opens it", async () => {
@@ -144,7 +205,9 @@ describe("DocumentsRoute", () => {
       }),
     );
     mount("/board/documents?repo=%2Fr%2Fapp");
-    expect(await screen.findByText("No « Où chercher quoi »")).toBeInTheDocument();
+    // Folded while it has gaps, so the tree stays on screen.
+    await userEvent.click(await screen.findByRole("button", { name: /Doc check/, expanded: false }));
+    expect(screen.getByText("No « Où chercher quoi »")).toBeInTheDocument();
     expect(screen.getByText("plan/dette.md is 140 KB: split it past 30")).toBeInTheDocument();
     expect(screen.getByText("5 files in docs/ without a Status line: docs/a.md, docs/b.md, docs/c.md, …")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Bring the docs up to standard" }));
