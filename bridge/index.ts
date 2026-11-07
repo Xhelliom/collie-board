@@ -33,6 +33,7 @@ import { lotHoldsPush } from "./lot-push.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
 import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
+import { PeerStore } from "./pairing.ts";
 import { startServer } from "./server.ts";
 import {
   deriveConfigRoot,
@@ -179,6 +180,8 @@ if (!updateRepo) {
 // The context gauge, primary session only (the board is). Built by the factory below, which the
 // registry runs at construction — so it is set well before startServer() reads it.
 let contextTracker: ContextTracker | null = null;
+// The paired peers: one store, shared by the routes (server.ts) and a lot starting a peer's card (run.ts).
+const peers = new PeerStore(cfg.stateDir);
 
 // ── Per-session runtime factory ──────────────────────────────────────────────
 // One Mux + StateEngine + EventPoker + NotificationCoordinator per herdr session. The
@@ -371,7 +374,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is
     // silenced like the copilot, above.
-    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters), "run");
+    engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound()), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
     engine.onUpdate(prFollowHook(board, herdr), "prFollow");
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
@@ -458,6 +461,7 @@ const server = startServer({
   context: contextTracker,
   adapters,
   transcripts,
+  peers,
 });
 
 const shutdown = async () => {

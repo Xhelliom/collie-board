@@ -29,6 +29,9 @@ import type { EngineSnapshot } from "./state-engine.ts";
 import { exportPlanAtLotEnd } from "./plan-export.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
 import { fileAsDone } from "./wrapup.ts";
+import type { OutboundPeer } from "./pairing.ts";
+import { REMOTE_IDLE, REMOTE_IDLE_CLEARED } from "./remote-idle.ts";
+import { REMOTE_ENDED, REMOTE_LAUNCHED, remoteSessionFor, startOnPeer } from "./remote-launch.ts";
 
 const LAND_EVERY_MS = 30_000;
 
@@ -175,6 +178,13 @@ export function stepFor(
     // ADR 0036: started now, it would fork from — and open its PR against — a branch not merged yet.
     return ctx.predecessorArmed ? { kind: "predecessor" } : { kind: "start" };
   }
+  // A peer's card (#255) never lands here: its PR is followed to the merge, which files it. Stopped there
+  // without one (`card.remote_idle`), it is the operator's — said once on the lot.
+  if (card.environment) {
+    const word = newest(events, (e) => REMOTE_WORDS.has(e.type));
+    if (word?.type === REMOTE_IDLE && after(word, halted)) return { kind: "halt", reason: `stopped on ${card.environment.peer} without a PR — push its branch and open the PR there, or move the card` };
+    return null;
+  }
   // Only a worker that has landed and sits quietly. `blocked` is a question — never ours to answer.
   if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
   // Busy with the board's own handoff or wrapup ask.
@@ -230,6 +240,8 @@ export function stepFor(
   // land step asks GitHub again — a wait is answered later, a refusal halts or goes back (`landed`).
   return after(landing(events), pr) ? { kind: "file" } : { kind: "land" };
 }
+
+const REMOTE_WORDS = new Set([REMOTE_IDLE, REMOTE_IDLE_CLEARED, REMOTE_LAUNCHED, REMOTE_ENDED]);
 
 /** The newest proof a PR has landed or will: merged, or GitHub's auto-merge armed (ADR 0017 step 7). */
 const landing = (events: BoardEvent[]) => newest(events, (e) => e.type === "card.pr_merged" || e.type === "card.automerge_armed");
@@ -342,7 +354,7 @@ export class RunCoordinator {
       // A lot may be capped below the board (1 = one card at a time): the planner knows which cards
       // touch the same files. Running = members with a live session, plus starts still in flight.
       if (run.maxParallel !== null) {
-        const running = members.filter((m) => !FILED.has(m.card.status) && this.db.openSessionFor(m.card.id)).length;
+        const running = members.filter((m) => !FILED.has(m.card.status) && (this.db.openSessionFor(m.card.id) || (m.card.environment && remoteSessionFor(this.db, m.card.id)))).length;
         slots = Math.min(slots, run.maxParallel - running - (this.startingBy.get(run.id) ?? 0));
       }
       for (const { card, events } of members) {
@@ -361,7 +373,8 @@ export class RunCoordinator {
           reviewing,
           review: reviews.length ? "done" : failed ? "failed" : "pending",
           next: nextRole(pipelineOf(this.db, card), events),
-          closer: run.integration === "lot" && members.every((m) => m.card.id === card.id || FILED.has(m.card.status)),
+          // A peer's card delivers its own PR, never through the lot's: the last LOCAL card closes the lot.
+          closer: run.integration === "lot" && members.every((m) => m.card.id === card.id || FILED.has(m.card.status) || m.card.environment),
         });
         if (!step) continue;
         const serial = run.integration === "lot" && (step.kind === "fold" || step.kind === "file" || step.kind === "pr");
@@ -403,7 +416,8 @@ export class RunCoordinator {
       case "halt":
         { if (step.limit) await this.haltEmpty(run, card, session, step.reason); else this.halt(run, card.id, step.reason); return; }
       case "start": {
-        if (run.integration === "lot") {
+        // A peer's card forks from origin's base on the peer: the lot branch is a local one.
+        if (run.integration === "lot" && !card.environment) {
           const lot = await this.ports.prepareLot(run, card);
           if (!lot.ok) return this.halt(run, card.id, `lot branch: ${lot.error.message}`);
         }
@@ -711,6 +725,8 @@ export function runHook(
   cfg: Config,
   snapshot: () => EngineSnapshot,
   adapters: Record<string, AgentAdapter>,
+  /** The paired peers, for a card set to run in a peer's environment (remote-launch.ts). */
+  outbound: () => readonly OutboundPeer[] = () => [],
 ): (snap: EngineSnapshot) => void {
   // ponytail: the lead runs cfg.boardCopilotKind, not `run.leadAgent` — one lead pane for every run.
   const lead = new Lead(herdr, cfg, join(cfg.stateDir, "lead"), snapshot, adapters);
@@ -718,7 +734,13 @@ export function runHook(
   const prView = (card: Card): Card => lotPrCard(card.runId ? db.getRun(card.runId) : null, card);
   const coordinator = new RunCoordinator(db, {
     lead,
-    start: async (cardId) => await startCard(db, herdr, cfg, cardId, { adapters }),
+    start: async (cardId) => {
+      const card = db.getCard(cardId);
+      // The card's own button takes this path too (board-routes.ts): never `startCard`, which refuses a peer's environment.
+      if (!card?.environment) return await startCard(db, herdr, cfg, cardId, { adapters });
+      const r = await startOnPeer({ db, fetch, outbound, branchPrefix: cfg.boardBranchPrefix }, card);
+      return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind === "peer" ? "peer" : "remote", message: r.error } };
+    },
     prompt: (paneId, text) => promptAndConfirm(herdr, paneId, text),
     prepareLot: async (run, card) => {
       const r = await prepareLot(db, run, card);
