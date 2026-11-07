@@ -9,6 +9,19 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.0] - 2026-11-07
+
+### Added
+
+- Documents : dossier virtuel « Décisions roadmap (N) » filtrable par statut (83a2304)
+- Documents : les pages custom (docs/pages/*.html) dans l'arbre, ouvertes dans le même cadre inerte que leur onglet, avec Plein écran (83a2304)
+
+### Changed
+
+- Documents : l'arbre des dossiers du dépôt remplace les rubriques (chevrons, compte d'un dossier replié, dossiers ouverts retenus par projet) (83a2304)
+- Documents : sur PC le document s'ouvre à droite de l'arbre, sur téléphone en plein écran avec ← ; fil d'Ariane au-dessus (83a2304)
+- Documents : la recherche réduit l'arbre à ses résultats et ouvre leurs dossiers (83a2304)
+
 ## [0.276.1] - 2026-11-07
 
 ### Fixed
