@@ -1,23 +1,22 @@
 import { defineMessages } from "../define";
 
-// The Documents tab: the repo's Markdown on its default branch, classed by the doc convention.
+// The Documents tab: the repo's Markdown on its default branch, as an explorer tree of its folders.
 export const docs = defineMessages({
   "docs.title": { en: "Documents", fr: "Documents" },
   "docs.onRef": { en: "on {ref}", fr: "sur {ref}" },
   "docs.pickRepo": { en: "Pick a project to read its documents.", fr: "Choisissez un projet pour lire ses documents." },
   "docs.search": { en: "Search titles and text", fr: "Rechercher dans les titres et le texte" },
-  "docs.decisions": { en: "Decisions", fr: "Décisions" },
-  "docs.other": { en: "Other", fr: "Autres" },
+  "docs.tree": { en: "Folders", fr: "Dossiers" },
+  "docs.roadmapFolder": { en: "Roadmap decisions ({count})", fr: "Décisions roadmap ({count})" },
+  "docs.pickFile": { en: "Pick a file in the tree.", fr: "Choisissez un fichier dans l'arbre." },
+  "docs.breadcrumb": { en: "Path", fr: "Chemin" },
   "docs.empty": { en: "No Markdown on {ref}.", fr: "Aucun Markdown sur {ref}." },
   "docs.noMatch": { en: "Nothing matches.", fr: "Rien ne correspond." },
   "docs.back": { en: "All documents", fr: "Tous les documents" },
   "docs.loading": { en: "Loading…", fr: "Chargement…" },
   "docs.loadFailed": { en: "Couldn't read this document on {ref}.", fr: "Impossible de lire ce document sur {ref}." },
   "docs.truncated": { en: "Truncated: the file is too long to show whole.", fr: "Tronqué : le fichier est trop long pour être affiché en entier." },
-  "docs.sections": { en: "Sections", fr: "Rubriques" },
-  "docs.seeAll": { en: "See the {count} decisions", fr: "Voir les {count} décisions" },
   "docs.statusFilter": { en: "Filter decisions by status", fr: "Filtrer les décisions par statut" },
-  "docs.roadmap": { en: "Roadmap", fr: "Roadmap" },
   "docs.status.decided": { en: "✅ Decided", fr: "✅ Décidé" },
   "docs.status.leaning": { en: "🟡 Leaning", fr: "🟡 Piste" },
   "docs.status.open": { en: "❓ Open", fr: "❓ Ouvert" },
