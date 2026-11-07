@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794084809402.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"ea2c300b-1d16-44f9-b53d-705098753065"}}
 {"v":1,"hlc":"1794084809402.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"pre-push sous Windows : ne pas lancer la suite bash de collie-board-ctl","status":"backlog"},"ts":1794084807699}}
 {"v":1,"hlc":"1794087146093.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e85eac05-84aa-41f0-b9d1-232c91b4602e"}}
+{"v":1,"hlc":"1794087947304.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
