@@ -3,3 +3,10 @@
 {"v":1,"hlc":"1794084563370.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Notifications : plus de « merge-le toi-même » quand le lot merge, et revue du bruit","status":"backlog"},"ts":1794084558808}}
 {"v":1,"hlc":"1794084580791.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"bd318da9-9ed8-4311-8d93-d049adf93d84"}}
 {"v":1,"hlc":"1794085285990.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794085290368.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/notifications-plus-de-merge-le-toi-meme-quand-le"}}
+{"v":1,"hlc":"1794085290369.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794085290369.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794085290305}}
+{"v":1,"hlc":"1794085291289.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"ready"}}
+{"v":1,"hlc":"1794085291289.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"ready","reason":"agent failed to start"},"ts":1794085290916}}
+{"v":1,"hlc":"1794085291290.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.start_failed","payload":{"stage":"agent.start","error":"herdr agent.start: agent_pane_not_found: agent target pane t1q not found"},"ts":1794085290919}}
+{"v":1,"hlc":"1794085291290.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.halted","payload":{"runId":"bd318da9-9ed8-4311-8d93-d049adf93d84","reason":"start failed: agent.start: herdr agent.start: agent_pane_not_found: agent target pane t1q not found"},"ts":1794085290921}}
