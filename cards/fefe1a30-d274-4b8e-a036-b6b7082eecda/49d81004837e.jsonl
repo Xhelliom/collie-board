@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794083683647.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"ea2c300b-1d16-44f9-b53d-705098753065"}}
 {"v":1,"hlc":"1794083683649.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"a56fe6c1-ffe2-469c-9f9f-c25ed436dcf3"}}
 {"v":1,"hlc":"1794083697862.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794083708729.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/une-carte-de-lot-reste-en-cours-sur-un-shell-nu"}}
+{"v":1,"hlc":"1794083708729.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794083708729.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794083700536}}
+{"v":1,"hlc":"1794083708729.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794083708729.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794083705812}}
+{"v":1,"hlc":"1794083708729.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2130},"ts":1794083707781}}
