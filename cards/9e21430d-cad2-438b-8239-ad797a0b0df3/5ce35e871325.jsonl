@@ -1,0 +1,1 @@
+{"v":1,"hlc":"1794088121617.0000.5ce35e871325","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.merge","payload":{"runId":"pr-follow-1889","merged":false,"reason":"the PR's checks are still running — waiting","wait":true},"ts":1794088111555}}
