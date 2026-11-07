@@ -6,7 +6,7 @@
 // the process that writes it (measured: process 18:45:30, log born 18:45:37), so the start time is
 // enough to pick the right file out of a directory holding dozens.
 //
-// TWO WAYS TO ASK, because Collie runs on Linux and macOS:
+// THREE WAYS TO ASK, because Collie runs on Linux, macOS and Windows:
 //
 //   - `/proc/<pid>/stat` on Linux. A file read, no subprocess, exact.
 //   - `ps -o etime=` everywhere else. macOS has no procfs, and its `birthtime` support is actually
@@ -14,10 +14,12 @@
 //     of a start time. `etime` — elapsed seconds since start — is used rather than `lstart` because
 //     `lstart` is LOCALE-DEPENDENT: on this machine it prints "mar. juil. 28 14:43:55 2026", which
 //     is not something to write a parser against.
+//   - `GetProcessTimes` (kernel32, via bun:ffi) on Windows, which has neither: in process, exact.
 //
 // Everything degrades rather than fails: no answer at all → the caller falls back to "newest log in
 // the directory", a worse answer for the rare case of two agents in one directory, never a crash.
 
+import type { Pointer } from "bun:ffi";
 import { readFileSync } from "node:fs";
 
 /**
@@ -113,7 +115,65 @@ async function startedAtFromPs(pid: number): Promise<number | null> {
   }
 }
 
+/** FILETIME (100 ns ticks since 1601-01-01) → epoch ms: the gap between the two epochs, in ms. */
+const FILETIME_EPOCH_OFFSET_MS = 11_644_473_600_000;
+
+type Kernel32 = {
+  OpenProcess: (access: number, inherit: number, pid: number) => Pointer | null;
+  GetProcessTimes: (h: Pointer, c: Pointer, e: Pointer, k: Pointer, u: Pointer) => number;
+  CloseHandle: (h: Pointer) => number;
+};
+let kernel32: Kernel32 | null | undefined;
+
+/** kernel32, bound once on first use — null when it can't be (never on anything but win32). */
+async function loadKernel32(): Promise<Kernel32 | null> {
+  if (kernel32 !== undefined) return kernel32;
+  try {
+    const { dlopen, FFIType } = await import("bun:ffi");
+    const lib = dlopen("kernel32.dll", {
+      OpenProcess: { args: [FFIType.u32, FFIType.i32, FFIType.u32], returns: FFIType.ptr },
+      GetProcessTimes: {
+        args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.ptr],
+        returns: FFIType.i32,
+      },
+      CloseHandle: { args: [FFIType.ptr], returns: FFIType.i32 },
+    });
+    kernel32 = lib.symbols as unknown as Kernel32;
+  } catch {
+    kernel32 = null;
+  }
+  return kernel32;
+}
+
+/**
+ * Windows: no procfs and no `ps`, so ask the kernel — `GetProcessTimes`, in process, no subprocess.
+ * `PROCESS_QUERY_LIMITED_INFORMATION` is the least access that answers, and is granted on processes
+ * of the same user. Null when the pid is gone or not ours to open.
+ */
+async function startedAtFromWin32(pid: number): Promise<number | null> {
+  const k = await loadKernel32();
+  if (k === null) return null;
+  try {
+    const { ptr } = await import("bun:ffi");
+    const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    const h = k.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+    if (!h) return null;
+    try {
+      const times = new BigUint64Array(4); // creation, exit, kernel, user — FILETIMEs
+      const p = ptr(times);
+      if (!k.GetProcessTimes(h, p, (p + 8) as Pointer, (p + 16) as Pointer, (p + 24) as Pointer)) return null;
+      const startedAt = Number(times[0]! / 10_000n) - FILETIME_EPOCH_OFFSET_MS;
+      return startedAt > 0 && startedAt <= Date.now() + 60_000 ? startedAt : null;
+    } finally {
+      k.CloseHandle(h);
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** When `pid` started, as epoch milliseconds, or null when it can't be determined. */
 export async function processStartedAt(pid: number): Promise<number | null> {
+  if (process.platform === "win32") return startedAtFromWin32(pid);
   return startedAtFromProc(pid) ?? (await startedAtFromPs(pid));
 }

@@ -236,7 +236,8 @@ describe("loadConfig", () => {
     const cfg = loadConfig();
     expect(cfg.mux).toBe("hc");
     expect(cfg.socketPath).toBe("/x/herdr.sock");
-    expect(hcSocketPath()).toBe(join("/run/user/7", "herdr-core", "default.sock"));
+    // The XDG case, asked as Linux: on win32 the platform default is the named pipe just below.
+    expect(hcSocketPath(process.env, "linux")).toBe(join("/run/user/7", "herdr-core", "default.sock"));
     expect(hcSocketPath({ USERNAME: "steph" }, "win32")).toBe("\\\\.\\pipe\\herdr-core-steph-default.sock");
     process.env.COLLIE_BOARD_HC_SOCKET = "/y/hc.sock";
     expect(hcSocketPath()).toBe("/y/hc.sock");

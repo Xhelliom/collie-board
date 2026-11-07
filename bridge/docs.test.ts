@@ -6,6 +6,7 @@ import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import { buildIndex, docBilan, docMeta, knownRepoRoot, META_PATTERN, parseDocConvention, parseDocPaths, rubricOf } from "./docs.ts";
 import { docsOnRef, grepDocsOnRef, isSafeDocPath, readDocOnRef, type GitRunner } from "./git.ts";
+import { normalizePath } from "./paths.ts";
 
 function sh(cwd: string, ...args: string[]): string {
   const r = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
@@ -198,8 +199,9 @@ describe("knownRepoRoot: another project's docs, never an arbitrary path", () =>
   test("a repo the board knows reads, from its root or a folder in it; an unknown one is refused", async () => {
     const dir = repo();
     const root = sh(dir, "rev-parse", "--show-toplevel").trim();
-    expect(await knownRepoRoot(dir, [root])).toBe(root);
-    expect(await knownRepoRoot(join(dir, "docs"), [root])).toBe(root);
+    // Answered in herdr's spelling (`C:\…` on win32), whichever one git printed.
+    expect(await knownRepoRoot(dir, [root])).toBe(normalizePath(root));
+    expect(await knownRepoRoot(join(dir, "docs"), [root])).toBe(normalizePath(root));
     expect(await knownRepoRoot(dir, ["/elsewhere"])).toBeNull();
     expect(await knownRepoRoot(tmpdir(), [tmpdir()])).toBeNull();
   });

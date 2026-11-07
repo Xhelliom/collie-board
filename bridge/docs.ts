@@ -6,7 +6,7 @@
 import type { BoardContext } from "./board-routes.ts";
 import type { DecisionStatus } from "./db.ts";
 import { defaultBranchOf, docsOnRef, grepDocsOnRef, isSafePageName, pagesOnRef, PAGES_DIR, readDocOnRef, type DocLine, type TreeDoc } from "./git.ts";
-import { repoPathOf } from "./paths.ts";
+import { repoPathOf, samePath } from "./paths.ts";
 import { redactText } from "./redact.ts";
 import { scrubHtml } from "./scrub.ts";
 import { listRepos, repoRootOf, scanRootsFor } from "./repos.ts";
@@ -254,7 +254,8 @@ export function docBilan(docs: readonly TreeDoc[], lines: readonly DocLine[], c:
  */
 export async function knownRepoRoot(repo: string, known: readonly string[]): Promise<string | null> {
   const root = await repoRootOf(repo).catch(() => null);
-  return root && (known.includes(root) || known.includes(repo)) ? root : null;
+  // `samePath`, not `includes`: on win32 git says `C:/x`, herdr `C:\x`, and the case may differ.
+  return root && known.some((k) => samePath(k, root) || samePath(k, repo)) ? root : null;
 }
 
 export async function handleDocsRoute(pathname: string, req: Request, ctx: BoardContext): Promise<Response | null> {

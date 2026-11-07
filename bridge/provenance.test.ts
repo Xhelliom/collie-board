@@ -8,7 +8,8 @@ import { Glob } from "bun";
 
 const root = join(import.meta.dir, "..");
 const sources = ["bridge/**/*.ts", "skills/**/*.{ts,md,sh}", "scripts/**/*.{ts,sh}", "web/src/**/*.{ts,tsx}"]
-  .flatMap((p) => [...new Glob(p).scanSync({ cwd: root })])
+  // `/`-joined on every platform: Glob answers in the host's separator (`bridge\mcp.ts` on win32).
+  .flatMap((p) => [...new Glob(p).scanSync({ cwd: root })].map((f) => f.replaceAll("\\", "/")))
   .filter((f) => !/\.test\.tsx?$/.test(f));
 
 describe("provenance: HC_TERMINAL_ID is relayed wherever HERDR_PANE_ID is", () => {
