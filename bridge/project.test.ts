@@ -1,7 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathWith, writeFakeBin } from "../scripts/test-env.ts";
 
 import { Database } from "bun:sqlite";
 
@@ -619,10 +620,11 @@ describe("one PR for the lot over the routes (ADR 0041)", () => {
   it("GET /api/cards/:id/pr of a card in a lot answers with the lot's PR", async () => {
     // a fake `gh` that names the PR after the branch it is asked about
     const bin = mkdtempSync(join(tmpdir(), "collie-gh-"));
-    const gh = join(bin, "gh");
-    writeFileSync(gh, `#!/bin/sh\necho "{\\"state\\":\\"OPEN\\",\\"url\\":\\"https://x/pull/for/$3\\",\\"mergeable\\":\\"MERGEABLE\\",\\"createdAt\\":\\"2026-01-01T00:00:00Z\\"}"\n`, { mode: 0o755 });
+    const json = (branch: string) =>
+      `{"state":"OPEN","url":"https://x/pull/for/${branch}","mergeable":"MERGEABLE","createdAt":"2026-01-01T00:00:00Z"}`;
+    writeFakeBin(bin, "gh", { sh: `echo "${json("$3").replaceAll('"', '\\"')}"`, cmd: `echo ${json("%3")}` });
     const path = process.env.PATH;
-    process.env.PATH = `${bin}:${path}`;
+    process.env.PATH = pathWith(bin);
     try {
       const db = new BoardDb(":memory:");
       const repo = mkdtempSync(join(tmpdir(), "collie-lotpr-"));

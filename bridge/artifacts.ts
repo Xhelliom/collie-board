@@ -192,12 +192,13 @@ export function mentionedArtifactCandidates(entries: TranscriptEntry[]): string[
       if (part.image !== undefined && !part.image.startsWith("data:")) out.push(part.image);
       const summary = part.summary.trim();
       // A path is absolute and single-token; anything else is a pattern or a phrase, not a file.
-      const isAbsolutePath = summary.startsWith("/") && !summary.includes(" ") && !summary.includes("\t");
+      // `isAbsolute`, not a leading "/": on win32 a Write names `C:\…` (and `/x` stays absolute).
+      const isAbsolutePath = isAbsolute(summary) && !summary.includes(" ") && !summary.includes("\t");
       // Relative, single-token, servable extension, and path-shaped (contains a "/") — the
       // containment filter is the single gate, exactly as for every other candidate.
       const isRelativeArtifact =
         summary.includes("/") &&
-        !summary.startsWith("/") &&
+        !isAbsolute(summary) &&
         !summary.includes(" ") &&
         !summary.includes("\t") &&
         artifactKindOf(summary) !== null;
@@ -293,7 +294,8 @@ const EXCLUDED_ARTIFACT_DIRS = new Set([
 
 /** True when a worktree-relative path lives under an excluded directory. Pure + exported. */
 export function isExcludedArtifactPath(rel: string): boolean {
-  return rel.split("/").some((seg) => EXCLUDED_ARTIFACT_DIRS.has(seg.toLowerCase()));
+  // Either separator: `rel` is cut from a resolved path, which spells `\` on win32.
+  return rel.split(/[\\/]/).some((seg) => EXCLUDED_ARTIFACT_DIRS.has(seg.toLowerCase()));
 }
 
 async function walkForArtifacts(

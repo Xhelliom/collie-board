@@ -28,13 +28,20 @@ function permutations<T>(xs: T[]): T[][] {
 }
 
 describe("pairId", () => {
-  test("drawn once, kept owner-only, the same on every load", () => {
+  test("drawn once, the same on every load", () => {
     const dir = mkdtempSync(join(tmpdir(), "journal-"));
     const id = loadPairId(dir);
     expect(id).toMatch(/^[0-9a-f]{12}$/);
     expect(loadPairId(dir)).toBe(id);
-    expect(statSync(join(dir, "pair-id")).mode & 0o777).toBe(0o600);
     expect(readFileSync(join(dir, "pair-id"), "utf8").trim()).toBe(id);
+  });
+
+  // win32 has no POSIX mode bits: `stat` reports 0o666 whatever `mode` asked for, and the file is
+  // guarded by the state dir's ACL instead. Owner-only is a POSIX promise, checked where it exists.
+  test.skipIf(process.platform === "win32")("kept owner-only", () => {
+    const dir = mkdtempSync(join(tmpdir(), "journal-"));
+    loadPairId(dir);
+    expect(statSync(join(dir, "pair-id")).mode & 0o777).toBe(0o600);
   });
 
   test("a mangled id is refused, not redrawn", () => {

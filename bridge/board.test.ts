@@ -88,6 +88,7 @@ import {
   scanRootsFor,
 } from "./repos.ts";
 import { parseEtime, parseStartTicks, processStartedAt } from "./proc.ts";
+import { normalizePath } from "./paths.ts";
 import { latestModel, latestUsage } from "./transcript.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
@@ -1138,7 +1139,8 @@ describe("git — worktree resolution and diff parsing", () => {
       "branch refs/heads/board/x",
       "",
     ].join("\n");
-    expect(parseWorktreeList(out)).toEqual([
+    // POSIX fixtures, parsed as POSIX: the win32 spelling has its own case just below.
+    expect(parseWorktreeList(out, "linux")).toEqual([
       { path: "/home/me/repo", branch: "main" },
       { path: "/home/me/.herdr/worktrees/repo/board-x", branch: "board/x" },
     ]);
@@ -1152,7 +1154,7 @@ describe("git — worktree resolution and diff parsing", () => {
 
   it("reports a detached worktree with a null branch rather than dropping it", () => {
     const out = ["worktree /tmp/det", "HEAD abc123", "detached", ""].join("\n");
-    expect(parseWorktreeList(out)).toEqual([{ path: "/tmp/det", branch: null }]);
+    expect(parseWorktreeList(out, "linux")).toEqual([{ path: "/tmp/det", branch: null }]);
   });
 
   it("parses numstat, treating a binary file's '-' counts as zero", () => {
@@ -1910,7 +1912,8 @@ describe("repo picker", () => {
       if (args.includes("--show-toplevel")) return { ok: true, stdout: "/repo\n", stderr: "" };
       return { ok: true, stdout: "/repo/.git\n", stderr: "" };
     };
-    expect(await repoRootOf("/repo/src/deep", git)).toBe("/repo");
+    // `normalizePath`: on win32 the root is spelled the way herdr spells it (`C:\repo`).
+    expect(await repoRootOf("/repo/src/deep", git)).toBe(normalizePath("/repo"));
   });
 
   it("collapses a CARD'S WORKTREE onto its source repo, not a repo of its own", async () => {
@@ -1921,7 +1924,7 @@ describe("repo picker", () => {
       }
       return { ok: true, stdout: "/home/me/code/proj/.git\n", stderr: "" };
     };
-    expect(await repoRootOf("/home/me/.herdr/worktrees/proj/board-x", git)).toBe("/home/me/code/proj");
+    expect(await repoRootOf("/home/me/.herdr/worktrees/proj/board-x", git)).toBe(normalizePath("/home/me/code/proj"));
   });
 
   it("falls back to the toplevel when the git dir isn't a plain <root>/.git", async () => {
@@ -1929,7 +1932,7 @@ describe("repo picker", () => {
       if (args.includes("--show-toplevel")) return { ok: true, stdout: "/repo\n", stderr: "" };
       return { ok: true, stdout: "/elsewhere/gitdirs/repo\n", stderr: "" };
     };
-    expect(await repoRootOf("/repo", git)).toBe("/repo");
+    expect(await repoRootOf("/repo", git)).toBe(normalizePath("/repo"));
   });
 
   it("returns null for a directory that isn't in a repo", async () => {
@@ -2077,7 +2080,7 @@ describe("repo picker", () => {
     const repos = await listRepos(store, snapshot(panes), [], git);
 
     expect(seen).toEqual(["/repo"]);
-    expect(repos.map((r) => r.path)).toEqual(["/repo"]);
+    expect(repos.map((r) => r.path)).toEqual([normalizePath("/repo")]);
     expect(repos[0]!.defaultBranch).toBe("main");
   });
 
@@ -2387,7 +2390,7 @@ describe("parseStartTicks", () => {
 describe("processStartedAt", () => {
   it("agrees with the current process's own start time, on whichever path this platform uses", async () => {
     // End-to-end on the real machine: our own pid must resolve to a moment in the past, and not an
-    // implausible one. Exercises /proc on Linux and `ps` on macOS.
+    // implausible one. Exercises /proc on Linux, `ps` on macOS and kernel32 on Windows.
     const started = await processStartedAt(process.pid);
     expect(started).not.toBeNull();
     expect(started!).toBeLessThanOrEqual(Date.now() + 1000);

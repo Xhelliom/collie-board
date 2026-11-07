@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import { cardDiffStat, diffStat, diffStatLine, formatDiffStat, parseMergeTree, pushBranch, pushDir, tailOf, type DiffStat, type GitRunner } from "./git.ts";
+import { normalizePath } from "./paths.ts";
 
 // Captured from git 2.55 (`merge-tree --write-tree --name-only origin/main <branch>`, LC_ALL=C).
 describe("parseMergeTree — does the PR conflict, before anything is pushed", () => {
@@ -134,7 +135,8 @@ describe("pushDir — where the pre-push hook runs", () => {
   });
 
   test("the card's worktree when it exists", async () => {
-    expect(await pushDir("/repo", "card", list("/wt/card"), () => true)).toBe("/wt/card");
+    // The worktree as `git worktree list` parses it: in herdr's spelling on win32 (`C:\wt\card`).
+    expect(await pushDir("/repo", "card", list("/wt/card"), () => true)).toBe(normalizePath("/wt/card"));
   });
 
   test("the repo when the worktree is gone from disk", async () => {

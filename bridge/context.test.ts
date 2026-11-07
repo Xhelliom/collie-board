@@ -266,8 +266,9 @@ describe("ContextTracker", () => {
       window: 1_000_000,
       openCodeDbPath: dbPath,
     });
-    // The pane's agent: a process started before the session (pid 1 started at boot).
-    (client as unknown as { paneProcess: () => Promise<{ pid: number }> }).paneProcess = async () => ({ pid: 1 });
+    // The pane's agent: a process started before the session — this one, on every platform (pid 1
+    // has no start time to read on win32).
+    (client as unknown as { paneProcess: () => Promise<{ pid: number }> }).paneProcess = async () => ({ pid: process.pid });
     await t.update(snapshot([pane("w1:p1", { agent: "opencode" })]));
     expect(reads).toEqual([]);
     expect(t.enrich([pane("w1:p1")])[0]!.ctxPct).toBe(5);

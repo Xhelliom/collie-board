@@ -8,6 +8,7 @@ import { MuxUnsupported, type Mux } from "./mux.ts";
 import { decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, shellLine, type HcTerminal } from "./hc.ts";
 import { launchAgent, promptAndConfirm } from "../cards.ts";
 import type { GitRunner } from "../git.ts";
+import { normalizePath } from "../paths.ts";
 
 const shell: HcTerminal = {
   address: "t1",
@@ -193,7 +194,7 @@ describe("hc writes", () => {
     const { dial, written } = fakeDial(() => reply({ address: "t7", argv: ["/bin/zsh"], cwd: "/x" }));
     const wt = await new Hc("/unused", "auto", dial, 5000, git).createWorktree({ cwd: "/src/collie-board", branch: "board/x", base: "main", label: "Carte" });
     expect(gitCalls.at(-1)).toEqual(["worktree", "add", "-b", "board/x", "--", wt.checkoutPath, "main"]);
-    expect(wt.checkoutPath).toMatch(/\.herdr\/worktrees\/collie-board\/board-x$/);
+    expect(wt.checkoutPath).toMatch(/\.herdr[\\/]worktrees[\\/]collie-board[\\/]board-x$/); // joined on the host: either separator
     expect(wt).toMatchObject({ paneId: "t7", workspaceId: "hc", alreadyOpen: false });
     expect(written).toEqual([
       { method: "terminal.run", params: { cwd: wt.checkoutPath, labels: { "collie.cwd": wt.checkoutPath, "collie.name": "Carte" }, env: { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" }, no_parent: true } },
@@ -204,8 +205,9 @@ describe("hc writes", () => {
     const git: GitRunner = async () => ({ ok: true, stdout: "worktree /wt\nbranch refs/heads/board/x\n", stderr: "" });
     const { dial, written } = fakeDial(() => reply({ terminals: [claudeIdle] }));
     const wt = await new Hc("/unused", "auto", dial, 5000, git).openWorktree({ cwd: "/src", branch: "board/x" });
-    expect(wt).toMatchObject({ checkoutPath: "/wt", paneId: "t5", alreadyOpen: true });
-    expect(written.map((w) => [w.method, w.params])).toEqual([["terminal.list", { labels: { "collie.cwd": "/wt" } }]]);
+    // The checkout as `git worktree list` parses it: herdr's spelling on win32 (`C:\wt`).
+    expect(wt).toMatchObject({ checkoutPath: normalizePath("/wt"), paneId: "t5", alreadyOpen: true });
+    expect(written.map((w) => [w.method, w.params])).toEqual([["terminal.list", { labels: { "collie.cwd": normalizePath("/wt") } }]]);
   });
 
   it("closes a pane: kill (refused when it already exited), then rm", async () => {

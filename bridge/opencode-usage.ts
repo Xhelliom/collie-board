@@ -13,7 +13,7 @@
 // re-read. The pane → session link is opencode-store.ts's, the same one the reading view uses: a
 // gauge that might be another pane's is worse than no gauge.
 
-import { join } from "node:path";
+import { posix, win32 } from "node:path";
 
 import { messageRows, openOpenCodeStore, resolveOpenCodeSession, getSession, type ResolveOpts } from "./opencode-store.ts";
 
@@ -40,10 +40,11 @@ export function defaultOpenCodeDbPath(
   home: string = process.env.HOME ?? "",
 ): string {
   if (platform === "win32") {
-    const localAppData = env.LOCALAPPDATA ?? join(home, "AppData", "Local");
-    return join(localAppData, "opencode");
+    const localAppData = env.LOCALAPPDATA ?? win32.join(home, "AppData", "Local");
+    return win32.join(localAppData, "opencode");
   }
-  return join(env.XDG_DATA_HOME || join(home, ".local", "share"), "opencode");
+  // Joined in the TARGET platform's syntax, not the host's: the path is asked for one platform.
+  return posix.join(env.XDG_DATA_HOME || posix.join(home, ".local", "share"), "opencode");
 }
 
 function text(v: unknown): string | null {
