@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794084112132.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"ea2c300b-1d16-44f9-b53d-705098753065"}}
 {"v":1,"hlc":"1794084112133.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Sous hc, démarrer une carte échoue : agent.start part vers herdr 0.9 avec un terminal hc","status":"backlog"},"ts":1794084102876}}
 {"v":1,"hlc":"1794084112133.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9a97469f-45f3-47ae-9481-06c95028d461"}}
+{"v":1,"hlc":"1794084213977.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
