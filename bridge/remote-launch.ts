@@ -84,8 +84,8 @@ export function launchRouteFor(environment: CardEnvironment | null, outbound: re
 }
 
 /**
- * A card started on a peer outside a lot: no lead will push it and open its PR (a lot's prompt is
- * `startCard`'s, not this one), so its agent does — the PR is how its work reaches this board, which
+ * A card started on a peer, by its button or by a lot: no lead will push it and open its PR (the lot's
+ * lead reads only local checkouts), so its agent does — the PR is how its work reaches this board, which
  * attaches it and files the card at its merge (remote-idle.ts).
  */
 export const DELIVER_PROMPT =
