@@ -46,6 +46,7 @@ describe("ownerOf", () => {
   test("hc's addresses and its one space are hc; every herdr 0.9 id stays herdr 0.9's", () => {
     expect(ownerOf("t3")).toBe("hc");
     expect(ownerOf("t12")).toBe("hc");
+    expect(ownerOf("t1m")).toBe("hc"); // not hex: the address agent.start was sent to 0.9 with
     expect(ownerOf("hc")).toBe("hc");
     expect(ownerOf("w0000000000000:p1")).toBe("herdr09");
     expect(ownerOf("w6:t1")).toBe("herdr09");
@@ -104,6 +105,17 @@ describe("CompositeMux", () => {
     await mux.removeWorktree({ workspaceId: "w1" });
     expect(h.calls.map((x) => x.split(" ")[0])).toEqual(["sendPaneText", "promptAgent", "removeWorktree"]);
     expect(c.calls.map((x) => x.split(" ")[0])).toEqual(["sendPaneKeys", "closePane"]);
+  });
+
+  test("a card started under hc never talks to herdr 0.9 about its pane", async () => {
+    const { mux, h, c } = setup("auto");
+    await mux.sessionSnapshot();
+    await mux.createWorktree({ cwd: "/r", branch: "b" });
+    await mux.startAgent({ paneId: "t1m", kind: "claude", name: "card" });
+    await mux.getAgent("t1m");
+    await mux.promptAgent({ target: "t1m", text: "go" });
+    expect(c.calls.map((x) => x.split(" ")[0])).toEqual(["createWorktree", "startAgent", "getAgent", "promptAgent"]);
+    expect(h.calls).toEqual([]);
   });
 
   test("a launch goes to the configured engine", async () => {
