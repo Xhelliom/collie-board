@@ -176,6 +176,24 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(db.getCard(out.id)!.status).toBe("ready");
   });
 
+  it("a member whose pane never had an agent halts the lot once, with the reason; resume restarts it", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.recordEvent(a.id, "card.start_failed", { stage: "no-agent", error: "no agent ever came up" });
+    const w = world(db);
+    w.coord.update(snap());
+    await flush();
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual([]);
+    expect(events(db, a, "run.halted").map((e) => (e.payload as { reason: string }).reason)).toEqual(["no agent ever came up"]);
+    resumeRun(db, db.getRun(run.id)!);
+    w.coord.update(snap());
+    await flush();
+    expect(w.calls).toEqual(["start a"]);
+  });
+
   it("starts in dependency order, no more than the free slots", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready", position: 0 });

@@ -166,6 +166,11 @@ export function stepFor(
   if (STARTABLE.has(card.status)) {
     // A halt on a card never started (its start failed) holds until the operator moves it, or resumes the run.
     if (held) return null;
+    // Its pane never had an agent (cards.ts `NO_AGENT_MS`): restarting it blind would loop — halt once.
+    const noAgent = newest(events, (e) => e.type === "card.start_failed" && (e.payload as { stage?: unknown }).stage === "no-agent");
+    if (noAgent && after(noAgent, halted) && after(noAgent, newest(events, (e) => e.type === "card.status"))) {
+      return { kind: "halt", reason: String((noAgent.payload as { error?: unknown }).error) };
+    }
     if (!ctx.depsDone) return null;
     // ADR 0036: started now, it would fork from — and open its PR against — a branch not merged yet.
     return ctx.predecessorArmed ? { kind: "predecessor" } : { kind: "start" };
