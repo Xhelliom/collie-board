@@ -32,6 +32,7 @@ import { metered, routeCostSnapshot } from "./route-cost.ts";
 import { handleNodeRoute, liveNodeActions, type LaunchedPane } from "./node.ts";
 import { handlePeerRoute, PeerStore } from "./pairing.ts";
 import { handleHerdRoute, PeerHerd } from "./peer-herd.ts";
+import { leadPaneId } from "./run.ts";
 import { RemoteIdle } from "./remote-idle.ts";
 import { listRepos, scanRootsFor } from "./repos.ts";
 import { confinedSessionPath, resolveWithoutSession, type TranscriptStore } from "./transcript.ts";
@@ -218,7 +219,8 @@ export function startServer(opts: {
         access: () => guard(req, cfg, "read"),
         audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
         // Its pair id rides along, so a peer can tell which of its peers a synced pane id belongs to.
-        snapshot: () => ({ ...primarySnap(), pair: board.pairId() }),
+        // So do the board's own panes: a peer keeps them out of its herd's alerts, as we do (index.ts).
+        snapshot: () => ({ ...primarySnap(), pair: board.pairId(), boardPaneIds: [copilot.paneId, leadPaneId()].filter(Boolean) }),
         readPane: async (paneId) => {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
@@ -278,6 +280,7 @@ export function startServer(opts: {
             // (operator-configurable via COLLIE_BOARD_COPILOT_WORKSPACE): a pane id can't be renamed
             // out from under this. Primary-only, like every other card/copilot fact.
             copilotPaneId: rt.isPrimary ? copilot.paneId : null,
+            leadPaneId: rt.isPrimary ? leadPaneId() : null,
             notifications: { snoozedUntil: snooze.until(), count: notifyLog.count() },
             update: updateMonitor.status(),
             ts: Date.now(),

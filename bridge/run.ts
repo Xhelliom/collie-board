@@ -700,6 +700,8 @@ export function briefOf(card: Card, worktree: string, base: string): CardBrief {
 /** The live lead's pane, so the notification hook can silence it as it does the copilot's. */
 let leadPane: () => string | null = () => null;
 export const isLeadPane = (paneId: string): boolean => paneId === leadPane();
+/** The same pane, for the snapshots that hand it on (the client's toast, a peer's relay). */
+export const leadPaneId = (): string | null => leadPane();
 
 /**
  * The coordinator over the real routes — the one `engine.onUpdate` hook index.ts registers. Primary
