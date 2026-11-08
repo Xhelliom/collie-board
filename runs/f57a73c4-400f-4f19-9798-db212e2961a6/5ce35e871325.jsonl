@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1793980814091.0001.5ce35e871325","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Lead fiable sous Windows"}}
 {"v":1,"hlc":"1793994121312.0000.5ce35e871325","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Lead : dossier approuvé"}}
 {"v":1,"hlc":"1793998849314.0000.5ce35e871325","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1793998848790}}
+{"v":1,"hlc":"1794153092050.0004.5ce35e871325","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1794153092033}}
