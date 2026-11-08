@@ -232,6 +232,33 @@ describe("the lead is silent only when a typed request ran out its deadline", ()
   });
 });
 
+describe("the lead's folder is trusted before Claude starts in it", () => {
+  it("marks hasTrustDialogAccepted on its working dir before agent.start — a fresh install stalled on « trust? »", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lead-trust-"));
+    const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" };
+    const trustFile = join(process.env.CLAUDE_CONFIG_DIR!, ".claude.json");
+    let trustedAtStart: unknown = null;
+    const herdr = {
+      async createWorkspace() {
+        return { paneId: "wL:p1", workspaceId: "wL", tabId: "wL:t1", cwd: dir };
+      },
+      async startAgent() {
+        const cfg = JSON.parse(readFileSync(trustFile, "utf8")) as { projects: Record<string, { hasTrustDialogAccepted?: boolean }> };
+        trustedAtStart = cfg.projects[dir]?.hasTrustDialogAccepted;
+      },
+      async getAgent() {
+        return { agent: "claude", interactive_ready: true, agent_status: "working" };
+      },
+      async promptAgent() {},
+      async sendPaneKeys() {},
+    };
+    const cfg = { boardAgentKind: "claude", boardCopilotKind: "" };
+    const l = new Lead(...([herdr, cfg, dir, () => snap, {}, { timeoutMs: 30, pollMs: 10 }] as unknown as ConstructorParameters<typeof Lead>));
+    await l.check({ ...brief, statSummary: " a.ts | 1 +" }).catch(() => {});
+    expect(trustedAtStart).toBe(true);
+  });
+});
+
 describe("a lead adopted at startup is known before its first request", () => {
   it("observe() adopts the agent already running in its directory, and forgets it once gone", () => {
     // Live 07/11: « adopted the existing agent in w8B:p1 » came only with the next request — until

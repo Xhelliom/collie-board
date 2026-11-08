@@ -29,7 +29,7 @@ import {
   type CardCategory,
   type ReviewTodo,
 } from "./db.ts";
-import { agentNameFor, isCommitFollowUp, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, isCommitFollowUp, launchAgent, promptAndConfirm, trustFolder } from "./cards.ts";
 import { baseOf } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -1226,6 +1226,9 @@ export class Copilot {
       shell?.paneId ?? (await this.herdr.createWorkspace({ cwd: this.workDir, label })).paneId;
 
     const kind = this.cfg.boardCopilotKind || this.cfg.boardAgentKind;
+    // Same pre-approval as a card's checkout: on a fresh install nobody ever answered Claude Code's
+    // trust screen here, and its default « No, exit » leaves the copilot — and the lead — mute.
+    if (kind === "claude") trustFolder(this.workDir);
     await launchAgent(this.herdr, paneId, kind, agentNameFor(label));
     this._paneId = paneId;
     this.requestsSinceReset = 0;
