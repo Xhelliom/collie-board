@@ -1,6 +1,6 @@
 # Convention de documentation d'un dépôt
 
-**Statut :** ✅ décidé le 2026-11-06 (roadmap : « le dépôt fait foi », « modèle Overgate en socle + un module par type de projet »).
+**Statut :** ✅ décidé le 2026-11-06 (roadmap : « le dépôt fait foi », « un socle commun + un module par type de projet » ; d'où vient ce socle : §5).
 
 > Ce qu'un agent pose dans un dépôt quand on lui demande « mets de l'ordre dans la doc », et ce que
 > la page Documents et le bilan de doc du board lisent. Le **dépôt fait foi** : pas de wiki en base,
@@ -49,7 +49,7 @@ docs/
   build/test, et **les erreurs typiques du projet** (« Bun ne recharge pas le service, redémarrer »).
 - Pas d'histoire du projet, pas de décision argumentée (elle est dans un ADR, on y renvoie).
 - Cible : moins de ~15 Ko. Les règles par zone vont dans `.claude/rules/<zone>.md` avec un
-  `paths:` en frontmatter, chargées seulement quand on touche la zone (modèle Overgate).
+  `paths:` en frontmatter, chargées seulement quand on touche la zone (exemple d'origine : §5).
 
 ### 1.3 Ligne **Statut :** et statuts ✅ 🟡 ❓
 
@@ -119,7 +119,7 @@ même PR**. « La doc suivra » veut dire « la doc ne suivra pas ».
 Un dépôt prend **un** module. Ses fichiers vivent sous `docs/` et sont tous joignables depuis
 `docs/README.md`. Tous portent la ligne **Statut :**.
 
-### 2.1 Jeu (modèle : Overgate)
+### 2.1 Jeu (exemple d'origine : §5)
 
 | Chemin | Contient |
 |---|---|
