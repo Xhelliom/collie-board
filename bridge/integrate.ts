@@ -422,7 +422,7 @@ export async function landPr(
   gate: MergeGate | undefined,
   gh: GitRunner = runGh,
 ): Promise<void> {
-  if (await armAutoMerge(db, cardId, repoPath, branch, gh)) return;
+  if (await armAutoMerge(db, cardId, repoPath, branch, gh, gate?.ok === true)) return;
   await mergeWhenReady(db, cardId, repoPath, branch, gate, gh);
 }
 
@@ -545,7 +545,8 @@ function notePrMerged(db: BoardDb, cardId: string, payload: { url: string; merge
 /**
  * Arm GitHub's auto-merge on a just-opened PR, and journal what GitHub said. NEVER fails the PR: a
  * refusal (no branch protection, auto-merge off on the repo) is written on the card and the card
- * counts as done with its PR open — ADR 0017, step 7. Returns whether it was armed.
+ * counts as done with its PR open — ADR 0017, step 7. Returns whether it was armed. `boardMerges`:
+ * the caller merges the PR itself on a refusal (landPr, green gate) — the bell's B15 stays silent then.
  */
 export async function armAutoMerge(
   db: BoardDb,
@@ -553,11 +554,12 @@ export async function armAutoMerge(
   repoPath: string,
   branch: string,
   gh: GitRunner = runGh,
+  boardMerges = false,
 ): Promise<boolean> {
   const r = await enableAutoMerge(repoPath, branch, gh);
   db.recordEvent(cardId, r.ok ? "card.automerge_armed" : "card.automerge_refused", {
     branch,
-    ...(r.ok ? {} : { error: r.error }),
+    ...(r.ok ? {} : { error: r.error, ...(boardMerges ? { boardMerges } : {}) }),
   });
   return r.ok;
 }

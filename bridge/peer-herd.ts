@@ -22,19 +22,22 @@ export interface PeerHerdView {
   shellPanes: Record<string, unknown>[];
   /** Its pair id (ADR 0048), as its last answer gave it — kept while it is down; null before. */
   pair: string | null;
+  /** Its copilot's and lead's panes: the board's own agents, never an alert here (index.ts). */
+  boardPaneIds?: string[];
   /** When the last answer (or failure) came back; null before the first. */
   at: number | null;
 }
 
 /** What one `/api/node/snapshot` call says of a peer. Pure. */
-export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes"> & Partial<Pick<PeerHerdView, "pair">> {
+export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes"> & Partial<Pick<PeerHerdView, "pair" | "boardPaneIds">> {
   const down = (error: string) => ({ state: "disconnected" as const, error, agents: [], shellPanes: [] });
   if (!ok(r)) return down(peerRefusal(peer, "snapshot", r));
   if (r.body.bridge === "disconnected") return down(`${peer}: its herdr is disconnected`);
   const tag = (v: unknown) =>
     (Array.isArray(v) ? v : []).filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null).map((p) => ({ ...p, peer }));
   const pair = typeof r.body.pair === "string" ? { pair: r.body.pair } : {};
-  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes), ...pair };
+  const boardPaneIds = (Array.isArray(r.body.boardPaneIds) ? r.body.boardPaneIds : []).filter((v): v is string => typeof v === "string");
+  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes), boardPaneIds, ...pair };
 }
 
 interface Slot extends PeerHerdView {
@@ -85,7 +88,7 @@ export class PeerHerd {
     s.lastRead = now;
     try {
       Object.assign(s, herdOf(peer.name, await call(this.d, peer, "/api/node/snapshot")), { at: this.now() });
-      this.raise(peer.name, s.agents);
+      this.raise(peer.name, s.agents, s.boardPaneIds);
       if (s.state === "connected") await this.d.onRead?.(peer.name, s.agents);
     } finally {
       s.busy = false;
@@ -97,14 +100,14 @@ export class PeerHerd {
    * in the herd's one slot, retracted as soon as the peer's snapshot stops saying it — a peer that no
    * longer answers says nothing, so its alerts go too rather than outlive what we can read.
    */
-  private raise(peer: string, agents: readonly Record<string, unknown>[]): void {
+  private raise(peer: string, agents: readonly Record<string, unknown>[], boardPaneIds: readonly string[] = []): void {
     const alerts = this.d.alerts?.();
     if (!alerts) return;
     const str = (v: unknown) => (typeof v === "string" ? v : undefined);
     const blocked = new Set<string>();
     for (const a of agents) {
       const id = str(a.paneId);
-      if (a.status !== "blocked" || !id) continue;
+      if (a.status !== "blocked" || !id || boardPaneIds.includes(id)) continue;
       const key = herdPaneId(peer, id);
       blocked.add(key);
       if (this.raised.has(key)) continue;

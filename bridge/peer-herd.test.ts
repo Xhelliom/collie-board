@@ -62,6 +62,15 @@ describe("PeerHerd", () => {
     expect(log.slice(2)).toEqual(["arm w1:p1@dev blocked w1:p1@dev", "retract w1:p1@dev"]);
   });
 
+  it("never raises the peer's own lead or copilot — the board's agents, not the operator's", async () => {
+    const answer = { ...SNAP, boardPaneIds: ["w1:p1"] };
+    const { fetch } = fakeFetch(() => Response.json(answer));
+    const log: string[] = [];
+    const alerts = { arm: (k: string) => log.push(`arm ${k}`), retract: (k: string) => log.push(`retract ${k}`) };
+    await new PeerHerd({ fetch, outbound: () => [DEV], alerts: () => alerts }).update(LOCAL);
+    expect(log).toEqual([]);
+  });
+
   it("reads each peer at most every READ_EVERY_MS", async () => {
     let t = 0;
     const { fetch, seen } = fakeFetch(() => Response.json(SNAP));

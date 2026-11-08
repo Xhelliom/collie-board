@@ -42,12 +42,19 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       events.filter((e) => types.includes(e.type)).map((e) => e.type).reverse().slice(0, limit),
     getCard: (id: string) => {
       const c = cards[id];
-      return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath } : null;
+      return c ? { id, title: c.title, status: c.status, repoPath: c.repoPath, runId: c.runId ?? null } : null;
     },
     dependentsOf: (id: string) =>
       Object.entries(cards)
         .filter(([, c]) => c.dependsOn === id)
-        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
+        .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath, runId: c.runId ?? null })),
+    runs: {} as Record<string, { launchedAt: number | null; finished: boolean }>,
+    getRun(id: string) {
+      return this.runs[id] ?? null;
+    },
+    runFinished(id: string) {
+      return this.runs[id]?.finished ?? false;
+    },
     openSessionFor: (id: string) => {
       const c = cards[id];
       return c?.session ? { id: c.session, handoffRequestedAt: c.handoff } : null;
@@ -56,7 +63,7 @@ function source(events: BoardEvent[], seed: Partial<Record<string, Row>> = {}) {
       Object.entries(cards)
         .filter(([, c]) => c.runId === runId)
         .map(([k, c]) => ({ id: k, title: c.title, status: c.status, repoPath: c.repoPath })),
-  } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row> };
+  } satisfies BoardNotifySource & { events: BoardEvent[]; cards: Record<string, Row>; runs: Record<string, { launchedAt: number | null; finished: boolean }> };
 }
 
 interface Row {
@@ -104,6 +111,12 @@ describe("tell", () => {
     });
   });
 
+  test("B2 only for a verdict that asks something — a complete review asks nothing", () => {
+    expect(tell(event(1, "review.created", { verdict: "complete" }))).toBeNull();
+    expect(tell(event(2, "review.created", { verdict: " Complete " }))).toBeNull();
+    expect(tell(event(3, "review.created", { verdict: "drift" }))?.subtitle).toBe("Copilot review: drift");
+  });
+
   test("drops everything else — the filter is the fact, not the trigger", () => {
     for (const type of ["card.merged", "card.status", "session.opened", "wrapup.expired", "copilot.explained"]) {
       expect(tell(event(1, type))).toBeNull();
@@ -111,7 +124,7 @@ describe("tell", () => {
   });
 
   test("survives a payload that isn't the shape it expects", () => {
-    expect(tell(event(1, "review.created", null))?.subtitle).toBe("Copilot review is in");
+    expect(tell(event(1, "review.created", null))).toBeNull();
     expect(tell(event(2, "card.cleanup_failed", { stage: 7 }))?.subtitle).toBe("cleanup kept");
   });
 });
@@ -144,6 +157,17 @@ describe("BoardNotifier", () => {
       title: "Review · Ship the bell",
       body: "collie-board · Copilot review: drift",
     });
+  });
+
+  test("a review on a lot's card tells nothing: the lead judges that card, not the operator", () => {
+    const log = new NotifyLog(() => 0);
+    const db = source([], { c1: { title: "In a lot", status: "review", repoPath: null, session: null, handoff: null, runId: "r1" } });
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, log, alerts);
+    db.events.push(event(1, "review.created", { verdict: "partial" }));
+    notifier.update();
+    expect(log.recent()).toHaveLength(0);
+    expect(alerts.log).toEqual([]);
   });
 
   test("a fact it can't render still advances the cursor", () => {
@@ -356,13 +380,13 @@ describe("BoardNotifier — the board's own alerts", () => {
     const log = new NotifyLog(() => 0);
     const notifier = new BoardNotifier(db, log);
 
-    db.events.push(orphan(1), event(2, "review.created", { verdict: "complete" }));
+    db.events.push(orphan(1), event(2, "review.created", { verdict: "partial" }));
     notifier.update();
 
     // The orphan produced nothing — an alarm with nowhere to go is not silently turned into a bell
     // entry, because a bell entry cannot be retracted and this fact needs to be.
     expect(log.recent()).toHaveLength(1);
-    expect(log.recent()[0]?.subtitle).toBe("Copilot review: complete");
+    expect(log.recent()[0]?.subtitle).toBe("Copilot review: partial");
   });
 });
 
@@ -404,6 +428,22 @@ describe("BoardNotifier — B4, the one that opens a door", () => {
       title: "Ready · Wire the parser in",
       body: "collie-board · “Write the parser” is done — this one can start",
     });
+  });
+
+  test("a successor in a launched lot is the lot's to start — nobody is told", () => {
+    const db = waiting("ready");
+    db.cards.c2!.runId = "r1";
+    db.runs.r1 = { launchedAt: 1, finished: false };
+    const alerts = sink();
+    const notifier = new BoardNotifier(db, new NotifyLog(() => 0), alerts);
+    db.events.push(finished(1));
+    notifier.update();
+    expect(alerts.armed.size).toBe(0);
+    // A lot only planned, or already finished, starts nothing: the operator does.
+    db.runs.r1 = { launchedAt: null, finished: false };
+    db.events.push(finished(2));
+    notifier.update();
+    expect([...alerts.armed.keys()]).toEqual(["card:c2"]);
   });
 
   test("it notifies and STOPS THERE — the gate is still a gate", () => {
@@ -615,11 +655,15 @@ describe("BoardNotifier — an agent's note (POST /api/board/notify, ADR 0019)",
   });
 });
 
-describe("tell: a refused auto-merge (B13)", () => {
+describe("tell: a refused auto-merge (B15)", () => {
   test("says what to do, in the bell", () => {
     const e = { id: 1, cardId: "c", type: "card.automerge_refused", payload: { error: "GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)" }, ts: 1 };
     expect(tell(e)).toEqual({ status: "blocked", subtitle: "PR open — auto-merge is off for this repo; merge it yourself" });
     expect(tell({ ...e, payload: { error: "boom" } })!.subtitle).toBe("PR open — GitHub refused auto-merge: boom");
+  });
+  test("stays silent when the board merges the PR itself — nothing for the operator to do", () => {
+    const e = { id: 1, cardId: "c", type: "card.automerge_refused", payload: { error: "Auto merge is not allowed for this repository", boardMerges: true }, ts: 1 };
+    expect(tell(e)).toBeNull();
   });
 });
 

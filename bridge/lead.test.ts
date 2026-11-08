@@ -258,3 +258,20 @@ describe("the lead's folder is trusted before Claude starts in it", () => {
     expect(trustedAtStart).toBe(true);
   });
 });
+
+describe("a lead adopted at startup is known before its first request", () => {
+  it("observe() adopts the agent already running in its directory, and forgets it once gone", () => {
+    // Live 07/11: « adopted the existing agent in w8B:p1 » came only with the next request — until
+    // then the lead's paneId was null, and every turn of it paged the operator (index.ts).
+    const dir = mkdtempSync(join(tmpdir(), "lead-adopt-"));
+    const snap = (agents: { paneId: string; cwd: string }[], bridge = "connected") => ({ agents, shellPanes: [], workspaces: [], tabs: [], bridge }) as never;
+    const l = new Lead(...([null, {}, dir, () => snap([]), {}] as unknown as ConstructorParameters<typeof Lead>));
+    expect(l.paneId).toBeNull();
+    l.observe(snap([{ paneId: "wW:p1", cwd: "/elsewhere" }, { paneId: "w8B:p1", cwd: dir }]));
+    expect(l.paneId).toBe("w8B:p1");
+    l.observe(snap([], "disconnected"));
+    expect(l.paneId).toBe("w8B:p1");
+    l.observe(snap([]));
+    expect(l.paneId).toBeNull();
+  });
+});

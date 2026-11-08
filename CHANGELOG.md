@@ -9,6 +9,26 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.277.6] - 2026-11-07
+
+### Fixed
+
+- Le lead n'envoie plus de notification après un redémarrage du bridge : son pane est adopté au tick suivant, plus à sa première requête (ca86756)
+- Le lead est exclu du toast du client et des alertes relayées depuis un pair, comme le copilote (ca86756)
+- Cloche : plus de « Copilot review » pour une carte d'un lot (le lead la juge), ni pour un verdict `complete` (ca86756)
+
+## [0.277.5] - 2026-11-07
+
+### Fixed
+
+- Windows : la jauge de contexte retrouve l'heure de démarrage de l'agent (`GetProcessTimes`), donc le bon transcript (d7135ed)
+- Windows : les artefacts d'une carte écartent `node_modules`/`dist`/`.board` et gardent les fichiers cités en `C:\…` (d7135ed)
+- Windows : les docs d'un autre projet s'ouvrent quand git et herdr n'épellent pas le chemin pareil (`C:/` / `C:\`, casse) (d7135ed)
+- Le chemin par défaut de la base opencode suit la plateforme demandée, pas celle de l'hôte (d7135ed)
+- `bun test` du bridge passe sous Windows (chemins, séparateurs, PATH, faux `gh`, symlinks et droits POSIX en skip motivé) (d7135ed)
+- Cloche : plus de « merge it yourself » quand le lot merge lui-même la PR refusée en auto-merge (3948a57)
+- « Ready » : plus d'alerte pour une carte qu'un lot lancé va démarrer lui-même (3948a57)
+
 ## [0.277.4] - 2026-11-07
 
 ### Fixed

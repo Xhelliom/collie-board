@@ -39,7 +39,7 @@ export function RootLayout() {
   // routine fast polls/navigations stay invisible. Mounted here so the whole app shares one
   // detector inside the router context.
   usePollBusy();
-  useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session);
+  useAgentTransitions(data.agents, paneId ?? null, data.copilotPaneId, data.session, data.leadPaneId ?? null);
   usePushSetup();
   // The icon's count from what the page sees — only when it sees everything (one session, a fresh
   // snapshot); otherwise the service worker's per-push sum stands.
