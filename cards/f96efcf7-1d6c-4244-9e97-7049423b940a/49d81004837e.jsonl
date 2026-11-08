@@ -43,3 +43,5 @@
 {"v":1,"hlc":"1794090763464.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"working","reason":"review refused: board/doc-mettre-collie-board-aux-normes has nothing vs main — no commit, no file; the work was never done"},"ts":1794090763365}}
 {"v":1,"hlc":"1794090784940.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"review"}}
 {"v":1,"hlc":"1794090784940.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"working","to":"review","reason":"agent done"},"ts":1794090773183}}
+{"v":1,"hlc":"1794148760530.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794148760536.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"working","reason":"review refused: board/doc-mettre-collie-board-aux-normes has nothing vs main — no commit, no file; the work was never done"},"ts":1794148758413}}
