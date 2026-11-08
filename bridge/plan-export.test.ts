@@ -43,7 +43,7 @@ describe("plan export at the end of a lot", () => {
     const a = db.createCard({ title: "Ajouter X", repoPath: "/r", status: "done" });
     const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0, name: "Lot 1" }) as Run;
     const md = lotBilanMarkdown(run, [{ card: a, report: { issue: "coded", text: "Issue : codé\nX est là." }, prUrl: "https://g/pull/3" }], Date.UTC(2026, 10, 6));
-    expect(md).toContain("# Bilan du lot — Lot 1");
+    expect(md).toContain("# Bilan du lot — Lot 1\n\n**Statut :** ✅ décidé — lot terminé le 2026-11-06");
     expect(md).toContain("2026-11-06 · 1/1");
     expect(md).toContain("done · codé · https://g/pull/3");
     expect(md).toContain("> X est là.");

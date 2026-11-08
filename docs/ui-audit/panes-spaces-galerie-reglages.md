@@ -1,5 +1,7 @@
 # Audit UI — panes, spaces, galerie, réglages (mobile 390 px)
 
+**Statut :** ✅ décidé — audit du 2026-10-12, phase « Revue de l'UI » validée
+
 **Méthode du rendu mobile** : lecture du code (`router.tsx`, `routes/*`, composants associés) et des classes Tailwind. Le navigateur n'était pas connecté (extension Chrome absente) : **aucun rendu réel**, donc les constats « débordement » sont déduits des classes et restent à confirmer à l'écran. Aucun fichier du code modifié.
 
 ## Question

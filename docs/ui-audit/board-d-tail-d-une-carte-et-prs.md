@@ -1,5 +1,7 @@
 # Audit UI — board, détail d'une carte, PRs (mobile 390 px)
 
+**Statut :** ✅ décidé — audit du 2026-10-12, phase « Revue de l'UI » validée
+
 **Méthode du rendu mobile** : **rendu réel**, avec `google-chrome-stable` local en headless contre le pont (`http://127.0.0.1:8788`), sur les données réelles du board (397 cartes) :
 - captures à 390×844 (premier écran) et pleine page (390×4000 à 390×10600) de `/board`, `/board?repo=…collie-board`, `/board/prs`, et de deux cartes : `76761f43…` (à relire, agent vivant, 57 fichiers de diff, 2 revues, 2 sessions) et `1cd268ac…` (terminée, 11 sessions) ;
 - mesures par le protocole DevTools (viewport 390×844, `mobile: true`, tactile émulé) : largeur de mise en page, éléments qui dépassent, position des boutons de l'en-tête, cibles tactiles < 44 px et < 32 px, recouvrement de la zone de statut par la barre de nav, position de chaque section.

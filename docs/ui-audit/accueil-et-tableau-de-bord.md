@@ -1,5 +1,7 @@
 # Audit UI — accueil `/` et tableau de bord (mobile 390 px)
 
+**Statut :** ✅ décidé — audit du 2026-10-12, phase « Revue de l'UI » validée
+
 **Méthode du rendu mobile** : **rendu réel**. Captures de `/` à 390 × 844 puis 390 × 3200 (page entière) avec Chrome headless local (`google-chrome-stable --headless --window-size=390,…`) contre le pont qui tourne sur `127.0.0.1:8788`, avec les vraies données (13 panes, 8 projets). L'extension Chrome n'a pas pu servir : elle tourne sur une autre machine que le pont (page d'erreur, fenêtre restée à 1920 px). En plus des captures : lecture de `router.tsx`, `routes/home.tsx`, `home-dashboard.tsx`, `agent-list.tsx`, `agent-card.tsx`, `kpi.tsx`, `app-header.tsx`, `lib/dashboard.ts`. Aucun code modifié.
 
 Ordre actuel à l'écran : en-tête (Herd · n panes · n spaces · cloche) → héros (phrase + anneau) → 4 KPI → triage (Needs you / Working / Idle · done) → Projets → Quota → PR ouvertes → Activité → bannière de mise à jour.
