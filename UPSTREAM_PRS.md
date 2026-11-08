@@ -7,6 +7,9 @@ than to the board, with the commits that carry it. Strategy and posture live in
 **Keep it current.** A brick lands here in the same commit that introduces it — see
 [`CLAUDE.md`](./CLAUDE.md) → *The board*. A ledger updated afterwards is a ledger nobody trusts.
 
+**One brick, one file**: `docs/upstream/prs/NN-<slug>.md`, and its `## NN. <status> <title>` heading
+here linking to it. A status change edits the emoji in both titles.
+
 > ⚠️ **This repo is a standalone fork, not a GitHub fork object**, so a PR cannot be opened from it
 > (GitHub requires the head repo to be a fork of the base). To submit: fork `AltanS/collie` on
 > GitHub, add it as a third remote, cherry-pick onto a branch there, open the PR. That is why the
@@ -19,1321 +22,180 @@ Status: 🔵 ready · 🟡 needs extraction · ⚪ not started · 🟢 submitted
 
 ## 1. 🔵 `collie-ctl.sh` — three ways `start` breaks on a standard install
 
-**The first PR to offer.** Pure bug fix, no board dependency, hits every user, and it is one commit.
-
-| | |
-|---|---|
-| Commit | `1952610` *fix(ctl): three ways `start` broke on a completely standard install* |
-| Files | `scripts/collie-ctl.sh`, `scripts/collie-ctl.test.sh` |
-| Extraction | **Clean cherry-pick.** Only the filename differs (`collie-board-ctl.sh`), so the pick needs `-X rename-threshold` or a manual path fix. |
-
-What it fixes, all live-reproduced:
-
-1. **`start` dies with "bun not found" while `bun --version` works.** Herdr runs plugin actions in a
-   non-interactive shell, which sources no `~/.zshrc` — so the `~/.bun/bin` entry bun's own
-   installer writes there isn't in scope. Resolution now also checks `$BUN_INSTALL/bin`,
-   `~/.bun/bin`, `/usr/local/bin`, `/opt/homebrew/bin`.
-2. **`BUN="$(resolve_bun)"` under `set -e`** — a command substitution returning non-zero in an
-   assignment kills the script, so a machine with no bun exited silently before reaching the message
-   explaining what to do.
-3. **`tailscale status --json | bun` under `pipefail`** — the pipeline inherits *tailscale's* exit
-   code, so a tailscale that is installed but not connected took the whole script down instead of
-   degrading to "unknown".
-
-Plus: the `serve` failure now reports what tailscale actually said. It used to blame a missing
-certificate unconditionally, which sends someone hitting the `--operator` permission to exactly the
-wrong fix.
-
----
+→ [`docs/upstream/prs/01-collie-ctl-sh-three-ways-start-breaks-on-a-stand.md`](docs/upstream/prs/01-collie-ctl-sh-three-ways-start-breaks-on-a-stand.md)
 
 ## 2. 🟡 Context gauge, and `$ctx` in herdr's own sidebar
 
-The cheapest genuinely-new capability, and it grafts onto a file that already exists.
-
-| | |
-|---|---|
-| Commits | `6bce9cc` (the gauge, `latestUsage`, `pane.report_metadata`) · `c0bca59` (adapter gating) · `106b723` (walks agent panes, figure held in memory) |
-| Files | `bridge/transcript.ts` (`latestUsage`), `bridge/context.ts`, `bridge/herdr-client.ts` (`reportPaneMetadata`), `web/src/components/context-gauge.tsx` |
-| Extraction | **Needs splitting.** `6bce9cc` also carries the card diff and board wiring. Take `latestUsage()` + `context.ts` + the client method. `106b723` removed the one card coupling that stood in the way: `ContextTracker` now walks the snapshot's agent panes and holds the figure in memory, so the board arguments are droppable and the gauge works with no card in sight. |
-
-`latestUsage()` sums `input + cache_creation + cache_read` of the newest **non-sidechain** assistant
-turn — both filters load-bearing: a subagent's small window makes a full session read as empty, and
-taking the largest rather than the newest would pin the gauge at the pre-`/compact` figure forever.
-
-Pushing it back with `pane.report_metadata` renders it as `$ctx` in herdr's Agents sidebar, so the
-number is visible in the TUI, not only in the phone app. ~30 lines, zero coupling.
-
-**Needs a context-window size** (`COLLIE_BOARD_CTX_WINDOW`); herdr doesn't know it and the transcript
-doesn't state it.
-
-**Cost, measured** (378 logs, 0.3–18 MB): median 10–23 ms per pane per 30 s refresh, worst 110 ms on
-an 18 MB log — ~1 % of one core for a twelve-agent herd. Worth stating in the PR: it reads every live
-agent's transcript, throttled per pane, on the existing poll rather than a timer of its own.
-
----
+→ [`docs/upstream/prs/02-context-gauge-and-ctx-in-herdr-s-own-sidebar.md`](docs/upstream/prs/02-context-gauge-and-ctx-in-herdr-s-own-sidebar.md)
 
 ## 3. 🟡 Find a pane's transcript without the integration — **fixes History for most users**
 
-Probably the highest-value brick here, because it repairs an *upstream* feature that is inert by
-default.
-
-| | |
-|---|---|
-| Commits | `6bce9cc` (`resolveByCwd`) · `7007e29` (`resolveForProcess`, `bridge/proc.ts`, `paneProcess`) · `9fd958e` (the consumer change + the resume fix) · `5182d61` (the client gate) |
-| Files | `bridge/transcript.ts`, `bridge/proc.ts`, `bridge/herdr-client.ts`, `bridge/server.ts` (`paneHistory`), `bridge/context.ts` (now shares the resolution), `web/src/components/agent-chat.tsx` (the gate) |
-| Extraction | **Needs splitting**, but the pieces are self-contained. `resolveWithoutSession()` is the whole rule in one exported function, and both consumers call it. |
-
-Herdr reports `agent_session` **only** once `herdr integration install claude` has planted its hook.
-A plain install has none — verified live: not one agent pane in a four-agent herd carried it. So
-Collie's own pane History answers `no-session` for anyone who hasn't run that command, and the
-History affordance is never even rendered (`agent-chat.tsx` gates on `agentSessionId`).
-
-Two resolutions, in order:
-
-- `resolveForProcess(cwd, startedAt)` — `pane.process_info` gives the pane's foreground PID,
-  `/proc/<pid>/stat` its start time, and the log born closest after it is that process's. Measured
-  gap: 7 s. Exact even with two agents live in one directory.
-- `resolveByCwd(cwd)` — newest log in the mangled project directory. The fallback when neither start
-  time nor birth times are available.
-
-Both platforms Collie targets are covered: `/proc/<pid>/stat` on Linux, `ps -o etime=` on macOS
-(`lstart` is locale-dependent — it prints "mar. juil. 28 …" on a French machine). Verified against
-each other on one process: 1.3 s apart. Windows has neither and falls back.
-
-A wrong `USER_HZ` can only push the computed start into the future, which the guard rejects → the
-fallback answers. It cannot produce a wrong-but-plausible file.
-
-**The consumer change is now made** (it was the missing half): `paneHistory()` falls back to the same
-resolution when herdr reports no session, so History — and the reading mode of brick 15 — work on a
-plain install. Two guards, because resolution is BY DIRECTORY and a wrong transcript is worse than
-none: never a shell pane, and never an agent whose adapter doesn't claim a readable transcript format
-(upstream has no adapter table; there the check is "is this a Claude pane").
-
-**And a correction to the rule itself, which upstream should take with it.** "The log born closest
-after the process started" is wrong for a **resumed** conversation, which in a long-running herd is
-most of them. Live case (2026-08-03): a pane's claude started 09:54:48, Claude Code created a log 17 s
-later, then resumed a conversation from four days earlier and wrote everything into THAT file. The
-startup log died at 31 entries while the real one reached 20 MB — and the "exact" rule served the dead
-one: a stale conversation as the pane's history, and **another session's occupancy on the context
-gauge** (brick 2 inherits the fix). The rule is now *the log this process has been WRITING to*, with
-birth time kept only as the tie-break for a pane that hasn't written yet. What that gives up: two
-agents live in one directory, both writing, is a coin flip again — rare when each agent gets its own
-worktree, and far less damaging than confidently serving a dead conversation.
-
----
+→ [`docs/upstream/prs/03-find-a-pane-s-transcript-without-the-integration.md`](docs/upstream/prs/03-find-a-pane-s-transcript-without-the-integration.md)
 
 ## 4. 🟡 Two herdr races every agent launcher hits
 
-Not a feature — three findings that are simply true of herdr 0.7.5, packaged as helpers.
-
-| | |
-|---|---|
-| Commits | `dcf7f37` (`launchAgent`, `agent_pane_busy` retry, readiness poll) · `09fb97a` (`promptAndConfirm` re-send) |
-| Files | `bridge/cards.ts` (the four exported helpers) |
-| Extraction | **Needs splitting** — both commits also carry board logic. The helpers themselves have no board dependency. |
-
-1. **`agent.start` does not wait.** The CLI help says success means the agent "is ready for input",
-   but that is the CLI polling afterwards: the socket method returns in ~2 ms with
-   `agent_status: "unknown"` and `launch_pending: true`. Poll `agent.get` for `interactive_ready`.
-2. **`agent.start` right after `worktree.create`** fails `agent_pane_busy` while the pane's shell is
-   still sourcing its rc. Retry on that code, and only that code.
-3. **`agent.prompt` does not reliably deliver.** A multi-line prompt lands as `[Pasted text #N]` and
-   sits there; and Claude Code's first-run trust dialog eats the prompt whole while herdr reports
-   `interactive_ready: true`. Read the state back and look — the rule Collie already applies to
-   replies in `web/src/lib/reply-action.ts`.
-
-Collie doesn't launch agents today, so this is only useful to upstream **if** it ever does. Offer it
-as documentation of the socket's real behaviour if not as code — `HERDR_API.md` is the natural home.
-
----
+→ [`docs/upstream/prs/04-two-herdr-races-every-agent-launcher-hits.md`](docs/upstream/prs/04-two-herdr-races-every-agent-launcher-hits.md)
 
 ## 5. 🔵 Wrap the pane mirror by default on a phone
 
-Tiny, one file, and it fixes the primary screen of a phone-first app.
-
-| | |
-|---|---|
-| Commit | `9fa4248` *fix(web): wrap the mirror by default on a phone* |
-| Files | `web/src/hooks/use-display-prefs.ts` |
-| Extraction | **Clean cherry-pick.** |
-
-`DEFAULTS.wrap` is `false`, so the mirror pans horizontally out of the box. Measured on a real herd:
-panes run a **median of 81 columns and a max of 233**, while a phone shows about 50 at 12px
-monospace — so most lines run off the edge, on the one screen Collie exists for.
-
-Not wrap-always: the no-wrap default is *right* on a wide screen, where preserving column alignment
-is what makes a TUI's boxes and tables readable at all. So the default follows the viewport
-(`wrapDefaultFor`, < 640px = the app's own `max-w-screen-sm`), and the instant the user touches the
-existing toggle their choice is stored and wins forever. Nothing else changes.
-
----
+→ [`docs/upstream/prs/05-wrap-the-pane-mirror-by-default-on-a-phone.md`](docs/upstream/prs/05-wrap-the-pane-mirror-by-default-on-a-phone.md)
 
 ## 6. 🔵 The frontend test suite is broken by Node 24+
 
-The smallest brick here and the most annoying to diagnose, which is exactly why it is worth sending.
-
-| | |
-|---|---|
-| Commit | `e52a993` *feat(board): a split makes real cards…* (the fix is the one file below) |
-| Files | `web/src/test/setup.ts` |
-| Extraction | **Clean cherry-pick.** |
-
-Node 24+ defines its own `localStorage` global that stays **undefined** unless the process was
-started with `--localstorage-file`, and it takes precedence over the one jsdom installs. So
-`localStorage.clear()` in a `beforeEach` throws, and every display-preference test fails — here, 17
-of them — on the day the machine's Node is upgraded, with nothing in the repository having changed
-and nothing in the error naming Node as the cause.
-
-Reproduced on Node v26.5.0, vitest 4.1.9, `environment: "jsdom"`. The fix installs a Map-backed
-`Storage` when the global is missing, next to the existing `matchMedia` / `scrollIntoView` gap-fills.
-Inert on a Node that behaves.
-
----
+→ [`docs/upstream/prs/06-the-frontend-test-suite-is-broken-by-node-24.md`](docs/upstream/prs/06-the-frontend-test-suite-is-broken-by-node-24.md)
 
 ## 7. ⚪ Diff view on the focused pane's `cwd`
 
-| | |
-|---|---|
-| Commit | `6bce9cc` |
-| Files | `bridge/git.ts`, `web/src/components/card-diff.tsx` |
-| Extraction | **Needs splitting and rewriting.** `git.ts` is scoped by a card's branch; upstream would scope it by the focused pane's `cwd` + its current branch. The parsers (`parseNumstat`, `parseUntracked`, `isSafeDiffPath`) transfer as-is. |
-
-Reading a diff on a phone is missing for everyone, and needs no card. Worth noting the two choices:
-diff the **working tree** against the merge base (agents routinely leave nothing committed, so
-`base...HEAD` reads empty), and list untracked files separately (`git diff` cannot see them, and a
-new file is the most common thing an agent produces).
-
-Check `persiyanov/herdr-reviewr` before proposing — it may already cover this.
-
----
+→ [`docs/upstream/prs/07-diff-view-on-the-focused-pane-s-cwd.md`](docs/upstream/prs/07-diff-view-on-the-focused-pane-s-cwd.md)
 
 ## 8. ⚪ TOML agent adapters
 
-| | |
-|---|---|
-| Commit | `c0bca59` |
-| Files | `bridge/adapters.ts`, `adapters/agents.toml` |
-| Extraction | **Nearly clean.** The module has no board dependency; only its consumers do. |
-
-Four fields — launch kind, context-reset command, whether the transcript is readable, whether a
-native session id is reported — merged **per field** from a user file. Only useful to upstream
-alongside brick 2 or 4; on its own it configures nothing.
-
----
+→ [`docs/upstream/prs/08-toml-agent-adapters.md`](docs/upstream/prs/08-toml-agent-adapters.md)
 
 ## 9. 🔵 The bottom sheet closes on a scroll, and vanishes instead of closing
 
-| | |
-|---|---|
-| Commit | `5151295` *fix(sheet): a drag in a list no longer closes the drawer, and closing is animated* |
-| Files | `web/src/components/ui/sheet.tsx`, `web/src/components/ui/sheet.test.tsx` |
-| Extraction | **Clean cherry-pick — from `5151295` only.** The file has since been rewritten over Vaul ([ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md)), so offer that commit, never the current file: upstream has not taken that dependency and this brick must not smuggle it in. |
-
-Every Collie user on a phone hits this: a drag down inside a sheet's list closes the sheet instead
-of scrolling it, reopening one flickers, and closing is a hard cut with no animation. Three separate
-causes, all in the hand-rolled sheet (upstream doesn't use Vaul either): the pull-to-dismiss arms on
-any touch — including one that starts in a field or a scroller; the drag offset survives the close
-and replays on the next open; and `onClose` sits in the effect dependency arrays, so every caller's
-inline lambda re-attaches the listeners on each parent render. The `onClose` fix belongs in the
-component rather than in `useCallback`s at the call sites — that is what stops the next caller from
-reintroducing it.
-
----
+→ [`docs/upstream/prs/09-the-bottom-sheet-closes-on-a-scroll-and-vanishes.md`](docs/upstream/prs/09-the-bottom-sheet-closes-on-a-scroll-and-vanishes.md)
 
 ## 10. 🔵 Three one-line finishes: `text-wrap`, scroll-snap, haptic confirm
 
-| | |
-|---|---|
-| Commit | `160007d` *feat(board): the one-line finishes — text-pretty, scroll-snap, haptic arm* |
-| Files | `web/src/index.css`, `web/src/components/{space,tab,pane}-strip.tsx`, `web/src/hooks/use-pending-confirm.{ts,test.ts}` |
-| Extraction | **Clean cherry-pick.** Every file is upstream's; no card is in sight. |
-
-Three unrelated polish items that happen to be one line each. A global `text-wrap: pretty` / `balance`
-rule removes orphan words app-wide (`pre` untouched, so the mirror never rewraps). The three
-horizontal chip strips get `snap-x snap-mandatory` + `[&>*]:snap-start` + `scroll-px-3`, so a flick
-lands on a chip instead of half-cutting one at the edge. And arming a two-tap confirm calls
-`navigator.vibrate?.(10)` from inside `usePendingConfirm`, which every destructive action already
-routes through — Android gets the tick, iOS Safari and jsdom no-op on the optional call.
-
----
+→ [`docs/upstream/prs/10-three-one-line-finishes-text-wrap-scroll-snap-ha.md`](docs/upstream/prs/10-three-one-line-finishes-text-wrap-scroll-snap-ha.md)
 
 ## 11. 🔵 `recent_unwrapped` behind the raw-terminal toggle (+ the wire name is snake_case)
 
-| | |
-|---|---|
-| Commit | `06c1b56` *feat(board): the un-wrapped read source, behind the raw-terminal toggle* |
-| Files | `bridge/server.ts`, `bridge/herdr-client.ts`, `web/src/lib/{api,loaders}.ts`, `web/src/hooks/use-display-prefs.ts`, `web/src/components/agent-chat.tsx`, `HERDR_API.md` |
-| Extraction | **Clean cherry-pick.** Every file is upstream's; no card is in sight. |
-
-Two things, one of them a plain bug. **The bug:** `ReadSource` declared `"recent-unwrapped"`, which
-herdr's socket rejects — the wire name is `recent_unwrapped`, snake_case, even though the CLI
-advertises the hyphen in `--source`. The value was unreachable, so the typo had never fired; anyone
-who reached for it would have got `invalid_request` on every read. Fixed, and `HERDR_API.md`
-corrected (it documented the hyphen too, and was missing `detection`).
-
-**The feature:** `/api/pane/:id?unwrapped=1` reads that source, and `paneLoader` asks for it only
-while the raw-terminal pref is on. That pref already bypasses every Claude grammar, so it is the one
-mode where dropping the terminal's fixed-width lines can't blind a box-drawing detector; the two
-grammar callers (`reply-action`'s verify-before-submit and `harness/guard`) keep reading the wrapped
-source through the same `fetchPane`, deliberately. A boolean flag rather than a free-form `source=`,
-so a client can't ask for an arbitrary one.
-
-Measured on live panes before shipping (herdr 0.7.x, 236-column host): on **Claude** panes it changes
-nothing at all — 129 → 129 lines, zero lines over the terminal width, because Claude's TUI wraps its
-own output before the PTY ever sees it. On a **shell** pane it is real: 599 → 501 lines, 96 logical
-lines over 236 columns. Upstream gets the honest version of the knob plus the numbers to judge it by.
-
----
+→ [`docs/upstream/prs/11-recent-unwrapped-behind-the-raw-terminal-toggle.md`](docs/upstream/prs/11-recent-unwrapped-behind-the-raw-terminal-toggle.md)
 
 ## 12. 🔵 Three accessibility holes: a heading per screen, a reachable dismiss, a barrier per route
 
-| | |
-|---|---|
-| Commit | `9265b4e` *fix(a11y): a title per screen, a reachable dismiss, a barrier per route* |
-| Files | `web/src/router.tsx`, `web/src/routes/{root,home,history,settings}.tsx`, `web/src/components/{status-area,space-view,agent-chat}.tsx` |
-| Extraction | **Clean cherry-pick**, minus the one line that adds `<h1 className="sr-only">Board</h1>` to the fork's own board route. Everything else is upstream's, and no card is in sight. |
-
-Three unrelated gaps, deliberately shipped together because each is a few lines and they share no
-mechanism. Worth saying up front what this is *not*: it isn't an accessibility retrofit. The app
-already carries 112 `aria-*` attributes, respects `prefers-reduced-motion` everywhere, and restores
-focus when a sheet closes. These are the three places that were simply missed.
-
-**Heading hierarchy.** Only the settings screen had an `<h1>`; home, pane, history and space had
-none, and each carried `<h2>`s (the triage groups, the Spaces overview) or `<h3>`s (the pane
-switcher's sections) with no parent — a screen reader navigating by heading landed in an orphan tree
-(WCAG 1.3.1). Every screen now has exactly one `<h1>`. Where the visible title already exists as a
-heading-shaped thing it was promoted in place (history, space); where it lives *inside a button* it
-could not be, because a heading inside a button is not exposed as one — so home ("Herd"), board and
-settings get an `sr-only` `<h1>`, and the pane gets one carrying the pane's own name, hoisted into a
-single `paneTitle` the header title block and the heading now share. The pane switcher's `<h3>`s
-needed no change: they hang off the sheet's own `Drawer.Title`, which Radix renders as an `<h2>`.
-
-**The status line.** `StatusArea` is a `role="status" aria-live="polite"` div, and when the tone was
-`error` it also took an `onClick`. No `<button>`, no `tabIndex`, no Enter/Space handling, and the ✕
-had no label. That made the *one* notice in the app you must actively dismiss — every other tone
-fades on its own — the one thing a keyboard could not reach. The ✕ is now a real
-`<button type="button" aria-label="Dismiss">` and the live region keeps its role and stays inert; a
-region that is also a click target announces cleanly as neither.
-
-**The error barrier.** There was one `errorElement`, on the root, so a render error or a loader throw
-anywhere took the whole app down — a broken pane blanked the board and the dashboard with it. `pane`,
-`card`, `board` and `pane/:paneId/history` each get their own, which is all React Router needs to stop
-the fall at the leaf and keep `RootLayout` mounted. `RootError` grew one optional `to` prop and now
-*navigates* to the parent (card → board, history → its pane, otherwise home) instead of
-`window.location.assign`-ing: the router remounts the parent and re-runs its loader, which clears the
-boundary without discarding everything already in memory.
-
----
+→ [`docs/upstream/prs/12-three-accessibility-holes-a-heading-per-screen-a.md`](docs/upstream/prs/12-three-accessibility-holes-a-heading-per-screen-a.md)
 
 ## 13. 🟡 A type scale, a font decision, and named motion curves
 
-| | |
-|---|---|
-| Commit | `5e76d50` *feat(board): three type roles, a decided font stack, named motion curves (UI_AUDIT R2-R4)* |
-| Files | `web/src/index.css` and ~24 components under `web/src/components/` — everything except the `card-*` / `new-card-sheet` / `routes/board.tsx` sites, which are the fork's own |
-| Extraction | **Needs a filter, not a rewrite.** The commit is one mechanical substitution applied everywhere plus one theme block; drop the seven card/board files and the `.adr/` entry and the rest applies to upstream unchanged. No card is in sight in any of it. |
-
-Three findings from the UI audit (`UI_AUDIT.md` §7 R2/R3/R4), all cosmetic, none touching behaviour.
-They ship together because they are the same file and the same decision — what the theme is allowed
-to decide on a call site's behalf.
-
-**The type scale.** 245 font-size declarations, 76% at 12px or less, and 47 of them arbitrary
-(`text-[10px]`, `text-[11px]`, `text-[13px]`, `text-[0.95rem]`). The interesting part is *where* the
-arbitrary values sat: all of them **below** Tailwind's smallest rung rather than between two rungs.
-That is not a missing size, it is a missing decision — each call site independently deciding that
-whatever it was showing deserved to be smaller than the scale went. So nothing was added to the
-scale; they folded onto `text-xs`, and what remains is three roles (`text-base` content, `text-sm`
-supporting, `text-xs` metadata) documented once at the top of `index.css`.
-
-The other half is the hierarchy that produces: content moved up a rung where it is genuinely content
-— the body of a message (which every transcript and prose surface renders through), the agent name
-in the sidebar — and markdown headings followed, since `h1`/`h2`/`h3` ran 16/15/14px and so sat level
-with or *below* the prose they introduced. Metadata stayed where it was. The gap between the two is
-the point.
-
-Two sizes turned out to be ratios rather than rungs and became named classes: the agent-icon initials
-fallback (sized by a host tile that ranges `size-4`..`size-9`) and inline `code` (sized by the line
-it interrupts). A fixed rung is wrong at one of those two by construction.
-
-**The font.** `--font-mono` opened with `"JetBrains Mono"` and it was never loaded — no `@font-face`,
-no preload, no `.woff2` in `public/`, nothing in the precache manifest. The terminal mirror, the
-centre of the app, rendered in a different face per device while the CSS asserted otherwise. Upstream
-may well prefer to ship the font for real; either answer beats the current one, which is a decision
-that reads as made and has no effect. This fork removed the name and declared the platform stack —
-reasoning and reversal conditions in `.adr/0004`, which is fork-local and should not travel with the
-PR. `--font-sans` was never declared at all and now is.
-
-**Motion.** Not one `ease-*` class in the entire component tree — every animation ran on the stock
-curve. Two named curves (`ease-enter` decelerating, `ease-exit` accelerating) and two durations
-(150ms/250ms). The lever worth stealing regardless of the naming: the 44 bare `transition-colors`
-are reached by retuning `--default-transition-duration` / `--default-transition-timing-function`,
-which is one line rather than 44 edits that drift apart again.
-
-**Watch on rebase:** a comment inside a Tailwind `@theme` block cannot contain a straight apostrophe
-— Tailwind tokenises it as an unterminated string and the build fails with a message pointing at the
-wrong line. The comments in that block use `’`.
-
----
+→ [`docs/upstream/prs/13-a-type-scale-a-font-decision-and-named-motion-cu.md`](docs/upstream/prs/13-a-type-scale-a-font-decision-and-named-motion-cu.md)
 
 ## 14. 🟡 A desktop mode: sheets from the right, lists that use the width, a reactive `useMediaQuery`
 
-| | |
-|---|---|
-| Commits | `f42cc9c` *feat(board): a desktop mode — four lanes, sheets from the right, tiles that read their own box* · `a3f3092` *feat(board): a Kanban that reads left to right…* (the width half only) · `cef9a92` *refactor(display-prefs): the wrap default reads the viewport through useMediaQuery* · `19d2dc4` *fix(desktop): four screens that still lay themselves out for a phone* |
-| Files | `web/src/hooks/{use-media-query,use-display-prefs}.ts` (+ their tests), `web/src/components/ui/sheet.tsx` (+ its test), `web/src/components/{agent-list,space-view,space-overview,command-palette,space-strip}.tsx`, `web/src/routes/{home,space,detail,settings}.tsx` — everything *except* `routes/board.tsx`, `routes/card.tsx`, `lib/board*.ts`, `card-tile.tsx` and `card-group.tsx`, which are the fork's own |
-| Extraction | **Needs a filter, not a rewrite.** The board half and the app half don't overlap in a single hunk; drop the card/board files and what's left applies unchanged. |
-
-Upstream is `max-w-screen-sm` on every route, which is right on the device it was built for and
-leaves a desktop browser showing a 640px column in the middle of nothing. Four bricks here are
-Collie's, not the board's:
-
-**`useMediaQuery`.** Ten lines: `matchMedia` through `useSyncExternalStore`, at Tailwind's own `lg`
-in Tailwind's own unit so the CSS and the JS can't disagree about "wide". Upstream already had a
-width test — `wrapDefaultFor(window.innerWidth)` in `use-display-prefs` — but it read once at mount
-and never heard a resize. The first pass left it alone as "right for a default the user overrides
-anyway"; that was wrong, and the follow-up commit above deletes it. A default is only overridden
-once the user *has* overridden it, so `wrap` now stays absent from storage until the toggle is
-touched: absent, it follows the same hook live; stored, the stored choice wins for ever. One
-viewport reader in the app, at the two thresholds it actually has (`lg` for layout, 640px for the
-mirror), and no second one to forget to make reactive.
-
-**The sheet gets a side.** `BottomSheet` becomes bottom-on-phone / right-on-desktop: the same
-`SheetShell`, one `direction` apart, which is what Vaul's API is for. Every existing caller (keys pad,
-switcher, sessions, diff, palette) inherits it with no change of its own. This is the one piece that
-can't be CSS — `direction` is a prop Vaul picks its drag axis and its transform from — and the reason
-the hook above exists at all. Two things fell out of doing it: the padding rule moved from "is this
-the bottom sheet" to "is this the left nav rail" (a right-hand sheet holds the same padded content a
-bottom one does), and `CommandPalette` dropped a `max-h-[85dvh]` override that clipped a panel whose
-height comes from `inset-y-0`.
-
-**Lists that use the width.** `AgentList`, `SpaceView` and `SpaceOverview` swap `flex flex-col` for
-`grid` — identical below `lg`, then `auto-fill minmax(24rem, 1fr)` above it. Not a breakpoint
-ladder, because the question is not how wide the viewport is but how many readable cards fit in it,
-and CSS answers that better than three guessed values; `auto-fill` rather than `auto-fit` so a lone
-card stays 24rem instead of stretching across a 27" display. `AgentCard` is self-contained, so this
-is a container change and nothing else. Home and the space route drop their max-width entirely.
-
-**Not one "desktop width".** Worth stealing as a rule, not just as a diff: the screens that are
-SURFACES (a dashboard, a board) lose their ceiling, the screens that are DOCUMENTS keep one — a
-2000px line of prose is unreadable however big the display is — and a settings form stays narrow.
-Upstream has the same split (dashboard/space vs. the pane mirror's text), so the same rule applies
-even though its screens are not ours.
-
-**Four bugs the first pass left, worth taking with it.** Every one is a phone rule that nobody
-turned off above `lg`, and all four are a class or a deletion: a settings page that capped the
-SCROLLER rather than the rows, so the page's scrollbar sat 700px in from the window's edge; a build
-stamp printed both in the space footer and in the sidebar footer; `pb-24` of clearance for a tab bar
-that becomes a sidebar; and a chip strip whose scrollbar is hidden because you swipe it, which on a
-desktop hides its own trailing +. The rule they share: a mobile-first class that reserves space for,
-or hides an affordance behind, a TOUCH gesture needs the `lg:` that takes it back.
-
-**A note where the pane screen is.** Upstream's centre of gravity is the mirror, and an honest
-desktop version of it is a two-pane layout (list left, mirror right) — a rework of `AgentChat`, not a
-`lg:` on a container. `routes/detail.tsx` says so in place rather than leaving the next reader to
-wonder why every screen but that one widened. Worth knowing: the part that mattered was already
-right — `wrapDefaultFor` turns wrapping off above 640px, so a wide window keeps a TUI's columns
-aligned on its own.
-
-Not in this brick, and fork-only: the four-lane board, `BOARD_LANES`, the card page's two halves, and
-`CardTile`'s container queries. Those are all about cards.
-
----
+→ [`docs/upstream/prs/14-a-desktop-mode-sheets-from-the-right-lists-that.md`](docs/upstream/prs/14-a-desktop-mode-sheets-from-the-right-lists-that.md)
 
 ## 15. 🔵 A reading mode for the pane screen (and the `after` cursor it needs)
 
-The mirror is double-wrapped and always was: herdr hands us the pane already cut to the terminal's
-columns (~81), and the phone then wraps that again at ~50 — so every paragraph of agent prose breaks
-twice, the second time mid-sentence. **No wrap setting can fix it**, because the first cut is in the
-bytes before Collie sees them. The agent's own transcript was never cut, and Collie already reads it.
-
-| | |
-|---|---|
-| Commits | `c9a2a32` *feat(transcript): an `after` cursor…* · `73f43f5` *feat(pane): a reading mode…* · *fix(reading): the queue drains at a turn end; queue, thinking and tool runs fold* |
-| Files | `bridge/transcript.ts` (`pageEntries`), `bridge/server.ts` (`historyParams`), `web/src/lib/{api,markdown}.ts`, `web/src/components/{reading-view,markdown-text,agent-chat}.tsx`, `web/src/hooks/use-display-prefs.ts` (+ their tests) |
-| Extraction | **Clean cherry-pick.** Every file is upstream's or a new one; no card is in sight, and the two commits are already split along the seam (the cursor, then the view that uses it). |
-
-**The `after` cursor** is the piece worth taking even alone. `pageEntries` only ever walked backwards,
-which is *why* upstream's history route opts out of the poll loop: following a conversation meant
-re-downloading the archive per tick. `after` is the symmetric direction — the turns written since one
-the caller holds — with the same cap, the same opaque uuid cursor, and the same "an unknown cursor
-degrades to the newest page, never to an empty one". ~15 lines and it makes a live transcript view
-affordable at all.
-
-**The mode.** One toggle in the pane header: `[terminal] [reading]`, persisted per device with the
-other display prefs. Terminal is untouched — native dialog buttons, key grammars, statusline, the
-stranded-draft preview. Reading renders the last 40 turns through the existing transcript view. Not a
-second screen: the composer, statusline and gauge sit below both, so replying never means leaving the
-thing you were reading.
-
-**The one hazard, handled.** A TUI dialog exists *only* in the TUI, so a reader could otherwise sit
-watching an agent that is actually blocked behind a question. Reading mode banners it (`dialogPresent`
-is already derived every render for the composer's send guard) and the banner is the button back to
-terminal. This is the part to keep if anything else is cut.
-
-**No new poll loop.** The tick is the pane poll's own heartbeat (the router revalidator settling back
-to `idle`); a tick that finds nothing costs an empty array. The fetch deliberately re-asks from the
-*second*-newest turn, because a tool result lands by mutating the turn that made the call — so the
-newest turn we hold can still change after we've seen it.
-
-**Do not use `revision` as the heartbeat** — the trap this shipped with, and upstream would hit it the
-same way. `pane.read`'s `revision` is a STUB on herdr 0.7.x: 0 for every pane, always, including
-actively-changing ones (`HERDR_API.md` says so, and it is still true on 0.7.5). A revision-driven view
-fetches once at mount and then silently stops, which reads as an agent going quiet.
-
-**A draft on the terminal's input line is shown at the tail of the thread**, dashed and named "Draft
-in terminal · not sent" — it is in no log, so without it the thread reads as though you never wrote
-the message you typed while the agent was busy. It comes from `extractInputDraft`, the value the
-composer already surfaces, so the two never disagree. A *queued* message is a different state and
-deliberately NOT shown as a draft: Claude Code clears the line and paints "Press up to edit queued
-messages", so its text is nowhere in the mirror.
-
-**Markdown tables**, in the same brick because it's the same complaint. `lib/markdown.ts` gained a
-`table` block (headers plus rows normalised to the header's column count, escaped pipes respected);
-the renderer picks the shape from the column count — a scrollable `<table>` up to three columns, one
-labelled card per row beyond it, because four columns on a 360px screen is a horizontal pan. Cells
-stay `MdSpan[]` rendered as React elements, so **the XSS boundary does not move** and no
-markdown→HTML dependency is added.
-
-**Folded by default**, so the prose is what's on screen: a run of ≥2 tool-only/thinking-only agent
-turns becomes one "N steps" line, thinking and the compaction summary fold, and so does the Queue. A
-find query, or a jump landing inside, unfolds them. The queue itself is replayed from the log's
-`queue-operation` rows, which is **not a faithful FIFO** (a restart drops ops): a completed turn
-(`system/turn_duration`) resets it, and `remove` drops the item it names rather than the front.
-
----
+→ [`docs/upstream/prs/15-a-reading-mode-for-the-pane-screen-and-the-after.md`](docs/upstream/prs/15-a-reading-mode-for-the-pane-screen-and-the-after.md)
 
 ## 16. 🔵 Which pane am I in? (and a breadcrumb segment that switches within the space)
 
-Two panes of one space+tab — two Claude sessions in one repo, the ordinary case — render an
-**identical** pane header on desktop and an identical card on the space screen: same title, same cwd,
-same ctx%. Switching between them looks like it did nothing. Live-reported as "clicking either pane
-opens the same one"; it never did, the URL and the mirror were right the whole time. Nothing on
-screen said so.
-
-| | |
-|---|---|
-| Commit | `6d75e8a` *feat(pane): say which pane you're in, and switch within the space from the breadcrumb* |
-| Files | `web/src/components/pane-menu.tsx` (new, + test), `web/src/components/agent-chat.tsx`, `web/src/components/agent-card.tsx` |
-| Extraction | **Clean cherry-pick.** One new file and two upstream ones; no card in sight. |
-
-**The desktop toolbar was missing the segment mobile already had.** The mobile context row ends in
-`space › tab › pN`; the desktop breadcrumb stopped at `tab`. Adding it is three lines — but it must
-sit *outside* the truncating span beside it, which is `overflow:hidden` and would clip the menu.
-
-**The chip lists THIS SPACE's panes, not the herd.** Upstream's swipe-up sheet (the handle above the
-composer) lists every pane in every space, which reads as a detour when all you wanted was the pane
-next door. Same rule as the segments beside it: a breadcrumb segment switches *within* its level. The
-sheet is untouched and still one swipe away.
-
-**No popover dependency.** The repo has no such primitive and this needs none: an absolutely
-positioned list plus a transparent full-screen layer for click-outside. A space with one pane renders
-a plain chip rather than a dead affordance.
-
-**The card carries its pane number too** — the space screen is where the tap happens, so the
-ambiguity has to be resolved there as well, not only after you land.
-
----
+→ [`docs/upstream/prs/16-which-pane-am-i-in-and-a-breadcrumb-segment-that.md`](docs/upstream/prs/16-which-pane-am-i-in-and-a-breadcrumb-segment-that.md)
 
 ## 17. 🔵 Slash commands completed as you type, not only from the sheet
 
-The command catalog upstream already ships (`agent-commands.ts`) is only reachable by leaving the
-keyboard: tap the Agent button, open a sheet, search, tap back. That is the right surface for
-*browsing* commands and the wrong one for the case where you already know the command and have
-started typing it. This adds the second half — prefix matches offered inline as you type `/comp` —
-and changes nothing about the first.
-
-| | |
-|---|---|
-| Commit | `0473d39` *feat(web): complete slash commands as you type them in the composer* |
-| Files | `web/src/components/command-suggestions.tsx` (new, + test), `web/src/components/composer.tsx` (one import, a 10-line mount, one comment on `insertCommand`), `web/src/components/composer.test.tsx` |
-| Extraction | **Clean cherry-pick.** One new file plus a small hook in an upstream one; no card in sight, no board state, no new dependency. |
-
-**One catalog, two surfaces.** Both halves call `commandsFor(agent)`, so a command added to the
-catalog shows up in both without a second edit — the failure mode this exists to prevent.
-
-**The trigger is the whole design.** Suggestions fire only while the draft is a lone `/token`: a
-slash command is one only at the start of the line, and the first space means the user is writing
-arguments rather than still choosing. The strip therefore retires itself and needs no dismiss
-affordance. The regex is also what keeps an empty draft quiet — `"".startsWith("")` matches every
-command, so a prefix filter alone would light up on a just-cleared input.
-
-**Picking completes, it never sends.** It fills the input (`/compact ` with the trailing space when
-the command takes an argument) and returns the keyboard; sending stays the deliberate tap it is
-everywhere else. It deliberately does not route through the composer's `insertCommand()`, which
-*appends* to an existing draft and would yield `/comp /compact ` — replacing the partial token is the
-only correct move, and a comment there now says so.
-
-**A labelled group of buttons, not a listbox.** A listbox promises arrow-key navigation and an active
-descendant this doesn't have; native buttons carry Tab and their own accessible names for free.
-
----
+→ [`docs/upstream/prs/17-slash-commands-completed-as-you-type-not-only-fr.md`](docs/upstream/prs/17-slash-commands-completed-as-you-type-not-only-fr.md)
 
 ## 18. 🔵 A bell: what pinged, after the notification is gone
 
-Upstream's notification coordinator is deliberate about the lock screen — one slot for the whole
-herd, retracted the moment the work is handled. The corollary is that a ping you slept through leaves
-**no trace anywhere**: nothing in the app says an agent needed you at 3am, and nothing takes you to
-the pane that asked. The alert is the only record, and it deletes itself.
-
-| | |
-|---|---|
-| Commits | `e042754` *feat(notify): a bell in the header, and the history of what pinged behind it* · `bb4a1ec` (the dismiss) · `9a022c6` (the badge) · `3a42ff1` (the tap reads it) · `fe5ddb5` (mark all read) |
-| Files | `bridge/notify-log.ts` (new, + test), `bridge/notifications.ts` (one optional ctor arg, one call), `bridge/server.ts` (one GET + one DELETE + one POST route, plus `notifications.count` on the snapshot), `bridge/index.ts` (construct + wire), `web/src/components/notification-bell.tsx` (new, + test), `web/src/lib/{api,types}.ts`, `web/src/lib/loaders.ts` (`notifyCount` on `HomeData`), `web/src/components/app-header.tsx` (one mount) |
-| Extraction | **Clean cherry-pick.** No card, no board, no database — the header component upstream would mount it in is this fork's own, so that one line moves to wherever upstream's header lives. |
-
-**Recorded where the alert fires, not where it renders.** The hook sits in the coordinator, on the
-transition that survives the debounce — so an alert that resolved at your desk inside the debounce
-window never enters the history either, and one entry means one agent, carrying its `paneId`. The
-sink's summary can't do that job: a multi-agent digest has no pane to deep-link to, and a silent
-retraction re-renders the same summary again.
-
-**Before the mute gate, on purpose.** An alert that fired during quiet hours is precisely the one you
-go looking for afterwards. Snooze suppresses the buzz; it doesn't rewrite what happened.
-
-**In memory, bounded, not persisted.** Fifty entries in a ring, gone with the bridge. It is runtime
-state — the thing this history exists to survive is the *notification*, not the process.
-
-**Fetched when the sheet opens.** The snapshot poll runs every 1.5s and fifty entries in it would be
-a permanent tax on a list you consult occasionally.
-
-**The badge is one integer on the snapshot, not the history.** The same arithmetic that keeps the
-list off the poll (fifty entries every 1.5s) puts the *count* on it: it's the one thing you need
-without opening anything, it costs a field, and it hangs off a poll that already runs — the bell
-never grows a loop of its own. Dismissing a row therefore decrements the badge on the next tick,
-without a second source of truth to keep in step.
-
-**An entry can be thrown away, one row at a time.** A history you can't prune is a history you stop
-reading: the ping you already handled sits above the one you haven't. `DELETE /api/notifications/log/:id`
-drops one entry from the ring and answers 204 whether it was there or not; the row leaves optimistically
-and comes back if the call fails. Read-level, like every other route in that block. Still no "clear
-all" — the ring already forgets at 50, and the bridge restart clears it for free; the bulk gesture
-below marks, and marking is the one that wanted to be bulk.
-
-**The badge counts what is UNREAD, and tapping an entry is what reads it.** `POST /api/notifications/
-log/:id/read` sets a flag on the ring entry; `count()` stops counting it. A badge that only a *delete*
-could clear made the number a chore-list rather than a signal — you had already been to the pane. The
-entry stays in the history, dimmed: read is not dismissed, and the two verbs stay separate (tap = I
-saw it, X = I don't want it). The flag lives on the entry, so it survives a reload exactly as far as
-the entry itself does, and the tap revalidates the snapshot so the number drops under your thumb
-rather than on the next 1.5s poll.
-
-**"Mark all read" is the bulk gesture, and delete is not.** `POST /api/notifications/log/read-all`
-flips every entry's flag; the button sits above the list and only while something IS unread, so the
-badge-is-empty state never offers a button whose job is done. The asymmetry with the per-row X is the
-point: "I have seen these" is a thing you mean about the whole list at once, "I do not want this"
-almost never is — one is a sweep, the other is a decision per row. Same read-level and same
-idempotence as the per-entry mark, and the same optimistic-with-rollback shape in the sheet, since
-the bridge is what holds the flag.
-
-**A notification that arrived while the app was open lands here too** — the bridge records the alert
-it pushed, and whether a visible client made the service worker suppress the banner is downstream of
-that.
-
----
+→ [`docs/upstream/prs/18-a-bell-what-pinged-after-the-notification-is-gon.md`](docs/upstream/prs/18-a-bell-what-pinged-after-the-notification-is-gon.md)
 
 ## 19. 🔵 The foreground notification is a toast, and it says which pane
 
-Brick 18 gave the *missed* ping a home. This one is about the ping that arrives while you are
-looking at the app: the service worker suppresses the system banner whenever a Collie tab is visible
-(`decidePush` → `suppress`, on the grounds that "the in-app status already surfaces it"), and what
-surfaced it was a line in the shared status bar. That bar is latest-wins and shared with every
-"Sent ✓" — so a ping landing a second after a send was overwritten before it could be read — and the
-line said `claude · webapp`, which is the same sentence for every claude in the herd.
-
-| | |
-|---|---|
-| Commit | `57d538d` *feat(notify): a ping that lands while you're in the app is a toast you can tap* |
-| Files | `web/src/components/agent-toasts.tsx` (new, + test), `web/src/hooks/use-transitions.ts` (returns toasts instead of calling `setStatus`), `web/src/routes/root.tsx` (one mount) |
-| Extraction | **Clean cherry-pick**, minus one expression: the detail line prefers the pane's `cardTitle` and falls back to its cwd. Upstream has no cards — drop the `??` and the line is upstream-shaped. |
-
-**Names the pane, not the agent.** `paneDisplayName` — your own pane label, else Claude's `/rename`
-session name, else the agent name. Three claudes stop producing three identical notices, and the
-name in the toast is the name on the tile you're about to tap.
-
-**Says where.** The herd session (only when it isn't the primary one — that is the one on screen),
-the workspace, and the working directory. All read off the snapshot's `AgentView`, so a richer toast
-costs no extra fetch.
-
-**Its own channel, not the status line.** Lifecycle pings and action confirmations have different
-lifetimes and different worth; one latest-wins slot cannot hold both. The status line keeps every
-`setStatus` caller it had.
-
-**Under the header, floating.** The header is how you leave a screen, so a notice that covered the
-back chevron and the bell would be the one overlay you can't get past; bottom was already ruled out
-upstream (it covers the terminal tail and the composer, which is why the old toasts left it). The
-stack is `pointer-events-none` and nothing in the layout moves — the screen stays usable, which is
-the property that makes a toast acceptable here at all.
-
-> **Superseded by brick 42's Sonner move.** The pings now go through the app's one Sonner
-> `<Toaster/>` (`toast()` with an *Open* action, one id per pane so a blocked→done flip replaces its
-> own notice); `agent-toasts.tsx` and its hand-rolled swipe are gone — Sonner stacks, which removes
-> the reason for a second channel.
-
----
+→ [`docs/upstream/prs/19-the-foreground-notification-is-a-toast-and-it-sa.md`](docs/upstream/prs/19-the-foreground-notification-is-a-toast-and-it-sa.md)
 
 ## 20. 🔵 A refusal the bridge wrote is shown as the bridge wrote it
 
-The bridge answers every refusal it decides itself with `{"ok":false,"error":"…","kind":"…"}`, where
-`error` is a sentence written for a person ("3 agents already running — finish or hand one off
-first"). `api.ts` then threw `"<path> → <status> <body>"`, so a phone showed a url, a status code,
-and — off the right edge, past the JSON braces — the only half that says what to do. Reported exactly
-that way: *"I get an error message /api/etc, something like that."*
-
-| | |
-|---|---|
-| Commit | `5a7514c` *fix(web): a refusal shows the bridge's sentence, not the url and the status code* |
-| Files | `web/src/lib/api.ts` (`errorDetail` → `apiError`), `web/src/lib/api.test.ts` |
-| Extraction | **Clean cherry-pick.** No card in sight — every `{ok:false,error}` responder upstream (`/reply`, `/keys`, `/upload`, the pane routes) gains the same thing. |
-
-One function, at the single place the message is built, so no caller has to remember to unwrap it —
-the fork had a `boardErrorMessage()` helper doing exactly that unwrapping, and the bug was the four
-call sites that used it next to the ones that didn't. A body that isn't JSON, or JSON without a
-string `error`, keeps the old `<path> → <status> <body>` form: a proxy's html or a bare 502 has
-nothing better to offer, and that prefix is what makes it diagnosable.
-
----
+→ [`docs/upstream/prs/20-a-refusal-the-bridge-wrote-is-shown-as-the-bridg.md`](docs/upstream/prs/20-a-refusal-the-bridge-wrote-is-shown-as-the-bridg.md)
 
 ## 21. 🟡 The pictures an agent makes are unlookable-at from a phone
 
-An agent that generates images — a render, a chart, a mock — writes them into its scratchpad and then
-*describes them in prose*, which is the one output a phone client turns back into nothing. The
-transcript shows `Read /…/scratchpad/render.png`: the path of a file the operator cannot open. This
-adds the two views that make them visible, over one read-only route.
-
-| | |
-|---|---|
-| Commit | _(this change)_ |
-| Files | `bridge/gallery.ts` + `bridge/gallery.test.ts` (new), `bridge/server.ts` (one import + one dispatch block), `bridge/transcript.ts` (`toolImagePath()` + `toolResultImage()` + the tool part's `image`), `web/src/{components/image-lightbox,routes/gallery}.tsx` + `web/src/lib/lightbox.ts` (new), `web/src/components/{transcript-view,agent-chat}.tsx`, `web/src/routes/{history,settings}.tsx`, `web/src/lib/{api,loaders,types,nav}.ts`, `web/src/router.tsx`, `web/src/test/setup.ts` |
-| Extraction | **Needs extraction.** The new files lift cleanly, but the wiring is spread over ten upstream files and the gallery row lands in a `settings.tsx` the fork has already edited. No card in sight, though — none of this knows the board exists. |
-
-Two views over the same files. **Inline**: a tool call whose `file_path` is a servable image renders
-the picture instead of the tool line; a picture the tool *returned* — a browser screenshot, which is a
-base64 block in the `tool_result` and never a file — rides in the page as a `data:` URL (gallery types
-only, 1 MB cap) and renders under its call. **A gallery**: every scratchpad image, grouped by session,
-from Settings. Both open one full-screen viewer that swipes through the set — a session's eight
-variants are eight swipes, not eight taps in and out. The pane's ⋯ sheet reaches the same set
-without going through History — that screen holds no transcript (the mirror is a terminal snapshot),
-so the row fetches one on demand and says so when the session made no pictures.
-
-The viewer is `<dialog showModal()>` plus CSS scroll snapping, so the modal layer and the whole
-gesture (momentum, rubber-banding, interruption) are the platform's, not ours — the same reasoning
-that put Vaul under the sheets. It unmounts while the idle cover is up, because the top layer paints
-above the cover no matter what z-index the cover carries.
-
-**The security shape is the part worth reviewing.** The route hands file bytes to the tailnet, so it
-has exactly one root — `/tmp/claude-<uid>`, fixed, with no client-supplied component — and serves a
-path only if its `realpath` still lands under the root's `realpath`. Resolving first is the point: an
-image-named symlink planted in a scratchpad is the obvious way to turn this into "read any file the
-bridge user can read", and comparing the paths as written waves it straight through. The listing walk
-doesn't follow links at all, and SVG is excluded (an image to `<img>`, a script host to a top-level
-navigation on an origin that also serves the app). `gallery.test.ts` drives all of that against a
-real directory tree, symlink included — a fake fs would only prove the code agrees with itself.
-
----
+→ [`docs/upstream/prs/21-the-pictures-an-agent-makes-are-unlookable-at-fr.md`](docs/upstream/prs/21-the-pictures-an-agent-makes-are-unlookable-at-fr.md)
 
 ## 22. 🔵 `idle` and `done`, with a since
 
-A settled pane says *what* it is and never *since when*. On the triage screen that is the whole
-question: a session that finished thirty seconds ago and one that has been sitting there since
-lunch are the same grey word, so the list gives no reason to look at one before the other.
-
-| | |
-|---|---|
-| Commit | _(this change)_ |
-| Files | `bridge/state-engine.ts` (a `statusSince` map + three lines in the poll), `bridge/types.ts` · `web/src/lib/types.ts` (`AgentView.statusSince`), `web/src/components/agent-card.tsx` (+ test), `bridge/state-engine.test.ts` |
-| Extraction | **Clean cherry-pick.** No card in sight — the poller, the pane type and the pane row are all upstream's. |
-
-**The poller already knows.** It diffs each pane's status against the previous tick to fire
-transitions; stamping `Date.now()` on the same edge costs a `Map` and no extra call. The age then
-rides the snapshot every client already polls, so it needs no timer and no second source.
-
-**A pane first seen already `done` carries no stamp.** The bridge did not witness that switch, and
-the honest rendering of an unknown instant is nothing at all — a fresh `just now` on an agent that
-finished three hours ago is precisely the wrong reading, and the one the operator would act on. It
-appears at the pane's next real transition. Same rule the transition listeners already follow (a
-first sighting never notifies), and the stamp is dropped with the pane so a reused id starts clean.
-
-**Only `idle` and `done`.** `working` has a live spinner, `blocked` is the thing you are already
-being sent to; neither is waiting to be ranked by age. Rendered through the existing `timeAgo()`,
-next to the state rather than in a column of its own — a footnote on the word, at the same weight
-as the rest of the metadata line.
-
----
+→ [`docs/upstream/prs/22-idle-and-done-with-a-since.md`](docs/upstream/prs/22-idle-and-done-with-a-since.md)
 
 ## 23. 🟡 How much Claude Code quota is used, on the dashboard
 
-A herd of Claude sessions burns one shared subscription, and the phone screen that tells you which
-agent to look at cannot tell you whether starting another one is affordable. `/usage` knows, and it
-is one terminal away — which is the one place a phone is not.
-
-| | |
-|---|---|
-| Commits | `9cb5d0b` (the gauge) · `0d6816f` (resolve the CLI, PATH is not enough) · `dbf1ba9` (count up, not down) · `e56e817` (one line, then the detail) |
-| Files | `bridge/usage.ts` (+ test), `web/src/components/usage-gauge.tsx` (+ test), one route, one line on the dashboard. **In the fork `usage-gauge.tsx` is gone**: the dashboard shows the quota as rings (`home-dashboard.tsx`, fork-only), so cherry-pick the gauge from `e56e817`, not from `main`. |
-| Extraction | **Clean cherry-pick.** No card in sight: a subprocess, a regex and a gauge. Only the route's home moves — the fork hangs it off `/api/board/usage` because that prefix is already dispatched; upstream would give it `/api/usage` in `server.ts`. |
-
-**`claude -p "/usage"` prints the panel as plain text in ~1.5 s and spends no model turn** — the
-panel is rendered locally. So this is a subprocess and a regex, not an agent request against the
-quota it is measuring. The alternatives were checked first and all came up empty:
-`~/.claude/stats-cache.json` holds cumulative tokens and no limits (and went five weeks stale on the
-machine this was written on); the session transcripts record no limit state; the OAuth endpoint
-would mean reading the user's credentials against an undocumented API. See ADR 0009.
-
-**It disappears rather than lie.** No `claude` to be found, a panel that stops looking like this, a
-timeout: the endpoint answers `null` and the gauge renders nothing — the context gauge's posture,
-for the same reason. The parse is one exported regex with a captured panel in its test.
-
-**Show what's USED, not what's left.** It first rendered the remainder. Correct, and wrong in place:
-the context gauge inches away fills with what's consumed, and `/usage` itself says "% used" — so a
-right number gets read as a wrong one. Whichever direction upstream picks, both bars must pick it.
-
-**Do not spawn it by name — this cost a release.** A `systemd --user` unit starts with systemd's own
-PATH and reads no login shell profile, so `~/.local/bin` isn't on it and `Bun.spawn(["claude", …])`
-fails on a machine where the CLI works fine in a terminal. Every other binary the bridge shells out
-to (`git`, `gh`, `ps`) lives in `/usr/bin` and so hid the problem. `claudeCandidates()` checks PATH
-first, then the install locations — the same shape `resolve_bun()` already uses in the ctl script.
-Upstream will meet this the moment it ships any home-installed CLI.
-
-**Cached fifteen minutes, fetched on mount, refreshable by button.** No timer, no poll loop: a
-five-hour window does not move fast enough to earn one, and the loader that revalidates every 1.5 s
-is exactly the wrong place to hang it.
-
----
+→ [`docs/upstream/prs/23-how-much-claude-code-quota-is-used-on-the-dashbo.md`](docs/upstream/prs/23-how-much-claude-code-quota-is-used-on-the-dashbo.md)
 
 ## 24. 🔵 A notification whose subject is the work, not the worker
 
-Every push upstream sends reads `<agent> needs you` / `<agent> is done` over `<workspace> · <cwd>`.
-Verified live on a 9-pane herd: `paneLabel` and `sessionName` are null on every pane and herdr
-reports the pane KIND (`"claude"`) as `agent`, so all three sources `paneDisplayName` consults
-collapse to the same word. The title is a constant — three simultaneous alerts read `claude is done`
-three times — and the body's `workspaceLabel` is the workspace, which for a worktree-backed pane is
-not the repo. Nothing in the notification says *which* work.
-
-| | |
-|---|---|
-| Commit | *(this branch)* `feat(notify): the push is about the work, not the agent that did it` |
-| Files | `bridge/notify-content.ts` (new, + test), `bridge/notifications.ts` (one import, `summarize`'s single-alert branch), `bridge/notify-subtitle.ts` (one import, `pushSubtitle`'s render) |
-| Extraction | **Clean cherry-pick.** `notify-content.ts` reads `status`, `cwd` and an optional `cardTitle` off the alert — with no card the subject falls through to the repo, which is exactly upstream's only case. Nothing else in it knows the board exists. |
-
-**One rule, two fields:** title `<marker> · <subject>`, body `<repo> · <what happened>`. The subject
-is the work the pane is doing (a card title here; upstream, the repo). The marker (`Needs you` /
-`Done`) leads because it is what survives an OS truncation on a lock screen.
-
-**The repo appears exactly once.** It is the subject when there is nothing better, and moves into the
-body when there is — so the two fields never say the same thing twice. Upstream's `cardTitle ?? cwd`
-body fallback is the worst possible one: it echoes the title. An empty body beats an echo.
-
-**Derived from `cwd`, not `workspaceLabel`.** A pane in `…/worktrees/<repo>/<branch>` has the repo
-one segment above the last; anywhere else the last segment is the repo. `workspaceLabel` is whatever
-the workspace was named, which is only the repo by coincidence.
-
-**One composer, two callers.** The coordinator's first plain push and the later silent subtitle
-update render through the same function. They used to compose their own sentence each, which is how
-a perfectly-rewritten subtitle still came back under a title reading `claude is done`.
-
-**The branch stays out**, though it is right there in the `cwd`: it is a slug of the subject, so it
-could only write the subject twice. Its place is a history you read on a screen, not a glance at a
-lock screen.
-
-*Extraction cost since:* §N10 cut deeper into `notifications.ts` — the coordinator now awaits a
-`beforeFire` hook before it renders, and `summarize` reads an `Alert.subtitle` the composer is given.
-`notify-content.ts` itself is untouched and still lifts cleanly; the CALLER around it diverged, so the
-cherry-pick now has to re-plant one call site rather than one line.
-
----
+→ [`docs/upstream/prs/24-a-notification-whose-subject-is-the-work-not-the.md`](docs/upstream/prs/24-a-notification-whose-subject-is-the-work-not-the.md)
 
 ## 25. 🔵 One composition for all three notification surfaces
 
-Brick 24 fixed the push. Upstream renders the same facts **three times, from three different codes**:
-the push (`notifications.ts`), the in-app toast (`use-transitions.ts`) and — here — the bell. Each
-composes its own sentence at its own level of richness, so improving one improves nothing else, and
-the push, the only surface that counts with the phone in a pocket, was the poorest of the three.
-Concretely: after brick 24 a lock screen read `Done · webapp` while the toast for the same event
-still read `claude is done · webapp`.
-
-| | |
-|---|---|
-| Commit | `e79fe29` *feat(notify): the toast and the bell speak the push's sentence* |
-| Files | `web/src/lib/notify-content.ts` (new — a byte copy of `bridge/notify-content.ts`), `web/src/hooks/use-transitions.ts` (one call replaces the toast's own sentence), `web/src/lib/types.ts` (`notifyVerb`/`notifyWhere`/`notifyWhat` deleted), `bridge/notifications.ts` (`summarize`'s digest body), `bridge/notify-content.ts` (an optional `session`, and `basename` inlined so the file has no imports) |
-| Extraction | **Clean cherry-pick**, and it needs brick 24 first. Nothing in it knows the board exists: with no card the subject falls through to the repo, which is upstream's only case. |
-
-**The copy is checked, not trusted.** The bridge and the web app build from separate source trees on
-purpose, which rules out an import across the boundary — the trade upstream already makes for
-`paneDisplayName`. What is new is that a test diffs the two files and fails the build the moment they
-drift, so "one composition" survives the next edit instead of being a comment that used to be true.
-
-**The digest stops naming panes.** `claude, claude, claude` used the one word herdr reports for every
-pane. It lists the subjects now, deduplicated — the count is already in the title, so a repo with two
-alerts says its name once.
-
-**What the in-app surfaces add is one optional field.** The herd session, when it isn't the primary
-one: a history row and a toast have room to say where to go look, a lock screen does not. One
-parameter, not a second composition.
-
-**One deletion falls out of it.** `notifyVerb` ("needs you" / "is done") and its two siblings handed
-out the words for a sentence each caller then assembled. With the sentence itself shared, all three
-go.
-
----
+→ [`docs/upstream/prs/25-one-composition-for-all-three-notification-surfa.md`](docs/upstream/prs/25-one-composition-for-all-three-notification-surfa.md)
 
 ## 26. 🔵 The multi-agent digest counts what is waiting, not how many agents
 
-Upstream's digest headline counts the one field that is the same word on every pane: `3 agents done`
-tells you a number of workers and nothing about what they left behind. Brick 24 already made the
-*body* say the subjects; the title kept counting agents. It now counts **states**: `1 question,
-2 done` — questions first, because a blocked agent is stalled on an answer only you can give and a
-finished one is not. Fixed order, not sorted by size, so the headline doesn't reshuffle itself on a
-lock screen every time one alert resolves.
-
-| | |
-|---|---|
-| Commit | `b9603b1` *feat(notify): the digest counts states, not agents* |
-| Files | `bridge/notify-content.ts` + its byte copy `web/src/lib/notify-content.ts` (the marker split out of `notifyContent` as `notifyMarker`), `bridge/notifications.ts` (`summarize`'s digest branch, ~12 lines) |
-| Extraction | **Clean cherry-pick**, and it needs bricks 24 and 25 first. The board only shows through one marker (`Review`, for a card the board moved there), which falls through to `Done` when there is no card — upstream's only case. |
-
-**The count reads the same rule as a single alert's title.** `notifyMarker` is the marker function
-`notifyContent` already used inline; the digest calls it and groups by its result, so a digest and
-the notifications it collapsed can never disagree about which state one of them was in. The *words*
-differ ("1 Needs you" is not a sentence), the rule does not.
-
-**A state with nothing in it is not mentioned.** A uniform herd reads `3 done`, exactly as short as
-what it replaces, and strictly more informative.
-
----
+→ [`docs/upstream/prs/26-the-multi-agent-digest-counts-what-is-waiting-no.md`](docs/upstream/prs/26-the-multi-agent-digest-counts-what-is-waiting-no.md)
 
 ## 27. 🔵 Image upload + clipboard paste as a hook, not composer-only code
 
-Upstream can already paste a screenshot into the composer: it uploads the file and appends the
-returned host path to the draft, because Herdr's socket carries no image and the agent reads one by
-path. That round-trip is written *inside* `Composer`, so it is available to exactly one textarea —
-and the second textarea that wants it has to copy forty lines or do without.
-
-`useImageUpload` is the same code, moved. Same request, same append rule, same status sentence; the
-composer now consumes it instead of owning it, and any other draft box gets a screenshot attachment
-in three lines.
-
-| | |
-|---|---|
-| Commit | `4ceb4ca` *feat(card): paste a screenshot into a new card, same upload as a session* |
-| Files | `web/src/hooks/use-image-upload.ts` (new), `web/src/components/composer.tsx` (~40 lines out, one hook call in) |
-| Extraction | **Clean cherry-pick minus the consumer.** The commit also wires the fork's `new-card-sheet.tsx`; drop that hunk and its test file and the rest applies as-is. |
-
-**`paneId` is documented as the upload's OWNER, not a route.** The bridge only ever uses it for the
-saved file's name prefix and the audit line, so a caller with no pane can pass a label and still get
-an honestly-named file — that is what makes the hook reusable at all, and it is a property upstream
-already has and does not state anywhere.
-
-**The composer's own paste tests are untouched** and still pass against the hook, which is the
-evidence the move was verbatim.
-
----
+→ [`docs/upstream/prs/27-image-upload-clipboard-paste-as-a-hook-not-compo.md`](docs/upstream/prs/27-image-upload-clipboard-paste-as-a-hook-not-compo.md)
 
 ## 28. 🔵 A notification coordinator that doesn't assume its alerts are panes
 
-`NotificationCoordinator` keys everything by `paneId`: `pending` and `outstanding` are keyed by it,
-`FiredAlert.paneId` is required, and `summarize` reads the deep-link off the MAP KEY. Nothing in the
-coordinator's job needs that. Debouncing, coalescing into one slot, counting a digest by state and
-retracting when the work is handled are all true of any alert with a lifecycle — the pane is just the
-only thing upstream currently has one for. The assumption costs nothing until something else wants to
-notify, and then it costs a rewrite.
-
-The key becomes an opaque string. `arm(key, alert)` and `retract(key)` are the coordinator's two
-verbs; `onTransition` is one caller of `arm`, keyed by pane id because that is the id a transition
-has. `paneId` moves onto `Alert` as an optional field, so the deep-link is read off the ALERT and an
-alert without a pane simply carries none.
-
-| | |
-|---|---|
-| Commit | `17e978d` *feat(notify): a board fact reaches the phone, in the herd's slot* |
-| Files | `bridge/notifications.ts` (the key, the two verbs, `Alert.paneId`, `retract` replacing a private `resolve` and its duplicate in `onTransition`), `bridge/notify-content.ts` + its byte copy `web/src/lib/notify-content.ts` (`notifyCardId` reads the missing pane), `bridge/notify-subtitle.ts` (one gate per entry point, and the deep-link re-stamped on the silent update), `web/src/hooks/use-transitions.ts` + `web/src/components/notification-bell.tsx` (pass / stop duplicating the rule) |
-| Extraction | **Needs a subset taken.** Drop the `stalled` and `ready` statuses, their markers and their digest lines — they are the fork's words for a card whose work stopped and for a card a finished predecessor unblocked, and upstream has no card. What is left is generic and applies as-is: the opaque key, the optional `paneId`, and the two `notify-subtitle.ts` fixes. |
-
-**One real upstream bug travels with it.** The copilot's silent second push re-rendered the same
-composition *without* the alert's `cardId`, so the deep-link a first push had earned silently
-reverted to the pane. Upstream has no card, so this half only matters downstream — but the shape of
-the mistake (a second render that rebuilds a payload from fewer fields than the first) is worth
-carrying: both renders now go through the same two composition calls.
-
-**One upstream bug it does NOT fix, and the note is the point.** Alerts whose timers come due in the
-same tick still send one message each — the callbacks run separately with microtasks drained between
-them, so each `fire` renders before the next is invoked, and the digests differ because they grow.
-A "same as the last render" guard was tried and dropped: it never matches. Collapsing the batch needs
-the render deferred by a macrotask, which changes when every caller sees one; the ceiling is written
-at `emit` rather than half-fixed.
-
-**`notifyCardId` gains its second rule, not a special case.** An alert with no pane has exactly one
-place its tap can go, and it is not a terminal. Written once in the shared composition, the bell stops
-carrying its own copy of the same condition.
-
----
+→ [`docs/upstream/prs/28-a-notification-coordinator-that-doesn-t-assume-i.md`](docs/upstream/prs/28-a-notification-coordinator-that-doesn-t-assume-i.md)
 
 ## 29. ⛔️ A long reply is typed into the pane and never submitted — **upstream fixed it first**
 
-**No PR, and none is possible: upstream already has this, in a stronger form, since before we wrote
-ours.** Checked against `upstream/main` on 2026-09-01, after `eee02eb` landed. Both halves of our fix
-exist there:
-
-| | | |
-|---|---|---|
-| [`29bca11`](https://github.com/AltanS/collie/commit/29bca11b165ddd5b79e070619138735647121ac4) | 2026-08-06 | *fix(guard): read Claude's paste placeholder as send evidence for long replies* |
-| [`a557762`](https://github.com/AltanS/collie/commit/a55776269f00ae97a0c353633515ce1ea431bf8f) | 2026-08-09 | *fix(web): make the reply guard's input-box detection width-independent* (their issue #76) |
-
-Shipped in `v1.0.0-beta.45`, and in `v1.0.2`, upstream's current release. Their reasoning is recorded
-as **their** ADR 0010 (`.adr/0010-long-sends-are-verified-via-the-paste-placeholder.md`), and it names
-the same two failures we hit, from the same screen: the placeholder the literal match structurally
-cannot see, and a `MAX_DRAFT_LINES` of 12 that a wide-glyph draft blows past.
-
-We did not know, because these six files have moved a long way upstream since the fork point —
-`reply-action.ts` is 499 lines there against our 158 — so the fork never inherited the fix, hit the
-bug on its own, and solved it again. A cherry-pick of `eee02eb` onto `upstream/main` conflicts in all
-six files; the "clean cherry-pick" this entry claimed when it was written was wrong, and there is
-nothing to extract regardless.
-
-**Upstream's version is better than ours, and this is the part that matters when we rebase.** Their
-adapter hook is `draftCarriesSend?(sent, draft)`, consulted only after the generic match fails, and
-its contract is strict-or-false: it accepts a placeholder only when the token is CONSISTENT with the
-message just typed — a collapse has to be plausible for a send that size, the token may not claim more
-newlines than we sent, and any literal tail beside the token has to be the END of our message (their
-#110, a half-arrived send that fired Enter). Ours is `isCollapsedDraft(draft)`, which reads the shape
-of the string and nothing else. **Their rule 1 names our hole exactly**: a stale token from an earlier
-paste vouches for a short message that never landed, and the guard presses Enter into whatever has
-focus. We argued the composer's pre-clear sweep makes that unreachable. That is an argument, not the
-check they wrote. They also carry a second member, `draftIsOpaque?(draft)`, which stands "Take over"
-down on a stranded placeholder — the wart we knowingly skipped.
-
-### What comes OUT of the fork when we take upstream's version
-
-Nothing here is a permanent local patch to maintain — it is a duplicate of upstream work, and the
-whole of it is deletable the day these six files are rebased onto `upstream/main`:
-
-- `isCollapsedDraft` in `web/src/lib/harness/claude/chrome.ts`, its member on `HarnessAdapter`
-  (`web/src/lib/harness/types.ts`), its wiring in `web/src/lib/harness/claude/index.ts`, and the
-  `draft !== null && adapter.isCollapsedDraft(draft)` arm in `web/src/lib/reply-action.ts` — all
-  superseded by their `draftCarriesSend?` / `draftIsOpaque?` pair and `harness/claude/paste.ts`.
-- Our `MAX_DRAFT_LINES = 64` — superseded by their 100, which also counts blank-line skips against
-  the same cap (ours does not).
-- The tests that pin our version: the `isCollapsedDraft` and `MAX_DRAFT_LINES` blocks in
-  `chrome.test.ts`, and the two collapsed-chip cases in `reply-action.test.ts`.
-
-Take theirs whole rather than reconciling the two — the delta they close is the placeholder
-consistency check, which is a correctness gap, not a style difference.
-
+→ [`docs/upstream/prs/29-a-long-reply-is-typed-into-the-pane-and-never-su.md`](docs/upstream/prs/29-a-long-reply-is-typed-into-the-pane-and-never-su.md)
 
 ## 30. 🔵 Cursor is missing from every agent table, and Codex's reset command is wrong
 
-| | |
-|---|---|
-| Commit | `26a78bb` *feat(agents): cursor in both agent tables, and codex's real reset command* |
-| Files | `web/src/lib/agent-commands.ts` (+ test), `web/src/components/agent-icon-data.ts`, `web/src/components/agent-icon.tsx` (+ test), `adapters/agents.toml`, `bridge/adapters.ts` (+ its block in `bridge/board.test.ts`) |
-| Extraction | **Clean cherry-pick for the frontend half** — `agent-commands.ts` and `agent-icon-data.ts` are upstream files and the change is pure data, no card in sight. The `adapters/` half only applies upstream alongside brick 8. |
-
-**herdr accepts `--kind cursor` and ships a dedicated integration, but Cursor was in neither table.**
-`commandsFor("cursor")` returned `[]`, so the UI *hid* the command button — a Cursor pane loses the
-palette entirely, and on a phone that palette is one of the few comfortable ways to drive an agent
-with no keyboard. The icon fell back to a "CU" initials tile on every card and in the sidebar.
-
-**The reset commands are opposites, which is why guessing failed.** Codex resets with `/new`;
-`/clear` also starts a new chat but wipes the terminal with it. Cursor has no `/new` at all —
-`/clear` *is* its reset. Anything that assumed one convention was going to be wrong for the other.
-
-**Sourced from the enum, not the prose.** `codex-rs/tui/src/slash_command.rs` is what the command
-popup is built from, so it is the only list that cannot drift from the shipped binary. Checking the
-existing catalog against it found `/fast` gone, `/agent` renamed to `/agents` (with `/subagents`
-split off), and ten commands missing.
-
----
+→ [`docs/upstream/prs/30-cursor-is-missing-from-every-agent-table-and-cod.md`](docs/upstream/prs/30-cursor-is-missing-from-every-agent-table-and-cod.md)
 
 ## 31. 🔵 `agent_session.kind === "path"` — the half of herdr's enum Collie drops
 
-| | |
-|---|---|
-| Commit | `55089e4` *feat(transcript): un pane dont la session est un CHEMIN a son historique* |
-| Files | `bridge/state-engine.ts`, `bridge/types.ts`, `bridge/transcript.ts` (`confinedSessionPath`), `bridge/server.ts` (`paneHistory`) |
-| Extraction | **Clean cherry-pick**, four small hunks, none board-aware. The one fork-specific line is the adapter guard in `paneHistory` — upstream's equivalent check there is "is this a Claude pane". |
-
-Herdr's `AgentSessionRefKind` is the enum `["id","path"]` and `herdr pane report-agent` exposes both
-(`--agent-session-id` / `--agent-session-path`). Collie kept only `"id"`, so an agent whose
-integration reports a PATH had its pane↔transcript link dropped without a word and fell through to
-the by-cwd resolution of brick 3 — which is exactly the resolution that cannot serve it: an agent
-reports a path precisely when its sessions aren't filed by cwd. A Codex rollout is
-`~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl`, filed by DATE, with the cwd buried inside
-the file.
-
-The fix is the cheapest kind: carry the value to `pageAt()`, which already exists and already takes a
-path. `confinedSessionPath()` is the only new code — realpath on both sides then containment, the same
-rule as `contained()` and gallery's `resolveImage()`, rooted at the home directory because no such
-session lives under `~/.claude/projects`. The value comes from herdr and never from a client; the
-containment is the belt for a misreporting integration, and a refusal is logged so a session store
-moved out of home (`CODEX_HOME`) doesn't make the feature quietly inert.
-
-**Plumbing, not format.** `parseTranscript` still requires Claude Code's row shape, so a Codex rollout
-reached this way pages as an empty transcript. That is a second, larger brick (a row adapter — see
-`AGENT_COMPAT.md` §4); this one just stops the link being thrown away before anything can use it.
-
----
+→ [`docs/upstream/prs/31-agent-session-kind-path-the-half-of-herdr-s-enum.md`](docs/upstream/prs/31-agent-session-kind-path-the-half-of-herdr-s-enum.md)
 
 ## 32. 🔵 The pane list is flat — nothing says which space a pane is in
 
-| | |
-|---|---|
-| Commit | `1edd875` *feat(panes): la liste latérale regroupe les panes par space* |
-| Files | `web/src/components/space-pane-tree.tsx` (new), `web/src/components/{agent-sidebar,pane-list-column}.tsx`, `web/src/lib/spaces.ts`, `web/src/components/status-badge.tsx`, `web/src/components/agent-chat.tsx` (one prop) |
-| Extraction | **Clean cherry-pick** bar one line: the group header reads `AgentView.branch`, which upstream doesn't have — deleting the ternary leaves the path fallback, which is already the code path for every non-card space. |
-
-Herdr's own sidebar groups by space: a header per space, its branch under the name, its panes
-beneath it. Collie's pane list — the desktop 296px column and the pane-switcher sheet, both of them —
-listed every pane in the herd flat under three triage headings, with the workspace name demoted to
-metadata on each row. On a herd of sixteen spaces that reads as one long undifferentiated list, and
-the one thing you navigate by (which project is this?) is the thing repeated on every row instead of
-said once.
-
-Grouping by space doesn't lose the triage: it moves it up a level. `groupPanesBySpace()` sorts spaces
-worst-status-first (the same `STATUS_RANK` the flat list used), the header carries the space's blocked
-count, and every row keeps its own status dot — which it needed anyway, since the section heading is
-no longer there to say it.
-
-Not a transcription of the TUI: the `└─` connectors become a hairline rail down each group, and the
-row's status dot sits ON that rail with a ring in the list's own surface colour, so one mark is both
-"this pane belongs to that space" and "this is its state". The space holding the open pane gets a
-brand-tinted rail. Two components became one (`<SpacePaneTree>`, one `dense` flag apart), which is a
-net deletion — they had two copies of the row.
-
-Two smaller things ride along and are separable: `StatusDot` now takes its size from its wrapper
-(the inner disc was pinned at `size-2.5`, so passing a size did nothing), and a row's second line
-prints its tab only when its space actually spans more than one — herdr labels a lone tab `1`, and
-that under every row is noise.
-
----
+→ [`docs/upstream/prs/32-the-pane-list-is-flat-nothing-says-which-space-a.md`](docs/upstream/prs/32-the-pane-list-is-flat-nothing-says-which-space-a.md)
 
 ## 33. 🔵 A worktree floats beside the repo it was cut from, and the Spaces screen shows neither
 
-| | |
-|---|---|
-| Commit | `2be764e` *feat(spaces): la page « spaces » prend la forme de herdr, worktree rattaché à son repo* |
-| Files | `web/src/lib/spaces.ts`, `web/src/components/{space-pane-tree,space-overview,status-badge}.tsx`, `web/src/routes/spaces.tsx` |
-| Extraction | **Clean cherry-pick.** Nothing here reads a card. The nesting keys off herdr's own worktree layout, which upstream Collie sees whenever the operator runs `herdr worktree` by hand; the Spaces screen rewrite carries brick 32's one-line `branch` caveat and nothing more. |
-
-Brick 32 grouped the pane list by space and stopped there. Two things it left standing:
-
-**A worktree is a space to herdr**, so it landed at the top level next to the repo it was cut from,
-with nothing tying the two — and in the board's case named after a truncated card title, which reads
-as an unrelated project. `groupPanesBySpace()` now hangs it under its repo, keyed off the only thread
-the snapshot carries: herdr parks worktrees at `<…>/worktrees/<repo dir>/<branch slug>`, so the
-segment before last names the repo. No pane field declares a parent and none is invented — a worktree
-whose repo has no space open stays a root, and a directory that merely shares a repo's name is not
-mistaken for one. No extra git call, no extra poll.
-
-**The Spaces screen never got the treatment at all** — one card per space, tabs as chips inside it,
-no branch, no hierarchy. It now renders the same `<SpacePaneTree>` as the desktop column and the
-switcher sheet: three surfaces, one body, and a card grid deleted. Its tab chips go with it; the
-space screen behind the drill-in already owns tab selection and creation, and a row names its tab
-when its space spans more than one.
-
-The attachment is drawn, not transcribed: the child section steps in one rung, its dot caps its own
-rail, and a 1px horizontal hairline reaches back to the parent's — herdr's `└─` without herdr's
-typography. Every offset descends from one origin (`railX(depth)`) instead of hard-coded px, which is
-what makes depth possible without a second copy of the row.
-
-Ordering follows the subtree (a blocked worktree pulls its repo to the top); the counters do not — a
-header speaks for its own panes, and the child's says the child's. Two separable bits ride along:
-`groupPanesBySpace()` takes the space list so a screen that lists *spaces* can show one with no pane
-in the snapshot (the switcher, which lists what you can switch *to*, doesn't pass it), and `StatusDot`
-takes a `style` — an indented rail's geometry is not expressible as a static utility class.
-
----
+→ [`docs/upstream/prs/33-a-worktree-floats-beside-the-repo-it-was-cut-fro.md`](docs/upstream/prs/33-a-worktree-floats-beside-the-repo-it-was-cut-fro.md)
 
 ## 34. 🔵 Two branches in flight always conflict — over the version, not the code
 
-Every functional change used to cut its release on its own branch: the three version files and a new
-`## [x.y.z]` at the top of `CHANGELOG.md`. Two branches open at once edit the same line of four files
-and pick the same number, so the second to merge conflicts whether or not its code touches the
-first's. Upstream has the same rule, and so the same conflict on any two PRs open together.
-
-| | |
-|---|---|
-| Commit | `4774e73` *feat(release): la version se coupe sur main, en CI, à partir de fragments* |
-| Files | `scripts/release.ts` + test, `scripts/release-notes.sh`, `scripts/git-hooks/pre-commit`, `.github/workflows/release.yml`, `changes/README.md`, `CLAUDE.md` → *Versioning*, `package.json` (test script) |
-| Extraction | **Clean**, but it changes upstream's working agreement — propose it as a question before a PR. Drop the ADR link (the fork's numbering) and the `herdr.collie-board` id in the notes. |
-
-A branch drops `changes/<slug>.md` (`bump:` line + Keep a Changelog bullets) and never touches a
-version. After a green CI on `main`, `scripts/release.ts` folds the fragments into one entry — biggest
-bump, each bullet citing the commit its fragment came in with — aligns the three files and deletes
-the fragments; the workflow commits, pushes the tag atomically with it and creates the GitHub
-Release, since a tag pushed with `GITHUB_TOKEN` starts no workflow of its own. The pre-commit hook
-enforces both halves and keeps the hand-cut bump for a hotfix committed on `main`.
-
----
+→ [`docs/upstream/prs/34-two-branches-in-flight-always-conflict-over-the.md`](docs/upstream/prs/34-two-branches-in-flight-always-conflict-over-the.md)
 
 ## 35. 🔵 The ctl lifecycle tests inherit the service's config
 
-A push made by the bridge runs the pre-push hook, and so this suite, with the systemd unit's
-environment — `.env` included. An inherited `COLLIE_BOARD_TRUSTED_USER` masked what `setup` derives
-and failed the push. The suite now unsets every `COLLIE_BOARD_*` / `HERDR_*` before it starts.
-
-| | |
-|---|---|
-| Commit | *test(ctl): the lifecycle suite no longer inherits the service's config* |
-| Files | `scripts/collie-board-ctl.test.sh` |
-| Extraction | **Clean cherry-pick**, `COLLIE_BOARD_` → `COLLIE_` in the pattern. |
-
----
+→ [`docs/upstream/prs/35-the-ctl-lifecycle-tests-inherit-the-service-s-co.md`](docs/upstream/prs/35-the-ctl-lifecycle-tests-inherit-the-service-s-co.md)
 
 ## 36. 🟡 Long lists fold to their newest few, with a « Voir les n autres » toggle
 
-`useFold(items, limit)` + `FoldToggle`: a list that grows with use (Idle · done) shows its first
-`limit` entries and a counted toggle for the rest. Generic — it knows no card.
-
-| | |
-|---|---|
-| Commit | `1cfc6f8e` *Replis : Idle · done, Projets, fichiers du diff, colonne Terminé, boîtes de texte du projet* (the upstream half only) |
-| Files | `web/src/components/fold.tsx` (+ test), `web/src/components/agent-list.tsx` (`IdleList`), the `fold.more`/`fold.less` strings in `web/src/i18n/messages/common.ts` |
-| Extraction | **Needs a filter**: the commit also folds fork-only screens (board column, project, diff, dashboard); keep the three files above. |
-
----
+→ [`docs/upstream/prs/36-long-lists-fold-to-their-newest-few-with-a-voir.md`](docs/upstream/prs/36-long-lists-fold-to-their-newest-few-with-a-voir.md)
 
 ## 37. 🔵 The web bundle goes out gzipped, precompressed at build
 
-`serveStatic` sent every asset raw: the 963 KB main chunk (268 KB gzipped) and the 89 KB stylesheet
-(15 KB) — about 5.5 s on a phone at first load and after every release. The build now writes an
-`x.gz` beside each text asset of the output dir, and the bridge sends it, with `Content-Encoding: gzip`
-and `Vary: Accept-Encoding`, to a client that accepts gzip. Nothing is compressed per request; CSP and
-cache headers are untouched. Generic — it knows no card.
-
-| | |
-|---|---|
-| Commit | *Assets web servis précompressés en gzip (audit perf #9)* |
-| Files | `web/vite-gzip.ts` (new), `bridge/precompressed.ts` (+ test, new), `web/vite.config.ts` (one import, one plugin), `web/tsconfig.json` (include), `bridge/server.ts` (`serveStatic` takes `Accept-Encoding`, three lines) |
-| Extraction | **Clean cherry-pick**. |
-
----
+→ [`docs/upstream/prs/37-the-web-bundle-goes-out-gzipped-precompressed-at.md`](docs/upstream/prs/37-the-web-bundle-goes-out-gzipped-precompressed-at.md)
 
 ## 38. 🔵 The transcript's timestamps reuse one formatter
 
-`clockTime`/`dayKey` called `toLocaleTimeString`/`toLocaleDateString`, which build a fresh Intl
-formatter on every call — twice per turn, on every poll that re-renders the conversation. Measured on
-a 40-turn transcript at 1.5 s polling, phone throttling (CPU ×4): ≈ 450 ms of main thread per 12 s,
-a third of React's render phase. Two module-level `Intl.DateTimeFormat`, same options, same output.
-Generic — it knows no card.
-
-| | |
-|---|---|
-| Commit | *Transcript : un formateur de date par module, plus un par tour et par poll (audit perf #8)* |
-| Files | `web/src/components/transcript-view.tsx` |
-| Extraction | **Clean cherry-pick**. |
-
----
+→ [`docs/upstream/prs/38-the-transcript-s-timestamps-reuse-one-formatter.md`](docs/upstream/prs/38-the-transcript-s-timestamps-reuse-one-formatter.md)
 
 ## 39. 🔵 A screen already seen opens at once, and a touched link starts loading
 
-A navigation waited on every loader of its target, even to a screen just left: a back from a card
-to its project cost as much as the first visit (≈ 0.57 s at phone throttling), and an ETag only turns
-a refetch into a 304, still a round trip. `lib/nav-cache.ts` keeps each polled loader's last result
-per URL: a **navigation** returns it at once and one `revalidate()` runs when it is on screen; a
-**revalidation** (the poll) always fetches and refreshes the entry. The two are told apart by
-`router.state.navigation.state`, which holds for a POP too. A delegated `pointerover`/`pointerdown`
-listener starts a link's loader before the tap lands, and the navigation joins that load. Upstream
-has the root and pane loaders to wrap; the board's loaders are fork-only. No timer.
-
-| | |
-|---|---|
-| Commit | *Navigation : un écran déjà vu s'affiche tout de suite, un lien touché commence à charger* |
-| Files | `web/src/lib/nav-cache.ts` (+ test, new), `web/src/lib/loaders.ts` (root and pane loaders wrapped), `web/src/router.tsx` (one call) |
-| Extraction | **Needs extraction**: drop the hunks in `board-loaders.ts`, and the prefetched-link pattern (`/board/project`, `/card/`) has no upstream equivalent — upstream would prefetch nothing, or `/pane/` once its loader's offline discriminator moves to the router state too. |
+→ [`docs/upstream/prs/39-a-screen-already-seen-opens-at-once-and-a-touche.md`](docs/upstream/prs/39-a-screen-already-seen-opens-at-once-and-a-touche.md)
 
 ## 40. 🟡 Which agents have subagents running
 
-Claude Code's background subagents leave nothing on the pane: the main agent goes idle while they
-work. `bridge/subagents.ts` reads them off the session log the gauge already loads — a `tool_use`
-"Agent" started (`toolUseResult.status` `async_launched`/`forked`) with no `<task-notification>`
-naming its `tool-use-id` yet, and nothing before the newest `cost-state` row (the session exited).
-Verified on 600 real logs (Claude Code 2.1.286–2.1.304) and live. Claude panes only. Shown as one
-line, « N sous-agents en cours · descriptions », on every pane tile and under the pane header.
-
-| | |
-|---|---|
-| Commit | *Sous-agents en cours : visibles sur la tuile de l'agent et sous l'en-tête du pane* |
-| Files | `bridge/subagents.ts` (+ test, new), `bridge/context.ts` (read + `enrich`), `bridge/types.ts` · `web/src/lib/types.ts` (`AgentView.subagents`), `web/src/components/subagents-line.tsx` (new), `agent-card.tsx`, `agent-chat.tsx`, `i18n/messages/pane.ts` |
-| Extraction | **Needs extraction**: it rides on `ContextTracker`, which upstream lacks — upstream would call `runningSubagents()` from wherever it reads the transcript, at that cadence. |
-
----
+→ [`docs/upstream/prs/40-which-agents-have-subagents-running.md`](docs/upstream/prs/40-which-agents-have-subagents-running.md)
 
 ## 41. 🟡 A followed pane's history answers 304, and an idle pane polls slow
 
-The reading view follows a pane with `GET /api/pane/:id/history?after=…` on every poll. Measured
-(10 min, `/api/diag/routes`): 26 calls, 163 ms average, 448 ms max, no 304 — the whole log re-read
-each time. `TranscriptStore.pageAt` now stats first and reuses its parse while size/mtime hold; the
-route answers through `conditionalJson` (body ETag); `fetchHistory` goes through `conditionalGet`.
-And `intervalFor` polls fast only for the open pane itself working/blocked (or a shell) — an agent
-busy elsewhere no longer drags the whole app to 1.5 s. Generic — it knows no card (the lot rule
-beside it is the fork's).
-
-| | |
-|---|---|
-| Commit | *perf: historique en 304 quand rien n'a bougé, poll lent hors pane actif* |
-| Files | `bridge/transcript.ts`, `bridge/server.ts`, `web/src/lib/api.ts`, `web/src/hooks/use-polling.ts` |
-| Extraction | **Needs extraction** — drop the `lots` parameter and its `useMatches` lookup in `root.tsx`; the `board.ts` side of the `conditionalGet` move does not exist upstream. |
-
----
+→ [`docs/upstream/prs/41-a-followed-pane-s-history-answers-304-and-an-idl.md`](docs/upstream/prs/41-a-followed-pane-s-history-answers-304-and-an-idl.md)
 
 ## 42. 🟡 One status line for the whole app, above the tab bar and the composer
 
-`setStatus()` is global, but each screen mounted its own `<StatusArea/>` — so a screen that forgot
-(settings, here) swallowed its errors, and an error (no TTL) resurfaced on the next screen that did
-mount one, far from what failed. The card screen's sat at `bottom-0`, under the mobile tab bar. Now
-`root.tsx` mounts the one `<StatusOverlay/>`, pinned above the tab bar; a bottom bar (the composer)
-lifts it clear of itself through `useStatusLift()` (a `--status-lift` CSS variable); and a route change
-drops a standing error (`clearErrorStatus`). Generic — no card in sight.
-
-| | |
-|---|---|
-| Commit | *fix(web): une seule ligne de statut, montée dans la racine* |
-| Files | `web/src/lib/status.ts`, `web/src/components/status-area.tsx`, `web/src/routes/root.tsx`, `web/src/components/composer.tsx`, the per-screen mounts removed (`home`, `space`, `spaces`, `agent-chat`) |
-| Extraction | **Needs extraction** — `prs.tsx`, `card.tsx` and `board.tsx` (the run button's lift) are the fork's. |
-
-> **Then replaced by Sonner, shadcn's toast** — *feat(web): toasts façon shadcn (Sonner), un seul
-> empilement en haut*. `setStatus()` is now a façade over `toast()`/`toast.success()`…; the one
-> `<Toaster/>` (`components/ui/sonner.tsx`) sits in `root.tsx`, top-center under the header on a
-> phone, top-right on desktop, ~356px, three stacked, swipe to dismiss, ✕ on errors (which persist,
-> and close on a route change). `StatusArea`/`StatusOverlay`/`useStatusLift` are gone, and so are the
-> redundant "Sent" confirmations — the sent message already shows. Generic: a clean upstream PR.
-
----
+→ [`docs/upstream/prs/42-one-status-line-for-the-whole-app-above-the-tab.md`](docs/upstream/prs/42-one-status-line-for-the-whole-app-above-the-tab.md)
 
 ## 43. 🟡 `ctl.ts` — the plugin actions on Windows, under one command per id
 
-Upstream's manifest declares `linux`/`macos` only, because every action is `bash
-scripts/collie-ctl.sh`. Herdr refuses two actions with one id even with disjoint `platforms`
-(`duplicate_plugin_action_id`, measured on 0.9.5), so the actions Windows offers become
-`bun scripts/ctl.ts <id>` everywhere: a transparent hand-off to the shell script on Linux/macOS, a
-native implementation on Windows — build, start/stop/restart/uninstall (a scheduled task at logon,
-not elevated, with a restart-on-death supervisor), status, url, version, logs. `setup`/`update`
-stay bash, Linux/macOS only. Plus `* text=auto eol=lf` in `.gitattributes` and `tsc` instead of
-`bunx tsc` (winget's Bun has no `bunx`). Generic — no card in sight.
-
-| | |
-|---|---|
-| Commit | *feat(windows): herdr plugin install natif — scripts/ctl.ts, tâche planifiée à l'ouverture de session* |
-| Files | `scripts/ctl.ts` (+ test, new), `herdr-plugin.toml`, `.gitattributes`, `package.json` (`typecheck`), README « Windows », ARCHITECTURE §3, ADR 0050 |
-| Extraction | **Needs extraction**: file names (`collie-board-ctl.sh`, `herdr.collie-board`, the `CollieBoard` task) and the fork's pane-fixture path in `.gitattributes`. The ADR is the fork's numbering. |
+→ [`docs/upstream/prs/43-ctl-ts-the-plugin-actions-on-windows-under-one-c.md`](docs/upstream/prs/43-ctl-ts-the-plugin-actions-on-windows-under-one-c.md)
 
 ## 44. 🟡 Idle screens — a Claude dialog herdr calls `idle` reads `blocked`
 
-Claude Code 2.1.319's « Teach auto mode about your environment? » (`Yes` / `Not now` / `Don't show
-again`) holds the agent while herdr says `idle`: no alert, no dot, nobody told. The engine reads the
-pane at its passage to idle (the read it already makes for `/rename`), and a tail ending on a known
-title turns that `idle` into `blocked` from the next poll — re-read each poll until it goes. The web
-grammar lifts the same dialog into buttons (« Not now » = Down, Enter). Generic — no card in sight.
-
-| | |
-|---|---|
-| Commit | *feat: carte distante — écran « Teach auto mode » bloquant, arrêt sans PR signalé, PR rattachée* |
-| Files | `web/src/lib/harness/claude/holding-screens.ts` (new), `markers.ts` (`namesTrustDialog`), `bridge/state-engine.ts` (`heldByScreen`), fixture `claude--v2319-teach-auto-mode.txt` (+ tests) |
-| Extraction | **Needs extraction**: the same commit carries the board's remote-card half (`bridge/remote-idle.ts`, `peer-herd.ts`, `remote-launch.ts`); take the four files above. |
-
----
+→ [`docs/upstream/prs/44-idle-screens-a-claude-dialog-herdr-calls-idle-re.md`](docs/upstream/prs/44-idle-screens-a-claude-dialog-herdr-calls-idle-re.md)
 
 ## Never offer as one PR
 
-Cards, the board, SQLite, worktree-per-card, session chaining, the copilot. Collie is deliberately
-stateless — an ephemeral, single-operator mirror. Grafting a database onto it is a change of kind,
-not an extension, and a refusal would be entirely reasonable.
+→ [`docs/upstream/prs/45-never-offer-as-one-pr.md`](docs/upstream/prs/45-never-offer-as-one-pr.md)
