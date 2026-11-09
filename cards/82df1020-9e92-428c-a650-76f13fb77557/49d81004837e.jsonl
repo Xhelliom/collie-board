@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240068652.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9df5243a-6ddd-4790-adee-179fef9bd8ba"}}
 {"v":1,"hlc":"1794240068652.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le résumé de fin de carte expire à l'heure","status":"backlog"},"ts":1794240064088}}
 {"v":1,"hlc":"1794240068652.0011.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8d5c6594-6699-4e07-aadb-c72605b25dbf"}}
+{"v":1,"hlc":"1794240085392.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
