@@ -54,17 +54,18 @@ export function endOfLot(db: BoardDb, run: Run): Verdict {
 /**
  * ADR 0047: may the orchestrator start `run` now, with no end-of-lot grant? Only with `startWhenIdle`,
  * when no lot of the repo is running, within the chain bound and — with `stopOnRed` — when the last
- * lot finished green. Read at the request; nothing schedules it.
+ * lot finished green. Read at the request; nothing schedules it. Null: it may; else why not.
  */
-export function idleStart(db: BoardDb, run: Run): boolean {
+export function idleRefusal(db: BoardDb, run: Run): string | null {
   const a = db.autonomyOf(run.repoPath);
-  if (!a.enabled || !a.startWhenIdle) return false;
-  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return false;
-  if (a.maxChain !== null && a.chained >= a.maxChain) return false;
+  if (!a.enabled) return "l'autonomie est coupée";
+  if (!a.startWhenIdle) return "aucun lancement armé par une fin de lot";
+  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return "un lot du dépôt est encore ouvert";
+  if (a.maxChain !== null && a.chained >= a.maxChain) return `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte`;
   // nothing runs, so every launched lot is finished: the latest launched is the last to have ended.
   const last = db
     .listRuns(run.repoPath)
     .filter((r) => r.launchedAt !== null)
     .reduce<Run | null>((m, r) => (m && m.launchedAt! >= r.launchedAt! ? m : r), null);
-  return !(a.stopOnRed && last && redCards(db, last).length);
+  return a.stopOnRed && last && redCards(db, last).length ? "un gate ou une CI est rouge" : null;
 }
