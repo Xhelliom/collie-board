@@ -666,6 +666,8 @@ export interface RunEventPayloads {
   "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
   /** The worker's bilan as the lead read it at a check — kept here because the worktree is not. Once per new text. */
   "run.report": { runId: string; round: number; text: string; issue: "coded" | "present" | "partial" | "none" | null };
+  /** Whether the chain goes on (ADR 0030/0047): at each end of lot, and at each launch refused to the orchestrator. Null card: the lot's. */
+  "run.chain": { runId: string; go: boolean; why: string | null; next: string | null };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -679,6 +681,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.gate",
   "run.merge",
   "run.report",
+  "run.chain",
 ];
 
 /** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */

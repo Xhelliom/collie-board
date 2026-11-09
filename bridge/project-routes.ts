@@ -7,7 +7,7 @@ import { basename } from "node:path";
 
 import { doneOutsideLot, isIntegration, isMaxParallel, PHASE_NOTE_MAX, RevisionConflict } from "./db.ts";
 import type { BoardContext } from "./board-routes.ts";
-import { idleStart } from "./autonomy.ts";
+import { idleRefusal } from "./autonomy.ts";
 import { lotView } from "./lot.ts";
 import { resumeRun } from "./run.ts";
 import { assignedElsewhere, lotOwnerRefusal } from "./claim.ts";
@@ -228,16 +228,24 @@ export async function handleProjectRoute(
       // Unless the operator turned autonomy on for this repo and the end-of-lot wake armed one launch
       // (ADR 0030), or allowed a start when none of its lots is running (ADR 0047).
       const auto = run ? db.autonomyOf(run.repoPath) : null;
-      const idle = !!pane && !!run && !auto!.armed && idleStart(db, run);
-      if (pane && !(auto?.enabled && (auto.armed || idle)))
-        return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
+      const idleWhy = pane && run && !auto!.armed ? idleRefusal(db, run) : undefined;
+      const idle = idleWhy === null;
+      // An orchestrator refused leaves why in the lot's journal: what stops the chain is measured.
+      const refuse = (why: string, body = "launching is the operator's gesture — an agent pane cannot launch a lot") => {
+        if (pane && run) db.recordRunEvent(null, "run.chain", { runId: run.id, go: false, why, next: run.id });
+        return ctx.text(body, 403);
+      };
+      if (pane && !(auto?.enabled && (auto.armed || idle))) {
+        if (!run) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
+        return refuse(idleWhy ?? "l'autonomie est coupée");
+      }
       if (!run) return ctx.text("run not found", 404);
       if (run.launchedAt !== null) return ctx.text("already launched", 409);
       // ADR 0048 §7: another pair's lot is seen here, never launched — and an agent never launches one holding another person's card.
       const notOurs = lotOwnerRefusal(db, run) ?? (pane ? db.runMembers(id).map((c) => assignedElsewhere(db, c)).find(Boolean) : null);
-      if (notOurs) return ctx.text(notOurs, 403);
+      if (notOurs) return refuse(notOurs, notOurs);
       if (doneOutsideLot(run, db.runMembers(id))) return ctx.text("every card of this lot is already done — it finished outside the lot", 409);
-      if (pane && !db.spendAutonomy(run.repoPath, idle)) return ctx.text("launching is the operator's gesture — an agent pane cannot launch a lot", 403);
+      if (pane && !db.spendAutonomy(run.repoPath, idle)) return refuse("le lancement armé est déjà dépensé");
       if (!db.launchRun(id)) return ctx.text("already launched", 409);
       if (!pane) db.resetChain(run.repoPath);
       audit("run.launch", { runId: id, ...(pane ? { autonomous: true } : {}), ...(idle ? { reason: "idle" } : {}) });

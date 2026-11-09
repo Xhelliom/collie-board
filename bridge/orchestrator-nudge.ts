@@ -119,6 +119,9 @@ export class OrchestratorNudger {
       }));
       const v = endOfLot(this.db, run);
       this.db.armAutonomy(run.repoPath, v.go);
+      // Journaled every time, the quiet stops too: why the chain stopped is what this measures.
+      const why = v.go ? null : (v.why ?? (this.db.autonomyOf(run.repoPath).enabled ? "aucun lot planifié" : "l'autonomie est coupée"));
+      this.db.recordRunEvent(null, "run.chain", { runId: run.id, go: v.go, why, next: v.go ? v.next.id : null });
       if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}`, pushed: false });
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
