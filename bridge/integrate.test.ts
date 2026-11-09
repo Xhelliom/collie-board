@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import {
+  classifyMergeRefusal,
   branchExists,
   cardDiffSummary,
   deleteBranch,
@@ -34,6 +35,7 @@ import {
   armAutoMerge,
   landPr,
   MAX_UNREADABLE,
+  MAX_WAIT_MS,
   mergeWhenReady,
   notePrOutcome,
   cleanupCard,
@@ -791,7 +793,10 @@ function ghDouble(over: {
   view?: () => Record<string, unknown>;
   rollup?: () => object[];
   auto?: boolean;
-  merge?: boolean;
+  /** false: refused with "nope"; a string: refused with that stderr; a function: asked per call. */
+  merge?: boolean | string | (() => boolean | string);
+  /** `gh pr update-branch`: true (default) succeeds, a string is its stderr. */
+  update?: true | string;
 } = {}) {
   const calls: string[][] = [];
   const at = (args: string[], flag: string) => (args.includes(flag) ? args[args.indexOf(flag) + 1] ?? "" : null);
@@ -802,7 +807,11 @@ function ghDouble(over: {
     if (cmd === "pr" && sub === "merge" && args.includes("--auto")) {
       return over.auto ? ok() : { ok: false, stdout: "", stderr: "Auto merge is not allowed for this repository" };
     }
-    if (cmd === "pr" && sub === "merge") return over.merge === false ? { ok: false, stdout: "", stderr: "nope" } : ok();
+    if (cmd === "pr" && sub === "merge") {
+      const m = typeof over.merge === "function" ? over.merge() : over.merge;
+      return m === false ? { ok: false, stdout: "", stderr: "nope" } : typeof m === "string" ? { ok: false, stdout: "", stderr: m } : ok();
+    }
+    if (cmd === "pr" && sub === "update-branch") return typeof over.update === "string" ? { ok: false, stdout: "", stderr: over.update } : ok();
     const fields = cmd === "pr" && sub === "view" ? at(args, "--json") : null;
     if (fields === "statusCheckRollup") return ok(JSON.stringify({ statusCheckRollup: over.rollup?.() ?? [] }));
     if (fields?.split(",").includes("mergeable")) {
@@ -899,6 +908,62 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
     await t.again();
     expect(t.merges().map((m) => m.merged)).toEqual([true, false]); // newest first
     expect(t.merged()).toBe(1);
+  });
+
+  describe("a merge refused because the base moved on: the board updates the branch, then merges", () => {
+    const BEHIND =
+      "X Pull request o/r#1004 is not mergeable: the head branch is not up to date with the base branch.\nTo have the pull request merged after all the requirements have been met, add the `--auto` flag.";
+
+    it("classifies GitHub's refusals: behind, conflict, anything else", () => {
+      expect(classifyMergeRefusal(BEHIND)).toBe("behind");
+      expect(classifyMergeRefusal("X Pull request o/r#3 is not mergeable: the merge commit cannot be cleanly created.")).toBe("conflict");
+      expect(classifyMergeRefusal("GraphQL: merge conflict between base and head (updatePullRequestBranch)")).toBe("conflict");
+      expect(classifyMergeRefusal("GraphQL: Auto merge is not allowed for this repository")).toBe("other");
+      expect(classifyMergeRefusal("Required status check \"ci\" is expected.")).toBe("other");
+    });
+
+    it("updates the branch, waits for its checks, merges on the next ask — no halt, no gesture", async () => {
+      let behind = true;
+      const t = setup({ merge: () => (behind ? BEHIND : true) });
+      await t.again();
+      expect(t.calls).toContainEqual(["pr", "update-branch", "board/x"]);
+      expect(t.merges()).toEqual([{ runId: "r1", merged: false, wait: true, updated: true, reason: expect.stringContaining("branch updated") }]);
+      behind = false;
+      await t.again();
+      expect(t.merged()).toBe(1);
+    });
+
+    it("the update is a push: an empty rollup right after it is a wait, not a merge without checks", async () => {
+      let behind = true;
+      const t = setup({ merge: () => (behind ? BEHIND : true) });
+      t.clock.t = NOW;
+      await t.again();
+      behind = false;
+      await t.again();
+      expect(t.merged()).toBe(0);
+      expect(t.merges()).toHaveLength(1);
+    });
+
+    it("a real conflict on the update goes to the conflict path, with its reason", async () => {
+      const t = setup({ merge: BEHIND, update: "GraphQL: merge conflict between base and head" });
+      await t.again();
+      expect(t.merges()[0]).toEqual({ runId: "r1", merged: false, conflict: true, reason: expect.stringContaining("merge conflict") });
+    });
+
+    it("an update GitHub refuses for another reason is a skip the caller halts on", async () => {
+      const t = setup({ merge: BEHIND, update: "HTTP 403: Resource not accessible by integration" });
+      await t.again();
+      expect(t.merges()[0]).toEqual({ runId: "r1", merged: false, reason: expect.stringContaining("could not be updated: HTTP 403") });
+    });
+  });
+
+  it(`a wait that outlasts MAX_WAIT_MS is a skip the caller halts on — no PR waits in silence`, async () => {
+    const t = setup({ view: () => ({ mergeable: "UNKNOWN" }) });
+    await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, t.gh, () => Date.parse(OLD));
+    await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, t.gh, () => Date.parse(OLD) + MAX_WAIT_MS / 2);
+    expect(t.merges()).toHaveLength(1);
+    await mergeWhenReady(t.store, t.card.id, "/repo", "board/x", green, t.gh, () => Date.parse(OLD) + MAX_WAIT_MS + 3_600_000);
+    expect(t.merges()[0]).toEqual({ runId: "r1", merged: false, reason: "GitHub has not worked out mergeability yet for 4 h — not merging" });
   });
 
   describe("GitHub unreadable (network, gh logged out, rate limit) is a wait, up to MAX_UNREADABLE in a row (ADR 0036)", () => {
