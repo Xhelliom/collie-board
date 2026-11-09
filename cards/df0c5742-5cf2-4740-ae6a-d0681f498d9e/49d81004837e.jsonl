@@ -6,3 +6,6 @@
 {"v":1,"hlc":"1794240085390.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/l-orchestrateur-reprend-un-lot-arrete-pour-une-r"}}
 {"v":1,"hlc":"1794240085390.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
 {"v":1,"hlc":"1794240085390.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794240084166}}
+{"v":1,"hlc":"1794240105402.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794240105402.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794240089393}}
+{"v":1,"hlc":"1794240105402.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2368},"ts":1794240091281}}

@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794240068652.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Le résumé de fin de carte expire à l'heure","status":"backlog"},"ts":1794240064088}}
 {"v":1,"hlc":"1794240068652.0011.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8d5c6594-6699-4e07-aadb-c72605b25dbf"}}
 {"v":1,"hlc":"1794240085392.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794240105402.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/le-resume-de-fin-de-carte-expire-a-l-heure"}}
+{"v":1,"hlc":"1794240105402.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794240105402.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794240088283}}
+{"v":1,"hlc":"1794240105402.0009.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794240105402.0010.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794240092305}}
+{"v":1,"hlc":"1794240105402.0011.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":1920},"ts":1794240093730}}

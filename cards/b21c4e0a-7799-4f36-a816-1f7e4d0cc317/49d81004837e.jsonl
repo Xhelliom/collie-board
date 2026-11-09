@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794240068652.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Chaque arrêt d'enchaînement est tracé dans le journal","status":"backlog"},"ts":1794240064096}}
 {"v":1,"hlc":"1794240068652.0012.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8d5c6594-6699-4e07-aadb-c72605b25dbf"}}
 {"v":1,"hlc":"1794240083350.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794240087262.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/chaque-arret-d-enchainement-est-trace-dans-le-jo"}}
+{"v":1,"hlc":"1794240087262.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794240087262.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794240086120}}
+{"v":1,"hlc":"1794240105402.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794240105402.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794240090407}}
+{"v":1,"hlc":"1794240105402.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2018},"ts":1794240092228}}
