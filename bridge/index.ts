@@ -31,6 +31,7 @@ import { Push } from "./push.ts";
 import { findOrchestrator, isOrchestratorAgent } from "./orchestrator.ts";
 import { lotHoldsPush } from "./lot-push.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
+import { StuckCards } from "./stuck-card.ts";
 import { prFollowHook } from "./pr-follow.ts";
 import { isLeadPane, runHook } from "./run.ts";
 import { PeerStore } from "./pairing.ts";
@@ -380,6 +381,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
+    // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode.
+    const stuck = new StuckCards(board, herdr);
+    engine.onUpdate((snap) => stuck.update(snap), "stuckCards");
     // The shared board's journal (ADR 0048 §3): fetch/send for the repos marked shared, throttled
     // inside the consumer — one git op in flight per repo, no timer. Fire-and-forget like the gauge.
     const journalSync = new JournalSync(board, new Hlc(loadPairId(cfg.stateDir)));
