@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.279.0] - 2026-11-09
+
+### Added
+
+- Une carte de lot dont l'agent est bloqué, inactif ou disparu depuis 10 min réveille l'orchestrateur (titre, état du pane, fin d'écran), une fois par épisode (60c1571)
+
+### Fixed
+
+- Merge refusé car la branche n'est pas à jour : le board la met à jour (`gh pr update-branch`) et merge une fois la CI verte, au lieu de halter (dbbdda2)
+- Une attente GitHub (checks, mergeabilité) de plus de 3 h halte avec sa raison : plus de PR de lot en attente silencieuse (dbbdda2)
+
 ## [0.278.0] - 2026-11-09
 
 ### Added
