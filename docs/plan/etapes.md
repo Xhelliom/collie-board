@@ -36,137 +36,161 @@
 - **V2 — 1 : interface moteur** — validated 2026-11-06, 1 step
 - **V2 — 2 : herdr-core en lecture** — validated 2026-11-06, 3 steps
 - **V2 — 3 : herdr-core en écriture** — validated 2026-11-06, 4 steps
+- **Documentation des projets** — validated 2026-11-07, 7 steps
+- **V2 — 4 : le projet au centre** — validated 2026-11-07, 5 steps
+- **divers 07/11/2026** — validated 2026-11-07, 27 steps
+- **Nœud Windows fiable** — validated 2026-11-09, 11 steps
+- **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
 
-## Phase 33 — Documentation des projets
+## Phase 38 — Autonomie par objectif
 
-Sur le téléphone, la doc de chaque projet se lit, classée selon une convention commune (modèle Overgate) ; un projet hors norme se met aux normes par une PR d agent ; le plan arrive dans git à chaque fin de lot.
+Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.
 
-### Lot — Documentation : convention, page, export (launched, 2 at a time)
+### Lot — Enchaînement fiable (launched, 3 at a time)
 
-- **Pages custom du projet : un onglet par page HTML écrite par l agent** — done
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
+- **L'orchestrateur reprend un lot arrêté pour une raison mécanique** — done
 
-  Certains projets ont besoin d une page qui n entre dans rien de générique (plan marketing, direction artistique…). L agent écrit une page HTML dans le dépôt, sous docs/pages/<nom>.html (synchro git, donc visible depuis les autres postes). La page projet de Collie affiche un onglet par fichier, lu depuis main comme la page Documents.
+  Décidé par l'opérateur le 09/11. Aujourd'hui POST /api/runs/:id/resume refuse tout pane (bridge/project-routes.ts:251 « resuming is the operator's gesture »).
   
-  Sécurité (non négociable) : le HTML d un agent est non fiable. Affichage dans une iframe sandbox SANS allow-same-origin, servie depuis une route dédiée avec sa propre CSP stricte (pas d accès réseau sortant, pas de lecture du board). Le CSP du board et checkAccess restent inchangés, jamais d innerHTML dans l app. Premier point à établir : comment servir ces pages sans toucher au CSP du board ; si ce n est pas possible proprement, s arrêter et rendre compte.
+  Faire : sous autonomie activée, accepter la reprise depuis le pane orchestrateur quand la raison du halt est mécanique : PR pas à jour, pre-push rouge, lead muet, travail non commité, démarrage raté. Classer les raisons dans une fonction pure. Borne : N reprises par lot (ex. 3), ensuite geste opérateur. Les halts de décision (tours du lead épuisés, lead fini sans commit, verdicts) restent à l'opérateur. Lot d'un autre poste : toujours refusé. Écrire l'ADR qui amende la règle et mettre à jour skills/collie-board/SKILL.md.
+
+  - [x] Depuis le pane orchestrateur, un lot halté « PR pas à jour » se reprend
+  - [x] Un halt « tours épuisés » reste refusé (403)
+  - [x] Au-delà de la borne : 403
+  - [x] Autonomie éteinte : 403 comme aujourd'hui
+  - [x] ADR + SKILL.md + test bun de la classification
+- **Chaque arrêt d'enchaînement est tracé dans le journal** — done
+
+  endOfLot() (bridge/autonomy.ts) et idleStart() décident si le lot suivant part ; leur raison (« why ») n'est écrite nulle part sauf dans le message à l'orchestrateur, donc on ne peut pas mesurer pourquoi l'enchaînement s'arrête.
   
-  Documenter dans skills/collie-board/SKILL.md comment un agent crée une page (chemin, gabarit minimal autonome : CSS inline, pas de script externe). Fragment changes/ + ADR si la route sandbox ferme une option.
+  Faire : un événement run.chain {go, why, next} à chaque fin de lot (et à chaque refus de lancement par l'orchestrateur : autre poste, lot ouvert, borne, rouge). Lisible dans le journal du lot.
 
-  - [x] Un fichier docs/pages/x.html sur main apparaît comme onglet « x » dans la page projet
-  - [x] La page s affiche dans une iframe sandbox sans allow-same-origin ; un script dedans ne peut ni lire le board ni appeler /api
-  - [x] Le CSP et checkAccess du board sont inchangés (test)
-  - [x] Sans dossier docs/pages, aucun onglet en plus
-  - [x] SKILL.md explique à un agent comment créer une page custom
-  - [x] Un bouton plein écran affiche la page custom sur tout l écran (téléphone et bureau), avec une sortie évidente (bouton ou Échap)
-- **Export du plan dans git à chaque fin de lot** — done
+  - [x] Fin de lot : un run.chain avec go ou la raison d'arrêt
+  - [x] Un refus de lancement depuis le pane orchestrateur laisse un run.chain avec la raison
+  - [x] Test bun
+- **Le résumé de fin de carte expire à l'heure** — done
 
-  Décision du 06/11 : le board reste l outil du plan ; à chaque fin de lot, une PR « docs(plan) » met à jour docs/plan/ (roadmap détaillée = GET /api/roadmap?format=md, étapes = format=steps, et le bilan du lot). L opérateur la merge ; le board ne pousse jamais sur main. Réutiliser la mécanique de fin de lot existante (pas de nouveau timer : accrocher à l événement de fin de lot) et le chemin habituel des PR d agent/lead ; si le plus simple est que le lead l inclue dans la dernière PR du lot, le dire et le justifier. Vérifier aussi comment arrivent ici les cartes et lots créés par un pair (ex. le Dell : createdBy) et le consigner. Réglage par dépôt pour couper l export (défaut : actif). Tests bun. Fragment bump: minor.
+  bridge/wrapup.ts a WRAPUP_DEADLINE_MS = 30 min, mais le journal montre wrapup.requested → wrapup.expired après 10 à 35 h : l'expiration ne semble évaluée que quand quelque chose bouge. Vérifier la cause, faire expirer à l'échéance (sans nouvelle boucle : réutiliser un tick existant) et raccourcir le délai à quelques minutes.
 
-  - [x] À la fin d un lot, une PR met docs/plan/ à jour (roadmap + bilan)
-  - [x] Rien n est poussé sur main sans l opérateur
-  - [x] Accroché à la fin de lot, aucun nouveau timer
-  - [x] Réglage par dépôt pour couper
-  - [x] Tests verts
-- **Page Documents du projet : lire la doc de main sur le téléphone** — done
-  - after: Modèle de convention de documentation (socle + 4 modules)
+  - [x] Un résumé jamais rendu expire quelques minutes après la demande, même si le troupeau est calme
+  - [x] Le nettoyage de la carte suit
+  - [x] Test bun de l'échéance
+- **Merge refusé « branche pas à jour » : le board remet la PR à jour et réessaie** — done
 
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Nouvel onglet du projet (à côté de Roadmap, PRs, Recette), route /board/documents. Le bridge lit les .md de main via bridge/git.ts seulement (ls-tree / show sur main, argv, chemin validé après --, jamais hors du dépôt), sans checkout. Classement par rubrique selon la section machine-lisible du modèle de convention (carte précédente) ; fichiers hors convention dans « Autres ». Rendu Markdown sûr (pas d innerHTML brut, CSP inchangée), liens internes entre .md cliquables, recherche par titre et texte. « Décisions » : ADR (.adr/ ou docs/adr/, statut lu dans le fichier) fusionnés avec les décisions de la roadmap (✅🟡❓), triés par date. Lu à l ouverture, jamais en boucle (pas de nouveau poll). Nouvelles routes documentées dans skills/collie-board/SKILL.md (skill.test.ts). i18n fr/en. Tests bun (lecture, validation de chemin) et web. Fragment bump: minor.
-
-  - [x] Onglet Documents : la doc de main classée par rubrique, rendue, avec recherche
-  - [x] Décisions = ADR + décisions de roadmap, avec statuts
-  - [x] Lecture via bridge/git.ts uniquement, chemin validé, rien hors du dépôt
-  - [x] Aucune nouvelle boucle de poll ; routes dans le skill
-  - [x] Tests verts
-- **Modèle de convention de documentation (socle + 4 modules)** — done
-
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Doc seulement. Écrire docs/conventions/DOC_CONVENTION.md (ou équivalent, découpé si > 30 Ko) :
-  1. Socle commun : index « où chercher quoi » (docs/README.md), AGENTS.md/CLAUDE.md court qui y renvoie (pas d histoire, les erreurs typiques du projet), ligne **Statut :** en tête de fichier + statuts ✅🟡❓, adr/ (modèle, index avec statut, jamais modifié, remplacé), plan/ par phase (objectif, démo, périmètre dedans/dehors, tickets, bilan), dev/ (comment on travaille), CHANGELOG à fragments (comme changes/ ici), doc à jour dans la même PR, découpe au-delà de ~30 Ko.
-  2. Quatre modules « ce qu on construit » : jeu (gdd/, scenes/, maps/, lore — Overgate), produit/SaaS (vision, specs/ par fonctionnalité, parcours, risques — CrewDesign /home/swetterwald/git/CrewDesign), outil/lib/plugin (usage, référence d API, ARCHITECTURE — Collie), infra/ops (machines, runbooks).
-  3. Les questions qu un agent pose pour choisir le module (type, public, solo/équipe, existant), et la règle « sur un dépôt existant, proposer une correspondance, ne rien déplacer d office, PR ».
-  4. Une section machine-lisible (tableau ou bloc) des chemins par rubrique, que la page Documents et le bilan de doc liront.
-  Citer Overgate et CrewDesign comme exemples (ce qu on reprend, ce qu on évite : fichiers de 100 Ko, décisions à deux endroits, instructions d agents triplées). Référencer ce fichier depuis skills/collie-board/SKILL.md.
-
-  - [x] Socle + 4 modules écrits, chacun avec ses chemins
-  - [x] Questions de choix du module et règle de migration par PR
-  - [x] Section des chemins par rubrique lisible par le code
-  - [x] Cité depuis le skill collie-board
-
-### Lot — Documentation : normes et agents (launched, 2 at a time)
-
-- **Page Documents : naviguer sans tout faire défiler** — review
-
-  Constat de l opérateur, vérifié dans web/src/routes/documents.tsx : la section Décisions est rendue en entier en haut (54 ADR + 106 décisions de roadmap sur collie-board = 160 lignes) avant la première rubrique ; tout est à plat, sans repli ni sommaire.
+  27 halts « PR not merged: … the head branch is not up to date with the base branch » (surtout CrewDesign), et des PR qui attendent leur merge 6 à 21 h sans halt (run.merge puis automerge_refused, plus rien).
   
-  Faire : une barre de rubriques en haut (puces Décisions, chaque rubrique, Autres) qui fait sauter à la section et reste visible au défilement ; chaque section repliable ; Décisions montre les 5 plus récentes puis « Voir les N décisions » ; filtres de statut sur les décisions (décidé, penché, ouvert). La recherche garde son comportement et déplie ce qui correspond.
+  Faire : quand le merge est refusé pour une base en avance, mettre la branche à jour (gh pr update-branch, par bridge/git.ts — seul shell-out) puis réessayer une fois la CI verte. Halt seulement en cas de conflit réel. Le board ne laisse plus une PR en attente sans halt ni réveil de l'orchestrateur.
 
-  - [ ] Sur collie-board, la première rubrique de documents est visible sans défiler sur un téléphone
-  - [ ] Toucher une puce de la barre amène à sa section ; la barre reste visible
-  - [ ] Décisions affiche 5 lignes puis « Voir les N décisions »
-  - [ ] Chaque section se replie et se déplie
-  - [ ] Une recherche déplie les sections qui ont un résultat
-- **Demander une modif de doc, et lire la doc d un autre projet (API + MCP)** — done
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
+  - [x] Une PR en retard sur la base est mise à jour et mergée sans geste
+  - [x] Un vrai conflit halte toujours avec sa raison
+  - [x] Aucune PR de lot n'attend en silence : soit elle avance, soit halt/réveil
+  - [x] Test de la classification des refus de merge
+- **Un agent de carte bloqué ou muet réveille l'orchestrateur** — done
 
-  Suite de la page Documents. 1. Sur un document : bouton « Demander une modif » → champ texte → crée une carte (fichier concerné + texte de l opérateur), l agent fait la PR ; aucun éditeur, aucune écriture du board dans le dépôt. 2. Lecture inter-projets en lecture seule : les routes de la page Documents acceptent tout dépôt connu du board ; bridge/mcp.ts expose un outil « lire la doc d un projet » (liste par rubrique + lecture d un fichier) qui traduit ces routes (ADR 0039 : stdio, relaie x-collie-pane, aucune décision propre). Dépôt inconnu du board : refus. Routes et outil documentés dans skills/collie-board/SKILL.md. Tests bun. Fragment bump: minor.
+  Aujourd'hui seul le lead est surveillé (bridge/lead.ts : « the lead is not answering »). Un agent de carte d'un lot qui se bloque (question, permission, modal, quota) ou meurt laisse la carte « en cours » sans aucun événement : le journal montre des attentes de 6 à 32 h que seul un message de l'opérateur débloque.
+  
+  Faire : quand une carte d'un lot lancé est « working » et que son pane est blocked, ou idle/absent sans progrès depuis N minutes (constante, ~10 min), réveiller l'orchestrateur du dépôt (voie orchestrator-nudge.ts) avec le titre de la carte, l'état du pane et ses dernières lignes, pour qu'il débloque ou relance. Pas de notification à l'opérateur (ADR 0011 : le pane signale déjà blocked). Une seule fois par épisode : réarmé quand la carte bouge. Accroché à engine.onUpdate, pas de nouvelle boucle ; ignorer un snapshot disconnected.
 
-  - [x] « Demander une modif » crée une carte liée au fichier
-  - [x] Un agent lit la doc d un autre dépôt connu via l API et via MCP, en lecture seule
-  - [x] Dépôt inconnu refusé
-  - [x] Skill à jour, tests verts
-- **Bilan de doc et bouton « Mettre la doc aux normes »** — review
-  - after: Page Documents du projet : lire la doc de main sur le téléphone
+  - [x] Une carte de lot dont l'agent attend une permission depuis N min réveille l'orchestrateur avec la fin de l'écran
+  - [x] Pas de second réveil tant que la carte n'a pas bougé
+  - [x] Aucune notification opérateur ajoutée
+  - [x] Test bun de la règle pure (seuil, réarmement)
 
-  Décisions du 06/11 dans la roadmap : le dépôt fait foi (pas de wiki en base) ; convention = modèle Overgate (/home/swetterwald/git/perso/overgate : docs/dev/README.md index « où chercher », docs/plan/ par phase, docs/adr/, statuts ✅🟡❓, .claude/rules/) en socle commun + un module « ce qu on construit » par type de projet.
-  Sur la page Documents : un bandeau « bilan de doc » calculé contre le modèle de convention (pas d index, AGENTS/CLAUDE trop long, pas d ADR, décisions à deux endroits, fichier > 30 Ko, pas de ligne Statut…), chaque écart en une ligne. Bouton « Mettre la doc aux normes » : crée une carte (route cartes existante) dont la spec demande à l agent de lire le dépôt, POSER SES QUESTIONS à l opérateur (module : jeu, produit, outil, infra ; public ; existant) via une décision ouverte liée à la carte (roadmap/decision avec cardId), puis proposer une correspondance et faire la PR, sans rien supprimer. Pas d appel direct à agent.start. Tests bun du calcul du bilan (fixtures : arbre type Overgate conforme, type CrewDesign non conforme). i18n. Fragment bump: minor.
+### Lot — Mode objectif (planned, 2 at a time)
 
-  - [ ] Bilan de doc listant les écarts à la convention
-  - [ ] Le bouton crée une carte dont l agent questionne puis propose par PR
-  - [ ] Rien n est déplacé ou supprimé sans PR
-  - [ ] Tests du bilan sur deux arbres types
+- **Pendant un objectif : points d'étape au lieu d'un bilan par lot** — backlog
+  - after: Un objectif par projet : critères, budget, statut
 
-## Phase 34 — V2 — 4 : le projet au centre
+  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  
+  En mode objectif, l'opérateur n'est plus sollicité à chaque fin de lot : le bilan de lot va au journal de l'objectif, et l'opérateur reçoit un point d'étape regroupé (lots mergés, ce qui bloque, budget consommé, recette ajoutée) seulement aux moments utiles : décision demandée, budget à 50 % et atteint, objectif déclaré. Une page/onglet Objectif montre la progression.
 
-Sous hc, la PWA et herdr-app montrent les projets et leur orchestrateur au centre ; hc devient le moteur par défaut ; recette faite sur téléphone et dans herdr-app (ADR 0052 §8).
+  - [ ] Pas de notification par fin de lot en mode objectif
+  - [ ] Point d'étape aux seuils et décisions
+  - [ ] La page Objectif montre critères, progression, budget
+- **Déclarer l'objectif atteint, l'opérateur valide ou relance** — backlog
+  - after: Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but
 
-### Lot — Le projet au centre : PWA (launched, 3 at a time)
+  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  
+  L'orchestrateur déclare l'objectif atteint avec une preuve par critère (POST …/claim) : statut claimed, une notification à l'opérateur, qui se retire à sa réponse (ADR 0011). L'opérateur valide (achieved : clôt les phases de l'objectif) ou refuse avec un commentaire (retour en active, le commentaire est remis à l'orchestrateur au réveil suivant).
 
-- **Accueil par projets : phase, lot, orchestrateur, à tester** — done
+  - [ ] La déclaration montre chaque critère avec sa preuve
+  - [ ] Valider clôt l'objectif et ses phases
+  - [ ] Refuser relance la boucle avec le commentaire
+  - [ ] Un pane agent ne peut pas valider
+- **Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but** — backlog
+  - after: Un objectif par projet : critères, budget, statut
 
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Partir de ce que l item de roadmap « Le projet d abord » a livré (lire l accueil actuel avant de toucher). Chaque projet sur l accueil montre en un coup d œil : phase en cours, lot en cours (et sa progression), état de l orchestrateur (au repos / travaille / attend ta décision), « N à tester ». Un toucher ouvre le projet. Réutiliser les données déjà chargées (pas de nouvel appel par projet si un existe). Tests web. Fragment bump: minor.
+  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  
+  Sous un objectif actif, l'orchestrateur peut créer cartes, lots et phases rattachés à l'objectif et lancer ses propres lots sans geste opérateur (un lot à la fois). À la fin d'un lot, quand rien n'est planifié, endOfLot() ne s'arrête plus : le board réveille l'orchestrateur avec « objectif pas atteint : relis les critères, planifie et lance la suite ». Une décision qui attend l'opérateur ne bloque que sa branche : le réveil le rappelle à l'orchestrateur. Bornes : budget (lots, quota, échéance), stopOnRed après la borne de reprises du lot 1 ; une borne atteinte met l'objectif en pause et prévient l'opérateur une fois. Pas de nouvelle boucle : tout part du réveil de fin de lot (ADR 0028).
+  
+  Tranché le 09/11 par l'opérateur : objectif déclaré (claimed) = arrêt net. Plus aucun lot créé ni lancé, plus de réveil de fin de lot, budget gelé, jusqu'à la réponse de l'opérateur, même après 24 h d'absence. Seul un refus avec commentaire relance la boucle. Pendant un objectif, les phases découpées par l'orchestrateur ne se valident pas une à une (sinon chaque phase attendrait l'opérateur) : la validation de l'objectif les clôt.
 
-  - [x] Chaque projet de l accueil montre phase, lot, état de l orchestrateur et N à tester
-  - [x] Aucune requête par projet en plus si évitable
-  - [x] Tests verts
-- **Le troupeau par projet : espaces et onglets retirés sous hc** — done
+  - [ ] Objectif actif, plus rien de planifié : l orchestrateur est réveillé pour planifier, et peut lancer le lot qu il a créé
+  - [ ] Objectif déclaré : aucun lot lancé, aucun réveil, tant que l opérateur n a pas répondu
+  - [ ] Les cartes et lots créés sont rattachés à l objectif
+  - [ ] Budget atteint : pause + une notification
+  - [ ] Sans objectif : comportement d aujourd hui inchangé
+  - [ ] Tests bun du verdict de fin de lot
+- **Un objectif par projet : critères, budget, statut** — backlog
 
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). hc n a ni espaces ni onglets. Quand un agent vient de hc, la PWA le range par projet (dépôt de son cwd / label collie.card) : en tête l orchestrateur du projet, puis les agents de cartes, puis les autres terminaux. Les vues espaces/onglets (routes spaces, space/:id, sélecteurs) ne s affichent que s il existe des agents 0.9 ; sans 0.9, elles disparaissent de la navigation. Sous 0.9 seul : aucun changement. Pas de nouvelle boucle de poll. Tests web. Fragment bump: minor.
+  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  
+  Faire l'objet Objectif (goal) : texte, critères de réussite (liste), budget {maxLots, quotaPct, deadline?}, statut active / paused / claimed / achieved / abandoned. Routes /api/goals (création, édition, pause, abandon = gestes de l'opérateur ; un pane agent ne crée ni ne valide). Un seul objectif actif par dépôt. UI dans la page projet : définir l'objectif, voir critères, budget consommé et lots/cartes rattachés. Écrire l'ADR du mode objectif (amende 0030/0047). Documenter dans skills/collie-board/SKILL.md.
 
-  - [x] Sous hc, le troupeau est groupé par projet, orchestrateur en tête
-  - [x] Espaces/onglets masqués quand aucun agent 0.9
-  - [x] 0.9 seul inchangé, tests verts
-- **Sous-agents sous hc : children_of et --no-notify** — done
+  - [ ] L'opérateur crée un objectif avec critères et budget depuis la page projet
+  - [ ] Un pane agent reçoit 403 sur création et validation
+  - [ ] Un seul objectif actif par dépôt
+  - [ ] ADR + SKILL.md + tests bun
 
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Reste de la phase 3. Sous hc, lire les sous-agents d un agent de carte par children_of (au lieu des transcripts) et les afficher comme aujourd hui ; lancer les agents de carte de sorte que hc ne tape pas de note dans le parent à la fin d un enfant (--no-notify ou équivalent mesuré), sinon le parent perd un tour. Sous 0.9 rien ne change. Mesurer d abord, consigner dans HERDR_CORE_API.md. Tests bun. Fragment bump: minor.
+## Phase 39 — Le projet au-delà du code
 
-  - [x] Sous hc, les sous-agents d une carte s affichent via children_of
-  - [x] Aucune note hc tapée dans le parent
-  - [x] Mesure consignée, 0.9 inchangé, tests verts
+Collie gère aussi le business d'un projet : pages sur mesure, cartes non-code, décisions produit.
 
-### Lot — herdr-app et hc par défaut (launched, 2 at a time)
+### Lot — Pages du projet (planned, 2 at a time)
 
-- **Mod herdr-app branché : ouvrir le vrai terminal, quelques actions** — working
+- **La page roadmap est générée par le board** — backlog
 
-  ADR 0052 §8 phase 4. herdr-app-mod/ est un prototype en lecture. Sous hc, herdr-app et le board partagent le même core : le bouton orchestrateur doit focaliser le terminal étiqueté collie.pane=<paneId> (et l agent d une carte via collie.card=<id>), la PWA seulement en repli. Ajouter « lancer le lot suivant » et « ouvrir la recette » (lien PWA). Écritures : uniquement des routes existantes, depuis loopback, sans affaiblir checkAccess ni la CSP ; un lancement de lot reste soumis aux mêmes règles (createdBy, autonomie). herdr-app check vert. README du mod à jour. Fragment si code bridge/web touché.
+  docs/pages/roadmap.html est aujourd'hui produite par un script de l'orchestrateur (hors dépôt). Faire : le board rend une vue roadmap jolie et dynamique (étapes, statut, phases, décisions) depuis /api/roadmap, toujours à jour, sans fichier à régénérer. Peut remplacer la page statique.
 
-  - [ ] Sous hc, le mod ouvre le vrai terminal de l orchestrateur et des agents de carte
-  - [ ] Lancer le lot suivant et ouvrir la recette depuis le mod
-  - [ ] checkAccess et CSP inchangés, herdr-app check vert
-- **hc moteur par défaut, doc d installation** — working
+  - [ ] La vue reflète un changement de roadmap sans régénération
+  - [ ] Lisible au téléphone, thème clair et sombre
+- **Une carte « page » produit une page docs/pages à partir d'une brève** — backlog
 
-  ADR 0052 §8 phase 4 (lire l ADR, HERDR_CORE_API.md, bridge/mux/ : herdr09, hc, composite). Passer le défaut de la config de lancement à hc quand hc est joignable (repli 0.9 sinon, dit dans l UI), lecture parallèle conservée. Doc d installation (README + HERDR_CORE_API.md) : Linux et Windows, core démarré par herdr-app ou le bureau, JAMAIS par un agent (il transmet CLAUDE_CODE_CHILD_SESSION, §7). Le bouton Migrer devient visible partout où hc est là. Le manifeste herdr-plugin.toml et ses actions restent (phase 5). Amender l ADR 0052 si le défaut change. Tests bun. Fragment bump: minor.
+  Les pages custom existent (docs/pages/<nom>.html, inertes, ADR 0053). Faire : depuis Documents, « Nouvelle page » demande un nom et une brève (plan marketing, direction artistique, offre…) et crée une carte dont le livrable est docs/pages/<nom>.html ; la spec de la carte rappelle le contrat (pas de script, CSS inline, iframe sandbox). L'agent construit la page, la PR la livre, elle apparaît dans l'explorateur.
 
-  - [ ] Nouveau lancement sous hc par défaut quand hc est joignable, sinon 0.9 et dit
-  - [ ] Doc d installation Linux + Windows, core jamais démarré par un agent
-  - [ ] Manifeste herdr inchangé, tests verts
+  - [ ] « Nouvelle page » dans Documents crée la carte avec le contrat dans sa spec
+  - [ ] La page livrée s'ouvre en plein écran dans Documents
+  - [ ] FR et EN
+
+### Lot — Cartes non-code (planned, 2 at a time)
+
+- **Filtre code / business sur le board** — backlog
+
+  Un filtre sur le board et la recette pour ne voir que les cartes code ou business.
+
+  - [ ] Le filtre sépare les deux sortes et se retient par appareil
+- **Une carte « business » : livrable document, sans CI ni gate** — backlog
+
+  Une sorte de carte pour le travail non-code (rédaction, marketing, offre) : pas de gate, pas de CI requise, son livrable est un document ou une page ; sa recette est une relecture (« à relire ») plutôt qu'un test.
+
+  - [ ] Une carte business se termine sans gate ni CI
+  - [ ] Sa recette apparaît comme « à relire»
+  - [ ] Le lead ne la renvoie pas faute de code
+
+### Lot — Décisions produit (planned, 2 at a time)
+
+- **Les décisions visibles comme une page dans Documents** — backlog
+
+  Une entrée « Décisions » dans l'explorateur de Documents liste les décisions avec statut (ouverte, tranchée) et catégorie, filtrables.
+
+  - [ ] Documents montre les décisions avec statut et catégorie
+  - [ ] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
+- **Décisions classées produit / technique** — backlog
+
+  Les décisions de la roadmap (POST /api/roadmap/decision) prennent une catégorie produit/business ou technique, posée par l'orchestrateur ou l'opérateur.
+
+  - [ ] Une décision porte sa catégorie
+  - [ ] Les anciennes restent valides (technique par défaut ou sans catégorie)
