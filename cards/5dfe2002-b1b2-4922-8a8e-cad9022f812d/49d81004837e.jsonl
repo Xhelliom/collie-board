@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794240152908.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Déclarer l'objectif atteint, l'opérateur valide ou relance","status":"backlog"},"ts":1794240142208}}
 {"v":1,"hlc":"1794240152916.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"3c435f77-b34a-403d-9e22-cbedbfde7c78"}}
 {"v":1,"hlc":"1794240152917.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"37654833-0e93-485e-bb7f-b59b41acef37"}}
+{"v":1,"hlc":"1794240164777.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"2d45e5b2-fc24-4c85-b7aa-df8b426f7435"}}

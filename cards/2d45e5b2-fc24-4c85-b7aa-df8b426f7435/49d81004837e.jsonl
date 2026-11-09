@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240152908.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9df5243a-6ddd-4790-adee-179fef9bd8ba"}}
 {"v":1,"hlc":"1794240152908.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but","status":"backlog"},"ts":1794240142197}}
 {"v":1,"hlc":"1794240152916.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"3c435f77-b34a-403d-9e22-cbedbfde7c78"}}
+{"v":1,"hlc":"1794240164777.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"ecb5f499-e83d-4aba-8d0b-f8da202b6934"}}
