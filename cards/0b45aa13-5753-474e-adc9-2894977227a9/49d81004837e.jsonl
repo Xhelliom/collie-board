@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240068651.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9df5243a-6ddd-4790-adee-179fef9bd8ba"}}
 {"v":1,"hlc":"1794240068651.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Un agent de carte bloqué ou muet réveille l'orchestrateur","status":"backlog"},"ts":1794240064070}}
 {"v":1,"hlc":"1794240068652.0009.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8d5c6594-6699-4e07-aadb-c72605b25dbf"}}
+{"v":1,"hlc":"1794240843924.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
