@@ -7,7 +7,7 @@ import { integrating } from "./integration-lock.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 import type { probeCheckout } from "./wrapup.ts";
-import { WRAPUP_REL_PATH, WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
+import { WRAPUP_DEADLINE_MS, WRAPUP_REL_PATH, WrapupCoordinator, wrapupPrompt } from "./wrapup.ts";
 
 // The wrapup is the last thing an agent is asked before its card is filed. It runs on a card that has
 // ALREADY stopped moving, so nothing here may resurrect it — and it must give up rather than sit on a
@@ -112,12 +112,34 @@ describe("WrapupCoordinator", () => {
   it("gives up on a note that never came, rather than holding the review back forever", () => {
     const now = 10_000_000;
     const store = db();
-    const { card, sessionId } = pending(store, 31 * 60 * 1000, now);
+    const { card, sessionId } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
 
     new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "idle")]));
 
     expect(store.getSession(sessionId)!.handoffRequestedAt).toBeNull();
     expect(store.listEvents(card.id).some((e) => e.type === "wrapup.expired")).toBe(true);
+  });
+
+  it("expires on the deadline under a CALM herd — the same quiet snapshot, poll after poll", () => {
+    let now = 10_000_000;
+    const store = db();
+    const { card, sessionId } = pending(store, 0, now);
+    const cleanup = fakeCleanup();
+    const coordinator = new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn);
+    // Nothing moves: the pane is gone (operator closed it), the herd is idle, every poll is identical.
+    const calm = snapshot([pane("w2:p9", "idle")]);
+    const expired = () => store.listEvents(card.id).some((e) => e.type === "wrapup.expired");
+
+    const pollMs = 12_000; // the idle cadence (`COLLIE_BOARD_POLL_IDLE_MS`)
+    for (; now - 10_000_000 <= WRAPUP_DEADLINE_MS; now += pollMs) coordinator.update(calm);
+    expect(expired()).toBe(false);
+
+    now += pollMs;
+    coordinator.update(calm);
+    expect(expired()).toBe(true);
+    expect(store.getSession(sessionId)!.handoffRequestedAt).toBeNull();
+    expect(cleanup.calls.map((c) => c.id)).toEqual([card.id]);
+    expect(WRAPUP_DEADLINE_MS).toBeLessThanOrEqual(10 * 60 * 1000);
   });
 
   it("does not act on the idle the agent was in when we prompted it", () => {
@@ -143,17 +165,17 @@ describe("WrapupCoordinator", () => {
   it("IGNORES a disconnected snapshot — a socket blip must not expire a pending wrapup", () => {
     const now = 10_000_000;
     const store = db();
-    const { sessionId } = pending(store, 31 * 60 * 1000, now);
+    const { sessionId } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
 
     new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([], "disconnected"));
 
-    expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - 31 * 60 * 1000);
+    expect(store.getSession(sessionId)!.handoffRequestedAt).toBe(now - (WRAPUP_DEADLINE_MS + 60_000));
   });
 
   it("never reopens the card it is reporting on", () => {
     const now = 10_000_000;
     const store = db();
-    const { card } = pending(store, 31 * 60 * 1000, now);
+    const { card } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
 
     new WrapupCoordinator(store, FAKE_HERDR, () => now).update(snapshot([pane("w1:p1", "idle")]));
 
@@ -167,7 +189,7 @@ describe("WrapupCoordinator", () => {
   it("cleans up on its own once it gives up waiting for a note — nothing is left to lose", () => {
     const now = 10_000_000;
     const store = db();
-    const { card } = pending(store, 31 * 60 * 1000, now);
+    const { card } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
     const cleanup = fakeCleanup();
 
     new WrapupCoordinator(store, FAKE_HERDR, () => now, cleanup.fn).update(snapshot([pane("w1:p1", "idle")]));
@@ -178,7 +200,7 @@ describe("WrapupCoordinator", () => {
   it("does NOT clean up a card an integration gesture holds (integration-lock.ts)", () => {
     const now = 10_000_000;
     const store = db();
-    const { card } = pending(store, 31 * 60 * 1000, now);
+    const { card } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
     const cleanup = fakeCleanup();
     integrating.add(card.id);
     try {
@@ -192,7 +214,7 @@ describe("WrapupCoordinator", () => {
   it("does NOT clean up a card the operator asked to keep", () => {
     const now = 10_000_000;
     const store = db();
-    const { card } = pending(store, 31 * 60 * 1000, now);
+    const { card } = pending(store, WRAPUP_DEADLINE_MS + 60_000, now);
     store.patchCard(card.id, { keepWorktree: true });
     const cleanup = fakeCleanup();
 
