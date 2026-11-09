@@ -284,10 +284,20 @@ const folded = (events: BoardEvent[], runId: string) =>
  * picks it up where it stopped — a halted triage is asked again, the worker is not. Returns how many
  * cards it lifted; 0 means nothing was halted.
  */
-export function resumeRun(db: BoardDb, run: Run): number {
+export function resumeRun(db: BoardDb, run: Run, auto = false): number {
   const held = db.runMembers(run.id).filter((c) => stuck(run, c, db.listEvents(c.id, 200)));
-  for (const c of held) db.recordRunEvent(c.id, "run.resumed", { runId: run.id });
+  // ADR 0055: an orchestrator's resume carries its gesture's time, which is what the bound counts.
+  const at = auto ? { auto: Date.now() } : {};
+  for (const c of held) db.recordRunEvent(c.id, "run.resumed", { runId: run.id, ...at });
   return held.length;
+}
+
+/** The halts still holding on a lot's members — what a resume would lift. */
+export function heldHalts(db: BoardDb, run: Run): BoardEvent[] {
+  return db.runMembers(run.id).flatMap((c) => {
+    const events = db.listEvents(c.id, 200);
+    return stuck(run, c, events) ? [holding(events, run.id)!] : [];
+  });
 }
 
 /** A run's readable state (ADR 0017, *How a run ends*). Pure over the members and their journals. */

@@ -659,7 +659,8 @@ export interface RunEventPayloads {
   /** `infra`: a red check with nothing to fix in the code — the land step keeps asking GitHub (ADR 0041). */
   "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string; infra?: true; pair?: string };
   /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
-  "run.resumed": { runId: string };
+  /** `auto`: the orchestrator's resume (ADR 0055), the gesture's time — one per gesture, counted against its bound. */
+  "run.resumed": { runId: string; auto?: number };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */

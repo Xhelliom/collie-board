@@ -10,6 +10,7 @@ import type { BoardContext } from "./board-routes.ts";
 import { idleStart } from "./autonomy.ts";
 import { lotView } from "./lot.ts";
 import { resumeRun } from "./run.ts";
+import { autoResumeRefusal } from "./resume.ts";
 import { assignedElsewhere, lotOwnerRefusal } from "./claim.ts";
 import { parseDecision, parseRoadmapBody, roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
 import { repoPathOf, samePath } from "./paths.ts";
@@ -247,16 +248,19 @@ export async function handleProjectRoute(
       if (req.method !== "POST") return ctx.text("method not allowed", 405);
       const denied = guard("write");
       if (denied) return denied;
-      // A halt hands the card to the operator; taking it back is theirs too, as the launch is.
-      if (pane) return ctx.text("resuming is the operator's gesture — an agent pane cannot resume a lot", 403);
+      // A halt hands the card to the operator; taking it back is theirs too — unless autonomy is on and
+      // the halt is mechanical, then the repo's orchestrator may, a bounded number of times (ADR 0055).
       const run = db.getRun(id);
+      if (pane && !run) return ctx.text("resuming is the operator's gesture — an agent pane cannot resume a lot", 403);
       if (!run) return ctx.text("run not found", 404);
       if (run.launchedAt === null) return ctx.text("a planned lot is launched, not resumed", 409);
       const notOurs = lotOwnerRefusal(db, run);
       if (notOurs) return ctx.text(notOurs, 403);
-      const resumed = resumeRun(db, run);
+      const refused = pane ? autoResumeRefusal(db, run, pane, ctx.engine.current()) : null;
+      if (refused) return ctx.text(refused, 403);
+      const resumed = resumeRun(db, run, !!pane);
       if (!resumed) return ctx.text("nothing halted in this lot", 409);
-      audit("run.resume", { runId: id, resumed });
+      audit("run.resume", { runId: id, resumed, ...(pane ? { autonomous: true } : {}) });
       return ctx.json({ resumed });
     }
     if (req.method === "PATCH") {
