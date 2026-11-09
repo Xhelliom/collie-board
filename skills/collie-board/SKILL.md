@@ -573,6 +573,11 @@ code.
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
   user why and let them resume it.
+  **Except (ADR 0055)**: with autonomy on, **the repo's orchestrator** may resume it itself when the
+  halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
+  work, a failed start. Fix the cause first if it is yours to fix, then send the same POST with your
+  `x-collie-pane`. At most **3** such resumes per lot; past it, or for a decision halt (the lead's
+  rounds ran out, finished with no commit, a verdict), or another pair's lot, it is `403` — tell the user.
   A card halts after **`maxRounds`** send-backs by the lead with no finish (the repo's « Rounds before
   calling me », 1–15, default 5): read it in `maxRounds` of `GET /api/orchestrator/autonomy?repo=`.
   It is the user's — the write refuses your pane header. When cards keep hitting it just short of the
