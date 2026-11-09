@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.278.0] - 2026-11-09
+
+### Added
+
+- Journal du lot : un `run.chain {go, why, next}` à chaque fin de lot et à chaque lancement refusé à l'orchestrateur (autre poste, lot ouvert, borne, rouge). (e164c9c)
+- Autonomie : l'orchestrateur reprend lui-même un lot arrêté pour une raison mécanique (PR pas à jour, pre-push rouge, lead muet, non commité, démarrage raté), 3 fois par lot au plus (fbf80c0)
+
+### Changed
+
+- Un résumé de fin de carte jamais rendu expire après 10 min au lieu de 30, et le nettoyage de la carte suit d'autant plus tôt. (db29cbc)
+
 ## [0.277.8] - 2026-11-08
 
 ### Fixed
