@@ -139,6 +139,11 @@ export class UsageTracker {
     private readonly parse: (out: string) => UsageLimit[] = parseUsage,
   ) {}
 
+  /** The last reading, never refreshing it — for a read that must not start a CLI (goal-routes.ts). */
+  peek(): ClaudeUsage | null {
+    return this.cached;
+  }
+
   /** The current reading, refreshing it when it's older than the TTL or `force` is set. */
   get(force = false): Promise<ClaudeUsage | null> {
     if (!force && this.cached && this.now() - this.cached.checkedAt < USAGE_TTL_MS) {

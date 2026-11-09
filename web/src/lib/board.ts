@@ -1434,6 +1434,33 @@ export const fetchAutonomy = (repo: string, signal?: AbortSignal): Promise<{ aut
   apiRequest(`/api/orchestrator/autonomy?repo=${encodeURIComponent(repo)}`, { signal });
 export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>): Promise<{ autonomy: Autonomy }> =>
   apiRequest("/api/orchestrator/autonomy", { method: "PUT", body: JSON.stringify({ repoPath, ...patch }) });
+/** A repo's objective (ADR 0056); `spent` is derived by the bridge. */
+export type GoalStatus = "active" | "paused" | "claimed" | "achieved" | "abandoned";
+export interface GoalBudget {
+  maxLots: number;
+  quotaPct: number;
+  deadline: number | null;
+}
+export interface Goal {
+  id: string;
+  repoPath: string;
+  text: string;
+  criteria: string[];
+  budget: GoalBudget;
+  status: GoalStatus;
+  createdAt: number;
+  endedAt: number | null;
+  spent: { lots: number; lotIds: string[]; cardIds: string[]; quotaPct: number | null };
+}
+export type GoalMove = "pause" | "resume" | "achieve" | "abandon";
+export const fetchGoals = (repo: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
+  apiRequest(`/api/goals?repo=${encodeURIComponent(repo)}`, { signal });
+export const createGoal = (repoPath: string, g: { text: string; criteria: string[]; budget: GoalBudget }): Promise<{ goal: Goal }> =>
+  apiRequest("/api/goals", { method: "POST", body: JSON.stringify({ repoPath, ...g }) });
+export const editGoal = (id: string, g: { text: string; criteria: string[]; budget: GoalBudget }): Promise<{ goal: Goal }> =>
+  apiRequest(`/api/goals/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(g) });
+export const moveGoal = (id: string, move: GoalMove): Promise<{ goal: Goal }> =>
+  apiRequest(`/api/goals/${encodeURIComponent(id)}/${move}`, { method: "POST" });
 /** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
 export interface OrchestratorMemory {
   note: string;

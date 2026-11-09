@@ -70,6 +70,7 @@ import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
+import { handleGoalRoute } from "./goal-routes.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
 import { awaitingOn } from "./roadmap.ts";
@@ -165,7 +166,7 @@ const CARD_ROUTE =
  * can't be written, tested through `handleBoardRoute`, and still be answered with the SPA's HTML by
  * the real server (which is what happened to phases, the roadmap and `/api/runs/:id`).
  */
-const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs"];
+const BOARD_PREFIXES = ["/api/cards", "/api/repos", "/api/board", "/api/backup", "/api/runs", "/api/phases", "/api/roadmap", "/api/orchestrator", "/api/project", "/api/templates", "/api/flows", "/api/tidy", "/api/recette", "/api/docs", "/api/goals"];
 export const isBoardPath = (pathname: string): boolean =>
   BOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -424,6 +425,8 @@ async function route(
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
   if (orchestrator) return orchestrator;
+  const goals = await handleGoalRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
+  if (goals) return goals;
   const templates = await handleTemplateRoute(pathname, req, ctx);
   if (templates) return templates;
   const flows = await handleFlowRoute(pathname, req, ctx);

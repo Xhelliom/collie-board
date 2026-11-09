@@ -1,0 +1,45 @@
+import { defineMessages } from "../define";
+
+// The repo's objective on the project page (ADR 0056): set, edited, paused, validated by the operator.
+export const goal = defineMessages({
+  "goal.title": { en: "Objective", fr: "Objectif" },
+  "goal.none": {
+    en: "No objective for this repo. Set one: what to reach, how to tell, how much the orchestrator may spend.",
+    fr: "Aucun objectif pour ce dépôt. Fixe-en un : quoi atteindre, à quoi le reconnaître, combien l'orchestrateur peut dépenser.",
+  },
+  "goal.define": { en: "Set the objective", fr: "Définir l'objectif" },
+  "goal.edit": { en: "Edit", fr: "Modifier" },
+  "goal.text": { en: "What to reach", fr: "Ce qu'il faut atteindre" },
+  "goal.criteria": { en: "Success criteria — one per line", fr: "Critères de réussite — un par ligne" },
+  "goal.criteriaTitle": { en: "Success criteria", fr: "Critères de réussite" },
+  "goal.maxLots": { en: "Lots at most", fr: "Lots au plus" },
+  "goal.quotaPct": { en: "Stop at % of the week's quota", fr: "Arrêt à % du quota de la semaine" },
+  "goal.deadline": { en: "Deadline (optional)", fr: "Échéance (facultative)" },
+  "goal.save": { en: "Save", fr: "Enregistrer" },
+  "goal.cancel": { en: "Cancel", fr: "Annuler" },
+  "goal.saved": { en: "Objective saved", fr: "Objectif enregistré" },
+  "goal.invalid": {
+    en: "A text, at least one criterion, 1 to 1000 lots and 1 to 100 % are needed",
+    fr: "Il faut un texte, au moins un critère, 1 à 1000 lots et 1 à 100 %",
+  },
+  "goal.status.active": { en: "active", fr: "actif" },
+  "goal.status.paused": { en: "paused", fr: "en pause" },
+  "goal.status.claimed": { en: "claimed reached", fr: "dit atteint" },
+  "goal.status.achieved": { en: "achieved", fr: "atteint" },
+  "goal.status.abandoned": { en: "abandoned", fr: "abandonné" },
+  "goal.claimedHint": {
+    en: "The orchestrator says the objective is reached. Validate it, or resume to send it back to work.",
+    fr: "L'orchestrateur dit l'objectif atteint. Valide-le, ou reprends-le pour le renvoyer au travail.",
+  },
+  "goal.lots": { en: "Lots {spent} / {max}", fr: "Lots {spent} / {max}" },
+  "goal.quota": { en: "Quota {spent} / {max} %", fr: "Quota {spent} / {max} %" },
+  "goal.quotaUnknown": { en: "Quota ? / {max} %", fr: "Quota ? / {max} %" },
+  "goal.until": { en: "until {date}", fr: "jusqu'au {date}" },
+  "goal.cards": { en: "Attached cards", fr: "Cartes rattachées" },
+  "goal.pause": { en: "Pause", fr: "Pause" },
+  "goal.resume": { en: "Resume", fr: "Reprendre" },
+  "goal.achieve": { en: "Validate reached", fr: "Valider atteint" },
+  "goal.abandon": { en: "Abandon", fr: "Abandonner" },
+  "goal.abandonConfirm": { en: "Tap again to abandon", fr: "Touche encore pour abandonner" },
+  "goal.last": { en: "Last objective: {text} ({status})", fr: "Dernier objectif : {text} ({status})" },
+});
