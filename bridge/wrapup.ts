@@ -48,8 +48,13 @@ export const WRAPUP_REL_PATH = ".board/wrapup.md";
 /** Cap on the note we read back — same reasoning as the handoff's: a note is a page of prose. */
 const MAX_WRAPUP_BYTES = 128 * 1024;
 
-/** How long a requested wrapup may sit unfinished before we stop waiting for it. */
-const WRAPUP_DEADLINE_MS = 30 * 60 * 1000;
+/**
+ * How long a requested wrapup may sit unfinished before we stop waiting for it. Measured on 818
+ * collected notes: median 52 s, p98 2 min, slowest 9 min — 10 min loses none and frees the
+ * checkout 20 min sooner than the old 30. Checked on every engine poll, calm herd or not; a
+ * wrapup that expires hours late is a bridge that was down (machine off), caught on its first poll.
+ */
+export const WRAPUP_DEADLINE_MS = 10 * 60 * 1000;
 
 /**
  * Grace period before a requested wrapup is considered finishable. The agent is idle at the instant
