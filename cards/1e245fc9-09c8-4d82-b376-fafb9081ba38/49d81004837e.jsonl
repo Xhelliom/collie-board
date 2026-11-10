@@ -9,3 +9,5 @@
 {"v":1,"hlc":"1794301453548.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794301453548.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794301446638}}
 {"v":1,"hlc":"1794301453548.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":1831},"ts":1794301449197}}
+{"v":1,"hlc":"1794301801589.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"1e245fc9-09c8-4d82-b376-fafb9081ba38","name":"roadmap-phone-light.png","size":118486,"by":"agent","pane":"wX0:p1"},"ts":1794301792498}}
+{"v":1,"hlc":"1794301801589.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"1e245fc9-09c8-4d82-b376-fafb9081ba38","name":"roadmap-phone-dark.png","size":120199,"by":"agent","pane":"wX0:p1"},"ts":1794301792505}}
