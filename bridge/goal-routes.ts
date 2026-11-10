@@ -24,10 +24,28 @@ const MOVES: Record<string, { from: GoalStatus[]; to: GoalStatus }> = {
   abandon: { from: ["active", "claimed", "paused"], to: "abandoned" },
 };
 
+/** The objective's journal: what goes there instead of the phone while it is open (goal-mode.ts). */
+export const GOAL_JOURNAL = "goal.journal";
+export const GOAL_CHECKPOINT = "goal.checkpoint";
+export type CheckpointReason = "half" | "spent" | "claimed" | "decision";
+export interface GoalJournalEntry {
+  ts: number;
+  type: typeof GOAL_JOURNAL | typeof GOAL_CHECKPOINT;
+  reason: CheckpointReason | null;
+  /** The orchestrator's words (a lot's bilan, a decision asked), or the checkpoint's summary. */
+  message: string;
+}
+
 export interface GoalView extends Goal {
   /** What the objective has spent: its lots and their cards, and the week's quota now (null: no reading). */
   spent: { lots: number; lotIds: string[]; cardIds: string[]; quotaPct: number | null };
+  /** How far it got: lots finished, cards filed, cards stuck, filed cards carrying a manual test. */
+  progress: { lotsDone: number; cardsDone: number; cardsBlocked: number; recettes: number };
+  journal: GoalJournalEntry[];
 }
+
+const FILED = new Set(["done", "archived"]);
+const STUCK = new Set(["blocked", "orphaned"]);
 
 /** The week's all-models limit, as the gauge reads it — the one the budget's `quotaPct` is about. */
 export function weekPercent(u: ClaudeUsage | null): number | null {
@@ -40,9 +58,21 @@ export function goalView(db: BoardDb, g: Goal, quotaPct: number | null): GoalVie
   const lots = db
     .listRuns(g.repoPath)
     .filter((r) => r.launchedAt !== null && r.launchedAt >= g.createdAt && (g.endedAt === null || r.launchedAt <= g.endedAt));
+  const cards = lots.flatMap((r) => db.runMembers(r.id));
+  const done = cards.filter((c) => FILED.has(c.status));
   return {
     ...g,
-    spent: { lots: lots.length, lotIds: lots.map((r) => r.id), cardIds: lots.flatMap((r) => db.runMembers(r.id).map((c) => c.id)), quotaPct },
+    spent: { lots: lots.length, lotIds: lots.map((r) => r.id), cardIds: cards.map((c) => c.id), quotaPct },
+    progress: {
+      lotsDone: lots.filter((r) => db.runFinished(r.id)).length,
+      cardsDone: done.length,
+      cardsBlocked: cards.filter((c) => STUCK.has(c.status)).length,
+      recettes: done.filter((c) => c.manualChecks.length > 0).length,
+    },
+    journal: db.goalJournal(g.id).map((e) => {
+      const p = (e.payload ?? {}) as { reason?: CheckpointReason; message?: string; summary?: string };
+      return { ts: e.ts, type: e.type as GoalJournalEntry["type"], reason: p.reason ?? null, message: p.message ?? p.summary ?? "" };
+    }),
   };
 }
 

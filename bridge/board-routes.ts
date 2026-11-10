@@ -70,7 +70,8 @@ import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
-import { handleGoalRoute } from "./goal-routes.ts";
+import { GOAL_JOURNAL, goalView, handleGoalRoute, weekPercent } from "./goal-routes.ts";
+import { goalOfOrchestrator, recordCheckpoint } from "./goal-mode.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
 import { awaitingOn } from "./roadmap.ts";
@@ -921,6 +922,17 @@ async function route(
     if (typeof message !== "string" || !message.trim()) return ctx.text("message is required", 400);
     if (typeof kind !== "string" || !NOTE_KINDS.has(kind)) return ctx.text("kind must be note, question or done", 400);
     if (typeof persistent !== "boolean") return ctx.text("persistent must be a boolean", 400);
+    // Goal mode (goal-mode.ts): the orchestrator's lot bilan goes to the objective's journal, not the
+    // phone; a question it asks is a decision, so it also leaves a grouped checkpoint there.
+    const goal = kind === "note" ? null : goalOfOrchestrator(ctx.db, ctx.engine.current(), pane);
+    if (goal) {
+      const v = goalView(ctx.db, goal, weekPercent(usageTracker.peek()));
+      if (kind === "done") {
+        ctx.db.recordEvent(null, GOAL_JOURNAL, { goalId: goal.id, repoPath: goal.repoPath, paneId: pane, message: message.trim().slice(0, 2000) });
+        return ctx.json({ ok: true, journaled: "goal" }, 202);
+      }
+      recordCheckpoint(ctx.db, v, "decision", null, message.trim().slice(0, 2000));
+    }
     ctx.db.recordEvent(session?.cardId ?? null, "agent.notify", {
       paneId: pane,
       sessionId: session?.id ?? null,
