@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.297.2] - 2026-11-10
+
+### Fixed
+
+- Image jointe : la vignette et l'aperçu s'affichent (URL `data:`, la CSP refusait `blob:`) (1bf04c4)
+- Image jointe : le champ porte un jeton « [Image #N] » au curseur ; l'envoi le remplace par le chemin, une seule fois, séparé du texte (1bf04c4)
+- Supprimer le jeton retire la vignette, retirer la vignette retire le jeton (1bf04c4)
+
 ## [0.297.1] - 2026-11-10
 
 ### Fixed
