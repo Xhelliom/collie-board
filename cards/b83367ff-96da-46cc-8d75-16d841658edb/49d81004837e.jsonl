@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794345659459.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Upstream : retirer `### Upstream` des fragments, du script de release et de la CI","status":"backlog"},"ts":1794345649874}}
 {"v":1,"hlc":"1794345659459.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"5f2fa645-bf03-474c-95ed-663416fe7ceb"}}
 {"v":1,"hlc":"1794345659460.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c2c75b75-9723-4b55-8fa7-b68fe65f7fb6"}}
+{"v":1,"hlc":"1794346817160.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
