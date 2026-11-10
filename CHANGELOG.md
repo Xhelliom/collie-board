@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.294.2] - 2026-11-10
+
+### Fixed
+
+- Une carte suite d'une carte d'un lot fini part de la base de ce lot (la branche par défaut), plus de sa branche de lot. (60bb66f)
+- Fin de lot : une PR qui viserait une branche du board (ancien lot, carte) arrête le lot avec sa raison au lieu de le lire fusionné. (60bb66f)
+- Lot « une PR » dont une carte a démarré avant son lancement : la branche de lot est coupée au premier pli (« no such branch: null »). (60bb66f)
+
 ## [0.294.1] - 2026-11-10
 
 ### Changed
