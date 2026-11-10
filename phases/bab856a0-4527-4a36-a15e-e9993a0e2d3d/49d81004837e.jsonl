@@ -1,0 +1,1 @@
+{"v":1,"hlc":"1794342969942.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Merge sûr, phases lisibles","goal":"Aucun commit perdu après un merge ; une phase finie se lit finie.","position":42,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794342964707}}
