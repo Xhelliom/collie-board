@@ -1,186 +1,32 @@
-# Upstream posture
+# Upstream — where this fork comes from
 
-> **Frozen — [ADR 0059](./.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) (2026-11-10).** The fork is
-> independent: no brick is offered upstream and nothing is rebased. This file is an archive; don't update it.
+**Statut :** ✅ décidé — le fork est indépendant ([ADR 0059](./.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md), 2026-11-10)
 
-Collie Board is a fork of [`AltanS/collie`](https://github.com/AltanS/collie), not a departure from
-it. Collie's bridge, security model, PWA and socket adapter are used as-is and are still the
-authority on how any of that works. This file records what that means in practice, so the decision
-doesn't have to be re-derived from commit archaeology later.
+## Origin
 
-## Keeping rebaseable
+Collie Board was born as a fork of [`AltanS/collie`](https://github.com/AltanS/collie): the bridge,
+the security model, the PWA and the Herdr socket adapter all started there. The attribution stays:
+MIT licence, Altan Sarisin's copyright in [`LICENSE`](./LICENSE) with the fork's below it, and the
+« A fork of Collie » section of the [`README`](./README.md).
 
-The fork's surface against upstream is deliberately narrow. New behaviour lives in NEW files:
+## Point of divergence
 
-```
-bridge/db.ts            cards, sessions, reviews, journal (bun:sqlite)
-bridge/cards.ts         lifecycle + reconciliation against the snapshot
-bridge/board-routes.ts  the whole /api/cards surface
-bridge/git.ts           worktree resolution + diff
-bridge/context.ts       the context gauge
-bridge/subagents.ts     subagents still running, read off the same transcript (brick 40)
-bridge/agent-work.ts    the task list + background commands, same transcript (upstream 1.23/1.26 idea)
-bridge/handoff.ts       the handoff sequence
-bridge/wrapup.ts        the closing report a filed card asks its agent for
-bridge/integrate.ts     merge / PR / conflict-resolve / reopen / cleanup for a card's branch
-bridge/prs.ts           the open-PR list, folded from the journal
-bridge/copilot.ts       the copilot
-bridge/board-notify.ts  the card journal, tailed into the bell
-bridge/adapters.ts      per-agent divergence
-bridge/gallery.ts       the scratchpad image gallery
-bridge/route-cost.ts    what each route (and the engine poll) costs, for /api/diag/routes
-bridge/node.ts          the peer surface /api/node/*, token-gated (ADR 0046, revised bed340b1)
-bridge/redact.ts        secrets masked before text leaves for the phone (upstream 1.18.0's idea, rewritten)
-bridge/remote-launch.ts a card launched, diffed and ended in a peer's environment (ADR 0046 §4)
-web/src/lib/board*.ts   the client half
-web/src/lib/lightbox.ts the viewer's store + a session's image set
-web/src/routes/{board,card,gallery,prs}.tsx
-web/src/components/{card-tile,card-diff,context-gauge,new-card-sheet,image-lightbox}.tsx
-web/src/components/space-pane-tree.tsx  the pane list grouped by space (generic — brick 32)
-web/src/components/subagents-line.tsx   « N sous-agents en cours » (brick 40)
-```
+The last commit the two histories share is
+[`85f777b7`](https://github.com/AltanS/collie/commit/85f777b7221dfe924e9066ba7177520aaead1fb9)
+(2026-07-10, « Fix mobile terminal mirror rendering and viewport blowout »). Everything after it on
+either side is separate work: `git merge-base` against `AltanS/collie` still answers that commit.
 
-What was touched in upstream files, and why — this list is the thing to keep short:
+## No longer synchronised
 
-**Don't edit this table on a branch.** Two cards that both lengthen the `bridge/server.ts` row
-conflicted every time. Put the line in your `changes/<slug>.md` fragment instead, under its own
-heading. The File cell is written exactly as in the table:
+- **Nothing is rebased on upstream.** There is no « upstream file » any more: every file here is
+  ours and is edited as such. Upstream's fixes, security ones included, do not arrive on their own.
+- **Nothing is offered back.** No brick, no pull request.
+- **An upstream idea is taken by hand**, rewritten here, like an idea from anywhere else.
+- No `upstream` remote is needed to work on this repo.
 
-```
-### Upstream
-- `bridge/server.ts`: the `/api/foo` route, dispatched to `foo-routes.ts`
-```
+## Archives
 
-The release on `main` (`scripts/release.ts`) adds it to the row with that exact File cell, or opens
-a new row. Until then, the cost waiting to fold is `grep -A99 '### Upstream' changes/*.md`.
-
-| File | Change |
-|---|---|
-| `bridge/server.ts` | `parseNotifyPrefsPatch` takes its key list from `DEFAULT_NOTIFY_PREFS` instead of carrying its own copy — a preference added elsewhere was silently unwritable; `historyParams` takes the `after` cursor; one import + one dispatch block for the board's paths (`/api/cards`, `/api/repos`, `/api/board`, `/api/backup`, `/api/runs`), plus `board`/`copilot`/`context` in the options; `withCardFields()` + `ContextTracker.enrich()` overlaid onto the primary session's snapshot panes; the `GET /api/notifications/log` + `DELETE /api/notifications/log/:id` + `POST /api/notifications/log/:id/read` routes and the snapshot's `notifications.count` — brick 18 in the ledger; one import + one dispatch block for `/api/gallery` — brick 21; `serveStatic` takes the request's `Accept-Encoding` and hands the file to `precompressed()` (`bridge/precompressed.ts`) — brick 37; `fetch` wrapped in `metered()` and one `GET /api/diag/routes` block (`bridge/route-cost.ts`) — fork-only; `MAX_REQUEST_BODY_BYTES` raised 12 → 26 MB for a card deliverable (ADR 0045) — fork-only; one import, `liveNodeActions()` at start and one dispatch block for `/api/node/*` (`bridge/node.ts`, ADR 0046) — fork-only; one import, a `PeerStore` (replacing `loadNodeConfig()`, reloaded on write and on a changed mtime) and one dispatch block for `/api/peers/*` + `/api/node/pair` (`bridge/pairing.ts`, ADR 0049), the board's repo list and adapter names handed to it, and the plugin version handed to `/api/node/*`; `/api/node/snapshot` carries this pair's id (`board.pairId()`), so a synced halt names the peer whose pane it is; the `PeerStore` handed to the board context, for a card launched in a peer environment (`bridge/remote-launch.ts`) — fork-only; one import, a `PeerHerd` hooked on the primary engine's `onUpdate` and one dispatch block for `/api/herd*` (`bridge/peer-herd.ts`, decision 77740d3b), its `onRead` handed to a `RemoteIdle` (`bridge/remote-idle.ts`) — fork-only; `idleTimeout: 180` (a peer launch outlasts Bun's 10 s) — fork-only; `checkAccess` accepts a loopback Origin only on the bridge's own port — upstream's fix b4d3b01 (1.26.0), backported, drops on rebase; `replyPane` takes the engine so `asPaste()` (`bridge/paste.ts`) can frame a long reply to a Claude pane; the pane GET marks the pane seen when the app sends `x-collie-seen` (`bridge/seen.ts`) — upstream does the same through its `activity.ts` ledger (1.25.0); ours is a header + one line, fork-only; the pane read and the history page masked by `bridge/redact.ts` (one call each) — upstream's own idea, 1.18.0, rewritten; one import + one dispatch block for `/api/pane/:id/files/exists` + `/api/pane/:id/file` (`bridge/files-view.ts`) — upstream's own idea, 1.17/1.18, rewritten; one import + one dispatch block for `/api/update/rollback` (`bridge/rollback.ts`) — upstream's own idea, 1.23.0, rewritten; one dispatch block for `/api/update/apply` (same file, ADR 0054) — fork-only ; reçoit le `PeerStore` en option au lieu de le construire ; the snapshot's `leadPaneId`, and `/api/node/snapshot` carries `boardPaneIds` — fork-only ; one import and one block before `reply`/`keys` — the operator's message takes the pane's card (`bridge/held.ts`), an agent's is refused 409 — fork-only ; `/reply` accepte `force` et passe par `sendPaneLine` (collage + Entrée en un appel) quand le moteur l'a — hc |
-| `web/vite.config.ts` · `web/tsconfig.json` | one import + `gzipPlugin()` in the plugin list (`web/vite-gzip.ts`); the tsconfig includes that file — brick 37; the `/api` dev proxy relays the bridge's Origin for a same-origin request, since `checkAccess` now refuses a loopback Origin on another port — fork-only |
-| `bridge/index.ts` | construct the board, copilot and adapters; the one-time `base_ref` back-fill of older cards at boot (`backfillBaseRefs`, `git.ts`); **twelve** `engine.onUpdate` hooks (reconcile · review guard (`review-guard.ts`) · context · handoffs · auto handoff · wrapups · copilot review · the board's journal tailer · the run coordinator — `runHook` from `run.ts`, ADR 0017 · the orchestrator nudger — `orchestrator-nudge.ts`, ADR 0028 · the "PR & done" follower — `pr-follow.ts`, ADR 0035 · the shared journal's sync — `journal-sync.ts`, ADR 0048), each registered with a name for `route-cost.ts`; the transition hook silences the run's lead pane (`isLeadPane`) as it does the copilot's — fork-only; the `NotifyLog` and its coordinator hook — brick 18 in the ledger; the two notification hooks skip a paneless alert — card N6, fork-only; the transition hook skips the spell the board's own automatic handoff prompt causes (a question still goes through) — fork-only; the coordinator gets a `hold` argument (`lotHoldsPush`, `lot-push.ts`) and `onFire` now receives `pushed` — ADR 0040, fork-only; one boot-time `sweepOrphanDeliverables` (`deliverables.ts`, ADR 0045) — fork-only ; the update repo from `resolveUpdateRepo()` (env, else the checkout's GitHub origin) — fork-only ; le `PeerStore` est construit ici, passé à `startServer` et au `runHook` (les pairs, pour un lot) ; one more `engine.onUpdate` hook, `stuckCards` (`stuck-card.ts`) — fork-only ; un `engine.onUpdate` de plus, `goalWatch` (`goal-mode.ts`), et `goalOpen` passé à `lotHoldsPush` — fork-only ; un `engine.onUpdate` de plus, `lateCommits` (`late-commits.ts`) — fork-only |
-| `bridge/notify-log.ts` | `NotifyLogEntry.pushed` (required): whether the alert left as a push or stayed in the bell — ADR 0040, fork-only; the ring itself is brick 18 in the ledger |
-| `bridge/notifications.ts` | one optional constructor argument (`onFire`) and the call that feeds the bell's history — brick 18 in the ledger; `summarize`'s single-alert branch composes through `notify-content.ts` — brick 24; **the deepest cut of the four**: a second optional argument (`subtitleFor`) that the fired alert is now AWAITED on, an `Alert.subtitle` field `summarize` renders, and the timer callback split out into an `async fire()` with a resolved-while-we-waited guard. Deliberate and priced in ([NOTIFY_AUDIT.md §N10](./NOTIFY_AUDIT.md)): a push's body arriving in a second, silent message never reaches a sleeping phone, because every message shares one collapse topic — verified on a locked device. Only the copilot is slow enough to earn a second message; the free tiers cost ~80ms against a 30s debounce, so the first push waits for them. It makes brick 24's `notify-content.ts` extraction heavier — that is the bill; `summarize`'s digest body lists the SUBJECTS instead of `paneDisplayName` — brick 25; that second argument then widened from `subtitleFor` to `beforeFire`, returning `{ subtitle, cardStatus }` — the card's status can only be read once the debounce is up (§4.2), and it carries `Alert.cardStatus` + `HerdSummary.cardId` so a finished card's alert says `Review` and taps through to the card — card N4, fork-only; **the second deep cut**: the coordinator no longer assumes an alert is a pane — `arm(key, alert)`/`retract(key)` public over an opaque key, `paneId` moved onto `Alert` as optional (so `FiredAlert` is now an alias), the deep-link read off the alert instead of the map key, `retract()` public in place of a private `resolve()` (and of `onTransition`'s second copy of the same rule), and a `stalled` status with its marker and digest line. Deliberate and priced in ([NOTIFY_AUDIT.md §6.4](./NOTIFY_AUDIT.md)) — brick 28 in the ledger, and the only part of it that is fork-shaped is the word `stalled`; a second such word, `ready`, with its marker and its digest line in last place — a card a finished predecessor has just unblocked — card N6/B4, fork-only; **a `hold` constructor argument** — an alert it says to hold fires into the history but never enters the slot — and `onFire(alert, pushed)` — ADR 0040, fork-only; `NotifySink.render` takes the outstanding count as a second argument, sent as the push's `badge` — the app icon's count, an idea upstream shipped in 1.25.0 and rewritten here, fork-only |
-| `bridge/config.ts` | the `board*` config block |
-| `bridge/push.ts` · `web/src/lib/push-decision.ts` · `web/src/sw.ts` | one optional `cardId` alongside the existing `target`, carried into the payload's `data` and read by `notificationclick`: an alert about a card to READ opens that card instead of the pane its agent finished in ([NOTIFY_AUDIT.md §4.1](./NOTIFY_AUDIT.md)) — fork-only, and NOT in the ledger: there is no card upstream to open. Additive on all three: an older cached SW ignores the field and takes the pane path; `PushMessage.badge` and, in `sw.ts`, the icon count summed per herd tag (`lib/app-badge.ts`) before the notification decision — upstream 1.25.0's idea, rewritten, fork-only; `Push.send` masks the title and body (`bridge/redact.ts`) — upstream 1.18.0's idea, rewritten |
-| `systemd/collie-board.service` · `scripts/collie-board-ctl.sh` (unit heredoc) | `PrivateTmp=yes` removed — a `--user` unit can only mount inside a user namespace, where ssh refuses every root-owned config and no `git push` runs ([ADR 0008](./.adr/0008-the-user-unit-cannot-have-a-mount-namespace.md)); `update_checkout` lands on the tag left in `update-target` by a rollback (`bridge/rollback.ts`) — upstream's own idea, 1.23.0, rewritten; `update-bash` dispatched as `update` (ADR 0054) — fork-only |
-| `herdr-plugin.toml` · `package.json` | `windows` declared; the actions Windows offers run `bun scripts/ctl.ts <id>` on every platform, `setup`/`update` pinned to linux/macos, a Windows `[[build]]` ([ADR 0050](./.adr/0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md)); `typecheck` is `tsc`, not `bunx tsc` — brick 43 in the ledger |
-| `bridge/http-cache.ts` | `gzipJsonResponse` sets `content-length` (two lines), so `metered()` counts a JSON body's bytes without buffering it — fork-only |
-| `bridge/herdr-client.ts` → `bridge/mux/herdr09.ts` | per-request timeout, and the worktree / agent / metadata methods; each event-stream line timed into `route-cost.ts` (one import, two lines) — fork-only. Then moved (ADR 0052 phase 1): the class is `Herdr09`, behind the `Mux` interface of the new `bridge/mux/mux.ts` (which also holds the wire types it exported), built by `createMux()` from `cfg.mux`. On a rebase, upstream's edits to `herdr-client.ts` are replayed onto `mux/herdr09.ts`. The move touches every importer, upstream ones included: `bridge/index.ts` (`createMux(…)` in place of `new HerdrClient(…)`, twice), `bridge/config.ts` (`mux`, `COLLIE_BOARD_MUX`, default `herdr09`, then `auto` in phase 4 — hc while it answers, plus the Windows pipe in `hcSocketPath()` ; phase 2 adds `hc`, `hcSocketPath()` and `COLLIE_BOARD_HC_SOCKET`, the engine itself in the new `bridge/mux/hc.ts`; then both engines read at once — `socketPath` always herdr 0.9's, `mux` only the launch engine, `createMux(…, isPrimary)` builds the new `bridge/mux/composite.ts` on the primary session), `bridge/server.ts` · `bridge/state-engine.ts` · `bridge/event-poker.ts` · `bridge/sessions.ts` (the import, and `HerdrClient` → `Mux` in signatures), `bridge/dial.ts` · `bridge/wire.ts` · `bridge/types.ts` (a path in a comment), and their tests — fork-only |
-| `bridge/event-poker.ts` | the trailing 200 ms debounce became a 1 s throttle (first event pokes at once, one catch-up per window) and each event / poke is counted into `route-cost.ts` — fork-only |
-| `bridge/transcript.ts` | `latestUsage()`, `resolveByCwd()`, `resolveWithoutSession()`, `pageAt()`, and `pageEntries`' `after` cursor; `toolImagePath()` + `toolResultImage()` + the tool part's `image` field — brick 21 in the ledger; `isMeta` rows dropped (a `promptSource: "system"` one kept as a note), upstream 1.14.0's idea rewritten; `unwrapPastes()` drops Claude Code's `<pasted_content>` tags from a user turn (upstream has the same, `bridge/journal/claude.ts`) |
-| `bridge/state-engine.ts` | `statusSince` — the poll already knows every status change, so it stamps the pane it just saw switch; a first sighting stays unstamped — brick 22 in the ledger; `poll()`, its `enrichSessionNames` and each `onUpdate` listener (named at registration) timed into `route-cost.ts` — fork-only; `agents`/`shellPanes` keep their identity across a poll that changed nothing in them, so the board can key a cache on it (`memoOn`) — fork-only; a `seen` field (`bridge/seen.ts`): a pane opened in the app since it finished reads `idle` while herdr still says `done` — the same done→idle herdr's own focus makes, so the alert retracts and the dot rests through the existing paths — fork-only (upstream: `retractSeen`, 1.25.0); `heldByScreen`: a claude pane herdr calls idle/done whose text, read at that passage, ends on a screen of `web/src/lib/harness/claude/holding-screens.ts` reads `blocked` (re-read each poll until it goes) — generic, ledger brick « idle screens »; `subagents` from hc's `children_of` (`WirePane.children`, set by `mux/hc.ts` only) — one line, fork-only |
-| `bridge/http-cache.ts` | `conditionalJson` (stringifies once, remembers the body/tag/gzip per data object) and `memoOn` (the last build behind cheap deps) — fork-only |
-| `bridge/types.ts` | `AgentView.branch` (card-backed panes only) and `ctxPct/ctxTokens` (any agent pane — G1/G2/G3); `notifications.count` — brick 18 in the ledger ; `AgentView.statusSince` — brick 22; `AgentView.cardStatus`, beside `branch` and from the same lookup — card N4, fork-only; `AgentView.handoffReady`, same gating — fork-only; `AgentView.subagents` — brick 40; `AgentView.tasks`/`background` — upstream 1.23.0/1.26.0's idea rewritten, drops on rebase; `AgentView.engine` (ADR 0052 §4.2), set by `state-engine.ts` only while the herd mixes engines — fork-only ; `SnapshotResponse.leadPaneId` — fork-only ; `AgentView.held` — fork-only |
-| `web/src/lib/api.ts` | `apiRequest` re-export (optional timeout override, `INTEGRATION_TIMEOUT_MS`); `ApiError` exported so a custom fetch can raise one; `fetchPane`'s `unwrapped` flag; `fetchHistory`'s `after`; `getNotifyLog()` — brick 18 in the ledger; a refusal's own `error` sentence becomes the message, unprefixed — brick 20; `ApiError.kind`, the refusal's own `kind` kept beside it — fork-only; `fetchGallery()` + `galleryImageUrl()` — brick 21; `fetchPane`/`sendReply`/`sendKeys` route a `<paneId>@<peer>` id through `/api/herd` (`paneRoute`) — fork-only; `fetchPane` takes a `seen` flag that sends `x-collie-seen` — fork-only; `fetchExistingFiles` + `paneFileUrl` (file links, `bridge/files-view.ts`); `fetchPreviousRelease`/`rollBack` — upstream's own idea, 1.23.0, rewritten |
-| `web/src/lib/loaders.ts` | `paneLoader` picks the read source from the raw-terminal pref; `galleryLoader` — brick 21 in the ledger; `HomeData.notifyCount` — brick 18; root and pane loaders go through `navCached` — brick 39; `HomeData.peers`, read from `/api/herd` beside the snapshot — fork-only; the pane loader reads with `seen` — fork-only ; `HomeData.leadPaneId` — fork-only |
-| `web/src/lib/types.ts` | same `AgentView` fields as `bridge/types.ts`; `paneDisplayName()` param loosened to a `Pick` so a `CardRuntime` can use it too; `NotifyLogEntry` + `notifications.count` — brick 18 in the ledger; the tool part's `image` and `GalleryImage` — brick 21; `AgentView.statusSince` — brick 22; `notifyVerb`/`notifyWhere`/`notifyWhat` deleted, the three surfaces composing through `notify-content.ts` instead — brick 25; `AgentView.cardStatus` + `NotifyLogEntry.cardId`/`cardStatus` — card N4, fork-only; `AgentView.handoffReady` — fork-only; `NotifyLogEntry`'s `paneId`/`agent`/`workspaceLabel` made optional, because a board event has no pane behind it, and its `status` widened with `stalled`, then with `ready` — card N6, fork-only; `AgentView.agentSessionPath` (already sent by the bridge), the pin key — fork-only; `AgentView.peer` — fork-only; `AgentView.engine` — fork-only; `AgentView.tasks`/`background` — upstream 1.23.0/1.26.0's idea rewritten ; `SnapshotResponse.leadPaneId` — fork-only |
-| `web/src/router.tsx` | four routes (plus the board views: PR ouvertes, Recette, Documents, pages custom); a per-leaf `errorElement`; `boardLoader` on the index route (the dashboard's figures); `attachNavCache(router)` — brick 39 in the ledger; `pane/:paneId/zoom` (the full-screen output, upstream 1.25.0's idea rewritten) ; la route `board/roadmap` (vue roadmap en direct) |
-| `web/src/routes/home.tsx` | a Board row; the screen's `<h1>`; `<UsageGauge>` under the triage — brick 23 in the ledger; then the dashboard around the triage (hero, KPIs, repo tiles, quota rings) — fork-only, `usage-gauge.tsx` replaced by `home-dashboard.tsx`; its project tiles fold through `useFold` (phases `+n`, repos) — fork-only, nothing of it exists upstream; the peers' agents merged into the triage and `<PeersDown>` under it — fork-only ; the project tiles read each repo's open objective (`useRepoGoals`) |
-| `web/src/components/agent-chat.tsx` | mount `<ContextGauge>` above the composer (G1); the screen's `<h1>`; the terminal ⇄ reading toggle + body swap; History gated on "is an agent pane" rather than on `agentSessionId`; the breadcrumb's `<PaneMenu>` segment at both breakpoints — brick 16 in the ledger; the ⋯ sheet's `Images` row — brick 21; `tabs` handed to the switcher sheet's `<ThreadSidebar>`, which now names each row's tab — brick 32; mount `<ResumeOffer>` above the composer (auto handoff) — fork-only; `<SubagentsLine>` under the header — brick 40; `<WorkMark>` beside it (tasks + background commands, `work-mark.tsx`, new) — upstream 1.23.0/1.26.0's idea rewritten, drops on rebase; `<PinButton>` in the header at both breakpoints — fork-only; the orchestrator's buttons (ADR 0044): `orchestrator` to `<ReadingView>`, `<LastTurnButtons>` above the composer — fork-only; `working` handed to `<Composer>` for its Stop — fork-only; the full-screen output button beside Find, both breakpoints — upstream 1.25.0's zoom idea rewritten (`output-zoom.tsx`, `zoom-gesture.ts`, `routes/zoom.tsx`, new), drops on rebase |
-| `web/src/routes/{root,history,settings}.tsx` · `web/src/components/space-view.tsx` | the three a11y gaps — one `<h1>` per screen, a real dismiss button on the error status line, error barriers per leaf — brick 12 in the ledger; `root.tsx` additionally mounts the one Sonner `<Toaster>` (bricks 19 and 42); `settings.tsx` additionally mounts `<FollowUpsControl>`, `<MaxAgentsControl>`, `<AutoHandoffControl>`, `<GateControl>`, `<LanguageControl>`, `<TemplatesControl>` and the Peers tab's `<PeersControl>` (fork-only, the board's switches) and the Gallery row; `history.tsx` additionally carries the session's image set into `<TranscriptView>` and the header button that opens it — brick 21 in the ledger; `root.tsx` also sets the app icon's count from the snapshot (`lib/app-badge.ts`), fork-only |
-| `web/src/components/{agent-sidebar,pane-list-column}.tsx` · `web/src/lib/spaces.ts` · `web/src/components/status-badge.tsx` | the pane list is grouped by SPACE instead of by triage bucket: both components collapsed onto one `<SpacePaneTree>` body (the new file above), `groupPanesBySpace()` beside the existing space helpers, and `StatusDot` taking its size from its wrapper so a caller can ring it — brick 32 in the ledger. The one fork-shaped line is the header's branch, read off `AgentView.branch`; upstream has no card to carry one and falls back to the path, which is the same code path |
-| `bridge/cards.ts` · `bridge/adapters.ts` · `bridge/server.ts` | agent templates (ADR 0026): `launchAgent` takes optional `args`, `startCard` resolves the card's template (kind, model flag, brief in front of the first prompt) and takes optional `adapters`; `AgentAdapter` gains `modelFlag` (`model_flag` in `agents.toml`, `claude` only); `server.ts` hands its adapter table to the board context — fork-only |
-| `web/src/components/agent-list.tsx` | Idle · done folds to its newest 4 through `useFold`/`FoldToggle` (`fold.tsx`, new, generic) — brick 36 in the ledger ; a « Ménage » button opening `tidy-sheet.tsx` (new; candidates from `bridge/tidy.ts`, which reads the cards) — fork-only; a pin beside each tile and the « Pinned » section on top, phone only — fork-only; machine filter chips and `PeersDown` (a paired peer's agents) — fork-only |
-| `web/src/components/agent-card.tsx` | branch + ctx% on the tile (G2), mirroring `CardTile`; the pane number, so two agents in one tab aren't the same card twice — brick 16 in the ledger ; how long an idle/done pane has been settled — brick 22; `<SubagentsLine>` on all four tiles — brick 40; « on <peer> » `PeerChip` on the three triage tiles — fork-only; the same chip carries the engine badge (`0.9` / `hc`) while the herd mixes them — fork-only |
-| `web/src/routes/detail.tsx` | a `<paneId>@<peer>` pane found in `HomeData.peers`, and not bounced home while its peer is unread — fork-only |
-| `bridge/notify-prefs.ts` · `web/src/lib/types.ts` · `web/src/components/notify-prefs-control.tsx` | a fifth switch, `board` (default on) — one boolean for the whole family of the board's own alerts, never one per event — card N6, fork-only; then a sixth, `ready` (default **off**), which is a second family and not a sixth event: it opens a possibility where `board` reports a problem — card N6/B4, fork-only. NOT in the ledger: there is no board upstream to have alerts about |
-| `web/src/hooks/use-transitions.ts` | raises the transitions as Sonner toasts with an *Open* action instead of writing a status line — brick 19 in the ledger; the toast's own sentence replaced by one `notifyContent()` call, the same composition the push and the bell render — brick 25; `AgentToast.cardId` from `notifyCardId()`, so the tap follows that sentence to the card — card N4, fork-only ; skips the lead's pane like the copilot's — fork-only |
-| `web/src/components/composer.tsx` | the image upload + clipboard-paste pair extracted verbatim into `web/src/hooks/use-image-upload.ts` and consumed from there — brick 27 in the ledger; the image preview/retouch sheet and attached thumbnails (`<ImagePreviewSheet>`, `<AttachedImages>` from `image-attach.tsx`) — fork-only, upstream has its own editor; `useStatusLift` on its bar — brick 42. Stop beside Send during a turn, the queued strip's Send now (ctrl+Enter) and long pastes as `[Collé #N]` chips (`paste-chips.tsx`, `lib/paste-chips.ts`, new) — upstream 1.18/1.24's ideas rewritten, drops on rebase; Pure upstream material: it leaves this list once merged |
-| `web/src/components/ui/chat/chat-input.tsx` | `spellCheck={false}` on the shared field (pane composer, orchestrator, card prompt): a tap on an underlined word hides the Android keyboard — upstream's a12c1d7 (1.26.0) put it on its composer only; the idea rewritten here, drops on rebase |
-| `web/src/hooks/use-display-prefs.ts` | wrap defaults ON below 640px, live through `useMediaQuery`; `rawTerminalPref()` for the loader; the `reading` mode flag |
-| `web/src/components/ui/sheet.tsx` | rewritten over Vaul — [ADR 0003](./.adr/0003-vaul-owns-the-sheet-gesture.md) |
-| `CLAUDE.md` → *Versioning* · `CHANGELOG.md` (preamble) · `scripts/git-hooks/pre-commit` · `.github/workflows/release.yml` · `package.json` (test script) | the version is cut on `main` by CI from `changes/` fragments, never on a branch — [ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md), brick 34 in the ledger |
-| `web/src/components/session-switcher.tsx` | dropped the manual `createPortal` the sheet no longer needs |
-| `web/src/components/transcript-view.tsx` · `web/src/App.tsx` · `web/src/lib/nav.ts` | an image-bearing tool part renders as the picture; the viewer host mounted beside the router (unmounted while the idle cover is up); `galleryPath()` — brick 21 in the ledger; `zoomPath()` — upstream 1.25.0's zoom, rewritten |
-| `web/src/components/transcript-view.tsx` | `clockTime`/`dayKey` format through two module-level `Intl.DateTimeFormat` instead of `toLocale*String` per call — brick 38 in the ledger |
-| `web/src/components/transcript-view.tsx` · `web/src/components/markdown-text.tsx` | the orchestrator's `collie-buttons` ([ADR 0042](./.adr/0042-the-orchestrator-proposes-buttons-from-the-mcp-catalog.md)): `Turn` resets the buttons' context outside an assistant turn, thinking too; a code block tagged `collie-buttons` goes to `ButtonsBlock`. Fork-only, three hook lines; `markdown-text.tsx` links a path that exists in the pane's folder through `FileLinksContext` (`components/file-links.tsx`) — upstream's own idea, 1.17/1.18, rewritten; a relative `.md` link opens in place through `DocLinkContext` on the Documents page (`safeHref` in `lib/markdown.ts` lets a relative `.md` through) — fork-only |
-| `web/src/test/setup.ts` | put `localStorage` back when Node 24+ shadows jsdom's, and shim pointer capture + `<dialog>`'s modal methods; `asyncUtilTimeout` at 20 s (Testing Library's 1 s default starves under load); empty the pins store before each test |
-| `web/vitest.config.ts` | `maxWorkers` 4, `testTimeout`/`hookTimeout` 30 s, so the pre-push holds when several agents push at once. Fork-only |
-| `web/src/index.css` | `.tag-chip` — the derived tag colour, light and dark ([ADR 0005](./.adr/0005-one-tag-per-card-its-colour-derived-from-its-name.md)). One self-contained block among the other named classes, so it rebases as an addition |
-| `bridge/update.ts` | `resolveUpdateRepo()` + `githubRepoOf()` / `originUrlOf()`, reading `.git/config` as a file — fork-only |
-| `web/src/routes/root.tsx` | hands `leadPaneId` to `useAgentTransitions` — fork-only |
-
-Rebasing means resolving those rows, not the whole tree. Keep it that way: if a change wants to
-spread, it usually wants to be a new module with a hook instead. `setup.ts`'s localStorage fix,
-`composer.tsx`'s upload extraction, `use-display-prefs.ts` and the raw-terminal read source (`server.ts` / `herdr-client.ts` (now `mux/herdr09.ts`) / `api.ts` /
-`loaders.ts`) are pure upstream material — they are in the ledger, and once merged they leave this
-list again.
-
-The sheet is the one entry here that is **not** meant to leave: upstream has not taken the Vaul
-dependency and this fork is not arguing that it should. Its bug fix is still PR-able, but only from
-the commit that made it — see brick 9 in [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md).
-
-## What is PR-able, and what isn't
-
-**PR-able** — generic, stateless, in the spirit of a mobile remote control. The list, with the
-commits that carry each brick and whether it is a clean cherry-pick, is maintained in
-**[`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md)**. Start with the `collie-ctl.sh` fixes: one commit, pure
-bug fix, hits every user.
-
-**Fork-only** — these change the nature of the project. Collie is deliberately stateless: an
-ephemeral, single-operator mirror. Grafting a database onto it is a change of kind, not an
-extension, and a refusal would be entirely reasonable. **Never submit these as one PR:** cards, the
-board, SQLite, worktree-per-card, session chaining, the copilot.
-
-## Contact
-
-Issue creation is restricted on `AltanS/collie` and there are no Discussions, so the plan of "open an
-introduction issue" doesn't work as written. PRs are not restricted. The order that actually works:
-
-1. Land one small, obviously-useful PR (the context gauge is the natural first). An accepted PR opens
-   a conversation better than a message does.
-2. Then ask the scope question, with working code to point at.
-
-The project is neither young nor quiet (~143★, 19 forks, ~40 issues). The issue restriction is
-probably a response to volume. **Do not build the plan around a reply** — fork, build, and treat the
-upstream conversation as a bonus.
-
-## Licence
-
-Collie is MIT and this fork stays MIT. `LICENSE` keeps Altan Sarisin's copyright with the fork's
-added below it, which is what MIT requires and also just the right thing to do.
-
-Herdr is AGPL, but nothing here links its binary — a socket client is not a derived work.
-
-## Marketplace — decided
-
-**Decision (2026-07-28): a real GitHub fork**, [`Xhelliom/collie-board`](https://github.com/Xhelliom/collie-board),
-public. Contributing back won over discoverability, because **GitHub only accepts a pull request
-whose head repository is a fork of the base** — from a standalone repo, every brick in the PR-able
-list above would need a second repo and a cherry-pick before it could even be offered. The whole
-upstream strategy hangs on that one mechanic, so it decided the question.
-
-The cost, and it is real: the herdr marketplace index reads GitHub repository search, and **GitHub
-excludes forks from search results by default**. This repo may therefore never appear in the
-listing, even with the `herdr-plugin` topic. If that turns out to matter more than expected, a
-standalone mirror can be pushed alongside later — the reverse (turning a plain repo into a fork) is
-not possible at all, which is the other half of why this way round is the safer bet.
-
-| Option | Gain | Cost |
-|---|---|---|
-| **GitHub fork** ← chosen | PRs upstream are trivial; lineage visible | listing uncertain |
-| Standalone repo | indexed normally | no PR to upstream without a second repo |
-
-## Open questions
-
-- [x] Public or private at first → **public**, 2026-07-28.
-- [x] Fork vs standalone → **fork** (above).
-- [ ] Confirm whether the `herdr-plugin` topic gets the fork listed anyway (~30 min refresh). If
-      not, decide whether a standalone mirror is worth maintaining.
-- [x] The in-app update banner's repo → **the checkout's GitHub origin** when
-      `COLLIE_BOARD_UPDATE_REPO` is unset, 2026-11-07 (a Windows node, with no setup step, never saw
-      an update).
-
-## i18n migration — a wide upstream diff (ADR 0038)
-
-Settings, gallery, history, artifacts, pane and Spaces now read their text from the catalog
-(`web/src/i18n/`), English by default, French as the translation. That touches **~60 upstream files**
-under `web/src/components/`, `web/src/routes/` and `web/src/hooks/use-copy.ts`: each hard-coded
-string became a `t("key")` call (no layout or logic change).
-
-- **Rebase risk:** any upstream edit to a UI string in those files conflicts on that line.
-- **Resolving:** take upstream's version of the file, then redo the swap — move the new string into
-  `web/src/i18n/messages/` (both `en` and `fr`) and replace it with `t(...)`. `bun run test` in `web/`
-  fails on an incomplete catalog, so a forgotten key shows up.
-- **Not PR-able:** the catalog is the fork's layer; upstream has no i18n.
+- The ledger of bricks once meant for upstream, one file each:
+  [`docs/archive/upstream/`](./docs/archive/upstream/UPSTREAM_PRS.md).
+- The former content of this page (the table of touched upstream files, the contact and marketplace
+  notes): `git show 40f95d861:UPSTREAM.md`.

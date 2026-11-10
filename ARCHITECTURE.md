@@ -2,8 +2,8 @@
 
 > **Fork note.** This document is upstream Collie's and still describes the bridge accurately —
 > the deployment model, the interaction loop and especially §6's security posture are unchanged and
-> remain load-bearing. What Collie Board adds sits on top of it and is described in §9; the fork's
-> posture toward upstream is in [`UPSTREAM.md`](UPSTREAM.md).
+> remain load-bearing. What Collie Board adds sits on top of it and is described in §9; the fork is now
+> independent of upstream — origin and point of divergence in [`UPSTREAM.md`](UPSTREAM.md).
 
 > **Why Collie is shaped the way it is.** The deployment model, the interaction loop, and especially
 > the security posture — the reasoning the code can't state itself. This describes what is built; a

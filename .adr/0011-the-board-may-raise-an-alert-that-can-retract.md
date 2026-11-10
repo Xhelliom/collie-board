@@ -104,7 +104,7 @@ journal is written by the **action**, not derived from a state.
 - **`notifications.ts` gave up the assumption that an alert is a pane**, and that is the bill: an
   opaque key with public `arm`/`retract`, `paneId` optional on `Alert`, the deep-link read off the
   alert instead of the map key. It is a deep cut in an upstream file, priced in and recorded — brick
-  28 of [`UPSTREAM_PRS.md`](../UPSTREAM_PRS.md) ("a coordinator that doesn't assume its alerts are
+  28 of [`UPSTREAM_PRS.md`](../docs/archive/upstream/UPSTREAM_PRS.md) ("a coordinator that doesn't assume its alerts are
   panes" is generic; only the words `stalled` and `ready` are fork-shaped).
 - **The bell's bar is lower than the phone's, by exactly one condition.** A story is never taken back,
   so B2/B7/B10 reach `NotifyLog.add()` in the clear — no coordinator, no debounce, no predicate. That

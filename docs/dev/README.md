@@ -11,5 +11,5 @@
 | Versionner une branche : le fragment `changes/` | [`changes/README.md`](../../changes/README.md) · [ADR 0016](../../.adr/0016-the-version-is-cut-on-main-by-ci.md) |
 | Les hooks git (pre-commit, pre-push) | [`scripts/git-hooks/`](../../scripts/git-hooks/) · [`CLAUDE.md` — Versioning](../../CLAUDE.md#versioning--mandatory) |
 | Ajouter un agent (adaptateur de harness) | [`HARNESS_CONTRIBUTING.md`](../../HARNESS_CONTRIBUTING.md) · [`AGENT_COMPAT.md`](../../AGENT_COMPAT.md) |
-| Rester rebasable sur upstream, proposer une brique à upstream | [`UPSTREAM.md`](../../UPSTREAM.md) · [`UPSTREAM_PRS.md`](../../UPSTREAM_PRS.md) |
+| Le rapport à l'amont : aucun, le fork est indépendant | [`UPSTREAM.md`](../../UPSTREAM.md) · [ADR 0059](../../.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) |
 | Organiser la doc d'un dépôt | [`conventions/DOC_CONVENTION.md`](../conventions/DOC_CONVENTION.md) |
