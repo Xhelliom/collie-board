@@ -20,6 +20,7 @@ import {
   UsageRings,
   useRepoLots,
   useRepoPhases,
+  useRepoGoals,
   useRepoToTest,
 } from "@/components/home-dashboard";
 import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
@@ -134,7 +135,8 @@ function Projects({ board, agents }: { board: BoardData; agents: AgentView[] }) 
   const paths = useMemo(() => dash.repos.map((r) => r.path), [dash.repos]);
   const lots = useRepoLots(paths, stamp);
   const toTest = useRepoToTest(paths, stamp);
+  const goals = useRepoGoals(paths, stamp);
   // This machine's agents only: a peer's orchestrator runs on its own paths.
   const moods = useMemo(() => Object.fromEntries(paths.map((p) => [p, orchestratorMood(agents, p)])), [paths, agents]);
-  return <ProjectTiles repos={dash.repos} lots={lots} moods={moods} toTest={toTest} />;
+  return <ProjectTiles repos={dash.repos} lots={lots} moods={moods} toTest={toTest} goals={goals} />;
 }

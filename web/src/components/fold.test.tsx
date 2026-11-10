@@ -68,3 +68,21 @@ describe("count folds", () => {
     expect(screen.getByText("src/f56.ts")).toBeInTheDocument();
   });
 });
+
+describe("project tile in goal mode", () => {
+  it("wears the objective's colour and chip: active green, paused orange, claimed asks to validate; none unchanged", () => {
+    render(<MemoryRouter><ProjectTiles repos={[repo(0), repo(1), repo(2)]} goals={{ "/r/0": "active", "/r/1": "paused" }} /></MemoryRouter>);
+    const tile = (name: string) => screen.getByText(name).closest("a")!;
+    expect(tile("repo0").className).toMatch(/status-done/);
+    expect(tile("repo0")).toHaveTextContent("Objective · active");
+    expect(tile("repo1").className).toMatch(/status-working/);
+    expect(tile("repo1")).toHaveTextContent("Objective · paused");
+    expect(tile("repo2").className).toMatch(/bg-card/);
+    expect(tile("repo2").querySelector("[data-goal]")).toBeNull();
+  });
+
+  it("a claimed objective asks to validate", () => {
+    render(<MemoryRouter><ProjectTiles repos={[repo(0)]} goals={{ "/r/0": "claimed" }} /></MemoryRouter>);
+    expect(screen.getByText("repo0").closest("a")).toHaveTextContent("Objective · reached? validate");
+  });
+});

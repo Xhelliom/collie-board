@@ -1,4 +1,5 @@
 import { GoalPanel } from "@/components/goal-panel";
+import { GOAL_SURFACE, GoalChip, type OpenGoalStatus } from "@/components/goal-chip";
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
@@ -142,6 +143,9 @@ export function ProjectRoute() {
   const shared = Boolean(repo && identities[repo]);
   const mineOnly = params.get("who") === "me";
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // The open objective, as the Objective block reads it: the header wears it so goal mode is seen at once.
+  const [goalStatus, setGoalStatus] = useState<OpenGoalStatus | null>(null);
+  const goal = repo ? goalStatus : null;
   const pickMine = (mine: boolean) =>
     setParams((p) => (mine ? p.set("who", "me") : p.delete("who"), p), { replace: true, preventScrollReset: true });
   const cards = useMemo(
@@ -426,6 +430,16 @@ export function ProjectRoute() {
         title={repo ? repoName(repo) : t("project.title")}
         // The milestone in progress, when there is exactly one open phase to name.
         subtitle={activePhases.length === 1 ? activePhases[0]!.title : undefined}
+        // In goal mode the title sits on the objective's colour with its chip — the same as the home tile.
+        children={goal && repo ? (
+          <div className={cn("flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1", GOAL_SURFACE[goal])}>
+            <div className="min-w-0">
+              <div className="truncate text-[17px] font-semibold tracking-[-0.01em]">{repoName(repo)}</div>
+              {activePhases.length === 1 && <div className="truncate text-sm text-muted-foreground">{activePhases[0]!.title}</div>}
+            </div>
+            <GoalChip status={goal} />
+          </div>
+        ) : undefined}
         // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
         // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
         rightTrail={
@@ -466,7 +480,7 @@ export function ProjectRoute() {
           className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
-          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} />}
+          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onStatus={setGoalStatus} />}
           {v.total === 0 && v.closedCount === 0 ? (
             <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">
               <p className="text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>

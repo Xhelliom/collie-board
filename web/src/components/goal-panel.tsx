@@ -6,6 +6,8 @@ import { useT } from "@/i18n";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { boardErrorMessage, cardPath, createGoal, deleteGoal, editGoal, fetchGoals, moveGoal, type Goal, type GoalBudget, type GoalMove } from "@/lib/board";
 import { setStatus } from "@/lib/status";
+import { cn } from "@/lib/utils";
+import { GOAL_SURFACE, isOpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
 
 const OPEN = new Set(["active", "paused", "claimed"]);
 const DEFAULT_BUDGET: GoalBudget = { maxLots: 10, quotaPct: 80, deadline: null };
@@ -124,8 +126,9 @@ function GoalJournal({ goal }: { goal: Goal }) {
 
 // The repo's objective (ADR 0056), at the top of the project page. Every write here is the operator's:
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
-/** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody. */
-export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean }) {
+/** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody.
+ *  `onStatus`: the open objective's status as this panel holds it, for the page header to wear. */
+export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean; onStatus?: (s: OpenGoalStatus | null) => void }) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   // Which form is open: the objective's, or the next one's.
@@ -143,8 +146,13 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
     return () => ac.abort();
   }, [repo]);
 
+  const open = goals?.find((g) => OPEN.has(g.status)) ?? null;
+  const openStatus = open && isOpenGoal(open.status) ? open.status : null;
+  useEffect(() => {
+    onStatus?.(openStatus);
+  }, [openStatus, onStatus]);
+
   if (!goals) return null;
-  const open = goals.find((g) => OPEN.has(g.status)) ?? null;
   const queued = goals.find((g) => g.status === "queued") ?? null;
   const past = goals.filter((g) => g.status === "achieved" || g.status === "abandoned").sort((a, b) => (b.endedAt ?? b.createdAt) - (a.endedAt ?? a.createdAt));
   const put = (g: Goal) => setGoals((all) => [g, ...(all ?? []).filter((x) => x.id !== g.id)]);
@@ -184,7 +192,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
   const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
 
   return (
-    <section aria-label={t("goal.title")} className="flex flex-col gap-2.5 rounded-2xl border bg-card/60 p-4 text-sm">
+    <section aria-label={t("goal.title")} className={cn("flex flex-col gap-2.5 rounded-2xl border p-4 text-sm", openStatus ? GOAL_SURFACE[openStatus] : "bg-card/60")}>
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           <Target className="size-3.5" />
@@ -209,6 +217,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
       ) : (
         <>
           <p className="text-[15px] font-medium">{open.text}</p>
+          {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
           {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-status-blocked/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div>
             <span className="text-xs text-muted-foreground">{t("goal.criteriaTitle")}</span>
