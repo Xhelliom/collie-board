@@ -68,7 +68,7 @@ export function goalLines(g: GoalWake, repoPath: string, plan: boolean): string[
     ...(g.waiting.length
       ? [`Décisions qui attendent l'opérateur — elles ne bloquent que leur branche, avance sur le reste : ${g.waiting.map((d) => `« ${d} »`).join(", ")}.`]
       : []),
-    `Si tous les critères sont tenus, déclare-le (POST /api/goals/${g.id}/claim) au lieu de planifier : c'est l'opérateur qui valide.`,
+    `Si tous les critères sont tenus, déclare-le (POST /api/goals/${g.id}/claim avec {proofs: [une preuve par critère, dans leur ordre]}) au lieu de planifier : c'est l'opérateur qui valide.`,
   ];
 }
 

@@ -138,7 +138,7 @@ describe("the wake and the launch under an objective", () => {
     const w = world();
     const b = (await w.plan("b")).body.run;
     w.db.setAutonomy(repo, { enabled: true, maxChain: null, stopOnRed: true, startWhenIdle: true, maxRounds: 5 });
-    expect((await call(w.db, "POST", `/api/goals/${w.goal.id}/claim`, undefined, PANE)).status).toBe(200);
+    expect((await call(w.db, "POST", `/api/goals/${w.goal.id}/claim`, { proofs: w.goal.criteria.map(() => "vu") }, PANE)).status).toBe(200);
     await w.finish();
     expect(w.sent).toEqual([]);
     expect((await call(w.db, "POST", `/api/runs/${b.id}/launch`, undefined, PANE)).status).toBe(403);

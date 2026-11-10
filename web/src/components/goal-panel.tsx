@@ -197,7 +197,14 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
             <span className="text-xs text-muted-foreground">{t("goal.criteriaTitle")}</span>
             <ul className="mt-1 list-disc pl-5">
               {open.criteria.map((c, i) => (
-                <li key={i}>{c}</li>
+                <li key={i}>
+                  {c}
+                  {open.status === "claimed" && open.claim?.proofs[i] && (
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
+                      <span className="font-medium">{t("goal.proof")}</span> {open.claim.proofs[i]}
+                    </p>
+                  )}
+                </li>
               ))}
             </ul>
           </div>

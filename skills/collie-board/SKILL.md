@@ -605,7 +605,9 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
 - **A bound** (`maxLots` lots launched, the week's quota at `quotaPct`, the deadline passed, or a red lot with
   `stopOnRed`) pauses it; the user hears it once. Paused, the ordinary autonomy applies.
 - **Claim it reached** — `POST /api/goals/<id>/claim` with your `x-collie-pane`, only from `active`, once
-  every criterion holds. Say which evidence meets each criterion; the user validates. **Claimed is a full
+  every criterion holds, with `{proofs: ["…", …]}` — one non-empty proof per criterion, in their order
+  (`400` otherwise). The goal then carries `claim: {ts, proofs}`, shown to the user beside each criterion;
+  the user validates. **Claimed is a full
   stop**: no lot planned or launched (`403`), no end-of-lot wake, until the user answers. A refusal comes
   back as a wake carrying the user's comment.
 - **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
