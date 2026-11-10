@@ -12,12 +12,14 @@ import { endOfLot } from "./autonomy.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import type { PrStatus } from "./git.ts";
 import { prStatusFor } from "./integrate.ts";
+import { weekPercent } from "./goal-routes.ts";
+import { usageTracker } from "./usage.ts";
 
 const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
 
 /** The message for a lot that ended: its cards, merged ones (journal, or a PR GitHub says is merged) apart from those that were ever blocked. Pure. */
-export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null): string {
+export function lotMessage(name: string | null, cards: Card[], blocked: Set<string>, merged: Set<string>, phase?: { name: string; open: Card[] } | null, repoPath?: string, auto?: { go: true; next: { id: string; name: string | null } } | { go: false; why: string } | null, goal?: GoalWake | null): string {
   const ok = cards.filter((c) => merged.has(c.id) || (FILED.has(c.status) && !blocked.has(c.id)));
   const ko = cards.filter((c) => !ok.includes(c));
   return [
@@ -41,8 +43,32 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
         ]
       : auto
         ? [`Autonomie arrêtée : ${auto.why}. Ne lance rien ; l'opérateur a été prévenu et reprend la main.`, "Ne valide rien toi-même."]
-        : ["Ne lance rien et ne valide rien toi-même."]),
+        : goal
+          ? []
+          : ["Ne lance rien et ne valide rien toi-même."]),
+    ...(goal && !(auto && !auto.go) ? goalLines(goal, repoPath ?? "<repo>", !auto) : []),
   ].join("\n");
+}
+
+/** What the orchestrator needs to work toward the repo's objective: its text, its criteria, the decisions waiting on the operator. */
+export interface GoalWake {
+  id: string;
+  text: string;
+  criteria: string[];
+  waiting: string[];
+}
+
+/** The objective's part of a wake (ADR 0056). `plan`: nothing is planned, it plans and launches the rest. Pure. */
+export function goalLines(g: GoalWake, repoPath: string, plan: boolean): string[] {
+  return [
+    ...(plan ? [`Objectif pas atteint : relis les critères, planifie et lance la suite.`] : []),
+    `Objectif « ${g.text} » — critères : ${g.criteria.map((c) => `« ${c} »`).join(", ")}.`,
+    `Tu peux créer cartes, lots et phases dans ${repoPath} et lancer UN lot à la fois (POST /api/runs/<id>/launch, avec ton x-collie-pane). Ne valide aucune phase : la validation de l'objectif les clôt.`,
+    ...(g.waiting.length
+      ? [`Décisions qui attendent l'opérateur — elles ne bloquent que leur branche, avance sur le reste : ${g.waiting.map((d) => `« ${d} »`).join(", ")}.`]
+      : []),
+    `Si tous les critères sont tenus, déclare-le (POST /api/goals/${g.id}/claim) au lieu de planifier : c'est l'opérateur qui valide.`,
+  ];
 }
 
 /** The message for one card the lead reports unmerged or blocked. Pure. */
@@ -59,6 +85,13 @@ export function phaseMessage(kind: "closed" | "sealed" | "reopened", name: strin
 }
 
 export class OrchestratorNudger {
+  private goalWake(id: string): GoalWake | null {
+    const g = this.db.getGoal(id);
+    if (!g) return null;
+    const waiting = (this.db.getRoadmap(g.repoPath)?.decisions ?? []).filter((d) => d.status === "open").map((d) => d.text);
+    return { id: g.id, text: g.text, criteria: g.criteria, waiting };
+  }
+
   private cursor: number;
   /** `runId:cardId` already reported: the lead may say it twice (unmerged, then halted) — the orchestrator hears it once. */
   private readonly told = new Set<string>();
@@ -100,8 +133,7 @@ export class OrchestratorNudger {
       return { repoPath: phase.repoPath, text: phaseMessage(e.type.slice(6) as "closed" | "sealed" | "reopened", phase.name, to) };
     }
     const run = p.runId ? this.db.getRun(p.runId) : null;
-    if (!run) return null;
-    if (e.type === "run.finished") {
+    if (run && e.type === "run.finished") {
       const cards = this.db.runMembers(run.id);
       const blocked = new Set(cards.filter((c) => this.db.listEvents(c.id, 200).some((x) => x.type === "run.halted" && (x.payload as { runId?: string } | null)?.runId === run.id)).map((c) => c.id));
       // End of phase: not yet validated, and every card it groups is filed or sits in this lot.
@@ -117,15 +149,35 @@ export class OrchestratorNudger {
           if ((await this.prState(c))?.state === "merged") merged.add(c.id);
         } catch {}
       }));
-      const v = endOfLot(this.db, run);
+      const v = endOfLot(this.db, run, weekPercent(usageTracker.peek()));
       this.db.armAutonomy(run.repoPath, v.go);
+      const stop = v.go ? null : v.goal?.stop;
       // Journaled every time, the quiet stops too: why the chain stopped is what this measures.
-      const why = v.go ? null : (v.why ?? (this.db.autonomyOf(run.repoPath).enabled ? "aucun lot planifié" : "l'autonomie est coupée"));
+      const why = v.go
+        ? null
+        : (v.why ?? (stop === "claimed" ? "objectif déclaré atteint — en attente de l'opérateur" : stop === "plan" ? "objectif pas atteint — l'orchestrateur planifie la suite" : this.db.autonomyOf(run.repoPath).enabled ? "aucun lot planifié" : "l'autonomie est coupée"));
       this.db.recordRunEvent(null, "run.chain", { runId: run.id, go: v.go, why, next: v.go ? v.next.id : null });
-      if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}`, pushed: false });
+      // ADR 0056: a claimed objective is a full stop until the operator answers — not even the end-of-lot wake.
+      if (stop === "claimed") return null;
+      // A bound pauses the objective; the pause moving from active is what makes the operator hear it once.
+      const tell = !v.go && !!v.why && (stop !== "pause" || this.db.setGoalStatus(v.goal!.id, ["active"], "paused"));
+      if (tell) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `${stop === "pause" ? "objectif en pause" : "orchestrateur arrêté"} — ${v.why}`, pushed: false });
+      const goalId = v.go ? v.goalId : stop === "plan" ? v.goal!.id : undefined;
+      const goal = goalId ? this.goalWake(goalId) : null;
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
+      // Under an objective the phases are not validated one by one: the end of a phase is not proposed.
+      const endPhase = ends && phase && !goal ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null;
+      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal) };
     }
+    if (e.type === "goal.resumed") {
+      // The operator took the objective back (a refused claim, or after a pause): nothing runs, so no end of lot would wake it.
+      const g = (p as { goalId?: string }).goalId ? this.db.getGoal((p as { goalId: string }).goalId) : null;
+      if (!g || g.status !== "active") return null;
+      const c = (p as { comment?: string | null }).comment;
+      const head = c ? `L'opérateur refuse l'objectif comme atteint : « ${c} ».` : "L'opérateur a repris l'objectif.";
+      return { repoPath: g.repoPath, text: [head, ...goalLines(this.goalWake(g.id)!, g.repoPath, true)].join("\n") };
+    }
+    if (!run) return null;
     // A wait (`wait: true` — no check registered yet, checks running, mergeability unknown) is not a
     // verdict: the land step asks again and settles it at CHECKS_GRACE_MS. Only a real refusal wakes it.
     const unmerged = e.type === "run.merge" && p.merged === false && !p.wait;

@@ -25,9 +25,19 @@ const MOVES: Record<string, { from: GoalStatus[]; to: GoalStatus }> = {
 };
 
 export interface GoalView extends Goal {
-  /** What the objective has spent: its lots and their cards, and the week's quota now (null: no reading). */
-  spent: { lots: number; lotIds: string[]; cardIds: string[]; quotaPct: number | null };
+  /**
+   * What the objective has spent — `lots`, the ones launched while it was open, is what the budget counts —
+   * and what is attached to it: those lots plus the ones planned while it was open, their cards and the
+   * cards of its phases (the repo's phases created while it was open).
+   */
+  spent: { lots: number; lotIds: string[]; cardIds: string[]; phaseIds: string[]; quotaPct: number | null };
 }
+
+/** The repo's open objective (active, paused or claimed), or null. */
+export const openGoal = (db: BoardDb, repoPath: string): Goal | null =>
+  db.listGoals(repoPath).find((g) => g.status === "active" || g.status === "paused" || g.status === "claimed") ?? null;
+
+const within = (g: Goal, t: number) => t >= g.createdAt && (g.endedAt === null || t <= g.endedAt);
 
 /** The week's all-models limit, as the gauge reads it — the one the budget's `quotaPct` is about. */
 export function weekPercent(u: ClaudeUsage | null): number | null {
@@ -37,13 +47,22 @@ export function weekPercent(u: ClaudeUsage | null): number | null {
 
 /** Pure over the db: the repo's lots launched while the objective was open are its lots. */
 export function goalView(db: BoardDb, g: Goal, quotaPct: number | null): GoalView {
-  const lots = db
-    .listRuns(g.repoPath)
-    .filter((r) => r.launchedAt !== null && r.launchedAt >= g.createdAt && (g.endedAt === null || r.launchedAt <= g.endedAt));
-  return {
-    ...g,
-    spent: { lots: lots.length, lotIds: lots.map((r) => r.id), cardIds: lots.flatMap((r) => db.runMembers(r.id).map((c) => c.id)), quotaPct },
-  };
+  const runs = db.listRuns(g.repoPath);
+  const launched = runs.filter((r) => r.launchedAt !== null && within(g, r.launchedAt));
+  const lots = [...launched, ...runs.filter((r) => r.launchedAt === null && within(g, r.createdAt))];
+  const phaseIds = db.listPhases(g.repoPath).filter((p) => within(g, p.createdAt)).map((p) => p.id);
+  const inPhases = phaseIds.length ? db.listCards().filter((c) => c.phaseId !== null && phaseIds.includes(c.phaseId)) : [];
+  const cardIds = [...new Set([...lots.flatMap((r) => db.runMembers(r.id)), ...inPhases].map((c) => c.id))];
+  return { ...g, spent: { lots: launched.length, lotIds: lots.map((r) => r.id), cardIds, phaseIds, quotaPct } };
+}
+
+/** The budget bound the objective has reached, or null — lots, the week's quota, the deadline. Pure. */
+export function goalBound(db: BoardDb, g: Goal, quotaPct: number | null, now = Date.now()): string | null {
+  const lots = goalView(db, g, quotaPct).spent.lots;
+  if (lots >= g.budget.maxLots) return `budget de l'objectif atteint : ${lots} lot(s) sur ${g.budget.maxLots}`;
+  if (quotaPct !== null && quotaPct >= g.budget.quotaPct) return `quota de la semaine à ${quotaPct} % (borne ${g.budget.quotaPct} %)`;
+  if (g.budget.deadline !== null && now > g.budget.deadline) return "l'échéance de l'objectif est passée";
+  return null;
 }
 
 /** `budget` as the operator may send it, merged over `base`; a string says what is wrong. */
@@ -140,7 +159,16 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
 
   if (req.method !== "POST") return ctx.text("method not allowed", 405);
   const { from, to } = MOVES[move]!;
+  // Resuming a claimed objective is refusing the claim: the operator says why, and that is what wakes the orchestrator.
+  const comment = move === "resume" ? text((await bodyOf(req))?.comment) : null;
+  if (move === "resume" && g.status === "claimed" && !comment) return ctx.text("refusing a claimed objective needs a comment: what is still missing", 400);
   if (!db.setGoalStatus(g.id, from, to)) return ctx.text(`cannot ${move} a ${g.status} objective`, 409);
-  audit(`goal.${move}`, { goalId: g.id, repoPath: g.repoPath });
+  audit(`goal.${move}`, { goalId: g.id, repoPath: g.repoPath, ...(comment ? { comment } : {}) });
+  // Journaled for the orchestrator nudger (ADR 0028): nothing runs while it was stopped, so no end of lot would wake it.
+  if (move === "resume") db.recordEvent(null, "goal.resumed", { goalId: g.id, from: g.status, comment });
+  // The phases the orchestrator cut during the objective are not validated one by one: validating the objective closes them.
+  if (move === "achieve")
+    for (const id of goalView(db, g, null).spent.phaseIds)
+      if (db.getPhase(id)?.closedAt === null && !db.phaseHasUnfinishedLot(id)) db.closePhase(id, { moveOpenTo: null, note: "close par la validation de l'objectif" });
   return ctx.json({ goal: goalView(db, db.getGoal(g.id)!, quota()) });
 }

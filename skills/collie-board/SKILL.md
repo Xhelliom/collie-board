@@ -591,13 +591,27 @@ code.
 A repo may have **one open objective** (`active`, `paused` or `claimed`): a text, success criteria, and a
 budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quota, no deadline).
 
-- `GET /api/goals?repo=…` (newest first) or `GET /api/goals/<id>` — each with `spent`: `lots` / `lotIds`
-  (the repo's lots launched while it was open), `cardIds`, and `quotaPct` (the week's gauge, null without a reading).
+- `GET /api/goals?repo=…` (newest first) or `GET /api/goals/<id>` — each with `spent`: `lots` (the repo's
+  lots launched while it was open — what the budget counts), `lotIds` (those plus the lots planned while it
+  was open), `cardIds` (their cards and those of its phases), `phaseIds` (the repo's phases created while it
+  was open), and `quotaPct` (the week's gauge, null without a reading). Nothing to tag: what you create
+  while it is open is attached.
+- **While it is `active`, you work toward it.** You may create cards, lots and phases and launch your own
+  planned lot — `POST /api/runs/<id>/launch` with your pane — **one lot at a time** (`403` while one of the
+  repo's lots is open), with no autonomy setting needed and no `maxChain`. At the end of a lot with nothing
+  planned you are woken with « Objectif pas atteint : relis les critères, planifie et lance la suite ». A
+  decision waiting on the user blocks only its branch — the wake lists them; move on with the rest. Do
+  **not** propose phases for validation: validating the objective closes them.
+- **A bound** (`maxLots` lots launched, the week's quota at `quotaPct`, the deadline passed, or a red lot with
+  `stopOnRed`) pauses it; the user hears it once. Paused, the ordinary autonomy applies.
 - **Claim it reached** — `POST /api/goals/<id>/claim` with your `x-collie-pane`, only from `active`, once
-  every criterion holds. Say which evidence meets each criterion; the user validates.
+  every criterion holds. Say which evidence meets each criterion; the user validates. **Claimed is a full
+  stop**: no lot planned or launched (`403`), no end-of-lot wake, until the user answers. A refusal comes
+  back as a wake carrying the user's comment.
 - **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
   (`409` if one is already open), `PATCH /api/goals/<id>` (text, criteria, budget), and
-  `POST /api/goals/<id>/pause` · `/resume` (also rejects a claim) · `/achieve` (validates) · `/abandon`.
+  `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
+  `/achieve` (validates, and closes the phases created during it) · `/abandon`.
   Propose an objective or an edit to the user; never try to write it.
 
 ### Milestones (ADR 0025): propose, never validate

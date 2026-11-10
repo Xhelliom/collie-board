@@ -1450,7 +1450,7 @@ export interface Goal {
   status: GoalStatus;
   createdAt: number;
   endedAt: number | null;
-  spent: { lots: number; lotIds: string[]; cardIds: string[]; quotaPct: number | null };
+  spent: { lots: number; lotIds: string[]; cardIds: string[]; phaseIds?: string[]; quotaPct: number | null };
 }
 export type GoalMove = "pause" | "resume" | "achieve" | "abandon";
 export const fetchGoals = (repo: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
@@ -1459,8 +1459,9 @@ export const createGoal = (repoPath: string, g: { text: string; criteria: string
   apiRequest("/api/goals", { method: "POST", body: JSON.stringify({ repoPath, ...g }) });
 export const editGoal = (id: string, g: { text: string; criteria: string[]; budget: GoalBudget }): Promise<{ goal: Goal }> =>
   apiRequest(`/api/goals/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(g) });
-export const moveGoal = (id: string, move: GoalMove): Promise<{ goal: Goal }> =>
-  apiRequest(`/api/goals/${encodeURIComponent(id)}/${move}`, { method: "POST" });
+/** `comment`: why a claimed objective is refused — required by the bridge for that resume. */
+export const moveGoal = (id: string, move: GoalMove, comment?: string): Promise<{ goal: Goal }> =>
+  apiRequest(`/api/goals/${encodeURIComponent(id)}/${move}`, { method: "POST", ...(comment ? { body: JSON.stringify({ comment }) } : {}) });
 /** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
 export interface OrchestratorMemory {
   note: string;

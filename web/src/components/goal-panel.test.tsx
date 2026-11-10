@@ -50,6 +50,25 @@ describe("GoalPanel", () => {
     mount();
     expect(await screen.findByText(/says the objective is reached/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Validate reached" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+  });
+
+  it("refuses a claimed objective only with a comment, which it sends", async () => {
+    let sent: unknown = null;
+    const g = { id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
+    server.use(
+      http.get("*/api/goals", () => HttpResponse.json({ goals: [{ ...g, status: "claimed" }] })),
+      http.post("*/api/goals/g1/resume", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ goal: { ...g, status: "active" } });
+      }),
+    );
+    mount();
+    const refuse = await screen.findByRole("button", { name: "Refuse and send back to work" });
+    expect(refuse).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("What is still missing"), "docs");
+    await userEvent.click(refuse);
+    expect(sent).toEqual({ comment: "docs" });
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
   });
 });

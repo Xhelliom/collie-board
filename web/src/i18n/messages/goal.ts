@@ -28,9 +28,11 @@ export const goal = defineMessages({
   "goal.status.achieved": { en: "achieved", fr: "atteint" },
   "goal.status.abandoned": { en: "abandoned", fr: "abandonné" },
   "goal.claimedHint": {
-    en: "The orchestrator says the objective is reached. Validate it, or resume to send it back to work.",
-    fr: "L'orchestrateur dit l'objectif atteint. Valide-le, ou reprends-le pour le renvoyer au travail.",
+    en: "The orchestrator says the objective is reached and has stopped everything until you answer. Validate it, or refuse it saying what is missing.",
+    fr: "L'orchestrateur dit l'objectif atteint et a tout arrêté jusqu'à ta réponse. Valide-le, ou refuse-le en disant ce qui manque.",
   },
+  "goal.refusal": { en: "What is still missing", fr: "Ce qui manque encore" },
+  "goal.refuse": { en: "Refuse and send back to work", fr: "Refuser et renvoyer au travail" },
   "goal.lots": { en: "Lots {spent} / {max}", fr: "Lots {spent} / {max}" },
   "goal.quota": { en: "Quota {spent} / {max} %", fr: "Quota {spent} / {max} %" },
   "goal.quotaUnknown": { en: "Quota ? / {max} %", fr: "Quota ? / {max} %" },

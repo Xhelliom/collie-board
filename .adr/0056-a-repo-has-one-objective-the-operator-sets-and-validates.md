@@ -1,7 +1,7 @@
 # 0056 — Un dépôt a un objectif, que l'opérateur fixe et valide
 
-**Status:** Accepted (l'objet, ses routes, son écran) · les choix par défaut du mode objectif restent
-**proposés** à l'opérateur, décision ouverte sur la roadmap — amends [ADR 0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md)
+**Status:** Accepted (l'objet, ses routes, son écran ; le mode objectif — voir *Le mode objectif* plus bas) ·
+les choix par défaut restent **proposés** à l'opérateur, sauf « déclaré = arrêt net », tranché le 09/11 — amends [ADR 0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md)
 and [ADR 0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) (not edited: this is their successor)
 
 ## Context
@@ -52,3 +52,24 @@ où vit la garantie — sinon l'orchestrateur se fixerait son propre but et son 
   reste celle de 0030/0047, et l'objectif se lit sans rien commander.
 - L'objectif est local à la machine : il n'entre pas au journal partagé (ADR 0048), comme l'autonomie.
 - Les sauvegardes portent la table `goal`.
+
+## Le mode objectif (lot suivant de la phase)
+
+**Tout part du réveil de fin de lot (0028), pas de nouvelle boucle.** `endOfLot()` lit d'abord l'objectif
+ouvert du dépôt :
+
+- **actif** : il remplace `enabled` et `maxChain`. Un lot planifié : lancement permis. Rien de planifié :
+  le réveil dit « objectif pas atteint : relis les critères, planifie et lance la suite » et rappelle les
+  décisions qui attendent l'opérateur (elles ne bloquent que leur branche). L'orchestrateur lance lui-même
+  le lot qu'il a planifié, **un à la fois** (refus tant qu'un lot du dépôt est ouvert), sans grant armé.
+- **borne atteinte** (lots, quota de la semaine, échéance, ou rouge avec `stopOnRed` — après la borne de
+  reprises du lot, 0055) : l'objectif passe en `paused` ; le passage `active → paused` est ce qui fait que
+  l'opérateur est prévenu **une fois**. En pause, l'autonomie 0030/0047 reprend la main.
+- **déclaré (`claimed`) = arrêt net** (tranché le 09/11) : aucun lot créé ni lancé par un pane, aucun réveil
+  de fin de lot, budget gelé, même après 24 h. Reprendre un objectif déclaré, c'est **refuser** la
+  déclaration : un commentaire est exigé, et c'est le journal `goal.resumed` qui réveille l'orchestrateur.
+
+**Le rattachement reste dérivé** : sont à l'objectif les lots lancés ou planifiés pendant qu'il était ouvert,
+leurs cartes, et les phases du dépôt créées pendant ce temps (et leurs cartes). Le budget ne compte que les
+lots lancés. **Valider l'objectif clôt ses phases** encore ouvertes sans lot en cours ; le réveil ne propose
+plus de valider une phase pendant l'objectif.
