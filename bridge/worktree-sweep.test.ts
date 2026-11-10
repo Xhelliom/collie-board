@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gitFreeEnv } from "../scripts/test-env.ts";
 import { BoardDb } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { Mux, WirePane } from "./mux/mux.ts";
@@ -35,7 +36,7 @@ test("the sweep removes a filed card's clean checkout, reports a dirty one, leav
 
 test("at startup: clean worktree of a done card removed with its hc pane, dirty one reported once, live card untouched", async () => {
   const repo = await mkdtemp(join(tmpdir(), "sweep-"));
-  const git = (...args: string[]) => Bun.spawnSync(["git", "-C", repo, ...args]);
+  const git = (...args: string[]) => Bun.spawnSync(["git", "-C", repo, ...args], { env: gitFreeEnv });
   git("init", "-q", "-b", "main");
   git("config", "user.email", "t@t");
   git("config", "user.name", "t");
