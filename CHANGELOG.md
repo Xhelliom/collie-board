@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.291.0] - 2026-11-10
+
+### Added
+
+- Lot : deux cartes parallèles dont les specs citent le même fichier sont signalées (réponse de `POST /api/runs` et sur le lot), avec la proposition d'un `dependsOn` ou de `maxParallel` 1 — rien n'est bloqué (83ffe18)
+
 ## [0.290.0] - 2026-11-10
 
 ### Added
