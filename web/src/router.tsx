@@ -20,8 +20,9 @@ import { CustomPageRoute } from "@/routes/custom-page";
 import { docsLoader } from "@/lib/docs";
 import { recetteLoader } from "@/lib/recette";
 import { ProjectRoute } from "@/routes/project";
+import { RoadmapRoute } from "@/routes/roadmap";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
-import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader } from "@/lib/board-loaders";
+import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader, roadmapLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 import { attachNavCache } from "@/lib/nav-cache";
 
@@ -68,6 +69,8 @@ export const router = createBrowserRouter([
         errorElement: <RootError />,
       },
       { path: "board/project", loader: projectLoader, element: <ProjectRoute />, errorElement: <RootError to={boardPath()} /> },
+      // Polled with the root: the live roadmap, no file to regenerate.
+      { path: "board/roadmap", loader: roadmapLoader, element: <RoadmapRoute />, errorElement: <RootError to={boardPath()} /> },
       {
         path: "board/prs",
         loader: prsLoader,

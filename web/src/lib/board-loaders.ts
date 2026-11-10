@@ -253,3 +253,21 @@ async function loadProject(request: Request | undefined): Promise<ProjectData> {
   ]);
   return { ...base, phases, lots, ...orch, templates, flows };
 }
+
+export interface RoadmapData {
+  repo: string | null;
+  roadmap: Roadmap | null;
+  phases: Phase[];
+}
+
+/** The live roadmap view: read again on every root poll tick, so an orchestrator's PUT shows without a regenerated page. */
+export async function roadmapLoader({ request }: { request?: Request } = {}): Promise<RoadmapData> {
+  const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
+  if (!repo) return { repo: null, roadmap: null, phases: [] };
+  const signal = request?.signal;
+  const [roadmap, phases] = await Promise.all([
+    fetchRoadmap(repo, signal).then((r) => r.roadmap),
+    fetchPhases(repo, signal).then((r) => r.phases, () => []),
+  ]);
+  return { repo, roadmap, phases };
+}
