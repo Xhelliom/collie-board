@@ -78,6 +78,8 @@ const repoOf = (s: string) => s.replace(/\/+$/, "");
 const repoName = (s: string) => s.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || s;
 
 export function createTools(api: BoardApi): BoardTool[] {
+  const openGoal = async (repoPath: string) =>
+    ((await api("GET", `/api/goals${q({ repo: repoOf(repoPath) })}`)).goals ?? []).some((g: Json) => ["active", "paused", "claimed"].includes(g.status));
   const cardTitle = async (cardId: string) => `« ${oneLine((await api("GET", `/api/cards/${id(cardId)}`)).card?.title, 80)} »`;
   return [
     {
@@ -268,6 +270,32 @@ export function createTools(api: BoardApi): BoardTool[] {
       },
     },
     {
+      // ADR 0057: the objective the orchestrator drafted with the operator. As a button the tap is the operator's
+      // yes; called by an agent's MCP client it carries the pane, and the bridge marks the objective `agent`.
+      name: "set_goal", readOnly: false, destructive: true,
+      description: "Fixe l'objectif d'un projet, rédigé avec l'opérateur et sur son accord explicite : actif si aucun n'est ouvert, sinon objectif suivant. Réveille l'orchestrateur, qui dépense alors le budget.",
+      props: {
+        repoPath: { type: "string", description: "Chemin absolu du dépôt (voir list_projects)" },
+        text: { type: "string", description: "Ce qu'il faut atteindre" },
+        criteria: { type: "array", items: { type: "string" }, description: "Critères de réussite, 1 à 20" },
+        budget: { type: "object", description: "Optionnel : {maxLots, quotaPct, deadline}. Défaut : 10 lots, 80 % du quota de la semaine" },
+      },
+      required: ["repoPath", "text", "criteria"],
+      preview: async (a) => {
+        const crit = (Array.isArray(a.criteria) ? a.criteria : []).map((c: unknown) => `• ${oneLine(c, 200)}`);
+        const b = a.budget ?? {};
+        const budget = [b.maxLots && `${b.maxLots} lots au plus`, b.quotaPct && `arrêt à ${b.quotaPct} % du quota`].filter(Boolean).join(", ");
+        return [`${(await openGoal(a.repoPath)) ? "Préparer l'objectif suivant" : "Fixer l'objectif"} de ${repoName(a.repoPath)} : ${clip(String(a.text).trim(), 600)}`, ...crit, ...(budget ? [`Budget : ${budget}`] : [])].join("\n");
+      },
+      run: async (a) => {
+        const body: Json = { repoPath: a.repoPath, text: a.text, criteria: a.criteria };
+        if (a.budget) body.budget = a.budget;
+        if (await openGoal(a.repoPath)) body.next = true;
+        const { goal } = await api("POST", "/api/goals", body);
+        return goal?.status === "queued" ? "Objectif suivant enregistré : il démarrera quand l'objectif courant sera validé." : "Objectif fixé : l'orchestrateur est réveillé.";
+      },
+    },
+    {
       // The card screen's three ways to end a card, each by the same request as its button (card.tsx:
       // IntegrationSection's merge / PR, "Classer → Terminé"): no decision here, the bridge's gate and lock apply.
       name: "finish_card", readOnly: false, destructive: true,
@@ -330,7 +358,7 @@ export function invalidArgs(tool: Pick<BoardTool, "props" | "required">, args: u
   for (const [k, v] of Object.entries(a)) {
     const p = tool.props[k];
     if (!p) return `argument inconnu « ${k} »`;
-    if (typeof v !== p.type) return `« ${k} » doit être de type ${p.type}`;
+    if (p.type === "array" ? !Array.isArray(v) : typeof v !== p.type) return `« ${k} » doit être de type ${p.type}`;
     if (p.enum && !p.enum.includes(v)) return `« ${k} » vaut ${p.enum.join(", ")}`;
   }
   return null;

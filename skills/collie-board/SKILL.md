@@ -550,7 +550,7 @@ code.
   `reply_to_agent` and `notify` are not buttons. An unknown action or bad args: the button is greyed with
   the reason and nothing runs.
 - The button shows what it will do from `action`+`args` (« Fusionner « titre » dans main »), not from
-  your label; a destructive tool (`finish_card`, `launch_lot`) asks for confirmation. The tap is the
+  your label; a destructive tool (`finish_card`, `launch_lot`, `set_goal`) asks for confirmation. The tap is the
   user's, with the user's rights: writing the block runs nothing, and what refuses you still does.
 - No buttons for an open question that wants a sentence — ask for the sentence.
 
@@ -597,7 +597,7 @@ code.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
 
-### The objective (ADR 0056): read it, claim it, never set or validate it
+### The objective (ADR 0056, 0057): draft it with the user, write it on their yes, claim it, never validate it
 
 A repo may have **one open objective** (`active`, `paused` or `claimed`): a text, success criteria, and a
 budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quota, no deadline).
@@ -621,15 +621,23 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
   the user validates. **Claimed is a full
   stop**: no lot planned or launched (`403`), no end-of-lot wake, until the user answers. A refusal comes
   back as a wake carrying the user's comment.
-- **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
-  (`409` if one is already open), `PATCH /api/goals/<id>` (text, criteria, budget), and
-  `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
+- **Write it — only on the user's explicit yes** (ADR 0057). Draft the objective WITH the user in the
+  conversation: the text, verifiable criteria, the budget. Show them the final wording and ask for their
+  agreement. Once they have said yes, either `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
+  with your `x-collie-pane` — `active` if none is open, otherwise `queued` as the next objective (`409` if a
+  next one already waits); it is marked « écrit par l'orchestrateur » and wakes you like any new objective —
+  or end your message with a `set_goal` button (```` ```collie-buttons ````, args `{repoPath, text, criteria,
+  budget?}`): it shows the text and criteria, asks for a second tap, and the user's tap creates it. **Never
+  without an explicit agreement**, and never to change what they agreed to: a different text is a new yes.
+  `PATCH /api/goals/<id>` (text, criteria, budget) is open to you only on a `queued` or `active` objective a
+  pane wrote (`403` otherwise) — same rule: the user agreed to the edit first.
+- **The user's only** (`403` to your pane): `PATCH` on an objective they wrote, or on a paused or claimed
+  one, and `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
   `/achieve` (validates, closes the phases created during it, and starts the next objective if one is
   queued) · `/abandon`. The user may also prepare ONE next objective while one is open — `POST /api/goals`
   with `next: true` (status `queued`, ignored by you until it starts), edited by `PATCH`, deleted by
   `DELETE /api/goals/<id>`, started by hand with `/activate` when nothing is open. A started one wakes you
   like a new objective.
-  Propose an objective or an edit to the user; never try to write it.
 - **Goal mode** — while it is open, the user is not called at each lot's end. Each goal also carries
   `progress` (`lotsDone`, `cardsDone`, `cardsBlocked`, `recettes`) and `journal` (newest first: lot reports
   and checkpoints). The repo's orchestrator posting `POST /api/board/notify {kind:"done"}` lands in that

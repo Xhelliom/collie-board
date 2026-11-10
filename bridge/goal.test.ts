@@ -44,9 +44,8 @@ describe("a repo's objective (ADR 0056)", () => {
     expect(r.body.goal.spent).toEqual({ lots: 0, lotIds: [], cardIds: [], phaseIds: [], quotaPct: null });
   });
 
-  it("refuses an agent pane on create, edit, pause, abandon and validate — but lets it claim", async () => {
+  it("refuses an agent pane on edit of the operator's, pause, abandon and validate — but lets it claim", async () => {
     const db = new BoardDb(":memory:");
-    expect((await call(db, "POST", "/api/goals", NEW, "p1")).status).toBe(403);
     const id = (await call(db, "POST", "/api/goals", NEW)).body.goal.id;
     expect((await call(db, "PATCH", `/api/goals/${id}`, { text: "x" }, "p1")).status).toBe(403);
     for (const m of ["pause", "abandon", "achieve", "resume"]) expect((await call(db, "POST", `/api/goals/${id}/${m}`, undefined, "p1")).status).toBe(403);
@@ -99,7 +98,6 @@ describe("a repo's objective (ADR 0056)", () => {
     const NEXT = { ...NEW, text: "Ship v2", next: true };
     expect((await call(db, "POST", "/api/goals", NEXT)).status).toBe(409); // nothing open to queue behind
     const id = (await call(db, "POST", "/api/goals", NEW)).body.goal.id;
-    expect((await call(db, "POST", "/api/goals", NEXT, "p1")).status).toBe(403);
     const q = await call(db, "POST", "/api/goals", NEXT);
     expect(q.status).toBe(201);
     expect(q.body.goal.status).toBe("queued");
@@ -117,6 +115,28 @@ describe("a repo's objective (ADR 0056)", () => {
     expect(next).toMatchObject({ status: "active", createdAt: 5_000 }); // its lots count from now
     expect(db.eventsAfter(0).slice(seen).map((e) => [e.type, (e.payload as { goalId?: string }).goalId])).toContainEqual(["goal.created", qid]);
     expect((await call(db, "DELETE", `/api/goals/${qid}`)).status).toBe(409); // started: no longer deletable
+  });
+
+  it("an agent pane writes the objective — active, then next — and edits only what a pane wrote (ADR 0057)", async () => {
+    const db = new BoardDb(":memory:");
+    // `origin` in the body is ignored: provenance comes from the header alone.
+    expect((await call(db, "POST", "/api/goals", { ...NEW, origin: "agent" })).body.goal.origin).toBeNull();
+    const db2 = new BoardDb(":memory:");
+    const a = await call(db2, "POST", "/api/goals", NEW, "p1");
+    expect(a.status).toBe(201);
+    expect(a.body.goal).toMatchObject({ status: "active", origin: "agent" });
+    expect(db2.eventsAfter(0).map((e) => e.type)).toContain("goal.created"); // wakes the orchestrator as the operator's would
+    const q = await call(db2, "POST", "/api/goals", { ...NEW, text: "Ship v2" }, "p1"); // one open: queued, no `next` asked
+    expect(q.body.goal).toMatchObject({ status: "queued", origin: "agent" });
+    expect((await call(db2, "POST", "/api/goals", { ...NEW, text: "Ship v3" }, "p1")).status).toBe(409); // one next at most
+    const [id, qid] = [a.body.goal.id, q.body.goal.id];
+    expect((await call(db2, "PATCH", `/api/goals/${id}`, { text: "Ship v1.1", budget: { maxLots: 3 } }, "p2")).body.goal).toMatchObject({ text: "Ship v1.1", budget: { maxLots: 3 } });
+    expect((await call(db2, "PATCH", `/api/goals/${qid}`, { criteria: ["one"] }, "p1")).body.goal.criteria).toEqual(["one"]);
+    for (const m of ["pause", "resume", "achieve", "abandon"]) expect((await call(db2, "POST", `/api/goals/${id}/${m}`, undefined, "p1")).status).toBe(403);
+    expect((await call(db2, "POST", `/api/goals/${qid}/activate`, undefined, "p1")).status).toBe(403);
+    expect((await call(db2, "DELETE", `/api/goals/${qid}`, undefined, "p1")).status).toBe(403);
+    await call(db2, "POST", `/api/goals/${id}/pause`);
+    expect((await call(db2, "PATCH", `/api/goals/${id}`, { text: "x" }, "p1")).status).toBe(403); // paused: the operator's hand is on it
   });
 
   it("deletes a waiting next objective, and starts an orphaned one by hand", async () => {

@@ -1485,6 +1485,8 @@ export interface Goal {
   criteria: string[];
   budget: GoalBudget;
   status: GoalStatus;
+  /** `agent`: written by the orchestrator on the operator's spoken yes (ADR 0057). Absent from an older bridge. */
+  origin?: "agent" | null;
   createdAt: number;
   endedAt: number | null;
   spent: { lots: number; lotIds: string[]; cardIds: string[]; phaseIds?: string[]; quotaPct: number | null };

@@ -44,7 +44,7 @@ describe("mcp: protocol", () => {
     const tools = Object.fromEntries(list.result.tools.map((t) => [t.name, t]));
     for (const n of ["list_projects", "project_status", "get_card", "whats_blocking", "recent_notifications", "list_deliverables", "read_deliverable", "project_roadmap"]) expect(tools[n]!.annotations.readOnlyHint).toBe(true);
     for (const n of ["reply_to_agent", "create_card", "launch_lot", "notify", "finish_card", "message_orchestrator", "publish_file"]) expect(tools[n]!.annotations.readOnlyHint).toBe(false);
-    for (const n of ["launch_lot", "finish_card"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
+    for (const n of ["launch_lot", "finish_card", "set_goal"]) expect(tools[n]!.annotations.destructiveHint).toBe(true);
     for (const t of Object.values(tools)) expect(t.description.length).toBeGreaterThan(10);
   });
 });

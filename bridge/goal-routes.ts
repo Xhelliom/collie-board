@@ -1,5 +1,6 @@
-// A repo's objective — ADR 0056. The operator sets it, edits it, pauses, abandons and validates it;
-// an agent pane may only read it and claim it reached. Its lots are derived (launched while it was
+// A repo's objective — ADR 0056, amended by 0057. The operator pauses, abandons and validates it; an
+// agent pane may read it, claim it reached, write one on the operator's spoken yes and edit the one a
+// pane wrote. Its lots are derived (launched while it was
 // open), never declared, and its quota is the week's gauge the dashboard already reads.
 
 import type { BoardContext } from "./board-routes.ts";
@@ -156,8 +157,10 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
   const denied = ctx.guard("write");
   if (denied) return denied;
   const move = m?.[2];
-  // Setting, editing, pausing, abandoning and validating the objective are the operator's (ADR 0056).
-  if (pane && move !== "claim") return ctx.text("the objective is the operator's — an agent pane may read it and claim it reached, nothing else", 403);
+  // Pausing, resuming, abandoning, validating, starting and deleting the objective are the operator's
+  // (ADR 0056). Writing one, and editing one a pane wrote, are open to a pane (ADR 0057).
+  const writes = !move && (pathname === GOALS ? req.method === "POST" : req.method === "PATCH");
+  if (pane && move !== "claim" && !writes) return ctx.text("pausing, resuming, validating, abandoning, starting and deleting the objective are the operator's", 403);
 
   if (pathname === GOALS) {
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
@@ -172,11 +175,12 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
     const budget = parseBudget(b.budget, DEFAULT_BUDGET);
     if (typeof budget === "string") return ctx.text(budget, 400);
     // `next`: the objective to start once the open one is validated — one, prepared while it runs.
-    const next = b.next === true;
+    // A pane has no choice to make: its objective is the next one whenever one is open (ADR 0057).
+    const next = b.next === true || (pane !== null && db.listGoals(repoPath).some((x) => OPEN.includes(x.status)));
     if (next && !db.listGoals(repoPath).some((x) => OPEN.includes(x.status))) return ctx.text("no open objective to queue behind — set this one as the objective", 409);
-    const g = db.createGoal({ repoPath, text: t, criteria: c, budget }, next ? "queued" : "active");
+    const g = db.createGoal({ repoPath, text: t, criteria: c, budget }, next ? "queued" : "active", pane ? "agent" : null);
     if (!g) return ctx.text(next ? "this repo already has a next objective — edit or delete it" : "this repo already has an open objective — finish, abandon or edit it", 409);
-    audit("goal.create", { goalId: g.id, repoPath, ...(next ? { next } : {}) });
+    audit("goal.create", { goalId: g.id, repoPath, ...(next ? { next } : {}), ...(pane ? { pane } : {}) });
     if (next) return ctx.json({ goal: goalView(db, g, quota()) }, 201);
     // Journaled for the orchestrator nudger: with no lot running, no end of lot would ever start the objective.
     db.recordEvent(null, "goal.created", { goalId: g.id });
@@ -193,6 +197,8 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
   }
   if (!move) {
     if (req.method !== "PATCH") return ctx.text("method not allowed", 405);
+    if (pane && (g.origin !== "agent" || (g.status !== "queued" && g.status !== "active")))
+      return ctx.text("an agent pane may only edit a queued or active objective a pane wrote", 403);
     if (g.status !== "queued" && !OPEN.includes(g.status)) return ctx.text(`a ${g.status} objective is closed`, 409);
     const b = await bodyOf(req);
     if (!b) return ctx.text("bad body", 400);
@@ -203,7 +209,7 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
     const budget = parseBudget(b.budget, g.budget);
     if (typeof budget === "string") return ctx.text(budget, 400);
     const edited = db.editGoal(g.id, { text: t, criteria: c, budget })!;
-    audit("goal.edit", { goalId: g.id, repoPath: g.repoPath });
+    audit("goal.edit", { goalId: g.id, repoPath: g.repoPath, ...(pane ? { pane } : {}) });
     return ctx.json({ goal: goalView(db, edited, quota()) });
   }
 
