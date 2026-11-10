@@ -1,3 +1,4 @@
+import { MuxUnsupported } from "./mux/mux.ts";
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
@@ -309,6 +310,26 @@ describe("sendReplySteps — two-step send & partial-failure clarity", () => {
   }
 
   const noSleep = async () => {};
+
+  test("an engine with a one-call paste+Enter (hc) takes the unframed line, forced or not", async () => {
+    const lines: [string, boolean][] = [];
+    const client = Object.assign(new FakeClient(), {
+      sendPaneLine: async (_p: string, text: string, force: boolean) => void lines.push([text, force]),
+    });
+    const out = await sendReplySteps(client, "p1", "framed", true, ["Enter"], noSleep, { text: "raw", force: true });
+    expect(out).toEqual({ ok: true, textDelivered: true });
+    expect(lines).toEqual([["raw", true]]);
+    expect(client.calls).toEqual([]);
+  });
+
+  test("an engine without it (herdr) falls back to text then keys", async () => {
+    const client = Object.assign(new FakeClient(), {
+      sendPaneLine: () => Promise.reject(new MuxUnsupported("herdr09", "sendPaneLine")),
+    });
+    const out = await sendReplySteps(client, "p1", "hello", true, ["Enter"], noSleep, { text: "hello", force: true });
+    expect(out).toEqual({ ok: true, textDelivered: true });
+    expect(client.calls).toEqual(["text", "keys"]);
+  });
 
   test("types then submits on the happy path", async () => {
     const client = new FakeClient();

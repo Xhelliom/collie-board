@@ -196,6 +196,10 @@ Status: 🔵 ready · 🟡 needs extraction · ⚪ not started · 🟢 submitted
 
 → [`docs/upstream/prs/44-idle-screens-a-claude-dialog-herdr-calls-idle-re.md`](docs/upstream/prs/44-idle-screens-a-claude-dialog-herdr-calls-idle-re.md)
 
+## 46. 🟡 AskUserQuestion — the whole question, and its free-text row
+
+→ [`docs/upstream/prs/46-askuserquestion-the-whole-question-and-its-free.md`](docs/upstream/prs/46-askuserquestion-the-whole-question-and-its-free.md)
+
 ## Never offer as one PR
 
 → [`docs/upstream/prs/45-never-offer-as-one-pr.md`](docs/upstream/prs/45-never-offer-as-one-pr.md)

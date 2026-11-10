@@ -13,7 +13,7 @@ import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
-import type { Mux, PaneRead } from "./mux/mux.ts";
+import { MuxUnsupported, type Mux, type PaneRead } from "./mux/mux.ts";
 import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
@@ -929,6 +929,7 @@ async function resolvePanePage(
 /** Just the two one-shot RPCs a reply needs — real Mux in the bridge, fake in tests. */
 export interface ReplySender {
   sendPaneText(paneId: string, text: string): Promise<void>;
+  sendPaneLine?(paneId: string, text: string, force: boolean): Promise<void>;
   sendPaneKeys(paneId: string, keys: string[]): Promise<void>;
 }
 
@@ -956,9 +957,19 @@ export async function sendReplySteps(
   submit: boolean,
   submitKeys: string[],
   sleep: SleepFn = defaultSleep,
+  /** The reply unframed, for an engine whose one paste comes with Enter (hc): tried first when submitting. */
+  line?: { text: string; force: boolean },
 ): Promise<ReplyOutcome> {
   let textDelivered = false;
   try {
+    if (submit && line?.text && client.sendPaneLine) {
+      try {
+        await client.sendPaneLine(paneId, line.text, line.force);
+        return { ok: true, textDelivered: true };
+      } catch (err) {
+        if (!(err instanceof MuxUnsupported)) throw err; // herdr: the two calls below
+      }
+    }
     if (txt) {
       await client.sendPaneText(paneId, txt);
       textDelivered = true;
@@ -993,7 +1004,7 @@ async function replyPane(
   onDelivered: (text: string) => void,
   engine: StateEngine,
 ): Promise<Response> {
-  let body: { text?: string; submit?: boolean };
+  let body: { text?: string; submit?: boolean; force?: boolean };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -1002,7 +1013,10 @@ async function replyPane(
   const txt = body.text ?? "";
   const submit = body.submit ?? true;
   const ae = req.headers.get("accept-encoding");
-  const outcome = await sendReplySteps(herdr, paneId, asPaste(engine.current(), paneId, txt), submit, cfg.submitKeys);
+  const outcome = await sendReplySteps(herdr, paneId, asPaste(engine.current(), paneId, txt), submit, cfg.submitKeys, undefined, {
+    text: txt,
+    force: body.force === true,
+  });
   // Audit the attempt regardless of outcome — text may have landed even when the submit failed.
   audit.record({
     action: "reply",

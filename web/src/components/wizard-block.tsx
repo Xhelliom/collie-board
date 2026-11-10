@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 
 import { WizardStepper } from "@/components/wizard-stepper";
 import type { WizardModel, WizardOption } from "@/lib/blocks";
-import { OptionButton, PromptPanel, QuestionHeading } from "@/components/option-button";
+import { FreeTextRow, OptionButton, PromptPanel, QuestionHeading } from "@/components/option-button";
 import {
   WIZARD_BACK_KEYS,
   WIZARD_CANCEL_KEYS,
@@ -22,6 +22,8 @@ export interface WizardBlockProps {
    * simply clears the busy state.
    */
   onAction: (keys: string[]) => void | Promise<void>;
+  /** Injected free-text handler; the step's "Type something." row renders only when it is given. */
+  onFreeText?: (text: string) => void | Promise<void>;
   /** Read-only device or a gone pane: everything renders (for context) but can't be pressed. */
   disabled?: boolean;
 }
@@ -31,7 +33,7 @@ export interface WizardBlockProps {
 // the single source of truth for selections; Collie holds no form state of its own. Every visible
 // string (chip labels, question, options, answers) is a React text node — the XSS boundary is
 // unchanged. One control can be in flight at a time (spinner shows, the rest lock).
-export function WizardBlock({ wizard, onAction, disabled }: WizardBlockProps) {
+export function WizardBlock({ wizard, onAction, onFreeText, disabled }: WizardBlockProps) {
   const [sending, setSending] = useState<string | null>(null);
   const locked = disabled || sending !== null;
 
@@ -68,6 +70,11 @@ export function WizardBlock({ wizard, onAction, disabled }: WizardBlockProps) {
           locked={locked}
           sendingId={sending}
           onPress={press}
+          freeText={
+            wizard.freeText && onFreeText ? (
+              <FreeTextRow keyLabel={wizard.freeText.n} disabled={locked} onSubmit={onFreeText} />
+            ) : null
+          }
         />
       ) : (
         <ReviewStep wizard={wizard} locked={locked} sendingId={sending} onPress={press} />
@@ -82,7 +89,9 @@ function QuestionStep({
   locked,
   sendingId,
   onPress,
+  freeText,
 }: {
+  freeText: ReactNode;
   question: string;
   options: WizardOption[];
   locked: boolean;
@@ -117,6 +126,7 @@ function QuestionStep({
             />
           );
         })}
+        {freeText}
       </div>
       {/* The escape row ("Chat about this") ends the WHOLE wizard — the tool call resolves as
           declined — so it renders apart and de-emphasised, never like an answer. */}

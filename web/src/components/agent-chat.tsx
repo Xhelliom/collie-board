@@ -24,6 +24,7 @@ import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
 import { closePane, fetchHistory, sendKeys } from "@/lib/api";
 import { BlockedScreenBanner } from "@/components/blocked-screen-banner";
+import { submitFreeText, type FreeTextModel } from "@/lib/free-text-action";
 import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
 import { collectImages, openLightbox } from "@/lib/lightbox";
 import { setStatus } from "@/lib/status";
@@ -442,7 +443,7 @@ export function AgentChat({
   // tapped was derived from `shown.text`, so `shown.revision` is the revision of what they saw
   // (the live `revision` prop may have advanced under a frozen mirror). A stale tap is discarded
   // with a "menu changed" notice and a revalidate; a clean send snaps back to the tail so the
-  // result is visible. The composer stays live for the free-text rows we don't render as buttons.
+  // result is visible. The free-text row has its own handler (handleFreeText).
   const handlePromptAction = useCallback(
     async (option: PromptOption, prompt: PromptModel) => {
       if (readOnly) {
@@ -457,6 +458,28 @@ export function AgentChat({
         prompt,
         option,
       });
+      if (result.status === "sent") {
+        setFollowing(true);
+        revalidator.revalidate();
+        listRef.current?.scrollToBottom();
+      } else if (result.status === "changed") {
+        setStatus(tr("pane.changed.menu"), "warn");
+        revalidator.revalidate();
+      } else {
+        setStatus(result.error || tr("pane.sendFailed"), "error");
+      }
+    },
+    [readOnly, paneId, session, requestedLines, shown.revision, revalidator],
+  );
+
+  // Answer a dialog's "Type something." row: same guard, then digit → text → Enter.
+  const handleFreeText = useCallback(
+    async (text: string, model: FreeTextModel) => {
+      if (readOnly) {
+        setStatus(tr("pane.readOnlyStatus"), "error");
+        return;
+      }
+      const result = await submitFreeText({ paneId, session, requestedLines, detectedRevision: shown.revision, model, text });
       if (result.status === "sent") {
         setFollowing(true);
         revalidator.revalidate();
@@ -1052,6 +1075,7 @@ export function AgentChat({
             dialogDisabled={readOnly || gone}
             onPromptAction={handlePromptAction}
             onWizardAction={handleWizardAction}
+            onFreeText={handleFreeText}
             onPreviewAction={handlePreviewAction}
             onMultiSelectAction={handleMultiSelectAction}
           />
@@ -1124,6 +1148,7 @@ export function AgentChat({
                   agent={grammarsOn ? agent?.agent : undefined}
                   onPromptAction={handlePromptAction}
                   onWizardAction={handleWizardAction}
+                  onFreeText={handleFreeText}
                   onPreviewAction={handlePreviewAction}
                   onMultiSelectAction={handleMultiSelectAction}
                   promptDisabled={readOnly || gone}

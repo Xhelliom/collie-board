@@ -174,6 +174,8 @@ export const pane = defineMessages({
   "pane.dialog.ready": { en: "Ready to submit your answers?", fr: "Prêt à envoyer tes réponses ?" },
   "pane.dialog.previewed": { en: "Previewed below", fr: "Aperçu ci-dessous" },
   "pane.dialog.noteFor": { en: "Note for this question", fr: "Note pour cette question" },
+  "pane.dialog.freeText": { en: "Type your own answer…", fr: "Tape ta propre réponse…" },
+  "pane.dialog.freeTextSend": { en: "Send this answer", fr: "Envoyer cette réponse" },
   "pane.dialog.noteText": { en: "Note text", fr: "Texte de la note" },
   "pane.dialog.noteHint": { en: "Add context for your answer…", fr: "Ajoute du contexte à ta réponse…" },
   "pane.dialog.saveNote": { en: "Save note", fr: "Enregistrer la note" },
