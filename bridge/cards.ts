@@ -33,6 +33,7 @@ import {
 } from "./db.ts";
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
+import { landedBase } from "./lot.ts";
 import type { CreatedWorktree, Mux } from "./mux/mux.ts";
 import { HC_NO_NOTIFY_HINT, HC_SPACE } from "./mux/hc.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
@@ -864,7 +865,9 @@ export async function startCard(
       ? predecessor.branch
       : null;
   // The card's own base (`baseOf`, git.ts): the one answer every diff of it will read later.
-  const ownBase = await baseOf(card, opts.git);
+  // …unless that base is a finished lot's branch (a follow-up of one of its cards): that lot's base.
+  const filedBase = await baseOf(card, opts.git);
+  const ownBase = filedBase && landedBase(db, card, filedBase);
   const base = predecessorBranch ?? ownBase;
 
   // A NEW BRANCH FORKS FROM THE MORE COMPLETE OF THE LOCAL BASE AND ORIGIN'S — see

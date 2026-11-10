@@ -16,7 +16,7 @@ import { join } from "node:path";
 import type { AgentAdapter } from "./adapters.ts";
 import { COPILOT_DOWN_AFTER, copilotDown, REVIEW_OUTCOMES } from "./board-notify.ts";
 import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
-import type { Config } from "./config.ts";
+import { boardBranchPrefix, type Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
 import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
@@ -512,6 +512,9 @@ export class RunCoordinator {
       }
       case "pr": {
         if (this.ports.direct(run.repoPath)) return this.mergeDirect(run, card);
+        // A lot cut from a board branch (an older lot's, a card's) would be "merged" into it, never into the repo's.
+        if (run.integration === "lot" && run.lotBase?.startsWith(boardBranchPrefix()))
+          return this.halt(run, card.id, `lot PR: its base ${run.lotBase} is a board branch, not the repo's default — merged there, the lot would never reach it`);
         const r = await this.ports.openPr(card, this.mergeGate(run, card));
         if (r.ok) return this.landed(run, card, session);
         if (r.error.kind !== "conflict") return this.halt(run, card.id, `PR: ${r.error.message}`);
@@ -786,6 +789,12 @@ export function runHook(
     },
     fold: async (run, card) => {
       // The card forks from the lot, whatever it was filed against.
+      // A card that started before its lot was launched never went through `prepareLot`: no lot branch yet.
+      if (!run.lotBranch) {
+        const cut = await prepareLot(db, run, card);
+        if (!cut.ok) return { ok: false, error: { kind: "other", message: cut.error } };
+        run = db.getRun(run.id) ?? run;
+      }
       if (card.baseRef !== run.lotBranch) db.patchCard(card.id, { baseRef: run.lotBranch }, "folded into the lot");
       const r = await foldIntoLot(card.repoPath!, run.lotBranch!, card.branch!);
       return r.ok ? { ok: true } : { ok: false, error: { kind: r.kind, message: r.error } };

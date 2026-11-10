@@ -6,7 +6,7 @@ import { gitFreeEnv } from "../scripts/test-env.ts";
 
 import { BoardDb, doneOutsideLot } from "./db.ts";
 import { baseOf } from "./git.ts";
-import { ensureLotBranch, foldIntoLot, lotBranchOf, lotPrCard, lotView, prepareLot } from "./lot.ts";
+import { ensureLotBranch, foldIntoLot, landedBase, lotBranchOf, lotPrCard, lotView, prepareLot } from "./lot.ts";
 
 const sh = (cwd: string, ...args: string[]) => {
   const p = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
@@ -116,6 +116,41 @@ describe("prepareLot — what startCard forks from", () => {
     expect(await prepareLot(db, lot, db.getCard(b!.id)!)).toEqual({ ok: true });
     expect(await baseOf(db.getCard(b!.id)!)).toBe(lot.lotBranch);
     expect(db.getRun(run.id)!.lotBase).toBe("main");
+  });
+});
+
+describe("a follow-up of a card of a FINISHED lot (CrewDesign, 2026-11-10)", () => {
+  // The follow-up is born with the reviewed card's base — the old lot's branch.
+  const world = async () => {
+    const dir = repo();
+    const db = new BoardDb(":memory:");
+    const old = db.createCard({ title: "old", repoPath: dir, status: "ready", baseRef: "main" });
+    const oldRun = db.createRun({ repoPath: dir, cardIds: [old.id], foldInCap: 0, integration: "lot", name: "Lot 3" });
+    await prepareLot(db, db.getRun(oldRun.id)!, old);
+    const oldLot = db.getRun(oldRun.id)!.lotBranch!;
+    const next = db.createCard({ title: "suite", repoPath: dir, status: "ready", baseRef: oldLot, origin: "copilot" });
+    return { dir, db, old, oldRun, oldLot, next };
+  };
+
+  it("its new lot is cut from the old lot's base, never from the old lot's branch", async () => {
+    const { dir, db, old, oldRun, oldLot, next } = await world();
+    db.recordRunEvent(old.id, "run.finished", { runId: oldRun.id });
+    const run = db.createRun({ repoPath: dir, cardIds: [next.id], foldInCap: 0, integration: "lot", name: "IA CAO" });
+
+    expect(await prepareLot(db, db.getRun(run.id)!, db.getCard(next.id)!)).toEqual({ ok: true });
+    const lot = db.getRun(run.id)!;
+    expect(lot.lotBase).toBe("main"); // what the lot's PR targets
+    expect(lot.lotBranch).not.toBe(oldLot);
+    expect(db.getCard(next.id)!.baseRef).toBe(lot.lotBranch);
+  });
+
+  it("started on its own it forks from that base too — and from the lot's branch while the lot still runs", async () => {
+    const { db, old, oldRun, oldLot, next } = await world();
+    expect(landedBase(db, next, oldLot)).toBe(oldLot);
+    db.recordRunEvent(old.id, "run.finished", { runId: oldRun.id });
+    expect(landedBase(db, next, oldLot)).toBe("main");
+    // A card of that lot keeps its own lot's branch.
+    expect(landedBase(db, db.getCard(old.id)!, oldLot)).toBe(oldLot);
   });
 });
 
