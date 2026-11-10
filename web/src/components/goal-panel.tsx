@@ -146,7 +146,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
   if (!goals) return null;
   const open = goals.find((g) => OPEN.has(g.status)) ?? null;
   const queued = goals.find((g) => g.status === "queued") ?? null;
-  const last = open ? null : (goals.find((g) => g.status !== "queued") ?? null);
+  const past = goals.filter((g) => g.status === "achieved" || g.status === "abandoned").sort((a, b) => (b.endedAt ?? b.createdAt) - (a.endedAt ?? a.createdAt));
   const put = (g: Goal) => setGoals((all) => [g, ...(all ?? []).filter((x) => x.id !== g.id)]);
   const fail = (e: unknown) => setStatus(boardErrorMessage(e), "error", null);
 
@@ -202,7 +202,6 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
       ) : !open ? (
         <>
           <p className="text-xs text-muted-foreground">{t("goal.none")}</p>
-          {last && <p className="text-xs text-muted-foreground">{t("goal.last", { text: last.text, status: t(`goal.status.${last.status}`) })}</p>}
           <button type="button" onClick={() => setEditing("open")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
             {t("goal.define")}
           </button>
@@ -323,6 +322,24 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
             {t("goal.prepareNext")}
           </button>
         )
+      )}
+      {past.length > 0 && (
+        <details className="border-t pt-1.5">
+          <summary className="flex min-h-11 cursor-pointer select-none items-center text-xs font-semibold text-muted-foreground">{t("goal.history", { n: past.length })}</summary>
+          <ul className="flex max-h-72 flex-col gap-1.5 overflow-y-auto">
+            {past.map((g) => (
+              <li key={g.id} className="rounded-lg border p-2 text-xs">
+                <div className="flex flex-wrap justify-between gap-x-2 text-muted-foreground">
+                  <span className={g.status === "achieved" ? "font-medium text-foreground" : "font-medium"}>{t(`goal.status.${g.status}`)}</span>
+                  <span className="tabular-nums">
+                    {new Date(g.createdAt).toLocaleDateString()} → {g.endedAt === null ? "?" : new Date(g.endedAt).toLocaleDateString()} · {t("goal.historyLots", { n: g.spent.lots })}
+                  </span>
+                </div>
+                <p className="mt-0.5 whitespace-pre-wrap">{g.text}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </section>
   );

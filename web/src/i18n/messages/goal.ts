@@ -78,5 +78,6 @@ export const goal = defineMessages({
   "goal.activate": { en: "Start it", fr: "Le démarrer" },
   "goal.delete": { en: "Delete", fr: "Supprimer" },
   "goal.deleteConfirm": { en: "Tap again to delete", fr: "Touche encore pour supprimer" },
-  "goal.last": { en: "Last objective: {text} ({status})", fr: "Dernier objectif : {text} ({status})" },
+  "goal.history": { en: "Past objectives ({n})", fr: "Objectifs passés ({n})" },
+  "goal.historyLots": { en: "{n} lots", fr: "{n} lots" },
 });
