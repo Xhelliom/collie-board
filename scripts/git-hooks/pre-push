@@ -10,6 +10,11 @@ ROOT="$(git rev-parse --show-toplevel)"
 # ── Untracked files (a diff importing a file never `git add`ed fails only for the reviewer) ──
 "$ROOT/scripts/check-untracked.sh"
 
+# ── Nothing below may inherit git's environment ──
+# git exports GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE… to its hooks and reads them BEFORE cwd or `-C`:
+# a test that spawns git in a temp repo without gitFreeEnv would commit and move refs in THIS repository.
+for v in $(compgen -e | grep '^GIT_' || true); do unset "$v"; done
+
 # ── Typecheck (the Vite build does NOT typecheck; catch it before it ships) ──
 if [ "${SKIP_TYPECHECK:-}" = "1" ]; then
   echo "pre-push: SKIP_TYPECHECK=1 — skipping typecheck" >&2
