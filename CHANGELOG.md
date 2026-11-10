@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.287.0] - 2026-11-10
+
+### Added
+
+- Carte « business » (travail non-code) : livre un document, sans gate ni CI requise, recette « à relire » (6ef4142)
+- Interrupteur « Travail non-code » à la création d'une carte ; « Nouvelle page » crée une carte business (6ef4142)
+- Le lead juge le document d'une carte business et ne la renvoie jamais faute de code ou de tests (6ef4142)
+
 ## [0.286.0] - 2026-11-10
 
 ### Added
