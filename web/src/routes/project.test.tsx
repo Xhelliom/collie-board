@@ -546,12 +546,18 @@ describe("ProjectRoute", () => {
       expect(document.getElementById("step-shipped")).not.toBeNull();
     });
 
-    it("folds an open phase whose steps are all done on its heading — Validate and its bar kept, amber — and drops it from the phase strip", async () => {
+    it("folds an open phase whose steps are all done on its heading — Validate (green, a check) and its bar kept, a green dot — and drops it from the phase strip", async () => {
       mount([card({ id: "a", phaseId: "P1", status: "done" }), card({ id: "b", phaseId: "P2", status: "working" })], { phases: [phase("P1"), phase("P2", 1)] });
       const head = await screen.findByRole("button", { name: "P1", expanded: false });
       const section = head.closest("li")!;
-      expect(within(section).getByRole("button", { name: "Validate this phase" })).toBeInTheDocument();
-      expect(section.querySelector(".bg-amber-500")).not.toBeNull();
+      const validate = within(section).getByRole("button", { name: "Validate this phase" });
+      expect(validate).toHaveClass("text-status-done");
+      expect(validate.querySelector("svg")).not.toBeNull();
+      expect(head.querySelector(".bg-status-done")).not.toBeNull();
+      expect(section.querySelector(".bg-amber-500")).toBeNull();
+      const pending = within(screen.getByRole("button", { name: "P2", expanded: true }).closest("li")!).getByRole("button", { name: "Validate this phase" });
+      expect(pending).not.toHaveClass("text-status-done");
+      expect(pending.querySelector("svg")).toBeNull();
       expect(within(section).getByText("1 / 1")).toBeInTheDocument();
       expect(document.getElementById("step-a")).toBeNull();
       expect(screen.getByRole("button", { name: "P2", expanded: true })).toBeInTheDocument();
