@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794348107279.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Pre-push : les tests héritent de GIT_DIR et écrivent dans le vrai dépôt (commit « init », main déplacé)","status":"backlog"},"ts":1794348097649}}
 {"v":1,"hlc":"1794349403868.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"5c509390-c0bb-440f-b505-8da979f17fc5"}}
 {"v":1,"hlc":"1794349403868.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5391914e-2931-4719-83c7-5c11c4e99093"}}
+{"v":1,"hlc":"1794349405989.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
