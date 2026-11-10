@@ -329,6 +329,23 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(db.listEvents(a.id).some((e) => e.type.startsWith("run."))).toBe(false);
   });
 
+  it("halts at once on the lead's « blocked outside » verdict, with its reason and no round spent", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    land(db, a);
+    const w = world(db);
+    w.checks.push({ decision: "blocked", reason: "the emulator will not boot: disk 99 %", operator: "free disk space" });
+    w.coord.update(snap({ p: "idle" }));
+    await flush();
+    expect(w.calls.filter((c) => c.startsWith("prompt"))).toEqual([]);
+    expect(events(db, a, "run.decision")).toEqual([]);
+    expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toBe(
+      "blocked outside the code: the emulator will not boot: disk 99 % — operator: free disk space",
+    );
+  });
+
   it(`halts a card after ${MAX_ROUNDS} rounds without finished, and the run reads halted`, async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r" });

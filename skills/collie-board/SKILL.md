@@ -583,7 +583,10 @@ code.
   user why and let them resume it.
   **Except (ADR 0055)**: with autonomy on — or the repo's objective active — **the repo's orchestrator** may resume it itself when the
   halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
-  work, a failed start. Fix the cause first if it is yours to fix, then send the same POST with your
+  work, a failed start, or the lead's **`blocked outside the code: <why> — operator: <what to do>`**
+  (a full disk, an absent emulator, a missing secret, a refused access: the lead stops the lot at
+  once, no round spent). That last one is the user's to fix: tell them the reason and what to do,
+  and resume only once they say it is dealt with. Fix the cause first if it is yours to fix, then send the same POST with your
   `x-collie-pane`. At most **3** such resumes per lot; past it, or for a decision halt (the lead's
   rounds ran out, finished with no commit, a verdict), or another pair's lot, it is `403` — tell the user.
   A card halts after **`maxRounds`** send-backs by the lead with no finish (the repo's « Rounds before

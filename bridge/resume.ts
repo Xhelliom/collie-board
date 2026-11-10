@@ -3,6 +3,7 @@
 
 import type { BoardDb, BoardEvent, Run } from "./db.ts";
 import { openGoalOf } from "./goal-mode.ts";
+import { EXTERNAL_BLOCK } from "./lead.ts";
 import { findOrchestrator } from "./orchestrator.ts";
 import { heldHalts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -23,6 +24,8 @@ const MECHANICAL = [
 /** Is this halt one the orchestrator may lift? Pure over its payload. */
 export function mechanicalHalt(p: { reason?: unknown; leadSilent?: unknown }): boolean {
   const reason = typeof p.reason === "string" ? p.reason : "";
+  // The lead's `blocked` verdict: lifted once the operator says the outside cause is dealt with. Before DECISION — the prefix is the board's, not a quote.
+  if (reason.startsWith(EXTERNAL_BLOCK)) return true;
   if (DECISION.test(reason)) return false;
   return p.leadSilent === true || MECHANICAL.some((re) => re.test(reason));
 }
