@@ -1,0 +1,1 @@
+{"v":1,"hlc":"1794349403867.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Fiabilité git et hc","goal":"Les tests ne touchent jamais le vrai dépôt ; tout envoi vers un pane marche sous hc.","position":45,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794349402324}}
