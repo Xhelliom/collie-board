@@ -8,7 +8,8 @@ import type { CheckDecision, ConflictDecision, TriageDecision } from "./lead.ts"
 import { checkPrompt, LeadSilent } from "./lead.ts";
 import { currentStep } from "./pipeline.ts";
 import { lotView } from "./lot.ts";
-import { briefOf, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
+import { reconcile } from "./cards.ts";
+import { briefOf, orphanedHalt, resumeRun, RunCoordinator, runState, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 const snap = (panes: Record<string, string> = {}, bridge = "connected"): EngineSnapshot =>
@@ -101,7 +102,8 @@ function world(
     },
     fileAsDone: (c) => {
       calls.push(`done ${c.title}`);
-      db.closeSession(db.openSessionFor(c.id)!.id, "done");
+      const open = db.openSessionFor(c.id);
+      if (open) db.closeSession(open.id, "done");
       db.setStatus(c.id, "done", "manual");
     },
     gateCommand: () => gate,
@@ -520,6 +522,73 @@ describe("RunCoordinator (ADR 0017)", () => {
     expect(events(db, a, "run.decision")).toHaveLength(1); // the check was not asked again
     expect(w.calls).toEqual([]); // no start, no prompt to the worker
     expect(resumeRun(db, db.getRun(run.id)!)).toBe(0);
+  });
+
+  it("a member orphaned by a Collie stop right after the triage opens its PR at the first connected snapshot", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const s = db.openSession({ cardId: a.id, paneId: "p" });
+    db.createReview({ cardId: a.id, sessionId: s.id, verdict: "ok", todos: [] });
+    land(db, a);
+    const w = world(db, { reviewing: true });
+    w.coord.update(snap({ p: "idle" })); // check → finished
+    await flush();
+    w.triages.push({ verdict: { accept: true, reason: "fine" }, followUps: [] });
+    w.coord.update(snap({ p: "idle" })); // triage — then Collie stops, the machine with it
+    await flush();
+    expect(events(db, a, "run.triaged")).toHaveLength(1);
+
+    // Restart: a fresh coordinator; the first connected snapshot has no pane `p` any more.
+    const after = world(db, { reviewing: true });
+    reconcile(db, snap({}), Date.now() + 86_400_000); // the next day: well past the start grace
+    expect(db.getCard(a.id)!.status).toBe("orphaned");
+    after.coord.update(snap({}));
+    await flush();
+    after.coord.update(snap({}));
+    await flush();
+    expect(after.calls).toEqual(["pr a", "done a"]);
+    expect(events(db, a, "run.halted")).toHaveLength(0);
+    expect(runState(run, [{ card: db.getCard(a.id)!, events: db.listEvents(a.id) }])).toBe("finished");
+  });
+
+  it("a member orphaned before the lead's verdict halts the lot once, with a readable reason", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    db.openSession({ cardId: a.id, paneId: "p" });
+    land(db, a);
+    reconcile(db, snap({}), Date.now() + 86_400_000); // the next day: well past the start grace
+    const w = world(db);
+    w.coord.update(snap({}));
+    await flush();
+    w.coord.update(snap({}));
+    await flush();
+    expect(w.calls).toEqual([]);
+    expect(events(db, a, "run.halted").map((e) => (e.payload as { reason: string }).reason)).toEqual([
+      "its agent's pane is gone (Collie, Herdr or the machine stopped) before the lead judged its work — relaunch the card",
+    ]);
+    expect(runState(run, [{ card: db.getCard(a.id)!, events: db.listEvents(a.id) }])).toBe("halted");
+  });
+
+  it("orphanedHalt: only the steps after the lead's verdict go on without the worker", () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const ev = () => db.listEvents(a.id, 200);
+    const why = (reviewing = false) => orphanedHalt(run.id, ev(), { reviewing, next: null });
+    expect(why()).toContain("while it was working");
+    land(db, a);
+    expect(why()).toContain("before the lead judged its work");
+    db.recordRunEvent(a.id, "run.decision", { runId: run.id, decision: "prompt", prompt: "x", reason: "x" });
+    expect(why()).toContain("send-back");
+    db.recordRunEvent(a.id, "run.decision", { runId: run.id, decision: "finished", reason: "ok" });
+    expect(why()).toBeNull();
+    expect(why(true)).toContain("before the lead triaged the review");
+    db.recordRunEvent(a.id, "run.triaged", { runId: run.id, verdict: null, accept: true, reason: "ok" });
+    expect(why(true)).toBeNull();
+    db.recordEvent(a.id, "card.resolve_requested", {});
+    expect(why()).toContain("conflict");
   });
 
   it("a conflict goes to the worker, and its next landing is a re-check", async () => {
