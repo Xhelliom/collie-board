@@ -4,3 +4,9 @@
 {"v":1,"hlc":"1794345659459.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"5f2fa645-bf03-474c-95ed-663416fe7ceb"}}
 {"v":1,"hlc":"1794345659460.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c2c75b75-9723-4b55-8fa7-b68fe65f7fb6"}}
 {"v":1,"hlc":"1794346817160.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794346828098.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/upstream-retirer-upstream-des-fragments-du-scrip"}}
+{"v":1,"hlc":"1794346828098.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794346828098.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794346820067}}
+{"v":1,"hlc":"1794346828098.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794346828098.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794346824561}}
+{"v":1,"hlc":"1794346828098.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3307},"ts":1794346824803}}
