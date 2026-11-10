@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794332924331.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"58c92aa5-dc23-403e-afa9-397cbf864ca2"}}
 {"v":1,"hlc":"1794332924331.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"565ce913-5051-4caf-b745-dcfdf68119c8"}}
 {"v":1,"hlc":"1794332936451.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794332940726.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/lead-arreter-le-lot-sur-un-blocage-exterieur-ave"}}
+{"v":1,"hlc":"1794332940727.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794332940727.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794332939632}}
+{"v":1,"hlc":"1794332948786.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794332948786.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794332944250}}
+{"v":1,"hlc":"1794332948786.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3233},"ts":1794332944500}}
