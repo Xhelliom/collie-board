@@ -185,10 +185,18 @@ export function stepFor(
     if (word?.type === REMOTE_IDLE && after(word, halted)) return { kind: "halt", reason: `stopped on ${card.environment.peer} without a PR — push its branch and open the PR there, or move the card` };
     return null;
   }
-  // Only a worker that has landed and sits quietly. `blocked` is a question — never ours to answer.
-  if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
-  // Busy with the board's own handoff or wrapup ask.
-  if (!ctx.session || ctx.session.handoffRequestedAt !== null || isAutoHandoffPending(ctx.session)) return null;
+  // Its pane vanished — Collie, Herdr or the machine stopped (cards.ts orphans it). The steps after the
+  // lead's verdict need no worker and resume on their own; any other waits on a relaunch, said once.
+  const gone = card.status === "orphaned";
+  if (gone) {
+    const lost = orphanedHalt(run.id, events, ctx);
+    if (lost) return after(held, newest(events, (e) => e.type === "card.status")) ? null : { kind: "halt", reason: lost };
+  } else {
+    // Only a worker that has landed and sits quietly. `blocked` is a question — never ours to answer.
+    if (card.status !== "review" || (ctx.pane !== "idle" && ctx.pane !== "done")) return null;
+    // Busy with the board's own handoff or wrapup ask.
+    if (!ctx.session || ctx.session.handoffRequestedAt !== null || isAutoHandoffPending(ctx.session)) return null;
+  }
   // Halted since this landing: the operator's until the worker lands again, or the run is resumed —
   // which picks up at the step that halted (a triage asked again, not the worker). An infra halt
   // keeps asking GitHub: once the check is green again, the PR merges and the card is filed.
@@ -226,7 +234,7 @@ export function stepFor(
 
   if (ctx.reviewing && !events.some((e) => e.type === "run.triaged" && isRun(e, run.id))) {
     if (ctx.review === "pending") return null;
-    if (ctx.review === "done") return { kind: "triage", sessionId: ctx.session.id };
+    if (ctx.review === "done") return { kind: "triage", sessionId: ctx.session!.id };
   }
   const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
   // ADR 0041: a card of a one-PR lot lands in the lot branch first. Only the last one to land has a PR to open.
@@ -239,6 +247,23 @@ export function stepFor(
   // Filed once landed, nothing less (ADR 0036): merged, or GitHub's auto-merge armed. Until then the
   // land step asks GitHub again — a wait is answered later, a refusal halts or goes back (`landed`).
   return after(landing(events), pr) ? { kind: "file" } : { kind: "land" };
+}
+
+/**
+ * Why an orphaned member cannot go on without its worker, or null when what is left — fold, PR, land,
+ * file — needs none. Pure.
+ */
+export function orphanedHalt(runId: string, events: BoardEvent[], ctx: { next?: AgentTemplate | null; reviewing: boolean }): string | null {
+  const why = (stage: string) => `its agent's pane is gone (Collie, Herdr or the machine stopped) ${stage} — relaunch the card`;
+  const landed = newest(events, (e) => e.type === "card.status" && (e.payload as { to?: string }).to === "review");
+  const decision = newest(events, (e) => e.type === "run.decision" && isRun(e, runId) && isVerdict(e));
+  if (!landed) return why("while it was working");
+  if (!after(decision, landed)) return why("before the lead judged its work");
+  if ((decision!.payload as { decision: string }).decision !== "finished") return why("before it took up the lead's send-back");
+  if (after(newest(events, (e) => e.type === "card.resolve_requested"), decision)) return why("before it settled its conflict");
+  if (ctx.next) return why(`before its next step, ${ctx.next.name}`);
+  if (ctx.reviewing && !events.some((e) => e.type === "run.triaged" && isRun(e, runId))) return why("before the lead triaged the review");
+  return null;
 }
 
 const REMOTE_WORDS = new Set([REMOTE_IDLE, REMOTE_IDLE_CLEARED, REMOTE_LAUNCHED, REMOTE_ENDED]);
@@ -488,7 +513,7 @@ export class RunCoordinator {
       case "pr": {
         if (this.ports.direct(run.repoPath)) return this.mergeDirect(run, card);
         const r = await this.ports.openPr(card, this.mergeGate(run, card));
-        if (r.ok) return this.landed(run, card, session!);
+        if (r.ok) return this.landed(run, card, session);
         if (r.error.kind !== "conflict") return this.halt(run, card.id, `PR: ${r.error.message}`);
         const settled = await this.ports.resolveConflict(card);
         if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
@@ -507,7 +532,7 @@ export class RunCoordinator {
           this.landAsked.delete(card.id); // nothing asked: the next tick asks
           return;
         }
-        return this.landed(run, card, session!);
+        return this.landed(run, card, session);
       }
       case "file":
         return this.ports.fileAsDone(card);
@@ -576,7 +601,7 @@ export class RunCoordinator {
    * worker's agent, against origin's base (ADR 0014). Anything else the board refused to merge — the
    * operator's: the card is halted, never filed with its PR open (ADR 0035).
    */
-  private async landed(run: Run, card: Card, session: CardSession): Promise<void> {
+  private async landed(run: Run, card: Card, session: CardSession | null): Promise<void> {
     const events = this.db.listEvents(card.id, 200);
     const pr = newest(events, (e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
     if (after(landing(events), pr)) return this.ports.fileAsDone(this.db.getCard(card.id)!);
@@ -587,6 +612,7 @@ export class RunCoordinator {
     if (p.ci) {
       // Still red under an infra halt: the worker already found nothing to fix — wait for green.
       if (infraHeld(events, run.id)) return;
+      if (!session) return this.halt(run, card.id, `the check ${p.ci.name} failed on GitHub, and the card's agent is gone — relaunch the card to fix it`);
       const prompt = ciPrompt(p.ci.name, p.ci.log);
       await this.sendFailure(card, session, prompt);
       this.db.recordRunEvent(card.id, "run.decision", { runId: run.id, decision: "prompt", prompt, ci: p.ci.name, reason: `the check ${p.ci.name} failed on GitHub` });
