@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.280.0] - 2026-11-10
+
+### Added
+
+- Objectif par dépôt (ADR 0056) : texte, critères, budget (lots, % du quota de la semaine, échéance), statut (f459b88)
+- Routes `/api/goals` : créer, éditer, pause, reprise, abandon, validation à l'opérateur seul ; un pane agent ne peut que revendiquer « atteint » (f459b88)
+- Un seul objectif ouvert par dépôt (f459b88)
+- Bloc « Objectif » sur la page projet : définir, voir critères, budget consommé et cartes rattachées (f459b88)
+
 ## [0.279.0] - 2026-11-09
 
 ### Added
