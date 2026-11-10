@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794342806965.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Carte mergée pendant que son worker poussait encore : commits perdus hors de main","status":"backlog"},"ts":1794342798635}}
 {"v":1,"hlc":"1794342969943.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"bab856a0-4527-4a36-a15e-e9993a0e2d3d"}}
 {"v":1,"hlc":"1794342969943.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9ae11784-8248-4ccf-b9f3-a85f7f020420"}}
+{"v":1,"hlc":"1794342972622.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
