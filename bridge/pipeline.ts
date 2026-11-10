@@ -8,7 +8,7 @@
 
 import { join } from "node:path";
 
-import { agentNameFor, initialPrompt, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, cardTab, initialPrompt, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
 import type { AgentAdapter } from "./adapters.ts";
 import type { BoardDb, BoardEvent, Card, CardSession, AgentTemplate } from "./db.ts";
@@ -108,7 +108,7 @@ async function swapRole(
   if (!card.workspaceId || !session.paneId) throw new Error("card has no workspace or pane");
   // The checkout, said out loud: hc has no workspace for the new pane to inherit it from.
   const cwd = (card.repoPath && card.branch && (await worktreePathFor(card.repoPath, card.branch).catch(() => null))) || undefined;
-  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd });
+  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd, show: cardTab(card) });
   db.closeSession(session.id, "pipeline");
   try {
     await herdr.closePane(session.paneId);

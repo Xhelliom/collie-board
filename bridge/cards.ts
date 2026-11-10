@@ -34,7 +34,7 @@ import {
 import { installDeps } from "./deps.ts";
 import { baseOf, branchExists, ensureBoardExcluded, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 import { landedBase } from "./lot.ts";
-import type { CreatedWorktree, Mux } from "./mux/mux.ts";
+import { boardTab, type BoardTab, type CreatedWorktree, type Mux } from "./mux/mux.ts";
 import { HC_NO_NOTIFY_HINT, HC_SPACE } from "./mux/hc.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
 import { manualChecksPrompt } from "./recette.ts";
@@ -59,6 +59,10 @@ const ORPHAN_GRACE_MS = 15_000;
  * launch waits 60 s for the agent (`AGENT_READY_TIMEOUT_MS`) after the deps install; a bridge restart
  * mid-launch (2026-11-06) leaves the shell with nobody to say so — this is who says it.
  */
+/** A card's tab in herdr-app (hc): one per card, « <dépôt> · <titre court> ». */
+export const cardTab = (card: { id: string; title: string; repoPath?: string | null }): BoardTab =>
+  boardTab(card.id, card.repoPath ?? "", card.title.slice(0, 40));
+
 export const NO_AGENT_MS = 10 * 60_000;
 export const NO_AGENT_REASON = "no agent ever came up in this pane — start the card again";
 
@@ -896,12 +900,13 @@ export async function startCard(
       branch,
       base,
       label: card.title.slice(0, 40),
+      show: cardTab(card),
     });
   } catch (createErr) {
     // The checkout already exists — the relaunch path. Open it instead; only if THAT fails too do
     // we report, and we report the create error, which is the one that names the real problem.
     try {
-      worktree = await herdr.openWorktree({ cwd: card.repoPath, branch });
+      worktree = await herdr.openWorktree({ cwd: card.repoPath, branch, show: cardTab(card) });
     } catch {
       return { ok: false, error: { kind: "herdr", message: (createErr as Error).message } };
     }

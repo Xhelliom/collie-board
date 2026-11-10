@@ -19,7 +19,7 @@
 import { join } from "node:path";
 
 import type { Config } from "./config.ts";
-import { agentNameFor, isAgentGone, launchAgent, promptAndConfirm } from "./cards.ts";
+import { agentNameFor, cardTab, isAgentGone, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
@@ -252,7 +252,7 @@ export async function swapToFreshSession(
   // last pane, which would take the worktree's window with it.
   // The checkout, said out loud: hc has no workspace for the new pane to inherit it from.
   const cwd = (card.repoPath && card.branch && (await worktreePathFor(card.repoPath, card.branch).catch(() => null))) || undefined;
-  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd });
+  const created = await herdr.createTab(card.workspaceId, { label: card.title.slice(0, 40), cwd, show: cardTab(card) });
 
   db.closeSession(session.id, "handoff");
   try {

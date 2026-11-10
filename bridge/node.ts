@@ -4,7 +4,7 @@ import { isAbsolute, join } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm, trustFolder } from "./cards.ts";
 import { defaultBranchOf, diffFile, diffStat, normalizeRemote, originUrl } from "./git.ts";
-import type { Mux } from "./mux/mux.ts";
+import { boardTab, type Mux } from "./mux/mux.ts";
 import { redactDeep } from "./redact.ts";
 
 // The peer surface (ADR 0046 §2 and §4, as revised by decision bed340b1: no central). Every machine
@@ -382,7 +382,7 @@ export function liveNodeActions(
       // Idempotent like `startCard`: a retry after a launch the caller never heard back from reopens
       // that checkout, and keeps an agent already in it rather than launching a second one.
       const wt = await c
-        .createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40) })
+        .createWorktree({ cwd: env.repoPath, branch, base, label: `${peer}: ${prompt}`.slice(0, 40), show: boardTab(branch, env.repoPath, `${peer}: ${prompt}`.slice(0, 40)) })
         .catch((createErr) =>
           c.openWorktree({ cwd: env.repoPath, branch }).catch((openErr) =>
             Promise.reject(new Error(`${(createErr as Error).message} — reopening it failed too: ${(openErr as Error).message}`)),

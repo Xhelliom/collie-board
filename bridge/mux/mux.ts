@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { AgentStatus } from "../types.ts";
 import { hcSocketPath, type Config } from "../config.ts";
 import { DEFAULT_TIMEOUT_MS, Herdr09 } from "./herdr09.ts";
@@ -152,6 +153,19 @@ export interface WireAgent extends WirePane {
   interactive_ready?: boolean;
 }
 
+/**
+ * Where herdr-app files a pane the BOARD starts (hc only — herdr 0.9 has its own workspaces and ignores
+ * it): one tab per `tab` id, titled `title`, in the one « Collie Board » space. Never set it for a
+ * shell the operator opens himself: his terminals stay out of that space.
+ */
+export interface BoardTab {
+  tab: string;
+  title: string;
+}
+
+/** « <dépôt> · <quoi> » — the title every board tab carries. */
+export const boardTab = (tab: string, repoPath: string, what: string): BoardTab => ({ tab, title: `${basename(repoPath)} · ${what}` });
+
 /** A worktree-backed workspace, ready to launch an agent in. */
 export interface CreatedWorktree {
   /** Absolute path of the checkout — the cwd every `git` call for this card runs in. */
@@ -185,8 +199,8 @@ export interface Mux {
   }): { close(): void };
 
   // ── Spaces and tabs (no hc equivalent: an hc engine rejects with MuxUnsupported) ──
-  createWorkspace(opts: { cwd: string; label?: string }): Promise<CreatedShell>;
-  createTab(workspaceId: string, opts?: { label?: string; cwd?: string }): Promise<CreatedShell>;
+  createWorkspace(opts: { cwd: string; label?: string; show?: BoardTab }): Promise<CreatedShell>;
+  createTab(workspaceId: string, opts?: { label?: string; cwd?: string; show?: BoardTab }): Promise<CreatedShell>;
   renameTab(tabId: string, label: string): Promise<void>;
   closeTab(tabId: string): Promise<void>;
 
@@ -209,8 +223,8 @@ export interface Mux {
   paneProcess(paneId: string): Promise<{ pid: number; cwd: string; name: string } | null>;
 
   // ── Worktrees ──
-  createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string }): Promise<CreatedWorktree>;
-  openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree>;
+  createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string; show?: BoardTab }): Promise<CreatedWorktree>;
+  openWorktree(opts: { cwd: string; branch: string; label?: string; show?: BoardTab }): Promise<CreatedWorktree>;
   removeWorktree(opts: { workspaceId: string; force?: boolean }): Promise<void>;
 
   // ── Agents — only through launchAgent()/promptAndConfirm() in cards.ts ──

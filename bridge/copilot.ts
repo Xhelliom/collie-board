@@ -1223,7 +1223,7 @@ export class Copilot {
     const label = this.label;
     const shell = here[0];
     const paneId =
-      shell?.paneId ?? (await this.herdr.createWorkspace({ cwd: this.workDir, label })).paneId;
+      shell?.paneId ?? (await this.herdr.createWorkspace({ cwd: this.workDir, label, show: { tab: this.tag, title: label } })).paneId;
 
     const kind = this.cfg.boardCopilotKind || this.cfg.boardAgentKind;
     // Same pre-approval as a card's checkout: on a fresh install nobody ever answered Claude Code's
