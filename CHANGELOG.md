@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.297.5] - 2026-11-10
+
+### Fixed
+
+- Écrire à un pane hc depuis le composeur : la réponse part en un appel (coller + Entrée), plus de toast « hc: sendPaneText is not supported ». (e523f9c)
+- Réponse relayée par un pair vers un pane hc : même chemin. (e523f9c)
+- Un envoi sans Entrée sous hc (note d'un aperçu) est refusé par une phrase lisible, sans Entrée parasite. (e523f9c)
+- pre-push : les suites de tests tournent sans aucune variable `GIT_*` héritée de git — un test qui oublie `gitFreeEnv` n'écrit plus dans le dépôt poussé (0b061c9)
+
 ## [0.297.4] - 2026-11-10
 
 ### Added
