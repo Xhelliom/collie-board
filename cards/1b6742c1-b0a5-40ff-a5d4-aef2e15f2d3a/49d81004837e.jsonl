@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240080613.0009.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"37df0f2b-5e3a-4486-9b79-0e488fc7b67a"}}
 {"v":1,"hlc":"1794240080613.0010.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Une carte « business » : livrable document, sans CI ni gate","status":"backlog"},"ts":1794240079304}}
 {"v":1,"hlc":"1794240080621.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"771528a6-888d-48e2-8659-6720af516394"}}
+{"v":1,"hlc":"1794302808352.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
