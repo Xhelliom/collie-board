@@ -77,6 +77,23 @@ export async function foldIntoLot(repoPath: string, lot: string, branch: string,
   return moved.ok ? { ok: true, merged: true } : fail("busy", moved);
 }
 
+/**
+ * La base où une carte doit vraiment partir : `base`, sauf si c'est la branche d'un AUTRE lot, fini —
+ * alors la base de ce lot-là (remontée de lot en lot). Une carte suite hérite de la base de la carte
+ * revue, donc de la branche de son lot : ce lot fini et fusionné, y forker renvoie le travail (et la PR)
+ * vers une branche morte, jamais vers la branche par défaut.
+ */
+export function landedBase(db: Pick<BoardDb, "listRuns" | "runFinishedAt">, card: Pick<Card, "repoPath" | "runId">, base: string): string {
+  const runs = card.repoPath ? db.listRuns(card.repoPath) : [];
+  const seen = new Set<string>();
+  for (;;) {
+    const old = runs.find((r) => r.lotBranch === base && r.lotBase && r.id !== card.runId && !seen.has(r.id) && db.runFinishedAt(r.id) !== null);
+    if (!old) return base;
+    seen.add(old.id);
+    base = old.lotBase!;
+  }
+}
+
 /** Le `prepareLot` en cours par lot : les suivants l'attendent. En mémoire — un redémarrage n'a rien en vol. */
 const preparing = new Map<string, Promise<unknown>>();
 
@@ -90,7 +107,7 @@ const preparing = new Map<string, Promise<unknown>>();
  * suivante trouve la branche déjà là et la reprend.
  */
 export function prepareLot(
-  db: Pick<BoardDb, "setLotBranch" | "patchCard">,
+  db: Pick<BoardDb, "setLotBranch" | "patchCard" | "listRuns" | "runFinishedAt">,
   run: Pick<Run, "id" | "name" | "lotBranch">,
   card: Card,
   git: GitRunner = runGit,
@@ -102,14 +119,15 @@ export function prepareLot(
 }
 
 async function prepareLotNow(
-  db: Pick<BoardDb, "setLotBranch" | "patchCard">,
+  db: Pick<BoardDb, "setLotBranch" | "patchCard" | "listRuns" | "runFinishedAt">,
   run: Pick<Run, "id" | "name" | "lotBranch">,
   card: Card,
   git: GitRunner,
 ): Promise<{ ok: true } | { ok: false; kind: "base" | "git"; error: string }> {
   let lot = run.lotBranch;
   if (!lot) {
-    const base = await baseOf(card, git);
+    const own = await baseOf(card, git);
+    const base = own && landedBase(db, card, own);
     if (!base) return { ok: false, kind: "base", error: "no base to cut the lot branch from" };
     lot = lotBranchOf(run);
     const r = await ensureLotBranch(card.repoPath!, lot, base, git);

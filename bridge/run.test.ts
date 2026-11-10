@@ -1145,6 +1145,21 @@ describe("one PR for the lot (ADR 0041)", () => {
     expect(db.listEvents(cards[0]!.id, 50).some((e) => e.type === "card.lot_merged")).toBe(true);
   });
 
+  it("a lot cut from an older lot's branch never opens its PR there: it halts instead of reading as merged", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    const run = db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0, integration: "lot" });
+    db.setLotBranch(run.id, "board/lot-new-1", "board/lot-old-3");
+    const w = world(db);
+    w.coord.update(snap());
+    await flush();
+    land(db, a);
+    for (let i = 0; i < 8; i++) (w.coord.update(snap({ "p-a": "idle" })), await flush());
+    expect(w.calls.some((c) => c.startsWith("pr ") || c.startsWith("done "))).toBe(false);
+    expect((db.listEvents(a.id, 200).find((e) => e.type === "run.halted")!.payload as { reason: string }).reason).toContain("board/lot-old-3");
+    expect(db.getCard(a.id)!.status).toBe("review");
+  });
+
   it("a card set on a peer: started there without the lot branch, the lot's PR left to the local cards, filed at its own PR's merge", async () => {
     const db = new BoardDb(":memory:");
     const a = db.createCard({ title: "a", repoPath: "/r", status: "ready", position: 0 });
