@@ -111,6 +111,21 @@ describe("RecetteRoute", () => {
     expect(screen.getByText("Already fine")).toBeInTheDocument();
   });
 
+  it("filters code or business, and the choice is remembered on the device", async () => {
+    const groups = [
+      { usage: null, entries: [entry({ cardId: "c1", capability: "Code thing" }), entry({ cardId: "b1", capability: "Offer page", category: "business" })] },
+    ];
+    mount(groups);
+    await screen.findByText("Code thing");
+    await userEvent.click(screen.getByRole("button", { name: "Business" }));
+    expect(screen.queryByText("Code thing")).toBeNull();
+    expect(screen.getByText("Offer page")).toBeInTheDocument();
+    expect(localStorage.getItem("collie:card-sort")).toBe("business");
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    expect(screen.getByText("Code thing")).toBeInTheDocument();
+    expect(screen.queryByText("Offer page")).toBeNull();
+  });
+
   it("folds the list when more than three are to test, and a click unfolds one in place", async () => {
     mount([{ usage: null, entries: ["c1", "c2", "c3", "c4"].map((id) => entry({ cardId: id, capability: `Capability ${id}` })) }]);
     const toggle = (await screen.findByText("Capability c2")).closest("button")!;

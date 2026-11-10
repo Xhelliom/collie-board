@@ -23,6 +23,8 @@ export interface RecetteEntry {
   capability: string;
   repoPath: string | null;
   assignee: string | null;
+  /** The card's category — `business` makes it a business entry (optional: an older bridge does not send it). */
+  category?: string | null;
   state: RecetteState;
   /** A KO whose follow-up card is delivered: over, like an OK. */
   followUpDone: boolean;
