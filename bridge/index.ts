@@ -30,6 +30,7 @@ import { NotifyPrefsStore } from "./notify-prefs.ts";
 import { Push } from "./push.ts";
 import { findOrchestrator, isOrchestratorAgent } from "./orchestrator.ts";
 import { lotHoldsPush } from "./lot-push.ts";
+import { GoalWatch, openGoalOf } from "./goal-mode.ts";
 import { OrchestratorNudger } from "./orchestrator-nudge.ts";
 import { StuckCards } from "./stuck-card.ts";
 import { prFollowHook } from "./pr-follow.ts";
@@ -286,6 +287,7 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
         enabled: () => notifyPrefs.current().lots,
         db: board,
         orchestratorAlive: (repo) => findOrchestrator(engine.current(), repo) !== null,
+        goalOpen: (repo) => openGoalOf(board, repo) !== null,
       }),
   );
   // The raw AgentView a transition fires with never carries card fields — withCardFields is
@@ -384,6 +386,9 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // …and of a lot's card whose agent stalls (blocked, idle or gone for 10 min) — once per episode.
     const stuck = new StuckCards(board, herdr);
     engine.onUpdate((snap) => stuck.update(snap), "stuckCards");
+    // An open objective's checkpoints (budget half spent / spent, claimed): journaled, then pushed by the tailer.
+    const goalWatch = new GoalWatch(board);
+    engine.onUpdate((snap) => goalWatch.update(snap), "goalWatch");
     // The shared board's journal (ADR 0048 §3): fetch/send for the repos marked shared, throttled
     // inside the consumer — one git op in flight per repo, no timer. Fire-and-forget like the gauge.
     const journalSync = new JournalSync(board, new Hlc(loadPairId(cfg.stateDir)));

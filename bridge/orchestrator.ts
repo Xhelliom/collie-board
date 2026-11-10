@@ -93,6 +93,8 @@ export function orchestratorPrompt(
     "Notifications — pendant un lot lancé, le bridge ne pousse plus au téléphone les étapes de ses cartes (fin du worker, verdict, review du copilote, carte prête, fin du lot) : elles restent dans la cloche. Le push, c'est toi :",
     "- À la fin d'un lot, envoie UNE notification de bilan : POST /api/board/notify {kind: \"done\", message, persistent: true} — ce qui est mergé, ce qui est bloqué.",
     "- Si une carte reste bloquée sans que le lead l'ait débloquée, envoie UNE question : POST /api/board/notify {kind: \"question\", message, persistent: true}. Une seule par carte bloquée, jamais une par étape.",
+    "- Mode objectif (un objectif ouvert sur ce dépôt, GET /api/goals?repo=<dépôt>) : l'opérateur n'est plus appelé à chaque fin de lot. Ton bilan `done` va au journal de l'objectif, le bridge l'y range sans push ;",
+    "  c'est lui qui envoie le point d'étape regroupé (moitié du budget, budget atteint, objectif déclaré). Tu ne pousses qu'une `question`, pour une décision qui lui revient — elle laisse aussi un point d'étape au journal.",
     "",
     "Mémoire — l'état vit dans le board, pas dans ta conversation (elle peut se compacter ou être renouvelée) :",
     "- Lis d'abord ta note de mémoire (GET /api/orchestrator/memory?repo=<dépôt>), puis la roadmap, les phases, les lots et les cartes.",

@@ -3033,6 +3033,16 @@ export class BoardDb {
     return this.getGoal(id);
   }
 
+  /** The objective's journal — lot bilans and checkpoints, card-less events carrying its id — newest first. */
+  goalJournal(goalId: string, limit = 50): BoardEvent[] {
+    return this.db
+      .query<EventRow, [string, number]>(
+        "SELECT * FROM event WHERE card_id IS NULL AND type IN ('goal.journal', 'goal.checkpoint') AND json_extract(payload, '$.goalId') = ? ORDER BY id DESC LIMIT ?",
+      )
+      .all(goalId, limit)
+      .map(toEvent);
+  }
+
   /** Move `id` to `to` only from one of `from` — false when it was elsewhere (or a resume collides with another open one). */
   setGoalStatus(id: string, from: GoalStatus[], to: GoalStatus): boolean {
     const ts = this.now();

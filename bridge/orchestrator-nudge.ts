@@ -9,6 +9,7 @@ import { findOrchestrator } from "./orchestrator.ts";
 import { promptAndConfirm } from "./cards.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { endOfLot } from "./autonomy.ts";
+import { openGoalOf } from "./goal-mode.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import type { PrStatus } from "./git.ts";
 import { prStatusFor } from "./integrate.ts";
@@ -44,6 +45,10 @@ export function lotMessage(name: string | null, cards: Card[], blocked: Set<stri
         : ["Ne lance rien et ne valide rien toi-même."]),
   ].join("\n");
 }
+
+/** Goal mode (goal-mode.ts): where the lot's bilan goes while an objective is open. */
+export const GOAL_LOT_LINE =
+  "Un objectif est ouvert sur ce dépôt : ce bilan va au journal de l'objectif (POST /api/board/notify {kind: \"done\", message} — le bridge l'y range, rien ne part au téléphone). Ne pousse une question que pour une décision qui revient à l'opérateur.";
 
 /** The message for one card the lead reports unmerged or blocked. Pure. */
 export function cardMessage(card: Card, why: string): string {
@@ -124,7 +129,9 @@ export class OrchestratorNudger {
       this.db.recordRunEvent(null, "run.chain", { runId: run.id, go: v.go, why, next: v.go ? v.next.id : null });
       if (!v.go && v.why) this.log?.add({ cwd: run.repoPath, status: "blocked", subtitle: `orchestrateur arrêté — ${v.why}`, pushed: false });
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto) };
+      const text = lotMessage(run.name, cards, blocked, merged, ends && phase ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null, run.repoPath, auto);
+      const goal = openGoalOf(this.db, run.repoPath);
+      return { repoPath: run.repoPath, text: goal ? `${text}\n${GOAL_LOT_LINE}` : text };
     }
     // A wait (`wait: true` — no check registered yet, checks running, mergeability unknown) is not a
     // verdict: the land step asks again and settles it at CHECKS_GRACE_MS. Only a real refusal wakes it.

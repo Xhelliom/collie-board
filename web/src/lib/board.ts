@@ -1451,6 +1451,10 @@ export interface Goal {
   createdAt: number;
   endedAt: number | null;
   spent: { lots: number; lotIds: string[]; cardIds: string[]; quotaPct: number | null };
+  /** Absent from a bridge older than goal mode. */
+  progress?: { lotsDone: number; cardsDone: number; cardsBlocked: number; recettes: number };
+  /** Newest first: the orchestrator's lot bilans and the bridge's checkpoints. */
+  journal?: { ts: number; type: "goal.journal" | "goal.checkpoint"; reason: "half" | "spent" | "claimed" | "decision" | null; message: string }[];
 }
 export type GoalMove = "pause" | "resume" | "achieve" | "abandon";
 export const fetchGoals = (repo: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
