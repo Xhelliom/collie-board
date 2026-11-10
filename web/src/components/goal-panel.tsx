@@ -128,6 +128,7 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [editing, setEditing] = useState(false);
+  const [refusal, setRefusal] = useState("");
   const { pending, confirm } = usePendingConfirm();
 
   useEffect(() => {
@@ -154,10 +155,11 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
       setStatus(boardErrorMessage(e), "error", null);
     }
   };
-  const move = async (m: GoalMove) => {
+  const move = async (m: GoalMove, comment?: string) => {
     if (!open || (m === "abandon" && !confirm(open.id))) return;
     try {
-      put((await moveGoal(open.id, m)).goal);
+      put((await moveGoal(open.id, m, comment)).goal);
+      setRefusal("");
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
     }
@@ -224,7 +226,15 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
             </div>
           )}
           <GoalJournal goal={open} />
-          {open.status === "claimed" && <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>}
+          {open.status === "claimed" && (
+            <>
+              <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                {t("goal.refusal")}
+                <textarea value={refusal} onChange={(e) => setRefusal(e.target.value)} rows={2} maxLength={2000} className={field} />
+              </label>
+            </>
+          )}
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => void move("achieve")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
               {t("goal.achieve")}
@@ -232,6 +242,11 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
             {open.status === "active" ? (
               <button type="button" onClick={() => void move("pause")} className={btn}>
                 {t("goal.pause")}
+              </button>
+            ) : open.status === "claimed" ? (
+              // A claim is refused with a reason: that reason is what sends the orchestrator back to work.
+              <button type="button" disabled={!refusal.trim()} onClick={() => void move("resume", refusal.trim())} className={`${btn} disabled:opacity-50`}>
+                {t("goal.refuse")}
               </button>
             ) : (
               <button type="button" onClick={() => void move("resume")} className={btn}>

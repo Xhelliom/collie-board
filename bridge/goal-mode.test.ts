@@ -24,7 +24,7 @@ function lot(db: BoardDb, done = true) {
 }
 
 describe("goal mode: thresholds", () => {
-  const v = (lots: number, quota: number | null, deadline: number | null = null) => ({ budget: { maxLots: 10, quotaPct: 80, deadline }, spent: { lots, lotIds: [], cardIds: [], quotaPct: quota } });
+  const v = (lots: number, quota: number | null, deadline: number | null = null) => ({ budget: { maxLots: 10, quotaPct: 80, deadline }, spent: { lots, lotIds: [], cardIds: [], phaseIds: [], quotaPct: quota } });
 
   it("the budget is the larger of lots and quota, all spent once the deadline passed", () => {
     expect(budgetUsed(v(2, 20), 0)).toBe(0.25);

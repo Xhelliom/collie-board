@@ -4,6 +4,8 @@
 // `startWhenIdle` (ADR 0047), read at the launch request when no lot of the repo is running.
 
 import { doneOutsideLot, MAX_ROUNDS_LIMIT, type BoardDb, type Run } from "./db.ts";
+import { goalBound } from "./goal-routes.ts";
+import { openGoalOf } from "./goal-mode.ts";
 
 export const MAX_CHAIN_LIMIT = 1000;
 
@@ -29,22 +31,41 @@ export function redCards(db: BoardDb, run: Run): string[] {
   return out;
 }
 
-export type Verdict = { go: true; next: Run } | { go: false; why: string | null };
+/**
+ * `goal` is set when the repo has an objective that decides (ADR 0056): `plan` — nothing planned, wake
+ * the orchestrator to plan the rest; `claimed` — the objective waits on the operator, no wake at all;
+ * `pause` — a bound is reached, the objective goes to paused and the operator hears it once.
+ */
+export type Verdict = { go: true; next: Run; goalId?: string } | { go: false; why: string | null; goal?: { id: string; stop: "plan" | "claimed" | "pause" } };
 
 /**
  * At the end of `run`: arm one launch of the next planned lot, or say which bound stops the chain.
  * `why: null` means autonomy is simply off or nothing is planned — nothing to tell the operator.
+ * An active objective replaces `enabled` and `maxChain` with its own budget; a claimed one stops all.
+ * `quotaPct`: the week's gauge as last read (null: no reading).
  */
-export function endOfLot(db: BoardDb, run: Run): Verdict {
+export function endOfLot(db: BoardDb, run: Run, quotaPct: number | null = null, now = Date.now()): Verdict {
   const a = db.autonomyOf(run.repoPath);
-  if (!a.enabled) return { go: false, why: null };
+  const g = openGoalOf(db, run.repoPath);
+  if (g?.status === "claimed") return { go: false, why: null, goal: { id: g.id, stop: "claimed" } };
+  const active = g?.status === "active" ? g : null;
+  if (!a.enabled && !active) return { go: false, why: null };
   const planned = db.listRuns(run.repoPath).filter((r) => r.launchedAt === null && !doneOutsideLot(r, db.runMembers(r.id)));
   // ADR 0048 §7: only the pair that created a lot launches it — never offer another pair's.
   const next = planned.find((r) => db.ownsRun(r));
   if (!next) {
     const other = planned[0];
+    if (!other && active) {
+      const bound = goalBound(db, active, quotaPct, now) ?? (a.stopOnRed && redCards(db, run).length ? "un gate ou une CI est rouge" : null);
+      return bound ? { go: false, why: bound, goal: { id: active.id, stop: "pause" } } : { go: false, why: null, goal: { id: active.id, stop: "plan" } };
+    }
     if (!other) return { go: false, why: null };
     return { go: false, why: `le prochain lot planifié « ${other.name ?? "sans nom"} » a été créé sur un autre poste (${other.createdBy ?? "pair"} ${other.createdPair}) — l'opérateur le lance depuis ce poste-là` };
+  }
+  if (active) {
+    // Red here is after the lot's own resume bound (ADR 0055): the lot ended with it.
+    const bound = goalBound(db, active, quotaPct, now) ?? (a.stopOnRed && redCards(db, run).length ? "un gate ou une CI est rouge" : null);
+    return bound ? { go: false, why: bound, goal: { id: active.id, stop: "pause" } } : { go: true, next, goalId: active.id };
   }
   if (a.stopOnRed && redCards(db, run).length) return { go: false, why: "un gate ou une CI est rouge" };
   if (a.maxChain !== null && a.chained >= a.maxChain) return { go: false, why: `${a.chained} lot(s) enchaîné(s) sans toi — la borne est atteinte` };
@@ -68,4 +89,17 @@ export function idleRefusal(db: BoardDb, run: Run): string | null {
     .filter((r) => r.launchedAt !== null)
     .reduce<Run | null>((m, r) => (m && m.launchedAt! >= r.launchedAt! ? m : r), null);
   return a.stopOnRed && last && redCards(db, last).length ? "un gate ou une CI est rouge" : null;
+}
+
+/**
+ * ADR 0056: may the orchestrator launch `run` under the repo's objective? Null: it may — the objective
+ * is active, under budget, and no lot of the repo is open (one lot at a time). A string: why not.
+ * Undefined: no active objective, autonomy (0030/0047) decides.
+ */
+export function goalLaunchRefusal(db: BoardDb, run: Run, quotaPct: number | null, now = Date.now()): string | null | undefined {
+  const g = openGoalOf(db, run.repoPath);
+  if (g?.status === "claimed") return "l'objectif est déclaré atteint — rien ne se lance avant la réponse de l'opérateur";
+  if (g?.status !== "active") return undefined;
+  if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return "un lot du dépôt est encore ouvert — un lot à la fois";
+  return goalBound(db, g, quotaPct, now);
 }

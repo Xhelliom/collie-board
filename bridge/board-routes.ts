@@ -71,7 +71,7 @@ import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
 import { GOAL_JOURNAL, goalView, handleGoalRoute, weekPercent } from "./goal-routes.ts";
-import { goalOfOrchestrator, recordCheckpoint } from "./goal-mode.ts";
+import { goalOfOrchestrator, openGoalOf, recordCheckpoint } from "./goal-mode.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
 import { awaitingOn } from "./roadmap.ts";
@@ -874,6 +874,9 @@ async function route(
     if (cards.some((c) => c!.repoPath !== repoPath)) return ctx.text("a run is one repo's cards", 400);
     // Joining a second run would silently steal the card from the first.
     if (cards.some((c) => c!.runId)) return ctx.text("a card is already in a run", 409);
+    // ADR 0056: a claimed objective is a full stop — the orchestrator plans nothing more until the operator answers.
+    if (req.headers.get(PANE_HEADER)?.trim() && openGoalOf(ctx.db, repoPath)?.status === "claimed")
+      return ctx.text("the objective is claimed reached — no lot is planned until the operator answers", 403);
     if (phaseId !== undefined && phaseId !== null && (typeof phaseId !== "string" || ctx.db.getPhase(phaseId)?.repoPath !== repoPath))
       return ctx.text("phaseId: no such phase in this repo", 400);
     const run = ctx.db.createRun({

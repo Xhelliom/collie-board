@@ -40,7 +40,7 @@ describe("a repo's objective (ADR 0056)", () => {
     const r = await call(db, "POST", "/api/goals", NEW);
     expect(r.status).toBe(201);
     expect(r.body.goal).toMatchObject({ repoPath: "/r", text: "Ship v1", criteria: ["CI green", "docs written"], status: "active", budget: DEFAULT_BUDGET });
-    expect(r.body.goal.spent).toEqual({ lots: 0, lotIds: [], cardIds: [], quotaPct: null });
+    expect(r.body.goal.spent).toEqual({ lots: 0, lotIds: [], cardIds: [], phaseIds: [], quotaPct: null });
   });
 
   it("refuses an agent pane on create, edit, pause, abandon and validate — but lets it claim", async () => {
@@ -99,9 +99,9 @@ describe("a repo's objective (ADR 0056)", () => {
     now = 3_000;
     const lot = db.createRun({ repoPath: "/r", cardIds: [card.id], foldInCap: 1, planned: true });
     db.launchRun(lot.id);
-    db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 1, planned: true }); // planned, not spent
+    const planned = db.createRun({ repoPath: "/r", cardIds: [], foldInCap: 1, planned: true }); // attached, not spent
     const g = (await call(db, "GET", `/api/goals/${id}`)).body.goal;
-    expect(g.spent).toMatchObject({ lots: 1, lotIds: [lot.id], cardIds: [card.id] });
+    expect(g.spent).toMatchObject({ lots: 1, lotIds: [lot.id, planned.id], cardIds: [card.id] });
   });
 });
 
