@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240080622.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"37df0f2b-5e3a-4486-9b79-0e488fc7b67a"}}
 {"v":1,"hlc":"1794240080622.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Décisions classées produit / technique","status":"backlog"},"ts":1794240079333}}
 {"v":1,"hlc":"1794240080622.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"b61181a8-7c88-42be-b414-5a0e3e61cf94"}}
+{"v":1,"hlc":"1794305140407.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
