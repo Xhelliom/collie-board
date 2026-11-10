@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794332924331.0001.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Objectif co-écrit, arrêts clairs","goal":"L'orchestrateur écrit l'objectif sur accord de l'opérateur ; un blocage extérieur arrête le lot avec sa vraie raison.","position":41,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794332922129}}
+{"v":1,"hlc":"1794345504437.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794345504166}}
