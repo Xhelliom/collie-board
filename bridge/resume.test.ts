@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { handleBoardRoute } from "./board-routes.ts";
 import { NO_AGENT_REASON } from "./cards.ts";
 import { BoardDb } from "./db.ts";
+import { DEFAULT_BUDGET } from "./goal-routes.ts";
 import { LeadSilent } from "./lead.ts";
 import { orchestratorLabel } from "./orchestrator.ts";
 import { MAX_AUTO_RESUMES, mechanicalHalt } from "./resume.ts";
@@ -86,6 +87,15 @@ describe("POST /api/runs/:id/resume from the orchestrator (ADR 0055)", () => {
     }
     expect(await w.resume()).toBe(403);
     expect(await w.resume({})).toBe(200);
+  });
+
+  it("resumes with autonomy off when the repo's objective is active; refuses once it is paused", async () => {
+    const w = world(BEHIND, false);
+    const g = w.db.createGoal({ repoPath: repo, text: "Ship v1", criteria: ["CI green"], budget: DEFAULT_BUDGET })!;
+    expect(await w.resume()).toBe(200);
+    w.db.setGoalStatus(g.id, ["active"], "paused");
+    w.halt();
+    expect(await w.resume()).toBe(403);
   });
 
   it("refuses with autonomy off, and any pane that is not the repo's orchestrator", async () => {

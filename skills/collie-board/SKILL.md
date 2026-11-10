@@ -576,7 +576,7 @@ code.
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
   user why and let them resume it.
-  **Except (ADR 0055)**: with autonomy on, **the repo's orchestrator** may resume it itself when the
+  **Except (ADR 0055)**: with autonomy on — or the repo's objective active — **the repo's orchestrator** may resume it itself when the
   halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
   work, a failed start. Fix the cause first if it is yours to fix, then send the same POST with your
   `x-collie-pane`. At most **3** such resumes per lot; past it, or for a decision halt (the lead's
