@@ -73,25 +73,55 @@ describe("OrchestratorPanel", () => {
     expect(screen.getByLabelText("Message à l'orchestrateur")).toHaveValue("");
   });
 
-  it("a pasted image opens the preview; Attach uploads it under its pane and its path joins the draft", async () => {
+  it("an attached image is an [Image #N] token at the caret, shown as a data: thumbnail, and its path is sent once", async () => {
     let owner = "";
+    let sent: { text?: string } = {};
     server.use(
       http.post(/\/api\/pane\/[^/]+\/upload$/, ({ request }) => {
         owner = decodeURIComponent(new URL(request.url).pathname.split("/")[3]);
         return HttpResponse.json({ ok: true, path: "/tmp/shot.png" });
       }),
+      http.post("*/api/pane/w1%3Ap2/reply", async ({ request }) => {
+        sent = (await request.json()) as { text?: string };
+        return HttpResponse.json({ ok: true });
+      }),
     );
     mount("/g/app", { paneId: "w1:p2", running: true });
-    const box = await screen.findByLabelText("Message à l'orchestrateur");
-    await userEvent.type(box, "regarde");
+    const box = await screen.findByLabelText<HTMLTextAreaElement>("Message à l'orchestrateur");
+    await userEvent.type(box, "regarde ici");
+    box.setSelectionRange(7, 7); // caret right after "regarde"
     const file = new File(["x"], "shot.png", { type: "image/png" });
     fireEvent.paste(box, { clipboardData: { items: [{ kind: "file", type: "image/png", getAsFile: () => file }] } });
     fireEvent.click(await screen.findByRole("button", { name: "Joindre" }));
-    await waitFor(() => expect(box).toHaveValue("regarde /tmp/shot.png"));
+    // The field shows the token where the caret stood — never the raw path.
+    await waitFor(() => expect(box).toHaveValue("regarde [Image #1] ici"));
     expect(owner).toBe("w1:p2");
-    // The thumbnail's ✕ takes the path back out.
-    fireEvent.click(screen.getByRole("button", { name: "Retirer l'image shot.png" }));
-    expect(box).toHaveValue("regarde");
+    // The thumbnail is a data: URL — the one local image URL the CSP lets through (blob: is refused).
+    expect(screen.getByAltText("#1").getAttribute("src")).toMatch(/^data:image\/png/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Envoyer" }));
+    await waitFor(() => expect(sent.text).toBe("regarde /tmp/shot.png ici"));
+  });
+
+  it("removing the thumbnail removes the token, and deleting the token removes the thumbnail", async () => {
+    server.use(http.post(/\/api\/pane\/[^/]+\/upload$/, () => HttpResponse.json({ ok: true, path: "/tmp/shot.png" })));
+    mount("/g/app", { paneId: "w1:p2", running: true });
+    const box = await screen.findByLabelText("Message à l'orchestrateur");
+    const attach = async () => {
+      const file = new File(["x"], "shot.png", { type: "image/png" });
+      fireEvent.paste(box, { clipboardData: { items: [{ kind: "file", type: "image/png", getAsFile: () => file }] } });
+      fireEvent.click(await screen.findByRole("button", { name: "Joindre" }));
+    };
+    await attach();
+    await waitFor(() => expect(box).toHaveValue("[Image #1]"));
+    fireEvent.click(screen.getByRole("button", { name: "Retirer l'image #1" }));
+    expect(box).toHaveValue("");
+
+    await attach();
+    await waitFor(() => expect(box).toHaveValue("[Image #1]"));
+    await screen.findByAltText("#1");
+    fireEvent.change(box, { target: { value: "sans image" } });
+    expect(screen.queryByAltText("#1")).not.toBeInTheDocument();
   });
 
   it("offers the picker as a button too, for a phone", async () => {

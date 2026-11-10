@@ -164,6 +164,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     if (!title || creating) return;
     setCreating(true);
     setError(null);
+    const body = upload.expand(text).trim(); // each [Image #N] token becomes its path
     try {
       await onCreate({
         title,
@@ -171,10 +172,10 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
         // makes the copilot act unasked (bridge/board-routes.ts). Withholding it therefore needs no
         // flag of its own — it says exactly what "leave this card alone" means, and it says it in a
         // field the schema already defines as "a dump, to be processed".
-        rawInput: rewrite ? text.trim() : null,
+        rawInput: rewrite ? body : null,
         // The spec is set either way, so the card is usable before the copilot ever runs — and, when
         // it is off, IS the text, which is what makes a hand-written card survive intact.
-        spec: text.trim(),
+        spec: body,
         status: "backlog",
         repoPath: repoPath || null,
         baseRef: baseRef.trim() || null,

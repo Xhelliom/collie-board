@@ -71,8 +71,9 @@ export function OrchestratorPanel({
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
-  // A screenshot goes up under the orchestrator's own pane, its path into the draft — the composer's hook.
-  const upload = useImageUpload({ paneId: state?.paneId ?? "orchestrator", disabled: !state?.paneId, text: draft, setText: setDraft });
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // A screenshot goes up under the orchestrator's own pane, its `[Image #N]` token into the draft — the composer's hook.
+  const upload = useImageUpload({ paneId: state?.paneId ?? "orchestrator", disabled: !state?.paneId, text: draft, setText: setDraft, inputRef });
   const fileRef = useRef<HTMLInputElement>(null);
   // The first tap of a hand-over, and the note's date at that moment: the second tap opens once it moved.
   const [asked, setAsked] = useState<{ base: number } | null>(null);
@@ -146,7 +147,7 @@ export function OrchestratorPanel({
   }
 
   async function send() {
-    const msg = draft.trim();
+    const msg = upload.expand(draft).trim();
     if (!msg || !state?.paneId) return;
     setBusy(true);
     try {
@@ -313,6 +314,7 @@ export function OrchestratorPanel({
         }}
       >
         <ChatInput
+          ref={inputRef}
           aria-label={t("orch.message")}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

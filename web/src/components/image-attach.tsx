@@ -5,7 +5,7 @@ import { ArrowUpRight, Circle, Crop, ImageIcon, Loader2, Pencil, Undo2, X } from
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import type { ImageUpload } from "@/hooks/use-image-upload";
+import { dataUrl, type ImageUpload } from "@/hooks/use-image-upload";
 import { cropOf, drawMarks, exportEdited, rectFrom, type Edit, type EditTool, type Pt } from "@/lib/image-edit";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,9 @@ export function AttachedImages({ upload, className }: { upload: ImageUpload; cla
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {upload.images.map((img) => {
-        const name = img.path.split("/").pop() ?? img.path;
+        const name = `#${img.n}`;
         return (
-          <div key={img.path} className="relative size-14 overflow-hidden rounded-md border border-border bg-muted">
+          <div key={img.n} className="relative size-14 overflow-hidden rounded-md border border-border bg-muted">
             {img.url ? (
               <img src={img.url} alt={name} className="size-full object-cover" />
             ) : (
@@ -31,7 +31,7 @@ export function AttachedImages({ upload, className }: { upload: ImageUpload; cla
             )}
             <button
               type="button"
-              onClick={() => upload.remove(img.path)}
+              onClick={() => upload.remove(img.n)}
               aria-label={t("img.remove", { name })}
               className="absolute right-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-black/70 text-white"
             >
@@ -61,11 +61,17 @@ export function ImagePreviewSheet({ upload }: { upload: ImageUpload }) {
   useEffect(() => {
     setImg(null);
     setEditing(false);
-    if (!file) return setUrl(null);
-    const u = URL.createObjectURL?.(file) ?? null;
-    setUrl(u);
+    setUrl(null);
+    if (!file) return;
+    let live = true;
+    // A data: URL — the CSP refuses blob:, and a refused preview would attach unseen through onError.
+    void dataUrl(file).then((u) => {
+      if (!live) return;
+      if (u) setUrl(u);
+      else void upload.uploadImage(file); // unreadable here is not an error: it goes up as is
+    });
     return () => {
-      if (u) URL.revokeObjectURL(u);
+      live = false;
     };
   }, [file]);
 

@@ -840,9 +840,9 @@ describe("Composer — clipboard image paste", () => {
     // The paste opens the preview first; Attach sends the original.
     fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
 
-    await waitFor(() => expect(box).toHaveValue("/tmp/shot.png"));
-    // Its thumbnail sits above the input; the ✕ takes the path back out of the draft.
-    fireEvent.click(screen.getByRole("button", { name: "Remove image shot.png" }));
+    await waitFor(() => expect(box).toHaveValue("[Image #1]"));
+    // Its thumbnail sits above the input; the ✕ takes the token back out of the draft.
+    fireEvent.click(screen.getByRole("button", { name: "Remove image #1" }));
     expect(box).toHaveValue("");
   });
 
