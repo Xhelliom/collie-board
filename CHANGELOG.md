@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.281.0] - 2026-11-10
+
+### Added
+
+- Mode objectif : pas de push par fin de lot, le bilan de l'orchestrateur va au journal de l'objectif (292ee27)
+- Point d'étape regroupé (lots, mergées, bloquées, quota, recettes) à mi-budget, budget atteint, objectif déclaré, décision (292ee27)
+- Bloc Objectif : barre de budget consommé, progression et journal des bilans et points d'étape (292ee27)
+
 ## [0.280.0] - 2026-11-10
 
 ### Added
