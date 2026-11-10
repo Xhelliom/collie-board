@@ -140,4 +140,23 @@ describe("GoalPanel", () => {
     expect(screen.getByText("Lot report")).toBeInTheDocument();
     expect(screen.getByText("Lot A merged")).toBeInTheDocument();
   });
+
+  it("lists past objectives newest first, folded by default", async () => {
+    const base = { repoPath: "/r", criteria: ["x"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, createdAt: 1, spent: { lotIds: [], cardIds: [], quotaPct: null } };
+    server.use(
+      http.get("*/api/goals", () =>
+        HttpResponse.json({
+          goals: [
+            { ...base, id: "g2", text: "Older", status: "abandoned", endedAt: 100, spent: { ...base.spent, lots: 1 } },
+            { ...base, id: "g3", text: "Newer", status: "achieved", endedAt: 200, spent: { ...base.spent, lots: 3 } },
+          ],
+        }),
+      ),
+    );
+    mount();
+    const summary = await screen.findByText("Past objectives (2)");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
+    const items = summary.closest("details")!.querySelectorAll("li");
+    expect([...items].map((li) => li.textContent)).toEqual([expect.stringMatching(/achieved.*3 lots.*Newer/), expect.stringMatching(/abandoned.*1 lots.*Older/)]);
+  });
 });
