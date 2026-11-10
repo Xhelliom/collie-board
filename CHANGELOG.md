@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.296.0] - 2026-11-10
+
+### Added
+
+- Des commits arrivés sur la branche d'une carte déjà mergée sont signalés : `card.late_commits` sur la carte, cloche, et message à l'orchestrateur du dépôt (94ce167)
+
+### Changed
+
+- Un lot ne merge plus une branche qui a bougé depuis le verdict du lead (`run.moved`) : gate et lead la rejugent (94ce167)
+- Le tap Merge (et « PR & done ») est refusé tant que l'agent de la carte travaille (94ce167)
+
 ## [0.295.1] - 2026-11-10
 
 ### Changed
