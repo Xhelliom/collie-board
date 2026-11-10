@@ -1217,6 +1217,7 @@ export function AgentChat({
             paneId={paneId}
             session={session}
             agent={agent?.agent}
+            hc={hc}
             isShell={isShell}
             gone={gone}
             readOnly={readOnly}

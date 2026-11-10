@@ -61,6 +61,8 @@ export interface GuardedReplyArgs {
   text: string;
   /** The pane's agent — picks the adapter whose `extractInputDraft` can read the input box. */
   agent: string | undefined | null;
+  /** The pane runs on hc, which only pastes WITH Enter: no type-then-verify, hc refuses a blocked program itself. */
+  hc?: boolean;
   /** The session the pane lives in (undefined = primary) — scopes every call. */
   session?: string;
   /** Lines to request per verification read (undefined = the bridge's default tail, which is where
@@ -77,7 +79,7 @@ export async function sendGuardedReply(args: GuardedReplyArgs): Promise<ReplyOut
   // over the raw mirror has a false-negative that is worse than the bug — a no-echo input (a shell's
   // sudo prompt) would never show the text, so the submit key would be withheld forever. Non-Claude
   // harnesses gain this safety exactly when they gain an adapter.
-  if (!adapter) return oneShot(args);
+  if (!adapter || args.hc) return oneShot(args);
 
   let typed;
   try {

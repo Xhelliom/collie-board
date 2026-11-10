@@ -72,6 +72,8 @@ interface ComposerProps {
   session?: string;
   /** The pane's agent name — drives the slash-command palette and the reply-vs-shell placeholder. */
   agent: string | undefined | null;
+  /** The pane runs on hc: a reply goes in one call (see sendGuardedReply). */
+  hc?: boolean;
   /** True for a bare shell pane (tweaks the placeholder copy). */
   isShell: boolean;
   /** Pane is gone (no agent) — locks the composer with a distinct placeholder. */
@@ -165,7 +167,7 @@ function ComposerDock({
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
-  { paneId, session, agent, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff, working = false },
+  { paneId, session, agent, hc, isShell, gone, readOnly, dialogPresent, text, mirrorText, terminalDraft, rawTerminalDraft, prefs, setWrap, stepFontSize, setRawTerminal, onSent, onSwitchPane, onHandoff, working = false },
   ref,
 ) {
   const tr = useT();
@@ -397,7 +399,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
       // Guarded: types the text, verifies it reached the input box, and only THEN sends the submit
       // key. A "stalled" outcome means nothing was submitted and the draft must survive (#34).
-      const res = await sendGuardedReply({ paneId, text: t, agent, session });
+      const res = await sendGuardedReply({ paneId, text: t, agent, hc, session });
       if (res.status === "sent") {
         if (isDraft) {
           setInput(""); // phone-owned input — clear it once the reply is on its way
