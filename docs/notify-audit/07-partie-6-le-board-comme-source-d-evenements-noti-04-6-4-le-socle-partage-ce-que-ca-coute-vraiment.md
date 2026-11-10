@@ -56,7 +56,7 @@ Deux remarques de posture :
 
 - `notifications.ts` est un **fichier upstream**. N10 y a déjà dépensé une modification profonde,
   assumée et inscrite dans [`UPSTREAM.md`](../../UPSTREAM.md). Élargir la clé et le type d'alerte est une
-  dépense du même ordre — à décider consciemment, avec le ledger [`UPSTREAM_PRS.md`](../../UPSTREAM_PRS.md)
+  dépense du même ordre — à décider consciemment, avec le ledger [`UPSTREAM_PRS.md`](../archive/upstream/UPSTREAM_PRS.md)
   en regard : « un coordinateur de notifications qui ne présume pas que ses alertes sont des panes »
   est une brique **générique**, donc elle y a sa place.
 - Une sortie moins chère existe et mérite d'être posée : **ne servir d'abord que la cloche**.

@@ -26,7 +26,8 @@ l'amont. La règle coûtait à chaque carte et ne payait jamais.
 **Le fork est un projet indépendant.**
 
 - **On ne propose plus de briques à `AltanS/collie`.** `UPSTREAM_PRS.md` et `docs/upstream/prs/` sont
-  gelés : une archive, plus un registre. Aucune carte n'y ajoute d'entrée.
+  gelés : une archive, plus un registre (depuis déplacés sous `docs/archive/upstream/`). Aucune carte
+  n'y ajoute d'entrée.
 - **On ne rebase plus sur l'amont.** Il n'y a plus de « fichier de l'amont » : tout fichier du dépôt est
   le nôtre et se modifie comme tel. La table de `UPSTREAM.md` est gelée, et un fragment ne porte plus de
   `### Upstream`.
@@ -56,5 +57,6 @@ Ces ADR ne sont pas réécrites ; seules les phrases ci-dessous ne tiennent plus
 - Les correctifs de l'amont (sécurité comprise) n'arrivent plus par rebase. Le socle — porte unique,
   même origine, CSP — est à nous d'entretenir ; les règles de sécurité de `CLAUDE.md` restent entières.
 - `scripts/release.ts` sait encore replier un `### Upstream` dans `UPSTREAM.md`. Sans fragment qui en
-  porte, ce code ne fait rien ; l'enlever est une carte à part (changement fonctionnel, avec fragment).
+  porte, ce code ne fait rien — mais la table n'existe plus dans `UPSTREAM.md` : un fragment qui en
+  porterait un ferait échouer la release ; l'enlever est une carte à part (changement fonctionnel, avec fragment).
 - À revoir si l'amont et le fork reconvergent sur un même moteur — peu probable après 0052.

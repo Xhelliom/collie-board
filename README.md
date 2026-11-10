@@ -154,7 +154,8 @@ herdr's sidebar, finding a pane's transcript without herdr's optional integratio
 OpenCode support, install fixes, two herdr launch races, the desktop layout, accessibility fixes —
 is generic. The fork is now independent: none of it is offered upstream and nothing is rebased on it
 ([ADR 0059](.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md)).
-[`UPSTREAM_PRS.md`](UPSTREAM_PRS.md) and [`UPSTREAM.md`](UPSTREAM.md) are kept as archives.
+[`UPSTREAM.md`](UPSTREAM.md) says where the fork diverged; the old ledger is archived under
+[`docs/archive/upstream/`](docs/archive/upstream/UPSTREAM_PRS.md).
 
 ## Who is this for
 
@@ -309,6 +310,6 @@ bash scripts/collie-board-ctl.sh push-test                 # or: push-test "Titl
 - Decision records — [`.adr/`](.adr/)
 - Verified Herdr socket API — [`HERDR_API.md`](HERDR_API.md)
 - Adding a harness adapter — [`HARNESS_CONTRIBUTING.md`](HARNESS_CONTRIBUTING.md)
-- Archives from when the fork tracked upstream (frozen, ADR 0059) — [`UPSTREAM.md`](UPSTREAM.md) · [`UPSTREAM_PRS.md`](UPSTREAM_PRS.md)
+- Where the fork comes from, and where it diverged — [`UPSTREAM.md`](UPSTREAM.md) (old ledger, frozen: [`docs/archive/`](docs/archive/README.md))
 - Ops, versioning & conventions — [`CLAUDE.md`](CLAUDE.md)
 - Changes — [`CHANGELOG.md`](CHANGELOG.md)

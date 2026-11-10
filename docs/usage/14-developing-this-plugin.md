@@ -15,11 +15,9 @@ Clone it and `herdr plugin link` it ([Install](../../README.md#install) above), 
   your first commit.
 - **Why a supervised service and not a plugin pane** — [`ARCHITECTURE.md`](../../ARCHITECTURE.md) §3.
   That decision is why the manifest uses `[[actions]]` and `[[build]]` and nothing else.
-- **Keep the upstream surface narrow.** Because this is a fork, new behaviour goes in a new file with
-  an `engine.onUpdate` hook, never spread across `server.ts`/`index.ts`. The list of touched upstream
-  files in [`UPSTREAM.md`](../../UPSTREAM.md) *is* the rebase cost, and it is meant to stay short. A
-  change that would help upstream gets its entry in [`UPSTREAM_PRS.md`](../../UPSTREAM_PRS.md) in the
-  same commit.
+- **New behaviour goes in a new file** with an `engine.onUpdate` hook, never spread across
+  `server.ts`/`index.ts` — those two are the files every card in flight fights over. Nothing is
+  synchronised with upstream any more ([`UPSTREAM.md`](../../UPSTREAM.md)).
 
 Herdr's plugin system itself is upstream's to document:
 [authoring](https://herdr.dev/docs/plugins/) ·
