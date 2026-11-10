@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.289.0] - 2026-11-10
+
+### Added
+
+- Une décision de la roadmap porte une catégorie `domain` : produit ou technique (absente = technique). (60fcf07)
+- La roadmap affiche « Produit » devant une décision produit, à l'écran comme dans l'export Markdown. (60fcf07)
+
 ## [0.288.0] - 2026-11-10
 
 ### Added
