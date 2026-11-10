@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.295.0] - 2026-11-10
+
+### Added
+
+- Lead : verdict « bloqué par l'extérieur » {raison, geste de l'opérateur} — le lot s'arrête aussitôt avec cette raison, sans consommer de round (7030971)
+- Ce halt est levable par l'orchestrateur sous autonomie ou objectif actif, dans la limite de 3 reprises (7030971)
+- Objectif : l'orchestrateur peut l'écrire lui-même sur l'accord oral de l'opérateur (`POST /api/goals` depuis un pane), marqué « écrit par l'orchestrateur » (ADR 0057) (4a2f2ce)
+- Bouton `set_goal` dans un bloc `collie-buttons` : montre texte et critères, confirme en deux appuis, crée l'objectif (4a2f2ce)
+
+### Changed
+
+- Prompt du lead : utiliser ce verdict dès le 2e constat identique d'un blocage extérieur (7030971)
+- Un pane agent peut modifier texte, critères et budget d'un objectif en attente ou actif écrit par un pane ; pause, reprise, validation, abandon, démarrage et suppression restent à l'opérateur (4a2f2ce)
+
 ## [0.294.2] - 2026-11-10
 
 ### Fixed
