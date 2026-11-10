@@ -1496,8 +1496,9 @@ export interface Goal {
   claim?: { ts: number; proofs: string[] } | null;
 }
 export type GoalMove = "pause" | "resume" | "achieve" | "abandon" | "activate";
-export const fetchGoals = (repo: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
-  apiRequest(`/api/goals?repo=${encodeURIComponent(repo)}`, { signal });
+/** No repo: every repo's objectives, in one request. */
+export const fetchGoals = (repo?: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
+  apiRequest(repo === undefined ? "/api/goals" : `/api/goals?repo=${encodeURIComponent(repo)}`, { signal });
 /** `next`: queue it behind the open objective instead of opening it. */
 export const createGoal = (repoPath: string, g: { text: string; criteria: string[]; budget: GoalBudget }, next = false): Promise<{ goal: Goal }> =>
   apiRequest("/api/goals", { method: "POST", body: JSON.stringify({ repoPath, ...g, ...(next ? { next } : {}) }) });

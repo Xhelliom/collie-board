@@ -79,5 +79,10 @@ export const goal = defineMessages({
   "goal.delete": { en: "Delete", fr: "Supprimer" },
   "goal.deleteConfirm": { en: "Tap again to delete", fr: "Touche encore pour supprimer" },
   "goal.history": { en: "Past objectives ({n})", fr: "Objectifs passés ({n})" },
+  "goal.chip.claimed": { en: "reached? validate", fr: "atteint ? à valider" },
+  "goal.runningHint": {
+    en: "The orchestrator chains the lots on its own — nothing more to switch on.",
+    fr: "L'orchestrateur enchaîne les lots tout seul — rien à activer en plus.",
+  },
   "goal.historyLots": { en: "{n} lots", fr: "{n} lots" },
 });

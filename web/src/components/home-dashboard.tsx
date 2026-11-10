@@ -6,9 +6,10 @@ import { Kpi } from "@/components/kpi";
 import { Ring } from "@/components/ring";
 import { STEP_TONE } from "@/components/project-step";
 import { useFold } from "@/components/fold";
+import { GOAL_SURFACE, GoalChip, isOpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
 import { useT } from "@/i18n";
 import { getNotifyLog } from "@/lib/api";
-import { boardPath, cardPath, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
+import { boardPath, cardPath, fetchGoals, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
 import { byLot, herdCounts, tileLot, type DashboardView, type OrchestratorMood, type RepoTile, type TileLot } from "@/lib/dashboard";
 import { fetchRecette } from "@/lib/recette";
 import { panePath } from "@/lib/nav";
@@ -168,15 +169,19 @@ function LotLine({ lot }: { lot: TileLot }) {
 
 const MOOD_TONE: Record<OrchestratorMood, string> = { idle: "text-muted-foreground", working: "text-status-working", waiting: "font-semibold text-status-blocked" };
 
-function ProjectTile({ repo, lot, mood, toTest = 0 }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number }) {
+function ProjectTile({ repo, lot, mood, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number; goal?: OpenGoalStatus }) {
   const t = useT();
   return (
     <Link
       to={projectPath(repo.path)}
-      className="flex flex-col gap-2.5 rounded-xl border bg-card/70 p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25"
+      className={cn(
+        "flex flex-col gap-2.5 rounded-xl border p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
+        goal ? GOAL_SURFACE[goal] : "bg-card/70",
+      )}
     >
       <div className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
+        {goal && <GoalChip status={goal} />}
         <span className="shrink-0 text-xs text-muted-foreground">{ago(repo.updatedAt)}</span>
       </div>
       {lot && <LotLine lot={lot} />}
@@ -256,7 +261,25 @@ export function useRepoToTest(paths: string[], stamp: string): Record<string, nu
   return counts;
 }
 
-export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number> }) {
+/** Each repo's open objective status (ADR 0056), in one request for every repo, on the lots' `stamp`. */
+export function useRepoGoals(paths: string[], stamp: string): Record<string, OpenGoalStatus> {
+  const [goals, setGoals] = useState<Record<string, OpenGoalStatus>>({});
+  const key = paths.join("\n");
+  useEffect(() => {
+    if (!key) return setGoals({});
+    const ac = new AbortController();
+    void fetchGoals(undefined, ac.signal).then((r) => r.goals, () => []).then((all) => {
+      if (ac.signal.aborted) return;
+      const out: Record<string, OpenGoalStatus> = {};
+      for (const g of all) if (isOpenGoal(g.status)) out[g.repoPath] = g.status;
+      setGoals(out);
+    });
+    return () => ac.abort();
+  }, [key, stamp]);
+  return goals;
+}
+
+export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {}, goals = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number>; goals?: Record<string, OpenGoalStatus> }) {
   const t = useT();
   const repos = byLot(all, lots);
   const { shown, toggle } = useFold(repos, 3);
@@ -266,7 +289,7 @@ export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {} }:
       <h2 className={sectionTitle}>{t("home.projects")}</h2>
       <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
         {shown.map((r) => (
-          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} mood={moods[r.path]} toTest={toTest[r.path]} />
+          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} mood={moods[r.path]} toTest={toTest[r.path]} goal={goals[r.path]} />
         ))}
       </div>
       {toggle}
