@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.294.1] - 2026-11-10
+
+### Changed
+
+- Roadmap, étape par étape et bilan de lot exportés portent une ligne **Statut :** (convention de doc §1.3) (bbf236a)
+- Doc : index `docs/README.md` « où chercher quoi » avec la correspondance `doc-paths`, `docs/dev/README.md`, Statut sur les docs (bbf236a)
+
 ## [0.294.0] - 2026-11-10
 
 ### Added
