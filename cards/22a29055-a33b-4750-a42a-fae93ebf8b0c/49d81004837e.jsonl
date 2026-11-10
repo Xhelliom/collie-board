@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794304463658.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Planifier un lot signale les cartes parallèles qui toucheront les mêmes fichiers","status":"backlog"},"ts":1794304461822}}
 {"v":1,"hlc":"1794304463661.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c36eaef2-fa4f-4460-b4ea-448cc72f31ff"}}
 {"v":1,"hlc":"1794306894079.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794306902252.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/planifier-un-lot-signale-les-cartes-paralleles-q"}}
+{"v":1,"hlc":"1794306902253.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794306902253.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794306897461}}
+{"v":1,"hlc":"1794306902253.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794306902253.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794306901527}}
+{"v":1,"hlc":"1794306904680.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2204},"ts":1794306903709}}
