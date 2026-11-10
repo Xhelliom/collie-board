@@ -3,7 +3,7 @@ import { GOAL_SURFACE, GoalChip, type OpenGoalStatus } from "@/components/goal-c
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
-import { ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
+import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
@@ -120,7 +120,6 @@ const toValidate = (p: ProjectPhase) => Boolean(p.phase && !p.phase.closedAt && 
 
 /** A phase's status at a glance — the dot its heading keeps when folded. */
 function phaseTone(p: ProjectPhase) {
-  if (toValidate(p)) return "bg-amber-500";
   if (p.steps.some((s) => s.status === "blocked" || s.status === "orphaned")) return "bg-status-blocked";
   if (p.steps.some((s) => stepGroup(s) === "flight")) return "bg-status-working";
   if (p.steps.length > 0 && p.done === p.steps.length) return "bg-status-done";
@@ -299,8 +298,13 @@ export function ProjectRoute() {
             <button
               type="button"
               onClick={() => setValidating(p)}
-              className="shrink-0 rounded-full border bg-card/70 px-3 py-1 font-mono text-xs font-medium hover:border-foreground/25"
+              // The work is done (green dot); what is left is the operator's gesture, so the button carries it.
+              className={cn(
+                "flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 font-mono text-xs font-medium",
+                toValidate(p) ? "border-status-done/50 bg-status-done/15 text-status-done hover:border-status-done" : "bg-card/70 hover:border-foreground/25",
+              )}
             >
+              {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
               {t("project.validate")}
             </button>
           )}
