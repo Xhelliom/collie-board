@@ -171,6 +171,8 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
     const g = db.createGoal({ repoPath, text: t, criteria: c, budget });
     if (!g) return ctx.text("this repo already has an open objective — finish, abandon or edit it", 409);
     audit("goal.create", { goalId: g.id, repoPath });
+    // Journaled for the orchestrator nudger: with no lot running, no end of lot would ever start the objective.
+    db.recordEvent(null, "goal.created", { goalId: g.id });
     return ctx.json({ goal: goalView(db, g, quota()) }, 201);
   }
 

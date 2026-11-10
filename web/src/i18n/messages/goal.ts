@@ -31,6 +31,10 @@ export const goal = defineMessages({
     en: "The orchestrator says the objective is reached and has stopped everything until you answer. Validate it, or refuse it saying what is missing.",
     fr: "L'orchestrateur dit l'objectif atteint et a tout arrêté jusqu'à ta réponse. Valide-le, ou refuse-le en disant ce qui manque.",
   },
+  "goal.noOrchestrator": {
+    en: "No orchestrator runs for this repo: nobody will start the objective. Start it from the orchestrator panel.",
+    fr: "Aucun orchestrateur ne tourne pour ce dépôt : personne ne lancera l'objectif. Démarre-le depuis le panneau orchestrateur.",
+  },
   "goal.proof": { en: "Proof:", fr: "Preuve :" },
   "goal.refusal": { en: "What is still missing", fr: "Ce qui manque encore" },
   "goal.refuse": { en: "Refuse and send back to work", fr: "Refuser et renvoyer au travail" },

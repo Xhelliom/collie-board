@@ -170,3 +170,61 @@ describe("the wake and the launch under an objective", () => {
     expect(w.db.getPhase(phase.id)!.closedAt).not.toBeNull();
   });
 });
+
+describe("setting an objective wakes the orchestrator when no lot runs", () => {
+  function fresh() {
+    const db = new BoardDb(":memory:");
+    const sent: string[] = [];
+    const herdr = {
+      getAgent: async () => ({ interactive_ready: true, agent_status: "idle" }),
+      promptAgent: async (o: { text: string }) => void sent.push(o.text),
+      sendPaneKeys: async () => {},
+    } as never;
+    const nudger = new OrchestratorNudger(db, herdr, new NotifyLog(), async () => null);
+    const tick = async () => {
+      nudger.update(live);
+      await flush();
+      await flush();
+    };
+    const create = () => call(db, "POST", "/api/goals", { repoPath: repo, text: "v1 livrée", criteria: ["CI verte"] });
+    return { db, sent, tick, create };
+  }
+
+  it("nothing runs: the orchestrator gets the objective, its criteria and « plan and launch the first lot », once", async () => {
+    const w = fresh();
+    expect((await w.create()).status).toBe(201);
+    await w.tick();
+    await w.tick();
+    expect(w.sent).toHaveLength(1);
+    expect(w.sent[0]).toContain("planifie et lance le premier lot");
+    expect(w.sent[0]).toContain("« v1 livrée »");
+    expect(w.sent[0]).toContain("« CI verte »");
+  });
+
+  it("a lot runs: no wake, its end will do it", async () => {
+    const w = fresh();
+    const card = w.db.createCard({ title: "a", repoPath: repo, status: "ready" });
+    const lot = w.db.createRun({ repoPath: repo, cardIds: [card.id], foldInCap: 0, name: "lot 1" });
+    w.db.launchRun(lot.id);
+    expect((await w.create()).status).toBe(201);
+    await w.tick();
+    expect(w.sent).toEqual([]);
+  });
+
+  it("a resume after a pause wakes it too, unless a lot runs", async () => {
+    const w = fresh();
+    const id = (await w.create()).body.goal.id;
+    await w.tick();
+    await call(w.db, "POST", `/api/goals/${id}/pause`);
+    await call(w.db, "POST", `/api/goals/${id}/resume`);
+    await w.tick();
+    expect(w.sent).toHaveLength(2);
+    expect(w.sent[1]).toContain("L'opérateur a repris l'objectif.");
+    const card = w.db.createCard({ title: "a", repoPath: repo, status: "ready" });
+    w.db.launchRun(w.db.createRun({ repoPath: repo, cardIds: [card.id], foldInCap: 0, name: "lot" }).id);
+    await call(w.db, "POST", `/api/goals/${id}/pause`);
+    await call(w.db, "POST", `/api/goals/${id}/resume`);
+    await w.tick();
+    expect(w.sent).toHaveLength(2);
+  });
+});

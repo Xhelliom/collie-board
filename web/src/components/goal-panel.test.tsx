@@ -41,6 +41,13 @@ describe("GoalPanel", () => {
     expect(screen.getByRole("link", { name: "Step one" })).toBeInTheDocument();
   });
 
+  it("says when no orchestrator will start an active objective", async () => {
+    const g = { id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
+    server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [g] })));
+    render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} noOrchestrator /> }])} />);
+    expect(await screen.findByText(/No orchestrator runs for this repo/)).toBeInTheDocument();
+  });
+
   it("offers to validate a claimed objective", async () => {
     server.use(
       http.get("*/api/goals", () =>
