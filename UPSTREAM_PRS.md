@@ -1,5 +1,8 @@
 # Upstream PR ledger
 
+> **Frozen — [ADR 0059](./.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) (2026-11-10).** The fork is
+> independent: no brick is offered upstream and nothing is rebased. This file is an archive; don't update it.
+
 The work in this fork that belongs to [`AltanS/collie`](https://github.com/AltanS/collie) rather
 than to the board, with the commits that carry it. Strategy and posture live in
 [`UPSTREAM.md`](./UPSTREAM.md); this file is the queue.

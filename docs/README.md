@@ -18,8 +18,7 @@ place : ils sont **mappés** ici (bloc `doc-paths` en bas), pas déplacés.
 | L'API de herdr-core (hc), la correspondance 0.9 → hc | [`HERDR_CORE_API.md`](../HERDR_CORE_API.md) |
 | Quels agents marchent, à quel niveau | [`AGENT_COMPAT.md`](../AGENT_COMPAT.md) |
 | Ajouter un agent | [`HARNESS_CONTRIBUTING.md`](../HARNESS_CONTRIBUTING.md) |
-| Ce que le fork change par rapport à upstream, le coût de rebase | [`UPSTREAM.md`](../UPSTREAM.md) |
-| Les briques proposables à upstream | [`UPSTREAM_PRS.md`](../UPSTREAM_PRS.md) |
+| Archives de l'époque où le fork suivait upstream (gelées, ADR 0059) | [`UPSTREAM.md`](../UPSTREAM.md) · [`UPSTREAM_PRS.md`](../UPSTREAM_PRS.md) |
 | Ce qui notifie, et pourquoi (audit) | [`NOTIFY_AUDIT.md`](../NOTIFY_AUDIT.md) |
 | Les constats d'interface (audits) | [`UI_AUDIT.md`](../UI_AUDIT.md) · [`ui-audit/`](./ui-audit/) |
 | Faire tourner un nœud sous Windows | [`multi-machine/reconnaissance-windows.md`](./multi-machine/reconnaissance-windows.md) |

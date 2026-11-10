@@ -1,5 +1,8 @@
 # Upstream posture
 
+> **Frozen — [ADR 0059](./.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) (2026-11-10).** The fork is
+> independent: no brick is offered upstream and nothing is rebased. This file is an archive; don't update it.
+
 Collie Board is a fork of [`AltanS/collie`](https://github.com/AltanS/collie), not a departure from
 it. Collie's bridge, security model, PWA and socket adapter are used as-is and are still the
 authority on how any of that works. This file records what that means in practice, so the decision
