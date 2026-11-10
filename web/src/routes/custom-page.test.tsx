@@ -23,7 +23,7 @@ describe("custom pages", () => {
   it("adds no tab when the repo has no docs/pages", async () => {
     at("/board/project?repo=%2Fr%2Fapp", <BoardTabs />);
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.getAllByRole("link")).toHaveLength(6);
+    expect(screen.getAllByRole("link")).toHaveLength(7);
   });
 
   it("frames the page sandboxed with no allowance, and full screen leaves on its button or Escape", async () => {
