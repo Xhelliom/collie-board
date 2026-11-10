@@ -309,10 +309,10 @@ function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry; defau
           onClick={() => setUnfolded(!unfolded)}
           className={cn("flex w-full items-start gap-2.5 p-3 pb-1.5 text-left hover:bg-muted/40", FOCUS, MOTION)}
         >
-          <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", STATE_TONE[e.state])} aria-label={t(`recette.state.${e.state}`)} />
+          <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", STATE_TONE[e.state])} aria-label={t(sortOf(e) === "business" && e.state === "todo" ? "recette.state.proofread" : `recette.state.${e.state}`)} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-sm font-semibold leading-snug">{e.capability}</span>
-            {open.length > 0 && <span className={cn("text-xs font-medium", STATE_TEXT[e.state])}>{t("recette.toTest", { count: open.length })}</span>}
+            {open.length > 0 && <span className={cn("text-xs font-medium", STATE_TEXT[e.state])}>{t(sortOf(e) === "business" ? "recette.toProofread" : "recette.toTest", { count: open.length })}</span>}
           </span>
           {shots.length > 0 && (
             <span className="flex shrink-0 flex-col items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground">

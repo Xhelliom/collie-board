@@ -57,6 +57,7 @@ import {
   type GitRunner,
   type Integration,
   type PrStatus,
+  type Checks,
 } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
 
@@ -480,7 +481,9 @@ export async function mergeWhenReady(
   if (pr.conflicting) return skip("the PR has a conflict — not merging", { conflict: true });
   // GitHub computes mergeability lazily — `UNKNOWN` for a while after `pr create` or a push.
   if (!pr.mergeable) return wait("GitHub has not worked out mergeability yet — waiting");
-  const checks = await checksOf(repoPath, branch, gh);
+  // A `business` card's deliverable is a document: no CI is required of it, so the board does not wait on one.
+  const noCi = db.getCard(cardId)?.category === "business";
+  const checks: Checks | null = noCi ? { state: "none" } : await checksOf(repoPath, branch, gh);
   if (!checks) return unread("the PR's checks");
   if (checks.state === "red") {
     const log = await failedLog(repoPath, checks.detailsUrl, gh);
@@ -490,7 +493,7 @@ export async function mergeWhenReady(
   // Right after `pr create` — or a push to it — the rollup is empty before GitHub registers the checks
   // of the new head. Read against the last push, not the repo's workflow files (ADR 0036): a
   // `paths:`/`branches:` filter would wait forever. Neither known: no grace, it merges.
-  if (checks.state === "none" && now() - lastPushOf(db, cardId, pr) < CHECKS_GRACE_MS) {
+  if (!noCi && checks.state === "none" && now() - lastPushOf(db, cardId, pr) < CHECKS_GRACE_MS) {
     return wait("GitHub has registered no check on this PR yet — waiting");
   }
   const r = await enableAutoMerge(repoPath, branch, gh, []);
@@ -507,7 +510,7 @@ export async function mergeWhenReady(
   db.recordRunEvent(cardId, "run.merge", {
     runId,
     merged: r.ok,
-    reason: r.ok ? `lead validated, ${gate.why}, no conflict, ${checks.state === "green" ? "checks green" : "no checks"}; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
+    reason: r.ok ? `lead validated, ${gate.why}, no conflict, ${noCi ? "no CI required (business card)" : checks.state === "green" ? "checks green" : "no checks"}; auto-merge unavailable, the board merged it` : `merge refused: ${r.error}`,
   });
   // The board knows it merged: take the PR off Open PRs now, instead of waiting for a Check tap.
   if (r.ok) notePrMerged(db, cardId, { url: pr.url });

@@ -520,14 +520,27 @@ describe("parseCardBody", () => {
     });
   });
 
-  it("lets a create declare explore, and only explore, and never on a patch", () => {
+  it("lets a create declare business — a card whose deliverable is a document", () => {
+    expect(parseCardBody({ title: "Offre", category: "business" }, { requireTitle: true })).toEqual({
+      ok: true,
+      value: { title: "Offre", category: "business" },
+    });
+    const db = new BoardDb(":memory:");
+    const c = db.createCard({ title: "Offre", repoPath: "/repo", category: "business" });
+    expect(db.getCard(c.id)!.category).toBe("business");
+    db.setRepoGate("/repo", "bun test");
+    expect(db.cardGate(db.getCard(c.id)!)).toBeNull();
+    expect(db.cardGate({ repoPath: "/repo", category: null })).toBe("bun test");
+  });
+
+  it("lets a create declare explore or business, nothing else, and never on a patch", () => {
     expect(parseCardBody({ title: "Why?", category: "explore" }, { requireTitle: true })).toEqual({
       ok: true,
       value: { title: "Why?", category: "explore" },
     });
     expect(parseCardBody({ title: "x", category: "bug" }, { requireTitle: true })).toEqual({
       ok: false,
-      error: "category must be explore",
+      error: "category must be explore or business",
     });
     expect(parseCardBody({ category: "explore" }, { requireTitle: false })).toEqual({
       ok: false,

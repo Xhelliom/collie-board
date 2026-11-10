@@ -111,6 +111,14 @@ describe("RecetteRoute", () => {
     expect(screen.getByText("Already fine")).toBeInTheDocument();
   });
 
+  it("a business card's recette reads « à relire », not « à tester »", async () => {
+    setPreference("fr");
+    mount([{ usage: null, entries: [entry({ category: "business", capability: "Relire l'offre" })] }]);
+    expect(await screen.findByText("Relire l'offre")).toBeInTheDocument();
+    expect(screen.getByText("1 à relire")).toBeInTheDocument();
+    expect(screen.getByLabelText("à relire")).toBeInTheDocument();
+  });
+
   it("filters code or business, and the choice is remembered on the device", async () => {
     const groups = [
       { usage: null, entries: [entry({ cardId: "c1", capability: "Code thing" }), entry({ cardId: "b1", capability: "Offer page", category: "business" })] },

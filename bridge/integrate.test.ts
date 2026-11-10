@@ -829,11 +829,11 @@ const FRESH = "2026-10-12T11:59:30Z";
 
 describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () => {
   const green = { runId: "r1", ok: true, why: "gate green" };
-  const setup = (over: Parameters<typeof ghDouble>[0] = {}) => {
+  const setup = (over: Parameters<typeof ghDouble>[0] = {}, category?: "business") => {
     // The journal's clock: the PR was opened (pushed) long ago unless a test says otherwise.
     const clock = { t: Date.parse(OLD) };
     const store = new BoardDb(":memory:", () => clock.t);
-    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main" });
+    const card = store.createCard({ title: "t", repoPath: "/repo", baseRef: "main", ...(category && { category }) });
     store.recordEvent(card.id, "card.pr_opened", { url: "https://gh/o/r/pull/1" });
     const { gh, calls } = ghDouble(over);
     const merges = () => store.listEvents(card.id).filter((e) => e.type === "run.merge").map((e) => e.payload as Record<string, unknown>);
@@ -1049,6 +1049,18 @@ describe("landPr / mergeWhenReady — landing a PR (ADR 0027, 0029, 0036)", () =
       await t.again();
       expect(t.direct()).toBe(false);
       expect(t.merges()[0]).toMatchObject({ merged: false, ci: { name: "typecheck", log: expect.stringContaining("TS2554") } });
+    });
+
+    it("a business card requires no CI: a red or running check, or none yet, does not hold its merge", async () => {
+      for (const rollup of [[{ ...done, conclusion: "FAILURE" }], [{ ...done, status: "IN_PROGRESS", conclusion: "" }]]) {
+        const t = setup({ rollup: () => rollup }, "business");
+        await t.again();
+        expect(t.direct()).toBe(true);
+        expect(t.merges()[0]).toMatchObject({ merged: true, reason: expect.stringContaining("no CI required") });
+      }
+      const young = setup({ view: () => ({ createdAt: FRESH }) }, "business");
+      await young.again();
+      expect(young.direct()).toBe(true);
     });
 
     it("waits on a running check without merging, and journals the wait once", async () => {
