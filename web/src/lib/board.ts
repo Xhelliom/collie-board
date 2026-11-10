@@ -30,7 +30,8 @@ export type CardStatus =
  */
 export const CARD_CATEGORIES = ["test", "feature", "bug", "docs", "chore", "explore"] as const;
 
-export type CardCategory = (typeof CARD_CATEGORIES)[number];
+/** `business` is declared at creation, never a triage verdict — so it has no follow-up switch. */
+export type CardCategory = (typeof CARD_CATEGORIES)[number] | "business";
 
 export interface CardSession {
   id: string;
@@ -658,6 +659,8 @@ export interface CardInput {
   position?: number;
   keepWorktree?: boolean;
   autoHandoff?: "on" | "off" | null;
+  /** Create-only: what the card IS — see the bridge's `DECLARABLE_CATEGORIES`. */
+  category?: "explore" | "business";
 }
 
 export function createCard(input: CardInput): Promise<{ ok: true; card: CardView }> {

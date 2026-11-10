@@ -56,6 +56,8 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
   // Whether the dump goes in as rawInput (and so gets rewritten). Reset per open, deliberately: it
   // is a property of THIS card, not a preference — most cards are dictated and want the rewrite.
   const [rewrite, setRewrite] = useState(true);
+  // Non-code work (writing, marketing, an offer): no gate, no CI, a proofreading for its recette.
+  const [business, setBusiness] = useState(false);
   const [hiddenCount, setHiddenCount] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -87,6 +89,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
     setText("");
     setTag("");
     setRewrite(true);
+    setBusiness(false);
     setManual(false);
     setManualPath("");
     setAgentKind(null);
@@ -181,6 +184,7 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
         // Optional, and null is the normal answer — most cards have no tag. Normalised here so the
         // card lands as the tag the field was showing you; the bridge folds it again regardless.
         tag: normalizeTag(tag),
+        ...(business && { category: "business" as const }),
       });
       onClose();
     } catch (e) {
@@ -262,6 +266,10 @@ export function NewCardSheet({ open, onClose, onCreate, tags, repoPath: scope }:
         <div className="flex items-center justify-between gap-3 px-1 py-1">
           <span className="text-xs text-muted-foreground">{t("newcard.rewriteNote")}</span>
           <Switch checked={rewrite} onCheckedChange={setRewrite} aria-label={t("newcard.rewriteAria")} />
+        </div>
+        <div className="flex items-center justify-between gap-3 px-1 py-1">
+          <span className="text-xs text-muted-foreground">{t("newcard.businessNote")}</span>
+          <Switch checked={business} onCheckedChange={setBusiness} aria-label={t("newcard.businessAria")} />
         </div>
 
         <div className="flex flex-col gap-1">

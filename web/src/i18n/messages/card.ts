@@ -119,6 +119,11 @@ export const card = defineMessages({  // the card's journal (components/card-jou
   "newcard.attach": { en: "Attach a screenshot", fr: "Joindre une capture" },
   "newcard.rewriteNote": { en: "The copilot will rewrite this text", fr: "Le copilote va réécrire ce texte" },
   "newcard.rewriteAria": { en: "Rewrite with the copilot", fr: "Réécrire avec le copilote" },
+  "newcard.businessNote": {
+    en: "Non-code work (writing, marketing, an offer): delivers a document, no gate nor CI, to proofread",
+    fr: "Travail non-code (rédaction, marketing, offre) : livre un document, sans gate ni CI, à relire",
+  },
+  "newcard.businessAria": { en: "Non-code work", fr: "Travail non-code" },
   "newcard.repo": { en: "Repo", fr: "Dépôt" },
   "newcard.repoHint": { en: " · long-press to hide one", fr: " · appui long pour en masquer un" },
   "newcard.hideAgain": { en: "Hide them again", fr: "Les masquer à nouveau" },

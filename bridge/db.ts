@@ -98,13 +98,18 @@ export const CARD_ORIGINS: readonly CardOrigin[] = ["copilot", "agent"];
  * DECLARED at creation (see {@link DECLARABLE_CATEGORY}), by anyone, whatever the origin. Declaring
  * it says what the card is, never where it came from: `origin`/`originCardId` stay derived (ADR 0010).
  */
-export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore" | "explore";
+export type CardCategory = "test" | "feature" | "bug" | "docs" | "chore" | "explore" | "business";
 
-/** The categories, in the order the prompt lists them. The single source of the vocabulary. */
+/** The triage categories, in the order the prompt lists them — the copilot's vocabulary and the follow-up switches. */
 export const CARD_CATEGORIES: readonly CardCategory[] = ["test", "feature", "bug", "docs", "chore", "explore"];
 
-/** The one category a create body may carry — see {@link CardCategory}. */
-export const DECLARABLE_CATEGORY = "explore" satisfies CardCategory;
+/**
+ * The categories a create body may carry — see {@link CardCategory}. `business` is non-code work
+ * (writing, marketing, an offer): its deliverable is a document or a page, so it skips the gate and
+ * the CI, the lead judges the document, and its recette reads « à relire ». Never a triage verdict.
+ */
+export const DECLARABLE_CATEGORIES = ["explore", "business"] as const satisfies readonly CardCategory[];
+export type DeclarableCategory = (typeof DECLARABLE_CATEGORIES)[number];
 
 export interface Card {
   id: string;
@@ -1047,7 +1052,7 @@ function toCard(r: CardRow): Card {
     originCardId: r.origin_card_id ?? null,
     // Anything unrecognised reads as "not classified", same degradation as `origin` above: a wrong
     // category would send a card to the wrong side of a filter, and no category shows it either way.
-    category: CARD_CATEGORIES.includes(r.category as CardCategory) ? (r.category as CardCategory) : null,
+    category: CARD_CATEGORIES.includes(r.category as CardCategory) || r.category === "business" ? (r.category as CardCategory) : null,
     // No tag is the normal state, not a gap: every card written before tags existed reads as null,
     // and nothing downstream may treat that as missing data.
     tag: r.tag ?? null,
@@ -3105,6 +3110,11 @@ export class BoardDb {
       )
       .run(path, listed ? 1 : 0, this.now());
     this.pruneRepoPref(path);
+  }
+
+  /** The gate a card goes through: its repo's, except a `business` card's — a document has no gate to pass. */
+  cardGate(card: Pick<Card, "repoPath" | "category">): string | null {
+    return card.repoPath && card.category !== "business" ? this.repoGate(card.repoPath) : null;
   }
 
   /** The repo's gate command (ADR 0020), or null. */

@@ -111,6 +111,14 @@ describe("RecetteRoute", () => {
     expect(screen.getByText("Already fine")).toBeInTheDocument();
   });
 
+  it("a business card's recette reads « à relire », not « à tester »", async () => {
+    setPreference("fr");
+    mount([{ usage: null, entries: [entry({ proofread: true, capability: "Relire l'offre" })] }]);
+    expect(await screen.findByText("Relire l'offre")).toBeInTheDocument();
+    expect(screen.getByText("1 à relire")).toBeInTheDocument();
+    expect(screen.getByLabelText("à relire")).toBeInTheDocument();
+  });
+
   it("folds the list when more than three are to test, and a click unfolds one in place", async () => {
     mount([{ usage: null, entries: ["c1", "c2", "c3", "c4"].map((id) => entry({ cardId: id, capability: `Capability ${id}` })) }]);
     const toggle = (await screen.findByText("Capability c2")).closest("button")!;

@@ -24,6 +24,8 @@ export interface RecetteEntry {
   repoPath: string | null;
   assignee: string | null;
   state: RecetteState;
+  /** A business card's: its recette is a proofreading (« à relire »), not a test. Optional: an older bridge does not send it. */
+  proofread?: boolean;
   /** A KO whose follow-up card is delivered: over, like an OK. */
   followUpDone: boolean;
   /** Image deliverables of the card, newest first. */

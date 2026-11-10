@@ -800,7 +800,7 @@ export function runHook(
       const text = await Bun.file(join(worktree, BILAN_REL_PATH)).text().catch(() => "");
       return text.trim().slice(0, 8000) || null;
     },
-    gateCommand: (card) => (card.repoPath ? db.repoGate(card.repoPath) : null),
+    gateCommand: (card) => db.cardGate(card),
     runGate: (command, worktree) => {
       const argv = parseGate(command);
       return argv ? runGate(argv, worktree) : Promise.resolve({ kind: "error", message: "empty gate command" });

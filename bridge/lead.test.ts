@@ -91,6 +91,12 @@ describe("lead prompts", () => {
     expect(checkPrompt({ ...brief, statSummary: "", category: "bug" })).toBe(code);
   });
 
+  it("check on a business card judges the document, and never sends it back for missing code", () => {
+    const p = checkPrompt({ ...brief, statSummary: " docs/offre.md | 40 +", category: "business" });
+    expect(p).not.toContain("every acceptance criterion holds in the code");
+    expect(p).toContain("never send it back for missing code");
+  });
+
   it("is pure — same input, same prompt", () => {
     expect(checkPrompt({ ...brief, statSummary: "" })).toBe(checkPrompt({ ...brief, statSummary: "" }));
   });

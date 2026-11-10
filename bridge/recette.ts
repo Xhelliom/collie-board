@@ -169,6 +169,8 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         repoPath: card.repoPath,
         assignee: card.assignee,
         state,
+        // A `business` card's recette is a proofreading, not a test: « à relire ».
+        proofread: card.category === "business",
         followUpDone,
         shots,
         deliveredAt: at,

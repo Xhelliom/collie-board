@@ -210,6 +210,13 @@ export function checkPrompt(input: CheckInput): string {
           "means: the conclusion answers the card's question, is grounded in the code it cites, and the",
           "cards it proposed are defensible — each one real, scoped, and following from the conclusion.",
         ]
+      : input.category === "business"
+      ? [
+          "This is a BUSINESS card (writing, marketing, an offer): its deliverable is a document or a page,",
+          "not code. There is no gate, no CI and no test to ask for — never send it back for missing code or",
+          "tests. Finished means: the document is committed, it does what the card asks, and every",
+          "acceptance criterion holds in its text. A person will proofread it afterwards.",
+        ]
       : [
           "Finished means: every acceptance criterion holds in the code, and the work is committed. A drift",
           "from the spec is fine if it is a better path to the same goal — say so in the reason.",

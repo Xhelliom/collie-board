@@ -324,6 +324,8 @@ function NewPage({ repo }: { repo: string }) {
         title: t("docs.newPage.cardTitle", { name: slug }),
         spec: `${t("docs.newPage.cardFile", { path })}\n\n${brief.trim()}\n\n${t("docs.newPage.cardContract", { path })}`,
         repoPath: repo,
+        // A page is a document: no gate, no CI, a proofreading for its recette.
+        category: "business",
       });
       setStatus(t("docs.ask.created"), "success");
       void navigate(`/card/${encodeURIComponent(card.id)}`);

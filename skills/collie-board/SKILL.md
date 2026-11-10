@@ -116,6 +116,7 @@ Fields, all optional except `title`:
 | `parentId` | card id of a container — use it to group a batch |
 | `dependsOn` | card id that must be `done` first (a gate, nothing auto-starts) |
 | `status` | `backlog` (default), `ready`, `working`, `blocked`, `review`, `done`, `archived` |
+| `category` | create-only: `explore` (a question, its output a conclusion) or `business` (writing, marketing, an offer — its deliverable a document or a page: no gate, no CI required, the lead judges the text, its recette reads « à relire ») |
 | `rawInput` | **do not use from here** — see below |
 | `assignee` | who the card is meant for, as a git identity (`user.email`) — an intention, not a right; also settable by PATCH, `null` clears it |
 
