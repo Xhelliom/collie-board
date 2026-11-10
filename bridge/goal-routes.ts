@@ -8,7 +8,7 @@ import { repoPathOf } from "./paths.ts";
 import { usageTracker, type ClaudeUsage } from "./usage.ts";
 
 const GOALS = "/api/goals";
-const GOAL = /^\/api\/goals\/([^/]+)(?:\/(pause|resume|claim|achieve|abandon))?$/;
+const GOAL = /^\/api\/goals\/([^/]+)(?:\/(pause|resume|claim|achieve|abandon|activate))?$/;
 
 const MAX_TEXT = 2_000;
 const MAX_CRITERION = 500;
@@ -22,7 +22,10 @@ const MOVES: Record<string, { from: GoalStatus[]; to: GoalStatus }> = {
   claim: { from: ["active"], to: "claimed" },
   achieve: { from: ["active", "claimed", "paused"], to: "achieved" },
   abandon: { from: ["active", "claimed", "paused"], to: "abandoned" },
+  // The next objective, prepared while one was open: started by hand when nothing is open (validating the current one starts it on its own).
+  activate: { from: ["queued"], to: "active" },
 };
+const OPEN = MOVES.abandon!.from;
 
 /** The objective's journal: what goes there instead of the phone while it is open (goal-mode.ts). */
 export const GOAL_JOURNAL = "goal.journal";
@@ -168,9 +171,13 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
     if (!c) return ctx.text(`criteria: 1 to ${MAX_CRITERIA} non-empty strings`, 400);
     const budget = parseBudget(b.budget, DEFAULT_BUDGET);
     if (typeof budget === "string") return ctx.text(budget, 400);
-    const g = db.createGoal({ repoPath, text: t, criteria: c, budget });
-    if (!g) return ctx.text("this repo already has an open objective — finish, abandon or edit it", 409);
-    audit("goal.create", { goalId: g.id, repoPath });
+    // `next`: the objective to start once the open one is validated — one, prepared while it runs.
+    const next = b.next === true;
+    if (next && !db.listGoals(repoPath).some((x) => OPEN.includes(x.status))) return ctx.text("no open objective to queue behind — set this one as the objective", 409);
+    const g = db.createGoal({ repoPath, text: t, criteria: c, budget }, next ? "queued" : "active");
+    if (!g) return ctx.text(next ? "this repo already has a next objective — edit or delete it" : "this repo already has an open objective — finish, abandon or edit it", 409);
+    audit("goal.create", { goalId: g.id, repoPath, ...(next ? { next } : {}) });
+    if (next) return ctx.json({ goal: goalView(db, g, quota()) }, 201);
     // Journaled for the orchestrator nudger: with no lot running, no end of lot would ever start the objective.
     db.recordEvent(null, "goal.created", { goalId: g.id });
     return ctx.json({ goal: goalView(db, g, quota()) }, 201);
@@ -179,9 +186,14 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
   const g = db.getGoal(m![1]!);
   if (!g) return ctx.text("not found", 404);
 
+  if (!move && req.method === "DELETE") {
+    if (!db.deleteQueuedGoal(g.id)) return ctx.text("only a next objective, still waiting, may be deleted", 409);
+    audit("goal.delete", { goalId: g.id, repoPath: g.repoPath });
+    return new Response(null, { status: 204 });
+  }
   if (!move) {
     if (req.method !== "PATCH") return ctx.text("method not allowed", 405);
-    if (!MOVES.abandon!.from.includes(g.status)) return ctx.text(`a ${g.status} objective is closed`, 409);
+    if (g.status !== "queued" && !OPEN.includes(g.status)) return ctx.text(`a ${g.status} objective is closed`, 409);
     const b = await bodyOf(req);
     if (!b) return ctx.text("bad body", 400);
     const t = b.text === undefined ? g.text : text(b.text);
@@ -210,9 +222,16 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
   // Journaled for the orchestrator nudger (ADR 0028): nothing runs while it was stopped, so no end of lot would wake it.
   if (move === "claim") db.recordEvent(null, "goal.claim", { goalId: g.id, proofs });
   if (move === "resume") db.recordEvent(null, "goal.resumed", { goalId: g.id, from: g.status, comment });
+  if (move === "activate") db.recordEvent(null, "goal.created", { goalId: g.id });
   // The phases the orchestrator cut during the objective are not validated one by one: validating the objective closes them.
   if (move === "achieve")
     for (const id of goalView(db, g, null).spent.phaseIds)
       if (db.getPhase(id)?.closedAt === null && !db.phaseHasUnfinishedLot(id)) db.closePhase(id, { moveOpenTo: null, note: "close par la validation de l'objectif" });
+  // Validating starts the next objective, if one waits — and wakes the orchestrator as setting it would have.
+  const queued = move === "achieve" ? db.listGoals(g.repoPath).find((x) => x.status === "queued") : undefined;
+  if (queued && db.setGoalStatus(queued.id, ["queued"], "active")) {
+    audit("goal.activate", { goalId: queued.id, repoPath: g.repoPath });
+    db.recordEvent(null, "goal.created", { goalId: queued.id });
+  }
   return ctx.json({ goal: goalView(db, db.getGoal(g.id)!, quota()) });
 }
