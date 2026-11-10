@@ -181,7 +181,7 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   Never serve MCP from the bridge: `checkAccess` and the CSP stay as they are. [ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md).
 - **A change that would help upstream goes in the ledger, in the same commit.** If a brick is
   generic — it works with no card in sight — add or update its entry in
-  [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) with its commit hash. Doing it later means doing it never,
+  [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) (one file per brick under `docs/upstream/prs/`) with its commit hash. Doing it later means doing it never,
   and the whole fork strategy rests on that list being true.
 - **A gauge that might be wrong is worse than no gauge.** Only claim `context = true` in
   `adapters/agents.toml` for a transcript format `latestUsage()` has actually been verified against.
