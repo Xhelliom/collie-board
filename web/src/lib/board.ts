@@ -1393,6 +1393,8 @@ export interface Lot {
   prUrl?: string | null;
   /** Launched and halted: why (the newest halt still holding). Null while it runs. Absent on an older bridge. */
   halted?: string | null;
+  /** Card pairs that may run together and cite the same file in their spec — a warning, never a block. Absent on an older bridge. */
+  overlaps?: { cardIds: [string, string]; files: string[] }[];
   /** Shared board only (ADR 0048 §7): who created it and on which pair — only that pair launches and resumes it. */
   createdBy?: string | null;
   createdPair?: string | null;

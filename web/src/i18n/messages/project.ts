@@ -160,6 +160,10 @@ export const project = defineMessages({
   "lot.resumed": { en: "Lot “{name}” resumed.", fr: "Lot « {name} » repris." },
   "lot.oneAtATime": { en: "one at a time", fr: "une à la fois" },
   "lot.nAtATime": { en: "{count} at a time", fr: "{count} à la fois" },
+  "lot.overlap": {
+    en: "« {a} » and « {b} » cite the same files ({files}): the second PR will likely conflict. Chain them (one depends on the other) or run the lot one at a time.",
+    fr: "« {a} » et « {b} » citent les mêmes fichiers ({files}) : la seconde PR risque d'arriver en conflit. Chaîne-les (l'une dépend de l'autre) ou passe le lot à une à la fois.",
+  },
   "lot.launch": { en: "Launch this lot", fr: "Lancer ce lot" },
   "lot.ownedBy": { en: "{name}'s lot — only its creator launches and resumes it", fr: "Lot de {name} — seul son créateur le lance et le reprend" },
   "awaiting.tag": { en: "The orchestrator awaits your decision", fr: "L'orchestrateur attend ta décision" },

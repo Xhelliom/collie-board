@@ -9,6 +9,7 @@
 import { boardBranchPrefix } from "./config.ts";
 import { doneOutsideLot, type BoardDb, type Card, type Run } from "./db.ts";
 import { haltReason } from "./run.ts";
+import { lotOverlaps } from "./lot-overlap.ts";
 import { baseOf, branchExists, isAncestor, parseMergeTree, runGit, syncBaseWithOrigin, type GitRunner } from "./git.ts";
 
 /** `board/lot-<slug>-<id6>` : le nom aide l'œil, l'id garde deux lots du même nom distincts. Pur. */
@@ -146,5 +147,7 @@ export function lotView(db: Pick<BoardDb, "runMembers" | "runFinishedAt" | "list
   // Counted here, not on the client: the home's summary card list keeps only a few done cards per repo.
   const done = members.filter((c) => c.status === "done").length;
   const blocked = members.filter((c) => c.status === "blocked" || c.status === "orphaned").length;
-  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, doneOutside, done, blocked, prUrl, halted };
+  // Cards that may run together and cite the same file: a warning beside the lot, never a block.
+  const overlaps = finished ? [] : lotOverlaps(run, members);
+  return { ...run, cardIds: members.map((c) => c.id), finished, finishedAt, doneOutside, done, blocked, prUrl, halted, overlaps };
 }
