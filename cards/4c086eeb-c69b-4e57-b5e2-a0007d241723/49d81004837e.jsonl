@@ -5,3 +5,9 @@
 {"v":1,"hlc":"1794343750959.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"23ef927d-43fc-426e-a30c-e61ced6ccc14"}}
 {"v":1,"hlc":"1794343750960.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"460670ca-158d-4b71-88b2-684a7a313f5b"}}
 {"v":1,"hlc":"1794344872110.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794344883099.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/chat-la-vignette-de-l-image-jointe-est-cassee-et"}}
+{"v":1,"hlc":"1794344883099.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794344883099.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794344875086}}
+{"v":1,"hlc":"1794344883099.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794344883099.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794344879924}}
+{"v":1,"hlc":"1794344883099.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3270},"ts":1794344880144}}
