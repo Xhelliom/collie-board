@@ -1,7 +1,8 @@
-// ADR 0055: under autonomy, the repo's orchestrator may resume a lot halted for a mechanical reason.
+// ADR 0055: under autonomy or an active objective, the repo's orchestrator may resume a lot halted for a mechanical reason.
 // Which halts are mechanical is read off the halt itself, pure; anything not recognised stays the operator's.
 
 import type { BoardDb, BoardEvent, Run } from "./db.ts";
+import { openGoalOf } from "./goal-mode.ts";
 import { findOrchestrator } from "./orchestrator.ts";
 import { heldHalts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -40,7 +41,9 @@ export function autoResumes(db: BoardDb, run: Run): number {
 /** Why `pane` may not resume `run`, or null when it may. The owner check (another pair's lot) stays the route's. */
 export function autoResumeRefusal(db: BoardDb, run: Run, pane: string, snap: EngineSnapshot): string | null {
   const operator = "resuming is the operator's gesture — an agent pane cannot resume a lot";
-  if (!db.autonomyOf(run.repoPath).enabled || snap.bridge === "disconnected" || findOrchestrator(snap, run.repoPath) !== pane) return operator;
+  // An active objective (ADR 0056) lets the orchestrator launch without autonomy; it resumes the same way.
+  const allowed = db.autonomyOf(run.repoPath).enabled || openGoalOf(db, run.repoPath)?.status === "active";
+  if (!allowed || snap.bridge === "disconnected" || findOrchestrator(snap, run.repoPath) !== pane) return operator;
   const held: BoardEvent[] = heldHalts(db, run);
   if (held.some((h) => !mechanicalHalt(h.payload as { reason?: unknown })))
     return "this halt is a decision (the lead's rounds, an empty branch, a verdict) — the operator's to resume";

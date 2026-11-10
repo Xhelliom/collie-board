@@ -30,7 +30,11 @@ d'un `auto` (son horodatage) ; on compte les gestes distincts. Au-delà : 403, l
 geste de l'opérateur (qui, lui, n'est jamais borné). Une constante, pas un réglage : personne n'en a
 demandé un.
 
-**Inchangé** : autonomie éteinte → 403 comme avant ; lot d'un autre poste → 403 (`lotOwnerRefusal`,
+**Un objectif actif suffit** (ADR 0056, amendé le 10/11/2026) : comme pour le lancement, l'orchestrateur
+reprend aussi quand l'autonomie est éteinte mais que l'objectif du dépôt est `active` — même borne, mêmes
+halts. Objectif en pause, revendiqué ou absent : il n'ouvre rien.
+
+**Inchangé** : autonomie éteinte et pas d'objectif actif → 403 comme avant ; lot d'un autre poste → 403 (`lotOwnerRefusal`,
 ADR 0048 §7), avant toute classification. L'audit `run.resume` porte `autonomous: true`.
 
 ## Consequences
