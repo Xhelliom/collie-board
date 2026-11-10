@@ -5,3 +5,9 @@
 {"v":1,"hlc":"1794240152917.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"37654833-0e93-485e-bb7f-b59b41acef37"}}
 {"v":1,"hlc":"1794240164777.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"2d45e5b2-fc24-4c85-b7aa-df8b426f7435"}}
 {"v":1,"hlc":"1794300434435.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794300437059.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/declarer-l-objectif-atteint-l-operateur-valide-o"}}
+{"v":1,"hlc":"1794300437059.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794300437059.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794300436921}}
+{"v":1,"hlc":"1794300451806.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794300451806.0007.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794300441226}}
+{"v":1,"hlc":"1794300451806.0008.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3762},"ts":1794300443209}}
