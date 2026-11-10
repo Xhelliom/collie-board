@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.297.1] - 2026-11-10
+
+### Fixed
+
+- Question d'un AskUserQuestion affichée en entier : une question longue s'enroule derrière une gouttière `│` (Claude Code 2.1.322) et seule sa dernière ligne était lue (e047fd5)
+- Le choix « Type something. » est une ligne de saisie dans la carte du dialogue (question simple et questionnaire à onglets) : chiffre, pointeur vérifié, texte, Entrée (e047fd5)
+- Questionnaire à onglets reconnu même quand sa question dépasse 10 lignes (il retombait sur la grammaire à une question) (e047fd5)
+- Bandeau d'écran bloquant : lu depuis la bordure haute du dialogue au lieu des 14 dernières lignes (e047fd5)
+
 ## [0.297.0] - 2026-11-10
 
 ### Added
