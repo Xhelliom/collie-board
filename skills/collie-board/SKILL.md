@@ -586,6 +586,20 @@ code.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
 
+### The objective (ADR 0056): read it, claim it, never set or validate it
+
+A repo may have **one open objective** (`active`, `paused` or `claimed`): a text, success criteria, and a
+budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quota, no deadline).
+
+- `GET /api/goals?repo=…` (newest first) or `GET /api/goals/<id>` — each with `spent`: `lots` / `lotIds`
+  (the repo's lots launched while it was open), `cardIds`, and `quotaPct` (the week's gauge, null without a reading).
+- **Claim it reached** — `POST /api/goals/<id>/claim` with your `x-collie-pane`, only from `active`, once
+  every criterion holds. Say which evidence meets each criterion; the user validates.
+- **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
+  (`409` if one is already open), `PATCH /api/goals/<id>` (text, criteria, budget), and
+  `POST /api/goals/<id>/pause` · `/resume` (also rejects a claim) · `/achieve` (validates) · `/abandon`.
+  Propose an objective or an edit to the user; never try to write it.
+
 ### Milestones (ADR 0025): propose, never validate
 
 A project is never "100 % done": progress is read **per milestone**, and a milestone is a **phase the user
