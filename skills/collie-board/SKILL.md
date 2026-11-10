@@ -468,6 +468,11 @@ These spend quota or drive a real terminal. Never fire one unasked:
   assigned to you. Taking a card back (`POST /api/cards/<id>/claim`) is the operator's gesture — refused to a pane.
   **Never start a card assigned to someone else** (`assignee` ≠ you): the bridge refuses your pane `403`.
 - `POST /api/cards/<id>/prompt` (`{"text":"…"}`) — types into that agent's pane.
+  **`409 {kind:"held"}` — « en main par l'opérateur »** (ADR 0058): the user is talking to that worker
+  (the card carries `held`). **Wait. Do not work around it** — no typing into its pane another way, no
+  filing or closing the card. It ends when the user gives it back, or by itself after 2 h without a
+  message from them; then ask again. `POST`/`DELETE /api/cards/<id>/hold` (take / give back to the lead)
+  are the user's own gestures — `403` to any pane.
 - `POST /api/cards/<id>/next-step` — hands a landed card (outside a run) to the next role of its flow; the user's tap, never yours.
 - `POST /api/cards/<id>/reformulate` — hands the card to the copilot.
 - `POST /api/cards/<id>/handoff`, `DELETE` on a card that has work in it.

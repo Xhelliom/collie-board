@@ -321,6 +321,12 @@ export function describeEvent(event: BoardEvent): string {
       return p.followUp ? t("journal.followUp") : t("journal.specSent");
     case "card.operator_said":
       return t("journal.operatorSaid", { text: String(p.text ?? "").slice(0, 120) });
+    case "card.held":
+      return t("journal.held");
+    case "card.held_reminder":
+      return t("journal.heldReminder");
+    case "card.released":
+      return t(p.why === "expired" ? "journal.releasedAuto" : "journal.released");
     case "card.automerge_armed":
       return t("journal.automerge.armed");
     case "card.automerge_refused":

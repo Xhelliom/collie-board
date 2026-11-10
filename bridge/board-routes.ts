@@ -59,6 +59,7 @@ import {
 } from "./git.ts";
 import { redactDeep, redactText } from "./redact.ts";
 import { parseGate } from "./gate.ts";
+import { HELD_ERROR, hold, release } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
 import { handleTidyRoute } from "./tidy.ts";
@@ -161,7 +162,7 @@ export const PANE_HEADER = "x-collie-pane";
 
 /** `/api/cards` and `/api/cards/<id>[/<action>]`. */
 const CARD_ROUTE =
-  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|migrate-hc|resume|prompt|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
+  /^\/api\/cards(?:\/([^/]+))?(?:\/(start|finish-now|request-commit|to-action|diff|remote|handoff|migrate-hc|resume|prompt|hold|next-step|sessions|events|review|reformulate|refine|revert|integration|pr|explain))?$/;
 
 /**
  * Every path the board handler owns — what server.ts forwards to it. One list, so a new route family
@@ -1769,6 +1770,16 @@ async function route(
     return json({ ok: true, card: view(id) });
   }
 
+  // « En main » (ADR 0058): POST takes the card, DELETE gives it back to the lead. The operator's alone.
+  if (action === "hold" && (req.method === "POST" || req.method === "DELETE")) {
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("« en main » is the operator's — an agent pane may neither take nor release it", 403);
+    if (req.method === "DELETE") return json({ ok: true, card: (release(db, id), view(id)) });
+    if (!hold(db, id)) return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
+    return json({ ok: true, card: view(id) });
+  }
+
   if (action === "prompt" && req.method === "POST") {
     const denied = ctx.guard("write");
     if (denied) return denied;
@@ -1786,6 +1797,9 @@ async function route(
     if (!session?.paneId) {
       return ctx.json({ ok: false, error: NO_AGENT, kind: "no-session" }, 409);
     }
+    // ADR 0058: an agent never writes to a worker the operator has in hand.
+    const fromAgent = !!req.headers.get(PANE_HEADER)?.trim();
+    if (fromAgent && db.getCard(id)?.held) return ctx.json({ ok: false, error: HELD_ERROR, kind: "held" }, 409);
     try {
       await promptAndConfirm(ctx.herdr, session.paneId, promptText);
     } catch (err) {
@@ -1800,6 +1814,7 @@ async function route(
     db.recordEvent(id, "card.prompted", { chars: promptText.length, followUp: true, ...(command ? { command } : {}) });
     // A bare slash command is a gesture, not a direction the lead needs to read.
     if (!command) recordOperatorSaid(db, session.paneId, promptText);
+    if (!command && !fromAgent) hold(db, id);
     ctx.audit.record({
       action: "card.prompt",
       paneId: session.paneId,

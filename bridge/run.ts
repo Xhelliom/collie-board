@@ -164,6 +164,9 @@ export function stepFor(
     closer?: boolean;
   },
 ): Step {
+  // « En main » (ADR 0058): the operator is talking to this worker. Nothing is judged, prompted, filed or
+  // halted until they give it back — then the grammar below resumes from what the card says, no round spent.
+  if (card.held) return null;
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
   const held = holding(events, run.id);
   // `run.moved`: the branch changed after the lead's verdict — a landing nobody has judged, like the first.
@@ -488,6 +491,8 @@ export class RunCoordinator {
           step.kind === "check"
             ? await this.ports.lead.check({ ...brief, statSummary, gatePassed, operatorSaid, workerReport })
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
+        // Taken in hand while the lead was reading: its verdict is dropped, and asked again once given back.
+        if (this.db.getCard(card.id)?.held) return;
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
         // No round spent: only a `prompt` decision counts as one.
         if (d.decision === "blocked") return this.halt(run, card.id, `${EXTERNAL_BLOCK}${d.reason} — operator: ${d.operator}`);

@@ -51,6 +51,7 @@ import { AgentIcon } from "@/components/agent-icon";
 import { TabStrip } from "@/components/tab-strip";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { ResumeOffer } from "@/components/auto-handoff";
+import { HeldControl } from "@/components/held";
 import { ReadingView } from "@/components/reading-view";
 import { LastTurnButtons } from "@/components/last-turn-buttons";
 import { isHcAgent, isOrchestrator, projectOf } from "@/lib/agent-groups";
@@ -1181,6 +1182,8 @@ export function AgentChat({
 
           {/* Right above the reply box, at every breakpoint: the reply is what would reload the cache. */}
           {cardId && agent?.handoffReady && <ResumeOffer cardId={cardId} />}
+          {/* « En main » (ADR 0058): writing here takes the card by itself; the button is for taking it before, and giving it back. */}
+          {cardId && !orchestrator && <HeldControl cardId={cardId} held={!!agent?.held} className="justify-end border-t border-border/40 px-3 py-1.5" />}
 
           {orchestrator && !reading && <LastTurnButtons paneId={paneId} session={session} poll={revalidator.state} />}
 

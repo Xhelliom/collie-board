@@ -23,6 +23,7 @@ import { CARD_STATUS_LABEL, criteriaCount, type BoardEvent, type CardStatus, typ
 import type { DependencyInfo } from "@/lib/board-groups";
 import type { LotHold } from "@/lib/lot-hold";
 import { AwaitingTag } from "@/components/awaiting-tag";
+import { HeldChip } from "@/components/held";
 import { CardPeople, useCardPeople } from "@/components/card-people";
 import type { Awaiting } from "@/lib/board";
 
@@ -235,6 +236,7 @@ export function CardTile({
                 {lot.step && <span className="text-status-working">· {t(`lot.step.${lot.step}`)}</span>}
               </span>
             )}
+            {card.held && <HeldChip />}
             {awaiting && card.repoPath && <AwaitingTag awaiting={awaiting} repo={card.repoPath} nested />}
             {/* The repo, always — next to the status chip on a live card, alone in the row on a
                 quiet one. A "To review" column that says four cards are waiting but not WHICH repo

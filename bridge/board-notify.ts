@@ -96,6 +96,11 @@ export function tell(e: BoardEvent): Pick<NotifyLogEntry, "status" | "subtitle">
         : oneLine(`PR open — GitHub refused auto-merge${error ? `: ${error}` : ""}`),
     };
   }
+  // ADR 0058 — « En main » ran out by itself: the lead has the card again and nobody tapped anything.
+  // A story (it happened), so the bell; an operator's own « Rendre au lead » is not told back to them.
+  if (e.type === "card.released" && str(e.payload, "why") === "expired") {
+    return { status: "done", subtitle: "En main depuis 2 h sans message — rendu au lead" };
+  }
   // B10 — a tap that produced nothing. Every copilot request is asynchronous and answers into the
   // card; when it fails there is no answer, and no way to learn that except this.
   if (e.type.startsWith("copilot.") && e.type.endsWith("_failed")) {
@@ -206,7 +211,7 @@ export interface BoardNotifySource {
   /** The newest `limit` entries' types among `types`, newest first — for {@link copilotDown}. */
   latestEventTypes(types: string[], limit: number): string[];
   eventsAfter(after: number): BoardEvent[];
-  getCard(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null } | null;
+  getCard(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null; held?: { lastTouch: number } | null } | null;
   /** The cards waiting on this one, for B4 ({@link unblocks}) — one unindexed scan, on a `done`. */
   dependentsOf(id: string): { id: string; title: string; status: string; repoPath: string | null; runId?: string | null }[];
   /** For B4: a successor in a launched, unfinished lot is the lot's to start, not the operator's. */
@@ -318,6 +323,10 @@ export class BoardNotifier {
       }
       if (e.type === "goal.checkpoint") {
         if (this.alerts) this.checkpoint(e);
+        continue;
+      }
+      if (e.type === "card.held_reminder") {
+        if (this.alerts && e.cardId) this.heldReminder(e.cardId, e.payload);
         continue;
       }
       if (this.alerts && e.type === "copilot.review_failed") this.copilotStalled(e);
@@ -453,6 +462,30 @@ export class BoardNotifier {
       cwd: str(e.payload, "repoPath") ?? "",
       status: reason === "half" ? "note" : reason === "spent" ? "blocked" : "done",
       subtitle: oneLine(`${GOAL_LABEL[reason] ?? "Objectif"} — ${summary}`),
+    });
+  }
+
+  /**
+   * ADR 0058: a card « en main » for an hour with no message from the operator. Test 3 holds — no pane
+   * says "you took this and left". Its own key, so it never displaces the card's other alert. It retracts
+   * when the card is given back (or expires: `held` absent) or the operator writes again (`lastTouch` moved).
+   */
+  private heldReminder(cardId: string, payload: unknown): void {
+    const read = () => {
+      const held = this.db.getCard(cardId)?.held;
+      return held ? String(held.lastTouch) : null;
+    };
+    const mark = read();
+    const card = this.db.getCard(cardId);
+    if (!card || mark === null || mark !== String((payload as { lastTouch?: unknown } | null)?.lastTouch)) return;
+    this.armed.set(`held:${cardId}`, { mark, read });
+    this.alerts!.arm(`held:${cardId}`, {
+      cwd: card.repoPath ?? "",
+      status: "note",
+      cardId: card.id,
+      cardTitle: card.title,
+      cardStatus: card.status,
+      subtitle: "En main depuis 1 h, rendu au lead dans 1 h",
     });
   }
 

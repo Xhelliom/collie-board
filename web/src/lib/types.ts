@@ -58,6 +58,8 @@ export interface AgentView {
    *  the cache has since gone cold: the pane screen offers a fresh session from it (auto-handoff.ts).
    *  Same gating as `cardId`. */
   handoffReady?: boolean;
+  /** « En main » (ADR 0058): the operator has this pane's card in hand. Same gating as `cardId`. */
+  held?: boolean;
   /**
    * Context occupancy, for ANY agent pane — card-backed or launched by hand (bridge
    * `ContextTracker.enrich`, UI_AUDIT.md G3). Absent until the tracker's first successful transcript

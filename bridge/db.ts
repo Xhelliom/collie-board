@@ -266,6 +266,19 @@ export interface Card {
    * journal's last-write-wins (ADR 0048 §2). A verdict whose step is gone is simply not shown.
    */
   checkVerdicts: Record<string, CheckVerdict>;
+  /**
+   * « En main » (ADR 0058): the operator is talking to this card's worker, so the lead neither judges,
+   * prompts nor closes it. Out of every allowlist — only {@link BoardDb.setHeld} writes it — and local:
+   * it is about this machine's pane, so it is not a shared column.
+   */
+  held: CardHeld | null;
+}
+
+/** See {@link Card.held}. `lastTouch`: the operator's last message, which is what the expiry counts from. */
+export interface CardHeld {
+  by: "operator";
+  at: number;
+  lastTouch: number;
 }
 
 /** A pair's reservation of a shared card — see {@link Card.claim}. */
@@ -796,6 +809,7 @@ interface CardRow {
   capability: string | null;
   usage_group: string | null;
   check_verdicts: string | null;
+  held: string | null;
 }
 
 interface RunRow {
@@ -1086,7 +1100,17 @@ function toCard(r: CardRow): Card {
     capability: r.capability ?? null,
     usageGroup: r.usage_group ?? null,
     checkVerdicts: parseVerdicts(r.check_verdicts),
+    held: parseHeld(r.held),
   };
+}
+
+function parseHeld(raw: string | null | undefined): CardHeld | null {
+  try {
+    const v = JSON.parse(raw ?? "null") as Partial<CardHeld> | null;
+    return typeof v?.at === "number" && typeof v.lastTouch === "number" ? { by: "operator", at: v.at, lastTouch: v.lastTouch } : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseEnvironmentColumn(raw: string | null | undefined): CardEnvironment | null {
@@ -1842,6 +1866,8 @@ export class BoardDb {
       { table: "card", column: "capability", ddl: "TEXT" },
       { table: "card", column: "usage_group", ddl: "TEXT" },
       { table: "card", column: "check_verdicts", ddl: "TEXT" },
+      // ADR 0058: « En main » — JSON {by, at, lastTouch}, or NULL.
+      { table: "card", column: "held", ddl: "TEXT" },
       { table: "agent_template", column: "worker", ddl: "INTEGER NOT NULL DEFAULT 0" },
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
@@ -2076,6 +2102,16 @@ export class BoardDb {
     this.db.query(`UPDATE card SET ${sets.join(", ")} WHERE id = ?`).run(...values);
     if (before) this.recordEdit(before, patch, reason);
     return this.getCard(id);
+  }
+
+  /** « En main » (ADR 0058) — see `held.ts`, its only caller. Out of {@link CardPatch}: no body reaches it. */
+  setHeld(id: string, held: CardHeld | null): Card | null {
+    this.db.query("UPDATE card SET held = ?, updated_at = ? WHERE id = ?").run(held ? JSON.stringify(held) : null, this.now(), id);
+    return this.getCard(id);
+  }
+
+  listHeldCards(): Card[] {
+    return this.db.query<CardRow, []>("SELECT * FROM card WHERE held IS NOT NULL").all().map(toCard);
   }
 
   /** Record the operator's verdict on one step of the card's recette. Out of {@link CardPatch}: no body reaches it. */
