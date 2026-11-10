@@ -593,6 +593,9 @@ export interface RoadmapItem {
 /** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — the three statuses of a design journal (ADR 0023). */
 export const DECISION_STATUSES = ["decided", "leaning", "open"] as const;
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+/** What a decision is about: the product/business, or the technique. Absent reads as technical. */
+export const DECISION_DOMAINS = ["product", "technical"] as const;
+export type DecisionDomain = (typeof DECISION_DOMAINS)[number];
 
 /** One line of the project's decision journal. Written at the moment it is taken, never reconstructed. */
 export interface Decision {
@@ -603,6 +606,8 @@ export interface Decision {
   itemId: string | null;
   /** The card it is about (absent: none). Open, it is "the orchestrator waits on you" on that card. */
   cardId?: string;
+  /** product or technical; absent (every decision written before it existed) is technical. */
+  domain?: DecisionDomain;
 }
 
 /** The ceilings a roadmap document keeps to — an unbounded one would be an unbounded row. */
@@ -2886,7 +2891,7 @@ export class BoardDb {
    */
   upsertDecision(
     repoPath: string,
-    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null; cardId?: string | null },
+    input: { id?: string; text: string; status: DecisionStatus; itemId?: string | null; cardId?: string | null; domain?: DecisionDomain },
   ): { roadmap: Roadmap; decision: Decision } {
     return this.db.transaction(() => {
       const before = this.getRoadmap(repoPath);
@@ -2895,7 +2900,8 @@ export class BoardDb {
       const at = decisions.findIndex((d) => d.id === id);
       // A question settled without restating its card keeps it: the journal still says what it was about.
       const cardId = input.cardId ?? (at >= 0 ? decisions[at]!.cardId : undefined);
-      const decision: Decision = { id, text: input.text, status: input.status, itemId: input.itemId ?? null, ...(cardId ? { cardId } : {}) };
+      const domain = input.domain ?? (at >= 0 ? decisions[at]!.domain : undefined);
+      const decision: Decision = { id, text: input.text, status: input.status, itemId: input.itemId ?? null, ...(cardId ? { cardId } : {}), ...(domain ? { domain } : {}) };
       if (at >= 0) decisions[at] = decision;
       else if (decisions.length >= ROADMAP_MAX_DECISIONS) throw new Error(`a roadmap keeps at most ${ROADMAP_MAX_DECISIONS} decisions`);
       else decisions.push(decision);

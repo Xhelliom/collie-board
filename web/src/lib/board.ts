@@ -1416,6 +1416,8 @@ export interface Decision {
   itemId: string | null;
   /** The card it is about: open, that card says "the orchestrator waits on your decision". */
   cardId?: string;
+  /** product or technical; absent is technical. */
+  domain?: "product" | "technical";
 }
 /** An open decision as a card carries it (bridge `awaitingOn`): gone once leaning or decided (ADR 0011). */
 export interface Awaiting {

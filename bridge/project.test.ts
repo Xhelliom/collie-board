@@ -393,6 +393,18 @@ describe("the roadmap as a document (ADR 0023)", () => {
     expect(db.getRoadmap(repo)!.decisions[0]!.cardId).toBe(card.id);
   });
 
+  it("a decision carries its domain, keeps it when settled without it, and an old one has none (technical)", async () => {
+    const db = new BoardDb(":memory:");
+    expect((await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", domain: "business" })).status).toBe(400);
+    const old = await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "SQLite", status: "decided" });
+    expect(old.body.decision.domain).toBeUndefined();
+    const a = await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "Gratuit ?", status: "open", domain: "product" });
+    const id = a.body.decision.id as string;
+    await call(db, "POST", "/api/roadmap/decision", { repoPath: repo, id, text: "Gratuit", status: "decided" });
+    expect(db.getRoadmap(repo)!.decisions.find((d) => d.id === id)!.domain).toBe("product");
+    expect((await call(db, "GET", `/api/roadmap?repo=${encodeURIComponent(repo)}&format=md`)).body).toContain("- **Produit** · Gratuit");
+  });
+
   it("refuses a bad decision, an unknown item, a body without a repo, and the 301st", async () => {
     const db = new BoardDb(":memory:");
     const d = (o: object) => call(db, "POST", "/api/roadmap/decision", { repoPath: repo, text: "t", status: "open", ...o });

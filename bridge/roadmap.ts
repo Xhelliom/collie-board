@@ -7,12 +7,14 @@
 // board's own phases, lots and cards rendered in order, so it cannot drift from them.
 
 import {
+  DECISION_DOMAINS,
   DECISION_STATUSES,
   doneOutsideLot,
   ROADMAP_MAX_DECISIONS,
   ROADMAP_STATUSES,
   type Card,
   type Decision,
+  type DecisionDomain,
   type DecisionStatus,
   type Phase,
   type Roadmap,
@@ -39,6 +41,8 @@ export function parseDecision(v: unknown): Parsed<Omit<Decision, "id"> & { id?: 
   if (o.id !== undefined && (typeof o.id !== "string" || o.id.trim() === "")) return { ok: false, error: "bad decision id" };
   if (o.itemId !== undefined && o.itemId !== null && typeof o.itemId !== "string") return { ok: false, error: "itemId must be a roadmap item id or null" };
   if (o.cardId !== undefined && o.cardId !== null && typeof o.cardId !== "string") return { ok: false, error: "cardId must be a card id or null" };
+  if (o.domain !== undefined && o.domain !== null && !DECISION_DOMAINS.includes(o.domain as DecisionDomain))
+    return { ok: false, error: `domain must be one of ${DECISION_DOMAINS.join(", ")}` };
   return {
     ok: true,
     value: {
@@ -47,6 +51,7 @@ export function parseDecision(v: unknown): Parsed<Omit<Decision, "id"> & { id?: 
       status: o.status as DecisionStatus,
       itemId: (o.itemId as string | null | undefined) ?? null,
       ...(typeof o.cardId === "string" && o.cardId !== "" ? { cardId: o.cardId } : {}),
+      ...(typeof o.domain === "string" ? { domain: o.domain as DecisionDomain } : {}),
     },
   };
 }
@@ -133,7 +138,7 @@ export function roadmapMarkdown(
       const group = decisions.filter((d) => d.status === status);
       if (!group.length) continue;
       lines.push("", `### ${MARK[status]} (${group.length})`, "");
-      for (const d of group) lines.push(`- ${d.text}${d.itemId && title.has(d.itemId) ? ` — _${title.get(d.itemId)}_` : ""}`);
+      for (const d of group) lines.push(`- ${d.domain === "product" ? "**Produit** · " : ""}${d.text}${d.itemId && title.has(d.itemId) ? ` — _${title.get(d.itemId)}_` : ""}`);
     }
   }
   return lines.join("\n") + "\n";
