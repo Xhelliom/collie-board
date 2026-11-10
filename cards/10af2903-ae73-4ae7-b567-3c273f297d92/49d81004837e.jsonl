@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794343198613.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Mode lecture : la question de Claude est rognée et le choix de saisie libre manque","status":"backlog"},"ts":1794343181501}}
 {"v":1,"hlc":"1794343750959.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"23ef927d-43fc-426e-a30c-e61ced6ccc14"}}
 {"v":1,"hlc":"1794343750960.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"460670ca-158d-4b71-88b2-684a7a313f5b"}}
+{"v":1,"hlc":"1794343896672.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
