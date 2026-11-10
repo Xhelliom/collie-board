@@ -18,9 +18,9 @@ const INDEX: DocsIndex = {
   ],
   other: [{ path: "NOTES.md", title: "Notes", size: 5 }],
   decisions: [
-    { kind: "roadmap", id: "d1", text: "The repo is the source of truth", status: "decided", date: "2026-11-06" },
+    { kind: "roadmap", id: "d1", text: "The repo is the source of truth", status: "decided", date: "2026-11-06", category: "Foundation" },
     { kind: "adr", path: ".adr/0001-door.md", title: "0001 — One door", status: "Accepted", date: "2026-09-01" },
-    ...[1, 2, 3, 4, 5].map((n) => ({ kind: "roadmap" as const, id: `o${n}`, text: `Open question ${n}`, status: "open" as const, date: "2026-08-01" })),
+    ...[1, 2, 3, 4, 5].map((n) => ({ kind: "roadmap" as const, id: `o${n}`, text: `Open question ${n}`, status: "open" as const, date: "2026-08-01", ...(n === 1 ? { cardId: "c1" } : {}) })),
   ],
   bilan: [
     { code: "missing", rubric: "index", label: "Où chercher quoi" },
@@ -58,6 +58,7 @@ const mount = (url: string) =>
         [
           { path: "/board/documents", loader: docsLoader, element: <DocumentsRoute /> },
           { path: "/card/:cardId", element: <p>card page</p> },
+          { path: "/board/roadmap", element: <p>roadmap page</p> },
         ],
         { initialEntries: [url] },
       )}
@@ -115,11 +116,27 @@ describe("DocumentsRoute", () => {
     expect(screen.getByRole("link", { name: /NOTES\.md/ })).toBeInTheDocument(); // a root file needs no folder
     expect(screen.queryByText("phase-1.md")).toBeNull();
 
-    await userEvent.click(await folder("Roadmap decisions \\(6\\)"));
+    await userEvent.click(await folder("Decisions \\(6\\)"));
     expect(screen.getByText("The repo is the source of truth")).toBeInTheDocument();
+    expect(screen.getByText("Foundation", { selector: "span" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "❓ Open" }));
     expect(screen.queryByText("The repo is the source of truth")).toBeNull();
-    expect(screen.getByRole("button", { name: /^Roadmap decisions \(5\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Decisions \(5\)/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "❓ Open" }));
+    await userEvent.click(screen.getByRole("button", { name: "Foundation" }));
+    expect(screen.getByRole("button", { name: /^Decisions \(1\)/ })).toBeInTheDocument();
+  });
+
+  it("a tap on an open decision goes to its card, or to the roadmap when it has none", async () => {
+    const { unmount } = mount("/board/documents?repo=%2Fr%2Fapp");
+    await userEvent.click(await folder("Decisions"));
+    expect(screen.queryByRole("link", { name: /source of truth/ })).toBeNull(); // a decided one is not a link
+    await userEvent.click(screen.getByRole("link", { name: /Open question 1/ }));
+    expect(await screen.findByText("card page")).toBeInTheDocument();
+    unmount();
+    mount("/board/documents?repo=%2Fr%2Fapp"); // the folder is still open, as left
+    await userEvent.click(await screen.findByRole("link", { name: /Open question 2/ }));
+    expect(await screen.findByText("roadmap page")).toBeInTheDocument();
   });
 
   it("folds and unfolds a folder, and finds it as left on coming back", async () => {

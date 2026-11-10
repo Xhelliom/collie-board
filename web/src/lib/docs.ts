@@ -16,7 +16,7 @@ export interface DocEntry {
 
 export type DocDecision =
   | { kind: "adr"; path: string; title: string; status: string | null; date: string | null }
-  | { kind: "roadmap"; id: string; text: string; status: DecisionStatus; date: string | null };
+  | { kind: "roadmap"; id: string; text: string; status: DecisionStatus; date: string | null; category?: string | null; cardId?: string };
 
 export type DecisionStatus = "decided" | "leaning" | "open";
 

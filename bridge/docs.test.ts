@@ -80,13 +80,20 @@ describe("reading the default branch's tree", () => {
   test("the index: rubrics, « Autres », ADR statuses and dates merged with the roadmap, newest first", async () => {
     const rubrics = parseDocPaths(readFileSync(join(import.meta.dir, "../docs/conventions/DOC_CONVENTION.md"), "utf8"))!;
     const lines = await grepDocsOnRef(dir, "main", META_PATTERN, "lines");
-    const roadmap = { decisions: [{ id: "d1", text: "Le dépôt fait foi", status: "decided" as const }], updatedAt: Date.parse("2026-11-06T10:00:00Z") };
+    const roadmap = {
+      items: [{ id: "p1", name: "Socle" }],
+      decisions: [
+        { id: "d1", text: "Le dépôt fait foi", status: "decided" as const, itemId: "p1" },
+        { id: "d2", text: "Quel moteur ?", status: "open" as const, itemId: null, cardId: "c9" },
+      ],
+      updatedAt: Date.parse("2026-11-06T10:00:00Z") };
     const idx = buildIndex("main", (await docsOnRef(dir, "main"))!, lines, rubrics, roadmap);
     expect(idx.rubrics.map((r) => r.id)).toEqual(["adr", "plan", "readme"]);
     expect(idx.other.map((d) => [d.path, d.title])).toEqual([["NOTES.md", "NOTES.md"]]);
     expect(idx.rubrics.find((r) => r.id === "readme")!.docs[0]!.title).toBe("Le projet");
     expect(idx.decisions).toEqual([
-      { kind: "roadmap", id: "d1", text: "Le dépôt fait foi", status: "decided", date: "2026-11-06" },
+      { kind: "roadmap", id: "d1", text: "Le dépôt fait foi", status: "decided", date: "2026-11-06", category: "Socle" },
+      { kind: "roadmap", id: "d2", text: "Quel moteur ?", status: "open", date: "2026-11-06", category: null, cardId: "c9" },
       { kind: "adr", path: ".adr/0002-two.md", title: "0002 — Two", status: "🟡 piste", date: "2026-10-02" },
       { kind: "adr", path: ".adr/0001-one-door.md", title: "0001 — One door", status: "Accepted", date: "2026-09-01" },
     ]);

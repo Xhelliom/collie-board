@@ -119,7 +119,7 @@ export function docMeta(lines: readonly DocLine[]): Map<string, DocMeta> {
 
 export type DocDecision =
   | { kind: "adr"; path: string; title: string; status: string | null; date: string | null }
-  | { kind: "roadmap"; id: string; text: string; status: DecisionStatus; date: string | null };
+  | { kind: "roadmap"; id: string; text: string; status: DecisionStatus; date: string | null; category: string | null; cardId?: string };
 
 /** ISO day of an epoch, for a roadmap decision (dated by its roadmap's last revision). Pure. */
 const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
@@ -144,7 +144,7 @@ export function buildIndex(
   docs: readonly TreeDoc[],
   lines: readonly DocLine[],
   rubrics: readonly Rubric[],
-  roadmap: { decisions: { id: string; text: string; status: DecisionStatus }[]; updatedAt: number } | null,
+  roadmap: { items?: { id: string; name: string }[]; decisions: { id: string; text: string; status: DecisionStatus; itemId?: string | null; cardId?: string }[]; updatedAt: number } | null,
 ): DocsIndex {
   const meta = docMeta(lines);
   const titled = (d: TreeDoc) => ({ path: d.path, title: meta.get(d.path)?.title ?? d.path.split("/").pop()!, size: d.size });
@@ -161,7 +161,17 @@ export function buildIndex(
     date: meta.get(d.path)?.date ?? null,
   }));
   const day = roadmap ? isoDay(roadmap.updatedAt) : null;
-  const fromRoadmap: DocDecision[] = (roadmap?.decisions ?? []).map((d) => ({ kind: "roadmap", id: d.id, text: d.text, status: d.status, date: day }));
+  // A decision's category is the phase it concerns; null is the project as a whole.
+  const phase = new Map((roadmap?.items ?? []).map((i) => [i.id, i.name]));
+  const fromRoadmap: DocDecision[] = (roadmap?.decisions ?? []).map((d) => ({
+    kind: "roadmap",
+    id: d.id,
+    text: d.text,
+    status: d.status,
+    date: day,
+    category: (d.itemId && phase.get(d.itemId)) || null,
+    ...(d.cardId ? { cardId: d.cardId } : {}),
+  }));
   return {
     ref,
     rubrics: rubrics.filter((r) => byRubric.has(r.id)).map((r) => ({ id: r.id, label: r.label, docs: byRubric.get(r.id)! })),
