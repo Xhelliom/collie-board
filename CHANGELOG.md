@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.294.0] - 2026-11-10
+
+### Added
+
+- Mode objectif visible : tuile d'accueil, en-tête et bloc Objectif de la page Projet passent en vert (actif), orange (en pause) ou bleu « à valider » (dit atteint), avec une puce « Objectif » (e5a092b)
+- Le bloc Objectif actif dit que l'orchestrateur enchaîne les lots, rien à activer en plus (e5a092b)
+
 ## [0.293.0] - 2026-11-10
 
 ### Added
