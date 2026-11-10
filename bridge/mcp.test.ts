@@ -297,6 +297,9 @@ describe("mcp: finish_card — the card screen's buttons, by the same request", 
 
 // The real route, real git: the acceptance criteria are about what the BRIDGE does with the request.
 describe("mcp: finish_card end to end, against the bridge's own route", () => {
+  // Every test here pays world()'s ~13 real git spawns plus the route's own: ~0.1 s on an idle
+  // machine, past bun's 5 s default on a loaded one (a machine just rebooted failed at 5002 ms).
+  const REAL_GIT_MS = 20_000;
   function git(cwd: string, ...args: string[]): string {
     const r = Bun.spawnSync(["git", ...args], { cwd, env: gitFreeEnv });
     if (r.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr.toString()}`);
@@ -343,7 +346,7 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     expect(r.content[0]!.text).toMatch(/fusionnée dans main et classée terminée/);
     expect(git(repo, "ls-tree", "--name-only", "main")).toContain("x.ts");
     expect(store.getCard(id)!.status).toBe("done");
-  }, 20_000); // ~15 real git spawns + a merge: ~0.4 s locally, past bun's 5 s default on a loaded CI runner.
+  }, REAL_GIT_MS);
 
   it("pr opens the PR and journals card.pr_follow, without filing the card", async () => {
     const { root, store, id, mcp } = world();
@@ -360,7 +363,7 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     }
     expect(store.listEvents(id).some((e) => e.type === "card.pr_follow")).toBe(true);
     expect(store.getCard(id)!.status).toBe("review");
-  });
+  }, REAL_GIT_MS);
 
   it("a merge conflict is refused in plain words, the card left as it was", async () => {
     const { repo, store, id, mcp } = world();
@@ -371,7 +374,7 @@ describe("mcp: finish_card end to end, against the bridge's own route", () => {
     expect(r.isError).toBe(true);
     expect(r.content[0]!.text).toMatch(/^Conflit de fusion/);
     expect(store.getCard(id)!.status).toBe("review");
-  });
+  }, REAL_GIT_MS);
 });
 
 // The real deliverables route: what reaches the store is what the agent's file holds.
