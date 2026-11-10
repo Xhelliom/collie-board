@@ -51,6 +51,7 @@ export const docs = defineMessages({
   },
   "docs.newPage.open": { en: "New page", fr: "Nouvelle page" },
   "docs.newPage.name": { en: "Page name", fr: "Nom de la page" },
+  "docs.newPage.namePlaceholder": { en: "marketing-plan", fr: "plan-marketing" },
   "docs.newPage.path": { en: "Will be {path}", fr: "Sera {path}" },
   "docs.newPage.badName": { en: "Letters, digits, - and _ only, no space.", fr: "Lettres, chiffres, - et _ seulement, sans espace." },
   "docs.newPage.brief": { en: "Brief", fr: "Brève" },

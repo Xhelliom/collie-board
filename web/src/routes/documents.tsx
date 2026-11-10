@@ -354,7 +354,7 @@ function NewPage({ repo }: { repo: string }) {
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="plan-marketing"
+          placeholder={t("docs.newPage.namePlaceholder")}
           aria-invalid={slug !== "" && !valid}
           className={cn("h-10 w-full rounded-lg border border-border bg-background px-2 font-mono text-sm font-normal", FOCUS)}
         />
