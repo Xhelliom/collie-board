@@ -26,6 +26,7 @@
 
 import { isAgentGone, lastSessionOf, promptAndConfirm, startCard } from "./cards.ts";
 import type { Config } from "./config.ts";
+import { closeHcPanesIn, closePanes } from "./worktree-sweep.ts";
 import { EVENT_WINDOW, isPendingWrapup, type BoardDb, type Card, type CardSession } from "./db.ts";
 import {
   baseOf,
@@ -53,6 +54,7 @@ import {
   restoreBranch,
   runGh,
   updateBranch,
+  worktreeDirFor,
   worktreePathFor,
   type GitRunner,
   type Integration,
@@ -815,11 +817,7 @@ export async function cleanupCard(
 
   const session = db.openSessionFor(card.id);
   if (session?.paneId) {
-    try {
-      await herdr.closePane(session.paneId);
-    } catch {
-      // Already gone is the outcome we wanted. Anything else surfaces on the next step anyway.
-    }
+    await closePanes(db, herdr, card.id, [session.paneId]);
     db.closeSession(session.id, opts.discard ? "abandoned" : "done");
   }
 
@@ -848,6 +846,9 @@ export async function cleanupCard(
   }
   if (viaGit) {
     const checkout = await worktreePathFor(card.repoPath!, branch);
+    // No workspace went with it (hc has none), so no pane did either — and a card filed `done` has no
+    // open session left to name its pane: close what sits in the checkout, even one already gone.
+    await closeHcPanesIn(db, herdr, card.id, checkout ?? worktreeDirFor(card.repoPath!, branch));
     if (checkout) {
       const removed = await removeWorktreeAt(card.repoPath!, checkout);
       if (!removed.ok) {

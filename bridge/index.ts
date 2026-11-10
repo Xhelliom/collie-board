@@ -59,6 +59,7 @@ import { ClaudeTranscriptSource, resolveWithoutSession, TranscriptStore } from "
 import { processStartedAt } from "./proc.ts";
 import { SWEEP_INTERVAL_MS, sweepUploads } from "./uploads.ts";
 import { sweepOrphanDeliverables } from "./deliverables.ts";
+import { sweepWorktrees } from "./worktree-sweep.ts";
 import { Hlc, loadPairId } from "./journal.ts";
 import { JournalSync } from "./journal-sync.ts";
 
@@ -387,6 +388,15 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     engine.onUpdate(runHook(board, herdr, cfg, () => engine.current(), adapters, () => peers.outbound()), "run");
     // "PR & done" (ADR 0035): its PR followed to the merge, the card filed then. Journal-driven, so a restart resumes it.
     engine.onUpdate(prFollowHook(board, herdr), "prFollow");
+    // Filed cards' leftover checkouts and panes, once, on the first snapshot that has a herd to read.
+    let swept = false;
+    engine.onUpdate((snap) => {
+      if (swept || snap.bridge === "disconnected") return;
+      swept = true;
+      void sweepWorktrees(board, herdr)
+        .then((r) => (r.removed.length || r.reported.length) && console.log(`[worktrees] startup sweep: ${r.removed.length} removed, ${r.reported.length} kept (uncommitted changes)`))
+        .catch((err) => console.warn(`[worktrees] startup sweep failed: ${(err as Error).message}`));
+    }, "worktreeSweep");
     // The orchestrator hears how a lot ended (ADR 0028): a journal tailer, no timer of its own.
     const nudger = new OrchestratorNudger(board, herdr, notifyLog);
     engine.onUpdate((snap) => nudger.update(snap), "nudger");
