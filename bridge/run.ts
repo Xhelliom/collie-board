@@ -19,7 +19,7 @@ import { promptAndConfirm, runningCards, startCard } from "./cards.ts";
 import { boardBranchPrefix, type Config } from "./config.ts";
 import { isAutoHandoffPending, type AgentTemplate, type BoardDb, type BoardEvent, type Card, type CardSession, type Run } from "./db.ts";
 import { gatePrompt, parseGate, runGate, type GateResult } from "./gate.ts";
-import { baseOf, cardDiffSummary, integrationOf, resolveBase, worktreePathFor } from "./git.ts";
+import { baseOf, cardDiffSummary, integrationOf, resolveBase, revOf, worktreePathFor } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
@@ -86,6 +86,8 @@ export interface RunPorts {
   reviewing(): boolean;
   /** Commits the card's branch has over its base; null when it cannot be told (never blocks). */
   commits(card: Card): Promise<number | null>;
+  /** The commit the card's branch points at; null when it cannot be told (never blocks). */
+  head?(card: Card): Promise<string | null>;
   /** The tail of the worker's pane: its last word, for the operator. */
   lastReply(paneId: string): Promise<string>;
   /** ADR 0031: swap the card's session for a fresh agent in its next pipeline role. */
@@ -164,7 +166,8 @@ export function stepFor(
 ): Step {
   const halted = newest(events, (e) => e.type === "run.halted" && isRun(e, run.id));
   const held = holding(events, run.id);
-  const landed = newest(events, (e) => e.type === "card.status" && (e.payload as { to?: string }).to === "review");
+  // `run.moved`: the branch changed after the lead's verdict — a landing nobody has judged, like the first.
+  const landed = newest(events, (e) => (e.type === "card.status" && (e.payload as { to?: string }).to === "review") || (e.type === "run.moved" && isRun(e, run.id)));
 
   if (STARTABLE.has(card.status)) {
     // A halt on a card never started (its start failed) holds until the operator moves it, or resumes the run.
@@ -470,6 +473,8 @@ export class RunCoordinator {
         if (!brief) return this.halt(run, card.id, "the worker's checkout is gone");
         const gatePassed = this.ports.gateCommand(card) ?? undefined;
         const operatorSaid = operatorSince(this.db.listEvents(card.id, 200), run.id);
+        // BEFORE the lead reads the stat: a commit made while it judges is one it did not see.
+        const head = (await this.ports.head?.(card)) ?? undefined;
         const statSummary = step.kind === "check" ? await this.ports.stat(card.id) : "";
         const workerReport = step.kind === "check" ? await this.ports.report(brief.worktree) : null;
         if (workerReport) this.keepReport(runId, card.id, workerReport);
@@ -492,7 +497,7 @@ export class RunCoordinator {
           return;
         }
         if (await this.haltEmpty(run, card, session, d.reason, true)) return;
-        this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "finished", reason: d.reason });
+        this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "finished", reason: d.reason, head });
         return;
       }
       case "advance": {
@@ -504,6 +509,7 @@ export class RunCoordinator {
       case "triage":
         return this.triage(run, card, step.sessionId);
       case "fold": {
+        if (await this.moved(run, card)) return;
         const r = await this.ports.fold(run, card);
         if (r.ok) return void this.db.recordEvent(card.id, "card.lot_merged", { runId, lot: this.db.getRun(runId)?.lotBranch });
         if (r.error.kind === "busy") return;
@@ -513,6 +519,7 @@ export class RunCoordinator {
         return;
       }
       case "pr": {
+        if (await this.moved(run, card)) return;
         if (this.ports.direct(run.repoPath)) return this.mergeDirect(run, card);
         // A lot cut from a board branch (an older lot's, a card's) would be "merged" into it, never into the repo's.
         if (run.integration === "lot" && run.lotBase?.startsWith(boardBranchPrefix()))
@@ -585,6 +592,19 @@ export class RunCoordinator {
     if (r.error.kind !== "conflict") return this.halt(run, card.id, `merge direct: ${r.error.message}`);
     const settled = await this.ports.resolveConflict(card);
     if (!settled.ok) this.halt(run, card.id, `conflict not handed over: ${settled.error.message}`);
+  }
+
+  /**
+   * The branch is no longer the commit the lead judged: nothing is integrated. Journaled as `run.moved`,
+   * which `stepFor` reads as a new landing — the gate, then the lead, on what the branch holds now.
+   */
+  private async moved(run: Run, card: Card): Promise<boolean> {
+    const verdict = newest(this.db.listEvents(card.id, 200), (e) => e.type === "run.decision" && isRun(e, run.id) && isVerdict(e));
+    const reviewed = (verdict?.payload as { head?: string } | undefined)?.head;
+    const head = await this.ports.head?.(card);
+    if (!reviewed || !head || head === reviewed) return false;
+    this.db.recordRunEvent(card.id, "run.moved", { runId: run.id, from: reviewed, to: head });
+    return true;
   }
 
   /** ADR 0027: the board merges only what the gate passed on this run. No gate set = the lead's word alone. */
@@ -848,6 +868,7 @@ export function runHook(
       if (!card.repoPath || !card.branch) return null;
       return (await integrationOf(card.repoPath, card.branch, await baseOf(card)))?.ahead ?? null;
     },
+    head: async (card) => (card.repoPath && card.branch ? await revOf(card.repoPath, `refs/heads/${card.branch}`) : null),
     lastReply: async (paneId) => (await herdr.readPane(paneId, "recent", 40)).text.slice(-1500),
     sendBack: async (card, failure, index) => {
       const session = db.openSessionFor(card.id);

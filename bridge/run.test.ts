@@ -38,6 +38,8 @@ function world(
   let pr: Awaited<ReturnType<RunPorts["openPr"]>> = { ok: true };
   let gate: string | null = null;
   let commits: number | null = 1;
+  /** Where the worker's branch points. */
+  let head = "h1";
   const gates: GateResult[] = [];
   /** What `fold` answers, oldest first; empty = it folded. */
   const folds: Awaited<ReturnType<RunPorts["fold"]>>[] = [];
@@ -117,6 +119,7 @@ function world(
     freeSlots: () => (opts.slots ?? 3) - db.listOpenSessions().length,
     reviewing: () => opts.reviewing ?? false,
     commits: async () => commits,
+    head: async () => head,
     lastReply: async () => "bilan du worker",
     advance: async (c, role, report) => {
       calls.push(`advance ${c.title} ${role.key} ${report ?? "-"}`);
@@ -142,6 +145,7 @@ function world(
     setPr: (r: typeof pr) => (pr = r),
     setGate: (cmd: string | null) => (gate = cmd),
     setCommits: (n: number | null) => (commits = n),
+    setHead: (h: string) => (head = h),
     setPredPr: (p: PrStatus | null) => (predPr = p),
     clock,
     gates,
@@ -1338,6 +1342,22 @@ describe("a repo set to merge direct (ADR 0043)", () => {
     expect(w.calls.at(-1)).toBe("merge a");
     expect(db.getCard(a.id)!.status).toBe("review");
     expect((events(db, a, "run.halted")[0]!.payload as { reason: string }).reason).toContain("uncommitted changes");
+  });
+
+  it("a branch that moved after the lead's verdict is not merged: it is judged again, then merged", async () => {
+    const db = new BoardDb(":memory:");
+    const a = db.createCard({ title: "a", repoPath: "/r", status: "ready" });
+    db.createRun({ repoPath: "/r", cardIds: [a.id], foldInCap: 0 });
+    const w = world(db, { direct: true });
+    // The worker commits while the lead judges: the verdict is on h1, the branch is at h2.
+    const check = w.ports.lead.check;
+    w.ports.lead.check = async (i) => (w.setHead("h2"), (w.ports.lead.check = check), check(i));
+    await toIntegration(db, a, w);
+    expect(w.calls.some((c) => c.startsWith("merge "))).toBe(false);
+    expect(events(db, a, "run.moved")[0]!.payload).toMatchObject({ from: "h1", to: "h2" });
+    for (let i = 0; i < 2; i++) (w.coord.update(snap({ "p-a": "idle" })), await flush());
+    expect(w.seen).toHaveLength(2);
+    expect(w.calls.slice(-2)).toEqual(["merge a", "done a"]);
   });
 
   it("a lot merged direct lands each card on its own: no lot branch, no fold", async () => {

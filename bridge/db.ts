@@ -659,7 +659,11 @@ export interface RunEventPayloads {
     followUp?: string;
     /** A send-back for a red GitHub check: its name. */
     ci?: string;
+    /** `finished` only: the commit the branch pointed at when the lead judged it — what may be integrated. */
+    head?: string;
   };
+  /** The branch moved after the lead's verdict: nothing was integrated, the landing is judged again. */
+  "run.moved": { runId: string; from: string; to: string };
   /** The lead read the review's verdict with the code. Once per card: it is also the triage's marker. */
   "run.triaged": { runId: string; verdict: string | null; accept: boolean; reason: string };
   /** Every member is filed. Journaled with a null card: it is the run's, not one card's. */
@@ -693,6 +697,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.merge",
   "run.report",
   "run.chain",
+  "run.moved",
 ];
 
 /** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */
