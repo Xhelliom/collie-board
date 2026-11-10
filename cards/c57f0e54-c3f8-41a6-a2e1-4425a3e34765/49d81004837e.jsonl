@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794345659460.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Fin de carte : le pane hc d'une carte mergée reste ouvert, et 8 vieux worktrees traînent","status":"backlog"},"ts":1794345649883}}
 {"v":1,"hlc":"1794345659460.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c2c75b75-9723-4b55-8fa7-b68fe65f7fb6"}}
 {"v":1,"hlc":"1794345690451.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794345694553.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/fin-de-carte-le-pane-hc-d-une-carte-mergee-reste"}}
+{"v":1,"hlc":"1794345694554.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794345694554.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794345693019}}
+{"v":1,"hlc":"1794345703151.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794345703151.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794345697736}}
+{"v":1,"hlc":"1794345703151.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3477},"ts":1794345698095}}
