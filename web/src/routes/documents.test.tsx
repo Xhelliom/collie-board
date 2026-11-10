@@ -220,6 +220,35 @@ describe("DocumentsRoute", () => {
     expect(spec).toContain("Delete nothing");
   });
 
+  it("« New page » files a card whose deliverable is docs/pages/<name>.html, the inert contract in its spec", async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post("/api/cards", async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ok: true, card: { id: "c44" } });
+      }),
+    );
+    mount("/board/documents?repo=%2Fr%2Fapp");
+    await userEvent.click(await screen.findByRole("button", { name: "New page" }));
+    const create = screen.getByRole("button", { name: "Create the card" });
+    await userEvent.type(screen.getByLabelText("Page name"), "plan marketing");
+    expect(screen.getByText("Letters, digits, - and _ only, no space.")).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Page name"));
+    await userEvent.type(screen.getByLabelText("Page name"), "plan-marketing");
+    expect(screen.getByText("Will be docs/pages/plan-marketing.html")).toBeInTheDocument();
+    expect(create).toBeDisabled();
+    await userEvent.type(screen.getByLabelText("Brief"), "Launch plan for Q1");
+    await userEvent.click(create);
+    expect(await screen.findByText("card page")).toBeInTheDocument();
+    expect(body).toMatchObject({ title: "Page: plan-marketing", repoPath: "/r/app" });
+    const spec = String(body!.spec);
+    expect(spec).toContain("`docs/pages/plan-marketing.html`");
+    expect(spec).toContain("Launch plan for Q1");
+    expect(spec).toContain("No script");
+    expect(spec).toContain("CSS inline");
+    expect(spec).toContain("sandbox");
+  });
+
   it("says when the docs hold to the convention, with no button", async () => {
     server.use(http.get("/api/docs", () => HttpResponse.json({ ...INDEX, bilan: [] })));
     mount("/board/documents?repo=%2Fr%2Fapp");

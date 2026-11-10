@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
-import { ArrowLeft, ChevronRight, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Wand2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, FilePlus2, FileText, Folder, FolderOpen, Globe, ListChecks, PencilLine, Search, Wand2 } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
@@ -20,6 +20,7 @@ import {
   fileCount,
   folderChain,
   pageNameOf,
+  isPageName,
   pagePath,
   resolveDocLink,
   searchDocs,
@@ -169,6 +170,8 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
         />
       </label>
 
+      <NewPage repo={repo} />
+
       {!needle && index.bilan && (
         <section className="flex flex-col gap-1">
           <button type="button" aria-expanded={bilanOpen} onClick={() => setBilanOpen(!bilanOpen)} className={cn("flex items-center gap-1.5 rounded-lg px-1 py-1 text-left hover:bg-muted/60", FOCUS)}>
@@ -294,6 +297,90 @@ function DocBilan({ repo, gitRef, issues }: { repo: string; gitRef: string; issu
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * « Nouvelle page » : a name and a brief become a card whose deliverable is `docs/pages/<name>.html`,
+ * its spec carrying the inert-page contract (ADR 0053). The agent builds it, the PR ships it, and the
+ * tree lists it once it is on the default branch — the board writes nothing itself.
+ */
+function NewPage({ repo }: { repo: string }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [brief, setBrief] = useState("");
+  const [busy, setBusy] = useState(false);
+  const slug = name.trim();
+  const valid = isPageName(slug);
+
+  const submit = async () => {
+    if (!valid || !brief.trim() || busy) return;
+    setBusy(true);
+    try {
+      const path = pagePath(slug);
+      const { card } = await createCard({
+        title: t("docs.newPage.cardTitle", { name: slug }),
+        spec: `${t("docs.newPage.cardFile", { path })}\n\n${brief.trim()}\n\n${t("docs.newPage.cardContract", { path })}`,
+        repoPath: repo,
+      });
+      setStatus(t("docs.ask.created"), "success");
+      void navigate(`/card/${encodeURIComponent(card.id)}`);
+    } catch (e) {
+      setStatus(t("docs.ask.failed", { why: e instanceof Error ? e.message : String(e) }), "error");
+      setBusy(false);
+    }
+  };
+
+  if (!open)
+    return (
+      <Button variant="outline" size="sm" className="self-start" onClick={() => setOpen(true)}>
+        <FilePlus2 />
+        {t("docs.newPage.open")}
+      </Button>
+    );
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-lg border border-border p-2.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <label className="flex flex-col gap-1 text-sm font-semibold">
+        {t("docs.newPage.name")}
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="plan-marketing"
+          aria-invalid={slug !== "" && !valid}
+          className={cn("h-10 w-full rounded-lg border border-border bg-background px-2 font-mono text-sm font-normal", FOCUS)}
+        />
+      </label>
+      <span className={cn("-mt-1 text-xs", slug && !valid ? "text-destructive" : "text-muted-foreground")}>
+        {slug && !valid ? t("docs.newPage.badName") : t("docs.newPage.path", { path: pagePath(slug || "…") })}
+      </span>
+      <label className="flex flex-col gap-1 text-sm font-semibold">
+        {t("docs.newPage.brief")}
+        <textarea
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          rows={4}
+          placeholder={t("docs.newPage.briefPlaceholder")}
+          className={cn("w-full rounded-lg border border-border bg-background p-2 text-sm font-normal", FOCUS)}
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          {t("docs.ask.cancel")}
+        </Button>
+        <Button type="submit" size="sm" disabled={!valid || !brief.trim() || busy}>
+          {t("docs.ask.submit")}
+        </Button>
+      </div>
+    </form>
   );
 }
 
