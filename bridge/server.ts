@@ -179,7 +179,10 @@ export function startServer(opts: {
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
     (h, paneId, txt, submit) =>
-      sendReplySteps(h, paneId, asPaste(registry.get()?.engine.current(), paneId, txt), submit, cfg.submitKeys),
+      sendReplySteps(h, paneId, asPaste(registry.get()?.engine.current(), paneId, txt), submit, cfg.submitKeys, undefined, {
+        text: txt,
+        force: false,
+      }),
   );
 
   const server = Bun.serve({
@@ -955,6 +958,8 @@ export type SleepFn = (ms: number) => Promise<void>;
 const defaultSleep: SleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Pause between typing and Enter so the TUI accepts the submit key (preview-action polls ~350ms). */
 const REPLY_SETTLE_MS = 350;
+/** What the operator reads when asking an engine that cannot (hc) to type without sending. */
+export const NO_TYPE_WITHOUT_ENTER = "This terminal can only receive text that is sent at once — typing without Enter is not available here";
 
 export async function sendReplySteps(
   client: ReplySender,
@@ -994,6 +999,10 @@ export async function sendReplySteps(
         textDelivered: true,
         error: "typed into the pane but not submitted — check the pane before resending",
       };
+    }
+    // hc pastes only WITH Enter, and its keys are named keys, not text (HERDR_CORE_API.md §2).
+    if (err instanceof MuxUnsupported && err.op === "sendPaneText") {
+      return { ok: false, textDelivered, error: NO_TYPE_WITHOUT_ENTER };
     }
     return { ok: false, textDelivered, error: (err as Error).message };
   }

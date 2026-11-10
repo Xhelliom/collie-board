@@ -60,6 +60,13 @@ describe("draftCarriesSend", () => {
 });
 
 describe("sendGuardedReply", () => {
+  it("on hc, sends in one call: hc cannot type without Enter", async () => {
+    const calls = harness(() => paneWithDraft(""));
+    const out = await sendGuardedReply({ paneId: "t1", text: "ship it", agent: "claude", hc: true, ...instant });
+    expect(out).toEqual({ status: "sent" });
+    expect(calls).toEqual([{ text: "ship it", submit: true }]);
+  });
+
   it("types, verifies the text on the input line, then submits", async () => {
     const calls = harness(() => paneWithDraft("ship it please"));
 

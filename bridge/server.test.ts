@@ -15,6 +15,7 @@ import {
   parseNotifyPrefsPatch,
   resolveStaticPath,
   sendReplySteps,
+  NO_TYPE_WITHOUT_ENTER,
   startupWarnings,
   withBuildHeader,
   type ReplySender,
@@ -319,6 +320,47 @@ describe("sendReplySteps — two-step send & partial-failure clarity", () => {
     const out = await sendReplySteps(client, "p1", "framed", true, ["Enter"], noSleep, { text: "raw", force: true });
     expect(out).toEqual({ ok: true, textDelivered: true });
     expect(lines).toEqual([["raw", true]]);
+    expect(client.calls).toEqual([]);
+  });
+
+  // hc as the bridge sees it: a paste that comes with Enter, named keys, and no bare typing.
+  const hcClient = () => {
+    const lines: [string, boolean][] = [];
+    const client = Object.assign(new FakeClient(), {
+      sendPaneText: () => Promise.reject(new MuxUnsupported("hc", "sendPaneText")),
+      sendPaneLine: async (_p: string, text: string, force: boolean) => void lines.push([text, force]),
+    });
+    return { client, lines };
+  };
+
+  test("hc, submit with a line: one paste+Enter, nothing else", async () => {
+    const { client, lines } = hcClient();
+    const out = await sendReplySteps(client, "t1", "framed", true, ["Enter"], noSleep, { text: "raw", force: false });
+    expect(out).toEqual({ ok: true, textDelivered: true });
+    expect(lines).toEqual([["raw", false]]);
+    expect(client.calls).toEqual([]);
+  });
+
+  test("hc, submit without a line: refused in plain words, never « sendPaneText is not supported »", async () => {
+    const { client, lines } = hcClient();
+    const out = await sendReplySteps(client, "t1", "hello", true, ["Enter"], noSleep);
+    expect(out).toEqual({ ok: false, textDelivered: false, error: NO_TYPE_WITHOUT_ENTER });
+    expect(lines).toEqual([]);
+    expect(client.calls).toEqual([]); // no stray Enter
+  });
+
+  test("hc, submit-only (empty text): just the keys", async () => {
+    const { client } = hcClient();
+    const out = await sendReplySteps(client, "t1", "", true, ["Enter"], noSleep, { text: "", force: false });
+    expect(out).toEqual({ ok: true, textDelivered: false });
+    expect(client.calls).toEqual(["keys"]);
+  });
+
+  test("hc, no submit: refused in plain words, nothing typed", async () => {
+    const { client, lines } = hcClient();
+    const out = await sendReplySteps(client, "t1", "hello", false, ["Enter"], noSleep, { text: "hello", force: false });
+    expect(out).toEqual({ ok: false, textDelivered: false, error: NO_TYPE_WITHOUT_ENTER });
+    expect(lines).toEqual([]);
     expect(client.calls).toEqual([]);
   });
 

@@ -112,6 +112,20 @@ $ hc interrupt probe2
 `--if idle` est exactement le garde-fou que `promptAndConfirm` ne pouvait pas avoir ; le refus sur
 `blocked` évite qu'un prompt réponde à une permission.
 
+## Taper sans Entrée : impossible **[mesuré, 10/11/2026]**
+
+`terminal.send` colle **et** presse Entrée ; `terminal.keys` ne prend que des touches nommées, pas un texte :
+
+```
+$ for k in a A é " " space + ? '"' ab; do hc keys t2k "$k"; done      (programme : cat)
+a, space, -, /, ', 1  → acceptés        A → tapé « a » (casse perdue)
+é, " ", +, ?, ", €, ab → {"error":{"kind":"invalid_params","message":"unknown key \"é\" (try enter, esc, up, ctrl+c, alt+x, f5, a)"}}
+```
+
+Donc pas de brouillon ni de « taper puis vérifier puis Entrée » sous hc : une réponse part en un
+appel (`sendPaneLine`), et c'est le refus `blocked` de hc qui tient lieu de garde. Un envoi sans Entrée
+est refusé par le bridge avec une phrase lisible (`NO_TYPE_WITHOUT_ENTER`).
+
 ## `hc read` **[mesuré]**
 
 Texte brut, écran + historique (`--lines N`, `--lines 0` = écran seul). Marche sur un terminal fini
