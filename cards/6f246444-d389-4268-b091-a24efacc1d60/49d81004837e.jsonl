@@ -24,3 +24,4 @@
 {"v":1,"hlc":"1794308915842.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/333"},"ts":1794308908422}}
 {"v":1,"hlc":"1794308915842.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794308915842.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794308908443}}
+{"v":1,"hlc":"1794308928831.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.cleaned_up","payload":{"branch":"board/test-instable-mcp-finish-card-merge-conflict-dep","stat":"bridge/mcp.test.ts | +6 -3\n1 files changed, 6 insertions(+), 3 deletions(-)"},"ts":1794308928479}}
