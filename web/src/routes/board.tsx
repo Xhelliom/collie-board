@@ -11,6 +11,7 @@ import { FoldToggle } from "@/components/fold";
 import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
+import { SortFilter } from "@/components/sort-filter";
 import { RepoFilter } from "@/components/repo-filter";
 import { OriginFilter } from "@/components/origin-filter";
 import { AssigneeFilter } from "@/components/assignee-filter";
@@ -32,6 +33,7 @@ import {
   createRun,
   boardErrorMessage,
   loadRepoScope,
+  loadSort,
   matchesFilters,
   patchCard,
   positionFor,
@@ -39,8 +41,11 @@ import {
   repoName,
   reposOf,
   saveRepoScope,
+  saveSort,
+  sortOf,
   tagsOf,
   type CardInput,
+  type CardSort,
   type CardStatus,
   type CardView,
 } from "@/lib/board";
@@ -131,6 +136,12 @@ export function BoardRoute() {
   const autoOnly = params.get("origin") === "auto";
   // `?who=me`: only what is assigned to me, on a shared board (ADR 0048 §5).
   const mineOnly = params.get("who") === "me";
+  // Code or business: remembered on this device (not in the URL) — it is how you work, not a lens.
+  const [sort, setSort] = useState(loadSort);
+  const pickSort = (next: CardSort | null) => {
+    setSort(next);
+    saveSort(next);
+  };
   const identities = useIdentities();
   // `?status=blocked,orphaned` — where the home KPIs lead. Comma-separated: "stuck" is two columns.
   // The URL is untrusted: keep only real columns (each has a `status.*` key), and no list at all when
@@ -162,6 +173,7 @@ export function BoardRoute() {
   /** Both filters off, in ONE navigation — two `setParam` calls in a row would race on the query. */
   const clearFilters = () => {
     saveRepoScope(null);
+    pickSort(null);
     setParams({}, { replace: true, preventScrollReset: true });
   };
 
@@ -242,8 +254,12 @@ export function BoardRoute() {
   // above, so the strip never proposes a combination that comes back empty.
   const hasAuto = scoped.some((c) => c.origin !== null);
   const hasShared = scoped.some((c) => c.repoPath && identities[c.repoPath]);
+  const hasBusiness = scoped.some((c) => sortOf(c) === "business");
   const cards = scoped.filter(
-    (c) => matchesFilters(c, { tag: active, autoOnly, phase: activePhase, statuses }) && (!mineOnly || assignedToMe(c, identities)),
+    (c) =>
+      matchesFilters(c, { tag: active, autoOnly, phase: activePhase, statuses }) &&
+      (!mineOnly || assignedToMe(c, identities)) &&
+      (!sort || sortOf(c) === sort),
   );
   // Which repo a card comes from is worth saying only in the GLOBAL view, and only once there is
   // more than one — inside a scope the strip above already answers it for every tile at once.
@@ -257,7 +273,7 @@ export function BoardRoute() {
     return found ? { name: templateName(found.template), inherited: found.inherited } : undefined;
   };
   const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
-  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || hasShared || mineOnly || phasesOn.length > 0;
+  const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || hasShared || mineOnly || hasBusiness || sort !== null || phasesOn.length > 0;
 
   // One tile per card, in its status column, on every screen (ADR 0022). A container — the card a
   // dictation was split from — holds no work and takes no tile; its sub-tasks name it instead.
@@ -454,6 +470,16 @@ export function BoardRoute() {
                 <X className="size-3" />
               </button>
             )}
+            {sort && (
+              <button
+                type="button"
+                onClick={() => pickSort(null)}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 py-[5px] pl-2.5 pr-2 text-xs font-semibold text-brand"
+              >
+                {t(sort === "code" ? "filter.code" : "filter.business")}
+                <X className="size-3" />
+              </button>
+            )}
             {mineOnly && (
               <button
                 type="button"
@@ -529,7 +555,7 @@ export function BoardRoute() {
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
                   a board that opened filtered without you touching anything this session. */}
-              {active || activeRepo || autoOnly || mineOnly || statuses || activePhase ? (
+              {active || activeRepo || autoOnly || mineOnly || sort || statuses || activePhase ? (
                 <>
                   <NonNominalPanel tone="muted" title={t("board.emptyMatchTitle")}>
                     {t("board.emptyMatch", {
@@ -816,6 +842,7 @@ export function BoardRoute() {
           <TagFilter tags={tags} active={active} onPick={pick} />
           <OriginFilter has={hasAuto} active={autoOnly} onPick={pickAuto} />
           <AssigneeFilter has={hasShared} active={mineOnly} onPick={pickMine} />
+          <SortFilter has={hasBusiness} active={sort} onPick={pickSort} />
         </div>
       </BottomSheet>
 
