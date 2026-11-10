@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 import { useT } from "@/i18n";
-import { createCard, repoName } from "@/lib/board";
+import { cardPath, createCard, repoName } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 import {
   bilanLine,
@@ -111,6 +111,7 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
   // The doc check starts folded when it has gaps: a long list on top would push the tree off the screen.
   const [bilanOpen, setBilanOpen] = useState(!index.bilan?.length);
   const [statuses, setStatuses] = useState<ReadonlySet<DecisionStatus>>(new Set());
+  const [categories, setCategories] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     const needle = query.trim();
@@ -139,7 +140,12 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
   for (const name of pages) files.set(pagePath(name), { path: pagePath(name), title: name, size: 0 });
   const tree = docTree([...files.values()].filter((d) => docMatches(d, query, inText)));
   const roadmapAll = index.decisions.filter((d): d is Extract<DocDecision, { kind: "roadmap" }> => d.kind === "roadmap");
-  const roadmap = roadmapAll.filter((d) => (statuses.size === 0 || statuses.has(decisionStatus(d))) && (!needle || d.text.toLowerCase().includes(needle)));
+  // "" is the project as a whole — a decision tied to no phase.
+  const categoryOf = (d: (typeof roadmapAll)[number]) => d.category ?? "";
+  const allCategories = [...new Set(roadmapAll.map(categoryOf))];
+  const roadmap = roadmapAll.filter(
+    (d) => (statuses.size === 0 || statuses.has(decisionStatus(d))) && (categories.size === 0 || categories.has(categoryOf(d))) && (!needle || d.text.toLowerCase().includes(needle)),
+  );
   const showRoadmap = roadmapAll.length > 0 && (!needle || roadmap.length > 0);
   // A search opens every folder that kept a hit, without touching what the operator left open.
   const isOpen = (key: string) => !!needle || opened.has(key);
@@ -149,10 +155,10 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
       if (!next.delete(key)) next.add(key);
       return next;
     });
-  const flip = (s: DecisionStatus) =>
-    setStatuses((c) => {
+  const flip = <T,>(set: (f: (c: ReadonlySet<T>) => ReadonlySet<T>) => void, v: T) =>
+    set((c) => {
       const next = new Set(c);
-      if (!next.delete(s)) next.add(s);
+      if (!next.delete(v)) next.add(v);
       return next;
     });
 
@@ -196,11 +202,18 @@ function DocTree({ repo, index, pages, doc, hrefOf }: { repo: string; index: Doc
                 <div className="flex flex-col" style={indent(1)}>
                   <div role="group" aria-label={t("docs.statusFilter")} className="flex flex-wrap gap-1.5 px-1 py-1">
                     {STATUSES.map((s) => (
-                      <Chip key={s} label={t(`docs.status.${s}`)} active={statuses.has(s)} onClick={() => flip(s)} />
+                      <Chip key={s} label={t(`docs.status.${s}`)} active={statuses.has(s)} onClick={() => flip(setStatuses, s)} />
                     ))}
                   </div>
+                  {allCategories.length > 1 && (
+                    <div role="group" aria-label={t("docs.categoryFilter")} className="flex flex-wrap gap-1.5 px-1 py-1">
+                      {allCategories.map((c) => (
+                        <Chip key={c} label={c || t("docs.category.project")} active={categories.has(c)} onClick={() => flip(setCategories, c)} />
+                      ))}
+                    </div>
+                  )}
                   {roadmap.map((d) => (
-                    <DecisionRow key={d.id} decision={d} />
+                    <DecisionRow key={d.id} decision={d} repo={repo} />
                   ))}
                 </div>
               )}
@@ -386,16 +399,25 @@ function NewPage({ repo }: { repo: string }) {
   );
 }
 
-function DecisionRow({ decision: d }: { decision: Extract<DocDecision, { kind: "roadmap" }> }) {
+/** An open decision is waiting on the operator: a tap goes where it is answered — its card, else the roadmap. */
+function DecisionRow({ decision: d, repo }: { decision: Extract<DocDecision, { kind: "roadmap" }>; repo: string }) {
   const t = useT();
-  return (
-    <div className="flex w-full flex-col px-2.5 py-1.5 text-sm">
+  const body = (
+    <>
       <span className="font-medium">{d.text}</span>
       <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
         <span>{t(`docs.status.${d.status}`)}</span>
+        <span>{d.category || t("docs.category.project")}</span>
         {d.date && <span>{d.date}</span>}
       </span>
-    </div>
+    </>
+  );
+  const box = "flex w-full flex-col px-2.5 py-1.5 text-sm";
+  if (d.status !== "open") return <div className={box}>{body}</div>;
+  return (
+    <Link to={d.cardId ? cardPath(d.cardId) : `/board/roadmap?repo=${encodeURIComponent(repo)}`} className={cn(box, "rounded-lg hover:bg-muted/60", FOCUS)}>
+      {body}
+    </Link>
   );
 }
 
