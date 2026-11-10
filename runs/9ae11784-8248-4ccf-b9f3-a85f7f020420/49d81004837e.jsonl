@@ -1,2 +1,3 @@
 {"v":1,"hlc":"1794342969943.0002.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"fold_in_cap":0,"lead_agent":null,"phase_id":"bab856a0-4527-4a36-a15e-e9993a0e2d3d","name":"Merge sûr, phases lisibles","position":0,"launched_at":null,"max_parallel":2,"integration":"card","lot_branch":null,"lot_base":null,"created_at":1794342964717,"created_by":"stephane.wetterwald@gmail.com","created_pair":"49d81004837e","finished_at":null}}
 {"v":1,"hlc":"1794342969943.0005.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"launched_at":1794342964726}}
+{"v":1,"hlc":"1794343887722.0004.49d81004837e","type":"run.set","by":"stephane.wetterwald@gmail.com","fields":{"finished_at":1794343887700}}
