@@ -35,7 +35,8 @@ describe("lead prompts", () => {
     expect(p).toContain(" a.ts | 3 +++");
     expect(p).toContain("do not commit");
     expect(p).toContain(".board/out/x.json");
-    expect(p).toContain('"decision": "finished | prompt"');
+    expect(p).toContain('"decision": "finished | prompt | blocked"');
+    expect(p).toContain("From the SECOND time you find the same outside blocker, answer `blocked`");
   });
 
   it("check carries the worker's bilan and judges an empty diff with it", () => {
@@ -113,6 +114,12 @@ describe("lead answers", () => {
       prompt: "commit",
       reason: "uncommitted",
     });
+  });
+
+  it("parses a blocked check, and asks what the operator must do", () => {
+    const b = { decision: "blocked" as const, reason: "the emulator will not boot: disk 99 %", operator: "free disk space" };
+    expect(toCheckDecision(b)).toEqual(b);
+    expect(() => toCheckDecision({ decision: "blocked", reason: "disk full" })).toThrow();
   });
 
   it("invalid JSON is an error, never a decision", () => {

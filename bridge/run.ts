@@ -24,7 +24,7 @@ import type { Mux } from "./mux/mux.ts";
 import { askEvery, mergeCard, mergeWhenReady, notePrOutcome, prForCard, prStatusFor, resolveConflict, type MergeGate } from "./integrate.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { foldIntoLot, lotPrCard, prepareLot } from "./lot.ts";
-import { bilanPrompt, BILAN_REL_PATH, Lead, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
+import { bilanPrompt, BILAN_REL_PATH, EXTERNAL_BLOCK, Lead, parseIssue, LeadSilent, type CardBrief, type CheckDecision, type ConflictDecision, type TriageDecision } from "./lead.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { exportPlanAtLotEnd } from "./plan-export.ts";
 import { advancePipeline, currentStep, nextRole, pipelineOf, sendBackToWorker, workerStep } from "./pipeline.ts";
@@ -484,6 +484,8 @@ export class RunCoordinator {
             ? await this.ports.lead.check({ ...brief, statSummary, gatePassed, operatorSaid, workerReport })
             : await this.ports.lead.recheckConflict({ ...brief, conflicts: step.conflicts });
         if (d.decision === "halt") return this.halt(run, card.id, d.reason);
+        // No round spent: only a `prompt` decision counts as one.
+        if (d.decision === "blocked") return this.halt(run, card.id, `${EXTERNAL_BLOCK}${d.reason} — operator: ${d.operator}`);
         if (d.decision === "prompt") {
           await this.sendFailure(card, session!, d.prompt);
           this.db.recordRunEvent(card.id, "run.decision", { runId, decision: "prompt", prompt: d.prompt, reason: d.reason });

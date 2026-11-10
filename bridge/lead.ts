@@ -257,10 +257,17 @@ export function checkPrompt(input: CheckInput): string {
     ...finished,
     "Otherwise write the message the worker will receive: direct, specific, naming the criterion that",
     'is not met and why (e.g. "commit; criterion 2 is not met because …").',
+    "",
+    "BLOCKED FROM OUTSIDE. If what is missing can only come from a gesture of the operator outside the",
+    "code (a full disk, an emulator or device that will not start, a missing secret, a refused access),",
+    "the worker cannot fix it and sending it back again changes nothing. The first time, you may send it",
+    "back once. From the SECOND time you find the same outside blocker, answer `blocked`: the lot stops",
+    "at once with your reason, and resumes when the operator says it is dealt with.",
     ...answer(input.outPath, [
       "{",
-      '  "decision": "finished | prompt",',
+      '  "decision": "finished | prompt | blocked",',
       '  "prompt": "the message to the worker — only when decision is prompt",',
+      '  "operator": "what the operator must do, concretely — only when decision is blocked",',
       '  "reason": "why"',
       "}",
     ]),
@@ -322,6 +329,7 @@ export function conflictPrompt(input: ConflictInput): string {
 
 export type CheckDecision =
   | { decision: "finished"; reason: string }
+  | { decision: "blocked"; reason: string; operator: string }
   | { decision: "prompt"; prompt: string; reason: string };
 
 export type ConflictDecision =
@@ -358,10 +366,13 @@ function decided<T extends string>(o: Record<string, unknown>, allowed: readonly
 export function toCheckDecision(parsed: unknown): CheckDecision {
   const o = obj(parsed, "the check answer");
   const reason = text(o, "reason");
-  return decided(o, ["finished", "prompt"] as const) === "finished"
-    ? { decision: "finished", reason }
-    : { decision: "prompt", prompt: text(o, "prompt"), reason };
+  const d = decided(o, ["finished", "prompt", "blocked"] as const);
+  if (d === "blocked") return { decision: d, reason, operator: text(o, "operator") };
+  return d === "finished" ? { decision: d, reason } : { decision: d, prompt: text(o, "prompt"), reason };
 }
+
+/** How a halt on the lead's `blocked` verdict starts: resume.ts reads it as mechanical, the operator reads the rest. */
+export const EXTERNAL_BLOCK = "blocked outside the code: ";
 
 /** Parse a conflict re-check answer. Throws on anything malformed. Pure. */
 export function toConflictDecision(parsed: unknown): ConflictDecision {

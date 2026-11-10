@@ -21,6 +21,9 @@ describe("mechanicalHalt (ADR 0055)", () => {
     NO_AGENT_REASON,
   ])("lifts %s", (reason) => expect(mechanicalHalt({ reason })).toBe(true));
 
+  it("lifts the lead's « blocked outside » verdict", () =>
+    expect(mechanicalHalt({ reason: "blocked outside the code: the emulator will not boot, disk 99 % — operator: free disk space" })).toBe(true));
+
   it("lifts a silent lead by its flag", () => expect(mechanicalHalt({ reason: new LeadSilent(null).message, leadSilent: true })).toBe(true));
 
   it.each([
@@ -96,6 +99,12 @@ describe("POST /api/runs/:id/resume from the orchestrator (ADR 0055)", () => {
     w.db.setGoalStatus(g.id, ["active"], "paused");
     w.halt();
     expect(await w.resume()).toBe(403);
+  });
+
+  it("resumes an outside blocker under an active objective", async () => {
+    const w = world("blocked outside the code: disk full — operator: free disk space", false);
+    w.db.createGoal({ repoPath: repo, text: "Ship v1", criteria: ["CI green"], budget: DEFAULT_BUDGET });
+    expect(await w.resume()).toBe(200);
   });
 
   it("refuses with autonomy off, and any pane that is not the repo's orchestrator", async () => {
