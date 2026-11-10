@@ -1,5 +1,7 @@
 # Audit — performance perçue : accueil, board, page projet
 
+**Statut :** ✅ décidé — audit du 2026-10-14, phase « Performance perçue » validée
+
 **Aucun code modifié.** Hypothèse de départ (« le coût vient des poids et des requêtes enchaînées,
 pas du serveur ») : **confirmée par la mesure**, voir § 1.
 

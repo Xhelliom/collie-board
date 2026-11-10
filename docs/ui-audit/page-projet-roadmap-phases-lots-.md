@@ -1,5 +1,7 @@
 # Audit UI — page projet : roadmap, phases, lots, autonomie, orchestrateur (mobile 390 px)
 
+**Statut :** ✅ décidé — audit du 2026-10-12, phase « Revue de l'UI » validée
+
 **Méthode du rendu mobile** : **rendu réel** dans Chrome headless local (`google-chrome-stable --headless`), sur la page `board/project?repo=…/collie-board` du pont en service (`127.0.0.1:8788`), avec les données réelles : 15 étapes, 3 phases ouvertes, 3 phases validées.
 - Deux captures, à 390×844 et à 390×4000. Comme la page défile dans son `<main>`, la seconde montre environ 4 000 px sur un total mesuré de 6 745 px.
 - Mesures dans la même page avec le DevTools Protocol, viewport 390×844 en mode mobile : débordements horizontaux, taille de chaque élément cliquable, troncatures, position des blocs.

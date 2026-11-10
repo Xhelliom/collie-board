@@ -77,3 +77,7 @@ A superseded ADR is never deleted or edited into agreement with the present. Mar
 | [0050](./0050-every-action-runs-ctl-ts-because-herdr-allows-one-command-per-id.md) | Every action runs `ctl.ts`, because Herdr allows one command per action id | Accepted |
 | [0051](./0051-le-droit-launch-par-pair-suffit-l-autonomie-reste-a-l-orchestrateur-local.md) | Le droit `launch` par pair suffit ; l'autonomie reste à l'orchestrateur local | Accepted |
 | [0052](./0052-collie-v2-sur-herdr-core.md) | Collie V2 sur herdr-core : même cerveau, nouveau moteur, le projet au centre | Accepted |
+| [0053](./0053-a-custom-page-is-served-inert-under-its-own-csp.md) | A custom page is served inert, under its own CSP, never the board's | Accepted |
+| [0054](./0054-update-runs-ctl-ts-everywhere-with-a-bash-twin-the-bridge-invokes.md) | `update` runs `ctl.ts` everywhere, with a bash twin the bridge invokes | Accepted |
+| [0055](./0055-the-orchestrator-may-resume-a-lot-halted-for-a-mechanical-reason.md) | L'orchestrateur peut reprendre un lot arrêté pour une raison mécanique | Accepted — amends [0017](./0017-a-run-is-consent-given-once-over-a-chosen-set-of-cards.md), extends [0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md) |
+| [0056](./0056-a-repo-has-one-objective-the-operator-sets-and-validates.md) | Un dépôt a un objectif, que l'opérateur fixe et valide | Accepted |

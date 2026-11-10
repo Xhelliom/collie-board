@@ -1,5 +1,7 @@
 # Reconnaissance — un nœud Collie natif sous Windows
 
+**Statut :** ✅ décidé — reconnaissance faite le 2026-10-22, suite dans l'ADR 0050
+
 Reconnaissance préalable à l'ADR « nœud Windows » : peut-on faire tourner herdr + le bridge
 **nativement** (pas WSL) sur un poste Windows, pour qu'un agent y pilote des applis Windows —
 SolidWorks via COM en tête ? Aucun code produit n'a été modifié ; tout ce qui suit a été exécuté à la
