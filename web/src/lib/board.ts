@@ -134,6 +134,8 @@ export interface CardView {
   pipelineId?: string | null;
   /** The peer environment it launches in (ADR 0046 §4), or null for this machine. */
   environment?: CardEnvironment | null;
+  /** « En main » (ADR 0058): the operator is talking to its worker, so the lead stays out. Optional: older fixtures omit it. */
+  held?: { by: "operator"; at: number; lastTouch: number } | null;
   /** Shared board only (ADR 0048 §5): the git identity of the pair that created it — derived by the bridge. */
   createdBy?: string | null;
   /** Shared board only: who it is meant for, as a git identity. */
@@ -852,6 +854,16 @@ export function promptCard(id: string, text: string): Promise<{ ok: true; card: 
     method: "POST",
     body: JSON.stringify({ text }),
   });
+}
+
+/** « En main » (ADR 0058): take the card's worker… */
+export function holdCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/hold`, { method: "POST" });
+}
+
+/** …and give it back to the lead. */
+export function releaseCard(id: string): Promise<{ ok: true; card: CardView }> {
+  return apiRequest<{ ok: true; card: CardView }>(`/api/cards/${encodeURIComponent(id)}/hold`, { method: "DELETE" });
 }
 
 /** Hand a landed card to the next role of its flow — the tap a run gives once (ADR 0031). */

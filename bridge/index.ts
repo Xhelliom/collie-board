@@ -44,6 +44,7 @@ import {
   SessionRegistry,
   type SessionFactory,
 } from "./sessions.ts";
+import { sweepHeld } from "./held.ts";
 import { Snooze } from "./snooze.ts";
 import { StateEngine, type EngineSnapshot } from "./state-engine.ts";
 import {
@@ -377,6 +378,8 @@ const makeSession: SessionFactory = (name, socketPath, isPrimary) => {
     // scan on a primary key per tick. Two of the facts it tails go through the herd's own
     // coordinator — same slot, same digest, same snooze — because each carries the predicate that
     // says when it stops being true; the rest only ever reach the bell (NOTIFY_AUDIT.md §6.6).
+    // « En main » (ADR 0058): its reminder and its expiry, read off `card.held` — before the notifier tails them.
+    engine.onUpdate((snap) => void (snap.bridge !== "disconnected" && sweepHeld(board)), "held");
     const boardNotifier = new BoardNotifier(board, notifyLog, notifications);
     engine.onUpdate((snap) => boardNotifier.update(snap), "boardNotifier");
     // Runs (ADR 0017): the operator's one gesture over a set of cards, driven from here. Its lead is

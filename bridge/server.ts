@@ -5,6 +5,7 @@ import { extname, join, normalize, sep } from "node:path";
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import type { AuditLog } from "./audit.ts";
 import { handleBoardRoute, isBoardPath } from "./board-routes.ts";
+import { HELD_ERROR, paneHeld, touchHeld } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleFilesRoute } from "./files-view.ts";
 import { handleGalleryRoute } from "./gallery.ts";
@@ -398,6 +399,11 @@ export function startServer(opts: {
         }
         if (action === "history" && req.method === "GET")
           return paneHistory(cfg, transcripts, rt.engine, herdr, adapters, paneId, url, req);
+        // « En main » (ADR 0058, held.ts): the operator writing to a worker takes its card; an agent is refused.
+        if ((action === "reply" || action === "keys") && req.method === "POST") {
+          if (!req.headers.get("x-collie-pane")?.trim()) touchHeld(board, paneId);
+          else if (paneHeld(board, paneId)) return text(HELD_ERROR, 409);
+        }
         if (action === "reply" && req.method === "POST") return replyPane(herdr, cfg, paneId, req, audit, device, session, (txt) => recordOperatorSaid(board, paneId, txt), rt.engine);
         if (action === "keys" && req.method === "POST") return keysPane(herdr, paneId, req, audit, device, session);
         if (action === "upload" && req.method === "POST") return uploadPane(cfg, paneId, req, audit, device, session);

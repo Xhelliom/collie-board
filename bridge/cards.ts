@@ -221,6 +221,7 @@ export function withCardFields(panes: AgentView[], sessions: CardSession[], db: 
       cardTitle: card?.title,
       cardStatus: card?.status,
       ...(isAutoHandoffOffered(session, Date.now()) ? { handoffReady: true } : {}),
+      ...(card?.held ? { held: true } : {}),
     };
   });
 }

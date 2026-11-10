@@ -65,6 +65,7 @@ import { CardDeliverables } from "@/components/card-deliverables";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { holdOf } from "@/lib/lot-hold";
 import { AwaitingTag } from "@/components/awaiting-tag";
+import { HeldControl } from "@/components/held";
 import { ContextGauge } from "@/components/context-gauge";
 import { CtxBar } from "@/components/ctx-bar";
 import { TagChip } from "@/components/tag-chip";
@@ -584,6 +585,7 @@ export function CardRoute() {
                   </CardStatusChip>
                 )}
                 {detail?.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
+                {card.session && <HeldControl cardId={card.id} held={!!card.held} />}
                 {card.tag && <TagChip tag={card.tag} />}
                 {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
                 <CopyPromptButton cardId={card.id} />
