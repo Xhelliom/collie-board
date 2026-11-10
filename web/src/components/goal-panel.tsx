@@ -124,7 +124,8 @@ function GoalJournal({ goal }: { goal: Goal }) {
 
 // The repo's objective (ADR 0056), at the top of the project page. Every write here is the operator's:
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
-export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: string) => string | undefined }) {
+/** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody. */
+export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean }) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [editing, setEditing] = useState(false);
@@ -193,6 +194,7 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
       ) : (
         <>
           <p className="text-[15px] font-medium">{open.text}</p>
+          {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-status-blocked/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div>
             <span className="text-xs text-muted-foreground">{t("goal.criteriaTitle")}</span>
             <ul className="mt-1 list-disc pl-5">

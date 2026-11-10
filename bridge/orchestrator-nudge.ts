@@ -175,12 +175,18 @@ export class OrchestratorNudger {
       const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal);
       return { repoPath: run.repoPath, text: openGoalOf(this.db, run.repoPath) ? `${text}\n${GOAL_LOT_LINE}` : text };
     }
-    if (e.type === "goal.resumed") {
-      // The operator took the objective back (a refused claim, or after a pause): nothing runs, so no end of lot would wake it.
+    if (e.type === "goal.created" || e.type === "goal.resumed") {
+      // The operator set the objective, or took it back (a refused claim, after a pause): with no lot of
+      // the repo running, no end of lot would wake the orchestrator. One running: its end will.
       const g = (p as { goalId?: string }).goalId ? this.db.getGoal((p as { goalId: string }).goalId) : null;
-      if (!g || g.status !== "active") return null;
+      if (!g || g.status !== "active" || this.db.listOpenRuns().some((r) => r.repoPath === g.repoPath)) return null;
       const c = (p as { comment?: string | null }).comment;
-      const head = c ? `L'opérateur refuse l'objectif comme atteint : « ${c} ».` : "L'opérateur a repris l'objectif.";
+      const head =
+        e.type === "goal.created"
+          ? "L'opérateur a fixé un objectif sur ce dépôt et aucun lot ne tourne : planifie et lance le premier lot."
+          : c
+            ? `L'opérateur refuse l'objectif comme atteint : « ${c} ».`
+            : "L'opérateur a repris l'objectif.";
       return { repoPath: g.repoPath, text: [head, ...goalLines(this.goalWake(g.id)!, g.repoPath, true)].join("\n") };
     }
     if (!run) return null;

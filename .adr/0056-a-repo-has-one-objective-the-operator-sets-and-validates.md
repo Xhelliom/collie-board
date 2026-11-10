@@ -89,3 +89,11 @@ Tant qu'un objectif est ouvert, l'opérateur n'est plus appelé à chaque fin de
 - Rétractation (ADR 0011) : le point d'étape occupe le slot du troupeau jusqu'à ce que l'opérateur agisse
   sur l'objectif — son `status|updatedAt` est le prédicat. Un point plus récent remplace l'ancien (clé
   `goal:<id>`). Un blocage de carte, lui, sonne toujours : il n'est pas une fin de lot.
+
+## Amendement — un objectif posé réveille l'orchestrateur sans attendre une fin de lot
+
+Sur un dépôt où aucun lot ne tourne, aucune fin de lot ne viendrait jamais. Créer l'objectif (`goal.created`),
+le reprendre après une pause ou refuser sa déclaration (`goal.resumed`) réveille donc l'orchestrateur **une fois**,
+par la même voie que la fin de lot (`orchestrator-nudge.ts`) : l'objectif, ses critères, « planifie et lance le
+premier lot ». **Un lot du dépôt tourne : pas de réveil**, sa fin s'en charge. Pas de pane orchestrateur : personne
+à réveiller, la page Projet le dit sur l'objectif actif.
