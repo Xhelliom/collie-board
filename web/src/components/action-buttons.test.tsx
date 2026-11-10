@@ -50,6 +50,25 @@ describe("collie-buttons", () => {
     expect(screen.getByRole("button", { name: "Non" })).toBeDisabled(); // the block is spent
   });
 
+  it("set_goal: shows the text and criteria, confirms, then creates the objective (ADR 0057)", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("/api/goals", () => HttpResponse.json({ goals: [] })),
+      http.post("/api/goals", () => HttpResponse.json({ goal: { id: "g1", status: "active" } }, { status: 201 })),
+    );
+    const calls = record();
+    const args = { repoPath: "/abs/repo", text: "Livrer la v1", criteria: ["CI verte", "doc écrite"] };
+    inOrchestrator(block([{ label: "Oui, c'est l'objectif", tone: "primary", action: "set_goal", args }]));
+    const preview = await screen.findByText(/Fixer l'objectif de repo : Livrer la v1/);
+    expect(preview).toHaveTextContent("CI verte");
+    expect(preview).toHaveTextContent("doc écrite");
+    await user.click(screen.getByRole("button", { name: "Oui, c'est l'objectif" }));
+    expect(calls.some((c) => c.method === "POST")).toBe(false); // asks first
+    await user.click(screen.getByRole("button", { name: "Confirm: Oui, c'est l'objectif" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Objectif fixé");
+    expect(calls.find((c) => c.method === "POST")).toEqual({ method: "POST", url: "/api/goals", body: args });
+  });
+
   it("say types into the orchestrator's pane", async () => {
     const user = userEvent.setup();
     server.use(http.post("/api/pane/:id/reply", () => HttpResponse.json({ ok: true })));

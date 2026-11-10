@@ -721,6 +721,8 @@ export interface Goal {
   criteria: string[];
   budget: { maxLots: number; quotaPct: number; deadline: number | null };
   status: GoalStatus;
+  /** `agent`: written by an agent pane, on the operator's spoken yes (ADR 0057). Derived from `x-collie-pane`, never declared. */
+  origin: "agent" | null;
   createdAt: number;
   updatedAt: number;
   endedAt: number | null;
@@ -745,6 +747,7 @@ interface GoalRow {
   quota_pct: number;
   deadline: number | null;
   status: string;
+  origin: string | null;
   created_at: number;
   updated_at: number;
   ended_at: number | null;
@@ -1338,6 +1341,7 @@ CREATE TABLE IF NOT EXISTS goal (
   quota_pct  INTEGER NOT NULL DEFAULT 80, -- stop at this % of the week's quota
   deadline   INTEGER,                     -- epoch ms, optional
   status     TEXT NOT NULL DEFAULT 'active',
+  origin     TEXT,                        -- 'agent' when a pane wrote it (ADR 0057); NULL: the operator
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   ended_at   INTEGER                      -- set when achieved or abandoned
@@ -1837,6 +1841,7 @@ export class BoardDb {
       // ADR 0047: off for every repo that had autonomy before it.
       { table: "repo_autonomy", column: "start_when_idle", ddl: "INTEGER NOT NULL DEFAULT 0" },
       { table: "repo_autonomy", column: "max_rounds", ddl: "INTEGER NOT NULL DEFAULT 5" },
+      { table: "goal", column: "origin", ddl: "TEXT" },
     ];
     for (const { table, column, ddl } of additions) {
       const cols = this.db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
@@ -3002,6 +3007,7 @@ export class BoardDb {
       criteria: JSON.parse(r.criteria) as string[],
       budget: { maxLots: r.max_lots, quotaPct: r.quota_pct, deadline: r.deadline },
       status: r.status as GoalStatus,
+      origin: r.origin === "agent" ? "agent" : null,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       endedAt: r.ended_at,
@@ -3022,13 +3028,13 @@ export class BoardDb {
   }
 
   /** Null when the repo already has an open objective (the unique index says so, not a prior read). */
-  createGoal(g: Pick<Goal, "repoPath" | "text" | "criteria" | "budget">, status: "active" | "queued" = "active"): Goal | null {
+  createGoal(g: Pick<Goal, "repoPath" | "text" | "criteria" | "budget">, status: "active" | "queued" = "active", origin: Goal["origin"] = null): Goal | null {
     const id = crypto.randomUUID();
     const ts = this.now();
     try {
       this.db
-        .query("INSERT INTO goal (id, repo_path, text, criteria, max_lots, quota_pct, deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .run(id, g.repoPath, g.text, JSON.stringify(g.criteria), g.budget.maxLots, g.budget.quotaPct, g.budget.deadline, status, ts, ts);
+        .query("INSERT INTO goal (id, repo_path, text, criteria, max_lots, quota_pct, deadline, status, origin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(id, g.repoPath, g.text, JSON.stringify(g.criteria), g.budget.maxLots, g.budget.quotaPct, g.budget.deadline, status, origin, ts, ts);
     } catch (e) {
       if (/UNIQUE/.test((e as Error).message)) return null;
       throw e;

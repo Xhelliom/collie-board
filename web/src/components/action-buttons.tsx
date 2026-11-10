@@ -99,7 +99,7 @@ function ActionButton({ spec, pane, spent, onRun }: { spec: Spec; pane: string; 
       >
         {armed ? t("pane.action.confirm", { label: spec.label }) : spec.label}
       </Button>
-      <span className={cn("text-xs", p && !p.ok ? "text-destructive" : "text-muted-foreground")}>
+      <span className={cn("whitespace-pre-line text-xs", p && !p.ok ? "text-destructive" : "text-muted-foreground")}>
         {!p ? "…" : p.ok ? p.preview : p.why}
         {armed && (
           <button type="button" className="ml-2 underline" onClick={() => setArmed(false)}>

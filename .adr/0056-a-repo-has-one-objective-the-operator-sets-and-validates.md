@@ -1,6 +1,6 @@
 # 0056 — Un dépôt a un objectif, que l'opérateur fixe et valide
 
-**Status:** Accepted (l'objet, ses routes, son écran ; le mode objectif — voir *Le mode objectif* plus bas) ·
+**Status:** Accepted, amended by [0057](./0057-the-orchestrator-may-write-the-objective-on-the-operators-spoken-yes.md) (un pane peut écrire l'objectif sur l'accord oral de l'opérateur) (l'objet, ses routes, son écran ; le mode objectif — voir *Le mode objectif* plus bas) ·
 les choix par défaut restent **proposés** à l'opérateur, sauf « déclaré = arrêt net », tranché le 09/11 — amends [ADR 0030](./0030-the-orchestrator-may-launch-a-lot-when-the-operator-allows-it-per-project.md)
 and [ADR 0047](./0047-the-orchestrator-may-start-a-lot-when-nothing-runs-if-the-operator-allows-it.md) (not edited: this is their successor)
 

@@ -198,6 +198,7 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: {
           <Target className="size-3.5" />
           {t("goal.title")}
           {open && <span className="rounded-full border px-2 py-0.5 normal-case tracking-normal">{t(`goal.status.${open.status}`)}</span>}
+          {open?.origin === "agent" && <span className="font-normal normal-case tracking-normal">{t("goal.byAgent")}</span>}
         </span>
         {open && !editing && (
           <button type="button" onClick={() => setEditing("open")} className={btn}>
@@ -300,7 +301,10 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onStatus }: {
         </div>
       ) : queued ? (
         <div className="flex flex-col gap-1.5 border-t pt-2.5">
-          <span className="text-xs font-semibold text-muted-foreground">{t("goal.next")}</span>
+          <span className="text-xs font-semibold text-muted-foreground">
+            {t("goal.next")}
+            {queued.origin === "agent" && <span className="font-normal"> · {t("goal.byAgent")}</span>}
+          </span>
           <p className="font-medium">{queued.text}</p>
           <ul className="list-disc pl-5 text-xs text-muted-foreground">
             {queued.criteria.map((c, i) => (

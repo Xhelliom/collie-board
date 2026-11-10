@@ -7,6 +7,7 @@ export const goal = defineMessages({
     en: "No objective for this repo. Set one: what to reach, how to tell, how much the orchestrator may spend.",
     fr: "Aucun objectif pour ce dépôt. Fixe-en un : quoi atteindre, à quoi le reconnaître, combien l'orchestrateur peut dépenser.",
   },
+  "goal.byAgent": { en: "written by the orchestrator", fr: "écrit par l'orchestrateur" },
   "goal.define": { en: "Set the objective", fr: "Définir l'objectif" },
   "goal.edit": { en: "Edit", fr: "Modifier" },
   "goal.text": { en: "What to reach", fr: "Ce qu'il faut atteindre" },
