@@ -34,11 +34,23 @@ export interface PromptOption {
   keys: string[];
 }
 
+/** The dialog's free-text row. Shared with the wizard grammar. */
+export interface FreeTextRow {
+  n: number;
+  pointed: boolean;
+}
+
 /** A recognised single-choice dialog: the question, its selectable options, and the family. */
 export interface PromptModel {
   question: string;
   options: PromptOption[];
   family: PromptFamily;
+  /**
+   * The free-text escape row ("Type something."), when the dialog has one: its digit, and whether the
+   * TUI's pointer sits on it. Answered by digit → typed text → Enter (free-text-action.ts), never by
+   * an option button — so it stays out of `options`.
+   */
+  freeText?: FreeTextRow;
   /**
    * A byte-signature of the dialog's on-screen region — a bounded run of lines from ABOVE the first
    * option (capturing the subject: the diff/command/context the dialog is about) through the footer.
@@ -99,12 +111,29 @@ export function trailingMenuRows<T extends { n: number }>(rows: T[]): T[] {
   return rows[s]!.n === 1 ? rows.slice(s) : [];
 }
 
-// Free-text escape rows are answered by TYPING, not a keystroke — the app's composer already covers
-// that — so they are never up-levelled into a button (spec T2). The two known phrases:
-// "Type something." (AskUserQuestion) and "Tell Claude what to change" (plan approval).
-// Shared with the wizard grammar (wizard.ts), which drops the same rows.
+// Free-text escape rows are answered by TYPING, not a keystroke, so they are never up-levelled into
+// an option button (spec T2). The two known phrases: "Type something." (AskUserQuestion — surfaced
+// as the model's `freeText` row) and "Tell Claude what to change" (plan approval — dropped).
+// Shared with the wizard grammar (wizard.ts), which treats the same rows the same way.
+const TYPE_SOMETHING = /^type something\b/i;
 export function isFreeTextLabel(label: string): boolean {
-  return /^type something\b/i.test(label) || /^tell claude what to change\b/i.test(label);
+  return TYPE_SOMETHING.test(label) || /^tell claude what to change\b/i.test(label);
+}
+
+/** The "Type something." row among a menu's rows (`texts[row.index]` carries the `❯` pointer), or
+ *  undefined. Shared with the wizard grammar. */
+export function freeTextRow(
+  menu: { index: number; n: number; label: string }[],
+  texts: string[],
+): FreeTextRow | undefined {
+  const row = menu.find((r) => TYPE_SOMETHING.test(r.label));
+  return row && { n: row.n, pointed: texts[row.index]!.trim().startsWith("❯") };
+}
+
+// A question that wraps (or has several paragraphs) is drawn behind a "│ " gutter (2.1.322,
+// claude--v2322-select-long.txt); a one-line question has none. Shared with the wizard grammar.
+export function stripGutter(text: string): string {
+  return text.trim().replace(/^│\s?/, "").trim();
 }
 
 // A multiSelect checkbox prefix on an option label: "[ ] Cheese" (unchecked) / "[✔] Mushrooms"
@@ -128,6 +157,9 @@ const MAX_FOOTER_GAP = 3;
 // The question is close above the first option; bound the upward search so it can't wander into
 // unrelated history.
 const QUESTION_SCAN_LIMIT = 12;
+// The dialog's top border (a rule) sits above the question; a long question on a narrow pane wraps
+// over many rows, so the walk up to it is bounded wide. Shared with the wizard grammar.
+export const DIALOG_SCAN_LIMIT = 40;
 
 /**
  * The full detection result buildBlocks needs: the model PLUS `startLine`, the index of the first
@@ -184,10 +216,9 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
   // see and can't answer with one digit+Enter — up-levelling only the first question would submit a
   // half-filled form. The wizard grammar (wizard.ts) runs FIRST in buildBlocks and claims this
   // dialog; the bail stays as its safety net (a missed wizard falls to raw + the keys pad). The
-  // header sits just above the current question, within the option-scan window.
+  // header sits above the current question, below the dialog's top rule.
   if (family === "select") {
-    const top = Math.max(0, firstOpt - QUESTION_SCAN_LIMIT);
-    for (let i = top; i < fi; i++) {
+    for (let i = firstOpt - 1; i >= 0 && firstOpt - i <= DIALOG_SCAN_LIMIT && !isHorizontalRule(texts[i]!); i--) {
       if (isMultiStepHeader(texts[i]!)) return null;
     }
   }
@@ -219,16 +250,24 @@ export function detectPromptSelectRegion(lines: StyledLine[]): PromptRegion | nu
   if (options.length === 0) return null;
 
   const signature = regionSignature(texts, firstOpt, fi);
-  return { model: { question, options, family, signature }, startLine: firstOpt };
+  const freeText = family === "select" ? freeTextRow(menu, texts) : undefined;
+  return { model: { question, options, family, freeText, signature }, startLine: firstOpt };
 }
 
 /** The question = the nearest line above `firstOpt` carrying "?", stopping at a rule so the search
- *  can't cross out of the dialog. The repo-MCP dialog asks none, so its title stands in. */
+ *  can't cross out of the dialog — plus the rest of its block: a long question wraps, and only its
+ *  last row carries the "?". The repo-MCP dialog asks none, so its title stands in. */
 function findQuestion(texts: string[], firstOpt: number): string {
   for (let i = firstOpt - 1, seen = 0; i >= 0 && seen < QUESTION_SCAN_LIMIT; i--, seen++) {
     const t = texts[i]!;
     if (isHorizontalRule(t)) break;
-    if (t.includes("?") || MCP_TITLE.test(t)) return t.trim();
+    if (!t.includes("?") && !MCP_TITLE.test(t)) continue;
+    const inBlock = (j: number) => !isBlank(texts[j]!) && !isHorizontalRule(texts[j]!);
+    let a = i;
+    while (a - 1 >= 0 && i - a < DIALOG_SCAN_LIMIT && inBlock(a - 1)) a--;
+    let b = i;
+    while (b + 1 < firstOpt && inBlock(b + 1)) b++;
+    return texts.slice(a, b + 1).map(stripGutter).filter(Boolean).join(" ");
   }
   return "";
 }

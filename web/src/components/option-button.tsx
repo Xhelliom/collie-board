@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { Loader2, SendHorizontal } from "lucide-react";
+
+import { t } from "@/i18n";
+import { FREE_TEXT_MAX_LENGTH } from "@/lib/free-text-action";
 
 import { cn } from "@/lib/utils";
 
@@ -135,5 +139,57 @@ export function OptionButton({
       </span>
       {trailing}
     </button>
+  );
+}
+
+/** The dialog's "Type something." row: the answer is typed here, and the caller's choreography
+ *  (lib/free-text-action.ts) points the TUI's row, types it and submits. The draft survives a
+ *  refused send; a sent one takes the dialog — and this row — off the screen. */
+export function FreeTextRow({
+  keyLabel,
+  disabled,
+  onSubmit,
+}: {
+  keyLabel: ReactNode;
+  disabled?: boolean;
+  onSubmit: (text: string) => void | Promise<void>;
+}) {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (disabled || busy || draft.trim().length === 0) return;
+    setBusy(true);
+    try {
+      await onSubmit(draft);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className={cn(optionSurface(busy ? "busy" : "default"), "items-center")}>
+      <KeyBadge>{keyLabel}</KeyBadge>
+      {/* text-base: under 16px iOS zooms the page on focus. */}
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        maxLength={FREE_TEXT_MAX_LENGTH}
+        disabled={disabled || busy}
+        enterKeyHint="send"
+        aria-label={t("pane.dialog.freeText")}
+        placeholder={t("pane.dialog.freeText")}
+        className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      <button
+        type="submit"
+        disabled={disabled || busy || draft.trim().length === 0}
+        aria-label={t("pane.dialog.freeTextSend")}
+        className="flex size-8 shrink-0 items-center justify-center rounded-md text-primary disabled:opacity-40"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
+      </button>
+    </form>
   );
 }

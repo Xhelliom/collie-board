@@ -194,6 +194,9 @@ export interface Mux {
   getPane(paneId: string): Promise<WirePane>;
   readPane(paneId: string, source: ReadSource, lines: number, format?: ReadFormat): Promise<PaneRead>;
   sendPaneText(paneId: string, text: string): Promise<void>;
+  /** Paste and Enter in ONE engine call — only an engine that has no paste without Enter (hc).
+   *  `force` types into a program blocked on a dialog: the caller has read it and means to answer. */
+  sendPaneLine?(paneId: string, text: string, force: boolean): Promise<void>;
   sendPaneKeys(paneId: string, keys: string[]): Promise<void>;
   closePane(paneId: string): Promise<void>;
   renamePane(paneId: string, label: string | null): Promise<void>;

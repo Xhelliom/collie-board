@@ -320,10 +320,12 @@ export function sendReply(
   text: string,
   submit = true,
   session?: string,
+  /** Type even into a program blocked on a dialog — only the dialog's own free-text row sets it. */
+  force = false,
 ): Promise<ActionResponse> {
   return req<ActionResponse>(paneRoute(paneId, "/reply", session), {
     method: "POST",
-    body: JSON.stringify({ text, submit }),
+    body: JSON.stringify({ text, submit, ...(force ? { force } : {}) }),
   });
 }
 

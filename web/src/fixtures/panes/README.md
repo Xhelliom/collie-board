@@ -39,6 +39,17 @@ pane over capturing real work sessions.
 | `claude--select-multiselect-checked.txt` | Same dialog **mid-selection**: some boxes `[✔]` (Mushrooms, Olives), the stepper's question chip flipped to `☒` (answered). Exercises the checked-glyph lift (`[✔]`/`[x]`/`[✓]` → `checked: true`; terminal is source of truth) | `blocked` |
 | `claude--select-multiselect-review.txt` | The multiSelect **review/confirm** screen: `←  ☐ Toppings  ✔ Submit  →` stepper, "Ready to submit your answers?" over `❯ 1. Submit answers / 2. Cancel`, with a `⚠ You have not answered all questions` line (`incomplete`). Lifts the `review` phase (submit = key `1`, cancel = key `2`) | `blocked` |
 
+## AskUserQuestion on Claude Code 2.1.322 (captured 2026-11-10, sandbox pane on the hc engine — plain text, no SGR)
+
+| Fixture | State / what's in it |
+|---|---|
+| `claude--v2322-select-short.txt` | One-line question, two described options, `3. Type something.`, `4. Chat about this` — no gutter |
+| `claude--v2322-select-long.txt` | A question that wraps: both rows behind a `│ ` gutter, the « ? » only on the last; four described options, `5. Type something.` |
+| `claude--v2322-select-long-freetext.txt` | Same dialog after `5`: the `❯` pointer on « Type something. », footer gains `ctrl+g to edit in Vim` |
+| `claude--v2322-select-long-typing.txt` | Same, two letters typed: the row reads `❯ 5. hi` — the label IS the typed text (Enter submits it) |
+| `claude--v2322-select-paragraphs.txt` | A two-paragraph question: one gutter block, the paragraph break a bare `│` row |
+| `claude--v2322-wizard-long-q1.txt` | Two-question wizard, Q1 the long wrapped question under the `←  ☐ Rollout  ☐ Notify  ✔ Submit  →` stepper |
+
 ## In-flight send / self-race corpus (captured 2026-07-18, `collie-demo` sandbox pane)
 
 Captures of the ~350ms window where the composer's own reply sits on the `❯` line before the

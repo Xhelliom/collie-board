@@ -54,6 +54,8 @@ export interface AnsiOutputProps {
   /** Injected handler for a wizard tap — one race-guarded keystroke per control (see
    *  lib/wizard-action.ts). Same presentational contract as onPromptAction. */
   onWizardAction?: (keys: string[], wizard: WizardModel) => void | Promise<void>;
+  /** Answer the open dialog's "Type something." row (lib/free-text-action.ts). */
+  onFreeText?: (text: string, model: PromptModel | WizardModel) => void | Promise<void>;
   /** Injected handler for a preview-dialog tap (option / note / step-nav intents — the race-guarded
    *  choreography lives in lib/preview-action.ts). Same presentational contract as onPromptAction. */
   onPreviewAction?: (action: PreviewBlockAction, preview: PreviewSelectModel) => void | Promise<void>;
@@ -114,6 +116,7 @@ export const AnsiOutput = memo(function AnsiOutput({
   agent,
   onPromptAction,
   onWizardAction,
+  onFreeText,
   onPreviewAction,
   onMultiSelectAction,
   promptDisabled,
@@ -176,12 +179,14 @@ export const AnsiOutput = memo(function AnsiOutput({
       prompt={promptBlock.prompt}
       disabled={promptDisabled || !onPromptAction}
       onAction={(option) => onPromptAction?.(option, promptBlock.prompt)}
+      onFreeText={onFreeText && ((text) => onFreeText(text, promptBlock.prompt))}
     />
   ) : wizardBlock ? (
     <WizardBlock
       wizard={wizardBlock.wizard}
       disabled={promptDisabled || !onWizardAction}
       onAction={(keys) => onWizardAction?.(keys, wizardBlock.wizard)}
+      onFreeText={onFreeText && ((text) => onFreeText(text, wizardBlock.wizard))}
     />
   ) : previewBlock ? (
     <PreviewSelectBlock

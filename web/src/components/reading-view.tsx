@@ -104,6 +104,7 @@ export function ReadingView({
   dialogDisabled,
   onPromptAction,
   onWizardAction,
+  onFreeText,
   onPreviewAction,
   onMultiSelectAction,
   onUnavailable,
@@ -127,6 +128,8 @@ export function ReadingView({
   dialogDisabled?: boolean;
   onPromptAction?: (option: PromptOption, prompt: PromptModel) => void | Promise<void>;
   onWizardAction?: (keys: string[], wizard: WizardModel) => void | Promise<void>;
+  /** Answer the open dialog's "Type something." row (lib/free-text-action.ts). */
+  onFreeText?: (text: string, model: PromptModel | WizardModel) => void | Promise<void>;
   onPreviewAction?: (action: PreviewBlockAction, preview: PreviewSelectModel) => void | Promise<void>;
   onMultiSelectAction?: (action: MultiSelectIntent, multi: MultiSelectModel) => void | Promise<void>;
   /** The transcript can't exist for this pane (no session / no log / unsupported / disabled) — the
@@ -257,12 +260,14 @@ export function ReadingView({
                   prompt={dialogBlock.prompt}
                   disabled={dialogDisabled}
                   onAction={(option) => onPromptAction?.(option, dialogBlock.prompt)}
+                  onFreeText={onFreeText && ((text) => onFreeText(text, dialogBlock.prompt))}
                 />
               ) : dialogBlock.kind === "wizard" ? (
                 <WizardBlock
                   wizard={dialogBlock.wizard}
                   disabled={dialogDisabled}
                   onAction={(keys) => onWizardAction?.(keys, dialogBlock.wizard)}
+                  onFreeText={onFreeText && ((text) => onFreeText(text, dialogBlock.wizard))}
                 />
               ) : dialogBlock.kind === "preview-select" ? (
                 <PreviewSelectBlock

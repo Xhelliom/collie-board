@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import type { PromptFamily, PromptModel, PromptOption } from "@/lib/blocks";
-import { OptionButton, OptionGroupCaption, PromptPanel } from "@/components/option-button";
+import { FreeTextRow, OptionButton, OptionGroupCaption, PromptPanel } from "@/components/option-button";
 import { t } from "@/i18n";
 
 export interface PromptSelectBlockProps {
@@ -14,6 +14,8 @@ export interface PromptSelectBlockProps {
    * sends the option's keys. Returning/throwing simply clears the busy state.
    */
   onAction: (option: PromptOption) => void | Promise<void>;
+  /** Injected free-text handler; the dialog's "Type something." row renders only when it is given. */
+  onFreeText?: (text: string) => void | Promise<void>;
   /** Read-only device or a gone pane: buttons still render (for context) but can't be pressed. */
   disabled?: boolean;
 }
@@ -37,7 +39,7 @@ const FAMILY_CAPTION: Record<PromptFamily, () => string> = {
 // An unnumbered dialog's options are an arrow walk: the pointed row shows the terminal's own glyph.
 const KEY_BADGE: Record<string, string> = { Enter: "❯", Up: "↑", Down: "↓" };
 
-export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBlockProps) {
+export function PromptSelectBlock({ prompt, onAction, onFreeText, disabled }: PromptSelectBlockProps) {
   const [sending, setSending] = useState<number | null>(null);
 
   async function press(index: number, option: PromptOption) {
@@ -50,13 +52,22 @@ export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBl
     }
   }
 
+  // The free-text row keeps its place in the terminal's order (above "Chat about this").
+  const free = prompt.freeText;
+  const freeRow =
+    free && onFreeText ? (
+      <FreeTextRow key="free" keyLabel={free.n} disabled={disabled || sending !== null} onSubmit={onFreeText} />
+    ) : null;
+  const freeAt = free ? prompt.options.findIndex((o) => Number(o.keys[0]) > free.n) : -1;
+
   return (
     <PromptPanel ariaLabel={prompt.question}>
       <OptionGroupCaption>{FAMILY_CAPTION[prompt.family]()}</OptionGroupCaption>
       <div className="flex flex-col gap-1">
         {prompt.options.map((option, index) => {
           const busy = sending === index;
-          return (
+          return [
+            index === freeAt ? freeRow : null,
             <OptionButton
               key={index}
               tone={busy ? "busy" : "default"}
@@ -73,9 +84,10 @@ export function PromptSelectBlock({ prompt, onAction, disabled }: PromptSelectBl
                   />
                 ) : null
               }
-            />
-          );
+            />,
+          ];
         })}
+        {freeAt === -1 ? freeRow : null}
       </div>
     </PromptPanel>
   );

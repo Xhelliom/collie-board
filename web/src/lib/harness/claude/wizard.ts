@@ -17,7 +17,16 @@
 
 import type { StyledLine } from "../../blocks";
 import { classifyFooter, isBlank, isHorizontalRule, lineText } from "./markers";
-import { checkboxState, isFreeTextLabel, parseOptionRow, trailingMenuRows } from "./prompt-select";
+import {
+  checkboxState,
+  DIALOG_SCAN_LIMIT,
+  freeTextRow,
+  isFreeTextLabel,
+  parseOptionRow,
+  stripGutter,
+  trailingMenuRows,
+  type FreeTextRow,
+} from "./prompt-select";
 
 /** One question chip in the stepper header (the Submit chip is implicit — see `WizardModel`). */
 export interface WizardStepChip {
@@ -68,6 +77,8 @@ export type WizardModel =
       steps: WizardStepChip[];
       question: string;
       options: WizardOption[];
+      /** The "Type something." row, when there is one (see PromptModel.freeText). */
+      freeText?: FreeTextRow;
       signature: string;
     }
   | {
@@ -166,10 +177,10 @@ export function parseStepperLine(line: StyledLine): ParsedStepper | null {
 // ---------------------------------------------------------------------------------------------
 
 // Same bounded windows philosophy as prompt-select: options sit against the footer; the stepper
-// sits a few lines above the first option (blank + question lines between).
+// sits above the first option (blank + question lines between — many, when a long question wraps).
 const OPTION_SCAN_WINDOW = 24;
 const MAX_FOOTER_GAP = 3;
-const STEPPER_SCAN_LIMIT = 10;
+const STEPPER_SCAN_LIMIT = DIALOG_SCAN_LIMIT;
 // The review step lists every answered question (2–3 lines each) between the stepper and the
 // submit rows, so its upward window is more generous.
 const REVIEW_SCAN_WINDOW = 48;
@@ -243,7 +254,8 @@ function detectQuestionPhase(
   // questions wrap). There is always at least one.
   const questionLines: string[] = [];
   for (let i = stepperIdx + 1; i < firstOpt; i++) {
-    if (!isBlank(texts[i]!)) questionLines.push(texts[i]!.trim());
+    const t = stripGutter(texts[i]!);
+    if (t) questionLines.push(t);
   }
   if (questionLines.length === 0) return null;
   const question = questionLines.join(" ");
@@ -279,6 +291,7 @@ function detectQuestionPhase(
       steps: stepper.chips,
       question,
       options,
+      freeText: freeTextRow(menu, texts),
       signature: texts.slice(stepperIdx, fi + 1).join("\n"),
     },
     startLine: stepperIdx,

@@ -402,6 +402,11 @@ export class Hc implements Mux {
   /** hc only pastes WITH Enter (`terminal.send`); a reply's own Enter after it could answer a dialog. */
   sendPaneText(): Promise<void> { return this.no("sendPaneText"); }
 
+  /** The paste hc does have. Unforced, hc itself refuses a `blocked` program. */
+  async sendPaneLine(paneId: string, text: string, force: boolean): Promise<void> {
+    await this.request("terminal.send", { terminal: paneId, text, force }, SEND_TIMEOUT_MS);
+  }
+
   async sendPaneKeys(paneId: string, keys: string[]): Promise<void> {
     await this.request("terminal.keys", { terminal: paneId, keys: keys.map(hcKey) });
   }

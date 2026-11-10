@@ -186,6 +186,11 @@ export class CompositeMux implements Mux {
     return (await this.to(paneId, "readPane")).readPane(paneId, source, lines, format);
   }
   async sendPaneText(paneId: string, text: string) { return (await this.to(paneId, "sendPaneText")).sendPaneText(paneId, text); }
+  async sendPaneLine(paneId: string, text: string, force: boolean) {
+    const m = await this.to(paneId, "sendPaneLine");
+    if (!m.sendPaneLine) throw new MuxUnsupported(ownerOf(paneId), "sendPaneLine");
+    return m.sendPaneLine(paneId, text, force);
+  }
   async sendPaneKeys(paneId: string, keys: string[]) { return (await this.to(paneId, "sendPaneKeys")).sendPaneKeys(paneId, keys); }
   async closePane(paneId: string) { return (await this.to(paneId, "closePane")).closePane(paneId); }
   async renamePane(paneId: string, label: string | null) { return (await this.to(paneId, "renamePane")).renamePane(paneId, label); }
