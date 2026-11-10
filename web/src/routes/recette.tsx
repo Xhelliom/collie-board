@@ -8,7 +8,7 @@ import { GalleryImg } from "@/components/gallery-img";
 import { Chip } from "@/components/ui/chip";
 import { SectionLabel } from "@/components/ui/section-label";
 import { useT } from "@/i18n";
-import { boardErrorMessage, cardPath, deliverableUrl, projectPath, repoName } from "@/lib/board";
+import { boardErrorMessage, cardPath, deliverableUrl, loadSort, projectPath, repoName, saveSort, sortOf, type CardSort } from "@/lib/board";
 import { assignedToMe, useIdentities } from "@/lib/identities";
 import { openLightbox } from "@/lib/lightbox";
 import { ago } from "@/lib/project-facts";
@@ -53,10 +53,17 @@ export function RecetteRoute() {
   const [mineOnly, setMineOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState(loadGrouping);
+  // Same remembered choice as the board's: one device, one sort.
+  const [sort, setSort] = useState(loadSort);
+  const pickSort = (next: CardSort | null) => {
+    setSort(next);
+    saveSort(next);
+  };
   const identities = useIdentities();
 
   const counts = recetteCounts(groups.flatMap((g) => g.entries));
   const hasShared = groups.some((g) => g.entries.some((e) => e.repoPath && identities[e.repoPath]));
+  const hasBusiness = groups.some((g) => g.entries.some((e) => sortOf(e) === "business"));
   const shown = groups
     .map((g) => ({
       ...g,
@@ -64,7 +71,8 @@ export function RecetteRoute() {
         (e) =>
           (everything || isPending(e)) &&
           matchesQuery(e, query) &&
-          (!mineOnly || assignedToMe(e, identities)),
+          (!mineOnly || assignedToMe(e, identities)) &&
+          (!sort || sortOf(e) === sort),
       ),
     }))
     .filter((g) => g.entries.length > 0);
@@ -101,6 +109,13 @@ export function RecetteRoute() {
             <Chip label={t("recette.filter.todo")} active={!everything} onClick={() => setEverything(false)} />
             <Chip label={t("recette.filter.all")} active={everything} onClick={() => setEverything(true)} />
             {(hasShared || mineOnly) && <Chip label={t("people.toMe")} active={mineOnly} onClick={() => setMineOnly(!mineOnly)} />}
+            {(hasBusiness || sort) && (
+              <>
+                <span className="mx-1 h-5 w-px bg-border" />
+                <Chip label={t("filter.code")} active={sort === "code"} onClick={() => pickSort(sort === "code" ? null : "code")} />
+                <Chip label={t("filter.business")} active={sort === "business"} onClick={() => pickSort(sort === "business" ? null : "business")} />
+              </>
+            )}
             <span className="mx-1 h-5 w-px bg-border" />
             <Chip label={t("recette.group.usage")} active={grouping === "usage"} onClick={() => pickGrouping("usage")} />
             <Chip label={t("recette.group.delivery")} active={grouping === "delivery"} onClick={() => pickGrouping("delivery")} />
@@ -294,10 +309,10 @@ function Entry({ entry: e, defaultOpen, onChange }: { entry: RecetteEntry; defau
           onClick={() => setUnfolded(!unfolded)}
           className={cn("flex w-full items-start gap-2.5 p-3 pb-1.5 text-left hover:bg-muted/40", FOCUS, MOTION)}
         >
-          <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", STATE_TONE[e.state])} aria-label={t(e.proofread && e.state === "todo" ? "recette.state.proofread" : `recette.state.${e.state}`)} />
+          <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", STATE_TONE[e.state])} aria-label={t(sortOf(e) === "business" && e.state === "todo" ? "recette.state.proofread" : `recette.state.${e.state}`)} />
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-sm font-semibold leading-snug">{e.capability}</span>
-            {open.length > 0 && <span className={cn("text-xs font-medium", STATE_TEXT[e.state])}>{t(e.proofread ? "recette.toProofread" : "recette.toTest", { count: open.length })}</span>}
+            {open.length > 0 && <span className={cn("text-xs font-medium", STATE_TEXT[e.state])}>{t(sortOf(e) === "business" ? "recette.toProofread" : "recette.toTest", { count: open.length })}</span>}
           </span>
           {shots.length > 0 && (
             <span className="flex shrink-0 flex-col items-center gap-0.5 text-[11px] tabular-nums text-muted-foreground">

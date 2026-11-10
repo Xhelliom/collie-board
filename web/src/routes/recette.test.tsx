@@ -113,10 +113,25 @@ describe("RecetteRoute", () => {
 
   it("a business card's recette reads « à relire », not « à tester »", async () => {
     setPreference("fr");
-    mount([{ usage: null, entries: [entry({ proofread: true, capability: "Relire l'offre" })] }]);
+    mount([{ usage: null, entries: [entry({ category: "business", capability: "Relire l'offre" })] }]);
     expect(await screen.findByText("Relire l'offre")).toBeInTheDocument();
     expect(screen.getByText("1 à relire")).toBeInTheDocument();
     expect(screen.getByLabelText("à relire")).toBeInTheDocument();
+  });
+
+  it("filters code or business, and the choice is remembered on the device", async () => {
+    const groups = [
+      { usage: null, entries: [entry({ cardId: "c1", capability: "Code thing" }), entry({ cardId: "b1", capability: "Offer page", category: "business" })] },
+    ];
+    mount(groups);
+    await screen.findByText("Code thing");
+    await userEvent.click(screen.getByRole("button", { name: "Business" }));
+    expect(screen.queryByText("Code thing")).toBeNull();
+    expect(screen.getByText("Offer page")).toBeInTheDocument();
+    expect(localStorage.getItem("collie:card-sort")).toBe("business");
+    await userEvent.click(screen.getByRole("button", { name: "Code" }));
+    expect(screen.getByText("Code thing")).toBeInTheDocument();
+    expect(screen.queryByText("Offer page")).toBeNull();
   });
 
   it("folds the list when more than three are to test, and a click unfolds one in place", async () => {

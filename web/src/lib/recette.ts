@@ -23,9 +23,9 @@ export interface RecetteEntry {
   capability: string;
   repoPath: string | null;
   assignee: string | null;
+  /** The card's category — `business` makes it a business entry (optional: an older bridge does not send it). */
+  category?: string | null;
   state: RecetteState;
-  /** A business card's: its recette is a proofreading (« à relire »), not a test. Optional: an older bridge does not send it. */
-  proofread?: boolean;
   /** A KO whose follow-up card is delivered: over, like an OK. */
   followUpDone: boolean;
   /** Image deliverables of the card, newest first. */

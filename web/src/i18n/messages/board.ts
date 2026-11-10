@@ -28,6 +28,9 @@ export const board = defineMessages({
   "filter.source": { en: "Source", fr: "Source" },
   "filter.all": { en: "All", fr: "Tout" },
   "filter.auto": { en: "Auto", fr: "Auto" },
+  "filter.sort": { en: "Kind", fr: "Sorte" },
+  "filter.code": { en: "Code", fr: "Code" },
+  "filter.business": { en: "Business", fr: "Business" },
   // the board screen (routes/board.tsx)
   "board.title": { en: "Board", fr: "Board" },
   "board.autoChip": { en: "auto", fr: "auto" },
