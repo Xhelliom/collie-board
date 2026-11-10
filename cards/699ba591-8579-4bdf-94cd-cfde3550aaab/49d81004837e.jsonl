@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794304463659.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Fixer un objectif réveille aussitôt l'orchestrateur du projet","status":"backlog"},"ts":1794304461834}}
 {"v":1,"hlc":"1794304463661.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c36eaef2-fa4f-4460-b4ea-448cc72f31ff"}}
 {"v":1,"hlc":"1794306346076.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794306349615.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/fixer-un-objectif-reveille-aussitot-l-orchestrat"}}
+{"v":1,"hlc":"1794306349615.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794306349615.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794306348545}}
+{"v":1,"hlc":"1794306359786.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794306359786.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794306352593}}
+{"v":1,"hlc":"1794306359786.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2175},"ts":1794306355140}}
