@@ -1613,6 +1613,13 @@ async function route(
     // picks is typed into a terminal.
     const via = (body as { via?: unknown }).via === "pr" ? "pr" : "merge";
 
+    // A worker mid-turn (incident cimaise 08/11): merged now, what it commits next reaches nothing.
+    if (what === "merge" || (what === "pr" && andDone)) {
+      const paneId = db.openSessionFor(id)?.paneId;
+      if (paneId && ctx.engine.current().agents.find((a) => a.paneId === paneId)?.status === "working")
+        return ctx.json({ ok: false, error: "the agent is still working — wait for it to stop: what it commits after the merge would not be merged", kind: "refused" }, 409);
+    }
+
     // One gesture at a time per card (integration-lock.ts): a second tap while a push is in flight is refused.
     const held = await exclusive(integrating, id, async () => {
       // Read under the lock, not before the body: a tap that came in while the last one finished acts

@@ -15,6 +15,7 @@ import type { PrStatus } from "./git.ts";
 import { prStatusFor } from "./integrate.ts";
 import { weekPercent } from "./goal-routes.ts";
 import { usageTracker } from "./usage.ts";
+import { LATE_COMMITS } from "./late-commits.ts";
 
 const FILED = new Set<string>(["done", "archived"]);
 const line = (c: Card) => `- « ${c.title} » (${c.id}) : ${c.status}`;
@@ -79,6 +80,14 @@ export const GOAL_LOT_LINE =
 /** The message for one card the lead reports unmerged or blocked. Pure. */
 export function cardMessage(card: Card, why: string): string {
   return `La carte « ${card.title} » (${card.id}) n'est pas mergée : ${why}\nDis à l'opérateur ce que tu proposes ; ne relance rien toi-même.`;
+}
+
+/** The message for commits that reached a merged card's branch after the merge (late-commits.ts). Pure. */
+export function lateMessage(card: Card, count: number, branch: string, base: string): string {
+  return [
+    `La carte « ${card.title} » (${card.id}) est mergée, mais ${count} commit(s) sont arrivés ensuite sur sa branche ${branch} : ils ne sont pas dans ${base} (git log ${base}..${branch}).`,
+    "Si un agent travaille encore sur cette branche, attends qu'il ait fini. Puis regarde s'ils comptent : si oui, ouvre une carte de rattrapage qui les reprend, et dis-le à l'opérateur.",
+  ].join("\n");
 }
 
 /** The message for a phase the operator validated, sealed or reopened. `to`: where its open steps went (null: no phase). Pure. */
@@ -188,6 +197,14 @@ export class OrchestratorNudger {
             ? `L'opérateur refuse l'objectif comme atteint : « ${c} ».`
             : "L'opérateur a repris l'objectif.";
       return { repoPath: g.repoPath, text: [head, ...goalLines(this.goalWake(g.id)!, g.repoPath, true)].join("\n") };
+    }
+    if (e.type === LATE_COMMITS) {
+      const card = e.cardId ? this.db.getCard(e.cardId) : null;
+      if (!card?.repoPath) return null;
+      const l = p as { count?: number; branch?: string; base?: string };
+      // The bell, never the slot (ADR 0011): nothing readable says when this stops being true.
+      this.log?.add({ cwd: card.repoPath, status: "blocked", cardId: card.id, cardTitle: card.title, cardStatus: card.status, subtitle: `${l.count} commit(s) arrivé(s) après le merge — pas dans ${l.base}`, pushed: false });
+      return { repoPath: card.repoPath, text: lateMessage(card, l.count ?? 0, l.branch ?? "", l.base ?? "") };
     }
     if (!run) return null;
     // A wait (`wait: true` — no check registered yet, checks running, mergeability unknown) is not a

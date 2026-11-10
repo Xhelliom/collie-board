@@ -1397,7 +1397,7 @@ export function journalFailure(output: string): JournalFailure {
 
 const okRemote = (remote: string) => /^[A-Za-z0-9._-]+$/.test(remote) && !remote.startsWith("-");
 
-async function revOf(repoPath: string, ref: string, git: GitRunner): Promise<string | null> {
+export async function revOf(repoPath: string, ref: string, git: GitRunner = runGit): Promise<string | null> {
   const r = await git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], repoPath);
   return r.ok ? r.stdout.trim() : null;
 }
