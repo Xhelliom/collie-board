@@ -9,6 +9,7 @@ import { findOrchestrator } from "./orchestrator.ts";
 import { promptAndConfirm } from "./cards.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import { endOfLot } from "./autonomy.ts";
+import { openGoalOf } from "./goal-mode.ts";
 import type { NotifyLog } from "./notify-log.ts";
 import type { PrStatus } from "./git.ts";
 import { prStatusFor } from "./integrate.ts";
@@ -70,6 +71,10 @@ export function goalLines(g: GoalWake, repoPath: string, plan: boolean): string[
     `Si tous les critères sont tenus, déclare-le (POST /api/goals/${g.id}/claim) au lieu de planifier : c'est l'opérateur qui valide.`,
   ];
 }
+
+/** Goal mode (goal-mode.ts): where the lot's bilan goes while an objective is open. */
+export const GOAL_LOT_LINE =
+  "Un objectif est ouvert sur ce dépôt : ce bilan va au journal de l'objectif (POST /api/board/notify {kind: \"done\", message} — le bridge l'y range, rien ne part au téléphone). Ne pousse une question que pour une décision qui revient à l'opérateur.";
 
 /** The message for one card the lead reports unmerged or blocked. Pure. */
 export function cardMessage(card: Card, why: string): string {
@@ -167,7 +172,8 @@ export class OrchestratorNudger {
       const auto = v.go ? v : v.why ? { go: false as const, why: v.why } : null;
       // Under an objective the phases are not validated one by one: the end of a phase is not proposed.
       const endPhase = ends && phase && !goal ? { name: phase.name, open: inPhase.filter((c) => !FILED.has(c.status)) } : null;
-      return { repoPath: run.repoPath, text: lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal) };
+      const text = lotMessage(run.name, cards, blocked, merged, endPhase, run.repoPath, auto, goal);
+      return { repoPath: run.repoPath, text: openGoalOf(this.db, run.repoPath) ? `${text}\n${GOAL_LOT_LINE}` : text };
     }
     if (e.type === "goal.resumed") {
       // The operator took the objective back (a refused claim, or after a pause): nothing runs, so no end of lot would wake it.

@@ -24,6 +24,18 @@ const MOVES: Record<string, { from: GoalStatus[]; to: GoalStatus }> = {
   abandon: { from: ["active", "claimed", "paused"], to: "abandoned" },
 };
 
+/** The objective's journal: what goes there instead of the phone while it is open (goal-mode.ts). */
+export const GOAL_JOURNAL = "goal.journal";
+export const GOAL_CHECKPOINT = "goal.checkpoint";
+export type CheckpointReason = "half" | "spent" | "claimed" | "decision";
+export interface GoalJournalEntry {
+  ts: number;
+  type: typeof GOAL_JOURNAL | typeof GOAL_CHECKPOINT;
+  reason: CheckpointReason | null;
+  /** The orchestrator's words (a lot's bilan, a decision asked), or the checkpoint's summary. */
+  message: string;
+}
+
 export interface GoalView extends Goal {
   /**
    * What the objective has spent — `lots`, the ones launched while it was open, is what the budget counts —
@@ -31,12 +43,13 @@ export interface GoalView extends Goal {
    * cards of its phases (the repo's phases created while it was open).
    */
   spent: { lots: number; lotIds: string[]; cardIds: string[]; phaseIds: string[]; quotaPct: number | null };
+  /** How far it got: lots finished, cards filed, cards stuck, filed cards carrying a manual test. */
+  progress: { lotsDone: number; cardsDone: number; cardsBlocked: number; recettes: number };
+  journal: GoalJournalEntry[];
 }
 
-/** The repo's open objective (active, paused or claimed), or null. */
-export const openGoal = (db: BoardDb, repoPath: string): Goal | null =>
-  db.listGoals(repoPath).find((g) => g.status === "active" || g.status === "paused" || g.status === "claimed") ?? null;
-
+const FILED = new Set(["done", "archived"]);
+const STUCK = new Set(["blocked", "orphaned"]);
 const within = (g: Goal, t: number) => t >= g.createdAt && (g.endedAt === null || t <= g.endedAt);
 
 /** The week's all-models limit, as the gauge reads it — the one the budget's `quotaPct` is about. */
@@ -52,8 +65,22 @@ export function goalView(db: BoardDb, g: Goal, quotaPct: number | null): GoalVie
   const lots = [...launched, ...runs.filter((r) => r.launchedAt === null && within(g, r.createdAt))];
   const phaseIds = db.listPhases(g.repoPath).filter((p) => within(g, p.createdAt)).map((p) => p.id);
   const inPhases = phaseIds.length ? db.listCards().filter((c) => c.phaseId !== null && phaseIds.includes(c.phaseId)) : [];
-  const cardIds = [...new Set([...lots.flatMap((r) => db.runMembers(r.id)), ...inPhases].map((c) => c.id))];
-  return { ...g, spent: { lots: launched.length, lotIds: lots.map((r) => r.id), cardIds, phaseIds, quotaPct } };
+  const cards = [...new Map([...lots.flatMap((r) => db.runMembers(r.id)), ...inPhases].map((c) => [c.id, c])).values()];
+  const done = cards.filter((c) => FILED.has(c.status));
+  return {
+    ...g,
+    spent: { lots: launched.length, lotIds: lots.map((r) => r.id), cardIds: cards.map((c) => c.id), phaseIds, quotaPct },
+    progress: {
+      lotsDone: launched.filter((r) => db.runFinished(r.id)).length,
+      cardsDone: done.length,
+      cardsBlocked: cards.filter((c) => STUCK.has(c.status)).length,
+      recettes: done.filter((c) => c.manualChecks.length > 0).length,
+    },
+    journal: db.goalJournal(g.id).map((e) => {
+      const p = (e.payload ?? {}) as { reason?: CheckpointReason; message?: string; summary?: string };
+      return { ts: e.ts, type: e.type as GoalJournalEntry["type"], reason: p.reason ?? null, message: p.message ?? p.summary ?? "" };
+    }),
+  };
 }
 
 /** The budget bound the objective has reached, or null — lots, the week's quota, the deadline. Pure. */

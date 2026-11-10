@@ -4,7 +4,8 @@
 // `startWhenIdle` (ADR 0047), read at the launch request when no lot of the repo is running.
 
 import { doneOutsideLot, MAX_ROUNDS_LIMIT, type BoardDb, type Run } from "./db.ts";
-import { goalBound, openGoal } from "./goal-routes.ts";
+import { goalBound } from "./goal-routes.ts";
+import { openGoalOf } from "./goal-mode.ts";
 
 export const MAX_CHAIN_LIMIT = 1000;
 
@@ -45,7 +46,7 @@ export type Verdict = { go: true; next: Run; goalId?: string } | { go: false; wh
  */
 export function endOfLot(db: BoardDb, run: Run, quotaPct: number | null = null, now = Date.now()): Verdict {
   const a = db.autonomyOf(run.repoPath);
-  const g = openGoal(db, run.repoPath);
+  const g = openGoalOf(db, run.repoPath);
   if (g?.status === "claimed") return { go: false, why: null, goal: { id: g.id, stop: "claimed" } };
   const active = g?.status === "active" ? g : null;
   if (!a.enabled && !active) return { go: false, why: null };
@@ -96,7 +97,7 @@ export function idleRefusal(db: BoardDb, run: Run): string | null {
  * Undefined: no active objective, autonomy (0030/0047) decides.
  */
 export function goalLaunchRefusal(db: BoardDb, run: Run, quotaPct: number | null, now = Date.now()): string | null | undefined {
-  const g = openGoal(db, run.repoPath);
+  const g = openGoalOf(db, run.repoPath);
   if (g?.status === "claimed") return "l'objectif est déclaré atteint — rien ne se lance avant la réponse de l'opérateur";
   if (g?.status !== "active") return undefined;
   if (db.listOpenRuns().some((r) => r.repoPath === run.repoPath)) return "un lot du dépôt est encore ouvert — un lot à la fois";

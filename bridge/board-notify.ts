@@ -217,6 +217,8 @@ export interface BoardNotifySource {
   openSessionFor(id: string): { id: string; handoffRequestedAt: number | null } | null;
   /** A run's cards, for `run.finished` — read on the finish and per tick while its alert is armed. */
   runMembers(runId: string): { id: string; title: string; status: string; repoPath: string | null }[];
+  /** An objective, for its checkpoint's retraction predicate (goal-mode.ts). */
+  getGoal?(id: string): { status: string; updatedAt: number } | null;
 }
 
 /** The corner of `NotificationCoordinator` this drives: an opaque key, and its two verbs. */
@@ -234,6 +236,12 @@ const runKey = (runId: string): string => `run:${runId}`;
 const noteKey = (paneId: string): string => `note:${paneId}`;
 /** The copilot is one for the whole board, so is its alert. */
 const COPILOT_KEY = "copilot";
+/** A checkpoint's reason, as the push says it. */
+const GOAL_LABEL: Record<string, string> = {
+  half: "Objectif : moitié du budget",
+  spent: "Objectif : budget atteint, à toi",
+  claimed: "Objectif déclaré atteint, à valider",
+};
 /** A note's `kind` → the alert status, hence its marker: `Note`, `Needs you`, `Done`/`Review`. */
 const NOTE_STATUS: Record<string, NotifiableStatus> = { note: "note", question: "blocked", done: "done" };
 
@@ -306,6 +314,10 @@ export class BoardNotifier {
       this.cursor = e.id;
       if (e.type === "agent.notify") {
         if (this.alerts) this.note(e);
+        continue;
+      }
+      if (e.type === "goal.checkpoint") {
+        if (this.alerts) this.checkpoint(e);
         continue;
       }
       if (this.alerts && e.type === "copilot.review_failed") this.copilotStalled(e);
@@ -415,6 +427,32 @@ export class BoardNotifier {
       cwd: card?.repoPath ?? "",
       status: "stalled",
       subtitle: `copilot not answering — ${COPILOT_DOWN_AFTER} reviews in a row timed out; check its pane`,
+    });
+  }
+
+  /**
+   * An open objective's checkpoint (goal-mode.ts): ONE grouped point in the herd's slot, keyed on the
+   * objective so a newer one replaces it. Test 3 holds — no pane says "half the budget is gone". It
+   * retracts when the operator acts on the objective (edit, pause, resume, validate, abandon): its
+   * status and `updatedAt` are the predicate. A `decision` is not raised here: the orchestrator's
+   * question already rings as its own note — the checkpoint only stays in the journal.
+   */
+  private checkpoint(e: BoardEvent): void {
+    const goalId = str(e.payload, "goalId");
+    const reason = str(e.payload, "reason");
+    const summary = str(e.payload, "summary") ?? "";
+    if (!goalId || !reason || reason === "decision" || !this.db.getGoal) return;
+    const read = () => {
+      const g = this.db.getGoal!(goalId);
+      return g ? `${g.status}|${g.updatedAt}` : null;
+    };
+    const mark = read();
+    if (mark === null) return;
+    this.armed.set(`goal:${goalId}`, { mark, read });
+    this.alerts!.arm(`goal:${goalId}`, {
+      cwd: str(e.payload, "repoPath") ?? "",
+      status: reason === "half" ? "note" : reason === "spent" ? "blocked" : "done",
+      subtitle: oneLine(`${GOAL_LABEL[reason] ?? "Objectif"} — ${summary}`),
     });
   }
 

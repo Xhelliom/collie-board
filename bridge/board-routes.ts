@@ -70,7 +70,8 @@ import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
 import { handleProjectRoute } from "./project-routes.ts";
-import { handleGoalRoute, openGoal } from "./goal-routes.ts";
+import { GOAL_JOURNAL, goalView, handleGoalRoute, weekPercent } from "./goal-routes.ts";
+import { goalOfOrchestrator, openGoalOf, recordCheckpoint } from "./goal-mode.ts";
 import { handleRecetteRoute, parseRecetteBody } from "./recette.ts";
 import { handleDocsRoute } from "./docs.ts";
 import { awaitingOn } from "./roadmap.ts";
@@ -874,7 +875,7 @@ async function route(
     // Joining a second run would silently steal the card from the first.
     if (cards.some((c) => c!.runId)) return ctx.text("a card is already in a run", 409);
     // ADR 0056: a claimed objective is a full stop — the orchestrator plans nothing more until the operator answers.
-    if (req.headers.get(PANE_HEADER)?.trim() && openGoal(ctx.db, repoPath)?.status === "claimed")
+    if (req.headers.get(PANE_HEADER)?.trim() && openGoalOf(ctx.db, repoPath)?.status === "claimed")
       return ctx.text("the objective is claimed reached — no lot is planned until the operator answers", 403);
     if (phaseId !== undefined && phaseId !== null && (typeof phaseId !== "string" || ctx.db.getPhase(phaseId)?.repoPath !== repoPath))
       return ctx.text("phaseId: no such phase in this repo", 400);
@@ -924,6 +925,17 @@ async function route(
     if (typeof message !== "string" || !message.trim()) return ctx.text("message is required", 400);
     if (typeof kind !== "string" || !NOTE_KINDS.has(kind)) return ctx.text("kind must be note, question or done", 400);
     if (typeof persistent !== "boolean") return ctx.text("persistent must be a boolean", 400);
+    // Goal mode (goal-mode.ts): the orchestrator's lot bilan goes to the objective's journal, not the
+    // phone; a question it asks is a decision, so it also leaves a grouped checkpoint there.
+    const goal = kind === "note" ? null : goalOfOrchestrator(ctx.db, ctx.engine.current(), pane);
+    if (goal) {
+      const v = goalView(ctx.db, goal, weekPercent(usageTracker.peek()));
+      if (kind === "done") {
+        ctx.db.recordEvent(null, GOAL_JOURNAL, { goalId: goal.id, repoPath: goal.repoPath, paneId: pane, message: message.trim().slice(0, 2000) });
+        return ctx.json({ ok: true, journaled: "goal" }, 202);
+      }
+      recordCheckpoint(ctx.db, v, "decision", null, message.trim().slice(0, 2000));
+    }
     ctx.db.recordEvent(session?.cardId ?? null, "agent.notify", {
       paneId: pane,
       sessionId: session?.id ?? null,

@@ -70,6 +70,58 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
   );
 }
 
+// How much of the budget is gone — the larger of lots and quota, as the bridge's checkpoints read it (goal-mode.ts).
+const budgetPct = (g: Goal) =>
+  Math.min(100, Math.round(100 * Math.max(g.spent.lots / g.budget.maxLots, g.spent.quotaPct === null ? 0 : g.spent.quotaPct / g.budget.quotaPct)));
+
+function GoalProgress({ goal }: { goal: Goal }) {
+  const t = useT();
+  const pct = budgetPct(goal);
+  const p = goal.progress;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{t("goal.budgetUsed", { pct })}</span>
+      <div role="progressbar" aria-label={t("goal.progress")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${pct >= 100 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+      </div>
+      {p && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums text-muted-foreground">
+          <span>{t("goal.lotsDone", { n: p.lotsDone })}</span>
+          <span>{t("goal.cardsDone", { n: p.cardsDone })}</span>
+          {p.cardsBlocked > 0 && <span className="text-destructive">{t("goal.cardsBlocked", { n: p.cardsBlocked })}</span>}
+          {p.recettes > 0 && <span>{t("goal.recettes", { n: p.recettes })}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// While the objective is open, lot reports go here instead of the phone; checkpoints too.
+function GoalJournal({ goal }: { goal: Goal }) {
+  const t = useT();
+  if (!goal.journal) return null;
+  return (
+    <div>
+      <span className="text-xs text-muted-foreground">{t("goal.journal")}</span>
+      {goal.journal.length === 0 ? (
+        <p className="mt-1 text-xs text-muted-foreground">{t("goal.journalEmpty")}</p>
+      ) : (
+        <ul className="mt-1 flex max-h-72 flex-col gap-1.5 overflow-y-auto">
+          {goal.journal.map((j, i) => (
+            <li key={`${j.ts}-${i}`} className={`rounded-lg border p-2 text-xs ${j.type === "goal.checkpoint" ? "border-brand/45" : ""}`}>
+              <div className="flex justify-between gap-2 text-muted-foreground">
+                <span className="font-medium">{t(j.reason ? `goal.entry.${j.reason}` : "goal.entry.lot")}</span>
+                <time dateTime={new Date(j.ts).toISOString()}>{new Date(j.ts).toLocaleString()}</time>
+              </div>
+              <p className="mt-0.5 whitespace-pre-wrap">{j.message}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // The repo's objective (ADR 0056), at the top of the project page. Every write here is the operator's:
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
 export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: string) => string | undefined }) {
@@ -158,6 +210,7 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
             </span>
             {open.budget.deadline !== null && <span>{t("goal.until", { date: new Date(open.budget.deadline).toLocaleDateString() })}</span>}
           </div>
+          <GoalProgress goal={open} />
           {open.spent.cardIds.length > 0 && (
             <div>
               <span className="text-xs text-muted-foreground">{t("goal.cards")}</span>
@@ -172,6 +225,7 @@ export function GoalPanel({ repo, titleOf }: { repo: string; titleOf: (cardId: s
               </ul>
             </div>
           )}
+          <GoalJournal goal={open} />
           {open.status === "claimed" && (
             <>
               <p className="rounded-lg border border-brand/45 p-2 text-xs">{t("goal.claimedHint")}</p>

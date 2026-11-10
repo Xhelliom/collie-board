@@ -71,4 +71,33 @@ describe("GoalPanel", () => {
     expect(sent).toEqual({ comment: "docs" });
     expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
   });
+
+  it("shows progress, budget used and the journal of lot reports and checkpoints", async () => {
+    server.use(
+      http.get("*/api/goals", () =>
+        HttpResponse.json({
+          goals: [
+            {
+              id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null,
+              spent: { lots: 5, lotIds: [], cardIds: [], quotaPct: 20 },
+              progress: { lotsDone: 4, cardsDone: 9, cardsBlocked: 1, recettes: 2 },
+              journal: [
+                { ts: 2, type: "goal.checkpoint", reason: "half", message: "5/10 lots · 9 cartes mergées" },
+                { ts: 1, type: "goal.journal", reason: null, message: "Lot A merged" },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    mount();
+    expect(await screen.findByText("Budget 50 % used")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByText("9 cards merged")).toBeInTheDocument();
+    expect(screen.getByText("1 blocked")).toBeInTheDocument();
+    expect(screen.getByText("2 to test by hand")).toBeInTheDocument();
+    expect(screen.getByText("Checkpoint — half the budget")).toBeInTheDocument();
+    expect(screen.getByText("Lot report")).toBeInTheDocument();
+    expect(screen.getByText("Lot A merged")).toBeInTheDocument();
+  });
 });

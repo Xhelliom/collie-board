@@ -613,6 +613,12 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
   `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
   `/achieve` (validates, and closes the phases created during it) · `/abandon`.
   Propose an objective or an edit to the user; never try to write it.
+- **Goal mode** — while it is open, the user is not called at each lot's end. Each goal also carries
+  `progress` (`lotsDone`, `cardsDone`, `cardsBlocked`, `recettes`) and `journal` (newest first: lot reports
+  and checkpoints). The repo's orchestrator posting `POST /api/board/notify {kind:"done"}` lands in that
+  journal, **not** on the phone (`202 {journaled:"goal"}`); a `question` still rings and leaves a
+  `decision` checkpoint there. The bridge itself pushes ONE grouped checkpoint at half budget, budget
+  spent (or deadline passed) and claimed reached.
 
 ### Milestones (ADR 0025): propose, never validate
 

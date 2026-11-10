@@ -73,3 +73,19 @@ ouvert du dépôt :
 leurs cartes, et les phases du dépôt créées pendant ce temps (et leurs cartes). Le budget ne compte que les
 lots lancés. **Valider l'objectif clôt ses phases** encore ouvertes sans lot en cours ; le réveil ne propose
 plus de valider une phase pendant l'objectif.
+
+## Amendement — le mode objectif : points d'étape au lieu d'un push par lot
+
+Tant qu'un objectif est ouvert, l'opérateur n'est plus appelé à chaque fin de lot :
+
+- l'alerte `run:` d'un lot du dépôt est retenue (`lot-push.ts`), quel que soit le réglage « Lots » ;
+- le bilan `done` de l'orchestrateur va au **journal de l'objectif** (`goal.journal`, événement sans
+  carte), pas au téléphone ; sa `question` sonne comme avant et laisse un point d'étape `decision` ;
+- le bridge pose lui-même UN point d'étape regroupé (`goal.checkpoint` : lots, cartes mergées, bloquées,
+  quota, recettes) à **mi-budget**, **budget atteint** (ou échéance passée) et **objectif déclaré**
+  (`goal-mode.ts`, accroché à `engine.onUpdate`, lu toutes les 30 s). Le budget consommé est le plus
+  grand de lots/maxLots et quota/quotaPct. Chaque seuil a une clé qui porte le budget : relever le budget
+  réarme ses seuils.
+- Rétractation (ADR 0011) : le point d'étape occupe le slot du troupeau jusqu'à ce que l'opérateur agisse
+  sur l'objectif — son `status|updatedAt` est le prédicat. Un point plus récent remplace l'ancien (clé
+  `goal:<id>`). Un blocage de carte, lui, sonne toujours : il n'est pas une fin de lot.
