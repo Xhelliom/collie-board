@@ -9,6 +9,15 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.297.0] - 2026-11-10
+
+### Added
+
+- « En main » : écrire à un worker depuis l'appli (ou « Je le prends ») gèle le lead sur cette carte — ni jugement, ni consigne, ni fermeture ; le reste du lot continue (ADR 0058) (cc0d71d)
+- « Rendre au lead » : il reprend sur l'état courant, sans consommer de round (cc0d71d)
+- 1 h sans message : rappel dans la cloche ; 2 h : rendu au lead tout seul, notifié (cc0d71d)
+- Un pane agent qui écrit à un worker en main reçoit 409 ; puce « En main » sur la carte, le lot et le pane (cc0d71d)
+
 ## [0.296.0] - 2026-11-10
 
 ### Added
