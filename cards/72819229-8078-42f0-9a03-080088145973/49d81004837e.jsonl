@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794304463659.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Préparer l'objectif suivant pendant que le courant tourne","status":"backlog"},"ts":1794304461847}}
 {"v":1,"hlc":"1794304463660.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"699ba591-8579-4bdf-94cd-cfde3550aaab"}}
 {"v":1,"hlc":"1794304463661.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c36eaef2-fa4f-4460-b4ea-448cc72f31ff"}}
+{"v":1,"hlc":"1794307217842.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
