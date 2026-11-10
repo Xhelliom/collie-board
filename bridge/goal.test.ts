@@ -15,6 +15,7 @@ const ctx = (db: BoardDb) =>
     text: (body: string, status: number) => new Response(body, { status }),
   }) as never;
 
+const PROOFS = { proofs: ["CI #42 green", "README §Usage"] };
 const call = async (db: BoardDb, method: string, path: string, body?: unknown, pane?: string) => {
   const res = await handleBoardRoute(
     path.split("?")[0]!,
@@ -49,8 +50,12 @@ describe("a repo's objective (ADR 0056)", () => {
     const id = (await call(db, "POST", "/api/goals", NEW)).body.goal.id;
     expect((await call(db, "PATCH", `/api/goals/${id}`, { text: "x" }, "p1")).status).toBe(403);
     for (const m of ["pause", "abandon", "achieve", "resume"]) expect((await call(db, "POST", `/api/goals/${id}/${m}`, undefined, "p1")).status).toBe(403);
-    const claimed = await call(db, "POST", `/api/goals/${id}/claim`, undefined, "p1");
+    expect((await call(db, "POST", `/api/goals/${id}/claim`, undefined, "p1")).status).toBe(400); // no proof
+    expect((await call(db, "POST", `/api/goals/${id}/claim`, { proofs: ["CI #42 green"] }, "p1")).status).toBe(400); // one per criterion
+    expect((await call(db, "POST", `/api/goals/${id}/claim`, { proofs: ["CI #42 green", " "] }, "p1")).status).toBe(400);
+    const claimed = await call(db, "POST", `/api/goals/${id}/claim`, PROOFS, "p1");
     expect(claimed.body.goal.status).toBe("claimed");
+    expect(claimed.body.goal.claim).toMatchObject({ proofs: PROOFS.proofs });
     expect((await call(db, "POST", `/api/goals/${id}/achieve`, undefined, "p1")).status).toBe(403);
     const done = await call(db, "POST", `/api/goals/${id}/achieve`);
     expect(done.body.goal.status).toBe("achieved");
@@ -75,7 +80,7 @@ describe("a repo's objective (ADR 0056)", () => {
     const id = (await call(db, "POST", "/api/goals", NEW)).body.goal.id;
     expect((await call(db, "POST", `/api/goals/${id}/resume`)).status).toBe(409);
     await call(db, "POST", `/api/goals/${id}/pause`);
-    expect((await call(db, "POST", `/api/goals/${id}/claim`, undefined, "p1")).status).toBe(409);
+    expect((await call(db, "POST", `/api/goals/${id}/claim`, PROOFS, "p1")).status).toBe(409);
     expect((await call(db, "POST", `/api/goals/${id}/resume`)).body.goal.status).toBe("active");
   });
 

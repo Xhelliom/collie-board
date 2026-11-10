@@ -44,13 +44,14 @@ describe("GoalPanel", () => {
   it("offers to validate a claimed objective", async () => {
     server.use(
       http.get("*/api/goals", () =>
-        HttpResponse.json({ goals: [{ id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "claimed", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } }] }),
+        HttpResponse.json({ goals: [{ id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "claimed", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null }, claim: { ts: 2, proofs: ["CI #42 green"] } }] }),
       ),
     );
     mount();
     expect(await screen.findByText(/says the objective is reached/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Validate reached" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    expect(screen.getByText("CI #42 green")).toBeInTheDocument(); // the proof, under its criterion
   });
 
   it("refuses a claimed objective only with a comment, which it sends", async () => {

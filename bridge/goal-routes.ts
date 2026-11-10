@@ -46,6 +46,8 @@ export interface GoalView extends Goal {
   /** How far it got: lots finished, cards filed, cards stuck, filed cards carrying a manual test. */
   progress: { lotsDone: number; cardsDone: number; cardsBlocked: number; recettes: number };
   journal: GoalJournalEntry[];
+  /** The orchestrator's newest claim: one proof per criterion, in the criteria's order. */
+  claim: { ts: number; proofs: string[] } | null;
 }
 
 const FILED = new Set(["done", "archived"]);
@@ -56,6 +58,12 @@ const within = (g: Goal, t: number) => t >= g.createdAt && (g.endedAt === null |
 export function weekPercent(u: ClaudeUsage | null): number | null {
   const week = u?.limits.filter((l) => /week/i.test(l.label)) ?? [];
   return (week.find((l) => /all models/i.test(l.label)) ?? week[0])?.percent ?? null;
+}
+
+function claimOf(db: BoardDb, goalId: string): GoalView["claim"] {
+  const e = db.lastGoalClaim(goalId);
+  const proofs = (e?.payload as { proofs?: unknown } | null)?.proofs;
+  return e && Array.isArray(proofs) ? { ts: e.ts, proofs: proofs.map(String) } : null;
 }
 
 /** Pure over the db: the repo's lots launched while the objective was open are its lots. */
@@ -80,6 +88,7 @@ export function goalView(db: BoardDb, g: Goal, quotaPct: number | null): GoalVie
       const p = (e.payload ?? {}) as { reason?: CheckpointReason; message?: string; summary?: string };
       return { ts: e.ts, type: e.type as GoalJournalEntry["type"], reason: p.reason ?? null, message: p.message ?? p.summary ?? "" };
     }),
+    claim: claimOf(db, g.id),
   };
 }
 
@@ -187,11 +196,17 @@ export async function handleGoalRoute(pathname: string, req: Request, ctx: Board
   if (req.method !== "POST") return ctx.text("method not allowed", 405);
   const { from, to } = MOVES[move]!;
   // Resuming a claimed objective is refusing the claim: the operator says why, and that is what wakes the orchestrator.
-  const comment = move === "resume" ? text((await bodyOf(req))?.comment) : null;
+  const body = move === "resume" || move === "claim" ? await bodyOf(req) : null;
+  const comment = move === "resume" ? text(body?.comment) : null;
   if (move === "resume" && g.status === "claimed" && !comment) return ctx.text("refusing a claimed objective needs a comment: what is still missing", 400);
+  // A claim proves each criterion, in order: the operator validates on that, not on trust.
+  const proofs = move === "claim" ? (Array.isArray(body?.proofs) ? body.proofs.map(text) : []) : null;
+  if (proofs && (proofs.length !== g.criteria.length || proofs.some((p) => p === null)))
+    return ctx.text(`claiming needs {proofs: [..]}: one non-empty proof per criterion (${g.criteria.length}), in their order`, 400);
   if (!db.setGoalStatus(g.id, from, to)) return ctx.text(`cannot ${move} a ${g.status} objective`, 409);
   audit(`goal.${move}`, { goalId: g.id, repoPath: g.repoPath, ...(comment ? { comment } : {}) });
   // Journaled for the orchestrator nudger (ADR 0028): nothing runs while it was stopped, so no end of lot would wake it.
+  if (move === "claim") db.recordEvent(null, "goal.claim", { goalId: g.id, proofs });
   if (move === "resume") db.recordEvent(null, "goal.resumed", { goalId: g.id, from: g.status, comment });
   // The phases the orchestrator cut during the objective are not validated one by one: validating the objective closes them.
   if (move === "achieve")

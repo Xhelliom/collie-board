@@ -3043,6 +3043,14 @@ export class BoardDb {
       .map(toEvent);
   }
 
+  /** The objective's newest claim — the orchestrator's proof for each criterion — or null. */
+  lastGoalClaim(goalId: string): BoardEvent | null {
+    const r = this.db
+      .query<EventRow, [string]>("SELECT * FROM event WHERE card_id IS NULL AND type = 'goal.claim' AND json_extract(payload, '$.goalId') = ? ORDER BY id DESC LIMIT 1")
+      .get(goalId);
+    return r ? toEvent(r) : null;
+  }
+
   /** Move `id` to `to` only from one of `from` — false when it was elsewhere (or a resume collides with another open one). */
   setGoalStatus(id: string, from: GoalStatus[], to: GoalStatus): boolean {
     const ts = this.now();
