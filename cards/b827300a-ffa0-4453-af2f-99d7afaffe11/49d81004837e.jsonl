@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794240080613.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"37df0f2b-5e3a-4486-9b79-0e488fc7b67a"}}
 {"v":1,"hlc":"1794240080613.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Une carte « page » produit une page docs/pages à partir d'une brève","status":"backlog"},"ts":1794240079270}}
 {"v":1,"hlc":"1794240080613.0006.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"28c94e22-0fa9-4e7c-9cda-94b64f666520"}}
+{"v":1,"hlc":"1794301441217.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
