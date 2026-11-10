@@ -41,109 +41,7 @@
 - **divers 07/11/2026** — validated 2026-11-07, 27 steps
 - **Nœud Windows fiable** — validated 2026-11-09, 11 steps
 - **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
-
-## Phase 38 — Autonomie par objectif
-
-Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.
-
-### Lot — Enchaînement fiable (launched, 3 at a time)
-
-- **L'orchestrateur reprend un lot arrêté pour une raison mécanique** — done
-
-  Décidé par l'opérateur le 09/11. Aujourd'hui POST /api/runs/:id/resume refuse tout pane (bridge/project-routes.ts:251 « resuming is the operator's gesture »).
-  
-  Faire : sous autonomie activée, accepter la reprise depuis le pane orchestrateur quand la raison du halt est mécanique : PR pas à jour, pre-push rouge, lead muet, travail non commité, démarrage raté. Classer les raisons dans une fonction pure. Borne : N reprises par lot (ex. 3), ensuite geste opérateur. Les halts de décision (tours du lead épuisés, lead fini sans commit, verdicts) restent à l'opérateur. Lot d'un autre poste : toujours refusé. Écrire l'ADR qui amende la règle et mettre à jour skills/collie-board/SKILL.md.
-
-  - [x] Depuis le pane orchestrateur, un lot halté « PR pas à jour » se reprend
-  - [x] Un halt « tours épuisés » reste refusé (403)
-  - [x] Au-delà de la borne : 403
-  - [x] Autonomie éteinte : 403 comme aujourd'hui
-  - [x] ADR + SKILL.md + test bun de la classification
-- **Chaque arrêt d'enchaînement est tracé dans le journal** — done
-
-  endOfLot() (bridge/autonomy.ts) et idleStart() décident si le lot suivant part ; leur raison (« why ») n'est écrite nulle part sauf dans le message à l'orchestrateur, donc on ne peut pas mesurer pourquoi l'enchaînement s'arrête.
-  
-  Faire : un événement run.chain {go, why, next} à chaque fin de lot (et à chaque refus de lancement par l'orchestrateur : autre poste, lot ouvert, borne, rouge). Lisible dans le journal du lot.
-
-  - [x] Fin de lot : un run.chain avec go ou la raison d'arrêt
-  - [x] Un refus de lancement depuis le pane orchestrateur laisse un run.chain avec la raison
-  - [x] Test bun
-- **Le résumé de fin de carte expire à l'heure** — done
-
-  bridge/wrapup.ts a WRAPUP_DEADLINE_MS = 30 min, mais le journal montre wrapup.requested → wrapup.expired après 10 à 35 h : l'expiration ne semble évaluée que quand quelque chose bouge. Vérifier la cause, faire expirer à l'échéance (sans nouvelle boucle : réutiliser un tick existant) et raccourcir le délai à quelques minutes.
-
-  - [x] Un résumé jamais rendu expire quelques minutes après la demande, même si le troupeau est calme
-  - [x] Le nettoyage de la carte suit
-  - [x] Test bun de l'échéance
-- **Merge refusé « branche pas à jour » : le board remet la PR à jour et réessaie** — done
-
-  27 halts « PR not merged: … the head branch is not up to date with the base branch » (surtout CrewDesign), et des PR qui attendent leur merge 6 à 21 h sans halt (run.merge puis automerge_refused, plus rien).
-  
-  Faire : quand le merge est refusé pour une base en avance, mettre la branche à jour (gh pr update-branch, par bridge/git.ts — seul shell-out) puis réessayer une fois la CI verte. Halt seulement en cas de conflit réel. Le board ne laisse plus une PR en attente sans halt ni réveil de l'orchestrateur.
-
-  - [x] Une PR en retard sur la base est mise à jour et mergée sans geste
-  - [x] Un vrai conflit halte toujours avec sa raison
-  - [x] Aucune PR de lot n'attend en silence : soit elle avance, soit halt/réveil
-  - [x] Test de la classification des refus de merge
-- **Un agent de carte bloqué ou muet réveille l'orchestrateur** — done
-
-  Aujourd'hui seul le lead est surveillé (bridge/lead.ts : « the lead is not answering »). Un agent de carte d'un lot qui se bloque (question, permission, modal, quota) ou meurt laisse la carte « en cours » sans aucun événement : le journal montre des attentes de 6 à 32 h que seul un message de l'opérateur débloque.
-  
-  Faire : quand une carte d'un lot lancé est « working » et que son pane est blocked, ou idle/absent sans progrès depuis N minutes (constante, ~10 min), réveiller l'orchestrateur du dépôt (voie orchestrator-nudge.ts) avec le titre de la carte, l'état du pane et ses dernières lignes, pour qu'il débloque ou relance. Pas de notification à l'opérateur (ADR 0011 : le pane signale déjà blocked). Une seule fois par épisode : réarmé quand la carte bouge. Accroché à engine.onUpdate, pas de nouvelle boucle ; ignorer un snapshot disconnected.
-
-  - [x] Une carte de lot dont l'agent attend une permission depuis N min réveille l'orchestrateur avec la fin de l'écran
-  - [x] Pas de second réveil tant que la carte n'a pas bougé
-  - [x] Aucune notification opérateur ajoutée
-  - [x] Test bun de la règle pure (seuil, réarmement)
-
-### Lot — Mode objectif (launched, 2 at a time)
-
-- **Pendant un objectif : points d'étape au lieu d'un bilan par lot** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  En mode objectif, l'opérateur n'est plus sollicité à chaque fin de lot : le bilan de lot va au journal de l'objectif, et l'opérateur reçoit un point d'étape regroupé (lots mergés, ce qui bloque, budget consommé, recette ajoutée) seulement aux moments utiles : décision demandée, budget à 50 % et atteint, objectif déclaré. Une page/onglet Objectif montre la progression.
-
-  - [x] Pas de notification par fin de lot en mode objectif
-  - [x] Point d'étape aux seuils et décisions
-  - [x] La page Objectif montre critères, progression, budget
-- **Déclarer l'objectif atteint, l'opérateur valide ou relance** — done
-  - after: Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  L'orchestrateur déclare l'objectif atteint avec une preuve par critère (POST …/claim) : statut claimed, une notification à l'opérateur, qui se retire à sa réponse (ADR 0011). L'opérateur valide (achieved : clôt les phases de l'objectif) ou refuse avec un commentaire (retour en active, le commentaire est remis à l'orchestrateur au réveil suivant).
-
-  - [x] La déclaration montre chaque critère avec sa preuve
-  - [x] Valider clôt l'objectif et ses phases
-  - [x] Refuser relance la boucle avec le commentaire
-  - [x] Un pane agent ne peut pas valider
-- **Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  Sous un objectif actif, l'orchestrateur peut créer cartes, lots et phases rattachés à l'objectif et lancer ses propres lots sans geste opérateur (un lot à la fois). À la fin d'un lot, quand rien n'est planifié, endOfLot() ne s'arrête plus : le board réveille l'orchestrateur avec « objectif pas atteint : relis les critères, planifie et lance la suite ». Une décision qui attend l'opérateur ne bloque que sa branche : le réveil le rappelle à l'orchestrateur. Bornes : budget (lots, quota, échéance), stopOnRed après la borne de reprises du lot 1 ; une borne atteinte met l'objectif en pause et prévient l'opérateur une fois. Pas de nouvelle boucle : tout part du réveil de fin de lot (ADR 0028).
-  
-  Tranché le 09/11 par l'opérateur : objectif déclaré (claimed) = arrêt net. Plus aucun lot créé ni lancé, plus de réveil de fin de lot, budget gelé, jusqu'à la réponse de l'opérateur, même après 24 h d'absence. Seul un refus avec commentaire relance la boucle. Pendant un objectif, les phases découpées par l'orchestrateur ne se valident pas une à une (sinon chaque phase attendrait l'opérateur) : la validation de l'objectif les clôt.
-
-  - [x] Objectif actif, plus rien de planifié : l orchestrateur est réveillé pour planifier, et peut lancer le lot qu il a créé
-  - [x] Objectif déclaré : aucun lot lancé, aucun réveil, tant que l opérateur n a pas répondu
-  - [x] Les cartes et lots créés sont rattachés à l objectif
-  - [x] Budget atteint : pause + une notification
-  - [x] Sans objectif : comportement d aujourd hui inchangé
-  - [x] Tests bun du verdict de fin de lot
-- **Un objectif par projet : critères, budget, statut** — done
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  Faire l'objet Objectif (goal) : texte, critères de réussite (liste), budget {maxLots, quotaPct, deadline?}, statut active / paused / claimed / achieved / abandoned. Routes /api/goals (création, édition, pause, abandon = gestes de l'opérateur ; un pane agent ne crée ni ne valide). Un seul objectif actif par dépôt. UI dans la page projet : définir l'objectif, voir critères, budget consommé et lots/cartes rattachés. Écrire l'ADR du mode objectif (amende 0030/0047). Documenter dans skills/collie-board/SKILL.md.
-
-  - [x] L'opérateur crée un objectif avec critères et budget depuis la page projet
-  - [x] Un pane agent reçoit 403 sur création et validation
-  - [x] Un seul objectif actif par dépôt
-  - [x] ADR + SKILL.md + tests bun
+- **Autonomie par objectif** — validated 2026-11-10, 9 steps
 
 ## Phase 39 — Le projet au-delà du code
 
@@ -165,32 +63,98 @@ Collie gère aussi le business d'un projet : pages sur mesure, cartes non-code, 
   - [x] La page livrée s'ouvre en plein écran dans Documents
   - [x] FR et EN
 
-### Lot — Cartes non-code (planned, 2 at a time)
+### Lot — Cartes non-code (launched, 2 at a time)
 
-- **Filtre code / business sur le board** — backlog
+- **Filtre code / business sur le board** — done
 
   Un filtre sur le board et la recette pour ne voir que les cartes code ou business.
 
-  - [ ] Le filtre sépare les deux sortes et se retient par appareil
-- **Une carte « business » : livrable document, sans CI ni gate** — backlog
+  - [x] Le filtre sépare les deux sortes et se retient par appareil
+- **Une carte « business » : livrable document, sans CI ni gate** — done
 
   Une sorte de carte pour le travail non-code (rédaction, marketing, offre) : pas de gate, pas de CI requise, son livrable est un document ou une page ; sa recette est une relecture (« à relire ») plutôt qu'un test.
 
-  - [ ] Une carte business se termine sans gate ni CI
-  - [ ] Sa recette apparaît comme « à relire»
-  - [ ] Le lead ne la renvoie pas faute de code
+  - [x] Une carte business se termine sans gate ni CI
+  - [x] Sa recette apparaît comme « à relire»
+  - [x] Le lead ne la renvoie pas faute de code
 
-### Lot — Décisions produit (planned, 2 at a time)
+### Lot — Décisions produit (launched, one at a time)
 
-- **Les décisions visibles comme une page dans Documents** — backlog
+- **Les décisions visibles comme une page dans Documents** — done
 
   Une entrée « Décisions » dans l'explorateur de Documents liste les décisions avec statut (ouverte, tranchée) et catégorie, filtrables.
 
-  - [ ] Documents montre les décisions avec statut et catégorie
-  - [ ] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
-- **Décisions classées produit / technique** — backlog
+  - [x] Documents montre les décisions avec statut et catégorie
+  - [x] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
+- **Décisions classées produit / technique** — done
 
   Les décisions de la roadmap (POST /api/roadmap/decision) prennent une catégorie produit/business ou technique, posée par l'orchestrateur ou l'opérateur.
 
-  - [ ] Une décision porte sa catégorie
-  - [ ] Les anciennes restent valides (technique par défaut ou sans catégorie)
+  - [x] Une décision porte sa catégorie
+  - [x] Les anciennes restent valides (technique par défaut ou sans catégorie)
+
+## Phase 40 — Pilotage robuste
+
+Plus aucun lot figé après un arrêt de Collie, plus de conflit entre cartes parallèles, un objectif démarre dès qu'il est fixé et le suivant peut être préparé.
+
+### Lot — Pilotage robuste (launched, 2 at a time)
+
+- **Voir d'un coup d'œil qu'un projet est en mode objectif** — done
+  - after: Historique des objectifs sur la page Projet
+
+  L'opérateur ne voit pas qu'un projet tourne en mode objectif : il croit devoir activer l'autonomie en plus. Faire : quand un objectif est actif, la tuile du projet (accueil, liste des projets) et l'en-tête de la page Projet passent en vert avec une puce « Objectif » (statut : actif, en pause, dit atteint) ; en pause = orange, dit atteint = appel à valider. Le bloc Objectif dit en une ligne ce qui se passe : « l'orchestrateur enchaîne les lots, rien à activer en plus ». Clair et sombre, FR et EN.
+
+  - [x] Objectif actif : tuile et en-tête verts avec la puce « Objectif »
+  - [x] En pause : orange ; dit atteint : appel à valider
+  - [x] Sans objectif : rien ne change
+  - [x] Tests web
+- **Un objectif actif suffit pour que l'orchestrateur reprenne un lot arrêté pour une raison mécanique** — done
+
+  Vu sur guard-messages (dev) le 10/11 : objectif actif mais autonomie du dépôt éteinte. Le mode objectif laisse l'orchestrateur lancer ses lots sans réglage d'autonomie, mais la reprise des halts mécaniques (ADR 0055, bridge/project-routes.ts) exige encore autonomy.enabled : l'orchestrateur redemande donc à l'opérateur de relancer. Faire : un objectif active suffit, comme pour le lancement (même borne de reprises par lot). Mettre à jour l'ADR concernée et skills/collie-board/SKILL.md.
+
+  - [x] Objectif actif, autonomie éteinte : l'orchestrateur reprend un lot halté « PR pas à jour »
+  - [x] Objectif en pause ou absent, autonomie éteinte : 403 comme aujourd'hui
+  - [x] Test bun
+- **Historique des objectifs sur la page Projet** — done
+  - after: Préparer l'objectif suivant pendant que le courant tourne
+
+  Aujourd'hui seul le dernier objectif fermé est rappelé. Faire : une liste repliable des objectifs passés (texte, statut atteint ou abandonné, dates, lots consommés), plus récent en premier.
+
+  - [x] La page Projet montre les objectifs passés avec statut et dates
+  - [x] Repliée par défaut
+- **Préparer l'objectif suivant pendant que le courant tourne** — done
+  - after: Fixer un objectif réveille aussitôt l'orchestrateur du projet
+
+  Un seul objectif ouvert par dépôt (index goal_one_open). Faire : l'opérateur peut préparer un objectif « suivant » (statut queued, un seul) pendant qu'un objectif est ouvert. Quand il valide l'objectif courant, le suivant devient actif et réveille l'orchestrateur (carte « Fixer un objectif réveille… »). Modifiable et supprimable tant qu'il attend.
+
+  - [x] Sur la page Projet, « Préparer le suivant » quand un objectif est ouvert
+  - [x] Valider l'objectif courant active le suivant
+  - [x] Un pane agent ne peut ni créer ni activer le suivant
+- **Fixer un objectif réveille aussitôt l'orchestrateur du projet** — done
+
+  Aujourd'hui le mode objectif ne part qu'à une fin de lot (ADR 0056 et suivantes) : sur un projet où aucun lot ne tourne, définir un objectif ne déclenche rien. Faire : à la création (et à la reprise après pause, et après un refus commenté) d'un objectif, si aucun lot du dépôt ne tourne, le board réveille l'orchestrateur du dépôt avec l'objectif, ses critères et « planifie et lance le premier lot ». Même voie que le réveil de fin de lot, une seule fois. Si l'orchestrateur n'a pas de pane, le dire dans la page Projet.
+
+  - [x] Objectif créé sur un projet sans lot en cours : l'orchestrateur reçoit l'objectif dans la minute
+  - [x] Lot en cours : pas de réveil, la fin de lot s'en charge
+  - [x] Pas d'orchestrateur : la page Projet le dit
+  - [x] Test bun
+- **Planifier un lot signale les cartes parallèles qui toucheront les mêmes fichiers** — done
+
+  Deux fois (lots Mode objectif et Cartes non-code), deux cartes parallèles d'un même lot ont modifié les mêmes fichiers : la seconde PR est arrivée en conflit et le lot s'est arrêté. Faire : à la création ou au lancement d'un lot avec maxParallel > 1, le board estime les fichiers que chaque carte touchera (chemins cités dans la spec, et à défaut rien) et, en cas de recouvrement, le signale (dans la réponse de l'API et sur le lot) en proposant un dependsOn ou maxParallel 1. Ne bloque rien. Documenter dans skills/collie-board/SKILL.md pour l'orchestrateur.
+
+  - [x] Un lot dont deux cartes citent le même fichier affiche l'avertissement et la proposition
+  - [x] Sans recouvrement, rien n'apparaît
+  - [x] La réponse POST /api/runs porte l'avertissement
+  - [x] Test bun de la détection
+- **Un lot interrompu par un arrêt de Collie reprend au redémarrage** — done
+
+  Le 09/11 à 16:43 UTC, le lead accepte la carte « Un objectif par projet » (run.triaged), Collie s arrête à 16:45 avec le PC ; au redémarrage le 10/11, le lot n est ni haltée ni repris : rien ne relance l étape push/PR, jusqu à une reprise à la main. Faire : au démarrage du bridge, un lot lancé et non fini dont une carte est restée entre deux étapes du pipeline (triée acceptée sans PR, PR sans merge suivi…) reprend son étape, ou halte avec une raison lisible. Pas de nouvelle boucle : au premier snapshot connecté.
+
+  - [x] Couper Collie juste après l acceptation du lead, relancer : la PR s ouvre sans geste
+  - [x] Test bun de la détection de l étape interrompue
+- **Test instable : mcp finish_card « merge conflict » dépasse 5 s** — done
+
+  Le 10/11 à 08:05 UTC, le pre-push de la carte « Un objectif par projet » a échoué sur : (fail) mcp: finish_card end to end, against the bridge s own route > a merge conflict is refused in plain words, the card left as it was [5002 ms, timeout 5000 ms]. La machine venait de redémarrer ; le second essai (reprise automatique) est passé. Le jalon « Test instable mcp finish_card » avait déjà traité ce test. Trouver ce qui le rend lent (git réel, sous-processus) et le rendre déterministe, ou lui donner un timeout explicite justifié.
+
+  - [x] Le test passe 20 fois de suite sous charge (bun test --rerun-each 20 sur le fichier)
+  - [x] Aucun timeout global relevé pour tout le monde
