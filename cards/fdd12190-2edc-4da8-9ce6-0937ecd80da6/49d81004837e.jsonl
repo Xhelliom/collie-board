@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794342969943.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"bab856a0-4527-4a36-a15e-e9993a0e2d3d"}}
 {"v":1,"hlc":"1794342969943.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"9ae11784-8248-4ccf-b9f3-a85f7f020420"}}
 {"v":1,"hlc":"1794342969939.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794342974403.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/phase-toute-terminee-bille-verte-et-c-est-le-bou"}}
+{"v":1,"hlc":"1794342974403.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794342974403.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794342973150}}
+{"v":1,"hlc":"1794342982967.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794342982967.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794342977768}}
+{"v":1,"hlc":"1794342982967.0006.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2983},"ts":1794342977997}}
