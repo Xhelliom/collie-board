@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { foldUpstream, insertEntry, nextVersion, parseFragment, planRelease, setVersion } from "./release.ts";
+import { insertEntry, nextVersion, parseFragment, planRelease, setVersion } from "./release.ts";
 
 // The release is cut by CI with nobody watching, so what it must never do is guess: a malformed
 // fragment fails it, and everything it writes is derived from the fragments and nothing else.
@@ -55,23 +55,14 @@ describe("the files it writes", () => {
   });
 });
 
-describe("### Upstream", () => {
-  const md = "# U\n\n| File | Change |\n|---|---|\n| `bridge/server.ts` | one import |\n| `bridge/config.ts` | a block |\n\nRebasing.\n";
-
-  it("stays out of the CHANGELOG, and a malformed line fails the release", () => {
-    const f = frag("a.md", "bump: patch\n\n### Fixed\n- a fix\n\n### Upstream\n- `bridge/server.ts`: one route");
-    expect(planRelease("1.0.0", [f], "2026-11-06", () => null).entry).not.toContain("one route");
-    expect(() => frag("b.md", "bump: patch\n\n### Fixed\n- x\n\n### Upstream\n- server.ts one route")).toThrow("b.md");
-    expect(() => frag("c.md", "bump: patch\n\n### Upstream\n- `a.ts`: x")).toThrow("c.md");
+describe("a fragment from before ADR 0059", () => {
+  it("has its ### Upstream section ignored, whatever is in it: neither released nor a failure", () => {
+    const f = frag("a.md", "bump: patch\n\n### Fixed\n- a fix\n\n### Upstream\n- `bridge/server.ts`: one route\n- no file here");
+    expect([...f.sections.keys()]).toEqual(["Fixed"]);
+    expect(planRelease("1.0.0", [f], "2026-11-06", () => null).entry).toBe("## [1.0.1] - 2026-11-06\n\n### Fixed\n\n- a fix\n");
   });
 
-  it("appends to the row of the same file, else adds a row at the table's end", () => {
-    const out = foldUpstream(md, [
-      { file: "`bridge/server.ts`", change: "one route" },
-      { file: "`bridge/index.ts`", change: "one hook" },
-    ]);
-    expect(out).toBe(
-      "# U\n\n| File | Change |\n|---|---|\n| `bridge/server.ts` | one import ; one route |\n| `bridge/config.ts` | a block |\n| `bridge/index.ts` | one hook |\n\nRebasing.\n",
-    );
+  it("still refuses a fragment with nothing else to release", () => {
+    expect(() => frag("c.md", "bump: patch\n\n### Upstream\n- `a.ts`: x")).toThrow("c.md");
   });
 });
