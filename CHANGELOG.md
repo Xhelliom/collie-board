@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.288.0] - 2026-11-10
+
+### Added
+
+- Documents : le dossier « Décisions » montre la catégorie (la phase, ou « Projet entier ») et la filtre (b472950)
+- Documents : un tap sur une décision ouverte mène à sa carte, sinon à la roadmap (b472950)
+
 ## [0.287.0] - 2026-11-10
 
 ### Added
