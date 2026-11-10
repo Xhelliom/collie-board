@@ -2,3 +2,8 @@
 {"v":1,"hlc":"1794308472305.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Lot : une carte suite d’un ancien lot repart de l’ancienne branche de lot et y fusionne sa PR","status":"ready"},"ts":1794308463745}}
 {"v":1,"hlc":"1794330865032.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c34e7084-70fb-4d5d-89ce-d76bd787a8bd"}}
 {"v":1,"hlc":"1794330948409.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794330960239.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/lot-une-carte-suite-d-un-ancien-lot-repart-de-l"}}
+{"v":1,"hlc":"1794330960239.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794330960239.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"ready","to":"starting","reason":"card started"},"ts":1794330951773}}
+{"v":1,"hlc":"1794330960239.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794330960239.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794330958347}}
