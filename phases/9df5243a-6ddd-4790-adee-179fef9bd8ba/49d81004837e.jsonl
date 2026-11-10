@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794240068623.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Autonomie par objectif","goal":"Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.","position":38,"roadmap_item_id":"objectif","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794240064053}}
+{"v":1,"hlc":"1794304008543.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794304001334}}
