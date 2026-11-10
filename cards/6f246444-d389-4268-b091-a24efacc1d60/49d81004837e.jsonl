@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794298111611.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Test instable : mcp finish_card « merge conflict » dépasse 5 s","status":"backlog"},"ts":1794298110303}}
 {"v":1,"hlc":"1794304463658.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"61ece0f9-c091-49d8-b752-f321940b53f0"}}
 {"v":1,"hlc":"1794304463661.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"c36eaef2-fa4f-4460-b4ea-448cc72f31ff"}}
+{"v":1,"hlc":"1794308321758.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
