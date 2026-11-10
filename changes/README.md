@@ -16,6 +16,4 @@ bump: minor
 - First line: `bump: patch|minor|major` — the SemVer rules in `CLAUDE.md` still decide which.
 - Then `### Added` / `### Changed` / `### Fixed` (Keep a Changelog), one `- ` line per change,
   super crisp. The commit hash is added for you; don't write one.
-- Touched an upstream file? Add `### Upstream` with one ``- `path/file.ts`: what changed`` line.
-  The release folds it into `UPSTREAM.md`'s table, so never edit that table on a branch.
 - Name it after the branch's slug so two branches never pick the same file.

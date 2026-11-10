@@ -1,6 +1,6 @@
 # 0024 — The board speaks the operator's language, through a typed catalog
 
-**Status:** Accepted
+**Status:** Accepted — partially superseded by [0059](./0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md) (the "upstream files stay English" scope, already amended by [0038](./0038-settings-gallery-history-artifacts-join-the-catalog.md))
 **Date:** 2026-10-10
 
 ## Context

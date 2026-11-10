@@ -152,9 +152,9 @@ the better answer.
 Everything the fork touched that works with no card in sight — the context gauge and `$ctx` in
 herdr's sidebar, finding a pane's transcript without herdr's optional integration, the reading mode,
 OpenCode support, install fixes, two herdr launch races, the desktop layout, accessibility fixes —
-belongs upstream. Each is tracked with its commit in [`UPSTREAM_PRS.md`](UPSTREAM_PRS.md) so it can
-be offered as a small, self-contained PR; [`UPSTREAM.md`](UPSTREAM.md) records the rule that keeps
-the diff against upstream narrow.
+is generic. The fork is now independent: none of it is offered upstream and nothing is rebased on it
+([ADR 0059](.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md)).
+[`UPSTREAM_PRS.md`](UPSTREAM_PRS.md) and [`UPSTREAM.md`](UPSTREAM.md) are kept as archives.
 
 ## Who is this for
 
@@ -309,7 +309,6 @@ bash scripts/collie-board-ctl.sh push-test                 # or: push-test "Titl
 - Decision records — [`.adr/`](.adr/)
 - Verified Herdr socket API — [`HERDR_API.md`](HERDR_API.md)
 - Adding a harness adapter — [`HARNESS_CONTRIBUTING.md`](HARNESS_CONTRIBUTING.md)
-- Fork posture, and what stays fork-only — [`UPSTREAM.md`](UPSTREAM.md)
-- Bricks meant to go back upstream — [`UPSTREAM_PRS.md`](UPSTREAM_PRS.md)
+- Archives from when the fork tracked upstream (frozen, ADR 0059) — [`UPSTREAM.md`](UPSTREAM.md) · [`UPSTREAM_PRS.md`](UPSTREAM_PRS.md)
 - Ops, versioning & conventions — [`CLAUDE.md`](CLAUDE.md)
 - Changes — [`CHANGELOG.md`](CHANGELOG.md)

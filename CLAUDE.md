@@ -1,12 +1,11 @@
 # CLAUDE.md — working agreement for this repo
 
-> **This is Collie Board**, a fork of `AltanS/collie`. Everything below is upstream's working
-> agreement and still applies verbatim — the build traps, the security posture — except the
-> versioning gate, which the fork cuts on `main` by CI ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
-> The fork's own rules are in [*The board*](#the-board-fork-only-rules) at the bottom, and its
-> posture toward upstream in [`UPSTREAM.md`](./UPSTREAM.md).
+> **This is Collie Board.** It was born as a fork of `AltanS/collie` and is now an independent
+> project: nothing is offered back upstream and nothing is rebased on it
+> ([ADR 0059](./.adr/0059-le-fork-est-independant-ni-briques-proposees-ni-rebase.md)). The board's own
+> rules are in [*The board*](#the-board-fork-only-rules) at the bottom.
 
-**Collie** (upstream repo `AltanS/collie`) — a phone web UI for your Herdr agent herd, served over
+**Collie** (originally `AltanS/collie`) — a phone web UI for your Herdr agent herd, served over
 Tailscale. A mobile-first PWA (Vite + React + TS + Tailwind v4 + shadcn) plus a Bun/TS bridge that
 talks to Herdr's Unix socket, letting you monitor and reply to agents from a phone. The Herdr
 plugin id is `herdr.collie-board` (manifest: `herdr-plugin.toml`). Orientation:
@@ -137,11 +136,8 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
 
 ## The board (fork-only rules)
 
-- **Keep the upstream surface narrow.** New behaviour goes in new files with a hook, not into
-  `server.ts`/`index.ts`. The list of touched upstream files is in `UPSTREAM.md` and is meant to stay
-  short — that list *is* the rebase cost. **Don't edit its table on a branch.** Instead, add
-  `### Upstream` + ``- `bridge/server.ts`: what changed`` to your `changes/` fragment. The release on
-  `main` folds it into the right row, so two cards never touch the same line.
+- **New behaviour goes in new files with a hook, not into `server.ts`/`index.ts`.** Those two are
+  the files every card in flight fights over.
 - **No new poll loop.** Anything periodic hangs off `engine.onUpdate`. If it's expensive, throttle it
   *inside* the consumer (see `ContextTracker`), don't add a timer.
 - **A board event that notifies must say how it retracts.** The board may raise its own alerts, in
@@ -179,9 +175,5 @@ door** — [ADR 0001](./.adr/0001-one-managed-front-door.md).
   a thin translator over this same HTTP API — no second path, no decision of its own, it relays
   `HERDR_PANE_ID` as `x-collie-pane` so an agent stays an agent ([ADR 0039](./.adr/0039-the-mcp-server-is-stdio-and-the-callers-pane-header-says-who-it-is.md)).
   Never serve MCP from the bridge: `checkAccess` and the CSP stay as they are. [ADR 0013](./.adr/0013-the-bridge-does-not-know-its-consumers.md).
-- **A change that would help upstream goes in the ledger, in the same commit.** If a brick is
-  generic — it works with no card in sight — add or update its entry in
-  [`UPSTREAM_PRS.md`](./UPSTREAM_PRS.md) (one file per brick under `docs/upstream/prs/`) with its commit hash. Doing it later means doing it never,
-  and the whole fork strategy rests on that list being true.
 - **A gauge that might be wrong is worse than no gauge.** Only claim `context = true` in
   `adapters/agents.toml` for a transcript format `latestUsage()` has actually been verified against.
