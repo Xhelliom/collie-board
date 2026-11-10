@@ -5,7 +5,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { DialHandlers, SockHandle } from "../dial.ts";
 import { MuxUnsupported, type Mux } from "./mux.ts";
-import { decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, shellLine, type HcTerminal } from "./hc.ts";
+import { decodeHcLine, Hc, hcAgent, hcKey, hcSnapshot, hcStatus, nameAppTabs, shellLine, type HcTerminal } from "./hc.ts";
 import { launchAgent, promptAndConfirm } from "../cards.ts";
 import type { GitRunner } from "../git.ts";
 import { normalizePath } from "../paths.ts";
@@ -199,6 +199,42 @@ describe("hc writes", () => {
     expect(written).toEqual([
       { method: "terminal.run", params: { cwd: wt.checkoutPath, labels: { "collie.cwd": wt.checkoutPath, "collie.name": "Carte" }, env: { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" }, no_parent: true } },
     ].map((w) => expect.objectContaining(w)));
+  });
+
+  it("files a board pane in herdr-app's « Collie Board » space, one tab per card — and names it once adopted", async () => {
+    const doc = { spaces: [{ id: "mine", name: "", tabs: [{ id: "collie-c1", name: "" }] }, { id: "collie-board", name: "", tabs: [{ id: "collie-c1", name: "" }, { id: "collie-c2", name: "à moi" }] }] };
+    const { dial, written } = fakeDial((req) => {
+      if (req.method === "terminal.list") return reply({ terminals: [{ ...shell, labels: { "herdr.tab": "collie-c1", "collie.tab": "collie-board · Carte" } }] });
+      if (req.method === "doc.get") return reply({ value: doc, version: 4 });
+      return reply({ address: "t7" });
+    });
+    const hc = new Hc("/unused", "auto", dial, 5000, undefined, async () => {});
+    await hc.createTab("hc", { cwd: "/wt", label: "Carte", show: { tab: "c1", title: "collie-board · Carte" } });
+    expect((written[0]!.params as { labels: unknown }).labels).toEqual({
+      "collie.cwd": "/wt",
+      "collie.name": "Carte",
+      "herdr.space": "collie-board",
+      "herdr.tab": "collie-c1",
+      "collie.tab": "collie-board · Carte",
+    });
+    await new Promise((r) => setTimeout(r, 20)); // the naming runs behind the launch
+    const set = written.find((w) => w.method === "doc.set")!.params as { version: number; value: typeof doc };
+    expect(set.version).toBe(4); // compare-and-set against the app's own writes
+    expect(set.value.spaces[1]).toMatchObject({ name: "Collie Board", tabs: [{ name: "collie-board · Carte" }, { name: "à moi" }] });
+    expect(set.value.spaces[0]).toEqual(doc.spaces[0]!); // the operator's own space is not ours to name
+  });
+
+  it("names nothing ahead of the app: a tab it has not adopted yet stays pending", () => {
+    const doc = { spaces: [{ id: "collie-board", name: "Collie Board", tabs: [] }] };
+    expect(nameAppTabs(doc, new Map([["collie-c1", "x"]]))).toEqual({ changed: false, pending: true });
+    expect(nameAppTabs(null, new Map())).toEqual({ changed: false, pending: false });
+  });
+
+  it("an operator's shell carries no herdr-app label", async () => {
+    const { dial, written } = fakeDial(() => reply({ address: "t7" }));
+    await new Hc("/unused", "auto", dial).createWorkspace({ cwd: "/home/me", label: "à moi" });
+    expect((written[0]!.params as { labels: unknown }).labels).toEqual({ "collie.cwd": "/home/me", "collie.name": "à moi" });
+    expect(written).toHaveLength(1);
   });
 
   it("reopens a worktree on the live shell already in it, found by its label", async () => {

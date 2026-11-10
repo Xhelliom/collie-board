@@ -2,6 +2,7 @@ import type { AgentStatus } from "../types.ts";
 import { dialHerdr, type DialHandlers, type DialMode, type SockHandle } from "../dial.ts";
 import {
   MuxUnsupported,
+  type BoardTab,
   type CreatedShell,
   type CreatedWorktree,
   type Mux,
@@ -46,6 +47,41 @@ export const HC_NO_NOTIFY_HINT =
 /** Labels the bridge puts on the terminals it runs: the directory (how a worktree's shell is found again), the pane's name. */
 const CWD_LABEL = "collie.cwd";
 const NAME_LABEL = "collie.name";
+
+/**
+ * herdr-app shows a terminal carrying `herdr.space` + `herdr.tab` (HERDR_CORE_API.md §3, measured): the
+ * board's go in ONE space, apart from the operator's own, a tab per card. `collie.tab` keeps the title
+ * the tab should carry — the app names nothing from a label, the name is written in its document.
+ */
+const APP_SPACE = "collie-board";
+const APP_SPACE_NAME = "Collie Board";
+const SPACE_LABEL = "herdr.space";
+const TAB_LABEL = "herdr.tab";
+const TITLE_LABEL = "collie.tab";
+const appLabels = (show?: BoardTab): Record<string, string> =>
+  show ? { [SPACE_LABEL]: APP_SPACE, [TAB_LABEL]: `collie-${show.tab}`, [TITLE_LABEL]: show.title } : {};
+
+/** The part of herdr-app's `herdr-app` document this engine names things in; the rest is carried through untouched. */
+export interface AppDoc {
+  spaces?: Array<{ id: string; name: string; tabs?: Array<{ id: string; name: string }> }>;
+}
+
+/**
+ * Name the board's space and its tabs in herdr-app's document, in place. Only what nobody named: a
+ * name the operator gave stays. `pending` = a tab the app has not adopted yet (or the app is closed).
+ */
+export function nameAppTabs(doc: AppDoc | null, titles: Map<string, string>): { changed: boolean; pending: boolean } {
+  const space = doc?.spaces?.find((s) => s.id === APP_SPACE);
+  let changed = false;
+  if (space && !space.name) (space.name = APP_SPACE_NAME), (changed = true);
+  let pending = false;
+  for (const [id, title] of titles) {
+    const tab = space?.tabs?.find((t) => t.id === id);
+    if (!tab) pending = true;
+    else if (!tab.name) (tab.name = title), (changed = true);
+  }
+  return { changed, pending };
+}
 
 /** `send` waits ~3 s of quiet, then a few seconds for `working` (measured 1.8 s total). */
 const SEND_TIMEOUT_MS = 20_000;
@@ -203,6 +239,7 @@ export class Hc implements Mux {
     dial?: HcDial,
     private readonly timeoutMs = DEFAULT_TIMEOUT_MS,
     private readonly git: GitRunner = runGit,
+    private readonly pause: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
   ) {
     this.dial = dial ?? ((h) => dialHerdr(socketPath, h, dialMode));
   }
@@ -374,26 +411,50 @@ export class Hc implements Mux {
     return Promise.reject(new MuxUnsupported("hc", op));
   }
 
-  private async shell(cwd: string, label?: string): Promise<string> {
-    const labels: Record<string, string> = { [CWD_LABEL]: cwd, ...(label ? { [NAME_LABEL]: label } : {}) };
+  private async shell(cwd: string, label?: string, show?: BoardTab): Promise<string> {
+    const labels: Record<string, string> = { [CWD_LABEL]: cwd, ...(label ? { [NAME_LABEL]: label } : {}), ...appLabels(show) };
     // A core started from inside a Claude pane hands CLAUDE_CODE_CHILD_SESSION=1 down, and Claude then
     // writes no transcript; `env` only adds, so force it back (HERDR_CORE_API.md §3, measured).
     const env = { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: "1" };
-    return (await this.request<{ address: string }>("terminal.run", { cwd, labels, env, no_parent: true })).address;
+    const { address } = await this.request<{ address: string }>("terminal.run", { cwd, labels, env, no_parent: true });
+    if (show) void this.nameTabs();
+    return address;
+  }
+
+  /**
+   * Titles for the board's tabs in herdr-app. After the run, never before: a tab written ahead of its
+   * terminal becomes a second, empty one (measured). The app adopts within a second or two — a few
+   * tries, then give up: every later launch names what an earlier one could not (app closed).
+   */
+  private async nameTabs(): Promise<void> {
+    for (let i = 0; i < 6; i++) {
+      await this.pause(700);
+      try {
+        const { terminals } = await this.request<{ terminals: HcTerminal[] }>("terminal.list", { labels: { [SPACE_LABEL]: APP_SPACE } });
+        const titles = new Map(terminals.filter((t) => t.state === "live").map((t) => [t.labels?.[TAB_LABEL] ?? "", t.labels?.[TITLE_LABEL] ?? ""]));
+        const doc = await this.request<{ value: AppDoc | null; version: number }>("doc.get", { name: "herdr-app" });
+        const { changed, pending } = nameAppTabs(doc.value, titles);
+        // `version` makes it a compare-and-set: the app writing at the same moment is a conflict, retried.
+        if (changed) await this.request("doc.set", { name: "herdr-app", value: doc.value, version: doc.version });
+        if (!pending) return;
+      } catch {
+        /* a conflict or a core blip: next try */
+      }
+    }
   }
 
   private shellIn(paneId: string, cwd: string): CreatedShell {
     return { paneId, workspaceId: HC_SPACE, workspaceLabel: HC_SPACE, tabId: HC_SPACE, cwd };
   }
 
-  async createWorkspace(opts: { cwd: string; label?: string }): Promise<CreatedShell> {
-    return this.shellIn(await this.shell(opts.cwd, opts.label), opts.cwd);
+  async createWorkspace(opts: { cwd: string; label?: string; show?: BoardTab }): Promise<CreatedShell> {
+    return this.shellIn(await this.shell(opts.cwd, opts.label, opts.show), opts.cwd);
   }
 
   /** No tab to inherit a directory from: a tab without a cwd would open in the core's. */
-  async createTab(_workspaceId: string, opts: { label?: string; cwd?: string } = {}): Promise<CreatedShell> {
+  async createTab(_workspaceId: string, opts: { label?: string; cwd?: string; show?: BoardTab } = {}): Promise<CreatedShell> {
     if (!opts.cwd) return this.no("createTab without a cwd");
-    return this.shellIn(await this.shell(opts.cwd, opts.label), opts.cwd);
+    return this.shellIn(await this.shell(opts.cwd, opts.label, opts.show), opts.cwd);
   }
 
   renameTab(): Promise<void> { return this.no("renameTab"); }
@@ -423,20 +484,25 @@ export class Hc implements Mux {
 
   // ── Worktrees: git's (bridge/git.ts), hc has none ──
 
-  async createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string }): Promise<CreatedWorktree> {
+  async createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
     const checkout = worktreeDirFor(opts.cwd, opts.branch);
     const added = await addWorktreeAt(opts.cwd, checkout, opts.branch, opts.base ?? null, this.git);
     if (!added.ok) throw new Error(`git worktree add: ${added.error}`);
-    return this.worktree(checkout, opts.branch, await this.shell(checkout, opts.label), false);
+    return this.worktree(checkout, opts.branch, await this.shell(checkout, opts.label, opts.show), false);
   }
 
   /** Idempotent through the label: the live shell already in that checkout, else a new one. */
-  async openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
+  async openWorktree(opts: { cwd: string; branch: string; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
     const checkout = await worktreePathFor(opts.cwd, opts.branch, this.git);
     if (!checkout) throw new Error(`no worktree for ${opts.branch}`);
     const r = await this.request<{ terminals: HcTerminal[] }>("terminal.list", { labels: { [CWD_LABEL]: checkout } });
     const live = r.terminals.find((t) => t.state === "live");
-    return this.worktree(checkout, opts.branch, live?.address ?? (await this.shell(checkout, opts.label)), !!live);
+    // A shell from before the labels (or before herdr-app): labelling it after the fact files it too (measured).
+    if (live && opts.show && !live.labels?.[TAB_LABEL]) {
+      await this.request("terminal.label", { terminal: live.address, labels: appLabels(opts.show) }).catch(() => {});
+      void this.nameTabs();
+    }
+    return this.worktree(checkout, opts.branch, live?.address ?? (await this.shell(checkout, opts.label, opts.show)), !!live);
   }
 
   private worktree(checkoutPath: string, branch: string, paneId: string, alreadyOpen: boolean): CreatedWorktree {

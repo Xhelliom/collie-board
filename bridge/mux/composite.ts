@@ -1,5 +1,6 @@
 import { HC_SPACE } from "./hc.ts";
 import {
+  type BoardTab,
   MuxUnsupported,
   type CreatedShell,
   type CreatedWorktree,
@@ -171,10 +172,10 @@ export class CompositeMux implements Mux {
   }
 
   // ── Spaces and tabs: a new space is a launch; the rest goes to the owner ──
-  createWorkspace(opts: { cwd: string; label?: string }): Promise<CreatedShell> {
+  createWorkspace(opts: { cwd: string; label?: string; show?: BoardTab }): Promise<CreatedShell> {
     return this.on(this.launchEngine().engine, "createWorkspace").createWorkspace(opts);
   }
-  async createTab(workspaceId: string, opts?: { label?: string; cwd?: string }) {
+  async createTab(workspaceId: string, opts?: { label?: string; cwd?: string; show?: BoardTab }) {
     return (await this.to(workspaceId, "createTab")).createTab(workspaceId, opts);
   }
   async renameTab(tabId: string, label: string) { return (await this.to(tabId, "renameTab")).renameTab(tabId, label); }
@@ -200,10 +201,10 @@ export class CompositeMux implements Mux {
   async paneProcess(paneId: string) { return (await this.to(paneId, "paneProcess")).paneProcess(paneId); }
 
   // ── Worktrees: a new checkout's pane is a launch; removing one goes to its space's owner ──
-  createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string }): Promise<CreatedWorktree> {
+  createWorktree(opts: { cwd: string; branch: string; base?: string | null; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
     return this.on(this.launchEngine().engine, "createWorktree").createWorktree(opts);
   }
-  openWorktree(opts: { cwd: string; branch: string; label?: string }): Promise<CreatedWorktree> {
+  openWorktree(opts: { cwd: string; branch: string; label?: string; show?: BoardTab }): Promise<CreatedWorktree> {
     return this.on(this.launchEngine().engine, "openWorktree").openWorktree(opts);
   }
   async removeWorktree(opts: { workspaceId: string; force?: boolean }) {

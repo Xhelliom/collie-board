@@ -22,5 +22,7 @@ herdr-app do pane.split '{"direction":"right","mod":"collie"}'   # l'afficher
   du board est l'adresse du terminal. Le bouton de l'orchestrateur et chaque agent de carte font
   `agent.focus` sur le terminal dont l'adresse est ce `paneId`, ou étiqueté `collie.pane=<paneId>` /
   `collie.card=<id>`. Sinon (herdr 0.9, cœurs distincts) : la PWA, via `xdg-open`.
+  Les terminaux du board sont rangés dans la space « Collie Board » (un onglet par carte, plus
+  l'orchestrateur et le lead) : `agent.focus` y bascule, mesuré le 2026-11-10 (HERDR_CORE_API.md §3).
 - **« Ouvrir la recette ↗ »** ouvre `/board/recette?repo=<dépôt>` dans la PWA.
 - Agents de carte : ceux des cartes d'un lot du dépôt (une carte hors lot n'y figure pas).

@@ -11,13 +11,15 @@ import { basename } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
-import type { Mux } from "./mux/mux.ts";
+import { boardTab, type Mux } from "./mux/mux.ts";
 import { samePath } from "./paths.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** The workspace label's prefix — what the notification hook and the adoption both recognise. */
 export const ORCH_PREFIX = "orchestrator-";
 
+/** Its tab in herdr-app (hc): one per repo, in the board's space. */
+const orchestratorTab = (repoPath: string) => boardTab(`orch-${basename(repoPath)}`, repoPath, "orchestrateur");
 export const orchestratorLabel = (repoPath: string): string => `${ORCH_PREFIX}${basename(repoPath)}`;
 
 /** Herdr agent names are globally unique: the basename alone would collide across two `app` repos. */
@@ -177,7 +179,7 @@ async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps,
 
   const label = orchestratorLabel(repoPath);
   const shell = shellPane ?? snap.shellPanes.find((p) => p.workspaceLabel === label && samePath(p.cwd, repoPath))?.paneId;
-  const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label })).paneId;
+  const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label, show: orchestratorTab(repoPath) })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
   await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);
   await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null, cfg.allowedOrigins?.[0] ?? null), wait, { firstAfterLaunch: true });
@@ -210,7 +212,7 @@ export async function restartOrchestrator(deps: OrchestratorDeps, repoPath: stri
   // pane ("confirmation_required: … would close a worktree group", live-verified 2026-10-29) — and
   // confirming would close the lot's workspaces with it. A second pane makes the close a plain one.
   const ws = snap.agents.find((a) => a.paneId === old)?.workspaceId;
-  const fresh = ws ? (await deps.herdr.createTab(ws, { cwd: repoPath })).paneId : undefined;
+  const fresh = ws ? (await deps.herdr.createTab(ws, { cwd: repoPath, show: orchestratorTab(repoPath) })).paneId : undefined;
   try {
     await deps.herdr.closePane(old);
   } catch (err) {

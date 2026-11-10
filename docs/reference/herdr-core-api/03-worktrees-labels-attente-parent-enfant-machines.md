@@ -110,6 +110,34 @@ le téléphone sans un droit explicite.
 jamais relancée**. Exit ou kill : fini pour de bon. `server restart` garde les programmes. → un agent
 de carte survit à un redémarrage du core, pas à un reboot (là, notre handoff reste nécessaire).
 
+## Ranger un terminal dans herdr-app : `herdr.space` / `herdr.tab` **[mesuré le 2026-11-10]**
+
+hc 0.1.20, herdr-app 0.1.15, fenêtre ouverte sur le même core. herdr-app ne montre que les terminaux
+portant **les deux** labels ; ceux du bridge n'en avaient aucun, d'où une fenêtre vide de nos agents.
+
+- **Apparition.** `terminal.run {labels:{herdr.space:"collie-board", herdr.tab:"collie-<id>"}}` → la
+  space et l'onglet sont créés en < 2 s. Les ids sont **libres** (pas besoin du format `sp…`/`tb…`).
+  Deux terminaux au même `herdr.tab` = deux panes côte à côte dans un onglet (le relais d'une carte).
+- **Après coup.** `terminal.label` sur un terminal déjà lancé le range pareil (`openWorktree` s'en sert
+  pour le shell d'avant les labels).
+- **Nom.** Aucun label ne nomme : space et onglet naissent sans nom (affichés par le dossier / « 1 »).
+  Le nom vit dans le document `herdr-app` du core (`doc.get {name:"herdr-app"}` →
+  `{value:{spaces:[{id,name,folder,tabs:[{id,name,root}]}]},version}`) ; un `doc.set` avec la `version`
+  lue (compare-and-set, `conflict` sinon) qui remplit `name` est suivi par la fenêtre à l'instant.
+  **Ne pas écrire l'onglet avant son terminal** : l'app en crée alors un second, le nôtre reste vide.
+  D'où `nameTabs()` : après le lancement, quelques essais, et seulement les noms vides (un nom donné
+  par l'opérateur reste). App fermée : rien à nommer, le lancement suivant rattrape.
+- **`keep`.** L'adoption par l'app pose `keep: true` (et un label `where: "<space> / <onglet>"`) — app
+  ouverte seulement. Programme tué par signal (`kill -9`) → ~4 s plus tard **même adresse**, `argv`
+  = le shell, `state: live`. Pour nous : nos panes SONT des shells où l'agent est tapé, donc un pane
+  « shell sans agent » est l'état déjà connu de l'agent qui a quitté (`reconcileOne` n'y touche pas,
+  la carte se relance) — au lieu de `orphaned` quand le terminal disparaissait. Pas de `park`.
+- **Fermeture.** `terminal.kill` + `terminal.rm` (notre `closePane`) retire le pane, y compris d'un
+  terminal « gardé » ; dernier pane → l'onglet part, dernier onglet → la space part (elle reste dans
+  `recent`, **son nom est perdu** : on le repose à chaque lancement).
+- **`agent.focus {terminal}`** amène au premier plan un terminal rangé dans une autre space, agent ou
+  simple shell (`status` : `space`/`tab` basculent) — le bouton du panneau Collie marche tel quel.
+
 ## Reprendre sous hc une conversation Claude née ailleurs (`claude --resume`) **[mesuré le 2026-11-06]**
 
 hc 0.1.18, Claude Code 2.1.319. Session créée hors hc (`claude -p --session-id $SID "Retiens ce mot
