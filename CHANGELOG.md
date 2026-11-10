@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.297.4] - 2026-11-10
+
+### Added
+
+- Balayage au démarrage : `git worktree prune`, worktree propre d'une carte done/archivée retiré avec ses terminaux hc, worktree sale signalé une fois sur la carte (6d571d5)
+
+### Fixed
+
+- Sous hc, le nettoyage d'une carte ferme les terminaux restés dans son worktree (une carte « done » n'a plus de session ouverte pour nommer son pane) (6d571d5)
+- Une fermeture de pane refusée autrement que « pane inconnu » est inscrite sur la carte (`card.cleanup_failed`, étape `pane`) (6d571d5)
+
 ## [0.297.3] - 2026-11-10
 
 ### Changed
