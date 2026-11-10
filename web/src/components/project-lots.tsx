@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Lock, Play, Rocket } from "lucide-react";
+import { ChevronRight, Lock, Play, Rocket, TriangleAlert } from "lucide-react";
 
 import { HaltReason } from "@/components/halt-reason";
 import { Button } from "@/components/ui/button";
@@ -220,6 +220,16 @@ export function PhaseLots({
                   <span>{t("lot.ownedBy", { name: ownerName })}</span>
                 </p>
               )}
+              {open && !finished &&
+                pl.lot.overlaps?.map((o) => {
+                  const title = (id: string) => pl.cards.find((c) => c.id === id)?.title ?? id.slice(0, 8);
+                  return (
+                    <p key={o.cardIds.join()} role="note" className="flex items-start gap-2 px-0.5 text-xs text-status-blocked">
+                      <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                      <span className="min-w-0 break-words">{t("lot.overlap", { a: title(o.cardIds[0]), b: title(o.cardIds[1]), files: o.files.join(", ") })}</span>
+                    </p>
+                  );
+                })}
               {open && halted && pl.lot.halted && <HaltReason reason={pl.lot.halted} className="min-w-0 px-0.5" />}
               {open && !planned && (
                 <div className="h-[5px] overflow-hidden rounded-[3px] bg-border" aria-hidden="true">
