@@ -35,12 +35,16 @@ const ORDER: DecisionStatus[] = ["open", "leaning", "decided"];
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
 
 function DecisionList({ decisions }: { decisions: Decision[] }) {
+  const t = useT();
   return (
     <ul className="flex flex-col gap-1 text-sm">
       {decisions.map((d) => (
         <li key={d.id} className="flex gap-2">
           <span aria-hidden="true">{DECISION[d.status].mark}</span>
-          <span className="min-w-0">{d.text}</span>
+          <span className="min-w-0">
+            {d.domain === "product" && <span className="mr-1 rounded bg-muted px-1 text-xs font-medium text-foreground">{t("roadmap.decision.product")}</span>}
+            {d.text}
+          </span>
         </li>
       ))}
     </ul>

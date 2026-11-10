@@ -481,6 +481,8 @@ curl -s -X PUT "$B/api/roadmap" "${H[@]}" -d '{"repoPath":"<repo>","revision":<r
 # write EACH decision the moment it is taken; reuse its id to settle an open question
 curl -s -X POST "$B/api/roadmap/decision" "${H[@]}" -d '{"repoPath":"<repo>","text":"Équipes de 16","status":"decided","itemId":"p0"}'
 #   status: decided (✅) | leaning (🟡) | open (❓)
+#   domain (optional): product (product/business) | technical — absent reads as technical. A
+#   decision restated without it keeps the one it had.
 # a question about ONE card: add its cardId (same repo). While open, that card shows « L'orchestrateur
 # attend ta décision », which opens your conversation; it goes when the decision is leaning or decided.
 # Link the card in the question you ask, `[titre](<base>/card/<id>)`. No extra notification.

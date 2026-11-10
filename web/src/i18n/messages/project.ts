@@ -196,6 +196,7 @@ export const project = defineMessages({
   "roadmap.decision.decided": { en: "Decided", fr: "Décidé" },
   "roadmap.decision.leaning": { en: "Leaning", fr: "Piste" },
   "roadmap.decision.open": { en: "Open questions", fr: "Questions ouvertes" },
+  "roadmap.decision.product": { en: "Product", fr: "Produit" },
   "roadmap.count.decided": { en: "{count} decided", fr: "{count} décidées" },
   "roadmap.count.leaning": { en: "{count} leaning", fr: "{count} pistes" },
   "roadmap.count.open": { en: "{count} open questions", fr: "{count} questions ouvertes" },

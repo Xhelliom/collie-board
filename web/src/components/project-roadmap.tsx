@@ -66,6 +66,7 @@ function Phase({ item, index, decisions, open, onToggle }: { item: RoadmapItem; 
               {decisions.map((d) => (
                 <li key={d.id}>
                   <span aria-hidden="true">{DECISION[d.status].mark} </span>
+                  {d.domain === "product" && <span className="mr-1 rounded bg-muted px-1 text-xs font-medium text-foreground">{t("roadmap.decision.product")}</span>}
                   {d.text}
                 </li>
               ))}
@@ -186,6 +187,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
                           <li key={d.id} className="flex gap-2">
                             <span aria-hidden="true">{DECISION[st].mark}</span>
                             <span className="min-w-0">
+                              {d.domain === "product" && <span className="mr-1 rounded bg-muted px-1 text-xs font-medium text-foreground">{t("roadmap.decision.product")}</span>}
                               {d.text}
                               {phase && <span className="text-muted-foreground"> — {phase.name}</span>}
                             </span>
