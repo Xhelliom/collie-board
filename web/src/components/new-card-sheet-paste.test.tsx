@@ -33,7 +33,7 @@ describe("NewCardSheet — clipboard image paste", () => {
     fireEvent.paste(box, { clipboardData: { items: [{ kind: "file", type: "image/png", getAsFile: () => file }] } });
     fireEvent.click(await screen.findByRole("button", { name: "Attach" })); // the preview's Attach
 
-    await waitFor(() => expect(box).toHaveValue("/tmp/shot.png"));
+    await waitFor(() => expect(box).toHaveValue("[Image #1]"));
   });
 
   it("uploads a picked image and appends its path to the dump", async () => {
@@ -47,7 +47,7 @@ describe("NewCardSheet — clipboard image paste", () => {
     fireEvent.change(input, { target: { files: [file] } });
     fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
 
-    await waitFor(() => expect(box).toHaveValue("/tmp/picked.png"));
+    await waitFor(() => expect(box).toHaveValue("[Image #1]"));
   });
 
   it("offers the picker as a visible control, not just a paste target", () => {

@@ -20,7 +20,7 @@ export const pane = defineMessages({
   "img.uploading": { en: "Sending the image…", fr: "Envoi de l'image…" },
   "img.remove": { en: "Remove image {name}", fr: "Retirer l'image {name}" },
   "img.exportFailed": { en: "Couldn't produce the edited image", fr: "Impossible de produire l'image retouchée" },
-  "pane.imageAdded": { en: "Image added — path in message", fr: "Image ajoutée — chemin dans le message" },
+  "pane.imageAdded": { en: "Image added", fr: "Image ajoutée" },
   "pane.cardCarried": { en: "Carried card", fr: "Carte portée" },
   "pane.changed.dialog": { en: "Dialog changed — refreshing", fr: "Dialogue modifié — actualisation" },
   "pane.changed.menu": { en: "Menu changed — refreshing", fr: "Menu modifié — actualisation" },

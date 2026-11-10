@@ -182,12 +182,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [sending, setSending] = useState(false);
   // Upload + clipboard paste, shared with every other draft box that can carry a screenshot
   // (hooks/use-image-upload.ts) — on success the host path is appended here and the keyboard stays up.
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const upload = useImageUpload({
     paneId,
     session,
     disabled: locked,
     text: input,
     setText: setInput,
+    inputRef,
     onAppended: () => focusInputEnd(),
   });
   // Pending-send preview: set on a successful send, cleared when the mirror catches up (next text
@@ -217,7 +219,6 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // confirm the command palette uses for /clear.
   const sendConfirm = usePendingConfirm();
 
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const sentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -444,7 +445,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // "Really send?" state instead of sending; the confirming second tap goes through. Non-destructive
   // input sends immediately (and any stray armed state is cleared).
   function onSendClick() {
-    const full = expandPastes(input, chips);
+    const full = expandPastes(upload.expand(input), chips);
     const reason = isDestructiveInput(full);
     if (reason && !sendConfirm.confirm("send")) {
       setStatus(tr("pane.send.destructive", { reason }), "info");
