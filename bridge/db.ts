@@ -712,8 +712,8 @@ export interface RepoAutonomy {
   maxRounds: number;
 }
 
-/** A repo's objective (ADR 0056). Open while active, paused or claimed; at most one open per repo. */
-export type GoalStatus = "active" | "paused" | "claimed" | "achieved" | "abandoned";
+/** A repo's objective (ADR 0056). Open while active, paused or claimed; at most one open per repo, and one queued behind it. */
+export type GoalStatus = "queued" | "active" | "paused" | "claimed" | "achieved" | "abandoned";
 export interface Goal {
   id: string;
   repoPath: string;
@@ -1344,6 +1344,8 @@ CREATE TABLE IF NOT EXISTS goal (
 );
 -- One open objective per repo: the constraint, not a read-then-write, holds it.
 CREATE UNIQUE INDEX IF NOT EXISTS goal_one_open ON goal(repo_path) WHERE status IN ('active', 'paused', 'claimed');
+-- And one queued behind it: the next objective, prepared while the current one runs.
+CREATE UNIQUE INDEX IF NOT EXISTS goal_one_queued ON goal(repo_path) WHERE status = 'queued';
 
 -- ADR 0048 §2–3: a shared repo's writes as journal events, in write order, waiting to be pushed.
 -- Filled by the journal triggers INSIDE the write's own transaction; \`hlc\` is stamped by
@@ -3020,13 +3022,13 @@ export class BoardDb {
   }
 
   /** Null when the repo already has an open objective (the unique index says so, not a prior read). */
-  createGoal(g: Pick<Goal, "repoPath" | "text" | "criteria" | "budget">): Goal | null {
+  createGoal(g: Pick<Goal, "repoPath" | "text" | "criteria" | "budget">, status: "active" | "queued" = "active"): Goal | null {
     const id = crypto.randomUUID();
     const ts = this.now();
     try {
       this.db
-        .query("INSERT INTO goal (id, repo_path, text, criteria, max_lots, quota_pct, deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
-        .run(id, g.repoPath, g.text, JSON.stringify(g.criteria), g.budget.maxLots, g.budget.quotaPct, g.budget.deadline, ts, ts);
+        .query("INSERT INTO goal (id, repo_path, text, criteria, max_lots, quota_pct, deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(id, g.repoPath, g.text, JSON.stringify(g.criteria), g.budget.maxLots, g.budget.quotaPct, g.budget.deadline, status, ts, ts);
     } catch (e) {
       if (/UNIQUE/.test((e as Error).message)) return null;
       throw e;
@@ -3042,6 +3044,11 @@ export class BoardDb {
       .query("UPDATE goal SET text = ?, criteria = ?, max_lots = ?, quota_pct = ?, deadline = ?, updated_at = ? WHERE id = ?")
       .run(n.text, JSON.stringify(n.criteria), n.budget.maxLots, n.budget.quotaPct, n.budget.deadline, this.now(), id);
     return this.getGoal(id);
+  }
+
+  /** Only a queued objective may be deleted: an opened one has lots and a journal pointing at it. */
+  deleteQueuedGoal(id: string): boolean {
+    return this.db.query("DELETE FROM goal WHERE id = ? AND status = 'queued'").run(id).changes === 1;
   }
 
   /** The objective's journal — lot bilans and checkpoints, card-less events carrying its id — newest first. */
@@ -3069,8 +3076,9 @@ export class BoardDb {
     try {
       return (
         this.db
-          .query(`UPDATE goal SET status = ?, updated_at = ?, ended_at = ? WHERE id = ? AND status IN (${from.map(() => "?").join(", ")})`)
-          .run(to, ts, ended, id, ...from).changes === 1
+          // A queued objective starts when it is activated: its lots are counted from then (`within`), not from when it was written.
+          .query(`UPDATE goal SET status = ?, updated_at = ?, ended_at = ?, created_at = CASE status WHEN 'queued' THEN ? ELSE created_at END WHERE id = ? AND status IN (${from.map(() => "?").join(", ")})`)
+          .run(to, ts, ended, ts, id, ...from).changes === 1
       );
     } catch (e) {
       if (/UNIQUE/.test((e as Error).message)) return false;

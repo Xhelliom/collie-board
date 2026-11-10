@@ -616,7 +616,11 @@ budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quo
 - **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
   (`409` if one is already open), `PATCH /api/goals/<id>` (text, criteria, budget), and
   `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
-  `/achieve` (validates, and closes the phases created during it) · `/abandon`.
+  `/achieve` (validates, closes the phases created during it, and starts the next objective if one is
+  queued) · `/abandon`. The user may also prepare ONE next objective while one is open — `POST /api/goals`
+  with `next: true` (status `queued`, ignored by you until it starts), edited by `PATCH`, deleted by
+  `DELETE /api/goals/<id>`, started by hand with `/activate` when nothing is open. A started one wakes you
+  like a new objective.
   Propose an objective or an edit to the user; never try to write it.
 - **Goal mode** — while it is open, the user is not called at each lot's end. Each goal also carries
   `progress` (`lotsDone`, `cardsDone`, `cardsBlocked`, `recettes`) and `journal` (newest first: lot reports

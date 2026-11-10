@@ -64,5 +64,19 @@ export const goal = defineMessages({
   "goal.entry.spent": { en: "Checkpoint — budget spent", fr: "Point d'étape — budget atteint" },
   "goal.entry.claimed": { en: "Checkpoint — claimed reached", fr: "Point d'étape — déclaré atteint" },
   "goal.entry.decision": { en: "Checkpoint — decision asked", fr: "Point d'étape — décision demandée" },
+  "goal.status.queued": { en: "next", fr: "suivant" },
+  "goal.next": { en: "Next objective", fr: "Objectif suivant" },
+  "goal.prepareNext": { en: "Prepare the next one", fr: "Préparer le suivant" },
+  "goal.nextHint": {
+    en: "It starts when you validate the current objective, and wakes the orchestrator.",
+    fr: "Il démarre quand tu valides l'objectif courant, et réveille l'orchestrateur.",
+  },
+  "goal.nextOrphan": {
+    en: "The previous objective closed without being validated: start this one when you are ready.",
+    fr: "L'objectif précédent s'est fermé sans être validé : démarre celui-ci quand tu le veux.",
+  },
+  "goal.activate": { en: "Start it", fr: "Le démarrer" },
+  "goal.delete": { en: "Delete", fr: "Supprimer" },
+  "goal.deleteConfirm": { en: "Tap again to delete", fr: "Touche encore pour supprimer" },
   "goal.last": { en: "Last objective: {text} ({status})", fr: "Dernier objectif : {text} ({status})" },
 });

@@ -4,7 +4,7 @@ import { Target } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
-import { boardErrorMessage, cardPath, createGoal, editGoal, fetchGoals, moveGoal, type Goal, type GoalBudget, type GoalMove } from "@/lib/board";
+import { boardErrorMessage, cardPath, createGoal, deleteGoal, editGoal, fetchGoals, moveGoal, type Goal, type GoalBudget, type GoalMove } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 
 const OPEN = new Set(["active", "paused", "claimed"]);
@@ -128,14 +128,15 @@ function GoalJournal({ goal }: { goal: Goal }) {
 export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean }) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
-  const [editing, setEditing] = useState(false);
+  // Which form is open: the objective's, or the next one's.
+  const [editing, setEditing] = useState<"open" | "next" | null>(null);
   const [refusal, setRefusal] = useState("");
   const { pending, confirm } = usePendingConfirm();
 
   useEffect(() => {
     const ac = new AbortController();
     setGoals(null);
-    setEditing(false);
+    setEditing(null);
     fetchGoals(repo, ac.signal)
       .then((r) => setGoals(r.goals))
       .catch(() => {});
@@ -144,25 +145,40 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
 
   if (!goals) return null;
   const open = goals.find((g) => OPEN.has(g.status)) ?? null;
-  const last = open ? null : (goals[0] ?? null);
+  const queued = goals.find((g) => g.status === "queued") ?? null;
+  const last = open ? null : (goals.find((g) => g.status !== "queued") ?? null);
   const put = (g: Goal) => setGoals((all) => [g, ...(all ?? []).filter((x) => x.id !== g.id)]);
+  const fail = (e: unknown) => setStatus(boardErrorMessage(e), "error", null);
 
   const save = async (g: { text: string; criteria: string[]; budget: GoalBudget }) => {
     try {
-      put((open ? await editGoal(open.id, g) : await createGoal(repo, g)).goal);
-      setEditing(false);
+      const target = editing === "next" ? queued : open;
+      put((target ? await editGoal(target.id, g) : await createGoal(repo, g, editing === "next")).goal);
+      setEditing(null);
       setStatus(t("goal.saved"), "success", 2000);
     } catch (e) {
-      setStatus(boardErrorMessage(e), "error", null);
+      fail(e);
     }
   };
   const move = async (m: GoalMove, comment?: string) => {
-    if (!open || (m === "abandon" && !confirm(open.id))) return;
+    const g = m === "activate" ? queued : open;
+    if (!g || (m === "abandon" && !confirm(g.id))) return;
     try {
-      put((await moveGoal(open.id, m, comment)).goal);
+      put((await moveGoal(g.id, m, comment)).goal);
       setRefusal("");
+      // Validating started the next objective, if one waited: read it back as the bridge has it.
+      if (m === "achieve" && queued) setGoals((await fetchGoals(repo)).goals);
     } catch (e) {
-      setStatus(boardErrorMessage(e), "error", null);
+      fail(e);
+    }
+  };
+  const drop = async () => {
+    if (!queued || !confirm(`next:${queued.id}`)) return;
+    try {
+      await deleteGoal(queued.id);
+      setGoals((all) => (all ?? []).filter((x) => x.id !== queued.id));
+    } catch (e) {
+      fail(e);
     }
   };
   const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
@@ -176,18 +192,18 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
           {open && <span className="rounded-full border px-2 py-0.5 normal-case tracking-normal">{t(`goal.status.${open.status}`)}</span>}
         </span>
         {open && !editing && (
-          <button type="button" onClick={() => setEditing(true)} className={btn}>
+          <button type="button" onClick={() => setEditing("open")} className={btn}>
             {t("goal.edit")}
           </button>
         )}
       </div>
-      {editing ? (
-        <GoalForm initial={open} onSave={(g) => void save(g)} onCancel={() => setEditing(false)} />
+      {editing === "open" ? (
+        <GoalForm initial={open} onSave={(g) => void save(g)} onCancel={() => setEditing(null)} />
       ) : !open ? (
         <>
           <p className="text-xs text-muted-foreground">{t("goal.none")}</p>
           {last && <p className="text-xs text-muted-foreground">{t("goal.last", { text: last.text, status: t(`goal.status.${last.status}`) })}</p>}
-          <button type="button" onClick={() => setEditing(true)} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+          <button type="button" onClick={() => setEditing("open")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
             {t("goal.define")}
           </button>
         </>
@@ -267,6 +283,46 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false }: { repo: str
             </button>
           </div>
         </>
+      )}
+      {/* The next objective: prepared while one is open, started when the operator validates it. */}
+      {editing === "next" ? (
+        <div className="flex flex-col gap-2 border-t pt-2.5">
+          <span className="text-xs font-semibold text-muted-foreground">{t("goal.next")}</span>
+          <GoalForm initial={queued} onSave={(g) => void save(g)} onCancel={() => setEditing(null)} />
+        </div>
+      ) : queued ? (
+        <div className="flex flex-col gap-1.5 border-t pt-2.5">
+          <span className="text-xs font-semibold text-muted-foreground">{t("goal.next")}</span>
+          <p className="font-medium">{queued.text}</p>
+          <ul className="list-disc pl-5 text-xs text-muted-foreground">
+            {queued.criteria.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted-foreground">{t(open ? "goal.nextHint" : "goal.nextOrphan")}</p>
+          {!editing && (
+            <div className="flex flex-wrap gap-2">
+              {!open && (
+                <button type="button" onClick={() => void move("activate")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                  {t("goal.activate")}
+                </button>
+              )}
+              <button type="button" onClick={() => setEditing("next")} className={btn}>
+                {t("goal.edit")}
+              </button>
+              <button type="button" onClick={() => void drop()} className={btn}>
+                {pending === `next:${queued.id}` ? t("goal.deleteConfirm") : t("goal.delete")}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        open &&
+        !editing && (
+          <button type="button" onClick={() => setEditing("next")} className={`${btn} self-start`}>
+            {t("goal.prepareNext")}
+          </button>
+        )
       )}
     </section>
   );

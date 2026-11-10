@@ -41,6 +41,38 @@ describe("GoalPanel", () => {
     expect(screen.getByRole("link", { name: "Step one" })).toBeInTheDocument();
   });
 
+  it("prepares the next objective while one is open, then validating the current one starts it", async () => {
+    const base = { repoPath: "/r", budget: { maxLots: 10, quotaPct: 80, deadline: null }, createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
+    const cur = { ...base, id: "g1", text: "Ship v1", criteria: ["CI green"], status: "active" };
+    let sent: unknown = null;
+    let goals: unknown[] = [cur];
+    server.use(
+      http.get("*/api/goals", () => HttpResponse.json({ goals })),
+      http.post("*/api/goals", async ({ request }) => {
+        sent = await request.json();
+        const b = sent as { text: string; criteria: string[] };
+        return HttpResponse.json({ goal: { ...base, id: "g2", text: b.text, criteria: b.criteria, status: "queued" } }, { status: 201 });
+      }),
+      http.post("*/api/goals/g1/achieve", () => {
+        goals = [{ ...base, id: "g2", text: "Ship v2", criteria: ["users happy"], status: "active" }, { ...cur, status: "achieved" }];
+        return HttpResponse.json({ goal: { ...cur, status: "achieved" } });
+      }),
+    );
+    mount();
+    await userEvent.click(await screen.findByRole("button", { name: "Prepare the next one" }));
+    await userEvent.type(screen.getByLabelText("What to reach"), "Ship v2");
+    await userEvent.type(screen.getByLabelText("Success criteria — one per line"), "users happy");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(sent).toMatchObject({ text: "Ship v2", next: true });
+    expect(await screen.findByText("Next objective")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Validate reached" }));
+    expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(screen.getByText("Ship v2")).toBeInTheDocument();
+    expect(screen.queryByText("Next objective")).toBeNull();
+  });
+
   it("says when no orchestrator will start an active objective", async () => {
     const g = { id: "g1", repoPath: "/r", text: "Ship v1", criteria: ["CI green"], budget: { maxLots: 10, quotaPct: 80, deadline: null }, status: "active", createdAt: 1, endedAt: null, spent: { lots: 0, lotIds: [], cardIds: [], quotaPct: null } };
     server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [g] })));

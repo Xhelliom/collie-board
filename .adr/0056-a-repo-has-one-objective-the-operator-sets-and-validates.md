@@ -97,3 +97,13 @@ le reprendre après une pause ou refuser sa déclaration (`goal.resumed`) révei
 par la même voie que la fin de lot (`orchestrator-nudge.ts`) : l'objectif, ses critères, « planifie et lance le
 premier lot ». **Un lot du dépôt tourne : pas de réveil**, sa fin s'en charge. Pas de pane orchestrateur : personne
 à réveiller, la page Projet le dit sur l'objectif actif.
+
+## Amendement — un objectif suivant, préparé pendant que le courant tourne
+
+L'opérateur peut préparer **un** objectif suivant (statut `queued`, index `goal_one_queued`) tant qu'un objectif
+est ouvert : modifiable et supprimable tant qu'il attend, invisible de l'orchestrateur. **Valider** l'objectif
+courant le démarre (`created_at` remis à l'heure du démarrage : ses lots se comptent de là) et réveille
+l'orchestrateur comme un objectif posé (`goal.created`). **Abandonner ne le démarre pas** : un abandon dit souvent
+que la direction était fausse, et le suivant dépenserait le quota sans regard de l'opérateur ; il reste en attente,
+démarrable à la main (`/activate`) une fois rien d'ouvert. Comme le reste de l'objectif, c'est à l'opérateur seul :
+un pane agent ne peut ni le créer, ni le modifier, ni le supprimer, ni le démarrer.
