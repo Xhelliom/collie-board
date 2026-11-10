@@ -228,6 +228,54 @@ describe("start when idle (ADR 0047)", () => {
   });
 });
 
+describe("run.chain: every stop of the chain is journaled on the lot", () => {
+  const chain = (w: ReturnType<typeof world>) => w.db.eventsAfter(0, 1000).filter((e) => e.type === "run.chain").map((e) => e.payload);
+
+  it("end of lot: go with the next lot, or the reason it stops", async () => {
+    const off = world();
+    await finish(off);
+    expect(chain(off)).toEqual([{ runId: off.lot1.id, go: false, why: "l'autonomie est coupée", next: null }]);
+
+    const on = world();
+    await enable(on);
+    await finish(on);
+    expect(chain(on)).toEqual([{ runId: on.lot1.id, go: true, why: null, next: on.lot2.id }]);
+
+    const bound = world();
+    await enable(bound, { maxChain: 1 });
+    bound.db.armAutonomy(repo, true);
+    bound.db.spendAutonomy(repo);
+    await finish(bound);
+    expect(chain(bound)[0]).toMatchObject({ go: false, why: expect.stringContaining("borne") });
+  });
+
+  it("a launch refused to the orchestrator leaves its reason; the operator's launch leaves nothing", async () => {
+    const w = world();
+    await enable(w, { startWhenIdle: true });
+    expect((await launch(w)).status).toBe(403); // lot 1 still open
+    expect(chain(w)).toEqual([{ runId: w.lot2.id, go: false, why: "un lot du dépôt est encore ouvert", next: w.lot2.id }]);
+
+    const off = world();
+    expect((await launch(off)).status).toBe(403);
+    expect(chain(off)[0]).toMatchObject({ why: "l'autonomie est coupée" });
+
+    const other = world();
+    other.db.setRepoShare(repo, "origin");
+    other.db.setPeerIdentity(repo, "me@x");
+    other.db.setPairId("dell");
+    const theirs = other.db.createRun({ repoPath: repo, cardIds: [other.db.createCard({ title: "d", repoPath: repo, status: "ready" }).id], foldInCap: 0, planned: true });
+    other.db.setPairId("here");
+    await enable(other);
+    other.db.armAutonomy(repo, true);
+    expect((await call(other.db, "POST", `/api/runs/${theirs.id}/launch`, undefined, PANE)).status).toBe(403);
+    expect(chain(other)).toEqual([{ runId: theirs.id, go: false, why: expect.stringContaining("only the pair that created it"), next: theirs.id }]);
+
+    const op = world();
+    expect((await launch(op, {})).status).toBe(200);
+    expect(chain(op)).toEqual([]);
+  });
+});
+
 describe("POST /api/runs/:id/resume", () => {
   it("is the operator's: lifts a halt, refuses an agent pane, a planned lot, and a lot with nothing halted", async () => {
     const w = world();

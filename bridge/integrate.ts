@@ -31,6 +31,7 @@ import {
   baseOf,
   cardDiffStat,
   checksOf,
+  classifyMergeRefusal,
   createPr,
   deleteBranch,
   enableAutoMerge,
@@ -51,6 +52,7 @@ import {
   removeWorktreeAt,
   restoreBranch,
   runGh,
+  updateBranch,
   worktreePathFor,
   type GitRunner,
   type Integration,
@@ -399,6 +401,12 @@ export const MAX_UNREADABLE = 5;
  */
 export const askEvery = (waited: number): number => Math.min(30 * 60_000, Math.max(30_000, waited / 4));
 
+/**
+ * How long one wait on GitHub (checks running, mergeability unknown…) may last before the board stops
+ * and says so: a PR of a lot never sits open in silence. Measured from the first wait of the streak.
+ */
+export const MAX_WAIT_MS = 3 * 60 * 60_000;
+
 /** ponytail: consecutive unreadable asks per card+run, in memory — a restart only starts the count again. */
 const unreadable = new Map<string, number>();
 
@@ -451,7 +459,8 @@ export async function mergeWhenReady(
   const skip = (reason: string, extra: object = {}) => db.recordRunEvent(cardId, "run.merge", { runId, merged: false, reason, ...extra });
   const wait = (reason: string) => {
     const last = db.listEvents(cardId, 50).find((e) => e.type === "run.merge" && (e.payload as { runId?: string }).runId === runId);
-    if (!(last?.payload as { wait?: boolean } | undefined)?.wait) skip(reason, { wait: true });
+    if (!(last?.payload as { wait?: boolean } | undefined)?.wait) return skip(reason, { wait: true });
+    if (now() - last!.ts > MAX_WAIT_MS) skip(`${reason.replace(/ — (waiting|asking again)$/, "")} for ${Math.round((now() - last!.ts) / 3_600_000)} h — not merging`);
   };
   // Consecutive: any ask that does not end unreadable clears the count.
   const key = `${cardId}\u0000${runId}`;
@@ -485,6 +494,16 @@ export async function mergeWhenReady(
     return wait("GitHub has registered no check on this PR yet — waiting");
   }
   const r = await enableAutoMerge(repoPath, branch, gh, []);
+  const refusal = r.ok ? null : classifyMergeRefusal(r.error);
+  if (refusal === "conflict") return skip(`merge refused: ${(r as { error: string }).error}`, { conflict: true });
+  if (refusal === "behind") {
+    // The repo wants the branch up to date: GitHub merges the base in, the checks run again, the next
+    // ask merges. `updated` counts as a push for the checks' grace (lastPushOf).
+    const u = await updateBranch(repoPath, branch, gh);
+    if (u.ok) return skip("the base moved on — branch updated, waiting for its checks", { wait: true, updated: true });
+    if (classifyMergeRefusal(u.error) === "conflict") return skip(`the base moved on and conflicts with the branch: ${u.error}`, { conflict: true });
+    return skip(`the base moved on and the branch could not be updated: ${u.error}`);
+  }
   db.recordRunEvent(cardId, "run.merge", {
     runId,
     merged: r.ok,
@@ -503,7 +522,9 @@ const lastPrWord = (db: BoardDb, cardId: string) =>
 
 /** When the card's PR last received a push, epoch ms: see {@link CHECKS_GRACE_MS}. -Infinity when unknown. */
 function lastPushOf(db: BoardDb, cardId: string, pr: PrStatus): number {
-  const pushed = db.listEvents(cardId, EVENT_WINDOW).find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated");
+  const pushed = db
+    .listEvents(cardId, EVENT_WINDOW)
+    .find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated" || (e.type === "run.merge" && (e.payload as { updated?: boolean }).updated));
   return Math.max(pushed?.ts ?? -Infinity, pr.createdAt ?? -Infinity);
 }
 

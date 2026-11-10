@@ -549,6 +549,35 @@ export function saveRepoScope(path: string | null): void {
   }
 }
 
+/**
+ * Code or business — the two sorts of work a card can be. Business is declared (category
+ * `business`: writing, marketing, an offer); everything else, an undeclared card included, is code.
+ */
+export type CardSort = "code" | "business";
+
+export const sortOf = (card: { category?: string | null }): CardSort => (card.category === "business" ? "business" : "code");
+
+/** The sort filter is remembered per device, like the repo scope — and shared by the board and the recette. */
+const SORT_KEY = "collie:card-sort";
+
+export function loadSort(): CardSort | null {
+  try {
+    const v = localStorage.getItem(SORT_KEY);
+    return v === "code" || v === "business" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSort(sort: CardSort | null): void {
+  try {
+    if (sort) localStorage.setItem(SORT_KEY, sort);
+    else localStorage.removeItem(SORT_KEY);
+  } catch {
+    // private mode: the choice lasts the visit
+  }
+}
+
 // ── paths ────────────────────────────────────────────────────────────────────
 
 export function boardPath(): string {
@@ -1434,6 +1463,40 @@ export const fetchAutonomy = (repo: string, signal?: AbortSignal): Promise<{ aut
   apiRequest(`/api/orchestrator/autonomy?repo=${encodeURIComponent(repo)}`, { signal });
 export const saveAutonomy = (repoPath: string, patch: Partial<Pick<Autonomy, "enabled" | "maxChain" | "stopOnRed" | "startWhenIdle" | "maxRounds">>): Promise<{ autonomy: Autonomy }> =>
   apiRequest("/api/orchestrator/autonomy", { method: "PUT", body: JSON.stringify({ repoPath, ...patch }) });
+/** A repo's objective (ADR 0056); `spent` is derived by the bridge. */
+export type GoalStatus = "active" | "paused" | "claimed" | "achieved" | "abandoned";
+export interface GoalBudget {
+  maxLots: number;
+  quotaPct: number;
+  deadline: number | null;
+}
+export interface Goal {
+  id: string;
+  repoPath: string;
+  text: string;
+  criteria: string[];
+  budget: GoalBudget;
+  status: GoalStatus;
+  createdAt: number;
+  endedAt: number | null;
+  spent: { lots: number; lotIds: string[]; cardIds: string[]; phaseIds?: string[]; quotaPct: number | null };
+  /** Absent from a bridge older than goal mode. */
+  progress?: { lotsDone: number; cardsDone: number; cardsBlocked: number; recettes: number };
+  /** Newest first: the orchestrator's lot bilans and the bridge's checkpoints. */
+  journal?: { ts: number; type: "goal.journal" | "goal.checkpoint"; reason: "half" | "spent" | "claimed" | "decision" | null; message: string }[];
+  /** The orchestrator's newest claim: one proof per criterion, in their order. */
+  claim?: { ts: number; proofs: string[] } | null;
+}
+export type GoalMove = "pause" | "resume" | "achieve" | "abandon";
+export const fetchGoals = (repo: string, signal?: AbortSignal): Promise<{ goals: Goal[] }> =>
+  apiRequest(`/api/goals?repo=${encodeURIComponent(repo)}`, { signal });
+export const createGoal = (repoPath: string, g: { text: string; criteria: string[]; budget: GoalBudget }): Promise<{ goal: Goal }> =>
+  apiRequest("/api/goals", { method: "POST", body: JSON.stringify({ repoPath, ...g }) });
+export const editGoal = (id: string, g: { text: string; criteria: string[]; budget: GoalBudget }): Promise<{ goal: Goal }> =>
+  apiRequest(`/api/goals/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(g) });
+/** `comment`: why a claimed objective is refused — required by the bridge for that resume. */
+export const moveGoal = (id: string, move: GoalMove, comment?: string): Promise<{ goal: Goal }> =>
+  apiRequest(`/api/goals/${encodeURIComponent(id)}/${move}`, { method: "POST", ...(comment ? { body: JSON.stringify({ comment }) } : {}) });
 /** The note the orchestrator leaves its next self — shown read-only, the board stays the truth. */
 export interface OrchestratorMemory {
   note: string;

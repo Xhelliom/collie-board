@@ -129,6 +129,8 @@ export const folderChain = (path: string): string[] =>
 
 /** A custom page's place in the tree, and back: `roadmap` ⇄ `docs/pages/roadmap.html`. */
 export const pagePath = (name: string): string => `docs/pages/${name}.html`;
+/** The bridge's rule for a page name (bridge/git.ts isSafePageName) — a name it would refuse to serve. Pure. */
+export const isPageName = (name: string): boolean => name.length <= 80 && /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u.test(name);
 export const pageNameOf = (path: string): string | null => /^docs\/pages\/([^/]+)\.html$/.exec(path)?.[1] ?? null;
 
 /**

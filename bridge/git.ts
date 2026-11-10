@@ -1211,6 +1211,34 @@ export async function enableAutoMerge(
 }
 
 /**
+ * Why GitHub refused to merge, from `gh`'s own words: `behind` — the base moved on and the repo wants
+ * the branch up to date (the board updates it); `conflict` — a real one; `other` — the operator's. Pure.
+ */
+export function classifyMergeRefusal(error: string): "behind" | "conflict" | "other" {
+  if (/conflict|cannot be cleanly created/i.test(error)) return "conflict";
+  if (/not up to date with the base branch/i.test(error)) return "behind";
+  return "other";
+}
+
+/**
+ * Bring the PR's branch up to date with its base, on GitHub (`gh pr update-branch`, a merge commit):
+ * nothing local is touched, the push re-runs the checks. Same leading-`-` guard as {@link prStatusOf}.
+ */
+export async function updateBranch(
+  repoPath: string,
+  branch: string,
+  gh: GitRunner = runGh,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!branch || branch.startsWith("-")) return { ok: false, error: `refusing branch name ${JSON.stringify(branch)}` };
+  try {
+    const r = await gh(["pr", "update-branch", branch], repoPath);
+    return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
  * What a card's pull request BECAME, as GitHub sees it. `mergedAt` is epoch ms, null unless merged.
  *
  * Deliberately not part of {@link Integration}: everything there is answered by local refs, this one

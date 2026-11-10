@@ -168,6 +168,8 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
         capability: card.capability ?? card.title,
         repoPath: card.repoPath,
         assignee: card.assignee,
+        // Code or business — the page filters on it.
+        category: card.category,
         state,
         followUpDone,
         shots,

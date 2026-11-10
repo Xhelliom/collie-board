@@ -659,13 +659,16 @@ export interface RunEventPayloads {
   /** `infra`: a red check with nothing to fix in the code — the land step keeps asking GitHub (ADR 0041). */
   "run.halted": { runId: string; reason: string; leadSilent?: true; paneId?: string; infra?: true; pair?: string };
   /** The operator resumed the run: every halt before it is lifted, and the card picks up at the step it stopped on. */
-  "run.resumed": { runId: string };
+  /** `auto`: the orchestrator's resume (ADR 0055), the gesture's time — one per gesture, counted against its bound. */
+  "run.resumed": { runId: string; auto?: number };
   /** The repo's gate ran on a landing (ADR 0020). Its absence after a landing is what makes the gate the next step. */
   "run.gate": { runId: string; command: string; ok: boolean; summary?: string };
   /** The board's own merge, when GitHub's auto-merge was not there (ADR 0027): done or not, and why. */
   "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
   /** The worker's bilan as the lead read it at a check — kept here because the worktree is not. Once per new text. */
   "run.report": { runId: string; round: number; text: string; issue: "coded" | "present" | "partial" | "none" | null };
+  /** Whether the chain goes on (ADR 0030/0047): at each end of lot, and at each launch refused to the orchestrator. Null card: the lot's. */
+  "run.chain": { runId: string; go: boolean; why: string | null; next: string | null };
 }
 
 export type RunEventKind = keyof RunEventPayloads;
@@ -679,6 +682,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.gate",
   "run.merge",
   "run.report",
+  "run.chain",
 ];
 
 /** The lead's send-backs before the operator, when the repo's operator has not set it (run.ts). */
@@ -698,6 +702,20 @@ export interface RepoAutonomy {
   maxRounds: number;
 }
 
+/** A repo's objective (ADR 0056). Open while active, paused or claimed; at most one open per repo. */
+export type GoalStatus = "active" | "paused" | "claimed" | "achieved" | "abandoned";
+export interface Goal {
+  id: string;
+  repoPath: string;
+  text: string;
+  criteria: string[];
+  budget: { maxLots: number; quotaPct: number; deadline: number | null };
+  status: GoalStatus;
+  createdAt: number;
+  updatedAt: number;
+  endedAt: number | null;
+}
+
 export interface BoardEvent {
   id: number;
   cardId: string | null;
@@ -707,6 +725,20 @@ export interface BoardEvent {
 }
 
 // ── row shapes (snake_case, exactly as stored) ────────────────────────────────
+
+interface GoalRow {
+  id: string;
+  repo_path: string;
+  text: string;
+  criteria: string;
+  max_lots: number;
+  quota_pct: number;
+  deadline: number | null;
+  status: string;
+  created_at: number;
+  updated_at: number;
+  ended_at: number | null;
+}
 
 interface CardRow {
   id: string;
@@ -1283,6 +1315,25 @@ CREATE TABLE IF NOT EXISTS board_pref (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- A repo's objective (ADR 0056): what the operator wants reached, how to tell, and how much the
+-- orchestrator may spend getting there. Its lots are not stored: they are the repo's lots launched
+-- between created_at and ended_at.
+CREATE TABLE IF NOT EXISTS goal (
+  id         TEXT PRIMARY KEY,
+  repo_path  TEXT NOT NULL,
+  text       TEXT NOT NULL,
+  criteria   TEXT NOT NULL DEFAULT '[]', -- JSON array of strings
+  max_lots   INTEGER NOT NULL DEFAULT 10,
+  quota_pct  INTEGER NOT NULL DEFAULT 80, -- stop at this % of the week's quota
+  deadline   INTEGER,                     -- epoch ms, optional
+  status     TEXT NOT NULL DEFAULT 'active',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  ended_at   INTEGER                      -- set when achieved or abandoned
+);
+-- One open objective per repo: the constraint, not a read-then-write, holds it.
+CREATE UNIQUE INDEX IF NOT EXISTS goal_one_open ON goal(repo_path) WHERE status IN ('active', 'paused', 'claimed');
 
 -- ADR 0048 §2–3: a shared repo's writes as journal events, in write order, waiting to be pushed.
 -- Filled by the journal triggers INSIDE the write's own transaction; \`hlc\` is stamped by
@@ -2926,6 +2977,94 @@ export class BoardDb {
   /** The operator launched: the chain starts again. */
   resetChain(path: string): void {
     this.db.query("UPDATE repo_autonomy SET chained = 0, armed = 0 WHERE path = ?").run(path);
+  }
+
+  // ── a repo's objective (ADR 0056) ──────────────────────────────────────────
+
+  private goalOf(r: GoalRow): Goal {
+    return {
+      id: r.id,
+      repoPath: r.repo_path,
+      text: r.text,
+      criteria: JSON.parse(r.criteria) as string[],
+      budget: { maxLots: r.max_lots, quotaPct: r.quota_pct, deadline: r.deadline },
+      status: r.status as GoalStatus,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      endedAt: r.ended_at,
+    };
+  }
+
+  getGoal(id: string): Goal | null {
+    const r = this.db.query<GoalRow, [string]>("SELECT * FROM goal WHERE id = ?").get(id);
+    return r ? this.goalOf(r) : null;
+  }
+
+  /** A repo's objectives, newest first (all repos when `repoPath` is absent). */
+  listGoals(repoPath?: string): Goal[] {
+    const rows = repoPath === undefined
+      ? this.db.query<GoalRow, []>("SELECT * FROM goal ORDER BY created_at DESC, rowid DESC").all()
+      : this.db.query<GoalRow, [string]>("SELECT * FROM goal WHERE repo_path = ? ORDER BY created_at DESC, rowid DESC").all(repoPath);
+    return rows.map((r) => this.goalOf(r));
+  }
+
+  /** Null when the repo already has an open objective (the unique index says so, not a prior read). */
+  createGoal(g: Pick<Goal, "repoPath" | "text" | "criteria" | "budget">): Goal | null {
+    const id = crypto.randomUUID();
+    const ts = this.now();
+    try {
+      this.db
+        .query("INSERT INTO goal (id, repo_path, text, criteria, max_lots, quota_pct, deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)")
+        .run(id, g.repoPath, g.text, JSON.stringify(g.criteria), g.budget.maxLots, g.budget.quotaPct, g.budget.deadline, ts, ts);
+    } catch (e) {
+      if (/UNIQUE/.test((e as Error).message)) return null;
+      throw e;
+    }
+    return this.getGoal(id);
+  }
+
+  editGoal(id: string, p: Partial<Pick<Goal, "text" | "criteria" | "budget">>): Goal | null {
+    const g = this.getGoal(id);
+    if (!g) return null;
+    const n = { ...g, ...p };
+    this.db
+      .query("UPDATE goal SET text = ?, criteria = ?, max_lots = ?, quota_pct = ?, deadline = ?, updated_at = ? WHERE id = ?")
+      .run(n.text, JSON.stringify(n.criteria), n.budget.maxLots, n.budget.quotaPct, n.budget.deadline, this.now(), id);
+    return this.getGoal(id);
+  }
+
+  /** The objective's journal — lot bilans and checkpoints, card-less events carrying its id — newest first. */
+  goalJournal(goalId: string, limit = 50): BoardEvent[] {
+    return this.db
+      .query<EventRow, [string, number]>(
+        "SELECT * FROM event WHERE card_id IS NULL AND type IN ('goal.journal', 'goal.checkpoint') AND json_extract(payload, '$.goalId') = ? ORDER BY id DESC LIMIT ?",
+      )
+      .all(goalId, limit)
+      .map(toEvent);
+  }
+
+  /** The objective's newest claim — the orchestrator's proof for each criterion — or null. */
+  lastGoalClaim(goalId: string): BoardEvent | null {
+    const r = this.db
+      .query<EventRow, [string]>("SELECT * FROM event WHERE card_id IS NULL AND type = 'goal.claim' AND json_extract(payload, '$.goalId') = ? ORDER BY id DESC LIMIT 1")
+      .get(goalId);
+    return r ? toEvent(r) : null;
+  }
+
+  /** Move `id` to `to` only from one of `from` — false when it was elsewhere (or a resume collides with another open one). */
+  setGoalStatus(id: string, from: GoalStatus[], to: GoalStatus): boolean {
+    const ts = this.now();
+    const ended = to === "achieved" || to === "abandoned" ? ts : null;
+    try {
+      return (
+        this.db
+          .query(`UPDATE goal SET status = ?, updated_at = ?, ended_at = ? WHERE id = ? AND status IN (${from.map(() => "?").join(", ")})`)
+          .run(to, ts, ended, id, ...from).changes === 1
+      );
+    } catch (e) {
+      if (/UNIQUE/.test((e as Error).message)) return false;
+      throw e;
+    }
   }
 
   // ── repo preferences ────────────────────────────────────────────────────────

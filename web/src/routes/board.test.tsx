@@ -357,6 +357,18 @@ describe("board filters — header", () => {
   });
 });
 
+describe("board filters — code / business", () => {
+  it("opens on the sort remembered on this device, and its chip removes it", async () => {
+    localStorage.setItem("collie:card-sort", "business");
+    await mount([card("Alpha", "backlog", 0), { ...card("Bravo", "ready", 0), category: "business" as CardView["category"] }]);
+    expect(screen.queryByText("Alpha")).toBeNull();
+    expect(screen.getByText("Bravo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Business" }));
+    expect(screen.getByText("Alpha")).toBeTruthy();
+    expect(localStorage.getItem("collie:card-sort")).toBeNull();
+  });
+});
+
 describe("board — Done column", () => {
   it("lists the 5 most recently finished cards, wherever they sit in the column", async () => {
     // D11 sits last by position but was finished long ago; D0 sits first but was finished today.

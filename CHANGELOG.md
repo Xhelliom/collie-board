@@ -9,6 +9,95 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.286.0] - 2026-11-10
+
+### Added
+
+- Board et recette : filtre Code / Business, retenu par appareil (05a18ce)
+
+## [0.285.0] - 2026-11-10
+
+### Added
+
+- Documents : « Nouvelle page » (nom + brève) crée une carte qui livre `docs/pages/<nom>.html`, contrat de page inerte dans la spec (6406f9b)
+
+## [0.284.0] - 2026-11-10
+
+### Added
+
+- Onglet « Roadmap » du board : vue en direct de la roadmap (avancement, étapes, phases du board, décisions), relue à chaque poll — remplace la page statique `docs/pages/roadmap.html` (e4b504e)
+
+## [0.283.0] - 2026-11-10
+
+### Added
+
+- Déclarer l'objectif atteint exige une preuve par critère ; la page projet l'affiche sous chaque critère (96ce7a2)
+
+## [0.282.0] - 2026-11-10
+
+### Added
+
+- Mode objectif : un objectif actif réveille l'orchestrateur en fin de lot pour planifier la suite, et le laisse lancer ses lots, un à la fois (e598dbd)
+- Une borne du budget (lots, quota, échéance, rouge) met l'objectif en pause et prévient l'opérateur une fois (e598dbd)
+- Valider l'objectif clôt les phases découpées pendant celui-ci (e598dbd)
+- Page projet : refuser un objectif déclaré atteint, avec un commentaire qui renvoie l'orchestrateur au travail (e598dbd)
+
+### Changed
+
+- Objectif déclaré atteint : arrêt net — plus de lot créé ni lancé, plus de réveil, jusqu'à la réponse de l'opérateur (e598dbd)
+- Les lots planifiés et les phases créés pendant l'objectif lui sont rattachés (e598dbd)
+
+## [0.281.0] - 2026-11-10
+
+### Added
+
+- Mode objectif : pas de push par fin de lot, le bilan de l'orchestrateur va au journal de l'objectif (292ee27)
+- Point d'étape regroupé (lots, mergées, bloquées, quota, recettes) à mi-budget, budget atteint, objectif déclaré, décision (292ee27)
+- Bloc Objectif : barre de budget consommé, progression et journal des bilans et points d'étape (292ee27)
+
+## [0.280.0] - 2026-11-10
+
+### Added
+
+- Objectif par dépôt (ADR 0056) : texte, critères, budget (lots, % du quota de la semaine, échéance), statut (f459b88)
+- Routes `/api/goals` : créer, éditer, pause, reprise, abandon, validation à l'opérateur seul ; un pane agent ne peut que revendiquer « atteint » (f459b88)
+- Un seul objectif ouvert par dépôt (f459b88)
+- Bloc « Objectif » sur la page projet : définir, voir critères, budget consommé et cartes rattachées (f459b88)
+
+## [0.279.0] - 2026-11-09
+
+### Added
+
+- Une carte de lot dont l'agent est bloqué, inactif ou disparu depuis 10 min réveille l'orchestrateur (titre, état du pane, fin d'écran), une fois par épisode (60c1571)
+
+### Fixed
+
+- Merge refusé car la branche n'est pas à jour : le board la met à jour (`gh pr update-branch`) et merge une fois la CI verte, au lieu de halter (dbbdda2)
+- Une attente GitHub (checks, mergeabilité) de plus de 3 h halte avec sa raison : plus de PR de lot en attente silencieuse (dbbdda2)
+
+## [0.278.0] - 2026-11-09
+
+### Added
+
+- Journal du lot : un `run.chain {go, why, next}` à chaque fin de lot et à chaque lancement refusé à l'orchestrateur (autre poste, lot ouvert, borne, rouge). (e164c9c)
+- Autonomie : l'orchestrateur reprend lui-même un lot arrêté pour une raison mécanique (PR pas à jour, pre-push rouge, lead muet, non commité, démarrage raté), 3 fois par lot au plus (fbf80c0)
+
+### Changed
+
+- Un résumé de fin de carte jamais rendu expire après 10 min au lieu de 30, et le nettoyage de la carte suit d'autant plus tôt. (db29cbc)
+
+## [0.277.8] - 2026-11-08
+
+### Fixed
+
+- Le copilote et le lead approuvent leur dossier dans Claude Code avant de s'y lancer : un lot ne reste plus bloqué sur l'écran de confiance sur une installation neuve (ca08e4d)
+
+## [0.277.7] - 2026-11-08
+
+### Fixed
+
+- Carte « Mettre la doc aux normes » : parle du socle commun, ne cite plus Overgate dans chaque projet (6e27c75)
+
 ## [0.277.6] - 2026-11-07
 
 ### Fixed

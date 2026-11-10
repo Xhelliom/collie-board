@@ -1,3 +1,4 @@
+import { GoalPanel } from "@/components/goal-panel";
 import { useEffect, useMemo, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 
@@ -465,6 +466,7 @@ export function ProjectRoute() {
           className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
+          {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} />}
           {v.total === 0 && v.closedCount === 0 ? (
             <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">
               <p className="text-sm text-muted-foreground">{t(repo ? "project.emptyRepo" : "project.emptyAll")}</p>

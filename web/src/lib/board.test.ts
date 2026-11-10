@@ -8,6 +8,9 @@ import {
   canDropCard,
   MANUAL_STATUSES,
   loadRepoScope,
+  loadSort,
+  saveSort,
+  sortOf,
   matchesFilters,
   verdictChip,
   positionFor,
@@ -301,5 +304,19 @@ describe("verdictChip", () => {
     for (const v of ["not complete", "partially complete", "unclear", "", null]) {
       expect(verdictChip(v)).toBe("border-border bg-muted text-muted-foreground");
     }
+  });
+});
+
+describe("card sort", () => {
+  it("is business only when declared so, and is remembered per device", () => {
+    expect(sortOf({ category: "business" })).toBe("business");
+    expect(sortOf({ category: "bug" })).toBe("code");
+    expect(sortOf({ category: null })).toBe("code");
+    localStorage.clear();
+    expect(loadSort()).toBeNull();
+    saveSort("business");
+    expect(loadSort()).toBe("business");
+    saveSort(null);
+    expect(loadSort()).toBeNull();
   });
 });

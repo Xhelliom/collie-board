@@ -573,6 +573,11 @@ code.
   step it stopped on (a triage is asked again, its worker is not relaunched). The user's, and refuses
   your `x-collie-pane`; when a lot is halted (`GET /api/runs` gives the reason in `halted`), tell the
   user why and let them resume it.
+  **Except (ADR 0055)**: with autonomy on, **the repo's orchestrator** may resume it itself when the
+  halt is mechanical — a PR not up to date with its base, a red pre-push, a silent lead, uncommitted
+  work, a failed start. Fix the cause first if it is yours to fix, then send the same POST with your
+  `x-collie-pane`. At most **3** such resumes per lot; past it, or for a decision halt (the lead's
+  rounds ran out, finished with no commit, a verdict), or another pair's lot, it is `403` — tell the user.
   A card halts after **`maxRounds`** send-backs by the lead with no finish (the repo's « Rounds before
   calling me », 1–15, default 5): read it in `maxRounds` of `GET /api/orchestrator/autonomy?repo=`.
   It is the user's — the write refuses your pane header. When cards keep hitting it just short of the
@@ -580,6 +585,42 @@ code.
   count again, and a new value applies to running cards from their next round.
 - **Validating a phase** (`POST /api/phases/<id>/close`, `.../reopen`, `POST /api/phases/seal`) — see
   *Milestones* below. They are the user's too, and refuse your `x-collie-pane`.
+
+### The objective (ADR 0056): read it, claim it, never set or validate it
+
+A repo may have **one open objective** (`active`, `paused` or `claimed`): a text, success criteria, and a
+budget `{maxLots, quotaPct, deadline}` (defaults 10 lots, 80 % of the week's quota, no deadline).
+
+- `GET /api/goals?repo=…` (newest first) or `GET /api/goals/<id>` — each with `spent`: `lots` (the repo's
+  lots launched while it was open — what the budget counts), `lotIds` (those plus the lots planned while it
+  was open), `cardIds` (their cards and those of its phases), `phaseIds` (the repo's phases created while it
+  was open), and `quotaPct` (the week's gauge, null without a reading). Nothing to tag: what you create
+  while it is open is attached.
+- **While it is `active`, you work toward it.** You may create cards, lots and phases and launch your own
+  planned lot — `POST /api/runs/<id>/launch` with your pane — **one lot at a time** (`403` while one of the
+  repo's lots is open), with no autonomy setting needed and no `maxChain`. At the end of a lot with nothing
+  planned you are woken with « Objectif pas atteint : relis les critères, planifie et lance la suite ». A
+  decision waiting on the user blocks only its branch — the wake lists them; move on with the rest. Do
+  **not** propose phases for validation: validating the objective closes them.
+- **A bound** (`maxLots` lots launched, the week's quota at `quotaPct`, the deadline passed, or a red lot with
+  `stopOnRed`) pauses it; the user hears it once. Paused, the ordinary autonomy applies.
+- **Claim it reached** — `POST /api/goals/<id>/claim` with your `x-collie-pane`, only from `active`, once
+  every criterion holds, with `{proofs: ["…", …]}` — one non-empty proof per criterion, in their order
+  (`400` otherwise). The goal then carries `claim: {ts, proofs}`, shown to the user beside each criterion;
+  the user validates. **Claimed is a full
+  stop**: no lot planned or launched (`403`), no end-of-lot wake, until the user answers. A refusal comes
+  back as a wake carrying the user's comment.
+- **The user's only** (`403` to your pane): `POST /api/goals` `{repoPath, text, criteria: [..], budget?}`
+  (`409` if one is already open), `PATCH /api/goals/<id>` (text, criteria, budget), and
+  `POST /api/goals/<id>/pause` · `/resume` (rejecting a claim needs `{comment}`, `400` without) ·
+  `/achieve` (validates, and closes the phases created during it) · `/abandon`.
+  Propose an objective or an edit to the user; never try to write it.
+- **Goal mode** — while it is open, the user is not called at each lot's end. Each goal also carries
+  `progress` (`lotsDone`, `cardsDone`, `cardsBlocked`, `recettes`) and `journal` (newest first: lot reports
+  and checkpoints). The repo's orchestrator posting `POST /api/board/notify {kind:"done"}` lands in that
+  journal, **not** on the phone (`202 {journaled:"goal"}`); a `question` still rings and leaves a
+  `decision` checkpoint there. The bridge itself pushes ONE grouped checkpoint at half budget, budget
+  spent (or deadline passed) and claimed reached.
 
 ### Milestones (ADR 0025): propose, never validate
 

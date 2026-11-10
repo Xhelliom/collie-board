@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
-import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Plus, Settings, X } from "lucide-react";
+import { BookOpen, ChevronDown, FileCode, ClipboardCheck, Columns3, GitPullRequest, Map as MapIcon, Milestone, Plus, Settings, X } from "lucide-react";
 
 import { useT, type MessageKey } from "@/i18n";
 import { AddProjectSheet } from "@/components/add-project-sheet";
@@ -9,7 +9,7 @@ import { fetchPages } from "@/lib/docs";
 import { setRepoListed, useListedRepos } from "@/lib/listed-repos";
 import { cn } from "@/lib/utils";
 
-// Board, Project, Open PRs, Recette, Documents and Settings are six views of the same thing — one repo's work — so they are
+// Board, Project, Roadmap, Open PRs, Recette, Documents and Settings are seven views of the same thing — one repo's work — so they are
 // siblings under the Board tab, not a board with two hidden side doors. One row, on all six, that
 // carries the repo scope across AND lets you change it: a project view you cannot leave for another
 // repo is a dead end. `replace`: switching views or repos must not stack history, or Back would walk
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { key: "board", label: "tabs.board", path: "/board", icon: Columns3 },
   { key: "project", label: "tabs.project", path: "/board/project", icon: MapIcon },
+  { key: "roadmap", label: "tabs.roadmap", path: "/board/roadmap", icon: Milestone },
   { key: "prs", label: "tabs.prs", path: "/board/prs", icon: GitPullRequest },
   { key: "recette", label: "tabs.recette", path: "/board/recette", icon: ClipboardCheck },
   { key: "documents", label: "tabs.documents", path: "/board/documents", icon: BookOpen },
@@ -28,6 +29,7 @@ const TABS = [
 export function boardTabFor(pathname: string): (typeof TABS)[number]["key"] | null {
   if (pathname === "/board") return "board";
   if (pathname === "/board/project") return "project";
+  if (pathname === "/board/roadmap") return "roadmap";
   if (pathname === "/board/prs") return "prs";
   if (pathname === "/board/recette") return "recette";
   if (pathname === "/board/documents") return "documents";
@@ -56,7 +58,8 @@ export function BoardTabs({ repos = [], actions }: { repos?: RepoOption[]; actio
     if (!repo) return;
     const ctl = new AbortController();
     fetchPages(repo, ctl.signal)
-      .then((r) => setPages(r.pages.map((p) => p.name)))
+      // "roadmap" is the live tab now: its old static export is not shown twice.
+      .then((r) => setPages(r.pages.map((p) => p.name).filter((n) => n !== "roadmap")))
       .catch(() => {});
     return () => ctl.abort();
   }, [repo]);

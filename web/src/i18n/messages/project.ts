@@ -216,6 +216,19 @@ export const project = defineMessages({
     fr: "Pas encore de roadmap. Lance le brainstorm avec l'orchestrateur du projet : il pose un thème à la fois et écrit ici la vision, chaque phase et chaque décision au fur et à mesure que tu les tranches.",
   },
 
+  // ── the live roadmap view (routes/roadmap.tsx) ─────────────────────────────
+  "roadmap.view.title": { en: "Roadmap — {name}", fr: "Roadmap — {name}" },
+  "roadmap.view.progress": {
+    en: { one: "{done} of {total} step done · {active} active", other: "{done} of {total} steps done · {active} active" },
+    fr: { one: "{done} étape faite sur {total} · {active} en cours", other: "{done} étapes faites sur {total} · {active} en cours" },
+  },
+  "roadmap.view.done": { en: "done", fr: "fait" },
+  "roadmap.view.steps": { en: "Steps", fr: "Étapes" },
+  "roadmap.view.phases": { en: "Board phases", fr: "Phases du board" },
+  "roadmap.view.validated": { en: "validated", fr: "validée" },
+  "roadmap.view.pickRepo": { en: "Pick a repo to see its roadmap.", fr: "Choisis un dépôt pour voir sa roadmap." },
+  "roadmap.view.live": { en: "Live · revision {revision}", fr: "En direct · révision {revision}" },
+
   // ── milestones: validating a phase (ADR 0025) ──────────────────────────────
   "project.validate": { en: "Validate this phase", fr: "Valider cette phase" },
   "project.deletePhase": { en: "Delete this phase", fr: "Supprimer la phase" },

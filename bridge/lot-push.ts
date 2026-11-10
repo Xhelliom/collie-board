@@ -20,6 +20,8 @@ export interface LotPushDeps {
   db: LotPushSource;
   /** Un orchestrateur vit-il pour ce dépôt ? Lu au tir : s'il est mort, l'alerte repart en push. */
   orchestratorAlive: (repoPath: string) => boolean;
+  /** Le dépôt a-t-il un objectif ouvert (goal-mode.ts) ? Alors la fin d'un lot ne sonne pas : son bilan va au journal de l'objectif. */
+  goalOpen?: (repoPath: string) => boolean;
 }
 
 /**
@@ -28,9 +30,12 @@ export interface LotPushDeps {
  * lot, qui par définition n'est plus « ouvert » quand elle tire.
  */
 export function lotHoldsPush(key: string, alert: Alert, d: LotPushDeps): boolean {
-  if (!d.enabled() || key.startsWith("note:")) return false;
+  if (key.startsWith("note:")) return false;
   const card = alert.cardId ? d.db.getCard(alert.cardId) : null;
   if (!card?.runId || !card.repoPath) return false;
+  // Mode objectif : pas de notification par fin de lot, réglage et orchestrateur ou pas — le point d'étape la remplace.
+  if (key.startsWith("run:") && d.goalOpen?.(card.repoPath)) return true;
+  if (!d.enabled()) return false;
   if (!key.startsWith("run:") && !d.db.listOpenRuns().some((r) => r.id === card.runId && d.db.ownsRun(r))) return false;
   return d.orchestratorAlive(card.repoPath);
 }
