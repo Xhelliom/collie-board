@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseAnsi } from "../../ansi";
 import { splitLines, type StyledLine } from "../../blocks";
-import { extractInputDraft, extractStatusLines, isCollapsedDraft, stripChrome } from "./chrome";
+import { extractInputDraft, extractStatusLines, hasInputBox, isCollapsedDraft, stripChrome } from "./chrome";
 import { lineText } from "./markers";
 
 // Anchored on this file's directory (see prompt-select.test.ts for why not `new URL(import.meta.url)`).
@@ -325,6 +325,21 @@ describe("extractInputDraft — recovers a stranded prompt-line draft", () => {
     expect(extractInputDraft(fixtureLines("claude--draft-footer-wrapped.txt"))).toBe(
       "this stranded draft is long enough that the Claude Code TUI soft-wraps it onto several continuation lines inside the input box while the background-agents footer sits below the box",
     );
+  });
+
+  // Field case (a pane running background agents, no statusline configured): Claude paints a BLANK
+  // row between the bottom border and the "⏵⏵ …" hint, then the usual blank + agents footer. That
+  // first blank stopped the status walk short of the border, so the box was never found and every
+  // send from the app stalled on "didn't reach the input box" with the text sitting in it.
+  it("blank row between the bottom border and the hint, footer below: the box is still found", () => {
+    const lines = fixtureLines("claude--draft-overgate.txt");
+    expect(extractInputDraft(lines)).toBe("remember to update the changelog before tagging");
+    expect(hasInputBox(lines)).toBe(true);
+    expect(extractStatusLines(lines)).toEqual(["⏵⏵ auto mode on · 1 shell · ← 3 agents"]);
+    const kept = joined(stripChrome(lines));
+    expect(kept).toContain("Wired up the token refresh path");
+    expect(kept).not.toContain("update the changelog");
+    expect(kept).not.toContain("ovg-implementer");
   });
 
   it("folds a WRAPPED draft back into one line (real capture)", () => {
