@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794404974241.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : la vignette d un agent sous hc affiche « hc » au lieu du dépôt","status":"backlog"},"ts":1794404971818}}
 {"v":1,"hlc":"1794404974241.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"6d8a75a0-0f6f-41d0-b5c7-ecdb134b7cc4"}}
 {"v":1,"hlc":"1794404986225.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5f42edb8-6398-4eb7-b016-9a43952011ed"}}
+{"v":1,"hlc":"1794404988197.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
