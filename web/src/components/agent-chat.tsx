@@ -30,6 +30,7 @@ import { collectImages, openLightbox } from "@/lib/lightbox";
 import { setStatus } from "@/lib/status";
 import { ChatMessageList, type ChatMessageListHandle } from "@/components/ui/chat/chat-message-list";
 import { BottomSheet } from "@/components/ui/sheet";
+import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { AppHeader } from "@/components/app-header";
 import { NotificationBell } from "@/components/notification-bell";
 import { AnsiOutput } from "@/components/ansi-output";
@@ -55,7 +56,7 @@ import { ResumeOffer } from "@/components/auto-handoff";
 import { HeldControl } from "@/components/held";
 import { ReadingView } from "@/components/reading-view";
 import { LastTurnButtons } from "@/components/last-turn-buttons";
-import { isHcAgent, isOrchestrator, projectOf } from "@/lib/agent-groups";
+import { HC_SPACE, isHcAgent, isOrchestrator, projectOf } from "@/lib/agent-groups";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
@@ -64,7 +65,7 @@ import { submitMultiSelectIntent, type MultiSelectIntent } from "@/lib/multi-sel
 import type { PreviewBlockAction } from "@/components/preview-select-block";
 import { canGrowRequestedLines, growRequestedLines, HISTORY_PAGE_SIZE } from "@/lib/loaders";
 import { shortCwd } from "@/lib/format";
-import { historyPath, homePath, paneArtifactsPath, spacePath, zoomPath } from "@/lib/nav";
+import { historyPath, homePath, paneArtifactsPath, panePath, spacePath, zoomPath } from "@/lib/nav";
 import { isReadOnly } from "@/lib/types";
 import type { AgentView, BridgeStatus, DeviceAuth, TabView } from "@/lib/types";
 import type {
@@ -1349,6 +1350,19 @@ export function AgentChat({
               onClick={() => {
                 closeDrawer();
                 navigate(paneArtifactsPath(paneId, session));
+              }}
+            />
+          )}
+          {/* Mounted with the sheet only: it asks the bridge. On success the agent lives in another pane — follow it. */}
+          {agent && drawer === "more" && (
+            <MigrateHcButton
+              paneId={agent.paneId}
+              watch={agent.status}
+              onDone={(message, ok, to) => {
+                closeDrawer();
+                setStatus(message, ok ? "success" : "error");
+                if (to) navigate(panePath(to, session), { replace: true, state: { freshPane: { ...agent, paneId: to, workspaceId: HC_SPACE, workspaceLabel: HC_SPACE, tabId: HC_SPACE } } });
+                else void revalidator.revalidate();
               }}
             />
           )}

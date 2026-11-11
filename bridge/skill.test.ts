@@ -60,6 +60,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/notifications/log/read-all": "the bell",
   "/api/notifications/prefs": "notification settings",
   "/api/notifications/snooze": "notification settings",
+  "/api/panes/migrate-hc": "the pane page's « Migrer vers herdr-core » — it closes a terminal; refused to an agent pane",
   "/api/project/open": "the Project page's « Nouvel agent » / « Nouveau terminal » — refused to an agent pane",
   "/api/project/quick": "the desktop sidebar's quick access",
   "/api/repos/flow": "the operator's default flow per repo (settings)",

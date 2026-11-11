@@ -12,6 +12,7 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
 import { OrchestratorPanel } from "@/components/orchestrator-panel";
 import { ProjectOpen } from "@/components/project-open";
+import { MigrateAllHc } from "@/components/migrate-hc-button";
 import { DeliverableLinks, recentDeliverables } from "@/components/card-deliverables";
 import { PhaseTemplate } from "@/components/phase-template";
 import { templateFor, templateName } from "@/lib/templates";
@@ -486,6 +487,7 @@ export function ProjectRoute() {
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
           {repo && <ProjectOpen repo={repo} />}
+          {repo && <MigrateAllHc repo={repo} />}
           {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onStatus={setGoalStatus} />}
           {v.total === 0 && v.closedCount === 0 ? (
             <div className="flex flex-col items-center gap-4 px-2 py-16 text-center">

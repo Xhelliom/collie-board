@@ -97,7 +97,8 @@ import { notePrOutcome, openPrs } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { Mux } from "./mux/mux.ts";
-import { migrateBlock, migrateToHc } from "./migrate-hc.ts";
+import { migrateBlock, migrationIdentity, migrateToHc } from "./migrate-hc.ts";
+import { handleMigrateHcRoute } from "./migrate-hc-routes.ts";
 import type { StateEngine } from "./state-engine.ts";
 import type { OutboundPeer } from "./pairing.ts";
 import { diffOnPeer, endOnPeer, environmentChangeRefusal, environmentsForRepo, parseCardEnvironment, remoteSessionFor, remoteStateOf, startOnPeer, type RemoteDeps } from "./remote-launch.ts";
@@ -433,6 +434,8 @@ async function route(
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
   if (orchestrator) return orchestrator;
+  const migrated = await handleMigrateHcRoute(pathname, req, ctx);
+  if (migrated) return migrated;
   const goals = await handleGoalRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
   if (goals) return goals;
   const templates = await handleTemplateRoute(pathname, req, ctx);
@@ -1708,7 +1711,7 @@ async function route(
     const block = pre ?? ((await hc.ping()) ? null : "hc-down");
     if (req.method === "GET") return json({ available: block === null, ...(block ? { reason: block } : {}) });
     if (block) return ctx.json({ ok: false, error: `migration impossible: ${block}`, kind: block }, 409);
-    const result = await migrateToHc({ db, herdr: ctx.herdr, hc, sessionId: session!.id, pane: pane!, name: card.branch ?? card.title });
+    const result = await migrateToHc({ db, herdr: ctx.herdr, hc, sessionId: session!.id, pane: pane!, ...migrationIdentity(pane!, card) });
     ctx.audit.record({
       action: "card.migrate-hc",
       session: ctx.session,

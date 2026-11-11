@@ -11,6 +11,7 @@ import { basename } from "node:path";
 
 import { agentNameFor, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
+import { HC_SPACE } from "./mux/hc.ts";
 import { boardTab, type Mux } from "./mux/mux.ts";
 import { samePath } from "./paths.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
@@ -19,7 +20,7 @@ import type { EngineSnapshot } from "./state-engine.ts";
 export const ORCH_PREFIX = "orchestrator-";
 
 /** Its tab in herdr-app (hc): one per repo, in the board's space. */
-const orchestratorTab = (repoPath: string) => boardTab(`orch-${basename(repoPath)}`, repoPath, "orchestrateur");
+export const orchestratorTab = (repoPath: string) => boardTab(`orch-${basename(repoPath)}`, repoPath, "orchestrateur");
 export const orchestratorLabel = (repoPath: string): string => `${ORCH_PREFIX}${basename(repoPath)}`;
 
 /** Herdr agent names are globally unique: the basename alone would collide across two `app` repos. */
@@ -34,13 +35,16 @@ export function orchestratorName(repoPath: string): string {
  * bridge keeps it silent without having to be asked first. ponytail: a workspace the operator
  * happens to name `orchestrator-…` is silenced too — rename it if that ever bites.
  */
-export const isOrchestratorAgent = (agent: { workspaceLabel?: string }): boolean =>
-  agent.workspaceLabel?.startsWith(ORCH_PREFIX) ?? false;
+export const isOrchestratorAgent = (agent: SpaceLabelled): boolean => spaceLabel(agent)?.startsWith(ORCH_PREFIX) ?? false;
+
+type SpaceLabelled = { workspaceId?: string; workspaceLabel?: string; paneLabel?: string };
+/** hc has no workspace: the label the bridge gave the orchestrator's space is its pane's (mux/hc.ts). */
+const spaceLabel = (a: SpaceLabelled): string | undefined => (a.workspaceId === HC_SPACE ? a.paneLabel : a.workspaceLabel);
 
 /** The repo's live orchestrator agent, or null. Same label AND same directory: an operator's own session in the repo is never taken for it. */
 export function findOrchestrator(snap: EngineSnapshot, repoPath: string, ignore?: string): string | null {
   const label = orchestratorLabel(repoPath);
-  return snap.agents.find((a) => a.workspaceLabel === label && samePath(a.cwd, repoPath) && a.paneId !== ignore)?.paneId ?? null;
+  return snap.agents.find((a) => spaceLabel(a) === label && samePath(a.cwd, repoPath) && a.paneId !== ignore)?.paneId ?? null;
 }
 
 /** The note's ceiling when it is read back into a start prompt (the db keeps the same bound). */
@@ -178,7 +182,7 @@ async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps,
   if (live) return { paneId: live, started: false };
 
   const label = orchestratorLabel(repoPath);
-  const shell = shellPane ?? snap.shellPanes.find((p) => p.workspaceLabel === label && samePath(p.cwd, repoPath))?.paneId;
+  const shell = shellPane ?? snap.shellPanes.find((p) => spaceLabel(p) === label && samePath(p.cwd, repoPath))?.paneId;
   const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label, show: orchestratorTab(repoPath) })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
   await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);

@@ -946,18 +946,18 @@ export function fetchLaunchEngine(): Promise<{ engine: "herdr09" | "hc"; fallbac
   return apiRequest("/api/board/launch-engine", {}, GET_TIMEOUT_MS);
 }
 
-/** Whether « Migrer vers herdr-core » is offered for this card's agent, and why not (bridge/migrate-hc.ts). */
-export function migrateHcAvailability(id: string, signal?: AbortSignal): Promise<{ available: boolean; reason?: string }> {
-  return apiRequest(`/api/cards/${encodeURIComponent(id)}/migrate-hc`, { signal }, GET_TIMEOUT_MS);
+/** Whether « Migrer vers herdr-core » is offered for this pane, and why not (bridge/migrate-hc-routes.ts). */
+export function migrateHcAvailability(paneId: string, signal?: AbortSignal): Promise<{ available: boolean; reason?: string }> {
+  return apiRequest(`/api/panes/migrate-hc?pane=${encodeURIComponent(paneId)}`, { signal }, GET_TIMEOUT_MS);
 }
 
 /**
- * Close the card's Claude pane under herdr 0.9 and resume its conversation under hc. Two agent
- * launches in the worst case (hc, then 0.9 again), hence the long timeout. Rejects with the bridge's
- * message when hc refused — the agent is then back under 0.9.
+ * Close a Claude pane under herdr 0.9 and resume its conversation under hc. Two agent launches in the
+ * worst case (hc, then 0.9 again), hence the long timeout. Rejects with the bridge's message when it
+ * refused (the reason, in the operator's words) or when hc did — the agent is then back under 0.9.
  */
-export function migrateCardToHc(id: string): Promise<{ ok: true; paneId: string }> {
-  return apiRequest(`/api/cards/${encodeURIComponent(id)}/migrate-hc`, { method: "POST" }, INTEGRATION_TIMEOUT_MS);
+export function migratePaneToHc(paneId: string): Promise<{ ok: true; paneId: string }> {
+  return apiRequest(`/api/panes/migrate-hc?pane=${encodeURIComponent(paneId)}`, { method: "POST" }, INTEGRATION_TIMEOUT_MS);
 }
 
 /**

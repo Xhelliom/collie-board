@@ -8,6 +8,7 @@ import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
 import { Button } from "@/components/ui/button";
+import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
@@ -251,6 +252,15 @@ export function OrchestratorPanel({
                   >
                     {t("orch.restart")}
                   </button>
+                  {/* Still under herdr 0.9: the same conversation, resumed under hc — it stays this repo's orchestrator. */}
+                  <MigrateHcButton
+                    paneId={state.paneId}
+                    onDone={(message, ok) => {
+                      setMenuOpen(false);
+                      setStatus(message, ok ? "success" : "error");
+                      void revalidator.revalidate();
+                    }}
+                  />
                   <details className="border-t border-border/60 px-2.5 pt-1.5">
                     <summary className="flex min-h-11 cursor-pointer select-none items-center text-xs font-semibold text-muted-foreground">
                       {memory ? t("orch.memoryNoted", { ago: ago(memory.updatedAt) }) : t("orch.memory")}
