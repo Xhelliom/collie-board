@@ -43,156 +43,148 @@
 - **divers 07/11/2026** — validated 2026-11-07, 27 steps
 - **Nœud Windows fiable** — validated 2026-11-09, 11 steps
 - **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
+- **Autonomie par objectif** — validated 2026-11-10, 9 steps
+- **Le projet au-delà du code** — validated 2026-11-10, 6 steps
+- **Pilotage robuste** — validated 2026-11-10, 8 steps
+- **Objectif co-écrit, arrêts clairs** — validated 2026-11-10, 2 steps
+- **Merge sûr, phases lisibles** — validated 2026-11-10, 2 steps
+- **Parler aux agents sans accroc** — validated 2026-11-10, 3 steps
 
-## Phase 38 — Autonomie par objectif
+## Phase 44 — Désengagement de l'upstream
 
-Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.
+collie-board est un fork indépendant : plus de règles, de doc ni d'outillage tenus pour une synchro ou des PR vers AltanS/collie.
 
-### Lot — Enchaînement fiable (launched, 3 at a time)
+### Lot — Désengagement de l'upstream (launched, 2 at a time)
 
-- **L'orchestrateur reprend un lot arrêté pour une raison mécanique** — done
+- **Fin de carte : le pane hc d'une carte mergée reste ouvert, et 8 vieux worktrees traînent** — done
 
-  Décidé par l'opérateur le 09/11. Aujourd'hui POST /api/runs/:id/resume refuse tout pane (bridge/project-routes.ts:251 « resuming is the operator's gesture »).
+  Constat opérateur (10/11, capture de la barre latérale) : dans l'espace « hc », les panes des cartes mergées restent vivants (Lead : arrêter le lot…, Objectif…, Phase toute terminée…, Carte mergée…, Worker « En main »…, Chat : la vignette…, Mode lecture…) alors que les cartes sont done. Le worktree de « Chat : la vignette » est déjà supprimé (git worktree list le dit prunable) mais son pane est toujours là.
   
-  Faire : sous autonomie activée, accepter la reprise depuis le pane orchestrateur quand la raison du halt est mécanique : PR pas à jour, pre-push rouge, lead muet, travail non commité, démarrage raté. Classer les raisons dans une fonction pure. Borne : N reprises par lot (ex. 3), ensuite geste opérateur. Les halts de décision (tours du lead épuisés, lead fini sans commit, verdicts) restent à l'opérateur. Lot d'un autre poste : toujours refusé. Écrire l'ADR qui amende la règle et mettre à jour skills/collie-board/SKILL.md.
-
-  - [x] Depuis le pane orchestrateur, un lot halté « PR pas à jour » se reprend
-  - [x] Un halt « tours épuisés » reste refusé (403)
-  - [x] Au-delà de la borne : 403
-  - [x] Autonomie éteinte : 403 comme aujourd'hui
-  - [x] ADR + SKILL.md + test bun de la classification
-- **Chaque arrêt d'enchaînement est tracé dans le journal** — done
-
-  endOfLot() (bridge/autonomy.ts) et idleStart() décident si le lot suivant part ; leur raison (« why ») n'est écrite nulle part sauf dans le message à l'orchestrateur, donc on ne peut pas mesurer pourquoi l'enchaînement s'arrête.
+  Piste : bridge/integrate.ts:819 appelle herdr.closePane(session.paneId) et avale toute erreur (« Already gone is the outcome we wanted »). Sous le moteur hc, le paneId est un pane hc : vérifier que la fermeture passe par le bon moteur (voir migrate-hc.ts qui ferme hc.closePane), et ne plus avaler une erreur qui n'est pas « pane inconnu » — l'enregistrer sur la carte (card.cleanup_failed).
   
-  Faire : un événement run.chain {go, why, next} à chaque fin de lot (et à chaque refus de lancement par l'orchestrateur : autre poste, lot ouvert, borne, rouge). Lisible dans le journal du lot.
+  Ménage : ~/.herdr/worktrees/collie-board garde 8 worktrees de vieilles cartes (explorer-orchestrateur-cartes, i18n-passer-settings…, pairs-un-reglage…, pendant-un-lot-lance…, reading-view-non-claude-agents, reperer-les-autres-cartes…, resorber-le-doublon…, un-304-ne-reconstruit…), tous propres (aucun changement non commité) ; + 4 dossiers sans worktree git. Ajouter un balayage au démarrage (pas de nouveau timer) qui retire le worktree d'une carte done/archived quand il est propre, et le signale sinon ; et `git worktree prune`. Fragment changes/ (patch) ; test bun du choix (propre/sale, carte done/non done).
 
-  - [x] Fin de lot : un run.chain avec go ou la raison d'arrêt
-  - [x] Un refus de lancement depuis le pane orchestrateur laisse un run.chain avec la raison
-  - [x] Test bun
-- **Le résumé de fin de carte expire à l'heure** — done
+  - [x] Merger une carte sous le moteur hc ferme son pane (test sur le choix du moteur)
+  - [x] Une fermeture qui échoue autrement que « pane inconnu » est inscrite sur la carte
+  - [x] Au démarrage, les worktrees propres des cartes terminées sont retirés, les sales signalés (test bun)
+  - [x] manualChecks : merger une carte, voir son pane disparaître de l'espace hc ; redémarrer Collie, les vieux worktrees ont disparu
+- **Upstream : retirer `### Upstream` des fragments, du script de release et de la CI** — done
+  - after: Upstream : UPSTREAM.md réduit à l'historique, registre des briques archivé
 
-  bridge/wrapup.ts a WRAPUP_DEADLINE_MS = 30 min, mais le journal montre wrapup.requested → wrapup.expired après 10 à 35 h : l'expiration ne semble évaluée que quand quelque chose bouge. Vérifier la cause, faire expirer à l'échéance (sans nouvelle boucle : réutiliser un tick existant) et raccourcir le délai à quelques minutes.
+  Suite de l'ADR « fork indépendant ». scripts/release.ts : retirer la section `### Upstream` (UPSTREAM constant, parseUpstream, repli dans la table UPSTREAM.md) ; un ancien fragment qui en contient encore ne doit pas casser la release (ignorer la section, ou la refuser avec un message clair — choisir et l'écrire). changes/README.md, scripts/check-*.sh, hooks et workflows : plus aucune mention. Tests bun du script mis à jour. Fragment changes/ (patch).
 
-  - [x] Un résumé jamais rendu expire quelques minutes après la demande, même si le troupeau est calme
-  - [x] Le nettoyage de la carte suit
-  - [x] Test bun de l'échéance
-- **Merge refusé « branche pas à jour » : le board remet la PR à jour et réessaie** — done
+  - [x] La release ne lit ni n'écrit plus de section Upstream ; tests bun verts
+  - [x] changes/README.md et les scripts n'en parlent plus
+  - [x] Un fragment avec une ancienne section Upstream ne casse pas la release (test)
+- **Upstream : UPSTREAM.md réduit à l'historique, registre des briques archivé** — done
+  - after: Upstream : ADR « fork indépendant » et CLAUDE.md allégé
 
-  27 halts « PR not merged: … the head branch is not up to date with the base branch » (surtout CrewDesign), et des PR qui attendent leur merge 6 à 21 h sans halt (run.merge puis automerge_refused, plus rien).
+  Suite de l'ADR « fork indépendant ». UPSTREAM.md (183 lignes) : le réduire à une page courte — d'où vient le fork, à quel commit d'AltanS/collie il a divergé, et qu'il n'est plus synchronisé. UPSTREAM_PRS.md et docs/upstream/prs/ (45 fiches) : archiver (déplacer sous docs/archive/ avec une ligne d'explication) ou supprimer si rien n'y renvoie ; corriger tous les liens qui y pointent (README, ARCHITECTURE, ADR, docs). Retirer le remote `upstream` des instructions s'il y en a. Doc seule : pas de fragment.
+
+  - [x] UPSTREAM.md tient en une page : origine, point de divergence, plus de synchro
+  - [x] Registre des briques archivé ou supprimé, aucun lien cassé (vérifier par grep)
+  - [x] La page Documents ne signale plus UPSTREAM.md comme trop gros
+- **Upstream : ADR « fork indépendant » et CLAUDE.md allégé** — done
+
+  Décision opérateur (10/11) : on ne propose plus de briques à AltanS/collie, et on ne rebase plus. Écrire l'ADR qui le dit (elle remplace les ADR/règles qui organisaient la synchro ; marquer celles-ci superseded, ne pas les réécrire). CLAUDE.md : retirer ou réécrire les règles qui n'existaient que pour la synchro — « Keep the upstream surface narrow » (table UPSTREAM.md, `### Upstream` dans les fragments), « A change that would help upstream goes in the ledger » (UPSTREAM_PRS.md) — et l'en-tête qui présente le dépôt comme fork d'upstream. Garder tout ce qui reste vrai (sécurité, build, versioning, règles du board). Doc seule : pas de fragment.
+
+  - [x] Nouvelle ADR « fork indépendant », les ADR remplacées marquées superseded
+  - [x] CLAUDE.md ne demande plus ni table UPSTREAM.md, ni ### Upstream, ni registre UPSTREAM_PRS
+  - [x] Les autres règles de CLAUDE.md inchangées
+
+## Phase 45 — Fiabilité git et hc
+
+Les tests ne touchent jamais le vrai dépôt ; tout envoi vers un pane marche sous hc.
+
+### Lot — Fiabilité git et hc (launched, 2 at a time)
+
+- **hc : écrire dans un pane depuis l'accueil échoue (« sendPaneText is not supported »)** — done
+
+  Constat opérateur (10/11) : en écrivant dans un pane depuis l'accueil, toast rouge « hc: sendPaneText is not supported ».
   
-  Faire : quand le merge est refusé pour une base en avance, mettre la branche à jour (gh pr update-branch, par bridge/git.ts — seul shell-out) puis réessayer une fois la CI verte. Halt seulement en cas de conflit réel. Le board ne laisse plus une PR en attente sans halt ni réveil de l'orchestrateur.
-
-  - [x] Une PR en retard sur la base est mise à jour et mergée sans geste
-  - [x] Un vrai conflit halte toujours avec sa raison
-  - [x] Aucune PR de lot n'attend en silence : soit elle avance, soit halt/réveil
-  - [x] Test de la classification des refus de merge
-- **Un agent de carte bloqué ou muet réveille l'orchestrateur** — done
-
-  Aujourd'hui seul le lead est surveillé (bridge/lead.ts : « the lead is not answering »). Un agent de carte d'un lot qui se bloque (question, permission, modal, quota) ou meurt laisse la carte « en cours » sans aucun événement : le journal montre des attentes de 6 à 32 h que seul un message de l'opérateur débloque.
+  Cause lue : bridge/mux/hc.ts:403 — sendPaneText() lève MuxUnsupported (« hc only pastes WITH Enter (terminal.send) »). bridge/server.ts sendReplySteps() n'essaie sendPaneLine (le paste+Enter de hc) que si `submit && line` ; tout autre envoi (texte sans Entrée : brouillon, saisie dans le miroir du terminal, réponse dont le client n'a pas passé `line`, envoi depuis l'accueil) tombe sur sendPaneText → erreur.
   
-  Faire : quand une carte d'un lot lancé est « working » et que son pane est blocked, ou idle/absent sans progrès depuis N minutes (constante, ~10 min), réveiller l'orchestrateur du dépôt (voie orchestrator-nudge.ts) avec le titre de la carte, l'état du pane et ses dernières lignes, pour qu'il débloque ou relance. Pas de notification à l'opérateur (ADR 0011 : le pane signale déjà blocked). Une seule fois par épisode : réarmé quand la carte bouge. Accroché à engine.onUpdate, pas de nouvelle boucle ; ignorer un snapshot disconnected.
+  À faire :
+  - Trouver quel chemin de l'accueil (et des autres écrans) envoie du texte sans `line` ou sans submit, et le faire passer par sendPaneLine quand il soumet.
+  - Pour le texte SANS Entrée sous hc : le taper par terminal.keys (caractères littéraux, si hc l'accepte — vérifier sur le moteur réel et le noter dans HERDR_CORE_API.md), sinon refuser proprement en amont : le bouton/la saisie concernés ne s'offrent pas sous hc, avec un message clair, jamais un toast technique.
+  - Test bun de sendReplySteps sous un faux client hc pour chaque cas (submit avec/sans line, sans submit) ; fragment changes/ (patch).
 
-  - [x] Une carte de lot dont l'agent attend une permission depuis N min réveille l'orchestrateur avec la fin de l'écran
-  - [x] Pas de second réveil tant que la carte n'a pas bougé
-  - [x] Aucune notification opérateur ajoutée
-  - [x] Test bun de la règle pure (seuil, réarmement)
+  - [x] Depuis l'accueil, écrire à un pane sous hc et envoyer : le texte arrive et est soumis, sans erreur
+  - [x] Un envoi sans Entrée sous hc est tapé, ou n'est pas proposé avec un message clair — jamais « sendPaneText is not supported »
+  - [x] Tests bun des cas de sendReplySteps sous hc ; fragment changes/
+  - [x] manualChecks : accueil, ouvrir un pane du moteur hc, écrire et envoyer
+- **Pre-push : les tests héritent de GIT_DIR et écrivent dans le vrai dépôt (commit « init », main déplacé)** — done
 
-### Lot — Mode objectif (launched, 2 at a time)
-
-- **Pendant un objectif : points d'étape au lieu d'un bilan par lot** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Incident 10/11 (lot « Désengagement de l'upstream ») : sous le hook pre-push d'un worktree de carte, git exporte GIT_DIR / GIT_INDEX_FILE / GIT_WORK_TREE… vers ce worktree. Un test qui lance git dans un dépôt temporaire sans gitFreeEnv écrit alors dans le VRAI dépôt (le dossier git est partagé entre worktrees) :
+  - un commit « init » (auteur t <t@t>) qui effaçait tout, sur la branche de la carte (bridge/worktree-sweep.test.ts, corrigé dans #350) ;
+  - très probablement aussi refs/heads/main du checkout principal déplacé par update-ref à 22:31 et 22:40 (reflog sans message) sans que ses fichiers suivent : le checkout principal s'est retrouvé avec 67 fichiers « modifiés » (en fait l'arbre de 1bf04c4c9) et un `git merge --ff-only` refusé.
   
-  En mode objectif, l'opérateur n'est plus sollicité à chaque fin de lot : le bilan de lot va au journal de l'objectif, et l'opérateur reçoit un point d'étape regroupé (lots mergés, ce qui bloque, budget consommé, recette ajoutée) seulement aux moments utiles : décision demandée, budget à 50 % et atteint, objectif déclaré. Une page/onglet Objectif montre la progression.
+  À faire (une seule défense, à la source) : scripts/git-hooks/pre-push (et pre-commit s'il lance des tests) retire toutes les variables GIT_* de l'environnement (sauf ce que le hook lit lui-même) AVANT de lancer bun test / vitest. Ajouter un test bun qui lance le hook dans un faux dépôt avec GIT_DIR exporté et vérifie qu'aucune ref du dépôt parent ne bouge. Vérifier aussi que bridge/git.ts ne déplace jamais refs/heads/<base> par update-ref quand la base est checkée-out quelque part (worktreePathFor) — sinon l'écrire. Fragment changes/ (patch).
 
-  - [x] Pas de notification par fin de lot en mode objectif
-  - [x] Point d'étape aux seuils et décisions
-  - [x] La page Objectif montre critères, progression, budget
-- **Déclarer l'objectif atteint, l'opérateur valide ou relance** — done
-  - after: Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but
+  - [x] Le pre-push lance les tests sans aucune variable GIT_* héritée (test bun)
+  - [x] Un test qui oublie gitFreeEnv ne peut plus écrire dans le dépôt réel pendant un push
+  - [x] Fragment changes/
 
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+### Lot — herdr-app voit les agents (launched, one at a time)
+
+- **herdr-app : ranger les agents du board dans une space « Collie Board », à l'écart des autres** — done
+
+  Constat opérateur (10/11) : herdr-app ouvert sur le même herdr-core que le bridge n'affiche AUCUN des agents lancés par Collie, alors que `hc ls` les montre (t2h, t2j, t2n… sans `where`).
   
-  L'orchestrateur déclare l'objectif atteint avec une preuve par critère (POST …/claim) : statut claimed, une notification à l'opérateur, qui se retire à sa réponse (ADR 0011). L'opérateur valide (achieved : clôt les phases de l'objectif) ou refuse avec un commentaire (retour en active, le commentaire est remis à l'orchestrateur au réveil suivant).
-
-  - [x] La déclaration montre chaque critère avec sa preuve
-  - [x] Valider clôt l'objectif et ses phases
-  - [x] Refuser relance la boucle avec le commentaire
-  - [x] Un pane agent ne peut pas valider
-- **Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Cause (doc ~/.config/herdr-app/AGENTS.md §« Every terminal is a core terminal ») : herdr-app n'affiche que les terminaux portant les labels `herdr.space=<id>` et `herdr.tab=<id>` ; « Terminals without the labels (another app's) stay out ». Le bridge lance par terminal.run avec ses propres labels seulement (bridge/mux/hc.ts shell()). « An id Herdr doesn't know becomes a new space or tab » ; l'adoption active aussi `keep` du core.
   
-  Sous un objectif actif, l'orchestrateur peut créer cartes, lots et phases rattachés à l'objectif et lancer ses propres lots sans geste opérateur (un lot à la fois). À la fin d'un lot, quand rien n'est planifié, endOfLot() ne s'arrête plus : le board réveille l'orchestrateur avec « objectif pas atteint : relis les critères, planifie et lance la suite ». Une décision qui attend l'opérateur ne bloque que sa branche : le réveil le rappelle à l'orchestrateur. Bornes : budget (lots, quota, échéance), stopOnRed après la borne de reprises du lot 1 ; une borne atteinte met l'objectif en pause et prévient l'opérateur une fois. Pas de nouvelle boucle : tout part du réveil de fin de lot (ADR 0028).
+  À faire :
+  - Au lancement sous hc, ajouter `herdr.space=<id stable du dépôt>` (une space par dépôt, nommée comme le dépôt si l'API le permet) et `herdr.tab=<id stable de la carte>` ; l'orchestrateur et le lead dans la space du dépôt.
+  - Mesurer sur le moteur réel (herdr-app 0.1.13+) : le terminal apparaît dans la bonne space/tab, le nom affiché, l'effet de `keep` (un programme perdu remplacé par un shell : vérifier que reconcile/fin de carte s'en accommodent ; sinon `terminal.park` / pas de keep) ; consigner dans HERDR_CORE_API.md.
+  - Fermer la carte (closePane) retire bien le pane de herdr-app.
+  - Option : un geste pour « montrer dans herdr-app » les terminaux déjà lancés sans labels (hc label <t> …), ou au moins pour les cartes en cours au démarrage.
+  - Test bun des labels posés ; fragment changes/ (patch).
   
-  Tranché le 09/11 par l'opérateur : objectif déclaré (claimed) = arrêt net. Plus aucun lot créé ni lancé, plus de réveil de fin de lot, budget gelé, jusqu'à la réponse de l'opérateur, même après 24 h d'absence. Seul un refus avec commentaire relance la boucle. Pendant un objectif, les phases découpées par l'orchestrateur ne se valident pas une à une (sinon chaque phase attendrait l'opérateur) : la validation de l'objectif les clôt.
+  Décision opérateur (10/11) : les agents du board vivent À L'ÉCART des agents lancés à la main, dans UNE space herdr-app nommée « Collie Board » (tous dépôts confondus) : un onglet par carte, titré « <dépôt> · <titre court de la carte> » ; l'orchestrateur et le lead de chaque dépôt y ont aussi leur onglet. Ne jamais poser ces labels sur un terminal que l'opérateur a lancé lui-même. Le panneau Collie (herdr-app-mod/) reste le point d'entrée : son bouton d'ouverture (agent.focus) doit marcher sur ces terminaux maintenant rangés — le vérifier et le corriger si besoin.
 
-  - [x] Objectif actif, plus rien de planifié : l orchestrateur est réveillé pour planifier, et peut lancer le lot qu il a créé
-  - [x] Objectif déclaré : aucun lot lancé, aucun réveil, tant que l opérateur n a pas répondu
-  - [x] Les cartes et lots créés sont rattachés à l objectif
-  - [x] Budget atteint : pause + une notification
-  - [x] Sans objectif : comportement d aujourd hui inchangé
-  - [x] Tests bun du verdict de fin de lot
-- **Un objectif par projet : critères, budget, statut** — done
+  - [x] Une carte lancée sous hc apparaît dans herdr-app, dans la space « Collie Board », un onglet « <dépôt> · <carte> »
+  - [x] L'orchestrateur et le lead du dépôt apparaissent dans la space « Collie Board »
+  - [x] Merger la carte retire son pane de herdr-app
+  - [x] Mesures (nom, keep) consignées dans HERDR_CORE_API.md ; test bun ; fragment changes/
+  - [x] manualChecks : herdr-app ouvert, lancer une carte depuis le téléphone, la voir apparaître
+  - [x] Depuis le panneau Collie de herdr-app, ouvrir l'agent d'une carte l'amène au premier plan
 
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+## Phase 46 — Vivre sans herdr 0.9
+
+Tout ce qu'on faisait via herdr 0.9 se fait sous herdr-core seul : prérequis de V2-5.
+
+### Lot — Agent libre sous hc (launched, one at a time)
+
+- **Sans herdr 0.9 : ouvrir un agent ou un terminal libre depuis la page Projet** — done
+
+  Constat opérateur (11/11) : PC démarré avec herdr-app seulement (herdr-core), sans le serveur herdr 0.9. L'onglet Spaces a disparu (voulu : app-nav.tsx « Spaces are herdr 0.9's », ADR 0052 phase 4) et il n'existe AUCUN autre endroit pour ouvrir un nouveau terminal ou un agent hors carte : sans herdr 0.9, impossible de lancer un pane ou un agent libre depuis Collie. Bloquant pour V2-5 (sortie de herdr 0.9).
   
-  Faire l'objet Objectif (goal) : texte, critères de réussite (liste), budget {maxLots, quotaPct, deadline?}, statut active / paused / claimed / achieved / abandoned. Routes /api/goals (création, édition, pause, abandon = gestes de l'opérateur ; un pane agent ne crée ni ne valide). Un seul objectif actif par dépôt. UI dans la page projet : définir l'objectif, voir critères, budget consommé et lots/cartes rattachés. Écrire l'ADR du mode objectif (amende 0030/0047). Documenter dans skills/collie-board/SKILL.md.
+  À faire (dans l'esprit d'ADR 0052 : le projet au centre, pas de retour des espaces herdr) :
+  - Sur la page Projet (et la tuile projet de l'accueil), un geste « Nouvel agent » (choix du type d'agent comme aujourd'hui, template éventuel) et « Nouveau terminal », dans le dossier du dépôt, lancés sur le moteur courant via launchAgent() (jamais agent.start direct) : sous hc, terminal.run avec les labels herdr.space/herdr.tab du dépôt pour qu'il apparaisse aussi dans herdr-app (comme #355) — space « Collie Board » ou celle du dépôt, à aligner sur #355.
+  - Le pane ouvert est listé dans Troupeau et ouvrable comme les autres ; fermable depuis l'appli.
+  - Sous herdr 0.9, le même geste marche (createWorkspace/createTab existants).
+  - Test vitest du bouton + test bun de la route ; SKILL.md si route nouvelle ; fragment changes/ (minor).
 
-  - [x] L'opérateur crée un objectif avec critères et budget depuis la page projet
-  - [x] Un pane agent reçoit 403 sur création et validation
-  - [x] Un seul objectif actif par dépôt
-  - [x] ADR + SKILL.md + tests bun
+  - [x] Sans serveur herdr 0.9, la page Projet permet d'ouvrir un nouvel agent et un nouveau terminal dans le dossier du dépôt
+  - [x] L'agent ouvert apparaît dans Troupeau et dans herdr-app
+  - [x] Le même geste marche sous herdr 0.9
+  - [x] Tests ; fragment changes/
+  - [x] manualChecks : arrêter herdr 0.9, ouvrir herdr-app seul, page Projet → Nouvel agent → l'agent démarre et répond
 
-## Phase 39 — Le projet au-delà du code
+### Lot — Tout migrer sous hc (launched, one at a time)
 
-Collie gère aussi le business d'un projet : pages sur mesure, cartes non-code, décisions produit.
+- **Migrer vers herdr-core aussi l'orchestrateur et les agents hors carte** — done
 
-### Lot — Pages du projet (launched, 2 at a time)
+  Question opérateur (11/11) : comment migrer un agent sous hc ? Aujourd'hui le bouton « Migrer vers herdr-core » (web/src/components/migrate-hc-button.tsx, bridge/migrate-hc.ts) n'existe que sur la page d'une CARTE. Les orchestrateurs, le lead et les agents ouverts à la main (onglet Spaces) restent coincés sous herdr 0.9 : la seule voie est de fermer et relancer à la main (claude --resume <id> dans un terminal hc avec les bons labels).
+  
+  À faire :
+  - Offrir le même bouton (mêmes conditions migrateBlock : Claude, session id connue, au repos, hc qui répond) sur la page d'un pane (/pane/:id) pour tout agent Claude sous herdr 0.9, et dans le bloc Orchestrateur de la page Projet.
+  - Un orchestrateur migré reste reconnu comme l'orchestrateur du dépôt (findOrchestrator) ; un pane libre migré garde son label/nom ; tous reçoivent les labels herdr.space/herdr.tab (#355) pour apparaître dans herdr-app.
+  - Option : « Tout migrer » sur la page Projet (les agents Claude au repos de ce dépôt, un par un, avec le bilan des refusés et pourquoi).
+  - Tests bun (orchestrateur reconnu après migration) + vitest du bouton ; fragment changes/ (minor).
 
-- **La page roadmap est générée par le board** — done
-
-  docs/pages/roadmap.html est aujourd'hui produite par un script de l'orchestrateur (hors dépôt). Faire : le board rend une vue roadmap jolie et dynamique (étapes, statut, phases, décisions) depuis /api/roadmap, toujours à jour, sans fichier à régénérer. Peut remplacer la page statique.
-
-  - [x] La vue reflète un changement de roadmap sans régénération
-  - [x] Lisible au téléphone, thème clair et sombre
-- **Une carte « page » produit une page docs/pages à partir d'une brève** — done
-
-  Les pages custom existent (docs/pages/<nom>.html, inertes, ADR 0053). Faire : depuis Documents, « Nouvelle page » demande un nom et une brève (plan marketing, direction artistique, offre…) et crée une carte dont le livrable est docs/pages/<nom>.html ; la spec de la carte rappelle le contrat (pas de script, CSS inline, iframe sandbox). L'agent construit la page, la PR la livre, elle apparaît dans l'explorateur.
-
-  - [x] « Nouvelle page » dans Documents crée la carte avec le contrat dans sa spec
-  - [x] La page livrée s'ouvre en plein écran dans Documents
-  - [x] FR et EN
-
-### Lot — Cartes non-code (planned, 2 at a time)
-
-- **Filtre code / business sur le board** — backlog
-
-  Un filtre sur le board et la recette pour ne voir que les cartes code ou business.
-
-  - [ ] Le filtre sépare les deux sortes et se retient par appareil
-- **Une carte « business » : livrable document, sans CI ni gate** — backlog
-
-  Une sorte de carte pour le travail non-code (rédaction, marketing, offre) : pas de gate, pas de CI requise, son livrable est un document ou une page ; sa recette est une relecture (« à relire ») plutôt qu'un test.
-
-  - [ ] Une carte business se termine sans gate ni CI
-  - [ ] Sa recette apparaît comme « à relire»
-  - [ ] Le lead ne la renvoie pas faute de code
-
-### Lot — Décisions produit (planned, 2 at a time)
-
-- **Les décisions visibles comme une page dans Documents** — backlog
-
-  Une entrée « Décisions » dans l'explorateur de Documents liste les décisions avec statut (ouverte, tranchée) et catégorie, filtrables.
-
-  - [ ] Documents montre les décisions avec statut et catégorie
-  - [ ] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
-- **Décisions classées produit / technique** — backlog
-
-  Les décisions de la roadmap (POST /api/roadmap/decision) prennent une catégorie produit/business ou technique, posée par l'orchestrateur ou l'opérateur.
-
-  - [ ] Une décision porte sa catégorie
-  - [ ] Les anciennes restent valides (technique par défaut ou sans catégorie)
+  - [x] Le bouton « Migrer vers herdr-core » est offert sur la page d'un pane Claude sous herdr 0.9 et dans le bloc Orchestrateur
+  - [x] Un orchestrateur migré reste l'orchestrateur du dépôt et garde sa conversation (test bun)
+  - [x] L'agent migré apparaît dans herdr-app
+  - [x] Tests ; fragment changes/
+  - [x] manualChecks : orchestrateur au repos sous 0.9 → Migrer → il répond sous hc, même conversation, toujours « Orchestrateur »
