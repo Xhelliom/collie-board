@@ -33,6 +33,7 @@ const NEUTRAL = [
   "claude--draft-footer-empty.txt",
   "claude--draft-footer-single.txt",
   "claude--draft-footer-wrapped.txt",
+  "claude--draft-overgate.txt",
 ];
 
 const allClaudeFixtures = readdirSync(PANES_DIR)

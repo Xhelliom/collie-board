@@ -78,6 +78,7 @@ non-blank run below the statusline), never by content.
 | `claude--draft-footer-empty.txt` | Empty `❯` box with the footer below it — box + statusline + hint + footer all strip; `extractInputDraft` → `null` (no chip) |
 | `claude--draft-footer-single.txt` | A single-line stranded draft on the `❯` line, footer below — draft recovered, box + footer stripped |
 | `claude--draft-footer-wrapped.txt` | A wrapped multi-line draft, footer below — continuations folded back into one line, whole box + footer stripped |
+| `claude--draft-overgate.txt` | No statusline: a BLANK row between the bottom border and the `⏵⏵ auto mode on · 1 shell · ← 3 agents` hint, then blank + footer with 3 agents. **Derived** from `claude--draft-footer-single.txt` (the observed screen came from a real pane). Regression: that first blank hid the box, so every send stalled |
 
 ## Wizard corpus (captured 2026-07-05, sandbox pane; choreography in `../../lib/grammar/WIZARD_NOTES.md`)
 

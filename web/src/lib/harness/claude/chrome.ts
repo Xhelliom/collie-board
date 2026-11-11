@@ -22,6 +22,9 @@ import { isBlank, isBoxBorder, lineText } from "./markers";
 // dialog's own footer hint, matched separately).
 const MAX_STATUS_LINES = 8;
 
+// Blank rows tolerated between the bottom border and the first status/hint row (see step b').
+const MAX_STATUS_GAP = 2;
+
 // A newer Claude Code UI paints a "background agents" footer BELOW the statusline/hint, separated from
 // them by a blank line: a bold "● main" header and one row per background agent
 // ("◯ <agent>  <task…>   <elapsed> · ↓ <tokens>"). We peel it off the tail as chrome too, bounded to
@@ -127,7 +130,9 @@ export function extractStatusLines(lines: StyledLine[]): string[] {
   if (box === null) return [];
 
   const out: string[] = [];
-  for (let j = box.bottomBorder + 1; j < end && out.length < MAX_STATUS_LINES; j++) {
+  let first = box.bottomBorder + 1;
+  while (first < end && isBlank(texts[first]!)) first++; // the gap locateInputBox tolerates (b')
+  for (let j = first; j < end && out.length < MAX_STATUS_LINES; j++) {
     const t = texts[j]!.trim();
     if (t.length === 0) break; // the separator before the background-agents footer
     out.push(t);
@@ -224,6 +229,11 @@ function locateInputBox(texts: string[], end: number): InputBox | null {
     status++;
     i--;
   }
+
+  // (b') Without a statusline Claude leaves a BLANK row between the bottom border and the hint, so
+  //      with the agents footer below, the hint is fenced by blanks on both sides. Bounded, and the
+  //      border must come right after — a blank anywhere else in the run still fails the match.
+  for (let gap = 0; i >= 0 && isBlank(texts[i]!) && gap < MAX_STATUS_GAP; gap++) i--;
 
   // (c) bottom border
   if (i < 0 || !isBoxBorder(texts[i]!)) return null;
