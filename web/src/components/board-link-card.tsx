@@ -4,6 +4,7 @@ import { Link, useInRouterContext, useRouteLoaderData } from "react-router";
 import { StatusBadge } from "@/components/status-badge";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { fetchCard, repoName, CARD_STATUS_LABEL, type CardView } from "@/lib/board";
+import { placeOf } from "@/lib/agent-groups";
 import type { BoardLink } from "@/lib/board-link";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { paneDisplayName } from "@/lib/types";
@@ -53,7 +54,7 @@ function PaneLinkCard({ link, label }: { link: BoardLink; label: ReactNode }) {
     <Shell to={link.path}>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{paneDisplayName(pane)}</span>
-        <span className="block truncate text-xs text-muted-foreground">{pane.workspaceLabel}</span>
+        <span className="block truncate text-xs text-muted-foreground">{placeOf(pane)}</span>
       </span>
       <StatusBadge status={pane.status} />
     </Shell>

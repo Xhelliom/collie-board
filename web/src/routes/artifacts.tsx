@@ -10,6 +10,7 @@ import { paneArtifactUrl } from "@/lib/api";
 import { historyPath, panePath } from "@/lib/nav";
 import { openLightbox } from "@/lib/lightbox";
 import { ROOT_ROUTE_ID, type HomeData, type PaneArtifactsData } from "@/lib/loaders";
+import { placeOf } from "@/lib/agent-groups";
 import type { ArtifactInfo } from "@/lib/types";
 import { useT } from "@/i18n";
 import { ABOVE_TAB_BAR } from "@/components/app-nav";
@@ -89,7 +90,7 @@ export function ArtifactsRoute() {
   const agent =
     root.agents.find((a) => a.paneId === paneId) ??
     root.shellPanes.find((p) => p.paneId === paneId);
-  const paneTitle = agent?.paneLabel ?? agent?.sessionName ?? agent?.workspaceLabel ?? paneId;
+  const paneTitle = agent?.paneLabel ?? agent?.sessionName ?? (agent ? placeOf(agent) : paneId);
 
   const [selected, setSelected] = useState<ArtifactInfo | null>(null);
   // Newest-first, exactly as the bridge listed them; taps open one, and the image viewer swipes the

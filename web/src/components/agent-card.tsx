@@ -7,6 +7,7 @@ import { AgentIcon } from "@/components/agent-icon";
 import { CtxBar } from "@/components/ctx-bar";
 import { SubagentsLine } from "@/components/subagents-line";
 import { shortCwd, timeAgo } from "@/lib/format";
+import { placeOf } from "@/lib/agent-groups";
 import { repoName } from "@/lib/board";
 import { paneDisplayName, STATUS_LABEL } from "@/lib/types";
 import type { AgentView } from "@/lib/types";
@@ -23,8 +24,8 @@ import { useT } from "@/i18n";
 /** An unnamed pane is "claude" like its neighbours; the workspace is what tells them apart, so it
  *  becomes the title and the agent name the footnote. */
 const named = (a: AgentView) => !!(a.paneLabel || a.sessionName);
-const headline = (a: AgentView) => (named(a) ? paneDisplayName(a) : a.workspaceLabel);
-const footnote = (a: AgentView) => (named(a) ? a.workspaceLabel : paneDisplayName(a));
+const headline = (a: AgentView) => (named(a) ? paneDisplayName(a) : placeOf(a));
+const footnote = (a: AgentView) => (named(a) ? placeOf(a) : paneDisplayName(a));
 
 /**
  * "5m ago" for a SETTLED pane — how long it has been idle / done, so a session that just finished
@@ -87,7 +88,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
             {/* Name slot: a user label, else Claude's /rename session name, else the agent name — the
                 icon still shows which agent it is (see paneDisplayName). */}
             <span className="truncate font-medium">{paneDisplayName(agent)}</span>
-            <span className="truncate text-xs text-muted-foreground">· {agent.workspaceLabel}</span>
+            <span className="truncate text-xs text-muted-foreground">· {placeOf(agent)}</span>
             {/* The pane number — two agents in one space+tab are otherwise the same card twice
                 (same name, same cwd, same ctx), so "which one did I just tap?" has no answer. The
                 pane rail already labels its rows this way. */}
@@ -140,7 +141,7 @@ export function NeedsYouCard({ agent, onClick }: { agent: AgentView; onClick: ()
             {STATUS_LABEL.blocked}
           </span>
           <span className="truncate font-mono text-[11px] text-muted-foreground">
-            {agent.workspaceLabel}
+            {placeOf(agent)}
           </span>
           <PeerChip agent={agent} />
         </div>

@@ -56,7 +56,7 @@ import { ResumeOffer } from "@/components/auto-handoff";
 import { HeldControl } from "@/components/held";
 import { ReadingView } from "@/components/reading-view";
 import { LastTurnButtons } from "@/components/last-turn-buttons";
-import { HC_SPACE, isHcAgent, isOrchestrator, projectOf } from "@/lib/agent-groups";
+import { HC_SPACE, isHcAgent, isOrchestrator, placeOf } from "@/lib/agent-groups";
 import { ShellBadge, StatusBadge } from "@/components/status-badge";
 import { submitPromptOption } from "@/lib/prompt-action";
 import { submitWizardKeys } from "@/lib/wizard-action";
@@ -617,7 +617,7 @@ export function AgentChat({
   // list belongs to the pane switcher. Empty while the pane isn't in the snapshot yet.
   // hc has no space nor tab: the breadcrumb names the project instead (ADR 0052 phase 4).
   const hc = !!agent && isHcAgent(agent);
-  const place = agent ? (hc ? projectOf(agent.cwd) : agent.workspaceLabel) : "";
+  const place = agent ? placeOf(agent) : "";
   const spacePanes = agent
     ? [...agents, ...shellPanes].filter((p) => p.workspaceId === agent.workspaceId)
     : [];

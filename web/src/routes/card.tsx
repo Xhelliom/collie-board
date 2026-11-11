@@ -122,6 +122,7 @@ import { ago as timeAgo } from "@/lib/project-facts";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
+import { placeOf } from "@/lib/agent-groups";
 import { paneDisplayName, type AgentStatus } from "@/lib/types";
 
 // A card's own page: the durable half (spec, acceptance, history) beside the live half (which pane
@@ -1557,7 +1558,7 @@ function LivePane({ card, onOpen }: { card: CardView; onOpen: (paneId: string) =
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold">{paneDisplayName(card.runtime)}</div>
           <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {card.runtime.workspaceLabel}
+            {placeOf(card.runtime)}
           </div>
         </div>
         <StatusBadge status={card.runtime.agentStatus} />

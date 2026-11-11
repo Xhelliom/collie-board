@@ -3,6 +3,7 @@ import { Pin as PinIcon, X } from "lucide-react";
 import { useT } from "@/i18n";
 import { pinKey, setPinned, usePins, type Pin } from "@/lib/pins";
 import { setStatus } from "@/lib/status";
+import { placeOf } from "@/lib/agent-groups";
 import { paneDisplayName, type AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ export function PinButton({ agent, className }: { agent: AgentView; className?: 
       title={t(on ? "pin.remove" : "pin.add")}
       onClick={(e) => {
         e.stopPropagation();
-        void toggle(key, `${paneDisplayName(agent)} · ${agent.workspaceLabel}`, !on, t("pin.failed"));
+        void toggle(key, `${paneDisplayName(agent)} · ${placeOf(agent)}`, !on, t("pin.failed"));
       }}
       className={cn(
         "flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60",
