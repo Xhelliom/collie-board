@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794404974240.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Toutes les machines sur hc","goal":"Critère 2 de l ADR 0052 : ici, dev, Dell et Windows tournent sous hc, et le board le montre.","position":47,"roadmap_item_id":"machines-hc","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794404971783}}
+{"v":1,"hlc":"1794419882355.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794419873452}}
