@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794345659449.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Désengagement de l'upstream","goal":"collie-board est un fork indépendant : plus de règles, de doc ni d'outillage tenus pour une synchro ou des PR vers AltanS/collie.","position":44,"roadmap_item_id":"upstream","closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794345649838}}
+{"v":1,"hlc":"1794404278299.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794404271986}}
