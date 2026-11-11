@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.299.0] - 2026-11-11
+
+### Added
+
+- « Migrer vers herdr-core » sur la page de tout pane Claude sous herdr 0.9 (menu ⋯) et dans le menu de l'orchestrateur (44cf34a)
+- Page Projet : « Tout migrer vers herdr-core », un agent à la fois, avec la liste des refusés et pourquoi (44cf34a)
+
+### Fixed
+
+- Un orchestrateur sous herdr-core est reconnu par le bridge (il lisait le label d'une space que hc n'a pas) (44cf34a)
+- Un agent migré reçoit son onglet dans herdr-app (labels `herdr.space`/`herdr.tab`) (44cf34a)
+
 ## [0.298.0] - 2026-11-11
 
 ### Added
