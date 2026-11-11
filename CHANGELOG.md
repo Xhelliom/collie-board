@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.300.0] - 2026-11-11
+
+### Added
+
+- Page Projet de collie-board : encart « Sortie de herdr 0.9 », les 4 critères de l'ADR 0052 §8, chacun tenu / pas tenu (08b586b)
+- Critères 3 et 4 cochés à la main par l'opérateur, gardés en base (08b586b)
+- Réglages → Pairs : le moteur de chaque machine (herdr-core + version vue au hello, herdr 0.9, ou inconnu) (08b586b)
+
 ## [0.299.2] - 2026-11-11
 
 ### Fixed
