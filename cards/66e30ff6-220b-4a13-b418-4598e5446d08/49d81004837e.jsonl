@@ -3,3 +3,10 @@
 {"v":1,"hlc":"1794404986217.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"6d8a75a0-0f6f-41d0-b5c7-ecdb134b7cc4"}}
 {"v":1,"hlc":"1794404986225.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5f42edb8-6398-4eb7-b016-9a43952011ed"}}
 {"v":1,"hlc":"1794404986214.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794404990090.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/encart-sortie-de-herdr-0-9-les-4-criteres-de-l-a"}}
+{"v":1,"hlc":"1794404990091.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794404990091.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794404988778}}
+{"v":1,"hlc":"1794404999009.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794404999009.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794404993799}}
+{"v":1,"hlc":"1794404999009.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2389},"ts":1794404994342}}
+{"v":1,"hlc":"1794404999009.0008.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"depends_on":"c8b31c5e-8ca5-4763-9ec7-31fa1667a6be"}}
