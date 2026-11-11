@@ -71,6 +71,10 @@ export function projectOf(cwd: string): string {
   return /\/\.herdr\/worktrees\/([^/]+)\//.exec(`${cwd}/`)?.[1] ?? repoName(cwd);
 }
 
+/** Where a pane lives, as a label: its space under herdr 0.9; under hc, whose one space is named "hc", its project. */
+export const placeOf = (a: Pick<AgentView, "workspaceId" | "workspaceLabel" | "cwd">): string =>
+  isHcAgent(a) ? projectOf(a.cwd) : a.workspaceLabel;
+
 /**
  * The hc herd by project (ADR 0052 phase 4): projects by name, and in each the orchestrator first,
  * then the cards' agents, then every other terminal. Sort is stable, so the bridge's order holds within a rank.

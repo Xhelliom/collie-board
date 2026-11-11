@@ -5,6 +5,7 @@ import { useRevalidator } from "react-router";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
+import { isHcPaneId, projectOf } from "@/lib/agent-groups";
 import { boardErrorMessage } from "@/lib/board";
 import { duration } from "@/lib/project-facts";
 import { checkedByDefault, closeTidy, fetchTidy, TIDY_REASONS, type TidyCandidate } from "@/lib/tidy";
@@ -12,6 +13,9 @@ import { checkedByDefault, closeTidy, fetchTidy, TIDY_REASONS, type TidyCandidat
 // « Ménage »: the panes that no longer serve, grouped by why, each with its age. Bare shells start
 // unchecked (the operator may be typing in one). Closing takes a second tap that names the count —
 // the bridge then closes only what is still proposed, so a pane that went back to work stays.
+// A candidate carries no space id: its pane id says whether hc holds it, and hc's one space is not a place to name.
+const place = (c: TidyCandidate) => (isHcPaneId(c.paneId) ? projectOf(c.cwd) : c.workspaceLabel);
+
 export function TidySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
   const revalidator = useRevalidator();
@@ -124,9 +128,9 @@ export function TidySheet({ open, onClose }: { open: boolean; onClose: () => voi
                 <label key={c.paneId} className="flex min-h-11 items-center gap-3 rounded-lg px-1 py-1.5 hover:bg-accent">
                   <input type="checkbox" className="size-4 shrink-0" checked={checked.has(c.paneId)} onChange={() => toggle(c.paneId)} />
                   <span className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm">{c.cardTitle ?? c.label ?? `${c.workspaceLabel} · ${c.agent}`}</span>
+                    <span className="truncate text-sm">{c.cardTitle ?? c.label ?? `${place(c)} · ${c.agent}`}</span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {c.workspaceLabel}
+                      {place(c)}
                       {c.since !== null && ` · ${t(`tidy.since.${reason}`, { duration: duration(Date.now() - c.since) })}`}
                     </span>
                   </span>

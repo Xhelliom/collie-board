@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router";
 
 import { useT } from "@/i18n";
-import { isOrchestrator } from "@/lib/agent-groups";
+import { isOrchestrator, placeOf } from "@/lib/agent-groups";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cardPath, projectPath, repoName } from "@/lib/board";
 import { panePath } from "@/lib/nav";
@@ -64,7 +64,7 @@ export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data:
               <button key={pin.session} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
                 <span className="truncate font-medium text-foreground">{paneDisplayName(a)}</span>
                 <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>
-                  {t(`quick.orch.${a.status}`)} · {a.workspaceLabel}
+                  {t(`quick.orch.${a.status}`)} · {placeOf(a)}
                 </span>
               </button>
             ) : (
@@ -102,7 +102,7 @@ export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data:
           {blocked.map((a) => (
             <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
               <span className="truncate text-foreground">{paneDisplayName(a)}</span>
-              <span className="truncate text-xs text-status-blocked">{t("quick.agentBlocked", { space: a.workspaceLabel })}</span>
+              <span className="truncate text-xs text-status-blocked">{t("quick.agentBlocked", { space: placeOf(a) })}</span>
             </button>
           ))}
         </div>

@@ -201,7 +201,7 @@ export function createTools(api: BoardApi): BoardTool[] {
         const outs = await Promise.all(waiting.map((w) => api("GET", `/api/pane/${id(w.paneId)}`).catch(() => ({ text: "" }))));
         return waiting.map((w, i) => {
           const tail = String(outs[i]!.text ?? "").replace(ANSI, "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(-6).join(" / ");
-          return `${w.paneId} (${w.workspaceLabel ?? w.cwd}) attend : ${clip(tail, 400)}`;
+          return `${w.paneId} (${w.workspaceId === "hc" ? w.cwd : (w.workspaceLabel ?? w.cwd)}) attend : ${clip(tail, 400)}`;
         }).join("\n");
       },
     },

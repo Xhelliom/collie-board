@@ -16,6 +16,7 @@ import { collectImages, openLightbox } from "@/lib/lightbox";
 import { paneArtifactsPath, panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { matchingEntries, step, userTurnIndices } from "@/lib/transcript-search";
+import { placeOf } from "@/lib/agent-groups";
 import type { TranscriptEntry } from "@/lib/types";
 import { ABOVE_TAB_BAR } from "@/components/app-nav";
 
@@ -188,7 +189,7 @@ export function HistoryRoute() {
     listRef.current?.scrollToBottom();
   }, []);
 
-  const title = agent?.paneLabel ?? agent?.sessionName ?? agent?.workspaceLabel ?? paneId;
+  const title = agent?.paneLabel ?? agent?.sessionName ?? (agent ? placeOf(agent) : paneId);
   const matchCursor = matches.indexOf(cursor);
 
   return (
