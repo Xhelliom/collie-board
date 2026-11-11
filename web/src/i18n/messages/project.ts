@@ -377,4 +377,20 @@ export const project = defineMessages({
     en: { one: "{count} line resent", other: "{count} lines resent" },
     fr: { one: "{count} ligne renvoyée", other: "{count} lignes renvoyées" },
   },
+  "project.exit.title": { en: "Leaving herdr 0.9 ({held}/4)", fr: "Sortie de herdr 0.9 ({held}/4)" },
+  "project.exit.held": { en: "held", fr: "tenu" },
+  "project.exit.notHeld": { en: "not held", fr: "pas tenu" },
+  "project.exit.protocol": { en: "hc protocol unchanged for 2 months", fr: "Protocole hc inchangé depuis 2 mois" },
+  "project.exit.protocol.since": {
+    en: "protocol {generation} ({version}) seen since {since} — target {due}",
+    fr: "protocole {generation} ({version}) vu depuis le {since} — objectif le {due}",
+  },
+  "project.exit.protocol.never": { en: "no hc answered this machine yet", fr: "aucun hc n'a encore répondu sur cette machine" },
+  "project.exit.machines": { en: "Machines on hc: {onHc}/{total}", fr: "Machines sous hc : {onHc}/{total}" },
+  "project.exit.harnesses": {
+    en: "Non-Claude harnesses announce OSC 7501, or keep the screen adapter",
+    fr: "Les harnais hors Claude annoncent OSC 7501, ou gardent l'adaptateur écran",
+  },
+  "project.exit.herdr09": { en: "herdr 0.9 no longer receives fixes", fr: "herdr 0.9 ne reçoit plus de correctifs" },
+  "project.exit.manual": { en: "ticked by hand", fr: "coché à la main" },
 });

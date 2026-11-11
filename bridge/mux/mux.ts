@@ -234,6 +234,18 @@ export interface Mux {
   promptAgent(opts: { target: string; text: string; until?: AgentStatus[]; timeoutMs?: number }): Promise<boolean | null | void>;
 }
 
+/** What an hc core says of itself at `hello`: its release, and its protocol generation (ADR 0052 §8, criterion 1). */
+export interface HcHello {
+  version: string | null;
+  generation: number | null;
+}
+
+/** The engine a machine runs on, for the machines page and ADR 0052 §8's criterion 2. `hc` null: no hello answered. */
+export interface MachineEngine {
+  engine: MuxKind;
+  hc: HcHello | null;
+}
+
 /**
  * herdr 0.9 on `socketPath`, plus — on the primary session — hc on its own socket, merged by
  * {@link CompositeMux}; new panes go to `cfg.mux` (`auto`: hc while it answers). Other herdr sessions are 0.9 alone (one hc per machine).

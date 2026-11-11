@@ -47,6 +47,7 @@ const OPERATOR_ONLY: Record<string, string> = {
   "/api/node/launch": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/reply": "another Collie's action, token-gated (bridge/node.ts)",
   "/api/node/pair": "another Collie's pairing, open only during the operator's invitation (ADR 0049)",
+  "/api/exit-criteria": "the operator's ticks on the Project page (ADR 0052 §8) — refused to an agent pane",
   "/api/peers": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/invite": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",
   "/api/peers/add": "the operator's Peers settings screen (ADR 0049) — refused to an agent pane",

@@ -148,6 +148,15 @@ export const handlers = [
   http.get(/\/api\/cards\/[^/]+\/remote$/, () =>
     HttpResponse.json({ environment: null, session: null, state: null }),
   ),
+  http.get("/api/herd", () => HttpResponse.json({ peers: [], local: { name: "collie", engine: null } })),
+  http.get("/api/exit-criteria", () =>
+    HttpResponse.json({
+      protocol: { held: false, generation: null, version: null, since: null, due: null },
+      machines: { held: false, onHc: 0, total: 1, list: [{ name: "collie", engine: null }] },
+      harnesses: { held: false },
+      herdr09: { held: false },
+    }),
+  ),
   http.get("/api/peers", () =>
     HttpResponse.json({ name: "collie", invitation: null, inbound: [], outbound: [], environments: [], error: null }),
   ),

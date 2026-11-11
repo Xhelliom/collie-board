@@ -1,6 +1,7 @@
 import type { AgentStatus } from "../types.ts";
 import { dialHerdr, type DialHandlers, type DialMode, type SockHandle } from "../dial.ts";
 import {
+  type HcHello,
   MuxUnsupported,
   type BoardTab,
   type CreatedShell,
@@ -326,18 +327,30 @@ export class Hc implements Mux {
     });
   }
 
+  /** What the core's last `hello` said of itself; null until one answered, and again once the core stops answering. */
+  hello: HcHello | null = null;
+
   async ping(): Promise<boolean> {
     try {
-      await this.request("hello");
+      const r = await this.request<{ version?: unknown; generation?: unknown }>("hello");
+      this.hello = { version: typeof r?.version === "string" ? r.version : null, generation: typeof r?.generation === "number" ? r.generation : null };
       return true;
     } catch {
+      this.hello = null;
       return false;
     }
   }
 
   async sessionSnapshot(): Promise<WireSnapshot> {
-    const r = await this.request<{ terminals: HcTerminal[] }>("terminal.list");
-    return hcSnapshot(r.terminals);
+    try {
+      const r = await this.request<{ terminals: HcTerminal[] }>("terminal.list");
+      // A core that came (back) up since the last hello — an update restarts it — is asked again, once: no timer.
+      if (!this.hello) await this.ping();
+      return hcSnapshot(r.terminals);
+    } catch (err) {
+      this.hello = null;
+      throw err;
+    }
   }
 
   async listWorkspaces(): Promise<WireWorkspace[]> {

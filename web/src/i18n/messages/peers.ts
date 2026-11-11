@@ -79,6 +79,8 @@ export const peers = defineMessages({
 
   "peers.inbound.title": { en: "Who drives this machine", fr: "Qui pilote cette machine" },
   "peers.outbound.title": { en: "Machines this one drives", fr: "Machines que celle-ci pilote" },
+  "peers.engine": { en: "Engine: {engine}", fr: "Moteur : {engine}" },
+  "peers.engine.unknown": { en: "unknown", fr: "inconnu" },
   "peers.none": { en: "None yet.", fr: "Aucun pour l'instant." },
   "peers.noLogin": { en: "no Tailscale identity", fr: "aucune identité Tailscale" },
   "peers.unknownLogin": { en: "someone without a Tailscale identity", fr: "quelqu'un sans identité Tailscale" },

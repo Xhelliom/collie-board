@@ -85,9 +85,34 @@ export interface PeerHerdView {
   agents: AgentView[];
   /** Its pair id (ADR 0048); absent from an older bridge. */
   pair?: string | null;
+  /** The engine it runs on; null/absent while unreachable or from an older bridge. */
+  engine?: MachineEngine | null;
 }
 
-export const fetchHerd = (signal?: AbortSignal) => apiRequest<{ peers: PeerHerdView[] }>("/api/herd", { signal });
+/** The engine a machine runs on; `hc` is its core's last hello (bridge/mux/mux.ts). */
+export interface MachineEngine {
+  engine: "hc" | "herdr09";
+  hc: { version: string | null; generation: number | null } | null;
+}
+
+/** "herdr-core 0.1.20" · "herdr 0.9" · null (unknown — the caller words it). Pure. */
+export function engineName(e: MachineEngine | null | undefined): string | null {
+  if (!e) return null;
+  return e.engine === "hc" ? `herdr-core${e.hc?.version ? ` ${e.hc.version}` : ""}` : "herdr 0.9";
+}
+
+export const fetchHerd = (signal?: AbortSignal) =>
+  apiRequest<{ peers: PeerHerdView[]; local?: { name: string; engine: MachineEngine | null } }>("/api/herd", { signal });
+
+/** ADR 0052 §8's four exit criteria (`/api/exit-criteria`, bridge/exit-criteria.ts). */
+export interface ExitView {
+  protocol: { held: boolean; generation: number | null; version: string | null; since: number | null; due: number | null };
+  machines: { held: boolean; onHc: number; total: number; list: { name: string; engine: "hc" | "herdr09" | null }[] };
+  harnesses: { held: boolean };
+  herdr09: { held: boolean };
+}
+export const fetchExitCriteria = (signal?: AbortSignal) => apiRequest<ExitView>("/api/exit-criteria", { signal });
+export const tickExitCriterion = (patch: { harnesses?: boolean; herdr09Frozen?: boolean }) => post<ExitView>("/api/exit-criteria", patch);
 
 /**
  * A pane id written by the pair `pair` (a synced journal event), as this app routes it: `<paneId>@<peer>`
