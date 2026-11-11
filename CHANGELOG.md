@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.298.0] - 2026-11-11
+
+### Added
+
+- Page Projet : « Nouvel agent » (type, template) et « Nouveau terminal » dans le dossier du dépôt, sans herdr 0.9 — rangés dans la space « Collie Board » de herdr-app (4401ab9)
+- Troupeau : un terminal ouvert depuis la page Projet y est listé sous herdr-core (4401ab9)
+
 ## [0.297.6] - 2026-11-10
 
 ### Fixed
