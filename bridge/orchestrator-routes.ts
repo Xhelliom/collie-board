@@ -37,7 +37,7 @@ function auditTail(path: string): string[] {
  * The root of a repository — the same bar as `/api/repos/gate/suggest`: the path lands in a prompt —
  * in the spelling the board keys it by (`repoPathOf`), so `C:/x` and `C:\x` find one memory, not two.
  */
-const repoRootOf = (p: unknown): string | null => {
+export const repoRootOf = (p: unknown): string | null => {
   const repo = repoPathOf(p);
   return repo && existsSync(join(repo, ".git")) ? repo : null;
 };

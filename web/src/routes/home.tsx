@@ -31,7 +31,7 @@ import type { AgentView } from "@/lib/types";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { remoteAgents } from "@/lib/peers";
-import { showsSpaces } from "@/lib/agent-groups";
+import { isFreeShell, showsSpaces } from "@/lib/agent-groups";
 
 // Dashboard home screen (redesign §1 "Herd"). Purpose: answer "which agent needs me right now", and
 // nothing else — Spaces and the Board are nav destinations now (app-nav.tsx), not rows on this
@@ -46,7 +46,7 @@ export function HomeRoute() {
 
   const open = (id: string) => navigate(panePath(id, data.session));
   // One herd: the paired peers' agents beside this machine's, each with its « sur <pair> » chip.
-  const herd = useMemo(() => [...data.agents, ...remoteAgents(data.peers ?? [])], [data.agents, data.peers]);
+  const herd = useMemo(() => [...data.agents, ...data.shellPanes.filter(isFreeShell), ...remoteAgents(data.peers ?? [])], [data.agents, data.shellPanes, data.peers]);
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">

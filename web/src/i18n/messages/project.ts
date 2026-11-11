@@ -15,6 +15,13 @@ export const project = defineMessages({
     en: "No cards yet. Split a card into sub-tasks to make a phase.",
     fr: "Aucune carte pour l'instant. Découpe une carte en sous-tâches pour faire une phase.",
   },
+  "project.open.agent": { en: "New agent", fr: "Nouvel agent" },
+  "project.open.terminal": { en: "New terminal", fr: "Nouveau terminal" },
+  "project.open.sheet": { en: "New agent in {repo}", fr: "Nouvel agent dans {repo}" },
+  "project.open.start": { en: "Start the agent", fr: "Lancer l'agent" },
+  "project.open.starting": { en: "Starting…", fr: "Démarrage…" },
+  "project.open.readyAgent": { en: "Agent started", fr: "Agent démarré" },
+  "project.open.readyTerminal": { en: "Terminal ready", fr: "Terminal prêt" },
   "project.noPhase": { en: "No phase", fr: "Sans phase" },
   "project.fold.figures": { en: "Key figures", fr: "Chiffres clés" },
   "project.fold.loose": {

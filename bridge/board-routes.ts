@@ -62,6 +62,7 @@ import { parseGate } from "./gate.ts";
 import { HELD_ERROR, hold, release } from "./held.ts";
 import { recordOperatorSaid } from "./operator-said.ts";
 import { handleOrchestratorRoute } from "./orchestrator-routes.ts";
+import { handleOpenRoute } from "./open-routes.ts";
 import { handleTidyRoute } from "./tidy.ts";
 import { handleFlowRoute } from "./flow-routes.ts";
 import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.ts";
@@ -425,6 +426,9 @@ async function route(
   ctx: BoardContext,
 ): Promise<Response | null> {
   // Phases, lots, roadmap (ADR 0021) — new behaviour lives in its own file.
+  // Before the project routes: it lives under their prefix.
+  const opened = await handleOpenRoute(pathname, req, ctx);
+  if (opened) return opened;
   const project = await handleProjectRoute(pathname, req, ctx, req.headers.get(PANE_HEADER)?.trim() || null);
   if (project) return project;
   const orchestrator = await handleOrchestratorRoute(pathname, req, ctx);
