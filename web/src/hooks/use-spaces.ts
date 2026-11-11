@@ -6,7 +6,7 @@ import { setStatus } from "@/lib/status";
 import { panePath } from "@/lib/nav";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { isReadOnly, type AgentView, type CreateResponse } from "@/lib/types";
-import { t } from "@/i18n";
+import { t, type MessageKey } from "@/i18n";
 import { boardErrorMessage } from "@/lib/board";
 
 // Shared "create a tab/space, then jump into its fresh shell" flow, used by the home space view and
@@ -34,7 +34,7 @@ export function useSpaceActions() {
   sessionRef.current = root?.session;
 
   const open = useCallback(
-    (res: CreateResponse, what: "tab" | "space") => {
+    (res: CreateResponse, ready: MessageKey) => {
       if (!res.ok) {
         setStatus(res.error, "error");
         return;
@@ -52,7 +52,7 @@ export function useSpaceActions() {
         focused: false,
         kind: "shell",
       };
-      setStatus(t(what === "tab" ? "spaces.ready.tab" : "spaces.ready.space"), "success");
+      setStatus(t(ready), "success");
       revalidatorRef.current.revalidate();
       navigate(panePath(p.paneId, sessionRef.current), { state: { freshPane: fresh } });
     },
@@ -63,7 +63,7 @@ export function useSpaceActions() {
     async (workspaceId: string) => {
       if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
       try {
-        open(await api.createTab(workspaceId, {}, sessionRef.current), "tab");
+        open(await api.createTab(workspaceId, {}, sessionRef.current), "spaces.ready.tab");
       } catch (e) {
         setStatus(boardErrorMessage(e), "error");
       }
@@ -75,7 +75,7 @@ export function useSpaceActions() {
     async (opts: { label?: string; cwd?: string } = {}) => {
       if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
       try {
-        open(await api.createWorkspace(opts, sessionRef.current), "space");
+        open(await api.createWorkspace(opts, sessionRef.current), "spaces.ready.space");
       } catch (e) {
         setStatus(boardErrorMessage(e), "error");
       }
@@ -83,5 +83,18 @@ export function useSpaceActions() {
     [open],
   );
 
-  return { newTab, newSpace };
+  /** A terminal or an agent in a repo's folder, outside any card — on whichever engine launches (hc has no space to pick). */
+  const openInRepo = useCallback(
+    async (repoPath: string, opts: api.OpenInRepo) => {
+      if (readOnlyRef.current) return setStatus(t("pane.readOnlyStatus"), "error");
+      try {
+        open(await api.openInRepo(repoPath, opts), opts.open === "agent" ? "project.open.readyAgent" : "project.open.readyTerminal");
+      } catch (e) {
+        setStatus(boardErrorMessage(e), "error");
+      }
+    },
+    [open],
+  );
+
+  return { newTab, newSpace, openInRepo };
 }

@@ -53,6 +53,12 @@ export const HC_SPACE = "hc";
 
 export const isHcAgent = (a: Pick<AgentView, "workspaceId">): boolean => a.workspaceId === HC_SPACE;
 
+/**
+ * A bare terminal the operator opened from a Project page under hc (bridge/open-routes.ts `FREE_PREFIX`):
+ * it has no Spaces tab to live in, so the herd lists it. Not an agent's helper terminals — those carry no such label.
+ */
+export const isFreeShell = (a: Pick<AgentView, "workspaceId" | "paneLabel">): boolean => isHcAgent(a) && !!a.paneLabel?.startsWith("free-");
+
 /** Spaces and tabs are herdr 0.9's: hidden when every space is hc's. An empty list (0.9 with nothing open, or no snapshot yet) keeps them. */
 export const showsSpaces = (workspaces: readonly Pick<WorkspaceView, "workspaceId">[]): boolean =>
   workspaces.length === 0 || workspaces.some((w) => w.workspaceId !== HC_SPACE);
