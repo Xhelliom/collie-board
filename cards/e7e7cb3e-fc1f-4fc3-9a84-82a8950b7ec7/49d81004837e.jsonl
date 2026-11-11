@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1794415650491.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : « Le message n a pas atteint la zone de saisie » quand Claude affiche ses agents d arrière-plan","status":"backlog"},"ts":1794415643355}}
 {"v":1,"hlc":"1794415650491.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"8f12812b-5eef-49e5-96ff-1f82b820d73c"}}
 {"v":1,"hlc":"1794419906002.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794419911107.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-le-message-n-a-pas-atteint-la-zone-de-saisie"}}
+{"v":1,"hlc":"1794419911107.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794419911107.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794419910233}}
