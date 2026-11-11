@@ -7,6 +7,7 @@ import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, Messag
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs } from "@/components/board-tabs";
+import { ExitCriteria } from "@/components/exit-criteria";
 import { Fold, useStoredFold, useStoredFolds } from "@/components/fold";
 import { BottomSheet } from "@/components/ui/sheet";
 import { usePanelWidth } from "@/hooks/use-panel-width";
@@ -634,6 +635,7 @@ export function ProjectRoute() {
               {!repo && <p className="text-sm text-muted-foreground">{t("project.pickRepo")}</p>}
               {repo && <RepoFlow repo={repo} flows={data.flows} />}
               {repo && <ProjectRoadmap repo={repo} roadmap={data.roadmap} />}
+              {repo && repoName(repo) === "collie-board" && <ExitCriteria />}
               {deliverables.length > 0 && (
                 <Fold title={t("project.fold.deliverables", { count: deliverables.length })} state={deliverablesFold}>
                   <DeliverableLinks items={deliverables} />

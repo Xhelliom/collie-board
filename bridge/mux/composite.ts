@@ -4,6 +4,8 @@ import {
   MuxUnsupported,
   type CreatedShell,
   type CreatedWorktree,
+  type HcHello,
+  type MachineEngine,
   type Mux,
   type MuxKind,
   type PaneRead,
@@ -56,6 +58,11 @@ export class CompositeMux implements Mux {
     if (this.launch !== "auto") return { engine: this.launch, fallback: false };
     if (this.engines.hc && this.hcUp) return { engine: "hc", fallback: false };
     return { engine: "herdr09", fallback: Boolean(this.engines.hc) };
+  }
+
+  /** What this machine runs on: where a launch goes now, and hc's last hello if it has a core. */
+  machineEngine(): MachineEngine {
+    return { engine: this.launchEngine().engine, hc: (this.engines.hc as { hello?: HcHello | null } | undefined)?.hello ?? null };
   }
 
   private kinds(): MuxKind[] {

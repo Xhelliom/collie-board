@@ -8,6 +8,7 @@
 import type { OutboundPeer } from "./pairing.ts";
 import type { Alert } from "./notifications.ts";
 import { call, ok, peerRefusal, type Call } from "./remote-launch.ts";
+import type { MachineEngine } from "./mux/mux.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 export const READ_EVERY_MS = 5_000;
@@ -26,18 +27,29 @@ export interface PeerHerdView {
   boardPaneIds?: string[];
   /** When the last answer (or failure) came back; null before the first. */
   at: number | null;
+  /** The engine it runs on, as its last answer said; null while unreachable, or a bridge too old to say. */
+  engine: MachineEngine | null;
+}
+
+/** A peer's `engine` field, trusted no further than its shape. Pure. */
+export function engineOf(v: unknown): MachineEngine | null {
+  if (typeof v !== "object" || v === null) return null;
+  const { engine, hc } = v as { engine?: unknown; hc?: { version?: unknown; generation?: unknown } | null };
+  if (engine !== "hc" && engine !== "herdr09") return null;
+  return { engine, hc: hc ? { version: typeof hc.version === "string" ? hc.version : null, generation: typeof hc.generation === "number" ? hc.generation : null } : null };
 }
 
 /** What one `/api/node/snapshot` call says of a peer. Pure. */
-export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes"> & Partial<Pick<PeerHerdView, "pair" | "boardPaneIds">> {
-  const down = (error: string) => ({ state: "disconnected" as const, error, agents: [], shellPanes: [] });
+export function herdOf(peer: string, r: Call): Pick<PeerHerdView, "state" | "error" | "agents" | "shellPanes" | "engine"> & Partial<Pick<PeerHerdView, "pair" | "boardPaneIds">> {
+  const down = (error: string, engine: MachineEngine | null = null) => ({ state: "disconnected" as const, error, agents: [], shellPanes: [], engine });
   if (!ok(r)) return down(peerRefusal(peer, "snapshot", r));
-  if (r.body.bridge === "disconnected") return down(`${peer}: its herdr is disconnected`);
+  const engine = engineOf(r.body.engine);
+  if (r.body.bridge === "disconnected") return down(`${peer}: its herdr is disconnected`, engine);
   const tag = (v: unknown) =>
     (Array.isArray(v) ? v : []).filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null).map((p) => ({ ...p, peer }));
   const pair = typeof r.body.pair === "string" ? { pair: r.body.pair } : {};
   const boardPaneIds = (Array.isArray(r.body.boardPaneIds) ? r.body.boardPaneIds : []).filter((v): v is string => typeof v === "string");
-  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes), boardPaneIds, ...pair };
+  return { state: "connected", error: null, agents: tag(r.body.agents), shellPanes: tag(r.body.shellPanes), boardPaneIds, engine, ...pair };
 }
 
 interface Slot extends PeerHerdView {
@@ -81,7 +93,7 @@ export class PeerHerd {
 
   private async read(peer: OutboundPeer): Promise<void> {
     let s = this.slots.get(peer.name);
-    if (!s) this.slots.set(peer.name, (s = { peer: peer.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null, busy: false, lastRead: -Infinity }));
+    if (!s) this.slots.set(peer.name, (s = { peer: peer.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null, engine: null, busy: false, lastRead: -Infinity }));
     const now = this.now();
     if (s.busy || now - s.lastRead < READ_EVERY_MS) return;
     s.busy = true;
@@ -127,14 +139,16 @@ export class PeerHerd {
     return this.d.outbound().map((p) => {
       const s = this.slots.get(p.name);
       return s
-        ? { peer: s.peer, state: s.state, error: s.error, agents: s.agents, shellPanes: s.shellPanes, pair: s.pair, at: s.at }
-        : { peer: p.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null };
+        ? { peer: s.peer, state: s.state, error: s.error, agents: s.agents, shellPanes: s.shellPanes, pair: s.pair, at: s.at, engine: s.engine }
+        : { peer: p.name, state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null, engine: null };
     });
   }
 }
 
 export interface HerdRouteDeps {
   herd: PeerHerd;
+  /** This machine's own name and engine, beside its peers' (the machines page). */
+  local: () => { name: string; engine: MachineEngine | null };
   outbound: () => readonly OutboundPeer[];
   fetch: typeof fetch;
   /** Same guard as the local pane routes: read for a read, write (+ device) for reply/keys. */
@@ -152,7 +166,7 @@ export async function handleHerdRoute(pathname: string, req: Request, d: HerdRou
   if (pathname === "/api/herd") {
     const denied = d.guard("read");
     if (denied) return denied;
-    return req.method === "GET" ? d.json({ peers: d.herd.view() }) : d.text("method not allowed", 405);
+    return req.method === "GET" ? d.json({ peers: d.herd.view(), local: d.local() }) : d.text("method not allowed", 405);
   }
   if (!pathname.startsWith("/api/herd/")) return null;
   const m = HERD_PANE_ROUTE.exec(pathname);

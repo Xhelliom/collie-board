@@ -54,6 +54,25 @@ beforeEach(() => {
 });
 
 describe("PeersControl", () => {
+  test("says each machine's engine: herdr-core with its version, herdr 0.9, or unknown", async () => {
+    view = { ...view, outbound: [...view.outbound, { name: "dev", url: "https://dev.ts.net", pairedAt: "2026-10-26T10:00:00.000Z" }] };
+    server.use(
+      http.get("/api/herd", () =>
+        HttpResponse.json({
+          local: { name: "arch-2", engine: { engine: "hc", hc: { version: "0.1.20", generation: 1 } } },
+          peers: [
+            { peer: "win-cad", state: "connected", error: null, agents: [], engine: { engine: "herdr09", hc: null } },
+            { peer: "dev", state: "disconnected", error: "dev: unreachable", agents: [], engine: null },
+          ],
+        }),
+      ),
+    );
+    render(<MemoryRouter><PeersControl /></MemoryRouter>);
+    expect(await screen.findByTestId("engine-local")).toHaveTextContent("Engine: herdr-core 0.1.20");
+    expect(screen.getByTestId("engine-win-cad")).toHaveTextContent("Engine: herdr 0.9");
+    expect(screen.getByTestId("engine-dev")).toHaveTextContent("Engine: unknown");
+  });
+
   test("lists who drives this machine and who it drives, with identity and launch grant", async () => {
     render(<MemoryRouter><PeersControl /></MemoryRouter>);
     const inbound = await screen.findByRole("region", { name: /who drives this machine/i });

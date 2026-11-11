@@ -1533,6 +1533,9 @@ const FOLLOW_UP_CATEGORIES_KEY = "follow_up_categories";
 /** `board_pref` key for {@link BoardDb.autoHandoff}. */
 const AUTO_HANDOFF_KEY = "auto_handoff";
 
+/** `board_pref` key for {@link BoardDb.exitCriteria}. */
+const EXIT_CRITERIA_KEY = "exit_criteria";
+
 /** `board_pref` key for {@link BoardDb.maxAgents}. */
 const MAX_AGENTS_KEY = "max_agents";
 
@@ -3651,6 +3654,15 @@ export class BoardDb {
     const next = pinned ? [...rest, { session, name }] : rest;
     this.setPref(PINS_KEY, JSON.stringify(next));
     return next;
+  }
+
+  /** ADR 0052 §8's exit criteria as exit-criteria.ts wrote them (JSON): the operator's two ticks, the protocol's date. */
+  exitCriteria(): string | null {
+    return this.db.query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?").get(EXIT_CRITERIA_KEY)?.value ?? null;
+  }
+
+  setExitCriteria(json: string): void {
+    this.setPref(EXIT_CRITERIA_KEY, json);
   }
 
   private setPref(key: string, value: string): void {

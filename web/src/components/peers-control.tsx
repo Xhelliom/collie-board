@@ -15,6 +15,8 @@ import {
   formatCode,
   invitePeer,
   revokePeer,
+  engineName,
+  fetchHerd,
   testPeer,
   clearPeerCache,
   type PeersView,
@@ -41,11 +43,17 @@ export function PeersControl() {
 
   // A reply landing after unmount (or after the test environment is gone) must not set state.
   const live = useRef(true);
+  const [herd, setHerd] = useState<Awaited<ReturnType<typeof fetchHerd>> | null>(null);
   const load = useCallback(() => {
     fetchPeers()
       .then((v) => live.current && setView(v))
       .catch((e) => live.current && setError(boardErrorMessage(e)));
+    // Each machine's engine, as the bridge last read it — no call to a peer from here.
+    fetchHerd()
+      .then((h) => live.current && setHerd(h))
+      .catch(() => {});
   }, []);
+  const engineText = (e: Parameters<typeof engineName>[0]) => t("peers.engine", { engine: engineName(e) ?? t("peers.engine.unknown") });
   useEffect(() => {
     live.current = true;
     load();
@@ -127,6 +135,7 @@ export function PeersControl() {
             <div className="font-medium">{t("peers.title")}</div>
             <p className="text-sm text-muted-foreground">{t("peers.hint", { name: view.name })}</p>
             <p className="text-xs text-muted-foreground">{t("peers.rewrite")}</p>
+            {herd && <p className="text-xs text-muted-foreground" data-testid="engine-local">{engineText(herd.local?.engine)}</p>}
           </div>
         </div>
         {(error ?? view.error) && <p className="text-sm text-status-blocked">{error ?? view.error}</p>}
@@ -250,6 +259,7 @@ export function PeersControl() {
                     {p.url}
                     {p.pairedAt && ` · ${t("peers.pairedAt", { date: date(p.pairedAt) })}`}
                   </div>
+                  {herd && <div className="text-xs text-muted-foreground" data-testid={`engine-${p.name}`}>{engineText(herd.peers.find((h) => h.peer === p.name)?.engine)}</div>}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <Button

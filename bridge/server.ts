@@ -14,7 +14,9 @@ import type { ContextTracker } from "./context.ts";
 import type { CopilotCoordinator } from "./copilot.ts";
 import type { BoardDb } from "./db.ts";
 import type { Config } from "./config.ts";
-import { MuxUnsupported, type Mux, type PaneRead } from "./mux/mux.ts";
+import { MuxUnsupported, type MachineEngine, type Mux, type PaneRead } from "./mux/mux.ts";
+import { CompositeMux } from "./mux/composite.ts";
+import { handleExitRoute, protocolWatch } from "./exit-criteria.ts";
 import { precompressed } from "./precompressed.ts";
 import { computeEtag, conditionalJson, gzipJsonResponse, notModified } from "./http-cache.ts";
 import type { NotifyLog } from "./notify-log.ts";
@@ -176,6 +178,12 @@ export function startServer(opts: {
   const remoteIdle = new RemoteIdle(opts.board);
   const peerHerd = new PeerHerd({ fetch, outbound: () => peers.outbound(), alerts: () => registry.get()?.notifications, onRead: (peer, agents) => remoteIdle.seen(peer, agents) });
   registry.get()?.engine.onUpdate((snap) => void peerHerd.update(snap).catch(() => {}), "peerHerd");
+  // This machine's engine, as its mux says it (ADR 0052 §8): for the machines page, its peers, the exit criteria.
+  const localEngine = (): MachineEngine | null => {
+    const h = registry.get()?.herdr;
+    return h instanceof CompositeMux ? h.machineEngine() : h ? { engine: "herdr09", hc: null } : null;
+  };
+  registry.get()?.engine.onUpdate(protocolWatch(board, () => localEngine()?.hc ?? null), "exitProtocol");
   const nodeActions = liveNodeActions(
     () => registry.get()?.herdr ?? null,
     (h, paneId, txt, submit) =>
@@ -226,7 +234,7 @@ export function startServer(opts: {
         audit: (action, peer, detail) => audit.record({ action, detail: { peer, ...detail } }),
         // Its pair id rides along, so a peer can tell which of its peers a synced pane id belongs to.
         // So do the board's own panes: a peer keeps them out of its herd's alerts, as we do (index.ts).
-        snapshot: () => ({ ...primarySnap(), pair: board.pairId(), boardPaneIds: [copilot.paneId, leadPaneId()].filter(Boolean) }),
+        snapshot: () => ({ ...primarySnap(), engine: localEngine(), pair: board.pairId(), boardPaneIds: [copilot.paneId, leadPaneId()].filter(Boolean) }),
         readPane: async (paneId) => {
           const rt = registry.get();
           return rt ? readPane(rt.herdr, cfg, paneId, url, req) : unknownSession();
@@ -240,6 +248,7 @@ export function startServer(opts: {
       if (nodeRes) return nodeRes;
       const herdRes = await handleHerdRoute(pathname, req, {
         herd: peerHerd,
+        local: () => ({ name: peers.ownName(), engine: localEngine() }),
         outbound: () => peers.outbound(),
         fetch,
         guard: (level) => guard(req, cfg, level),
@@ -249,6 +258,15 @@ export function startServer(opts: {
         text,
       });
       if (herdRes) return herdRes;
+      const exitRes = await handleExitRoute(pathname, req, {
+        db: board,
+        machines: () => [{ name: peers.ownName(), engine: localEngine() }, ...peerHerd.view().map((p) => ({ name: p.peer, engine: p.engine }))],
+        guard: (level) => guard(req, cfg, level),
+        audit: (action, detail) => audit.record({ action, device: deviceAuth(req, cfg).device, detail }),
+        json: (data, status) => (status ? secure(Response.json(data, { status })) : json(data, req.headers.get("accept-encoding"))),
+        text,
+      });
+      if (exitRes) return exitRes;
 
       // ── Live state (polled by the client) ────────────────────────────────
       if (pathname === "/api/snapshot") {

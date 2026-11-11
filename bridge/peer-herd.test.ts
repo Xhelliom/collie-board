@@ -30,6 +30,14 @@ describe("herdOf", () => {
     expect(h.pair).toBeUndefined();
     expect(herdOf("dev", { status: 200, body: { ...SNAP, pair: "dell" } }).pair).toBe("dell");
   });
+  it("reads the peer's engine, and says nothing of one it cannot read", () => {
+    const hc = { engine: "hc" as const, hc: { version: "0.1.20", generation: 1 } };
+    expect(herdOf("dev", { status: 200, body: { ...SNAP, engine: hc } }).engine).toEqual(hc);
+    expect(herdOf("dev", { status: 200, body: { ...SNAP, engine: { engine: "herdr09", hc: null } } }).engine).toEqual({ engine: "herdr09", hc: null });
+    expect(herdOf("dev", { status: 200, body: SNAP }).engine).toBeNull(); // a bridge too old to say
+    expect(herdOf("dev", { status: 200, body: { ...SNAP, engine: { engine: "tmux" } } }).engine).toBeNull();
+    expect(herdOf("dev", { error: "timeout" }).engine).toBeNull();
+  });
   it("is disconnected when unreachable, refused, or its herdr is down", () => {
     expect(herdOf("dev", { error: "timeout" })).toMatchObject({ state: "disconnected", agents: [] });
     expect(herdOf("dev", { status: 401, body: null }).error).toContain("token");
@@ -129,7 +137,7 @@ describe("PeerHerd", () => {
     const herd = new PeerHerd({ fetch, outbound: () => [DEV] });
     await herd.update({ ...LOCAL, bridge: "disconnected" });
     expect(seen).toHaveLength(0);
-    expect(herd.view()).toEqual([{ peer: "dev", state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null }]);
+    expect(herd.view()).toEqual([{ peer: "dev", state: "pending", error: null, agents: [], shellPanes: [], pair: null, at: null, engine: null }]);
   });
 
   it("forgets a peer no longer paired", async () => {
@@ -148,6 +156,7 @@ describe("handleHerdRoute", () => {
     const audited: unknown[] = [];
     const d: HerdRouteDeps = {
       herd: new PeerHerd({ fetch, outbound: () => [DEV] }),
+      local: () => ({ name: "here", engine: { engine: "hc", hc: { version: "0.1.20", generation: 1 } } }),
       outbound: () => [DEV],
       fetch,
       guard: () => null,
