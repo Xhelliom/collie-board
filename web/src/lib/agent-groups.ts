@@ -51,6 +51,9 @@ export const isOrchestrator = (a: Pick<AgentView, "workspaceId" | "workspaceLabe
 /** The one synthetic space hc shows every terminal in (bridge/mux/hc.ts `HC_SPACE`): hc has no spaces, no tabs. */
 export const HC_SPACE = "hc";
 
+/** The same fact off a pane id alone — hc's addresses are `t` + base 36 (bridge/mux/composite.ts `ownerOf`). */
+export const isHcPaneId = (paneId: string): boolean => /^t[0-9a-z]+$/.test(paneId);
+
 export const isHcAgent = (a: Pick<AgentView, "workspaceId">): boolean => a.workspaceId === HC_SPACE;
 
 /**

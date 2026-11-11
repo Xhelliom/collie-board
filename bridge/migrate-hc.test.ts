@@ -3,7 +3,8 @@ import { describe, expect, it } from "bun:test";
 import { BUILTIN_ADAPTERS } from "./adapters.ts";
 import { outOfSight, reconcile } from "./cards.ts";
 import { BoardDb } from "./db.ts";
-import { isHerdr09Pane, migrateBlock, migrateToHc } from "./migrate-hc.ts";
+import { isHerdr09Pane, migrateBlock, migrateToHc, migrationIdentity } from "./migrate-hc.ts";
+import { findOrchestrator, isOrchestratorAgent } from "./orchestrator.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import type { AgentStatus, AgentView } from "./types.ts";
 
@@ -168,5 +169,47 @@ describe("migrateToHc", () => {
     expect((res as { message: string }).message).toContain("claude --resume uuid-1");
     reconcile(db, snap([]), Date.now() + 3_600_000);
     expect(db.getCard(card.id)!.status).toBe("orphaned");
+  });
+});
+
+describe("migrating a pane no card owns", () => {
+  /** The hc engine's side of the migration, as the snapshot shows it afterwards: one space `hc`, the label on the pane. */
+  function hcSide() {
+    const shells: Array<{ cwd: string; label?: string; show?: { tab: string; title: string } }> = [];
+    const calls: string[] = [];
+    const hc = { ...(fakeMux("hc", calls) as object), async createWorkspace(o: (typeof shells)[number]) { shells.push(o); return { paneId: "t9" }; } } as never;
+    const after = (): AgentView => pane("idle", { paneId: "t9", workspaceId: "hc", workspaceLabel: "hc", cwd: shells[0]!.cwd, paneLabel: shells[0]!.label });
+    return { hc, calls, shells, after };
+  }
+
+  it("an orchestrator stays its repo's orchestrator, on the same conversation, with a tab in herdr-app", async () => {
+    const orch = pane("idle", { workspaceLabel: "orchestrator-app", cwd: "/g/app" });
+    expect(findOrchestrator(snap([orch]), "/g/app")).toBe("w1:p1");
+    const { hc, calls, shells, after } = hcSide();
+
+    const res = await migrateToHc({ db: new BoardDb(":memory:"), herdr: fakeMux("h9", calls), hc, pane: orch, ...migrationIdentity(orch, null), sleep: noSleep });
+
+    expect(res).toEqual({ ok: true, paneId: "t9" });
+    expect(calls).toContain("hc.start t9 claude --resume uuid-1");
+    expect(shells[0]!.show).toEqual({ tab: "orch-app", title: "app · orchestrateur" });
+    expect(findOrchestrator(snap([after()]), "/g/app")).toBe("t9");
+    expect(isOrchestratorAgent(after())).toBe(true);
+    // The label alone is not enough under hc either: another repo's directory is not this one's orchestrator.
+    expect(findOrchestrator(snap([after()]), "/g/other")).toBeNull();
+  });
+
+  it("a free agent keeps the name it shows in the herd, and gets its own tab", async () => {
+    const free = pane("idle", { workspaceLabel: "demo", paneLabel: "recherche", cwd: "/g/app" });
+    const { hc, calls, shells, after } = hcSide();
+    await migrateToHc({ db: new BoardDb(":memory:"), herdr: fakeMux("h9", calls), hc, pane: free, ...migrationIdentity(free, null), sleep: noSleep });
+
+    expect(shells[0]).toMatchObject({ label: "recherche", show: { tab: "pane-w1-p1", title: "app · recherche" } });
+    expect(isOrchestratorAgent(after())).toBe(false);
+    expect(migrationIdentity(pane("idle", { workspaceLabel: "demo" }), null).label).toBe("demo");
+  });
+
+  it("a card's agent is filed under its card's tab", () => {
+    const { db, card } = setup();
+    expect(migrationIdentity(pane(), db.getCard(card.id)).show.tab).toBe(card.id);
   });
 });

@@ -1,6 +1,6 @@
 import type { CardView, Lot, Phase } from "@/lib/board";
 import { repoName } from "@/lib/board";
-import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers, isOrchestrator } from "@/lib/agent-groups";
 import { projectOf, stepGroup } from "@/lib/project";
 import type { AgentView } from "@/lib/types";
 
@@ -117,6 +117,6 @@ export type OrchestratorMood = "idle" | "working" | "waiting";
 export function orchestratorMood(agents: readonly AgentView[], repoPath: string): OrchestratorMood {
   // Same match as the bridge's findOrchestrator: its own label AND the repo's directory.
   const trim = (p: string) => p.replace(/\/+$/, "");
-  const a = agents.find((x) => x.workspaceLabel === `orchestrator-${repoName(repoPath)}` && trim(x.cwd) === trim(repoPath));
+  const a = agents.find((x) => isOrchestrator(x) && trim(x.cwd) === trim(repoPath));
   return a?.status === "blocked" ? "waiting" : a?.status === "working" ? "working" : "idle";
 }

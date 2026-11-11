@@ -690,7 +690,8 @@ export function CardRoute() {
                     />
                     <AutoHandoffChoice card={card} onChanged={() => revalidator.revalidate()} />
                     <MigrateHcButton
-                      card={card}
+                      paneId={card.session?.paneId ?? null}
+                      watch={card.status}
                       onDone={(message, ok) => {
                         if (ok) setStatus(message, "success");
                         else setStatus(message, "error", null);
