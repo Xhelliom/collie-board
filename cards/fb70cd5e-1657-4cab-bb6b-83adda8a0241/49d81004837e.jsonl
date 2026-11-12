@@ -2,3 +2,9 @@
 {"v":1,"hlc":"1794500365353.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : la page Réglages du dépôt ne prend pas toute la largeur, ses onglets sont coupés","status":"backlog"},"ts":1794500360441}}
 {"v":1,"hlc":"1794500365353.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"b7215c13-d4bc-4b79-8683-e466bf49964d"}}
 {"v":1,"hlc":"1794500365325.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794500376706.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-la-page-reglages-du-depot-ne-prend-pas-toute"}}
+{"v":1,"hlc":"1794500376706.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794500376706.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794500369392}}
+{"v":1,"hlc":"1794500376707.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794500376707.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794500374975}}
+{"v":1,"hlc":"1794500376707.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2489},"ts":1794500375250}}
