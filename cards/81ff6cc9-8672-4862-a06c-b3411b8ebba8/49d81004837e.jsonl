@@ -2,3 +2,6 @@
 {"v":1,"hlc":"1794520315583.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : sous hc, tous les terminaux tombent dans un seul groupe « hc », rangé sous un dépôt qui n est pas le leur","status":"backlog"},"ts":1794520310717}}
 {"v":1,"hlc":"1794520315583.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"e308db71-160f-44a7-b514-63a4c044d169"}}
 {"v":1,"hlc":"1794520315562.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794520318656.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-sous-hc-tous-les-terminaux-tombent-dans-un-s"}}
+{"v":1,"hlc":"1794520318656.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794520318656.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794520318242}}
