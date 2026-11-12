@@ -1281,13 +1281,23 @@ export function latestUsage(text: string): ContextUsage | null {
  * the window a max would stay pinned above.
  */
 export function latestModel(text: string): string | null {
-  let found: string | null = null;
+  return latestTurn(text)?.model ?? null;
+}
+
+/**
+ * {@link latestModel}'s row, with the effort the CLI recorded on it: the top-level `effort` of the
+ * same assistant row — verified on real logs (Claude Code 2.1.322: `--effort low` / `high` each
+ * come back as written). It is what that turn ran with, so a `/effort` mid-session shows; a
+ * settings file would not say (it read `xhigh` under sessions logging `medium`). Null effort when
+ * the row carries none: older CLIs, other agents.
+ */
+export function latestTurn(text: string): { model: string; effort: string | null } | null {
   // Newest row wins, so walk from the end and stop at the first hit instead of parsing the whole log.
   const lines = text.split("\n");
-  for (let i = lines.length - 1; i >= 0 && found === null; i--) {
+  for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i]!;
     if (!line.includes('"model"')) continue; // no model key, nothing to read — skip the parse
-    let row: { type?: unknown; isSidechain?: unknown; message?: unknown };
+    let row: { type?: unknown; isSidechain?: unknown; message?: unknown; effort?: unknown };
     try {
       row = JSON.parse(line) as typeof row;
     } catch {
@@ -1297,8 +1307,10 @@ export function latestModel(text: string): string | null {
     const message = row.message;
     if (message === null || typeof message !== "object") continue;
     const model = (message as { model?: unknown }).model;
-    if (typeof model !== "string" || model.trim() === "") continue;
-    found = model;
+    // `<synthetic>` is the CLI's own error row, not a model: the turn before it still names the real one.
+    if (typeof model !== "string" || model.trim() === "" || model.startsWith("<")) continue;
+    const effort = typeof row.effort === "string" && /^[a-z]{2,12}$/.test(row.effort) ? row.effort : null;
+    return { model, effort };
   }
-  return found;
+  return null;
 }

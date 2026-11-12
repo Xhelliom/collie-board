@@ -4,6 +4,7 @@ import { Ellipsis, ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-r
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
+import { ModelTag } from "@/components/model-tag";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
@@ -179,6 +180,7 @@ export function OrchestratorPanel({
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
           {t("orch.title")}
+          <ModelTag model={state.model} effort={state.effort} className="font-mono text-[11px] normal-case tracking-normal" />
           {typeof state.ctxPct === "number" && (
             <span
               role="img"

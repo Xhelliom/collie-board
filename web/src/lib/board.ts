@@ -1471,6 +1471,9 @@ export interface OrchestratorState {
   running: boolean;
   /** The pane's context occupancy, 0-100; null when unknown (ADR 0023). */
   ctxPct?: number | null;
+  /** The pane's model (short label) and effort; each absent when unknown. */
+  model?: string;
+  effort?: string;
   /** When it last wrote its memory note, or null. */
   memoryUpdatedAt?: number | null;
   /** The roadmap's revision, or null when none is written. */
