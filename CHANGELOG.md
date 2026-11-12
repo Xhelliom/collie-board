@@ -9,6 +9,17 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.303.0] - 2026-11-12
+
+### Added
+
+- Réglages du dépôt : provider / modèle / effort par défaut pour chaque harnais (Claude, OpenCode), choix lus dans leurs fichiers locaux. (e703f24)
+- OpenCode : le défaut du dépôt démarre les cartes via un opencode.json écrit à côté des worktrees (le TUI n'a pas de --model). (e703f24)
+
+### Changed
+
+- `/api/repos/model` par harnais (`kind`) ; l'ancien réglage Claude est migré tel quel. (e703f24)
+
 ## [0.302.1] - 2026-11-12
 
 ### Fixed
