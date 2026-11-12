@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.301.0] - 2026-11-12
+
+### Added
+
+- Réglages du projet : « Modèle par défaut » (et effort) appliqué à tout lancement Claude du dépôt dont le gabarit n'a pas de modèle — cartes, « Nouvel agent », relais, orchestrateur (85563be)
+
+### Fixed
+
+- Un relais (handoff) relance l'agent avec le modèle de son gabarit au lieu du défaut de Claude Code (85563be)
+
 ## [0.300.1] - 2026-11-11
 
 ### Fixed
