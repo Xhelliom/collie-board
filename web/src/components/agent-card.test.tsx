@@ -33,6 +33,15 @@ describe("AgentCard", () => {
     expect(screen.getByText("board/x")).toBeInTheDocument();
     expect(screen.getByText("· ctx 55%")).toBeInTheDocument();
   });
+
+  it("shows the model beside ctx%, the effort only when known, and no model it was not given", () => {
+    const { unmount } = render(<AgentCard agent={agent({ ctxPct: 55, model: "Opus 5.5", effort: "high" })} onClick={() => {}} />);
+    expect(screen.getByText("· Opus 5.5 · high")).toBeInTheDocument();
+    unmount();
+    render(<AgentCard agent={agent({ ctxPct: 55, model: "Fable 5.2" })} onClick={() => {}} />);
+    expect(screen.getByText("· Fable 5.2")).toBeInTheDocument();
+    expect(screen.queryByText(/Opus|high/)).toBeNull();
+  });
 });
 
 // How long a settled pane has been settled. Omitted when the bridge never witnessed the switch —

@@ -92,6 +92,10 @@ export interface AgentView {
    */
   ctxPct?: number;
   ctxTokens?: number;
+  /** The model behind the pane's newest turn, as a short label (« Opus 5.5 »), from the same transcript
+   *  read as `ctxPct`; `effort` only when that turn's row states it. Absent rather than guessed. */
+  model?: string;
+  effort?: string;
   /** Short descriptions of the subagents this pane's Claude session has running (subagents.ts),
    *  overlaid by `ContextTracker.enrich` at its cadence. Absent when none — or not a Claude pane. */
   subagents?: string[];

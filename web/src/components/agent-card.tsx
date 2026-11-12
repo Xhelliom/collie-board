@@ -1,6 +1,7 @@
 import { ChevronRight, GitBranch, Monitor, TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ModelTag } from "@/components/model-tag";
 import { Card } from "@/components/ui/card";
 import { ShellBadge, StatusBadge, StatusDot } from "@/components/status-badge";
 import { AgentIcon } from "@/components/agent-icon";
@@ -111,6 +112,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentView; onClick: () =>
           )}
           <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
             <span className="truncate font-mono">{shortCwd(agent.cwd)}</span>
+            <ModelTag model={agent.model} effort={agent.effort} lead />
             {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
           <SubagentsLine subagents={agent.subagents} />
@@ -151,7 +153,7 @@ export function NeedsYouCard({ agent, onClick }: { agent: AgentView; onClick: ()
             {paneDisplayName(agent)}
           </span>
         </div>
-        {(agent.branch || agent.ctxPct != null) && (
+        {(agent.branch || agent.ctxPct != null || agent.model) && (
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             {agent.branch && (
               <>
@@ -159,12 +161,15 @@ export function NeedsYouCard({ agent, onClick }: { agent: AgentView; onClick: ()
                 <span className="min-w-0 truncate font-mono">{agent.branch}</span>
               </>
             )}
-            {agent.ctxPct != null && (
-              <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                <CtxBar pct={agent.ctxPct} className="w-9" />
-                <span className="tabular-nums">ctx {Math.round(agent.ctxPct)}%</span>
-              </span>
-            )}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              <ModelTag model={agent.model} effort={agent.effort} />
+              {agent.ctxPct != null && (
+                <>
+                  <CtxBar pct={agent.ctxPct} className="w-9" />
+                  <span className="tabular-nums">ctx {Math.round(agent.ctxPct)}%</span>
+                </>
+              )}
+            </span>
           </div>
         )}
         <SubagentsLine subagents={agent.subagents} />
@@ -188,6 +193,7 @@ export function WorkingCard({ agent, onClick }: { agent: AgentView; onClick: () 
           <div className="truncate text-[15px] font-semibold">{headline(agent)}</div>
           <div className="flex gap-1 font-mono text-[11px] text-muted-foreground">
             <span className="min-w-0 truncate">{footnote(agent)}</span>
+            <ModelTag model={agent.model} effort={agent.effort} lead />
             {agent.ctxPct != null && <span className="shrink-0">· ctx {Math.round(agent.ctxPct)}%</span>}
           </div>
           <SubagentsLine subagents={agent.subagents} />

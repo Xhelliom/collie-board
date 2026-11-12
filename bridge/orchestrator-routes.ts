@@ -191,6 +191,7 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
       paneId,
       running: paneId !== null,
       ctxPct: paneId ? (ctx.paneContext?.(paneId) ?? null) : null,
+      ...(paneId && ctx.paneModel?.(paneId)),
       memoryUpdatedAt: ctx.db.getMemory(repo)?.updatedAt ?? null,
       // The page's poll reads the roadmap again only when this moves (audit perf #7).
       roadmapRevision: ctx.db.getRoadmap(repo)?.revision ?? null,

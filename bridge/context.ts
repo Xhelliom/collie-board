@@ -19,12 +19,13 @@
 import { adapterFor, type AgentAdapter } from "./adapters.ts";
 import { windowForModel, type WindowResolver } from "./context-window.ts";
 import type { BoardDb, CardSession } from "./db.ts";
+import { modelLabel } from "./model-label.ts";
 import type { Mux } from "./mux/mux.ts";
 import { paneResolveOpts } from "./opencode-store.ts";
 import { readOpenCodeUsage } from "./opencode-usage.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 import {
-  latestModel,
+  latestTurn,
   latestUsage,
   resolveWithoutSession,
   type TranscriptSource,
@@ -88,6 +89,10 @@ export class ContextTracker {
   /** paneId → its task list and running background commands (agent-work.ts). Same rules. */
   private readonly work = new Map<string, { tasks: AgentTask[]; background: string[] }>();
 
+  /** paneId → the model (short label) and effort its newest turn ran with. Same rules; effort only
+   *  when the transcript states it — never derived from a settings file. */
+  private readonly models = new Map<string, { model: string; effort: string | null }>();
+
   constructor(
     private readonly db: BoardDb,
     private readonly herdr: Mux,
@@ -134,6 +139,7 @@ export class ContextTracker {
         this.occupancy.delete(paneId);
         this.subagents.delete(paneId);
         this.work.delete(paneId);
+        this.models.delete(paneId);
       }
     }
 
@@ -185,6 +191,7 @@ export class ContextTracker {
           let tokens: number;
           let model: string | null;
           let provider: string | null = null;
+          let effort: string | null = null;
           if (opencode) {
             const seen = await readOpenCodeUsage(this.openCodeDbPath ?? "", {
               ...(await paneResolveOpts(pane, snap.agents, this.herdr, processStartedAt)),
@@ -213,8 +220,13 @@ export class ContextTracker {
             const usage = latestUsage(text);
             if (!usage) return;
             tokens = usage.tokens;
-            model = latestModel(text);
+            const turn = latestTurn(text);
+            model = turn?.model ?? null;
+            effort = turn?.effort ?? null;
           }
+          // Shown beside the gauge, from this same read. An unnamed model keeps the last one known.
+          const label = modelLabel(model);
+          if (label) this.models.set(paneId, { model: label, effort });
           // The denominator follows the model; anything unresolvable falls back to the
           // operator's configured window — an explicit claim, not a guess.
           const window = await windows.resolve(model, provider);
@@ -238,15 +250,17 @@ export class ContextTracker {
    * figure for is returned untouched, so "absent stays absent" and the UI simply renders no gauge.
    */
   enrich(panes: AgentView[]): AgentView[] {
-    if (this.occupancy.size === 0 && this.subagents.size === 0 && this.work.size === 0) return panes;
+    if (this.occupancy.size === 0 && this.subagents.size === 0 && this.work.size === 0 && this.models.size === 0) return panes;
     return panes.map((p) => {
       const seen = this.occupancy.get(p.paneId);
       const subagents = this.subagents.get(p.paneId);
       const work = this.work.get(p.paneId);
-      if (seen === undefined && subagents === undefined && work === undefined) return p;
+      const named = this.models.get(p.paneId);
+      if (seen === undefined && subagents === undefined && work === undefined && named === undefined) return p;
       return {
         ...p,
         ...(seen && { ctxPct: seen.pct, ctxTokens: seen.tokens }),
+        ...(named && { model: named.model, ...(named.effort && { effort: named.effort }) }),
         ...(subagents && { subagents }),
         ...(work?.tasks.length && { tasks: work.tasks }),
         ...(work?.background.length && { background: work.background }),

@@ -334,6 +334,10 @@ export function startServer(opts: {
           peers,
           paneContext: (id) =>
             context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0]?.ctxPct ?? null,
+          paneModel: (id) => {
+            const p = context?.enrich(rt.engine.current().agents.filter((a) => a.paneId === id) as never)[0];
+            return { ...(p?.model && { model: p.model }), ...(p?.effort && { effort: p.effort }) };
+          },
           json: (data, status) => {
             if (status !== undefined) {
               return secure(

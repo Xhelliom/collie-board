@@ -1,6 +1,7 @@
 import { ChevronRight, Folder, GitBranch, TerminalSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ModelTag } from "@/components/model-tag";
 import { AgentIcon } from "@/components/agent-icon";
 import { settledFor } from "@/components/agent-card";
 import { StatusDot } from "@/components/status-badge";
@@ -430,6 +431,7 @@ function PaneMeta({
           · <span className="font-mono text-[10px]">{pane.paneId.split(":").pop()}</span>
         </span>
       )}
+      <ModelTag model={pane.model} effort={pane.effort} lead />
       {pane.ctxPct != null && (
         <span className="shrink-0 tabular-nums">· ctx {Math.round(pane.ctxPct)}%</span>
       )}

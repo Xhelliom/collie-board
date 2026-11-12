@@ -114,6 +114,25 @@ function tracker(
 }
 
 describe("ContextTracker", () => {
+  it("names the model beside the gauge, and the effort only when the turn's row states it", async () => {
+    const withEffort = JSON.stringify({ ...JSON.parse(log(100_000, "claude-opus-5-5")), effort: "high" });
+    const { t } = tracker({ "id:s-1": withEffort, "id:s-2": log(100_000, "claude-fable-5-2"), "id:s-3": log(100_000) });
+
+    await t.update(
+      snapshot([
+        pane("w1:p1", { agentSessionId: "s-1" }),
+        pane("w1:p2", { agentSessionId: "s-2" }),
+        pane("w1:p3", { agentSessionId: "s-3" }),
+      ]),
+    );
+
+    const [a, b, c] = t.enrich([pane("w1:p1"), pane("w1:p2"), pane("w1:p3")]);
+    expect([a!.model, a!.effort]).toEqual(["Opus 5.5", "high"]);
+    expect([b!.model, b!.effort]).toEqual(["Fable 5.2", undefined]);
+    // A transcript naming no model: a gauge, and no model invented beside it.
+    expect([c!.ctxPct, c!.model, c!.effort]).toEqual([50, undefined, undefined]);
+  });
+
   it("gauges a pane launched by hand, and writes nothing to the board for it", async () => {
     const { db, t } = tracker({ "id:s-1": log(100_000) });
 

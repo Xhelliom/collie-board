@@ -23,6 +23,7 @@ import { useStableTerminalDraft } from "@/hooks/use-terminal-draft";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { isConnecting } from "@/lib/connection";
 import { closePane, fetchHistory, sendKeys } from "@/lib/api";
+import { ModelTag } from "@/components/model-tag";
 import { BlockedScreenBanner } from "@/components/blocked-screen-banner";
 import { submitFreeText, type FreeTextModel } from "@/lib/free-text-action";
 import { boardErrorMessage, cardPath, handoffCard } from "@/lib/board";
@@ -1020,6 +1021,7 @@ export function AgentChat({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <PinButton agent={agent} className="size-8" />
+              <ModelTag model={agent.model} effort={agent.effort} className="text-[11px] text-muted-foreground" />
               {agent.ctxPct != null && (
                 <button
                   type="button"

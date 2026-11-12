@@ -196,6 +196,8 @@ export interface BoardContext {
   device: string | null;
   /** A pane's context occupancy (0-100) from the context tracker, or null when unknown (ADR 0023). */
   paneContext?: (paneId: string) => number | null;
+  /** The same pane's model label and effort, from the same tracker; absent fields when unknown. */
+  paneModel?: (paneId: string) => { model?: string; effort?: string };
   /** The agent table (adapters/agents.toml), for the one thing a start reads from it: a kind's model flag (ADR 0026). */
   adapters?: Record<string, AgentAdapter>;
   /** JSON response; pass a status for the non-200 board errors (409 busy, 502 herdr). */
