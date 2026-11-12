@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794488015181.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"08d2e8b6-7d62-426f-a85d-57eda520a5bf"}}
 {"v":1,"hlc":"1794488015182.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"02b35fb3-6849-41f0-af9b-0824e4c4748e"}}
 {"v":1,"hlc":"1794488722525.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794488733974.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/afficher-le-modele-et-l-effort-de-chaque-agent-a"}}
+{"v":1,"hlc":"1794488733974.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794488733974.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794488725050}}
+{"v":1,"hlc":"1794488733974.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794488733974.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794488730276}}
+{"v":1,"hlc":"1794488733974.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":2668},"ts":1794488730526}}
