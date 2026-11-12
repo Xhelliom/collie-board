@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794488015181.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Afficher le modèle et l effort de chaque agent à côté de la jauge de contexte","status":"backlog"},"ts":1794488009033}}
 {"v":1,"hlc":"1794488015181.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"08d2e8b6-7d62-426f-a85d-57eda520a5bf"}}
 {"v":1,"hlc":"1794488015182.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"02b35fb3-6849-41f0-af9b-0824e4c4748e"}}
+{"v":1,"hlc":"1794488722525.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
