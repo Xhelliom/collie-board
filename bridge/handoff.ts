@@ -24,6 +24,8 @@ import type { BoardDb, Card, CardSession } from "./db.ts";
 import { worktreePathFor } from "./git.ts";
 import type { Mux } from "./mux/mux.ts";
 import { modelArgs } from "./templates.ts";
+import { BUILTIN_ADAPTERS } from "./adapters.ts";
+import { syncAtLaunch } from "./model-file.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
 /** Where the outgoing agent writes its note, relative to the card's checkout. */
@@ -276,7 +278,8 @@ export async function swapToFreshSession(
   // The model the card's role was launched with (its journal says), else the repo's default.
   // shortcut: the shipped adapter table, not agents.toml — thread `adapters` here if a kind's flag is ever overridden.
   const role = db.listEvents(card.id, 200).find((e) => e.type === "card.template" || e.type === "card.pipeline_step");
-  const args = modelArgs(kind, (role?.payload as { model?: string } | undefined)?.model, undefined, db.repoModel(card.repoPath));
+  const args = modelArgs(kind, (role?.payload as { model?: string } | undefined)?.model, undefined, db.repoModel(card.repoPath, kind));
+  syncAtLaunch(BUILTIN_ADAPTERS[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
   await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), undefined, args);
   await promptAndConfirm(herdr, created.paneId, continuationPrompt(card), undefined, {
     firstAfterLaunch: true,

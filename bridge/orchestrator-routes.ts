@@ -48,7 +48,7 @@ const depsOf = (ctx: BoardContext): OrchestratorDeps => ({
   cfg: ctx.cfg,
   snapshot: () => ctx.engine.current(),
   memory: (repo) => ctx.db.getMemory(repo),
-  modelArgs: (repo, kind) => modelArgs(kind, null, ctx.adapters, ctx.db.repoModel(repo)),
+  modelArgs: (repo, kind) => modelArgs(kind, null, ctx.adapters, ctx.db.repoModel(repo, kind)),
 });
 
 async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {

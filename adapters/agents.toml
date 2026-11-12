@@ -80,3 +80,8 @@ session_id = false
 # session of the directory created after the pane's agent started; any ambiguity needs the mirror,
 # and no proof means no gauge — a gauge that might be wrong is worse than no gauge.
 opencode_db = true
+# No `model_flag`: the TUI herdr starts (opencode v2.2.6) answers « Unrecognized flag: --model »
+# (`run`/`mini` have one, the TUI not), and herdr passes no environment. What it does read is a
+# `model = "provider/model#variant"` in an opencode.json found walking up from its directory —
+# verified 2026-11-12: the TUI showed « Qwen3.8 … GPU2 · low » for `l40s-2/qwen38#low`.
+model_file = "opencode.json"

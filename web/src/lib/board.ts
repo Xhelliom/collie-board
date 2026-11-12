@@ -1035,15 +1035,34 @@ export const fetchPlanExport = (repo: string, signal?: AbortSignal): Promise<{ e
 export const setPlanExport = (path: string, enabled: boolean): Promise<{ ok: true; enabled: boolean }> =>
   apiRequest("/api/repos/plan-export", { method: "POST", body: JSON.stringify({ path, enabled }) });
 
-/** The model and effort of a launch in this repo whose template names no model. Null: Claude Code's own default. */
+/** A repo's default for one harness's launches whose template names no model. Null fields: the CLI's own default. */
 export interface RepoModel {
+  provider: string | null;
   model: string | null;
   effort: string | null;
 }
-export const fetchRepoModel = (repo: string, signal?: AbortSignal): Promise<RepoModel> =>
+/** What the settings offer, read by the bridge from the harness's own files when they open. */
+export interface ModelChoice {
+  id: string;
+  name?: string;
+  efforts: string[];
+}
+export interface ProviderChoice {
+  id: string;
+  name?: string;
+  models: ModelChoice[];
+}
+export interface HarnessModel {
+  kind: string;
+  /** The harness takes a provider (OpenCode `provider/model#variant`); Claude does not. */
+  provider: boolean;
+  providers: ProviderChoice[];
+  value: RepoModel | null;
+}
+export const fetchRepoModels = (repo: string, signal?: AbortSignal): Promise<{ harnesses: HarnessModel[] }> =>
   apiRequest(`/api/repos/model?repo=${encodeURIComponent(repo)}`, { signal });
-export const setRepoModel = (path: string, m: RepoModel): Promise<RepoModel> =>
-  apiRequest("/api/repos/model", { method: "POST", body: JSON.stringify({ path, ...m }) });
+export const setRepoModel = (path: string, kind: string, m: RepoModel): Promise<{ kind: string; value: RepoModel | null }> =>
+  apiRequest("/api/repos/model", { method: "POST", body: JSON.stringify({ path, kind, ...m }) });
 
 /** A repo's shared board (ADR 0048 §1): off (`share: null`) until the operator's gesture. */
 export interface RepoShare {

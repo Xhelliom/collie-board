@@ -49,11 +49,11 @@ describe("pure helpers", () => {
     expect(modelArgs("claude", "a b")).toEqual([]);
     expect(modelArgs("mystery", "sonnet")).toEqual([]);
     // The repo's default (model + effort) speaks only when the template names no model.
-    const repo = { model: "sonnet", effort: "high" };
+    const repo = { provider: null, model: "sonnet", effort: "high" };
     expect(modelArgs("claude", null, undefined, repo)).toEqual(["--model", "sonnet", "--effort", "high"]);
     expect(modelArgs("claude", "opus", undefined, repo)).toEqual(["--model", "opus"]);
-    expect(modelArgs("claude", null, undefined, { model: null, effort: "low" })).toEqual(["--effort", "low"]);
-    expect(modelArgs("claude", null, undefined, { model: "--x", effort: "--y" })).toEqual([]);
+    expect(modelArgs("claude", null, undefined, { provider: null, model: null, effort: "low" })).toEqual(["--effort", "low"]);
+    expect(modelArgs("claude", null, undefined, { provider: null, model: "--x", effort: "--y" })).toEqual([]);
     expect(modelArgs("codex", null, undefined, repo)).toEqual([]);
     expect(isModel("claude-sonnet-4-5")).toBe(true);
     expect(isModel("-x")).toBe(false);
@@ -194,14 +194,14 @@ describe("startCard with a template (ADR 0026)", () => {
       return h.started;
     };
     expect(await start({})).toEqual([{ kind: "claude", args: undefined }]);
-    db.setRepoModel("/repo", "sonnet", "medium");
-    expect(db.repoModel("/repo")).toEqual({ model: "sonnet", effort: "medium" });
+    db.setRepoModel("/repo", "claude", { provider: null, model: "sonnet", effort: "medium" });
+    expect(db.repoModel("/repo", "claude")).toEqual({ provider: null, model: "sonnet", effort: "medium" });
     expect(await start({})).toEqual([{ kind: "claude", args: ["--model", "sonnet", "--effort", "medium"] }]);
     const bare = db.createTemplate({ name: "Bare", brief: "B" });
     expect(await start({ templateId: bare.id })).toEqual([{ kind: "claude", args: ["--model", "sonnet", "--effort", "medium"] }]);
     const opus = db.createTemplate({ name: "Op", brief: "B", model: "opus" });
     expect(await start({ templateId: opus.id })).toEqual([{ kind: "claude", args: ["--model", "opus"] }]);
-    db.setRepoModel("/repo", null, null);
+    db.setRepoModel("/repo", "claude", null);
     expect(db.dump().repo_pref).toHaveLength(0);
     expect(await start({})).toEqual([{ kind: "claude", args: undefined }]);
     db.close();

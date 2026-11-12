@@ -28,6 +28,7 @@ const PERSISTENCE: Record<string, string> = {
   "cards.ts": "~/.claude.json trust flag for a launched checkout — Claude Code's file, not Collie state",
   "pairing.ts": "node.toml / peers.toml — the peers' secrets, kept out of the backup on purpose (ADR 0049)",
   "opencode-transcript.ts": "reads opencode's own database, read-only",
+  "model-file.ts": "opencode.json beside a repo's worktrees — derived from repo_pref (in board.db) and rewritten at each card launch",
   "opencode-usage.ts": "reads opencode's own database, read-only",
   "opencode-store.ts": "reads opencode's own database, read-only",
   "push.ts": "state dir file — walked by collectFiles",
