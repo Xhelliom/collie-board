@@ -114,6 +114,20 @@ function worktreeRepoDir(cwd: string): string | null {
  * Panes ride in the order the bridge sent them (status → space → pane), agents before shells, so two
  * renders of an unchanged herd give the same list.
  */
+/** hc has no spaces: the bridge files every terminal under this one id (bridge/mux/hc.ts `HC_SPACE`). */
+export const HC_SPACE = "hc";
+
+/**
+ * The group a pane belongs to. A herdr 0.9 pane: its space. An hc pane: its directory — the repo it
+ * runs in, or the plain folder of a shell — since the one "hc" space would lump every repo together.
+ * Such a group is not a space herdr knows, so it can't be drilled into (see {@link isHcGroup}).
+ */
+export function spaceKey(pane: AgentView): string {
+  return pane.workspaceId === HC_SPACE ? `${HC_SPACE}:${pane.cwd}` : pane.workspaceId;
+}
+
+export const isHcGroup = (workspaceId: string): boolean => workspaceId.startsWith(`${HC_SPACE}:`);
+
 export function groupPanesBySpace(
   agents: AgentView[],
   shellPanes: AgentView[],
@@ -133,13 +147,16 @@ export function groupPanesBySpace(
   });
 
   for (const w of workspaces) {
+    if (w.workspaceId === HC_SPACE) continue; // its panes regroup by directory below
     groups.set(w.workspaceId, blank(w.workspaceId, w.number, w.label, ""));
   }
   for (const pane of [...agents, ...shellPanes]) {
-    let g = groups.get(pane.workspaceId);
+    const key = spaceKey(pane);
+    let g = groups.get(key);
     if (!g) {
-      g = blank(pane.workspaceId, pane.workspaceNumber, pane.workspaceLabel, pane.cwd);
-      groups.set(pane.workspaceId, g);
+      const label = isHcGroup(key) ? (pane.cwd.split("/").filter(Boolean).at(-1) ?? pane.cwd) : pane.workspaceLabel;
+      g = blank(key, pane.workspaceNumber, label, pane.cwd);
+      groups.set(key, g);
     }
     // A seeded group has no cwd of its own — WorkspaceView doesn't carry one; its first pane says it.
     if (!g.cwd) g.cwd = pane.cwd;
@@ -159,9 +176,17 @@ export function groupPanesBySpace(
     if (dir && worktreeRepoDir(g.cwd) === null && !byRepoDir.has(dir)) byRepoDir.set(dir, g);
   }
   const roots: SpaceGroup[] = [];
-  for (const g of all) {
+  for (const g of [...all]) {
     const repoDir = worktreeRepoDir(g.cwd);
-    const parent = repoDir ? byRepoDir.get(repoDir) : undefined;
+    let parent = repoDir ? byRepoDir.get(repoDir) : undefined;
+    // Under hc a card's worktree still names its repo; with no terminal open there, the repo gets a
+    // header of its own rather than the worktree floating as a root titled by its branch slug.
+    if (!parent && repoDir && isHcGroup(g.workspaceId)) {
+      parent = blank(`${HC_SPACE}:worktrees/${repoDir}`, g.number, repoDir, "");
+      byRepoDir.set(repoDir, parent);
+      all.push(parent);
+      roots.push(parent);
+    }
     if (parent && parent !== g) parent.children.push(g);
     else roots.push(g);
   }
