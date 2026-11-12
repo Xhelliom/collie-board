@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794420040204.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Recette et terrain","goal":"Passer les tests manuels en attente, mettre les machines sous hc, trier le backlog.","position":48,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794420035457}}
+{"v":1,"hlc":"1794489964962.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794489964493}}
