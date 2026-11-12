@@ -45,7 +45,7 @@ export async function handleOpenRoute(pathname: string, req: Request, ctx: Board
     if (agent) {
       // A failed launch leaves its shell: it is in the herd, where the operator reads why and closes it.
       if (kind === "claude") trustFolder(repoPath);
-      await launchAgent(ctx.herdr, created.paneId, kind, agentNameFor(`${kind}-${repo}-${id}`), undefined, modelArgs(kind, template?.model, ctx.adapters));
+      await launchAgent(ctx.herdr, created.paneId, kind, agentNameFor(`${kind}-${repo}-${id}`), undefined, modelArgs(kind, template?.model, ctx.adapters, ctx.db.repoModel(repoPath)));
       if (template?.brief) await promptAndConfirm(ctx.herdr, created.paneId, template.brief, undefined, { firstAfterLaunch: true });
     }
     return ctx.json({

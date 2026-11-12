@@ -19,6 +19,13 @@ export const AGENT_FILE_MAX_BYTES = 64 * 1024;
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 const KIND = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 export const isModel = (v: unknown): v is string => typeof v === "string" && MODEL.test(v);
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+export const isEffort = (v: unknown): v is string => typeof v === "string" && EFFORTS.includes(v);
+/** A repo's default for launches whose template names no model (repo_pref). */
+export interface RepoModel {
+  model: string | null;
+  effort: string | null;
+}
 export const isKind = (v: unknown): v is string => typeof v === "string" && KIND.test(v);
 
 // ── the shipped templates ──────────────────────────────────────────────────────
@@ -137,16 +144,20 @@ export function composePrompt(brief: string, cardPrompt: string): string {
 }
 
 /**
- * The CLI arguments that pick a template's model, or none: the kind has no verified flag, no model
- * was set, or the model does not look like a model name. Pure.
+ * The CLI arguments that pick a launch's model, or none: the kind has no verified flag, no model
+ * was set, or the model does not look like a model name. A template's model wins; without one the
+ * repo's default applies whole (model and effort); without either, the CLI's own default. Pure.
  */
 export function modelArgs(
   kind: string,
   model: string | null | undefined,
   adapters: Record<string, AgentAdapter> = BUILTIN_ADAPTERS,
+  repo?: RepoModel | null,
 ): string[] {
   const flag = adapters[kind]?.modelFlag;
-  return flag && isModel(model) ? [flag, model] : [];
+  if (isModel(model)) return flag ? [flag, model] : [];
+  const effortFlag = adapters[kind]?.effortFlag;
+  return [...(flag && isModel(repo?.model) ? [flag, repo.model] : []), ...(effortFlag && isEffort(repo?.effort) ? [effortFlag, repo.effort] : [])];
 }
 
 /** The template a card starts with: its own, else its phase's, else none. Pure. */

@@ -1334,6 +1334,9 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   share      TEXT,
   -- 0 = the operator turned off the plan export at the end of a lot. NULL: on (the default).
   plan_export INTEGER,
+  -- The model (and effort) of a launch whose template names none. NULL: the CLI's own default.
+  model      TEXT,
+  effort     TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1828,6 +1831,9 @@ export class BoardDb {
       { table: "repo_pref", column: "share", ddl: "TEXT" },
       // The plan export at the end of a lot: no row turned it off before.
       { table: "repo_pref", column: "plan_export", ddl: "INTEGER" },
+      // The repo's default model: no repo had one before.
+      { table: "repo_pref", column: "model", ddl: "TEXT" },
+      { table: "repo_pref", column: "effort", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -3258,8 +3264,24 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
+  /** The repo's default model and effort, for a launch whose template names no model. Null = the CLI's default. */
+  repoModel(path: string | null | undefined): { model: string | null; effort: string | null } {
+    const row = path ? this.db.query<{ model: string | null; effort: string | null }, [string]>("SELECT model, effort FROM repo_pref WHERE path = ?").get(path) : null;
+    return { model: row?.model ?? null, effort: row?.effort ?? null };
+  }
+
+  setRepoModel(path: string, model: string | null, effort: string | null): void {
+    this.db
+      .query(
+        `INSERT INTO repo_pref (path, model, effort, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET model = excluded.model, effort = excluded.effort, updated_at = excluded.updated_at`,
+      )
+      .run(path, model, effort, this.now());
+    this.pruneRepoPref(path);
+  }
+
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────

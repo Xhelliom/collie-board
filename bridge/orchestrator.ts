@@ -159,6 +159,8 @@ export interface OrchestratorDeps {
   wait?: (ms: number) => Promise<void>;
   /** The repo's memory note, read at start so a renewed orchestrator picks up where the last one stopped. */
   memory?: (repoPath: string) => { note: string; updatedAt: number } | null;
+  /** The repo's default model flags for this kind (repo_pref) — none when absent. */
+  modelArgs?: (repoPath: string, kind: string) => string[];
 }
 
 /** Starts in flight, so two taps on "Démarrer" make one agent, not a name clash. */
@@ -176,7 +178,7 @@ export function startOrchestrator(deps: OrchestratorDeps, repoPath: string, igno
   return p;
 }
 
-async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string) {
+async function doStart({ herdr, cfg, snapshot, wait, memory, modelArgs }: OrchestratorDeps, repoPath: string, ignore?: string, shellPane?: string) {
   const snap = snapshot();
   const live = findOrchestrator(snap, repoPath, ignore);
   if (live) return { paneId: live, started: false };
@@ -185,7 +187,7 @@ async function doStart({ herdr, cfg, snapshot, wait, memory }: OrchestratorDeps,
   const shell = shellPane ?? snap.shellPanes.find((p) => spaceLabel(p) === label && samePath(p.cwd, repoPath))?.paneId;
   const paneId = shell ?? (await herdr.createWorkspace({ cwd: repoPath, label, show: orchestratorTab(repoPath) })).paneId;
   const kind = cfg.boardCopilotKind || cfg.boardAgentKind;
-  await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait);
+  await launchAgent(herdr, paneId, kind, orchestratorName(repoPath), wait, modelArgs?.(repoPath, kind));
   await promptAndConfirm(herdr, paneId, orchestratorPrompt(repoPath, memory?.(repoPath) ?? null, cfg.allowedOrigins?.[0] ?? null), wait, { firstAfterLaunch: true });
   console.log(`[orchestrator] agent ready in ${paneId} (${repoPath})`);
   return { paneId, started: true };

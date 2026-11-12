@@ -30,6 +30,8 @@ session_id = true
 # follows `--` on `agent start` to the executable. Verified on the installed Claude Code; the other
 # kinds keep no `model_flag` until someone has run their CLI (a template's model is ignored there).
 model_flag = "--model"
+# `claude --help`: `--effort <level>` (low, medium, high, xhigh, max). A repo's default effort only.
+effort_flag = "--effort"
 
 # `/new` — "start a new chat during a conversation" — is Codex's own reset, read from the enum the
 # command popup is built from (codex-rs/tui/src/slash_command.rs). `/clear` exists too and also

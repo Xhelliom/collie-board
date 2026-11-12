@@ -9,18 +9,26 @@ import {
   boardErrorMessage,
   fetchAutonomy,
   fetchPlanExport,
+  fetchRepoModel,
   fetchRepoIntegration,
   saveAutonomy,
   setPlanExport,
+  setRepoModel,
   setRepoIntegration,
   type Autonomy,
   type RepoIntegration,
+  type RepoModel,
 } from "@/lib/board";
 import { setStatus } from "@/lib/status";
 
 // The Claude Code allow rule an autonomous launch needs, or each one waits on a prompt in the
 // orchestrator's pane. Shown, never written: the bridge does not touch the user's Claude settings.
 // shortcut: the default port — the UI does not know COLLIE_BOARD_PORT; the hint says to adjust it.
+// The aliases Claude Code resolves itself, so the list does not age with each release.
+const MODELS = ["sonnet", "opus", "fable", "haiku"];
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+const select = "h-8 rounded-md border border-border bg-background px-2 text-sm";
+
 export const LAUNCH_PERMISSION = "Bash(curl -s -X POST http://127.0.0.1:8788/api/runs/*/launch*)";
 
 function LaunchPermission() {
@@ -56,6 +64,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   const [a, setA] = useState<Autonomy | null>(null);
   const [integration, setIntegration] = useState<RepoIntegration | null>(null);
   const [planExport, setPlanExportOn] = useState<boolean | null>(null);
+  const [model, setModel] = useState<RepoModel | null>(null);
   // What is typed in the rounds field, so it can be emptied to type another number; null = the saved value.
   const [rounds, setRounds] = useState<string | null>(null);
 
@@ -64,6 +73,10 @@ export function AutonomySettings({ repo }: { repo: string }) {
     setA(null);
     setIntegration(null);
     setPlanExportOn(null);
+    setModel(null);
+    fetchRepoModel(repo, ac.signal)
+      .then(setModel)
+      .catch(() => {});
     fetchAutonomy(repo, ac.signal)
       .then((r) => setA(r.autonomy))
       .catch(() => {});
@@ -99,6 +112,15 @@ export function AutonomySettings({ repo }: { repo: string }) {
   async function savePlanExport(on: boolean) {
     try {
       setPlanExportOn((await setPlanExport(repo, on)).enabled);
+      setStatus(t("orch.autoSaved"), "success", 2000);
+    } catch (e) {
+      setStatus(boardErrorMessage(e), "error", null);
+    }
+  }
+
+  async function saveModel(next: RepoModel) {
+    try {
+      setModel(await setRepoModel(repo, next));
       setStatus(t("orch.autoSaved"), "success", 2000);
     } catch (e) {
       setStatus(boardErrorMessage(e), "error", null);
@@ -188,6 +210,33 @@ export function AutonomySettings({ repo }: { repo: string }) {
               <Switch checked={planExport} onCheckedChange={(on) => void savePlanExport(on)} aria-label={t("orch.planExport")} />
             </div>
             <p className="text-xs text-muted-foreground">{t("orch.planExportHint")}</p>
+          </>
+        )}
+        {model && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="repo-model">{t("orch.model")}</label>
+              <span className="flex items-center gap-2">
+                <select id="repo-model" value={model.model ?? ""} onChange={(e) => void saveModel({ ...model, model: e.target.value || null })} className={select}>
+                  <option value="">{t("orch.modelNone")}</option>
+                  {/* A value set through the API that is not an alias stays shown, not silently dropped. */}
+                  {[...new Set([...MODELS, ...(model.model ? [model.model] : [])])].map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <select aria-label={t("orch.effort")} value={model.effort ?? ""} onChange={(e) => void saveModel({ ...model, effort: e.target.value || null })} className={select}>
+                  <option value="">{t("orch.effortNone")}</option>
+                  {EFFORTS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("orch.modelHint")}</p>
           </>
         )}
       </div>

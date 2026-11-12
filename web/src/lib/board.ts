@@ -1035,6 +1035,16 @@ export const fetchPlanExport = (repo: string, signal?: AbortSignal): Promise<{ e
 export const setPlanExport = (path: string, enabled: boolean): Promise<{ ok: true; enabled: boolean }> =>
   apiRequest("/api/repos/plan-export", { method: "POST", body: JSON.stringify({ path, enabled }) });
 
+/** The model and effort of a launch in this repo whose template names no model. Null: Claude Code's own default. */
+export interface RepoModel {
+  model: string | null;
+  effort: string | null;
+}
+export const fetchRepoModel = (repo: string, signal?: AbortSignal): Promise<RepoModel> =>
+  apiRequest(`/api/repos/model?repo=${encodeURIComponent(repo)}`, { signal });
+export const setRepoModel = (path: string, m: RepoModel): Promise<RepoModel> =>
+  apiRequest("/api/repos/model", { method: "POST", body: JSON.stringify({ path, ...m }) });
+
 /** A repo's shared board (ADR 0048 §1): off (`share: null`) until the operator's gesture. */
 export interface RepoShare {
   share: string | null;

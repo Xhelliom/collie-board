@@ -46,6 +46,8 @@ export interface AgentAdapter {
    * one. A template's model is passed only through this (ADR 0026): never a flag the operator typed.
    */
   modelFlag: string;
+  /** Same rule for the effort level (`--effort`): empty or absent = not verified, never passed. */
+  effortFlag?: string;
 }
 
 /**
@@ -57,7 +59,7 @@ export interface AgentAdapter {
  * the telemetry design refuses.
  */
 export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
-  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false, modelFlag: "--model" },
+  claude: { kind: "claude", clear: "/clear", context: true, sessionId: true, opencodeDb: false, modelFlag: "--model", effortFlag: "--effort" },
   // Codex resets with `/new`, not `/clear` — `/clear` wipes the terminal too. Cursor is the
   // opposite: `/clear` is its reset and it has no `/new`. Both are sourced in adapters/agents.toml.
   codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
@@ -114,6 +116,7 @@ export function mergeAdapters(
       opencodeDb: bool(o.opencode_db ?? o.opencodeDb, current.opencodeDb),
       // Same: `model_flag` in TOML, camelCase tolerated.
       modelFlag: text(o.model_flag ?? o.modelFlag, current.modelFlag),
+      effortFlag: text(o.effort_flag ?? o.effortFlag, current.effortFlag ?? ""),
     };
   }
   return out;
