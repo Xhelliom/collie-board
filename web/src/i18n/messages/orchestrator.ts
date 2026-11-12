@@ -77,6 +77,12 @@ export const orchestrator = defineMessages({
   "orch.modelNone": { en: "None", fr: "Aucun" },
   "orch.effort": { en: "Effort", fr: "Effort" },
   "orch.effortNone": { en: "Default effort", fr: "Effort par défaut" },
+  "orch.provider": { en: "Provider", fr: "Fournisseur" },
+  "orch.providerNone": { en: "No provider", fr: "Aucun fournisseur" },
+  "orch.modelHintFile": {
+    en: "For the cards of this repo: written beside their worktrees as opencode.json, never in git. Not « New agent » nor the orchestrator, which start in the main checkout. None: OpenCode's own default.",
+    fr: "Pour les cartes de ce dépôt : écrit à côté de leurs worktrees (opencode.json), jamais dans git. Ni « Nouvel agent » ni l'orchestrateur, qui démarrent dans le checkout principal. Aucun : le défaut d'OpenCode.",
+  },
   "orch.modelHint": {
     en: "For every Claude launch in this repo whose template names no model: cards, « New agent », handoffs, the orchestrator. A template's model wins. None: Claude Code's own default, which changes with each release.",
     fr: "Pour tout lancement Claude de ce dépôt dont le gabarit n'a pas de modèle : cartes, « Nouvel agent », relais, orchestrateur. Le modèle d'un gabarit l'emporte. Aucun : le défaut de Claude Code, qui change à chaque sortie.",

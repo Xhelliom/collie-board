@@ -14,7 +14,7 @@
 // from blocking, and `busy_timeout` covers the sqlite-internal contention that remains.
 
 import { BUILTIN_FLOWS } from "./flows.ts";
-import { BUILTIN_TEMPLATES } from "./templates.ts";
+import { BUILTIN_TEMPLATES, type RepoModel } from "./templates.ts";
 import { parseHlc, type Hlc, type JournalEvent } from "./journal.ts";
 import { chmodSync } from "node:fs";
 
@@ -1337,6 +1337,8 @@ CREATE TABLE IF NOT EXISTS repo_pref (
   -- The model (and effort) of a launch whose template names none. NULL: the CLI's own default.
   model      TEXT,
   effort     TEXT,
+  -- Per harness: {"claude": {provider, model, effort}, "opencode": …}. Replaces model/effort (kept NULL).
+  models     TEXT,
   updated_at INTEGER NOT NULL
 );
 
@@ -1834,6 +1836,7 @@ export class BoardDb {
       // The repo's default model: no repo had one before.
       { table: "repo_pref", column: "model", ddl: "TEXT" },
       { table: "repo_pref", column: "effort", ddl: "TEXT" },
+      { table: "repo_pref", column: "models", ddl: "TEXT" },
       // Phases, lots, roadmap (ADR 0021).
       { table: "card", column: "phase_id", ddl: "TEXT" },
       { table: "run", column: "phase_id", ddl: "TEXT" },
@@ -1888,6 +1891,11 @@ export class BoardDb {
       if (cols.some((c) => c.name === column)) continue;
       this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
+    // The Claude-only default (model, effort) becomes Claude's entry in `models`; idempotent, the old columns end NULL.
+    this.db.exec(
+      `UPDATE repo_pref SET models = json_set(COALESCE(models, '{}'), '$.claude', json_object('provider', NULL, 'model', model, 'effort', effort)), model = NULL, effort = NULL
+       WHERE model IS NOT NULL OR effort IS NOT NULL`,
+    );
     if (!hadLaunchedAt) this.db.exec("UPDATE run SET launched_at = created_at WHERE launched_at IS NULL");
     if (!hadWorker) {
       const keys = BUILTIN_TEMPLATES.filter((t) => t.worker).map((t) => t.key);
@@ -3264,24 +3272,37 @@ export class BoardDb {
     this.pruneRepoPref(path);
   }
 
-  /** The repo's default model and effort, for a launch whose template names no model. Null = the CLI's default. */
-  repoModel(path: string | null | undefined): { model: string | null; effort: string | null } {
-    const row = path ? this.db.query<{ model: string | null; effort: string | null }, [string]>("SELECT model, effort FROM repo_pref WHERE path = ?").get(path) : null;
-    return { model: row?.model ?? null, effort: row?.effort ?? null };
+  /** The repo's defaults per harness, for a launch whose template names no model. Absent kind = the CLI's default. */
+  repoModels(path: string | null | undefined): Record<string, RepoModel> {
+    const raw = path ? this.db.query<{ models: string | null }, [string]>("SELECT models FROM repo_pref WHERE path = ?").get(path)?.models : null;
+    try {
+      return raw ? (JSON.parse(raw) as Record<string, RepoModel>) : {};
+    } catch {
+      return {};
+    }
   }
 
-  setRepoModel(path: string, model: string | null, effort: string | null): void {
+  repoModel(path: string | null | undefined, kind: string): RepoModel | null {
+    return this.repoModels(path)[kind] ?? null;
+  }
+
+  /** `m` null (or all-null) = back to the CLI's default for that kind. */
+  setRepoModel(path: string, kind: string, m: RepoModel | null): void {
+    const all = this.repoModels(path);
+    if (m && (m.provider || m.model || m.effort)) all[kind] = m;
+    else delete all[kind];
+    const models = Object.keys(all).length ? JSON.stringify(all) : null;
     this.db
       .query(
-        `INSERT INTO repo_pref (path, model, effort, updated_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(path) DO UPDATE SET model = excluded.model, effort = excluded.effort, updated_at = excluded.updated_at`,
+        `INSERT INTO repo_pref (path, models, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET models = excluded.models, updated_at = excluded.updated_at`,
       )
-      .run(path, model, effort, this.now());
+      .run(path, models, this.now());
     this.pruneRepoPref(path);
   }
 
   private pruneRepoPref(path: string): void {
-    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL").run(path);
+    this.db.query("DELETE FROM repo_pref WHERE path = ? AND hidden = 0 AND gate IS NULL AND flow_id IS NULL AND integration IS NULL AND listed = 0 AND share IS NULL AND plan_export IS NULL AND model IS NULL AND effort IS NULL AND models IS NULL").run(path);
   }
 
   // ── shared journal (ADR 0048 §2) ────────────────────────────────────────────

@@ -48,6 +48,11 @@ export interface AgentAdapter {
   modelFlag: string;
   /** Same rule for the effort level (`--effort`): empty or absent = not verified, never passed. */
   effortFlag?: string;
+  /**
+   * The config file the CLI reads its model from, walking up from where it starts (`opencode.json`) —
+   * for a TUI with no model flag. Written beside a card's worktree, never inside it (model-file.ts).
+   */
+  modelFile?: string;
 }
 
 /**
@@ -65,7 +70,7 @@ export const BUILTIN_ADAPTERS: Record<string, AgentAdapter> = {
   codex: { kind: "codex", clear: "/new", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
   cursor: { kind: "cursor", clear: "/clear", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
   gemini: { kind: "gemini", clear: "", context: false, sessionId: false, opencodeDb: false, modelFlag: "" },
-  opencode: { kind: "opencode", clear: "", context: false, sessionId: false, opencodeDb: true, modelFlag: "" },
+  opencode: { kind: "opencode", clear: "", context: false, sessionId: false, opencodeDb: true, modelFlag: "", modelFile: "opencode.json" },
 };
 
 /** The fallback for an agent kind nobody described: assume nothing, degrade everywhere. */
@@ -118,6 +123,8 @@ export function mergeAdapters(
       modelFlag: text(o.model_flag ?? o.modelFlag, current.modelFlag),
       effortFlag: text(o.effort_flag ?? o.effortFlag, current.effortFlag ?? ""),
     };
+    const modelFile = text(o.model_file ?? o.modelFile, current.modelFile ?? "");
+    if (modelFile) out[kind]!.modelFile = modelFile;
   }
   return out;
 }

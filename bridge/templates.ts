@@ -21,8 +21,11 @@ const KIND = /^[a-z0-9][a-z0-9_-]{0,31}$/;
 export const isModel = (v: unknown): v is string => typeof v === "string" && MODEL.test(v);
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 export const isEffort = (v: unknown): v is string => typeof v === "string" && EFFORTS.includes(v);
-/** A repo's default for launches whose template names no model (repo_pref). */
+/** A variant name a CLI may offer for a model (OpenCode's `#variant`): one word. */
+export const isVariant = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/.test(v);
+/** A repo's default, per harness, for launches whose template names no model (repo_pref). */
 export interface RepoModel {
+  provider: string | null;
   model: string | null;
   effort: string | null;
 }

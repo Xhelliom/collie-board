@@ -69,7 +69,9 @@ import { handleDeliverablesRoute, removeCardDeliverables } from "./deliverables.
 import { advancePipeline, nextRole, nextStepOf, pipelineOf, readBilan } from "./pipeline.ts";
 import { handleTemplateRoute } from "./template-routes.ts";
 import { adapterFor, BUILTIN_ADAPTERS, type AgentAdapter } from "./adapters.ts";
-import { EFFORTS, isEffort, isModel } from "./templates.ts";
+import { EFFORTS, isEffort, isModel, isVariant, type RepoModel } from "./templates.ts";
+import { CLAUDE_CHOICES, readOpencodeChoices } from "./model-choices.ts";
+import { syncModelFile, worktreeDirs } from "./model-file.ts";
 import { handleFactsRoute } from "./project-facts.ts";
 import { handleQuickRoute } from "./project-quick.ts";
 import { handleMcpSetupRoute } from "./mcp-setup.ts";
@@ -644,15 +646,27 @@ async function route(
     return ctx.json({ ok: true, enabled });
   }
 
-  // The model (and effort) of every launch in this repo whose template names none. The operator's
-  // setting, like the two above — an agent pane may read it, never set it.
+  // The model (and effort) of every launch in this repo whose template names none, per harness. The
+  // operator's setting, like the two above — an agent pane may read it, never set it.
   if (pathname === REPOS_MODEL_ROUTE) {
+    // The harnesses a model can reach: a verified flag, or a config file the TUI reads (adapters.ts).
+    const harnesses = Object.values(ctx.adapters ?? BUILTIN_ADAPTERS).filter((a) => a.modelFlag || a.modelFile);
     if (req.method === "GET") {
       const denied = ctx.guard("read");
       if (denied) return denied;
       const repo = new URL(req.url).searchParams.get("repo");
       if (!repo) return ctx.text("repo required", 400);
-      return ctx.json(ctx.db.repoModel(repo));
+      const values = ctx.db.repoModels(repo);
+      return ctx.json({
+        harnesses: harnesses.map((a) => ({
+          kind: a.kind,
+          // A flag takes a model, not a provider; a config file takes `provider/model#variant`.
+          provider: !a.modelFlag,
+          // Read here, when the settings open — never polled.
+          providers: a.kind === "claude" ? CLAUDE_CHOICES : a.kind === "opencode" ? readOpencodeChoices() : [],
+          value: values[a.kind] ?? null,
+        })),
+      });
     }
     if (req.method !== "POST") return ctx.text("method not allowed", 405);
     if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("the default model is the operator's setting — an agent pane may not change it", 403);
@@ -664,13 +678,21 @@ async function route(
     } catch {
       return ctx.text("bad body", 400);
     }
-    const { path, model = null, effort = null } = (body ?? {}) as { path?: unknown; model?: unknown; effort?: unknown };
+    const { path, kind, provider = null, model = null, effort = null } = (body ?? {}) as Record<string, unknown>;
     if (typeof path !== "string" || path.trim() === "") return ctx.text("path required", 400);
+    const adapter = harnesses.find((a) => a.kind === kind);
+    if (!adapter) return ctx.text(`kind must be one of ${harnesses.map((a) => a.kind).join(", ")}`, 400);
+    if (provider !== null && (adapter.modelFlag || !isModel(provider) || provider.includes("/"))) return ctx.text("provider must be a provider id or null", 400);
     if (model !== null && !isModel(model)) return ctx.text("model must be a model name or null", 400);
-    if (effort !== null && !isEffort(effort)) return ctx.text(`effort must be one of ${EFFORTS.join(", ")} or null`, 400);
-    ctx.db.setRepoModel(path.trim(), model, effort);
-    ctx.audit.record({ action: "repo.model", session: ctx.session, device: ctx.device, detail: { path: path.trim(), model, effort } });
-    return ctx.json(ctx.db.repoModel(path.trim()));
+    if (effort !== null && !(adapter.effortFlag ? isEffort(effort) : !adapter.modelFlag && isVariant(effort)))
+      return ctx.text(adapter.effortFlag ? `effort must be one of ${EFFORTS.join(", ")} or null` : "effort must be a variant name or null", 400);
+    const repo = path.trim();
+    const value = { provider, model, effort } as RepoModel;
+    ctx.db.setRepoModel(repo, adapter.kind, value);
+    // The file beside the repo's worktrees follows the setting at once, « None » included.
+    if (adapter.modelFile) for (const dir of await worktreeDirs(repo)) syncModelFile(adapter, dir, ctx.db.repoModel(repo, adapter.kind));
+    ctx.audit.record({ action: "repo.model", session: ctx.session, device: ctx.device, detail: { path: repo, kind: adapter.kind, provider, model, effort } });
+    return ctx.json({ kind: adapter.kind, value: ctx.db.repoModel(repo, adapter.kind) });
   }
 
   // The board's switches: whether a review's follow-up suggestions become cards, and how many agents

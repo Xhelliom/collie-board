@@ -18,7 +18,8 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import type { AgentAdapter } from "./adapters.ts";
+import { BUILTIN_ADAPTERS, type AgentAdapter } from "./adapters.ts";
+import { syncAtLaunch } from "./model-file.ts";
 import type { Config } from "./config.ts";
 import {
   EVENT_WINDOW,
@@ -955,7 +956,8 @@ export async function startCard(
 
   try {
     const wait = opts.sleep ?? sleep;
-    const args = modelArgs(kind, template?.model, opts.adapters, db.repoModel(card.repoPath));
+    const args = modelArgs(kind, template?.model, opts.adapters, db.repoModel(card.repoPath, kind));
+    syncAtLaunch((opts.adapters ?? BUILTIN_ADAPTERS)[kind], worktree.checkoutPath, card.repoPath, db.repoModel(card.repoPath, kind));
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     // A repo never opened in Claude Code puts its trust dialog up, cursor on « No, exit ».
     if (kind === "claude") trustFolder(worktree.checkoutPath);

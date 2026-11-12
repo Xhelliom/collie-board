@@ -10,7 +10,8 @@ import { join } from "node:path";
 
 import { agentNameFor, cardTab, initialPrompt, launchAgent, promptAndConfirm } from "./cards.ts";
 import type { Config } from "./config.ts";
-import type { AgentAdapter } from "./adapters.ts";
+import { BUILTIN_ADAPTERS, type AgentAdapter } from "./adapters.ts";
+import { syncAtLaunch } from "./model-file.ts";
 import type { BoardDb, BoardEvent, Card, CardSession, AgentTemplate } from "./db.ts";
 import type { Mux } from "./mux/mux.ts";
 import { BILAN_REL_PATH, bilanPrompt } from "./lead.ts";
@@ -119,7 +120,8 @@ async function swapRole(
   // The card's explicit kind, else the ROLE's (ADR 0026) — never the kind an earlier role ran with.
   const kind = card.agentKind ?? role.agentKind ?? cfg.boardAgentKind;
   const next = db.openSession({ cardId: card.id, paneId: created.paneId, agentKind: kind });
-  const args = modelArgs(kind, role.model, adapters, db.repoModel(card.repoPath));
+  const args = modelArgs(kind, role.model, adapters, db.repoModel(card.repoPath, kind));
+  syncAtLaunch((adapters ?? BUILTIN_ADAPTERS)[kind], cwd, card.repoPath, db.repoModel(card.repoPath, kind));
   try {
     await launchAgent(herdr, created.paneId, kind, agentNameFor(card.branch ?? card.title), wait, args);
   } catch (err) {
