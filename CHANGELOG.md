@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.302.0] - 2026-11-12
+
+### Added
+
+- Le modèle de chaque agent (« Opus 5.5 ») s'affiche à côté de la jauge ctx : en-tête du pane, orchestrateur, lignes du troupeau. (b857d33)
+- Son niveau d'effort suit quand le transcript du tour le donne ; rien sinon. (b857d33)
+
 ## [0.301.0] - 2026-11-12
 
 ### Added
