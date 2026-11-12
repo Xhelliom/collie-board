@@ -2,6 +2,7 @@
 // orchestrator lives; POST starts (or adopts) it. Only that POST ever starts one: its cost is the
 // operator's quota, so nothing starts it on its own.
 
+import { modelArgs } from "./templates.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -47,6 +48,7 @@ const depsOf = (ctx: BoardContext): OrchestratorDeps => ({
   cfg: ctx.cfg,
   snapshot: () => ctx.engine.current(),
   memory: (repo) => ctx.db.getMemory(repo),
+  modelArgs: (repo, kind) => modelArgs(kind, null, ctx.adapters, ctx.db.repoModel(repo)),
 });
 
 async function bodyOf(req: Request): Promise<Record<string, unknown> | null> {

@@ -736,10 +736,15 @@ the base. The user merges it; the board never pushes the base. Do not open that 
 in a card's work. The export is on by default and the user's switch alone (`POST /api/repos/plan-export` with
 `{path, enabled}` is refused from a pane). A lot another pair launched is exported by that pair, not here.
 
+A repo may have a **default model** (and effort): every Claude launch there whose template names no model gets it
+(`--model`, `--effort`); a template's model wins; unset, Claude Code's own default. The user's setting alone (`POST
+/api/repos/model` with `{path, model, effort}` is refused from a pane).
+
 ```bash
 curl -s "$B/api/repos" | jq '.repos[] | {path, gate}'        # gate = the command, or absent
 curl -s "$B/api/repos/integration?repo=/abs/repo"           # {"integration":"pr"|"direct"}
 curl -s "$B/api/repos/plan-export?repo=/abs/repo"           # {"enabled":true|false} — the end-of-lot plan PR
+curl -s "$B/api/repos/model?repo=/abs/repo"                 # {"model":"sonnet"|null,"effort":"high"|null} — the repo's default
 curl -s "$B/api/project/facts[?repo=/abs/repo]"                # per card, read off its journal: gate result, the lead's
                                                               # verdict and reason, review verdict, PR + auto-merge,
                                                               # times sent back, template, start/end

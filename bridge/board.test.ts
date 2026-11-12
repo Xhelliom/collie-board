@@ -1813,6 +1813,7 @@ describe("agent adapters", () => {
       sessionId: true,
       opencodeDb: false,
       modelFlag: "--model",
+      effortFlag: "--effort",
     });
     // Everything else is explicitly false rather than guessed — a confident wrong percentage is
     // worse than no gauge (see bridge/context.ts).
@@ -1840,6 +1841,7 @@ describe("agent adapters", () => {
       sessionId: true,
       opencodeDb: false,
       modelFlag: "--model",
+      effortFlag: "--effort",
     });
   });
 
@@ -1854,6 +1856,7 @@ describe("agent adapters", () => {
       sessionId: true,
       opencodeDb: false,
       modelFlag: "",
+      effortFlag: "",
     });
   });
 
@@ -1886,6 +1889,7 @@ describe("agent adapters", () => {
       sessionId: true,
       opencodeDb: false,
       modelFlag: "--model",
+      effortFlag: "--effort",
     });
     expect(shipped.codex!.context).toBe(false);
     // The reset commands are opposites and were once contradicted by web/src/lib/agent-commands.ts:
@@ -1898,6 +1902,7 @@ describe("agent adapters", () => {
       sessionId: false,
       opencodeDb: false,
       modelFlag: "",
+      effortFlag: "",
     });
     // No gauge is promised on a transcript format latestUsage() has never been run against.
     for (const kind of ["codex", "cursor"]) expect(shipped[kind]!.context).toBe(false);

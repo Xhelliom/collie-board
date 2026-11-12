@@ -73,6 +73,14 @@ export const orchestrator = defineMessages({
     en: "On (default): when a lot ends, the board opens a « docs(plan) » PR updating docs/plan/ — roadmap, steps and the lot's bilan. You merge it; nothing lands on main without you.",
     fr: "Allumé (défaut) : à la fin d'un lot, le board ouvre une PR « docs(plan) » qui met docs/plan/ à jour — roadmap, étapes et bilan du lot. Tu la merges ; rien n'arrive sur main sans toi.",
   },
+  "orch.model": { en: "Default model", fr: "Modèle par défaut" },
+  "orch.modelNone": { en: "None", fr: "Aucun" },
+  "orch.effort": { en: "Effort", fr: "Effort" },
+  "orch.effortNone": { en: "Default effort", fr: "Effort par défaut" },
+  "orch.modelHint": {
+    en: "For every Claude launch in this repo whose template names no model: cards, « New agent », handoffs, the orchestrator. A template's model wins. None: Claude Code's own default, which changes with each release.",
+    fr: "Pour tout lancement Claude de ce dépôt dont le gabarit n'a pas de modèle : cartes, « Nouvel agent », relais, orchestrateur. Le modèle d'un gabarit l'emporte. Aucun : le défaut de Claude Code, qui change à chaque sortie.",
+  },
   "orch.autoRed": { en: "Stop when a gate or CI is red", fr: "S'arrêter si un gate ou une CI est rouge" },
   "orch.rounds": { en: "Rounds before calling me", fr: "Allers-retours avant de m'appeler" },
   "orch.roundsHint": {

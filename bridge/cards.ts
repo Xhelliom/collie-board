@@ -955,7 +955,7 @@ export async function startCard(
 
   try {
     const wait = opts.sleep ?? sleep;
-    const args = modelArgs(kind, template?.model, opts.adapters);
+    const args = modelArgs(kind, template?.model, opts.adapters, db.repoModel(card.repoPath));
     if (template && !step) db.recordEvent(cardId, "card.template", { templateId: template.id, name: template.name, key: template.key, kind, ...(args.length ? { args, model: template.model } : {}) });
     // A repo never opened in Claude Code puts its trust dialog up, cursor on « No, exit ».
     if (kind === "claude") trustFolder(worktree.checkoutPath);
