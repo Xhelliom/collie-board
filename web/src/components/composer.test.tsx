@@ -1108,6 +1108,14 @@ describe("Composer — Stop, queued Send now, long paste", () => {
     await waitFor(() => expect(sent).toEqual([["Escape"]]));
   });
 
+  it("is Send, not Stop, once something is typed during a turn", async () => {
+    const user = userEvent.setup();
+    renderComposer({ working: true });
+    await user.type(screen.getByPlaceholderText(/type a reply/i), "go on");
+    expect(screen.queryByRole("button", { name: /stop the agent/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
   it("hides Stop when no turn runs", () => {
     renderComposer();
     expect(screen.queryByRole("button", { name: /stop the agent/i })).toBeNull();

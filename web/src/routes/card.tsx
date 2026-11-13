@@ -26,7 +26,6 @@ import {
   Pencil,
   Play,
   Plus,
-  Send,
   Shuffle,
   Sparkles,
   TerminalSquare,
@@ -42,6 +41,7 @@ import { AppHeader } from "@/components/app-header";
 import { PinToggle } from "@/components/pin-button";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
+import { SendButton } from "@/components/ui/chat/send-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -1680,10 +1680,7 @@ export function PromptBox({
         rows={2}
         placeholder={placeholder ?? t("card.prompt.placeholder")}
       />
-      <Button onClick={send} disabled={!text.trim() || sending} className="h-11 gap-2 self-end px-5">
-        <Send className="size-4" />
-        {sending ? t("card.sending") : (sendLabel ?? t("card.prompt.send"))}
-      </Button>
+      <SendButton onClick={send} hasContent={text.trim() !== ""} busy={sending} label={sendLabel ?? t("card.prompt.send")} className="self-end" />
     </div>
   );
 }
