@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794600796457.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"0971bbc3-7bd3-4786-9c53-ba347970f9d4"}}
 {"v":1,"hlc":"1794600796457.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Style Sémaphore plus coloré : vrai vert pour fait, ambre pour au travail, orange franc, bleu saturé","status":"backlog"},"ts":1794600793132}}
 {"v":1,"hlc":"1794600796457.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ed909e51-5117-4ed1-b31b-4eadac19cef4"}}
+{"v":1,"hlc":"1794601996778.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
