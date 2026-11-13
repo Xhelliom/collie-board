@@ -1,64 +1,49 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useRouteLoaderData } from "react-router";
 
 import { AppHeader } from "@/components/app-header";
-import { SpaceOverview } from "@/components/space-overview";
+import { AgentsPageView } from "@/components/agents-page";
 import { NewSpaceSheet } from "@/components/new-space-sheet";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
-import { panePath, spacePath } from "@/lib/nav";
+import { panePath } from "@/lib/nav";
+import { remoteAgents } from "@/lib/peers";
 import { useT } from "@/i18n";
-import { RunningList } from "@/components/sidebar-quick";
-import { showsSpaces } from "@/lib/agent-groups";
 
-// Agents (formerly Spaces) — a root tab (redesign §9): every agent and terminal, by project under hc,
-// by space under herdr 0.9, where creating a space stays offered. Extracted from the dashboard (see home.tsx, Phase 3), and
-// since the space regrouping it renders the SAME `SpacePaneTree` as the pane column and the pane
-// switcher: space → branch → panes, worktrees nested under the repo they were cut from. Tapping a
-// space header drills in (that screen owns tab selection and tab creation); tapping a row opens
-// that pane.
+// Agents — a root tab: every agent of the herd (this machine's and the paired peers'), one group per
+// project, one line per agent. Herdr spaces are not named here: a project is what the operator thinks
+// in. Tapping a row opens that pane.
 export function SpacesRoute() {
   const t = useT();
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const navigate = useNavigate();
   const { newSpace } = useSpaceActions();
-  const [newSpaceOpen, setNewSpaceOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
 
-  const drillInto = (id: string) => navigate(spacePath(id, data.session));
-  const openPane = (paneId: string) => navigate(panePath(paneId, data.session));
+  const herd = useMemo(() => [...data.agents, ...data.shellPanes, ...remoteAgents(data.peers ?? [])], [data.agents, data.shellPanes, data.peers]);
+  const internal = useMemo(
+    () => new Set([data.leadPaneId, data.copilotPaneId].filter((id): id is string => !!id)),
+    [data.leadPaneId, data.copilotPaneId],
+  );
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      {/* The session switcher rides here too: this screen is session-scoped (spacePath carries
-          `?s=`), and below `lg` the sidebar footer that normally holds it isn't mounted — without
-          this you'd see another session's spaces only by going back to Herd. It self-hides on a
-          single-session install. */}
-      <AppHeader
-        title={t("nav.agents")}
-        rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
-      />
+      {/* The session switcher rides here: below `lg` the sidebar footer that holds it isn't mounted.
+          The title is the page's own h1. It self-hides on a single-session install. */}
+      <AppHeader rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />} />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
-        <h1 className="sr-only">{t("nav.agents")}</h1>
-        {/* Phone: what runs now leads the page — on a desktop the sidebar already shows it. */}
-        <div className="px-2 lg:hidden">
-          <RunningList data={data} />
-        </div>
-        <main className="flex-1">
-          <SpaceOverview
-            workspaces={data.workspaces}
-            tabs={data.tabs}
-            agents={data.agents}
-            shellPanes={data.shellPanes}
-            onOpen={drillInto}
-            onOpenPane={openPane}
-            onNewSpace={showsSpaces(data.workspaces) ? () => setNewSpaceOpen(true) : undefined}
-          />
-        </main>
-      </div>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
+        <AgentsPageView
+          herd={herd}
+          internal={internal}
+          machineCount={1 + (data.peers?.length ?? 0)}
+          onOpen={(id) => navigate(panePath(id, data.session))}
+          onNew={() => setNewOpen(true)}
+        />
+      </main>
 
-      <NewSpaceSheet open={newSpaceOpen} onClose={() => setNewSpaceOpen(false)} onCreate={newSpace} />
+      <NewSpaceSheet open={newOpen} onClose={() => setNewOpen(false)} onCreate={newSpace} title={t("agents.new")} />
     </div>
   );
 }
