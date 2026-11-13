@@ -123,13 +123,13 @@ const LANE_TONE: Partial<Record<Lane, string>> = {
 };
 
 /** The action on a row — a secondary button, the same look as a panel header's. */
-function RowAction({ onClick, disabled, children, danger }: { onClick: () => void; disabled?: boolean; children: ReactNode; danger?: boolean }) {
+function RowAction({ onClick, disabled, children, danger, success }: { onClick: () => void; disabled?: boolean; children: ReactNode; danger?: boolean; success?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-[13px]", danger && "text-destructive")}
+      className={cn(buttonVariants({ variant: success ? "success" : "secondary", size: "sm" }), "text-[13px]", danger && "text-destructive")}
     >
       {children}
     </button>
@@ -312,7 +312,7 @@ export function PrsRoute() {
                     row(
                       r,
                       <>
-                      <RowAction disabled={busy !== null} onClick={() => void merge([r])}>
+                      <RowAction success disabled={busy !== null} onClick={() => void merge([r])}>
                         <GitMerge className="size-3.5" />
                         {busy === r.key ? t("prs.merging") : t("prs.merge")}
                       </RowAction>

@@ -32,6 +32,7 @@ export const common = defineMessages({
   "signal.blocked": { en: "Waiting for you", fr: "T'attend" },
   "signal.stuck": { en: "Stuck", fr: "Bloqué" },
   "signal.done": { en: "Done", fr: "Fini" },
+  "signal.review": { en: "To review", fr: "À relire" },
   "signal.idle": { en: "Idle", fr: "Au repos" },
   "signal.unknown": { en: "Unknown", fr: "Inconnu" },
   // Actor tokens (actor-token.tsx): the letter on the square, then who it stands for.

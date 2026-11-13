@@ -362,19 +362,19 @@ export const CHIP_SHELL =
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
-  review: "border-status-done/30 bg-status-done/15 text-status-done",
+  review: "border-status-review/30 bg-status-review/15 text-status-review",
   working: "border-status-working/30 bg-status-working/15 text-status-working",
   starting: "border-status-working/30 bg-status-working/10 text-status-working",
   orphaned: "border-status-unknown/30 bg-status-unknown/15 text-status-unknown",
   ready: "border-status-idle/30 bg-status-idle/10 text-status-idle",
   backlog: "border-border bg-muted text-muted-foreground",
-  done: "border-status-idle/30 bg-status-idle/10 text-status-idle",
+  done: "border-status-done/30 bg-status-done/15 text-status-done",
   archived: "border-border bg-muted text-muted-foreground",
 };
 
 /**
  * The review verdict as a chip, on the SAME three colours the columns use — green reads "landed",
- * amber "still moving", red "stop and look". A verdict is the one line of a review you read before
+ * orange "needs a look", red "stop and look". A verdict is the one line of a review you read before
  * deciding whether to read the rest, and set in the body text it was indistinguishable from it.
  *
  * Matched on the exact word the prompt asks for, lowercased: anything else — a model that answered
@@ -384,7 +384,7 @@ export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
  */
 const REVIEW_VERDICT_CHIP: Record<string, string> = {
   complete: "border-status-done/30 bg-status-done/15 text-status-done",
-  partial: "border-status-working/30 bg-status-working/15 text-status-working",
+  partial: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
   drift: "border-destructive/30 bg-destructive/15 text-destructive",
 };
 

@@ -48,7 +48,7 @@ import { useRecetteTodo } from "@/routes/recette";
 type Filter = "all" | StepGroup;
 const FILTERS: { id: Filter; label: MessageKey; dot: string }[] = [
   { id: "all", label: "project.filter.all", dot: "bg-foreground" },
-  { id: "waiting", label: "project.filter.waiting", dot: "bg-brand" },
+  { id: "waiting", label: "project.filter.waiting", dot: "bg-status-blocked" },
   { id: "flight", label: "project.filter.flight", dot: "bg-status-working" },
   { id: "todo", label: "project.filter.todo", dot: "bg-muted-foreground" },
   { id: "done", label: "project.filter.done", dot: "bg-status-done" },
@@ -246,7 +246,7 @@ export function ProjectRoute() {
   const canSeal = (p: ProjectPhase) => !p.phase && Boolean(repo) && p.steps.some((s) => s.status === "done");
   const phaseButton = (p: ProjectPhase) =>
     p.phase && p.steps.length > 0 ? (
-      <Button variant="outline" onClick={() => setValidating(p)} className={cn(ACT, "max-sm:hidden", toValidate(p) && "text-status-done")}>
+      <Button variant={toValidate(p) ? "success" : "outline"} onClick={() => setValidating(p)} className={cn(ACT, "max-sm:hidden")}>
         {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
         {t("project.validate")}
       </Button>
@@ -333,12 +333,12 @@ export function ProjectRoute() {
       <div role="group" aria-label={t("project.count.aria")} className="grid grid-cols-5 gap-1 sm:flex sm:gap-5">
         {(["done", "flight", "waiting", "todo"] as const).map((g) => (
           <Link key={g} to={to(g)} aria-label={`${n[g]} ${t(`project.count.${g}`)}`} className={cell}>
-            <span className={cn("text-lg font-semibold leading-tight sm:text-xl", g === "waiting" && n[g] > 0 && "text-brand")}>{n[g]}</span>
+            <span className={cn("text-lg font-semibold leading-tight sm:text-xl", g === "waiting" && n[g] > 0 && "text-status-blocked")}>{n[g]}</span>
             <span className="text-xs leading-tight text-muted-foreground">{t(`project.count.${g}`)}</span>
           </Link>
         ))}
         <Link to={`/board/recette${q}`} aria-label={`${recette} ${t("project.count.test")}`} className={cell}>
-          <span className={cn("text-lg font-semibold leading-tight sm:text-xl", recette > 0 && "text-brand")}>{recette}</span>
+          <span className={cn("text-lg font-semibold leading-tight sm:text-xl", recette > 0 && "text-status-blocked")}>{recette}</span>
           <span className="text-xs leading-tight text-muted-foreground">{t("project.count.test")}</span>
         </Link>
       </div>
@@ -542,7 +542,7 @@ export function ProjectRoute() {
 
             {/* 1. What waits for you — each thing with its own button; nothing: one line, not a panel. */}
             {waits > 0 || recette > 0 ? (
-              <section aria-label={t("project.todo.title")} className={cn(PANEL, "bg-brand/10")}>
+              <section aria-label={t("project.todo.title")} className={cn(PANEL, "bg-status-blocked/10")}>
                 {heading(t("project.todo.title"), undefined, waits || undefined)}
                 {waits > 0 && (
                   <ul className="flex flex-col gap-2.5">
@@ -579,7 +579,7 @@ export function ProjectRoute() {
                         <p className={TEXT}>
                           <span className="font-medium">{p.title}</span> <span className="text-muted-foreground">{t("project.phases.toValidate")}</span>
                         </p>
-                        <Button variant="outline" className={ACT} onClick={() => setValidating(p)}>
+                        <Button variant="success" className={ACT} onClick={() => setValidating(p)}>
                           {t("project.validate")}
                         </Button>
                       </li>

@@ -208,7 +208,7 @@ export interface HomeGoal extends OpenGoal {
   maxLots: number;
   pct: number;
 }
-const GOAL_TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-working", claimed: "text-brand" };
+const GOAL_TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-idle", claimed: "text-status-blocked" };
 
 function GoalCell({ goal, lot }: { goal?: HomeGoal; lot?: TileLot | null }) {
   const t = useT();
@@ -254,9 +254,9 @@ function Activity({ repo, toTest, brief }: { repo: RepoTile; toTest: number; bri
   return (
     <span className="flex flex-col gap-0.5 text-sm">
       {at}
-      {repo.waiting > 0 && <span className="font-medium text-brand">{t("home.project.forYou", { count: repo.waiting })}</span>}
+      {repo.waiting > 0 && <span className="font-medium text-status-blocked">{t("home.project.forYou", { count: repo.waiting })}</span>}
       {repo.blocked > 0 && <span className="font-medium text-destructive">{t("home.project.blocked", { count: repo.blocked })}</span>}
-      {toTest > 0 && <span className="font-medium text-brand">{t("recette.chip", { count: toTest })}</span>}
+      {toTest > 0 && <span className="font-medium text-status-blocked">{t("recette.chip", { count: toTest })}</span>}
     </span>
   );
 }

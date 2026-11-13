@@ -31,7 +31,7 @@ export function ContextGauge({
         {tokens != null && (
           <span className="tabular-nums">{t("gauge.tokens", { count: Math.round(tokens / 1000) })}</span>
         )}
-        {pct >= 70 && <span className="ml-auto text-status-working">{t("gauge.handoff")}</span>}
+        {pct >= 70 && <span className="ml-auto text-status-blocked">{t("gauge.handoff")}</span>}
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full transition-all", tone)} style={{ width: `${pct}%` }} />

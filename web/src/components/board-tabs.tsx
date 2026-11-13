@@ -142,7 +142,7 @@ export function BoardTabs({ counts = {} }: { counts?: Partial<Record<(typeof TAB
             >
               <tab.icon className="size-4" aria-hidden="true" />
               {tab.label}
-              {tab.count && <span className="font-medium text-brand">{tab.count}</span>}
+              {tab.count && <span className="font-medium text-status-blocked">{tab.count}</span>}
             </Link>
           );
         })}
@@ -208,7 +208,7 @@ function MoreMenu({ items, label }: { items: TabItem[]; label: string }) {
             >
               <tab.icon className="size-4 text-muted-foreground" aria-hidden="true" />
               {tab.label}
-              {tab.count && <span className="ml-auto text-brand">{tab.count}</span>}
+              {tab.count && <span className="ml-auto text-status-blocked">{tab.count}</span>}
             </Link>
           ))}
         </div>

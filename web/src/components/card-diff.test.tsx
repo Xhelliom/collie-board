@@ -21,7 +21,7 @@ describe("lineClass", () => {
   });
 
   it("marks hunk headers", () => {
-    expect(lineClass("@@ -1,3 +1,4 @@")).toBe("text-status-working");
+    expect(lineClass("@@ -1,3 +1,4 @@")).toBe("text-status-info");
   });
 
   it("leaves context lines unstyled", () => {

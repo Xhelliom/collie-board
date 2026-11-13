@@ -29,7 +29,7 @@ export function CardRow({ card, hold = null, note }: { card: CardView; hold?: Lo
         <Link to={cardPath(card.id)} className="min-w-0 text-sm sm:line-clamp-2 font-medium leading-snug hover:underline sm:flex-1">
           {card.title}
         </Link>
-        <span className={cn("shrink-0 text-xs sm:max-w-[13rem] sm:text-right", group === "waiting" ? "font-semibold text-brand" : "text-muted-foreground")}>
+        <span className={cn("shrink-0 text-xs sm:max-w-[13rem] sm:text-right", group === "waiting" ? "font-semibold text-status-blocked" : "text-muted-foreground")}>
           {note ?? (hold?.step ? t(`lot.step.${hold.step}`) : CARD_STATUS_LABEL[card.status])}
         </span>
       </span>

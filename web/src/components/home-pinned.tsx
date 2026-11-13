@@ -57,7 +57,7 @@ export function HomePinned({ data, cards }: { data: HomeData; cards: CardView[] 
         <button key={key} type="button" onClick={() => navigate(projectPath(p.repoPath))} className={cn(PANEL, "flex-col items-stretch gap-1.5 p-3.5")}>
           <span className="flex items-baseline gap-2">
             <span className="min-w-0 flex-1 truncate font-semibold">{name}</span>
-            {forYou > 0 && <span className="shrink-0 text-sm font-medium text-brand">{t("quick.forYou", { count: forYou })}</span>}
+            {forYou > 0 && <span className="shrink-0 text-sm font-medium text-status-blocked">{t("quick.forYou", { count: forYou })}</span>}
           </span>
           {phase ? (
             <>

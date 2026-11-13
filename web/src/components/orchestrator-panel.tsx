@@ -194,7 +194,7 @@ export function OrchestratorPanel({
               className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap font-mono text-[11px] normal-case tracking-normal"
             >
               <span aria-hidden="true" className="h-1 w-12 overflow-hidden rounded-full bg-border">
-                <i className={cn("block h-full", state.ctxPct >= 50 ? "bg-status-working" : "bg-status-done")} style={{ width: `${Math.min(100, state.ctxPct)}%` }} />
+                <i className={cn("block h-full", state.ctxPct >= 50 ? "bg-status-info" : "bg-status-done")} style={{ width: `${Math.min(100, state.ctxPct)}%` }} />
               </span>
               ctx {Math.round(state.ctxPct)}%
             </span>
@@ -213,7 +213,7 @@ export function OrchestratorPanel({
             >
               <Package className="size-3.5" />
               <span className="tabular-nums">{deliverables.length}</span>
-              {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-working" />}
+              {fresh > 0 && <span data-testid="deliverables-new" aria-hidden="true" className="absolute -right-1.5 top-0.5 size-2 rounded-full bg-status-info" />}
             </button>
           )}
           <Link
@@ -296,7 +296,7 @@ export function OrchestratorPanel({
       </BottomSheet>
       {/* Past the threshold the warning stays in sight: the actions it asks for are in the ⋯ menu. */}
       {full && (
-        <p role="alert" className="rounded-lg border border-status-working/50 bg-status-working/10 p-2.5 text-sm">
+        <p role="alert" className="rounded-lg border border-status-info/50 bg-status-info/10 p-2.5 text-sm">
           {t("orch.handover")}
         </p>
       )}

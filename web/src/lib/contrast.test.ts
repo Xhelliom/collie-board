@@ -36,6 +36,7 @@ const ON_SURFACES = [
   "status-blocked",
   "status-working",
   "status-done",
+  "status-review",
   "status-idle",
   "status-info",
   "md-heading",
@@ -65,19 +66,21 @@ describe.each([":root", ".dark"] as const)("Balise contrast, %s", (theme) => {
     expect(contrast(t[fg]!, t[bg]!)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it.each(["signal-blocked", "signal-working", "signal-stuck"])("%s, a graphic, ≥ 3:1 on the page", (sig) => {
+  it.each(["signal-blocked", "signal-working", "signal-stuck", "signal-review"])("%s, a graphic, ≥ 3:1 on the page", (sig) => {
     expect(contrast(t[sig]!, t.background!)).toBeGreaterThanOrEqual(3);
     expect(contrast(t[sig]!, t.card!)).toBeGreaterThanOrEqual(3);
   });
 
   // The light theme's text inks (brand, status-*) are the signal colours a step darker: 4.5:1 is the
   // floor and the operator's own light values sit at 3.4–4.3 as text.
-  it("uses the Semaphore colour values (true green, amber, orange, saturated blue)", () => {
+  it("one colour per meaning: blue works, orange waits, green done, violet review, neutral brand", () => {
     const want =
       theme === ".dark"
-        ? { "status-done": "#3ccf6e", "status-working": "#f5b83d", "signal-working": "#f5b83d", "signal-blocked": "#ff7a1a", brand: "#ff7a1a", "status-info": "#4fa3ff", "md-heading": "#4fa3ff" }
-        : { "status-done": "#136f37", "signal-blocked": "#d85f00", "signal-working": "#a86f00", brand: "#a84300", "status-info": "#1a5fb8", "md-heading": "#1a5fb8" };
+        ? { "status-done": "#3ccf6e", "status-working": "#4fa3ff", "signal-working": "#4fa3ff", "signal-blocked": "#ff7a1a", "status-review": "#c3adff", "signal-review": "#c3adff", "status-info": "#5cc8e6", brand: "#e6f0ee" }
+        : { "status-done": "#136f37", "status-working": "#1a5fb8", "signal-blocked": "#d85f00", "signal-working": "#1a5fb8", "status-review": "#5a3fd0", "signal-review": "#5a3fd0", brand: "#0b1a1c" };
     for (const [k, v] of Object.entries(want)) expect(t[k], k).toBe(v);
+    expect(t.brand).toBe(t.foreground);
+    expect(t["brand-foreground"]).toBe(t.background);
   });
 });
 

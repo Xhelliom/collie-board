@@ -279,7 +279,7 @@ function StatePills({ entries }: { entries: readonly RecetteEntry[] }) {
   );
 }
 
-const STATE_TEXT = { todo: "text-brand", ok: "text-status-done", ko: "text-destructive" } as const;
+const STATE_TEXT = { todo: "text-status-blocked", ok: "text-status-done", ko: "text-destructive" } as const;
 
 /** The header figure: one bar, three tones — read at a glance, not a sentence. */
 function Counter({ counts }: { counts: { todo: number; ok: number; ko: number } }) {
@@ -325,7 +325,7 @@ export function RecetteChip({ repo }: { repo: string | null }) {
   return (
     <Link
       to={`/board/recette${repo ? `?repo=${encodeURIComponent(repo)}` : ""}`}
-      className="inline-flex items-center gap-1.5 rounded-sm border border-brand/35 bg-brand/16 px-2.5 py-[3px] text-xs font-semibold text-brand"
+      className="inline-flex items-center gap-1.5 rounded-sm border border-status-blocked/35 bg-status-blocked/16 px-2.5 py-[3px] text-xs font-semibold text-status-blocked"
     >
       <CircleDashed className="size-3" />
       {t("recette.chip", { count: n })}

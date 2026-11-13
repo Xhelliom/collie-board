@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CARD_STATUS_CHIP,
   BOARD_COLUMNS,
   BOARD_LANES,
   canDropCard,
@@ -281,7 +282,7 @@ describe("normalizeTag", () => {
 describe("verdictChip", () => {
   it("paints the three verdicts the prompt asks for, case and spacing aside", () => {
     expect(verdictChip("complete")).toContain("status-done");
-    expect(verdictChip(" Partial ")).toContain("status-working");
+    expect(verdictChip(" Partial ")).toContain("status-blocked");
     expect(verdictChip("DRIFT")).toContain("destructive");
   });
 
@@ -305,5 +306,13 @@ describe("card sort", () => {
     expect(loadSort()).toBe("business");
     saveSort(null);
     expect(loadSort()).toBeNull();
+  });
+});
+
+describe("CARD_STATUS_CHIP, one colour per meaning", () => {
+  it("done is green, review violet, ready grey", () => {
+    expect(CARD_STATUS_CHIP.done).toContain("status-done");
+    expect(CARD_STATUS_CHIP.review).toContain("status-review");
+    expect(CARD_STATUS_CHIP.ready).toContain("status-idle");
   });
 });
