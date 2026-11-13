@@ -112,7 +112,7 @@ export function CardsError({ label }: { label?: string }) {
 
 /** One segment per step while they fit; past that, one per status sized by its count — 150 slivers read as noise. */
 const BAR_MAX = 24;
-function PhaseBar({ steps }: { steps: CardView[] }) {
+export function PhaseBar({ steps, thin }: { steps: CardView[]; thin?: boolean }) {
   const parts =
     steps.length <= BAR_MAX
       ? steps.map((s) => ({ key: s.id, tone: STEP_TONE[s.status], n: 1 }))
@@ -122,7 +122,7 @@ function PhaseBar({ steps }: { steps: CardView[] }) {
   return (
     <div className="flex gap-[3px] overflow-hidden" aria-hidden="true">
       {parts.map((x) => (
-        <i key={x.key} style={{ flexGrow: x.n }} className={cn("h-[5px] min-w-[3px] basis-0 rounded-sm bg-border", x.tone)} />
+        <i key={x.key} style={{ flexGrow: x.n }} className={cn(thin ? "h-[3px] min-w-[3px] basis-0 rounded-sm bg-border" : "h-[5px] min-w-[3px] basis-0 rounded-sm bg-border", x.tone)} />
       ))}
     </div>
   );
