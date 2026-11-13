@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.305.1] - 2026-11-13
+
+### Fixed
+
+- Lot : une carte en review dont le terminal a perdu son agent (hc après un redémarrage) est jugée par le lead au lieu de rester bloquée ; un renvoi au worker arrête le lot (« relancer la carte ») (39ddcf6)
+- Lot : une carte en review sans verdict du lead depuis 30 min arrête le lot en « lead silencieux », reprenable par l'orchestrateur (39ddcf6)
+
 ## [0.305.0] - 2026-11-13
 
 ### Added
