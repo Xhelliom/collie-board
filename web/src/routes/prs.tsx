@@ -54,6 +54,8 @@ export interface PrRow {
   repoPath: string | null;
   card: OpenPr["card"] | null;
   origin: "card" | "plan" | "other";
+  /** A superseded `docs(plan)` PR: the rolling one's number. */
+  replacedBy?: number;
   openedAt: number;
   lane: Lane;
   /** Why it waits, or why it is stuck — in the reader's words. */
@@ -105,6 +107,7 @@ export function rowsOf(reading: PrsReading): PrRow[] {
     repoPath: p.repoPath,
     card: null,
     origin: p.origin,
+    ...(p.replacedBy ? { replacedBy: p.replacedBy } : {}),
     openedAt: p.createdAt ?? 0,
     ...laneOf({ state: "open", url: p.url, mergedAt: null, conflicting: p.conflicting, mergeable: p.mergeable }, p),
     conflict: p.conflicting,
@@ -240,6 +243,7 @@ export function PrsRoute() {
         )}
         <span className="shrink-0 text-xs text-muted-foreground">
           {t(ORIGIN[r.origin])}
+          {r.replacedBy ? ` · ${t("prs.replacedBy", { n: r.replacedBy })}` : ""}
           {r.repoPath && !scope && repos.length > 1 ? ` · ${repoName(r.repoPath)}` : ""} · {ago(r.openedAt)}
         </span>
         {r.why && (

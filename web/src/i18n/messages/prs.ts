@@ -22,6 +22,7 @@ export const prs = defineMessages({
   "prs.lane.unread": { en: "Not read on GitHub yet", fr: "Pas encore lues sur GitHub" },
   "prs.origin.card": { en: "card", fr: "carte" },
   "prs.origin.plan": { en: "documentation", fr: "documentation" },
+  "prs.replacedBy": { en: "replaced by #{n}", fr: "remplacée par #{n}" },
   "prs.origin.other": { en: "outside the board", fr: "hors board" },
   "prs.chip.conflict": { en: "Conflicts with its base", fr: "En conflit avec sa base" },
   "prs.chip.mergeable": { en: "Mergeable", fr: "Fusionnable" },

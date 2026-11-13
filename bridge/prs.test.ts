@@ -144,6 +144,7 @@ describe("the open-PR list read on GitHub (the screen's open, and its Re-read ta
       if (args[1] === "list" && args[3] === "open") {
         return { ok: true, stderr: "", stdout: JSON.stringify([
           listed({ number: 5, title: "live", url: "https://gh/o/r/pull/5", headRefName: "board/live" }),
+          listed({ number: 4, title: "docs(plan): fin du lot « W »", url: "https://gh/o/r/pull/4", headRefName: "board/plan-lot-w-1" }),
           listed({ number: 9, title: "docs(plan): fin du lot « X »", url: "https://gh/o/r/pull/9", headRefName: "board/plan-lot-x-1", mergeable: "UNKNOWN" }),
         ]) };
       }
@@ -155,11 +156,14 @@ describe("the open-PR list read on GitHub (the screen's open, and its Re-read ta
   };
 
   it("lists the board's off-card PRs, and drops — journaling it — a card's PR merged on GitHub", async () => {
-    const { db, live, gone, gh } = setup();
+    const { db, live, gone, gh, calls } = setup();
     const r = await openPrs(db, true, gh);
     expect(r.prs.find((p) => p.card.id === live.id)?.github?.number).toBe(5);
     expect(r.prs.find((p) => p.card.id === gone.id)?.pr?.state).toBe("merged");
-    expect(r.others?.map((p) => [p.number, p.origin])).toEqual([[9, "plan"]]);
+    expect(r.others?.map((p) => [p.number, p.origin]).sort()).toEqual([[4, "plan"], [9, "plan"]]);
+    // The older plan PR is marked as replaced by the rolling one; nothing is closed.
+    expect(Object.fromEntries(r.others!.map((p) => [p.number, p.replacedBy]))).toEqual({ 4: 9, 9: undefined });
+    expect(calls.some((c) => c[1] === "close")).toBe(false);
     expect(r.merged?.map((p) => [p.number, p.cardId])).toEqual([[3, gone.id]]);
     expect((await openPrs(db)).prs.map((p) => p.card.id)).toEqual([live.id]);
   });
