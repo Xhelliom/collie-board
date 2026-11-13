@@ -44,9 +44,6 @@ export const settings = defineMessages({
   "settings.theme.light": { en: "Light", fr: "Clair" },
   "settings.theme.dark": { en: "Dark", fr: "Sombre" },
   "settings.theme.system": { en: "System", fr: "Système" },
-  "settings.style.label": { en: "Style", fr: "Style" },
-  "settings.style.semaphore": { en: "Sémaphore", fr: "Sémaphore" },
-  "settings.style.classic": { en: "Classic", fr: "Classique" },
 
   "settings.notify.title": { en: "Notify when", fr: "Me notifier quand" },
   "settings.notify.hint": { en: "Applies to all devices.", fr: "S'applique à tous les appareils." },
