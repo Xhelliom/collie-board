@@ -547,12 +547,13 @@ describe("parseCardBody", () => {
       ok: false,
       error: "category is set at creation",
     });
-    // Provenance is still not declarable alongside it (ADR 0010).
+    // Provenance is still not declarable alongside it (ADR 0010): refused outright, not dropped.
     const withOrigin = parseCardBody(
       { title: "x", category: "explore", origin: "copilot", originCardId: "c1" },
       { requireTitle: true },
     );
-    expect(withOrigin).toEqual({ ok: true, value: { title: "x", category: "explore" } });
+    expect(withOrigin.ok).toBe(false);
+    expect(!withOrigin.ok && withOrigin.error).toContain('"origin" — it is derived by the bridge');
   });
 
   it("accepts an empty patch", () => {
@@ -589,11 +590,8 @@ describe("parseCardBody", () => {
     expect(parseCardBody({ tag: 3 }, { requireTitle: false })).toEqual({ ok: false, error: "bad tag" });
   });
 
-  it("ignores unknown keys instead of writing them", () => {
-    expect(parseCardBody({ title: "x", paneId: "w1:p1" }, { requireTitle: true })).toEqual({
-      ok: true,
-      value: { title: "x" },
-    });
+  it("refuses unknown keys instead of dropping them", () => {
+    expect(parseCardBody({ title: "x", paneId: "w1:p1" }, { requireTitle: true }).ok).toBe(false);
   });
 
   it("accepts keepWorktree as a plain boolean and rejects anything else", () => {
@@ -4112,7 +4110,16 @@ describe("POST /api/cards — provenance for a card an agent filed mid-turn (ADR
       body: JSON.stringify({ title: "Why is X slow?", category: "explore", origin: "copilot", originCardId: "c1" }),
     });
 
-    expect((await handleBoardRoute("/api/cards", req, routeCtx(store)))!.status).toBe(200);
+    // A body claiming one is refused whole (card-fields.ts) — never filed with the claim dropped.
+    expect((await handleBoardRoute("/api/cards", req, routeCtx(store)))!.status).toBe(400);
+    expect(store.listCards()).toHaveLength(0);
+
+    const plain = new Request("http://x/api/cards", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "Why is X slow?", category: "explore" }),
+    });
+    expect((await handleBoardRoute("/api/cards", plain, routeCtx(store)))!.status).toBe(200);
     const card = filed(store, "Why is X slow?");
     expect(card.category).toBe("explore");
     expect(card.origin).toBeNull();
@@ -4131,9 +4138,9 @@ describe("POST /api/cards — provenance for a card an agent filed mid-turn (ADR
       routeCtx(store),
     );
 
-    expect(res!.status).toBe(200);
-    expect(filed(store, "pretending").origin).toBeNull();
-    expect(filed(store, "pretending").originCardId).toBeNull();
+    expect(res!.status).toBe(400);
+    expect(await res!.text()).toContain('"origin" — it is derived by the bridge');
+    expect(store.listCards()).toHaveLength(0);
   });
 });
 
@@ -5130,10 +5137,13 @@ describe("POST/PATCH /api/cards — createdBy derived, assignee declared (ADR 00
     return store;
   };
 
-  it("stamps the creating pair's git identity, whatever the body claims", async () => {
+  it("stamps the creating pair's git identity, and refuses a body that claims one", async () => {
     const store = shared();
-    await handleBoardRoute("/api/cards", post({ title: "mine", repoPath: "/r/shared", createdBy: "evil@x" }), routeCtx(store));
-    expect(store.listCards().find((c) => c.title === "mine")!.createdBy).toBe("me@pair");
+    const forged = await handleBoardRoute("/api/cards", post({ title: "forged", repoPath: "/r/shared", createdBy: "evil@x" }), routeCtx(store));
+    expect(forged!.status).toBe(400);
+    await handleBoardRoute("/api/cards", post({ title: "mine", repoPath: "/r/shared" }), routeCtx(store));
+    expect(store.listCards().map((c) => c.title)).toEqual(["mine"]);
+    expect(store.listCards()[0]!.createdBy).toBe("me@pair");
   });
 
   it("an agent's card stays `agent`, created by the machine's owner", async () => {
@@ -5159,7 +5169,15 @@ describe("POST/PATCH /api/cards — createdBy derived, assignee declared (ADR 00
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ assignee: "bob@x", createdBy: "evil@x" }),
     });
-    await handleBoardRoute(`/api/cards/${card.id}`, patch, routeCtx(store));
+    // Refused whole: neither the forged createdBy nor the assignee beside it is written.
+    expect((await handleBoardRoute(`/api/cards/${card.id}`, patch, routeCtx(store)))!.status).toBe(400);
+    expect(store.getCard(card.id)).toMatchObject({ assignee: "alice@x", createdBy: "me@pair" });
+    const ok = new Request(`http://x/api/cards/${card.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assignee: "bob@x" }),
+    });
+    await handleBoardRoute(`/api/cards/${card.id}`, ok, routeCtx(store));
     expect(store.getCard(card.id)).toMatchObject({ assignee: "bob@x", createdBy: "me@pair" });
   });
 });
