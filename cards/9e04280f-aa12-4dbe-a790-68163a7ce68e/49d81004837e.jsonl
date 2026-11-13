@@ -3,3 +3,9 @@
 {"v":1,"hlc":"1794571143505.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"phase_id":"9ef45e39-43f2-43d3-975b-baf85e3b1eca"}}
 {"v":1,"hlc":"1794571143505.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"0c45c9d0-c61a-4187-b9f8-39f3f762295f"}}
 {"v":1,"hlc":"1794580698800.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794580707491.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/page-cartes-colonnes-qui-s-adaptent-tuile-en-tro"}}
+{"v":1,"hlc":"1794580707491.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794580707492.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794580702451}}
+{"v":1,"hlc":"1794580707492.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794580707492.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794580707040}}
+{"v":1,"hlc":"1794580707492.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3909},"ts":1794580707277}}
