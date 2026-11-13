@@ -6,3 +6,6 @@
 {"v":1,"hlc":"1794560362107.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/accueil-plus-clair-titre-phrase-agents-au-travai"}}
 {"v":1,"hlc":"1794560362108.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
 {"v":1,"hlc":"1794560362108.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794560361679}}
+{"v":1,"hlc":"1794560378819.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794560378819.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794560367182}}
+{"v":1,"hlc":"1794560378820.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":5092},"ts":1794560367429}}
