@@ -13,3 +13,5 @@
 {"v":1,"hlc":"1794598377248.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794598377248.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794598373278}}
 {"v":1,"hlc":"1794598377248.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":5754},"ts":1794598373508}}
+{"v":1,"hlc":"1794599492756.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.held","payload":{"by":"operator"},"ts":1794599488152}}
+{"v":1,"hlc":"1794599492756.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.operator_said","payload":{"text":"ok regarde si tu peux faire en sorte que ça soit un thème toggleable dans les settings pour conserver l'ancien ?"},"ts":1794599489956}}
