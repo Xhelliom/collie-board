@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.314.0] - 2026-11-13
+
+### Changed
+
+- Fiche d'une carte en panneaux, un visage par état (pas lancée, en cours, arrêtée, finie), sur deux colonnes (1a0aa85)
+- L'agent en tête avec son identité commune ; historique par acteur qui réunit frise et journal (1a0aa85)
+- Carte finie : bilan fusionné (lead, revue, recette) et critères avec leur verdict (1a0aa85)
+- Carte arrêtée : la raison en clair et les sorties dans un seul panneau rouge (1a0aa85)
+- Menu « Actions » ; libellés en casse normale, sans capitales espacées (1a0aa85)
+
 ## [0.313.0] - 2026-11-13
 
 ### Changed
