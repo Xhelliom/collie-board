@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794602603791.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"0971bbc3-7bd3-4786-9c53-ba347970f9d4"}}
 {"v":1,"hlc":"1794602603791.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"docs(plan) : une seule PR roulante par dépôt, qui rattrape les bilans des lots manqués","status":"backlog"},"ts":1794602601668}}
 {"v":1,"hlc":"1794602603791.0005.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5ff73363-96fa-40df-b66e-66a520e24d7a"}}
+{"v":1,"hlc":"1794602634761.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
