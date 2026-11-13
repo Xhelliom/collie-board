@@ -1,1 +1,2 @@
 {"v":1,"hlc":"1794557708625.0000.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"name":"Interface simplifiée","goal":"Moins d informations, plus simple à utiliser : panneau par panneau, en commençant par la navigation.","position":49,"roadmap_item_id":null,"closed_at":null,"closed_note":"","template_id":null,"pipeline_id":null,"created_at":1794557705779}}
+{"v":1,"hlc":"1794608724679.0004.49d81004837e","type":"phase.set","by":"stephane.wetterwald@gmail.com","fields":{"closed_at":1794608721733}}
