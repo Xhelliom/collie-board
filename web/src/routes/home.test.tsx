@@ -75,6 +75,28 @@ describe("HomeRoute pins", () => {
     expect(pinned.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("dresses the three kinds of pin as panels on the phone, a working agent not doubled", async () => {
+    __setPins([
+      { repoPath: "/home/me/pinned-repo", name: "pinned-repo" },
+      { cardId: "c9", name: "Pinned card", status: "review" },
+      { session: "s-idle", name: "idle one" },
+      { session: "s-work", name: "worker one" },
+    ]);
+    const idle = agent({ paneId: "w1:p3", status: "idle", agentSessionId: "s-idle", paneLabel: "restful" });
+    const work = agent({ paneId: "w1:p4", status: "working", agentSessionId: "s-work", paneLabel: "busy-bee" });
+    renderHome([...data.agents, idle, work], [{ id: "c1", title: "Step", status: "working", repoPath: "/home/me/pinned-repo", updatedAt: Date.now() }]);
+    const section = await screen.findByRole("region", { name: "Pinned" });
+    expect(within(section).getByRole("heading", { level: 2, name: "Pinned" })).toBeInTheDocument();
+    const rows = within(section).getAllByRole("button");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("pinned-repo");
+    expect(rows[1]).toHaveTextContent("Pinned card");
+    expect(rows[1]).toHaveTextContent(/review/i);
+    expect(rows[2]).toHaveTextContent("restful");
+    expect(rows[2]).toHaveTextContent(/this PC/i);
+    expect(within(section).queryByText("busy-bee")).toBeNull();
+  });
+
   it("shows nothing when nothing is pinned", async () => {
     renderHome();
     await screen.findByRole("heading", { level: 1 });

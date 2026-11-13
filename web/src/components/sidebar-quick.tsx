@@ -33,14 +33,6 @@ export function SidebarSections({ data }: { data: HomeData }) {
   );
 }
 
-/** The phone's Pinned, at the head of the Projects page. */
-export function PhonePinned({ data }: { data: HomeData }) {
-  const desktop = useIsDesktop();
-  const q = useQuickAccess(data, !desktop);
-  const pins = usePins(data);
-  return desktop ? null : <PinnedList pins={pins} data={data} q={q} />;
-}
-
 /** Working first would bury what needs you: blocked, then working. Idle agents and shells are not "running". */
 export function runningAgents(agents: AgentView[]): AgentView[] {
   return [...agents.filter((a) => a.status === "blocked"), ...agents.filter((a) => a.status === "working")];
