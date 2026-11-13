@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.325.1] - 2026-11-13
+
+### Fixed
+
+- Le titre de la PR `docs(plan)` roulante est borné (≤ 256, GitHub refusait « Title is too long ») ; la liste des lots passe dans le corps, mis à jour avec le titre. (301e1c9)
+
 ## [0.325.0] - 2026-11-13
 
 ### Changed
