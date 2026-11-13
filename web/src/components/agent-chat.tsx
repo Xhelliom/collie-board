@@ -733,8 +733,11 @@ export function AgentChat({
           point regardless of breakpoint. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Phone: back to the agents list, then who this is on three short lines (name + state;
-            project, machine, model; the gauge). Everything else this view can do is behind « ⋯ ». */}
-        <div className="lg:hidden">
+            project, machine, model; the gauge). Everything else this view can do is behind « ⋯ ».
+            Sticky HERE, not only on the header inside: the row's overflow-x-hidden makes it a vertical
+            scroller, and when the column overflows (keyboard open) it scrolled the header's first line
+            under the status bar — a sticky header in a wrapper its own height never sticks. */}
+        <div className="sticky top-0 z-20 shrink-0 lg:hidden">
           <AppHeader
             onBack={onBack}
             backLabel={tr("pane.backToAgents")}

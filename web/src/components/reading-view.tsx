@@ -226,13 +226,16 @@ export function ReadingView({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Phone: in the flow, above the scroller — laid over it, it hid the answer scrolling under it.
+          The scroller moves down with its rows, so the turn at its top edge (and the pin) holds.
+          Desktop keeps its overlay as it was (lg:absolute). */}
+      {pin && (
+        <div className="mx-auto w-full max-w-[784px] shrink-0 px-3 pt-1 lg:pointer-events-none lg:absolute lg:inset-x-0 lg:top-0 lg:z-10">
+          <PromptPin pin={pin} onTap={backToPrompt} />
+        </div>
+      )}
       <div className="relative min-h-0 min-w-0 flex-1">
-        {pin && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto max-w-[784px] px-3 pt-1">
-            <PromptPin pin={pin} onTap={backToPrompt} />
-          </div>
-        )}
         <ChatMessageList ref={listRef} dep={entries} className="px-3 py-3">
           {/* A reading column (~80 characters), centred: a full-width line on a wide screen is unreadable. */}
           <div className="mx-auto w-full max-w-[760px]">
