@@ -300,7 +300,7 @@ export function PrsRoute() {
                 tone="good"
                 actions={
                   ready.length > 1 && (
-                    <PanelLink disabled={busy !== null} onClick={() => confirm.confirm("merge-all") && void merge(ready)}>
+                    <PanelLink success disabled={busy !== null} onClick={() => confirm.confirm("merge-all") && void merge(ready)}>
                       <GitMerge className="size-3.5" />
                       {confirm.pending === "merge-all" ? t("prs.mergeAllConfirm", { count: ready.length }) : t("prs.mergeAll", { count: ready.length })}
                     </PanelLink>
