@@ -1,13 +1,14 @@
 import { useT, type MessageKey } from "@/i18n";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Link, useLoaderData, useNavigate, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useNavigate, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
 import { ChevronRight, ListChecks, ListFilter, Plus, X } from "lucide-react";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
+import { doneThisWeek } from "@/lib/tile-state";
 
 import { AppHeader } from "@/components/app-header";
 import { BoardTabs, RepoTitle } from "@/components/board-tabs";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import { FoldToggle } from "@/components/fold";
 import { CardTile } from "@/components/card-tile";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
 import { TagFilter } from "@/components/tag-filter";
@@ -37,7 +38,6 @@ import {
   matchesFilters,
   patchCard,
   positionFor,
-  prsPath,
   repoName,
   reposOf,
   saveRepoScope,
@@ -51,7 +51,6 @@ import {
 } from "@/lib/board";
 import type { BoardRouteData } from "@/lib/board-loaders";
 import { holdOf } from "@/lib/lot-hold";
-import { templateFor, templateName } from "@/lib/templates";
 import { setStatus } from "@/lib/status";
 
 // The board: every card, grouped by lane, flow order left to right (or top to bottom on a phone).
@@ -60,10 +59,9 @@ import { setStatus } from "@/lib/status";
 // section holding its columns' cards with no per-column sub-heading (the card's own status row
 // carries that now, see card-tile.tsx). They used to diverge: mobile flattened to eight
 // BOARD_COLUMNS sections in urgency order via a CSS `order-*` trick, desktop grouped by lane. That
-// divergence is gone — a phone just stacks the four lane sections instead of laying them side by
-// side, same DOM (which already leads with `blocked` inside "Doing" — urgency still wins within a
-// lane). The one thing the phone still overrides is the ORDER those four stack in, and it is CSS
-// only: `order-*` on the lane, `lg:order-none` to hand it back (see LANE_PHONE_ORDER).
+// divergence is gone — a phone just stacks the lanes in flow order, « À faire » first, folds the empty
+// live lanes into one line and Fini under a toggle; a wide board lays them side by side, an empty lane
+// shrunk to a narrow band so the ones with cards share the width.
 //
 // DRAGGING is the desktop's, and only in the columns a human owns anyway (`canDropCard`). Cards move
 // between the live columns on their own — the bridge reconciles them against the herd every poll —
@@ -85,37 +83,18 @@ const LANE_TONE: Record<LaneKey, string> = {
   done: "bg-status-idle",
 };
 
-/**
- * PHONE ONLY: the stacking order of the four lanes, reset to DOM order at `lg` (`lg:order-none`).
- *
- * Side by side, left-to-right IS the flow and nothing is buried, so the desktop keeps BOARD_LANES
- * order. Stacked, that same order puts the whole backlog above the fold and pushes the live work —
- * "Doing" and "To review", the two lanes you open the board FOR — below a screenful of cards you
- * were not going to act on. So on a phone the live lanes lead and "To do" sinks under them; "Done"
- * stays where settled work belongs, at the bottom. Every lane still renders, only the order moves.
- */
-const LANE_PHONE_ORDER: Record<LaneKey, string> = {
-  doing: "order-1",
-  review: "order-2",
-  todo: "order-3",
-  done: "order-4",
-};
-
-/** Finished cards a column lists before « Voir les n autres »; Done is the only column that only grows. */
-const DONE_SHOWN = 5;
-
-/** The DONE_SHOWN most recently updated (≈ finished) cards, kept in the column's manual order (the sort only picks). */
-function newestDone(column: CardView[]): CardView[] {
-  // ponytail: CardView has no doneAt; updatedAt is the closest "finished when" (an edit after Done also bumps it).
-  const keep = new Set([...column].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, DONE_SHOWN));
-  return column.filter((c) => keep.has(c));
-}
+/** « Sélectionner », « Filtrer »: present, but quiet beside the one primary action, « Nouvelle carte ». */
+const QUIET_ACTION =
+  "flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
 
 export function BoardRoute() {
   const t = useT();
   const data = useLoaderData() as BoardRouteData;
   const facts = data.facts;
   const navigate = useNavigate();
+  // The herd, for a working card's « travaille depuis 7 min » (absent when the page is mounted alone, as in tests).
+  const herd = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
+  const agentOf = (card: CardView) => (card.runtime ? herd?.agents.find((a) => a.paneId === card.runtime!.paneId) : undefined);
   const revalidator = useRevalidator();
   const desktop = useIsDesktop();
   // Both filters live in the URL, not in a useState — three things come free that a component state
@@ -187,9 +166,11 @@ export function BoardRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: this seeds, it doesn't sync.
   }, []);
   const [newOpen, setNewOpen] = useState(false);
-  // 323 finished cards were 55 000 px of board: the newest few, the rest behind a count. In the URL
-  // because unfolding it is what makes the loader fetch the finished cards the summary leaves out.
+  // Fini shows this week's cards; « Historique » (`?done`) is every finished card. In the URL because
+  // unfolding it is what makes the loader fetch the finished cards the summary leaves out.
   const doneAll = params.has("done");
+  // Phone only: Fini is folded under one line until opened; a wide board always shows it.
+  const [doneOpen, setDoneOpen] = useState(false);
   // The filter sheet — RepoFilter + TagFilter moved off the always-visible strips and behind one
   // toolbar chip (redesign §2), so a common board (one repo, few tags) shows no filter chrome by
   // default. Desktop keeps a SECOND, always-visible way to scope by repo (the sidebar list,
@@ -267,11 +248,6 @@ export function BoardRoute() {
   // Whether the toolbar's Filter chip has anything to offer — mirrors the old strips' own
   // self-hiding rule, so the chip never opens onto an empty sheet.
   const progress = phaseProgress(data.cards, data.phases, data.counts?.doneByPhase);
-  // The chip names the role a card will start with; only a repo's board knows its phases, so only it can show an inherited one.
-  const templateOf = (card: CardView) => {
-    const found = data.templates ? templateFor(card, data.phases, data.templates.templates) : null;
-    return found ? { name: templateName(found.template), inherited: found.inherited } : undefined;
-  };
   const phasesOn = activeRepo ? data.phases.filter((p) => p.repoPath === activeRepo) : [];
   const hasFilters = repos.length > 1 || tags.length > 0 || hasAuto || autoOnly || hasShared || mineOnly || hasBusiness || sort !== null || phasesOn.length > 0;
 
@@ -286,14 +262,6 @@ export function BoardRoute() {
   // the drop's re-read — all of which are about cards the filter may well be hiding.
   const byId = new Map(data.cards.map((c) => [c.id, c]));
   const empty = cards.length === 0;
-  // The summary view lists only the newest finished cards; its counts know how many there are. Unfiltered
-  // only — a filter loads the full list (boardRouteLoader), where the column is the count.
-  const doneCount = (column: CardView[]) =>
-    data.counts
-      ? activeRepo
-        ? (data.counts.doneByRepo[activeRepo] ?? 0)
-        : Object.values(data.counts.doneByRepo).reduce((a, b) => a + b, 0)
-      : column.length;
   /** A card can join a run: this repo's, in no run yet, and not yet started. */
   const selectable = (c: CardView) =>
     c.repoPath === activeRepo && !c.runId && (c.status === "backlog" || c.status === "ready");
@@ -494,13 +462,11 @@ export function BoardRoute() {
                 type="button"
                 onClick={() => setSelection((sel) => (sel ? null : new Set()))}
                 aria-pressed={selecting}
-                className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full border border-brand/35 px-2.5 py-[5px] text-xs font-semibold",
-                  selecting ? "bg-brand text-brand-foreground" : "bg-brand/16 text-brand",
-                )}
+                aria-label={selecting ? t("board.cancel") : t("board.select")}
+                className={cn(QUIET_ACTION, selecting && "bg-muted text-foreground")}
               >
-                <ListChecks className="size-[13px]" />
-                {selecting ? t("board.cancel") : t("board.select")}
+                <ListChecks className="size-4" />
+                <span className="hidden sm:inline">{selecting ? t("board.cancel") : t("board.select")}</span>
               </button>
             )}
             {selecting && activePhase && (
@@ -517,10 +483,10 @@ export function BoardRoute() {
                 type="button"
                 onClick={() => setFilterOpen(true)}
                 aria-label={t("board.filterAria")}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-brand/35 bg-brand/16 px-2.5 py-[5px] text-xs font-semibold text-brand"
+                className={QUIET_ACTION}
               >
-                <ListFilter className="size-[13px]" />
-                {t("board.filter")}
+                <ListFilter className="size-4" />
+                <span className="hidden sm:inline">{t("board.filter")}</span>
               </button>
             )}
           </>
@@ -545,11 +511,11 @@ export function BoardRoute() {
           in "In progress" make you scroll a very long page past three empty columns, which is the
           one thing a board laid out in columns is supposed to spare you. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
-        <main className="flex flex-1 flex-col gap-6 px-3 pb-24 pt-3 lg:grid lg:min-h-0 lg:grid-cols-4 lg:gap-4 lg:bg-muted lg:p-5 lg:pb-5 dark:lg:bg-[oklch(0.165_0.006_250)]">
+        <main className="flex flex-1 flex-col gap-6 px-3 pb-24 pt-3 lg:min-h-0 lg:flex-row lg:gap-4 lg:bg-muted lg:p-5 lg:pb-5 dark:lg:bg-[oklch(0.165_0.006_250)]">
           {/* The screen's one h1 — the toolbar already says "Board". */}
           <h1 className="sr-only">{t("board.title")}</h1>
           {empty ? (
-            <div className="px-3 py-6 lg:col-span-4">
+            <div className="px-3 py-6 lg:flex-1">
               {/* "Nothing here" and "nothing here MATCHES" are different facts, and telling a
                   filtered board from an empty one is the whole hazard of adding a filter. Both
                   filters get named — with a remembered repo scope, "no cards" can now greet you on
@@ -578,44 +544,72 @@ export function BoardRoute() {
             </div>
           ) : (
             BOARD_LANES.map((lane) => {
-              const total = lane.statuses.reduce((n, s) => n + (byStatus.get(s)?.length ?? 0), 0);
+              // What the lane SHOWS: Fini is this week's cards unless « Historique » is open.
+              const shown = (status: CardStatus) => {
+                const column = byStatus.get(status) ?? [];
+                return status === "done" && !doneAll && !held ? column.filter((c) => doneThisWeek(c)) : column;
+              };
+              const total = lane.statuses.reduce((n, s) => n + shown(s).length, 0);
+              const isDone = lane.key === "done";
+              // The phone folds the empty live lanes into one line, just above Fini.
+              const emptyLive = BOARD_LANES.filter(
+                (l) => l.key !== "done" && l.statuses.every((s) => shown(s).length === 0),
+              );
+              // A wide board's empty lane shrinks to a band — unless a card in hand could land in it.
+              const band = total === 0 && !lane.statuses.some(dropTarget);
               return (
+                <Fragment key={lane.key}>
+                {isDone && emptyLive.length > 0 && (
+                  <p className="px-1 text-sm text-muted-foreground lg:hidden">
+                    {emptyLive.map((l, i) => (
+                      <Fragment key={l.key}>
+                        {i > 0 && ", "}
+                        {l.label} <span className="tabular-nums text-muted-foreground/75">0</span>
+                      </Fragment>
+                    ))}
+                  </p>
+                )}
+                {isDone && (
+                  <button
+                    type="button"
+                    onClick={() => setDoneOpen((o) => !o)}
+                    aria-expanded={doneOpen}
+                    className="-my-2 flex min-h-11 items-center gap-2 px-1 text-left text-sm text-muted-foreground lg:hidden"
+                  >
+                    <ChevronRight className={cn("size-3.5 transition-transform", doneOpen && "rotate-90")} />
+                    {doneAll ? lane.label : t("board.doneWeekTitle")}
+                    <span className="tabular-nums text-muted-foreground/75">{total}</span>
+                  </button>
+                )}
                 <div
-                  key={lane.key}
                   className={cn(
-                    "flex flex-col gap-2.5 lg:order-none lg:h-full lg:min-w-0 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3",
-                    LANE_PHONE_ORDER[lane.key],
+                    "flex flex-col gap-2.5 lg:h-full lg:overflow-hidden lg:rounded-2xl lg:border lg:border-border/60 lg:bg-background lg:p-3",
+                    band ? "lg:w-40 lg:shrink-0" : "lg:min-w-0 lg:flex-1",
+                    // Phone: an empty live lane is said in the line above; Fini waits for its toggle.
+                    (isDone ? !doneOpen : total === 0) && "hidden lg:flex",
                   )}
                 >
-                  {/* The lane's own heading exists only once there are lanes. An EMPTY lane still
-                      renders it: four columns that keep their places are what makes a board
-                      scannable, and a column that disappears when it empties moves the other three.
-                      Shown on BOTH breakpoints now — the per-column sub-heading that used to carry
-                      this on a phone is gone (each card's own status row says it instead). Sticky on
-                      desktop, where the lane scrolls under it; a plain in-flow heading on mobile,
-                      where the whole page is the one scroller. */}
-                  <div className="flex items-center gap-2 lg:sticky lg:top-0 lg:z-10 lg:bg-background lg:pb-1">
-                    <span
-                      aria-hidden
-                      className={cn("size-2 shrink-0 rounded-full", LANE_TONE[lane.key])}
-                    />
-                    <span className="text-xs font-bold uppercase tracking-[0.08em]">
-                      {lane.label}
+                  <div className="flex items-baseline gap-2 lg:sticky lg:top-0 lg:z-10 lg:bg-background lg:pb-1">
+                    <span aria-hidden className={cn("size-2 shrink-0 self-center rounded-full", LANE_TONE[lane.key])} />
+                    <span className="text-sm font-semibold">{lane.label}</span>
+                    <span className="text-sm tabular-nums text-muted-foreground">
+                      {isDone && !doneAll ? t("board.doneWeek", { count: total }) : total}
                     </span>
-                    <span className="rounded-full bg-muted px-[7px] py-px text-[11px] font-semibold tabular-nums text-muted-foreground">
-                      {total}
-                    </span>
-                    {/* Where a filed card's PR is followed up — the PR outlives the card's lane. */}
-                    {lane.key === "done" && (
-                      <Link
-                        to={prsPath()}
-                        className="ml-auto flex min-h-8 items-center gap-0.5 px-1.5 text-xs font-semibold text-brand"
+                    {isDone && (
+                      <button
+                        type="button"
+                        onClick={() => setParam("done", doneAll ? null : "all")}
+                        className="ml-auto text-sm text-brand hover:underline"
                       >
-                        {t("tabs.prs")}
-                        <ChevronRight className="size-3.5" />
-                      </Link>
+                        {doneAll ? t("board.thisWeek") : t("board.history")}
+                      </button>
                     )}
                   </div>
+                  {band && (
+                    <p className="hidden text-[13px] leading-snug text-muted-foreground lg:block">
+                      {t(`board.lane.empty.${lane.key}`)}
+                    </p>
+                  )}
                   <div className="flex flex-col gap-2.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                     {lane.statuses.map((status) => {
                       const column = byStatus.get(status) ?? [];
@@ -696,7 +690,7 @@ export function BoardRoute() {
                           )}
                         >
                           {column.length === 0 && ghostAt < 0 && <div className="h-10" />}
-                          {(status === "done" && !doneAll && !held ? newestDone(column) : column).map((card, slot) => (
+                          {shown(status).map((card, slot) => (
                             <Fragment key={card.id}>
                               {slot === ghostAt && heldCard && ghost(heldCard)}
                               {/* The wrapper exists for one line: which HALF of a tile the pointer
@@ -732,24 +726,14 @@ export function BoardRoute() {
                                     }
                                     dependency={dependencyInfo(card, byId)}
                                     repo={repoLabel(card)}
-                                    milestones={facts?.[card.id]?.milestoneEvents}
                                     lot={holdOf(card, facts?.[card.id]?.lot, facts?.[card.id]?.pr?.state === "open")}
                                     awaiting={facts?.[card.id]?.awaiting}
-                                    // The dictation this was split from, on every screen (ADR 0022):
-                                    // the container takes no tile, so this is where it is named.
+                                    facts={facts?.[card.id]}
+                                    agent={agentOf(card)}
+                                    // The dictation this was split from, on every screen (ADR 0022).
                                     parent={card.parentId ? byId.get(card.parentId)?.title : undefined}
-                                    phase={card.phaseId ? progress.get(card.phaseId) : undefined}
-                                    template={templateOf(card)}
-                                    // Unconditional, unlike `parent`: a follow-up is never folded
-                                    // under the card it came from (that link is not `parentId` —
-                                    // see Card.originCardId), so nothing else on any screen says
-                                    // it. A deleted source resolves to nothing and the caption
-                                    // simply doesn't render.
-                                    source={
-                                      card.originCardId
-                                        ? byId.get(card.originCardId)?.title
-                                        : undefined
-                                    }
+                                    // Phases are known under a repo scope only: elsewhere the line says nothing rather than « Hors phase ».
+                                    phase={activeRepo ? (card.phaseId ? progress.get(card.phaseId) : null) : undefined}
                                     // Desktop only, and only from a column a human owns. `runtime`
                                     // is belt-and-braces on top of that: a card with a live pane is
                                     // never in a manual column, and if one ever were, dragging it
@@ -782,19 +766,12 @@ export function BoardRoute() {
                             </Fragment>
                           ))}
                           {ghostAt >= column.length && heldCard && ghost(heldCard)}
-                          {status === "done" && doneCount(column) > DONE_SHOWN && (
-                            <FoldToggle
-                              open={doneAll}
-                              label={t("fold.more", { count: doneCount(column) - DONE_SHOWN })}
-                              lessLabel={t("fold.less")}
-                              onClick={() => setParam("done", doneAll ? null : "all")}
-                            />
-                          )}
                         </section>
                       );
                     })}
                   </div>
                 </div>
+                </Fragment>
               );
             })
           )}

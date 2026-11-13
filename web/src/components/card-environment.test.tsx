@@ -8,7 +8,6 @@ import { setPreference } from "@/i18n";
 import type { CardView } from "@/lib/board";
 import { CardEnvironment, EnvironmentPicker } from "./card-environment";
 import { CardEditor } from "./card-editor";
-import { CardTile } from "./card-tile";
 
 // « Lancer sur » (ADR 0046 §4): this machine by default, the peers' matching environments after,
 // an unreachable peer greyed with its reason — and no picker at all without a peer.
@@ -134,11 +133,6 @@ describe("Lancer sur", () => {
     unmount();
     render(<CardEditor card={card({ environment: { peer: "test-depot-collie", name: "dev" } })} open onClose={() => {}} onSave={async () => {}} />);
     await waitFor(async () => expect(await screen.findByLabelText("Launch on")).toBeDisabled());
-  });
-
-  it("the tile says which machine", () => {
-    render(<CardTile card={card({ environment: { peer: "test-depot-collie", name: "dev" } })} onClick={() => {}} />);
-    expect(screen.getByText("on test-depot-collie")).toBeInTheDocument();
   });
 });
 

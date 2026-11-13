@@ -5108,7 +5108,7 @@ describe("requestCommit — ask this card's agent to commit", () => {
 });
 
 describe("GET /api/cards?view=summary", () => {
-  it("drops the bulky text and the old finished cards, counts them, and leaves the plain list alone", async () => {
+  it("drops the bulky text, counts them, and leaves the plain list alone", async () => {
     const store = db();
     store.createCard({ title: "live", spec: "# Goal\nmore", acceptance: ["a", "b"], repoPath: "/r" });
     for (let i = 0; i < 7; i++) store.createCard({ title: `done ${i}`, spec: "x", status: "done", repoPath: "/r" });
@@ -5122,7 +5122,7 @@ describe("GET /api/cards?view=summary", () => {
       cards: Record<string, unknown>[];
       counts: { delivered: number; doneByRepo: Record<string, number> };
     };
-    expect(sum.cards).toHaveLength(6); // the live card + the 5 newest done
+    expect(sum.cards).toHaveLength(8); // the live card + every card finished this week (the Board's Fini column)
     const live = sum.cards.find((c) => c.title === "live")!;
     expect(live).not.toHaveProperty("spec");
     expect(live).not.toHaveProperty("acceptance");

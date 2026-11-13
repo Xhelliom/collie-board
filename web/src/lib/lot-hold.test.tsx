@@ -62,8 +62,8 @@ describe("lotHold", () => {
 describe("the board tile", () => {
   it.each(CASES)("$name", ({ card: c, lots, held }) => {
     render(<CardTile card={c} onClick={() => {}} lot={lotHold(c, lots)} />);
-    expect(screen.queryByText("Lot · Auth") !== null).toBe(held);
-    expect(screen.queryByText("To review") !== null).toBe(!held);
+    expect(screen.queryByText(/^Lot · Auth · /) !== null).toBe(held);
+    expect(screen.queryByText("to review") !== null).toBe(!held);
   });
 });
 
