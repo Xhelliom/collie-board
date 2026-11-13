@@ -21,3 +21,4 @@
 {"v":1,"hlc":"1794557230680.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/373"},"ts":1794557228302}}
 {"v":1,"hlc":"1794557230680.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
 {"v":1,"hlc":"1794557230680.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794557228316}}
+{"v":1,"hlc":"1794557495346.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.worktree_swept","payload":{"checkout":"/home/swetterwald/.herdr/worktrees/collie-board/board-bug-sous-hc-tous-les-terminaux-tombent-dans-un-s"},"ts":1794557495320}}
