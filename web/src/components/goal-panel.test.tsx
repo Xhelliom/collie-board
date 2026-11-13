@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -167,7 +167,8 @@ describe("GoalPanel", () => {
     const seen: (OpenGoal | null)[] = [];
     render(<RouterProvider router={createMemoryRouter([{ path: "/", element: <GoalPanel repo="/r" titleOf={() => undefined} onGoal={(g) => seen.push(g)} /> }])} />);
     expect(await screen.findByText(/nothing more to switch on/)).toBeInTheDocument();
-    expect(seen.at(-1)).toEqual({ status: "active", text: "Ship v1" });
+    // onGoal fires from a passive effect, which can land after the text is on screen.
+    await waitFor(() => expect(seen.at(-1)).toEqual({ status: "active", text: "Ship v1" }));
   });
 
   it("without an objective, tells the header there is none", async () => {
