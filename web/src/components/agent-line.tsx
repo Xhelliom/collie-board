@@ -73,7 +73,7 @@ export function AgentLine({ agent, onOpen, compact = false, current = false }: {
         compact ? "min-h-11 px-2.5 py-1.5" : "min-h-14 px-3.5 py-2 lg:grid lg:min-h-11 lg:grid-cols-[10px_minmax(0,1fr)_6.5rem_11rem_8.5rem_6.5rem] lg:gap-x-4",
         current
           ? "bg-primary/10 ring-1 ring-primary/30"
-          : id.state === "needs" ? "bg-status-blocked/10 hover:bg-status-blocked/15" : id.state === "working" ? "bg-card/70 hover:bg-muted/60" : "hover:bg-muted/60",
+          : id.state === "needs" ? "bg-status-blocked/10 shadow-(--shadow-1) hover:bg-status-blocked/15" : id.state === "working" ? "bg-card/70 shadow-(--shadow-1) hover:bg-muted/60" : "hover:bg-muted/60",
       )}
     >
       <StatusDot status={agent.status} className={cn(id.state === "idle" && "opacity-55")} />

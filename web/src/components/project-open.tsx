@@ -59,7 +59,7 @@ export function ProjectOpen({ repo, actions }: { repo: string; actions?: ReactNo
         {menu && (
           <>
             <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setMenu(false)} />
-            <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col items-stretch gap-1 rounded-xl border bg-card p-1.5 text-sm shadow-lg">
+            <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col items-stretch gap-1 rounded-xl border bg-card p-1.5 text-sm shadow-(--shadow-3)">
               <button
                 type="button"
                 role="menuitem"

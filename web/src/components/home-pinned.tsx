@@ -23,7 +23,7 @@ import { runningAgents } from "./sidebar-quick";
 // The phone's « Épinglés »: the sidebar's pins, dressed as the Home's own panels (one row = one card
 // like « Au travail »). Same data as the sidebar (usePins/useQuickAccess); the sidebar itself is untouched.
 
-const PANEL = "flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl border bg-card shadow-(--shadow-panel) px-3.5 py-2 text-left transition-colors hover:bg-muted/40";
+const PANEL = "flex min-h-12 w-full min-w-0 items-center gap-3 rounded-xl border bg-card shadow-(--shadow-1) px-3.5 py-2 text-left transition-colors hover:bg-muted/40";
 
 export function HomePinned({ data, cards }: { data: HomeData; cards: CardView[] }) {
   const desktop = useIsDesktop();

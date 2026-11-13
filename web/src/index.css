@@ -78,7 +78,15 @@
   --success: #178544;
   --success-foreground: #ffffff;
   /* What a panel casts: soft, never a hard edge. */
-  --shadow-panel: 0 1px 2px rgba(20, 23, 28, 0.06), 0 6px 18px rgba(20, 23, 28, 0.06);
+  /* Elevation ladder. 1: an inner row, barely lifted off its panel · 2: a panel · 3: what floats
+     (menus, sheets, popovers, toasts). Shadows are tinted with the page ink, soft and wide. */
+  --shadow-1: 0 1px 2px rgba(20, 23, 28, 0.06), 0 2px 8px rgba(20, 23, 28, 0.04);
+  --shadow-2: 0 1px 2px rgba(20, 23, 28, 0.06), 0 6px 18px rgba(20, 23, 28, 0.06);
+  --shadow-3: 0 2px 4px rgba(20, 23, 28, 0.08), 0 16px 40px rgba(20, 23, 28, 0.16);
+  /* A button: a hair of shadow at rest, more under the pointer, pressed in on press. */
+  --shadow-btn: 0 1px 2px rgba(20, 23, 28, 0.1);
+  --shadow-btn-hover: 0 2px 8px rgba(20, 23, 28, 0.16);
+  --shadow-btn-press: inset 0 1px 3px rgba(20, 23, 28, 0.22);
 
   /* Permanent app chrome (header and composer bars): one shade off the page. */
   --chrome: #eaecef;
@@ -144,7 +152,7 @@
   --foreground: #eceef1;
   --card: #191c21;
   --card-foreground: #eceef1;
-  --popover: #20242a;
+  --popover: #262b32;
   --popover-foreground: #eceef1;
   --primary: #eceef1;
   --primary-foreground: #111317;
@@ -164,7 +172,13 @@
   --button-outline-bg: transparent;
   --success: #178544;
   --success-foreground: #ffffff;
-  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* Dark: a light line along the top edge, and surfaces that lighten as they rise. */
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 4px 8px rgba(0, 0, 0, 0.3), 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-btn: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-btn-hover: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 3px 10px rgba(0, 0, 0, 0.5);
+  --shadow-btn-press: inset 0 1px 3px rgba(0, 0, 0, 0.55);
 
   --chrome: #0d0f12;
 
@@ -220,7 +234,12 @@ html[data-style="classic"]:not(.dark) {
   --radius: 0.65rem;
   --radius-control: 0.65rem;
   --radius-row: 0.65rem;
-  --shadow-panel: 0 0 #0000;
+  --shadow-1: 0 0 #0000;
+  --shadow-2: 0 0 #0000;
+  --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-btn: 0 0 #0000;
+  --shadow-btn-hover: 0 0 #0000;
+  --shadow-btn-press: 0 0 #0000;
   --button-outline-border: transparent;
   --button-outline-bg: var(--secondary);
   --success: var(--status-done);
@@ -274,7 +293,12 @@ html.dark[data-style="classic"] {
   --radius: 0.65rem;
   --radius-control: 0.65rem;
   --radius-row: 0.65rem;
-  --shadow-panel: 0 0 #0000;
+  --shadow-1: 0 0 #0000;
+  --shadow-2: 0 0 #0000;
+  --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-btn: 0 0 #0000;
+  --shadow-btn-hover: 0 0 #0000;
+  --shadow-btn-press: 0 0 #0000;
   --button-outline-border: transparent;
   --button-outline-bg: var(--secondary);
   --success: var(--status-done);

@@ -27,7 +27,7 @@ export function useCountUp(to: number): number {
 
 export function Kpi({ label, value, note, tone, compact, to }: { label: string; value: number; note?: string; tone: string; compact?: boolean; to?: string }) {
   const shown = useCountUp(value);
-  const box = cn("relative block overflow-hidden rounded-xl border bg-card shadow-(--shadow-panel)", compact ? "p-2.5" : "p-3.5", to && "transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25");
+  const box = cn("relative block overflow-hidden rounded-xl border bg-card shadow-(--shadow-2)", compact ? "p-2.5" : "p-3.5", to && "transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25");
   const body = (
     <>
       <span className={cn("absolute inset-x-0 top-0 h-px opacity-60", tone)} />

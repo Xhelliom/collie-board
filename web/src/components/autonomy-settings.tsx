@@ -108,7 +108,7 @@ export function AutonomySettings({ repo }: { repo: string }) {
   }
 
   return (
-    <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-xl border bg-card shadow-(--shadow-panel) p-3.5 text-sm">
+    <section id={AUTONOMY_SECTION} aria-label={t("orch.auto")} className="scroll-mt-4 rounded-xl border bg-card shadow-(--shadow-2) p-3.5 text-sm">
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span>{t("orch.autoOn")}</span>

@@ -3,6 +3,9 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+// A hair of shadow at rest, more on hover, pressed in on press (tokens; Classique zeroes them).
+const LIFT = "shadow-(--shadow-btn) hover:shadow-(--shadow-btn-hover) active:shadow-(--shadow-btn-press)";
+
 const buttonVariants = cva(
   // 9 px radius (--radius-control). At least 30 px tall on
   // a desktop, 44 px on a phone (the touch floor).
@@ -10,22 +13,22 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: `${LIFT} bg-primary text-primary-foreground hover:bg-primary/90`,
         // The primary action of a panel: the action colour, filled. One per panel.
-        brand: "bg-brand text-brand-foreground hover:bg-brand/90",
+        brand: `${LIFT} bg-brand text-brand-foreground hover:bg-brand/90`,
         // The gesture that concludes (merge, validate): green, the colour of « done ».
-        success: "bg-success text-success-foreground hover:bg-success/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        success: `${LIFT} bg-success text-success-foreground hover:bg-success/90`,
+        destructive: `${LIFT} bg-destructive text-destructive-foreground hover:bg-destructive/90`,
         // The secondary button is an outline (Sémaphore · Relevé): you must see it is a button. Classic
         // sets the outline stroke transparent and the fill to the raised tone.
-        outline: "border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent",
-        secondary: "border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent",
+        outline: `${LIFT} border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent`,
+        secondary: `${LIFT} border border-button-outline-border bg-button-outline-bg text-foreground hover:bg-accent`,
         ghost: "hover:bg-accent hover:text-accent-foreground",
         // Navigation inside a sentence only — never an action (see action-buttons.test).
         link: "text-foreground underline underline-offset-4 decoration-muted-foreground hover:decoration-foreground",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3 max-sm:min-h-11",
+        default: `${LIFT} h-9 px-4 py-2 has-[>svg]:px-3 max-sm:min-h-11`,
         sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5 max-sm:min-h-11",
         lg: "h-11 px-6 has-[>svg]:px-4 text-base",
         icon: "size-9 max-sm:size-11",

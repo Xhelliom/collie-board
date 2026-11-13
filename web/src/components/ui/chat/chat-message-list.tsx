@@ -63,7 +63,7 @@ const ChatMessageList = React.forwardRef<ChatMessageListHandle, ChatMessageListP
             onClick={() => scrollToBottom()}
             size="icon"
             variant="outline"
-            className="absolute bottom-3 left-1/2 z-10 size-9 -translate-x-1/2 rounded-full shadow-md"
+            className="absolute bottom-3 left-1/2 z-10 size-9 -translate-x-1/2 rounded-full shadow-(--shadow-3)"
             aria-label={t("pane.scrollLatest")}
           >
             <ArrowDown className="size-4" />

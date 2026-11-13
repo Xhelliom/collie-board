@@ -72,7 +72,7 @@ const store = {
   },
 };
 
-const PANEL = "flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-(--shadow-panel)";
+const PANEL = "flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-(--shadow-2)";
 const LINK = cn(buttonVariants({ variant: "secondary", size: "sm" }), "shrink-0 text-xs");
 /** A line's own button: 44 px on a phone. */
 const ACT = "h-11 shrink-0 rounded-sm px-3 text-sm font-semibold sm:h-8";

@@ -391,7 +391,7 @@ export function PrsRoute() {
               {showMerged ? t("prs.hideMerged") : t("prs.showMerged", { count: merged.length })}
             </PanelLink>
             {showMerged && (
-              <ul className="rounded-xl border bg-card shadow-(--shadow-panel) px-4 py-3">
+              <ul className="rounded-xl border bg-card shadow-(--shadow-2) px-4 py-3">
                 {merged.map((m) => (
                   <li key={m.url} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/60 py-2 first:border-t-0 first:pt-0">
                     <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">#{m.number}</span>

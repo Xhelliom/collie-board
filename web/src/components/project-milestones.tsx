@@ -191,7 +191,7 @@ export function ClosedPhases({ closed, onReopened }: { closed: ProjectPhase[]; o
           const isOpen = open === p.key;
           const date = new Date(p.phase!.closedAt!).toLocaleDateString(getLocale());
           return (
-            <li key={p.key} className="rounded-xl border bg-card shadow-(--shadow-panel)">
+            <li key={p.key} className="rounded-xl border bg-card shadow-(--shadow-2)">
               <button
                 type="button"
                 onClick={() => setOpen(isOpen ? null : p.key)}
