@@ -17,3 +17,7 @@
 {"v":1,"hlc":"1794556976121.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_follow","payload":{},"ts":1794556963895}}
 {"v":1,"hlc":"1794557093884.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.gate","payload":{"runId":"pr-follow-29847","command":"bun run check","ok":true},"ts":1794557080458}}
 {"v":1,"hlc":"1794557093884.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.merge","payload":{"runId":"pr-follow-29847","merged":false,"reason":"the PR's checks are still running — waiting","wait":true},"ts":1794557081881}}
+{"v":1,"hlc":"1794557230680.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"run.merge","payload":{"runId":"pr-follow-29847","merged":true,"reason":"lead validated, gate green, no conflict, checks green; auto-merge unavailable, the board merged it"},"ts":1794557228293}}
+{"v":1,"hlc":"1794557230680.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.pr_merged","payload":{"url":"https://github.com/Xhelliom/collie-board/pull/373"},"ts":1794557228302}}
+{"v":1,"hlc":"1794557230680.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"done"}}
+{"v":1,"hlc":"1794557230680.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"review","to":"done","reason":"manual"},"ts":1794557228316}}
