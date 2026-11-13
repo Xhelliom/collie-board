@@ -1,5 +1,5 @@
 import { useBack } from "@/hooks/use-back";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useLoaderData, useLocation, useNavigate, useParams, useRouteLoaderData } from "react-router";
 
 import { AgentChat } from "@/components/agent-chat";
@@ -60,6 +60,12 @@ export function DetailRoute() {
     root.shellPanes.find((p) => p.paneId === paneId) ??
     remote ??
     (fresh && fresh.paneId === paneId && !seen ? fresh : undefined);
+  // The same herd the Agents page lists, so the pane column and the page never disagree.
+  const herd = useMemo(() => [...root.agents, ...root.shellPanes, ...remoteAgents(root.peers ?? [])], [root.agents, root.shellPanes, root.peers]);
+  const internal = useMemo(
+    () => new Set([root.leadPaneId, root.copilotPaneId].filter((id): id is string => !!id)),
+    [root.leadPaneId, root.copilotPaneId],
+  );
   const tabLabel = root.tabs.find((t) => t.tabId === agent?.tabId)?.label;
   const gone = !agent;
 
@@ -82,6 +88,8 @@ export function DetailRoute() {
       agent={agent}
       agents={root.agents}
       shellPanes={root.shellPanes}
+      herd={herd}
+      internal={internal}
       tabs={root.tabs}
       tabLabel={tabLabel}
       text={pane.text}

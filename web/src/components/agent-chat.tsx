@@ -84,6 +84,10 @@ interface AgentChatProps {
   agent: AgentView | undefined;
   agents: AgentView[];
   shellPanes: AgentView[];
+  /** The pane list's herd (this machine's panes and the peers'); defaults to `agents` + `shellPanes`. */
+  herd?: AgentView[];
+  /** The board's own panes (lead, copilot): left out of the pane list. */
+  internal?: ReadonlySet<string>;
   tabs: TabView[];
   /** Label of the pane's tab, shown in the header as "space › tab". */
   tabLabel?: string;
@@ -108,6 +112,7 @@ interface AgentChatProps {
 // At most one drawer/sheet is open at a time; null = none. (The composer's own Keys/Quick/Agent
 // sheets are separate and live inside <Composer>.)
 type Drawer = "switcher" | "tabs" | "more" | null;
+const NO_PANES: ReadonlySet<string> = new Set();
 
 // The detail view mirrors a terminal pane, NOT a chat thread. The pane's output comes from the
 // route loader (`text`); polling revalidates it. Replies/keys are confirmed via the header status
@@ -124,6 +129,8 @@ export function AgentChat({
   agent,
   agents,
   shellPanes,
+  herd = [...agents, ...shellPanes],
+  internal = NO_PANES,
   tabs,
   tabLabel,
   text,
@@ -684,14 +691,13 @@ export function AgentChat({
     // ABOVE_TAB_BAR: the mobile tab bar shows on this screen too — the composer, the column's in-flow
     // bottom edge, sits on top of it instead of under it.
     <div className={`flex min-h-0 w-full min-w-0 max-w-[100dvw] flex-1 flex-col overflow-x-hidden lg:max-w-none lg:flex-row ${ABOVE_TAB_BAR}`}>
-      {/* 2xl-only, 296px: every pane in the herd, grouped exactly as the pane switcher groups them
+      {/* 2xl-only, 296px: the Agents page's list, compact — the same one the pane switcher shows
           (redesign §5 "three panes"). The full nav sidebar (248px) stays on this screen, so below
           `2xl` this column would starve the mirror — there the toolbar's pane menu and the composer's
           pane switcher do the job. */}
       <PaneListColumn
-        agents={agents}
-        shellPanes={shellPanes}
-        tabs={tabs}
+        herd={herd}
+        internal={internal}
         currentPaneId={paneId}
         onSelect={switchTo}
       />
@@ -1256,14 +1262,7 @@ export function AgentChat({
       {/* Swipe-up quick switcher — just the panes (agents + shells), reached by the thumb gesture.
           Switch-only: pane closing lives in the pane pill's long-press sheet, not here. */}
       <BottomSheet open={drawer === "switcher"} onClose={closeDrawer} title={tr("pane.switch")}>
-        <ThreadSidebar
-          agents={agents}
-          shellPanes={shellPanes}
-          tabs={tabs}
-          currentPaneId={paneId}
-          onSelect={switchTo}
-          className="px-0 py-1"
-        />
+        <ThreadSidebar herd={herd} internal={internal} currentPaneId={paneId} onSelect={switchTo} />
       </BottomSheet>
 
       {/* The context row's tab segment — the SAME TabStrip, just moved off an always-visible strip
