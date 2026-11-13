@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.317.0] - 2026-11-13
+
+### Added
+
+- Roadmap : statut d'étape `later` (horizon lointain) avec sa `direction`, et `condition` d'entrée d'une étape prévue (202b125)
+- Page Roadmap : le cap (vision, objectif, prochain jalon, avancée), la frise Fait → Maintenant → Ensuite qui défile et s'agrandit en plein écran, les grandes directions (202b125)
+- Page Roadmap : modifier la vision, ajouter une étape ou une idée, éditer, ranger et déplacer une étape (202b125)
+- Page Roadmap : trancher une question ouverte, ou en parler à l'orchestrateur avec la question préremplie (202b125)
+- Recette filtrée sur une phase (lien « ce qui a été livré ») (202b125)
+
+### Changed
+
+- Page Roadmap en deux colonnes : le chemin à gauche, les décisions (à trancher, penche vers, décidé avec recherche) à droite (202b125)
+
 ## [0.316.0] - 2026-11-13
 
 ### Added
