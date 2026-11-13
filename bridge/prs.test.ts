@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
 import { BoardDb, type BoardEvent } from "./db.ts";
-import type { PrStatus } from "./git.ts";
+import type { GitRunner, PrStatus } from "./git.ts";
 import { followsOf } from "./pr-follow.ts";
-import { notePrOutcome, openPrs, openPrsOf } from "./prs.ts";
+import { MIN_READ_MS, forgetPrRead, notePrOutcome, openPrs, openPrsOf, prGesture } from "./prs.ts";
 
 let n = 0;
 const ev = (cardId: string, type: string, payload: unknown = {}): BoardEvent => ({
@@ -112,9 +112,9 @@ describe("notePrOutcome", () => {
 
   it("takes the card off the list, without asking GitHub again", async () => {
     const { db, id } = setup();
-    expect((await openPrs(db)).map((r) => r.card.id)).toEqual([id]);
+    expect((await openPrs(db)).prs.map((r) => r.card.id)).toEqual([id]);
     notePrOutcome(db, id, pr("closed"));
-    expect(await openPrs(db)).toEqual([]);
+    expect((await openPrs(db)).prs).toEqual([]);
   });
 });
 
@@ -125,5 +125,63 @@ describe("auto-merge on the open PR list", () => {
     expect(m.get("c")!.autoMerge).toBe("refused");
     expect(openPrsOf([ev(1, "card.pr_opened"), ev(2, "card.automerge_refused"), ev(3, "card.pr_opened")]).get("c")!.autoMerge).toBeUndefined();
     expect(openPrsOf([ev(1, "card.pr_opened"), ev(2, "card.automerge_refused"), ev(3, "card.pr_merged")]).size).toBe(0);
+  });
+});
+
+describe("the open-PR list read on GitHub (the screen's open, and its Re-read tap)", () => {
+  const listed = (o: Record<string, unknown>) => ({ mergeable: "MERGEABLE", reviewDecision: "", isDraft: false, statusCheckRollup: [], createdAt: "2026-11-13T10:00:00Z", ...o });
+  const setup = () => {
+    forgetPrRead();
+    const db = new BoardDb(":memory:");
+    // A lot card: its PR is on the lot branch, found by the journaled url.
+    const live = db.createCard({ title: "live", repoPath: "/repo", baseRef: "main", branch: "board/card-in-a-lot" });
+    const gone = db.createCard({ title: "gone", repoPath: "/repo", baseRef: "main", branch: "board/gone" });
+    db.recordEvent(live.id, "card.pr_opened", { url: "https://gh/o/r/pull/5" });
+    db.recordEvent(gone.id, "card.pr_opened", { url: "https://gh/o/r/pull/3" });
+    const calls: string[][] = [];
+    const gh: GitRunner = async (args) => {
+      calls.push(args);
+      if (args[1] === "list" && args[3] === "open") {
+        return { ok: true, stderr: "", stdout: JSON.stringify([
+          listed({ number: 5, title: "live", url: "https://gh/o/r/pull/5", headRefName: "board/live" }),
+          listed({ number: 9, title: "docs(plan): fin du lot « X »", url: "https://gh/o/r/pull/9", headRefName: "board/plan-lot-x-1", mergeable: "UNKNOWN" }),
+        ]) };
+      }
+      if (args[1] === "list") return { ok: true, stderr: "", stdout: JSON.stringify([{ number: 3, title: "gone", url: "https://gh/o/r/pull/3", headRefName: "board/gone", mergedAt: "2026-11-13T11:00:00Z" }]) };
+      // `gh pr view board/gone`: the journal row GitHub no longer lists open.
+      return { ok: true, stderr: "", stdout: JSON.stringify({ state: "MERGED", url: "https://gh/o/r/pull/3", mergedAt: "2026-11-13T11:00:00Z" }) };
+    };
+    return { db, live, gone, gh, calls };
+  };
+
+  it("lists the board's off-card PRs, and drops — journaling it — a card's PR merged on GitHub", async () => {
+    const { db, live, gone, gh } = setup();
+    const r = await openPrs(db, true, gh);
+    expect(r.prs.find((p) => p.card.id === live.id)?.github?.number).toBe(5);
+    expect(r.prs.find((p) => p.card.id === gone.id)?.pr?.state).toBe("merged");
+    expect(r.others?.map((p) => [p.number, p.origin])).toEqual([[9, "plan"]]);
+    expect(r.merged?.map((p) => [p.number, p.cardId])).toEqual([[3, gone.id]]);
+    expect((await openPrs(db)).prs.map((p) => p.card.id)).toEqual([live.id]);
+  });
+
+  it("shares a read with the next one inside the floor, and reads again past it", async () => {
+    const { db, gh, calls } = setup();
+    let t = 1_000_000;
+    await openPrs(db, true, gh, () => t);
+    const n = calls.length;
+    t += MIN_READ_MS - 1;
+    await openPrs(db, true, gh, () => t);
+    expect(calls.length).toBe(n);
+    t += 2;
+    await openPrs(db, true, gh, () => t);
+    expect(calls.length).toBeGreaterThan(n);
+  });
+
+  it("merges or closes a PR by number only in a repo the board reads", async () => {
+    const { db, gh, calls } = setup();
+    expect(await prGesture(db, "/elsewhere", 9, "merge", gh)).toMatchObject({ ok: false, status: 404 });
+    expect(await prGesture(db, "/repo", -1, "close", gh)).toMatchObject({ ok: false, status: 400 });
+    expect(await prGesture(db, "/repo", 9, "close", gh)).toEqual({ ok: true });
+    expect(calls.at(-1)).toEqual(["pr", "close", "9"]);
   });
 });

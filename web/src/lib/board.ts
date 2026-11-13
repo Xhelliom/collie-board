@@ -1266,11 +1266,45 @@ export interface OpenPr {
   /** Only after a check: what GitHub said, null when it could not be asked. */
   pr?: PrStatus | null;
   autoMerge?: "armed" | "refused";
+  /** Only after a check: the row as GitHub lists it open. */
+  github?: GhPr;
 }
 
-/** The open PRs, from the journal. `check` asks GitHub about each one — the Check tap, never a poll. */
-export function fetchOpenPrs(check = false): Promise<{ prs: OpenPr[] }> {
-  return apiRequest<{ prs: OpenPr[] }>(`/api/board/prs${check ? "?check=1" : ""}`);
+/** What a PR's checks say. `none`: the repo runs no CI. */
+export type GhChecks = { state: "none" | "pending" | "green" } | { state: "red"; name: string; detailsUrl: string };
+
+/** One pull request as GitHub lists it (bridge/git.ts `GhPr`). */
+export interface GhPr {
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  createdAt: number | null;
+  mergedAt?: number | null;
+  conflicting: boolean;
+  mergeable: boolean;
+  checks: GhChecks | null;
+  review: "changes" | "required" | null;
+  draft: boolean;
+}
+
+/** What `/api/board/prs` answers; everything past `prs` only after a check (bridge/prs.ts). */
+export interface PrsReading {
+  prs: OpenPr[];
+  /** Open on GitHub, on no card. `plan`: the board's own lot-end export. */
+  others?: (GhPr & { repoPath: string; origin: "plan" | "other" })[];
+  merged?: (GhPr & { repoPath: string; cardId: string | null })[];
+  checkedAt?: number;
+}
+
+/** The open PRs, from the journal. `check` reads GitHub — the screen's open and its Re-read tap, never a poll. */
+export function fetchOpenPrs(check = false): Promise<PrsReading> {
+  return apiRequest<PrsReading>(`/api/board/prs${check ? "?check=1" : ""}`, undefined, check ? INTEGRATION_TIMEOUT_MS : undefined);
+}
+
+/** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
+export function prGesture(repo: string, number: number, what: "merge" | "close"): Promise<{ ok: true }> {
+  return apiRequest(`/api/board/prs/${what}`, { method: "POST", body: JSON.stringify({ repo, number }) }, INTEGRATION_TIMEOUT_MS);
 }
 
 /**

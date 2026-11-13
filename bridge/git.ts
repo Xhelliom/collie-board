@@ -1326,6 +1326,11 @@ export function parseChecks(stdout: string): Checks | null {
   } catch {
     return null;
   }
+  return rollupChecks(rollup);
+}
+
+/** The verdict of one `statusCheckRollup` array, wherever `gh` printed it. Pure. */
+export function rollupChecks(rollup: unknown): Checks | null {
   if (!Array.isArray(rollup)) return null;
   let pending = false;
   for (const c of rollup as Record<string, string | null>[]) {
@@ -1346,6 +1351,82 @@ export async function checksOf(repoPath: string, branch: string, gh: GitRunner =
     return r.ok ? parseChecks(r.stdout) : null;
   } catch {
     return null;
+  }
+}
+
+/** One pull request as `gh pr list` sees it — the Open PRs screen's row, card or no card. */
+export interface GhPr {
+  number: number;
+  title: string;
+  url: string;
+  branch: string;
+  createdAt: number | null;
+  /** Merged list only. */
+  mergedAt?: number | null;
+  conflicting: boolean;
+  mergeable: boolean;
+  checks: Checks | null;
+  /** GitHub wants a review before it merges: changes asked for, or one still owed. */
+  review: "changes" | "required" | null;
+  draft: boolean;
+}
+
+const PR_LIST_FIELDS = {
+  open: "number,title,url,headRefName,createdAt,mergeable,reviewDecision,isDraft,statusCheckRollup",
+  merged: "number,title,url,headRefName,createdAt,mergedAt",
+} as const;
+
+/** Parse `gh pr list --json …`. A row missing its number or url is dropped, never guessed. Pure. */
+export function parsePrList(stdout: string): GhPr[] | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(raw)) return null;
+  const date = (v: unknown) => (typeof v === "string" && Number.isFinite(Date.parse(v)) ? Date.parse(v) : null);
+  const out: GhPr[] = [];
+  for (const r of raw as Record<string, unknown>[]) {
+    if (typeof r.number !== "number" || typeof r.url !== "string") continue;
+    out.push({
+      number: r.number,
+      title: typeof r.title === "string" ? r.title : "",
+      url: r.url,
+      branch: typeof r.headRefName === "string" ? r.headRefName : "",
+      createdAt: date(r.createdAt),
+      ...("mergedAt" in r ? { mergedAt: date(r.mergedAt) } : {}),
+      conflicting: r.mergeable === "CONFLICTING",
+      mergeable: r.mergeable === "MERGEABLE",
+      checks: "statusCheckRollup" in r ? rollupChecks(r.statusCheckRollup) : null,
+      review: r.reviewDecision === "CHANGES_REQUESTED" ? "changes" : r.reviewDecision === "REVIEW_REQUIRED" ? "required" : null,
+      draft: r.isDraft === true,
+    });
+  }
+  return out;
+}
+
+/**
+ * The repo's open PRs, or its 10 newest merged ones — every PR, the board's own off-card ones too
+ * (`docs(plan)`). `null` when GitHub cannot be read, as {@link prStatusOf}.
+ */
+export async function listPrs(repoPath: string, state: "open" | "merged", gh: GitRunner = runGh): Promise<GhPr[] | null> {
+  try {
+    const r = await gh(["pr", "list", "--state", state, "--limit", state === "open" ? "100" : "10", "--json", PR_LIST_FIELDS[state]], repoPath);
+    return r.ok ? parsePrList(r.stdout) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Close a PR without merging it — the operator's tap, nothing else calls it. Same guard as {@link enableAutoMerge}. */
+export async function closePr(repoPath: string, ref: string, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!ref || ref.startsWith("-")) return { ok: false, error: `refusing PR ${JSON.stringify(ref)}` };
+  try {
+    const r = await gh(["pr", "close", ref], repoPath);
+    return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

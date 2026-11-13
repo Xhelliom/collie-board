@@ -150,12 +150,13 @@ export async function prStatusFor(
   now: () => number = Date.now,
   /** Skip the cache: the "Check" tap, and a reopen about to spend an agent on the answer. */
   fresh = false,
+  gh?: GitRunner,
 ): Promise<PrStatus | null> {
   if (!card.repoPath || !card.branch) return null;
   const key = prKey(card);
   const hit = prCache.get(key);
   if (!fresh && hit && now() - hit.at < PR_TTL_MS) return hit.value;
-  const value = await prStatusOf(card.repoPath, card.branch);
+  const value = await prStatusOf(card.repoPath, card.branch, gh);
   prCache.set(key, { at: now(), value });
   return value;
 }

@@ -98,7 +98,7 @@ import { memoOn } from "./http-cache.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
-import { notePrOutcome, openPrs } from "./prs.ts";
+import { forgetPrRead, notePrOutcome, openPrs, prGesture } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
 import type { Mux } from "./mux/mux.ts";
@@ -139,6 +139,8 @@ const BOARD_USAGE_ROUTE = "/api/board/usage";
 
 /** `/api/board/prs` — the cards whose PR is still open, `?check=1` to ask GitHub (see prs.ts). */
 const BOARD_PRS_ROUTE = "/api/board/prs";
+/** `POST /api/board/prs/{merge|close}` `{repo, number}` — the operator's tap on a PR, card or not. */
+const BOARD_PRS_GESTURE = /^\/api\/board\/prs\/(merge|close)$/;
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
@@ -727,7 +729,26 @@ async function route(
     const denied = ctx.guard("read");
     if (denied) return denied;
     const check = new URL(req.url).searchParams.get("check") === "1";
-    return ctx.json({ prs: await openPrs(ctx.db, check) });
+    return ctx.json(await openPrs(ctx.db, check));
+  }
+
+  const prGestureMatch = BOARD_PRS_GESTURE.exec(pathname);
+  if (prGestureMatch) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { repo, number } = (body ?? {}) as { repo?: unknown; number?: unknown };
+    if (typeof repo !== "string" || typeof number !== "number") return ctx.text("repo and number required", 400);
+    const what = prGestureMatch[1] as "merge" | "close";
+    const r = await prGesture(ctx.db, repo, number, what);
+    ctx.audit.record({ action: `pr.${what}`, session: ctx.session, device: ctx.device, detail: { path: repo, number, ok: r.ok } });
+    return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
   }
 
   if (pathname === BOARD_LAUNCH_ENGINE_ROUTE && req.method === "GET") {
@@ -1729,6 +1750,8 @@ async function route(
     // "PR & done" is consent to land it (ADR 0035): the card is filed when the PR merges — pr-follow.ts.
     if (result.ok && andDone && what === "pr") db.recordEvent(id, "card.pr_follow", {});
     else if (result.ok && andDone && what === "merge") fileAsDone(db, ctx.herdr, db.getCard(id)!);
+    // A gesture moved a PR: the Open PRs screen must not serve its last GitHub read again.
+    if (result.ok) forgetPrRead();
 
     ctx.audit.record({
       action: `card.${what}`,

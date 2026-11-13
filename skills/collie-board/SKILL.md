@@ -421,6 +421,9 @@ curl -s "$B/api/pane/<paneId>"                # that pane's recent output — re
 curl -s -X POST "$B/api/pane/<paneId>/reply" -H 'content-type: application/json' \
   -d '{"text":"yes, go ahead"}'               # types the text and submits it (`"submit":false` only types)
 curl -s "$B/api/board/prs"                    # the cards whose PR is still open (journal only, free)
+#   ?check=1 reads GitHub (one `gh pr list` per repo, shared for 15 s): adds `others` (open PRs on no
+#   card — the board's docs(plan)), `merged` (10 latest) and `checkedAt`; journals the PRs that are over.
+#   POST /api/board/prs/merge|close {"repo","number"} is the operator's tap on the Open PRs screen — never an agent's.
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
 #   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card
 #   mode "merge" merges that PR on GitHub — never the local branch.
