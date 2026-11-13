@@ -9,3 +9,5 @@
 {"v":1,"hlc":"1794590299959.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
 {"v":1,"hlc":"1794590299959.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794590298669}}
 {"v":1,"hlc":"1794590299959.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3816},"ts":1794590298899}}
+{"v":1,"hlc":"1794591197264.0000.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"cb4d443c-f1dd-4c34-ae7d-88e932760284","name":"pr-ouvertes-lecture-github.jpg","size":65590,"by":"agent","pane":"t5t"},"ts":1794591189414}}
+{"v":1,"hlc":"1794591197264.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"deliverable.published","payload":{"cardId":"cb4d443c-f1dd-4c34-ae7d-88e932760284","name":"pr-ouvertes-apres-relecture.jpg","size":61223,"by":"agent","pane":"t5t"},"ts":1794591189428}}
