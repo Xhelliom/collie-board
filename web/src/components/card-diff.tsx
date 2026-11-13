@@ -6,7 +6,7 @@ import { useFold } from "@/components/fold";
 import { MarkdownText } from "@/components/markdown-text";
 import { Button } from "@/components/ui/button";
 import { BottomSheet } from "@/components/ui/sheet";
-import { SectionLabel } from "@/components/ui/section-label";
+import { Panel } from "@/components/card-panel";
 import {
   boardErrorMessage,
   fetchDiffFile,
@@ -100,31 +100,28 @@ export function CardDiff({
   const max = stat ? Math.max(1, ...stat.files.map((f) => f.added + f.removed)) : 1;
 
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <SectionLabel>{t("diff.label")}</SectionLabel>
-        {stat && (
-          <span className="text-xs text-muted-foreground/70">
+    <Panel
+      title={t("fiche.changed")}
+      count={
+        stat && (
+          <>
             {t("diff.files", { count: stat.files.length })}
             {total > 0 && (
               <>
-                {" · "}
+                {", "}
                 <span className="text-status-done">+{stat.added}</span>{" "}
                 <span className="text-status-blocked">−{stat.removed}</span>
               </>
             )}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => void load()}
-          aria-label={t("diff.refresh")}
-          className="ml-auto p-1 text-muted-foreground"
-        >
+          </>
+        )
+      }
+      actions={
+        <button type="button" onClick={() => void load()} aria-label={t("diff.refresh")} className="p-1 text-muted-foreground">
           <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </button>
-      </div>
-
+      }
+    >
       {error && !stat && <p className="text-xs text-status-blocked">{t("diff.error", { error })}</p>}
 
       {stat && stat.files.length === 0 ? (
@@ -143,11 +140,11 @@ export function CardDiff({
               <FileDiff className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{f.path}</span>
               {f.kind === "untracked" ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   {t("diff.new")}
                 </span>
               ) : f.kind === "binary" ? (
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
                   {t("diff.bin")}
                 </span>
               ) : (
@@ -201,7 +198,7 @@ export function CardDiff({
         comments={comments}
         onComment={onSend ? (c) => setComments((cs) => [...cs, c]) : undefined}
       />
-    </section>
+    </Panel>
   );
 }
 

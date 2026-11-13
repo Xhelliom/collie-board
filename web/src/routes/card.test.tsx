@@ -916,11 +916,12 @@ describe("long texts fold", () => {
       { initialEntries: ["/card/c1"] },
     );
     render(<RouterProvider router={router} />);
-    for (const text of ["Spec body text", "Criterion one", "Report body text"]) {
-      const el = await screen.findByText(text);
+    // A finished card's spec is a summary: its fold reads « Lire la spec entière ».
+    for (const [text, more] of [["Spec body text", "Lire la spec entière"], ["Criterion one", "Voir plus"], ["Report body text", "Voir plus"]]) {
+      const el = (await screen.findAllByText(text!))[0]!;
       // the fold wraps the text: its toggle is the next sibling of the clamped box
       const box = el.closest("[id]")!;
-      expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
+      expect(within(box.parentElement!).getByRole("button", { name: more })).toBeInTheDocument();
     }
   });
   it("puts a « Voir plus » under the agent's closing report", async () => {
@@ -945,7 +946,9 @@ describe("long texts fold", () => {
       { initialEntries: ["/card/c1"] },
     );
     render(<RouterProvider router={router} />);
-    // Also in the « Compte rendu » at the top, unfolded there by its own <details>: the session's copy folds.
+    // The session chain sits behind the history's « Journal complet ».
+    await userEvent.click(await screen.findByRole("button", { name: "Journal complet" }));
+    // Also in the bilan's reports, unfolded there by its own <details>: the session's copy folds.
     const box = (await screen.findAllByText("Closing report text")).map((el) => el.closest("[id]")).find(Boolean)!;
     expect(within(box.parentElement!).getByRole("button", { name: "Voir plus" })).toBeInTheDocument();
   });

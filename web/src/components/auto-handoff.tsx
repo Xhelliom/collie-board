@@ -89,7 +89,8 @@ const CHOICES = [
 ] as const satisfies ReadonlyArray<{ value: CardView["autoHandoff"]; label: MessageKey }>;
 
 /** One card's answer, over the Settings switch. Durable on the card, so it outlives the session. */
-export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChanged: () => void }) {
+/** `bare`: inside a panel that already names it — the hint and the three choices, no frame. */
+export function AutoHandoffChoice({ card, onChanged, bare = false }: { card: CardView; onChanged: () => void; bare?: boolean }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
 
@@ -106,9 +107,9 @@ export function AutoHandoffChoice({ card, onChanged }: { card: CardView; onChang
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+    <div className={bare ? "flex flex-col gap-2" : "flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2"}>
       <div className="min-w-0">
-        <div className="text-xs font-medium">{t("card.autoHandoff.title")}</div>
+        {!bare && <div className="text-xs font-medium">{t("card.autoHandoff.title")}</div>}
         <p className="text-xs text-muted-foreground">{t("card.autoHandoff.hint")}</p>
       </div>
       <div className="flex gap-1.5">
