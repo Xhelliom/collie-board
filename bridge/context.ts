@@ -31,7 +31,7 @@ import {
   type TranscriptSource,
 } from "./transcript.ts";
 import { processStartedAt } from "./proc.ts";
-import { agentWork, type AgentTask } from "./agent-work.ts";
+import { agentWork, lastSaid, type AgentTask } from "./agent-work.ts";
 import { runningSubagents } from "./subagents.ts";
 import { HC_SPACE } from "./mux/hc.ts";
 import type { AgentView } from "./types.ts";
@@ -89,6 +89,9 @@ export class ContextTracker {
   /** paneId → its task list and running background commands (agent-work.ts). Same rules. */
   private readonly work = new Map<string, { tasks: AgentTask[]; background: string[] }>();
 
+  /** paneId → its newest words (agent-work.ts `lastSaid`), the Agents page's « ce qu'il fait ». Same rules. */
+  private readonly said = new Map<string, string>();
+
   /** paneId → the model (short label) and effort its newest turn ran with. Same rules; effort only
    *  when the transcript states it — never derived from a settings file. */
   private readonly models = new Map<string, { model: string; effort: string | null }>();
@@ -139,6 +142,7 @@ export class ContextTracker {
         this.occupancy.delete(paneId);
         this.subagents.delete(paneId);
         this.work.delete(paneId);
+        this.said.delete(paneId);
         this.models.delete(paneId);
       }
     }
@@ -216,6 +220,9 @@ export class ContextTracker {
               const work = agentWork(text);
               if (work.tasks.length > 0 || work.background.length > 0) this.work.set(paneId, work);
               else this.work.delete(paneId);
+              const words = lastSaid(text);
+              if (words) this.said.set(paneId, words);
+              else this.said.delete(paneId);
             }
             const usage = latestUsage(text);
             if (!usage) return;
@@ -250,13 +257,14 @@ export class ContextTracker {
    * figure for is returned untouched, so "absent stays absent" and the UI simply renders no gauge.
    */
   enrich(panes: AgentView[]): AgentView[] {
-    if (this.occupancy.size === 0 && this.subagents.size === 0 && this.work.size === 0 && this.models.size === 0) return panes;
+    if (this.occupancy.size === 0 && this.subagents.size === 0 && this.work.size === 0 && this.models.size === 0 && this.said.size === 0) return panes;
     return panes.map((p) => {
       const seen = this.occupancy.get(p.paneId);
       const subagents = this.subagents.get(p.paneId);
       const work = this.work.get(p.paneId);
       const named = this.models.get(p.paneId);
-      if (seen === undefined && subagents === undefined && work === undefined && named === undefined) return p;
+      const said = this.said.get(p.paneId);
+      if (seen === undefined && subagents === undefined && work === undefined && named === undefined && said === undefined) return p;
       return {
         ...p,
         ...(seen && { ctxPct: seen.pct, ctxTokens: seen.tokens }),
@@ -264,6 +272,7 @@ export class ContextTracker {
         ...(subagents && { subagents }),
         ...(work?.tasks.length && { tasks: work.tasks }),
         ...(work?.background.length && { background: work.background }),
+        ...(said && { said }),
       };
     });
   }

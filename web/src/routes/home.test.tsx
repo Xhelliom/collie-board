@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
@@ -46,11 +46,12 @@ describe("HomeRoute", () => {
     localStorage.removeItem("collie-home-with-orch");
     const orch = (id: string, status: AgentView["status"]) => agent({ paneId: id, status, workspaceLabel: "orchestrator-repo", paneLabel: `orch-${id}` });
     renderHome([agent({ paneLabel: "worker" }), orch("o1", "working"), orch("o2", "blocked")]);
-    expect(await screen.findByText("orch-o2")).toBeInTheDocument();
-    expect(screen.queryByText("orch-o1")).toBeNull();
+    // An orchestrator is named by its role; which one shows is told by the section it sits in.
+    expect(within(await screen.findByRole("region", { name: "Waiting for you" })).getByText("Orchestrator")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Working" })).queryByText("Orchestrator")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("1 agent needs you, 1 agent is working");
     await userEvent.click(screen.getByRole("button", { name: "With the orchestrators" }));
-    expect(screen.getByText("orch-o1")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Working" })).getByText("Orchestrator")).toBeInTheDocument();
     expect(localStorage.getItem("collie-home-with-orch")).toBe("1");
     localStorage.removeItem("collie-home-with-orch");
   });

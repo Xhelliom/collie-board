@@ -110,3 +110,31 @@ export function agentWork(text: string): { tasks: AgentTask[]; background: strin
     background: [...running.values()].filter((id) => !finished.has(id)).map((id) => bash.get(id)!),
   };
 }
+
+/**
+ * The agent's newest main-thread words — the same « last line » the push subtitle reads
+ * (notify-subtitle.ts), off the log the gauge already loaded: one line, capped. Null when it has
+ * said nothing yet. PURE; walks from the end so a long log costs one parse, not thousands.
+ */
+export function lastSaid(text: string): string | null {
+  for (let end = text.length; end > 0; ) {
+    const start = text.lastIndexOf("\n", end - 1) + 1;
+    const line = text.slice(start, end);
+    end = start - 1;
+    if (!line.includes('"assistant"') || !line.includes('"text"')) continue;
+    let row: Row;
+    try {
+      row = JSON.parse(line) as Row;
+    } catch {
+      continue;
+    }
+    if (row.type !== "assistant" || row.isSidechain === true || !Array.isArray(row.message?.content)) continue;
+    const said = (row.message.content as { type?: unknown; text?: unknown }[])
+      .map((b) => (b?.type === "text" && typeof b.text === "string" ? b.text : ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (said) return said.length > 160 ? `${said.slice(0, 159)}…` : said;
+  }
+  return null;
+}

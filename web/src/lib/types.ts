@@ -81,6 +81,8 @@ export interface AgentView {
   tasks?: { text: string; status: "pending" | "in_progress" | "completed" }[];
   /** Labels of the commands it left running in the background. Absent when none. */
   background?: string[];
+  /** Its newest words, one line (Claude, bridge `agent-work.ts` `lastSaid`), same overlay and cadence. Absent until it has said something. */
+  said?: string;
   /**
    * When the pane's CURRENT status was entered (epoch ms), tracked by the poller (state-engine.ts).
    * Set only by an observed transition: a pane already idle/done when the bridge started has no

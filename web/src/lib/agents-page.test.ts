@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ago, agentsPage, DEFAULT_FILTERS, nameOf } from "./agents-page";
+import { nameOf } from "./agent-identity";
+import { ago, agentsPage, DEFAULT_FILTERS } from "./agents-page";
 import type { AgentView } from "./types";
 
 const pane = (p: Partial<AgentView> & { paneId: string }): AgentView => ({

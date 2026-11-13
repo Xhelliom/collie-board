@@ -31,7 +31,7 @@ describe("AgentList", () => {
     const needs = screen.getByRole("region", { name: "Waiting for you" });
     expect(within(needs).getByText("asks")).toBeInTheDocument();
     const work = screen.getByRole("region", { name: "Working" });
-    const row = within(work).getByText("Ship tabs").closest("button")!;
+    const row = within(work).getByText("Ship tabs").closest("div")!;
     expect(row).toHaveTextContent("collie");
     expect(row).toHaveTextContent("This PC");
     // No meta line any more: no model, no ctx, no engine label.

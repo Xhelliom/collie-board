@@ -5,7 +5,8 @@ import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AGENT_GROUPS, groupMembers, projectOf } from "@/lib/agent-groups";
 import type { AgentView } from "@/lib/types";
-import { headline } from "./agent-card";
+import { agentIdentity } from "@/lib/agent-identity";
+import { AgentDetail, MachineChip, ModelEffort } from "./agent-line";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 import { PinButton } from "./pin-button";
@@ -15,27 +16,37 @@ import { TidySheet } from "./tidy-sheet";
 const [NEEDS, WORKING, OTHER] = AGENT_GROUPS as [(typeof AGENT_GROUPS)[number], (typeof AGENT_GROUPS)[number], (typeof AGENT_GROUPS)[number]];
 export const sectionTitle = "text-sm font-medium text-muted-foreground";
 
-/** One agent, one line: its state, what it works on, its project, its machine. The pin shows on hover. */
+/** One agent, one line: its state, its name over what it does, its project, model and machine. The pin shows on hover. */
 export function AgentRow({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string) => void }) {
   const t = useT();
+  const id = agentIdentity(agent, t("agents.orchestrator"));
   const blocked = agent.status === "blocked";
   return (
     <div className="group flex min-w-0 items-center gap-1">
-      <button
-        type="button"
-        onClick={() => onOpen(agent.paneId)}
+      <div
         className={cn(
-          "flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border bg-card/70 px-3.5 py-2 text-left transition-colors hover:bg-muted/40",
+          "relative flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border bg-card/70 px-3.5 py-2 transition-colors hover:bg-muted/40",
           blocked && "border-status-blocked/40 bg-status-blocked/5 hover:bg-status-blocked/10",
         )}
       >
         <StatusDot status={agent.status} />
-        <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-3">
-          <span className="min-w-0 truncate font-medium sm:flex-1">{agent.cardTitle ?? headline(agent)}</span>
-          <span className="min-w-0 truncate text-sm text-muted-foreground sm:max-w-[40%] sm:shrink-0">{projectOf(agent.cwd)}</span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 items-baseline gap-3">
+            {/* Its ::after covers the row: the whole line opens the pane, the card link sits above it. */}
+            <button
+              type="button"
+              onClick={() => onOpen(agent.paneId)}
+              className="min-w-0 flex-1 truncate text-left font-medium outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-ring/50"
+            >
+              {id.name}
+            </button>
+            <span className="min-w-0 max-w-[40%] shrink-0 truncate text-sm text-muted-foreground">{projectOf(agent.cwd)}</span>
+          </span>
+          <AgentDetail id={id} />
         </span>
-        <span className="shrink-0 rounded-full bg-muted px-2 text-xs leading-5 text-muted-foreground">{agent.peer ?? t("home.machine.this")}</span>
-      </button>
+        <ModelEffort id={id} className="hidden max-w-32 shrink-0 text-xs text-muted-foreground sm:block" />
+        <MachineChip machine={id.machine} />
+      </div>
       {/* No hover on a touch screen: the pin lives on the Agents page there. */}
       <PinButton agent={agent} className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:hidden" />
     </div>
