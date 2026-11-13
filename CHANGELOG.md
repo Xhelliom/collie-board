@@ -9,6 +9,13 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.311.0] - 2026-11-13
+
+### Changed
+
+- Vue d'un agent : la colonne des panes et le sélecteur du téléphone montrent la liste de la page Agents, compacte (groupes par projet, agent ouvert surligné, filtres derrière une icône). (74f555a)
+- Plus d'arbre des panes par espace herdr (`space-pane-tree`) : ni noms d'espaces, ni méta « claude · p1 », ni agents internes du board. (74f555a)
+
 ## [0.310.0] - 2026-11-13
 
 ### Added
