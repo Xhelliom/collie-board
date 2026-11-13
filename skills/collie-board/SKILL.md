@@ -433,6 +433,7 @@ curl -s "$B/api/board/prs"                    # the cards whose PR is still open
 #   ?check=1 reads GitHub (one `gh pr list` per repo, shared for 15 s): adds `others` (open PRs on no
 #   card — the board's docs(plan)), `merged` (10 latest) and `checkedAt`; journals the PRs that are over.
 #   POST /api/board/prs/merge|close {"repo","number"} is the operator's tap on the Open PRs screen — never an agent's.
+curl -s "$B/api/board/prs/<number>?repo=<path>"  # one open PR's sheet: title, body, author, base/head, linked card, files, capped diff (read-only; repo must be known)
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
 #   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card
 #   mode "merge" merges that PR on GitHub — never the local branch.

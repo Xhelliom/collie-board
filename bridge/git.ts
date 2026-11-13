@@ -1419,6 +1419,31 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
   }
 }
 
+/** `gh pr view <n> --json …` for the PR sheet: raw JSON, or null when GitHub cannot be read. `number` is a validated integer. */
+export async function prViewRaw(repoPath: string, number: number, gh: GitRunner = runGh): Promise<string | null> {
+  if (!Number.isSafeInteger(number) || number <= 0) return null;
+  const fields = "number,title,body,author,createdAt,updatedAt,baseRefName,headRefName,state,mergeable,isDraft,url,files";
+  try {
+    const r = await gh(["pr", "view", String(number), "--json", fields], repoPath);
+    return r.ok ? r.stdout : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `gh pr diff <n>`, capped like a card's diff. Null when GitHub cannot be read. */
+export async function prDiffText(repoPath: string, number: number, gh: GitRunner = runGh): Promise<{ diff: string; truncated: boolean } | null> {
+  if (!Number.isSafeInteger(number) || number <= 0) return null;
+  try {
+    const r = await gh(["pr", "diff", String(number)], repoPath);
+    if (!r.ok) return null;
+    const truncated = r.stdout.length > MAX_DIFF_BYTES;
+    return { diff: truncated ? r.stdout.slice(0, MAX_DIFF_BYTES) : r.stdout, truncated };
+  } catch {
+    return null;
+  }
+}
+
 /** Retitle a PR by number — the board's rolling `docs(plan)` PR only. */
 export async function editPrTitle(repoPath: string, number: number, title: string, gh: GitRunner = runGh, body?: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const r = await gh(["pr", "edit", String(number), "--title", title, ...(body === undefined ? [] : ["--body", body])], repoPath);

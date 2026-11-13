@@ -1302,6 +1302,35 @@ export function fetchOpenPrs(check = false): Promise<PrsReading> {
   return apiRequest<PrsReading>(`/api/board/prs${check ? "?check=1" : ""}`, undefined, check ? INTEGRATION_TIMEOUT_MS : undefined);
 }
 
+/** One open PR's sheet (bridge/pr-detail.ts). */
+export interface PrDetail {
+  number: number;
+  title: string;
+  body: string;
+  author: string;
+  createdAt: number | null;
+  updatedAt: number | null;
+  base: string;
+  head: string;
+  state: "open" | "merged" | "closed";
+  mergeable: boolean;
+  conflicting: boolean;
+  isDraft: boolean;
+  url: string;
+  card: { id: string; title: string } | null;
+  files: { path: string; additions: number; deletions: number }[];
+  diff: string;
+  diffTruncated: boolean;
+}
+
+export function prPath(repo: string, number: number): string {
+  return `/board/prs/${number}?repo=${encodeURIComponent(repo)}`;
+}
+
+export function fetchPrDetail(repo: string, number: string, signal?: AbortSignal): Promise<PrDetail> {
+  return apiRequest<PrDetail>(`/api/board/prs/${encodeURIComponent(number)}?repo=${encodeURIComponent(repo)}`, { signal }, INTEGRATION_TIMEOUT_MS);
+}
+
 /** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
 export function prGesture(repo: string, number: number, what: "merge" | "close"): Promise<{ ok: true }> {
   return apiRequest(`/api/board/prs/${what}`, { method: "POST", body: JSON.stringify({ repo, number }) }, INTEGRATION_TIMEOUT_MS);

@@ -147,7 +147,7 @@ const pick = ({ id, title, status, repoPath, branch }: Card): OpenPr["card"] => 
 const sortRows = (rows: { row: OpenPr }[]) => rows.map((r) => r.row).sort((a, b) => b.openedAt - a.openedAt);
 
 /** The repos the screen reads: every card's, and the ones added by hand, less the hidden ones. */
-function reposOf(db: BoardDb): Set<string> {
+export function reposOf(db: BoardDb): Set<string> {
   const hidden = db.hiddenRepos();
   const all = [...db.listCards({ includeArchived: true }).map((c) => c.repoPath), ...db.listedRepos()];
   return new Set(all.filter((p): p is string => !!p && !hidden.has(p)));
