@@ -9,6 +9,21 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.319.0] - 2026-11-13
+
+### Added
+
+- Page Projet : l'anneau d'avancement et les compteurs cliquables reviennent dans la phase en cours. (f18f4a2)
+- Lots étiquetés Prêt / Ensuite / Vides ; un lot vide (sans carte) se supprime, un par un ou tous. (f18f4a2)
+- « Phases suivantes » : phases ouvertes (Prête, À découper) et items de roadmap à découper, avec « Demander le découpage » et les conditions de sortie de herdr 0.9. (f18f4a2)
+- « À ranger » : chaque constat dit pourquoi et porte son bouton (jalon, tri, objectif, livrables). (f18f4a2)
+
+### Changed
+
+- « Ce qui t'attend » propose le lot prêt avec son bouton ; rien n'attend : une ligne. (f18f4a2)
+- Téléphone : plus d'épinglés en tête, épingle et machine sous « ⋯ », compte de la recette sur l'onglet, titres de cartes entiers. (f18f4a2)
+- Panneau Objectif vide remplacé par une ligne « Fixer un objectif » ; panneau « Phases » retiré. (f18f4a2)
+
 ## [0.318.0] - 2026-11-13
 
 ### Added
