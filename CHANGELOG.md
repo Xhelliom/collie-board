@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.316.0] - 2026-11-13
+
+### Added
+
+- PR ouvertes : la liste est lue sur GitHub à l'ouverture (et sur « Relire sur GitHub »), PR « docs(plan) » hors carte comprises (a92907b)
+- PR ouvertes : panneaux Prêtes à merger / En attente / Bloquées, raison en clair, Merger, « Merger les N » et Fermer à double confirmation (a92907b)
+- PR ouvertes : « Voir les 10 dernières mergées » (a92907b)
+
+### Fixed
+
+- PR ouvertes : une PR mergée sur GitHub quitte la liste et son journal de carte est mis à jour (a92907b)
+
 ## [0.315.0] - 2026-11-13
 
 ### Added
