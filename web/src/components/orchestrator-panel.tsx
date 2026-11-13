@@ -243,7 +243,7 @@ export function OrchestratorPanel({
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-40" aria-hidden="true" onClick={() => setMenuOpen(false)} />
-                <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded-xl border border-border bg-card p-1.5 text-sm shadow-lg">
+                <div role="menu" className="absolute right-0 top-full z-50 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-1 rounded-xl border border-border bg-card p-1.5 text-sm shadow-(--shadow-3)">
                   <button
                     type="button"
                     role="menuitem"

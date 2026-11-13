@@ -32,7 +32,9 @@
   src: url("/fonts/ibm-plex-sans-700.woff2") format("woff2");
 }
 
-/* ── Sémaphore, palette Balise (chosen by the operator, 13/11) ──────────────────────────────────
+/* ── Sémaphore, direction A · Relevé (chosen by the operator, 13/11 evening; neutral greys, no hue) ──
+   Panels are lifted by a 1px line and a soft shadow; a secondary button is an outline. Older note:
+   (palette Balise, chosen by the operator, 13/11) ──────────────────────────────────
    A harbour at night: the dark water of a basin, sea-glass teal for what moves, and the quay's
    sodium lamp, orange, for what calls you — and ONLY that: one colour per meaning (blue works, orange waits, red is stuck, green is done, violet is to review, grey rests). Light mode is the same quay at low tide. Hex, not oklch:
    these are the values of the reference board, and `web/src/lib/contrast.test.ts` holds every text
@@ -41,148 +43,174 @@
   /* Tells the browser which palette to use for stuff it renders itself (scrollbars, form controls). */
   color-scheme: light;
 
-  /* Square, or nearly: 2 px on panels and buttons (every Tailwind radius rung is pinned to it below). */
-  --radius: 2px;
+  /* Panel radius; controls and inner rows have their own rungs (see @theme). */
+  --radius: 14px;
+  --radius-control: 9px;
+  --radius-row: 10px;
 
-  --background: #e9eeee;
-  --foreground: #0b1a1c;
+  --background: #f2f3f5;
+  --foreground: #14171c;
   --card: #ffffff;
-  --card-foreground: #0b1a1c;
+  --card-foreground: #14171c;
   --popover: #ffffff;
-  --popover-foreground: #0b1a1c;
+  --popover-foreground: #14171c;
   /* The strong neutral fill (a selected chip, a solid tab): the ink itself. */
-  --primary: #0b1a1c;
+  --primary: #14171c;
   --primary-foreground: #ffffff;
-  /* The raised surface a secondary button sits on. */
-  --secondary: #dde4e4;
-  --secondary-foreground: #0b1a1c;
-  --muted: #dde4e4;
-  --muted-foreground: #4a5f62;
-  --accent: #d0d9d9;
-  --accent-foreground: #0b1a1c;
+  /* The raised row inside a panel (a line, a chip). */
+  --secondary: #f7f8fa;
+  --secondary-foreground: #14171c;
+  --muted: #f7f8fa;
+  --muted-foreground: #5a616d;
+  --accent: #e9ebef;
+  --accent-foreground: #14171c;
   /* « bloqué »: the one red. */
   --destructive: #b0243f;
   --destructive-foreground: #ffffff;
-  /* Barely there: tone does the separating, a line only where a list needs one. */
-  --border: #d6dedd;
-  --input: #b2c0c0;
-  --ring: #0b1a1c;
+  --border: #e1e4e9;
+  --input: #c9ced6;
+  --ring: #14171c;
+
+  /* A secondary button is an outline: its stroke, one step darker than the panel line. */
+  --button-outline-border: #c9ced6;
+  --button-outline-bg: transparent;
+  /* The gesture that concludes: emerald, white text. */
+  --success: #178544;
+  --success-foreground: #ffffff;
+  /* What a panel casts: soft, never a hard edge. */
+  /* Elevation ladder. 1: an inner row, barely lifted off its panel · 2: a panel · 3: what floats
+     (menus, sheets, popovers, toasts). Shadows are tinted with the page ink, soft and wide. */
+  --shadow-1: 0 1px 2px rgba(20, 23, 28, 0.06), 0 2px 8px rgba(20, 23, 28, 0.04);
+  --shadow-2: 0 1px 2px rgba(20, 23, 28, 0.06), 0 6px 18px rgba(20, 23, 28, 0.06);
+  --shadow-3: 0 2px 4px rgba(20, 23, 28, 0.08), 0 16px 40px rgba(20, 23, 28, 0.16);
+  /* A button: a hair of shadow at rest, more under the pointer, pressed in on press. */
+  --shadow-btn: 0 1px 2px rgba(20, 23, 28, 0.1);
+  --shadow-btn-hover: 0 2px 8px rgba(20, 23, 28, 0.16);
+  --shadow-btn-press: inset 0 1px 3px rgba(20, 23, 28, 0.22);
 
   /* Permanent app chrome (header and composer bars): one shade off the page. */
-  --chrome: #e0e6e6;
+  --chrome: #eaecef;
 
   /* Text one step under the foreground (« secondaire »). */
-  --text-secondary: #2c4246;
+  --text-secondary: #5a616d;
 
-  /* The operator's signal colours, exactly: the shapes of status-signal.tsx and the solid marks.
-     A graphic needs 3:1 against the page, and each clears it in both themes. */
-  --signal-blocked: #d85f00;
-  --signal-working: #1a5fb8;
-  --signal-review: #5a3fd0;
-  --signal-stuck: #c42c4e;
+  /* Signal colours, exactly the reference's (Relevé): shapes of status-signal.tsx. 3:1 on the page. */
+  --signal-blocked: #d65f00;
+  --signal-working: #1f6fe0;
+  --signal-review: #6a43d8;
+  --signal-stuck: #d42c43;
 
-  /* Agent lifecycle, as TEXT and tints. `blocked` is herdr's « needs you » — the orange, not the red.
-     In light mode each is the signal colour taken a step darker, to read at 4.5:1 on every surface
-     (the reference board does the same: its orange counter is #9A4A00). */
+  /* Agent lifecycle, as TEXT and tints. In light mode the signal colour a step darker where it must
+     read at 4.5:1 on every surface. */
   --status-blocked: #a84300;
   --status-working: #1a5fb8;
   --status-review: #5a3fd0;
   --status-done: #136f37;
-  --status-idle: #4c625f;
-  --status-unknown: #4c625f;
+  --status-idle: #5a616d;
+  --status-unknown: #5a616d;
   --status-info: #0a6a85;
 
   --find-hit: oklch(0.879 0.169 91.605 / 70%);
   --find-hit-current: oklch(0.769 0.188 70.08);
 
-  /* Markdown reader accents: info blue headings, teal inline code, diff in teal/red. */
   --md-heading: #0a6a85;
-  --md-code: #2c4246;
+  --md-code: #3c424c;
   --diff-add: #136f37;
   --diff-del: #b0243f;
 
-  /* Terminal mirror: pinned dark whatever the theme (D2), on the night palette. */
-  --terminal-background: #0a1316;
-  --terminal-foreground: #e6f0ee;
-  --terminal-muted: #8fa6a3;
+  /* Terminal mirror: pinned dark whatever the theme (D2). */
+  --terminal-background: #111317;
+  --terminal-foreground: #eceef1;
+  --terminal-muted: #a0a7b3;
 
-  /* The action colour: the active navigation item, the primary action, the focus ring. Never a status.
-     Light: the action orange one step darker, so white reads on it and it reads as text. */
-  --brand: #0b1a1c;
-  --brand-foreground: #e9eeee;
+  /* The action colour: the active navigation item, the primary action, the focus ring. Never a status. */
+  --brand: #14171c;
+  --brand-foreground: #f2f3f5;
 
   /* Foreground for a SOLID status chip. */
   --status-chip-foreground: #ffffff;
 
   /* Actors (A L C O B T): a letter on a tinted square, one pair per actor. */
-  --actor-agent-bg: #d6e6fb;
+  --actor-agent-bg: #dde9fb;
   --actor-agent-fg: #1a5fb8;
-  --actor-lead-bg: #e4d9ff;
+  --actor-lead-bg: #e6dfff;
   --actor-lead-fg: #4a2ec0;
-  --actor-copilot-bg: #cdf0d9;
+  --actor-copilot-bg: #d3f0df;
   --actor-copilot-fg: #12703a;
-  --actor-orchestrator-bg: #cdeef6;
+  --actor-orchestrator-bg: #d3eef6;
   --actor-orchestrator-fg: #0a6a85;
-  --actor-board-bg: #dde4e4;
-  --actor-board-fg: #2c4246;
-  --actor-you-bg: #0b1a1c;
+  --actor-board-bg: #e9ebef;
+  --actor-board-fg: #3c424c;
+  --actor-you-bg: #14171c;
   --actor-you-fg: #ffffff;
 }
 
 .dark {
   color-scheme: dark;
 
-  --background: #0b1215;
-  --foreground: #e6f0ee;
-  --card: #182830;
-  --card-foreground: #e6f0ee;
-  --popover: #1d3039;
-  --popover-foreground: #e6f0ee;
-  --primary: #e6f0ee;
-  --primary-foreground: #0a1316;
-  --secondary: #223a43;
-  --secondary-foreground: #e6f0ee;
-  --muted: #223a43;
-  --muted-foreground: #93a8ac;
-  --accent: #2b4853;
-  --accent-foreground: #e6f0ee;
-  --destructive: #ff7575;
+  --background: #111317;
+  --foreground: #eceef1;
+  --card: #191c21;
+  --card-foreground: #eceef1;
+  --popover: #262b32;
+  --popover-foreground: #eceef1;
+  --primary: #eceef1;
+  --primary-foreground: #111317;
+  --secondary: #20242a;
+  --secondary-foreground: #eceef1;
+  --muted: #20242a;
+  --muted-foreground: #a0a7b3;
+  --accent: #2b3038;
+  --accent-foreground: #eceef1;
+  --destructive: #ff5a6a;
   --destructive-foreground: #1a0509;
-  --border: #1f343b;
-  --input: #3a5762;
-  --ring: #e6f0ee;
+  --border: #2b3038;
+  --input: #3a404a;
+  --ring: #eceef1;
 
-  --chrome: #101a1e;
+  --button-outline-border: #3a404a;
+  --button-outline-bg: transparent;
+  --success: #178544;
+  --success-foreground: #ffffff;
+  /* Dark: a light line along the top edge, and surfaces that lighten as they rise. */
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 4px 8px rgba(0, 0, 0, 0.3), 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-btn: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-btn-hover: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 3px 10px rgba(0, 0, 0, 0.5);
+  --shadow-btn-press: inset 0 1px 3px rgba(0, 0, 0, 0.55);
 
-  --text-secondary: #c0d1d4;
+  --chrome: #0d0f12;
 
-  --signal-blocked: #ff7a1a;
-  --signal-working: #4fa3ff;
-  --signal-review: #c3adff;
-  --signal-stuck: #e8476a;
+  --text-secondary: #a0a7b3;
 
-  --status-blocked: #ff7a1a;
-  --status-working: #4fa3ff;
-  --status-review: #c3adff;
-  --status-done: #3ccf6e;
-  --status-idle: #93a8ac;
-  --status-unknown: #93a8ac;
+  --signal-blocked: #ff8a2a;
+  --signal-working: #5aa8ff;
+  --signal-review: #b597ff;
+  --signal-stuck: #ff5a6a;
+
+  --status-blocked: #ff8a2a;
+  --status-working: #5aa8ff;
+  --status-review: #b597ff;
+  --status-done: #3fcf7a;
+  --status-idle: #a0a7b3;
+  --status-unknown: #a0a7b3;
   --status-info: #5cc8e6;
 
   --find-hit: oklch(0.769 0.188 70.08 / 40%);
   --find-hit-current: oklch(0.852 0.199 91.936);
 
   --md-heading: #5cc8e6;
-  --md-code: #c0d1d4;
-  --diff-add: #3ccf6e;
-  --diff-del: #ff7575;
+  --md-code: #c7ccd4;
+  --diff-add: #3fcf7a;
+  --diff-del: #ff5a6a;
 
-  --brand: #e6f0ee;
-  --brand-foreground: #0b1215;
+  --brand: #eceef1;
+  --brand-foreground: #111317;
 
   --status-chip-foreground: #1e1000;
 
-  --actor-agent-bg: #10294a;
+  --actor-agent-bg: #14294a;
   --actor-agent-fg: #7dbbff;
   --actor-lead-bg: #2d2150;
   --actor-lead-fg: #c3adff;
@@ -190,10 +218,10 @@
   --actor-copilot-fg: #5fe08f;
   --actor-orchestrator-bg: #0e3340;
   --actor-orchestrator-fg: #5cc8e6;
-  --actor-board-bg: #223a43;
-  --actor-board-fg: #c0d1d4;
-  --actor-you-bg: #e6f0ee;
-  --actor-you-fg: #0a1316;
+  --actor-board-bg: #2b3038;
+  --actor-board-fg: #c7ccd4;
+  --actor-you-bg: #eceef1;
+  --actor-you-fg: #111317;
 }
 
 /* ── Classic style (Settings › Appearance › Style) ──────────────────────────────────────────────
@@ -204,6 +232,18 @@
    Balise contrast test: these are the old values, unchanged. */
 html[data-style="classic"]:not(.dark) {
   --radius: 0.65rem;
+  --radius-control: 0.65rem;
+  --radius-row: 0.65rem;
+  --shadow-1: 0 0 #0000;
+  --shadow-2: 0 0 #0000;
+  --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-btn: 0 0 #0000;
+  --shadow-btn-hover: 0 0 #0000;
+  --shadow-btn-press: 0 0 #0000;
+  --button-outline-border: transparent;
+  --button-outline-bg: var(--secondary);
+  --success: var(--status-done);
+  --success-foreground: var(--status-chip-foreground);
   --background: oklch(1 0.006 250);
   --foreground: oklch(0.145 0.006 250);
   --card: oklch(1 0.006 250);
@@ -251,6 +291,18 @@ html[data-style="classic"]:not(.dark) {
 }
 html.dark[data-style="classic"] {
   --radius: 0.65rem;
+  --radius-control: 0.65rem;
+  --radius-row: 0.65rem;
+  --shadow-1: 0 0 #0000;
+  --shadow-2: 0 0 #0000;
+  --shadow-3: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-btn: 0 0 #0000;
+  --shadow-btn-hover: 0 0 #0000;
+  --shadow-btn-press: 0 0 #0000;
+  --button-outline-border: transparent;
+  --button-outline-bg: var(--secondary);
+  --success: var(--status-done);
+  --success-foreground: var(--status-chip-foreground);
   --status-chip-foreground: oklch(0.18 0.03 24);
   --background: oklch(0.145 0.006 250);
   --foreground: oklch(0.985 0.006 250);
@@ -300,10 +352,10 @@ html.dark[data-style="classic"] {
 @theme inline {
   /* Every rung is the one radius: a stray rounded-2xl cannot round a panel back. rounded-full stays a
      circle (the beacon, an avatar). */
-  --radius-xs: var(--radius);
-  --radius-sm: var(--radius);
-  --radius-md: var(--radius);
-  --radius-lg: var(--radius);
+  --radius-xs: var(--radius-control);
+  --radius-sm: var(--radius-control);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-row);
   --radius-xl: var(--radius);
   --radius-2xl: var(--radius);
   --radius-3xl: var(--radius);
@@ -360,6 +412,11 @@ html.dark[data-style="classic"] {
   --color-terminal-background: var(--terminal-background);
   --color-terminal-foreground: var(--terminal-foreground);
   --color-terminal-muted: var(--terminal-muted);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-button-outline-border: var(--button-outline-border);
+  --color-button-outline-bg: var(--button-outline-bg);
 
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);

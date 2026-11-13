@@ -121,7 +121,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
 
   const copyButton = "inline-flex items-center gap-1.5 rounded-sm border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25";
   return (
-    <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-sm bg-card p-4">
+    <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-2) p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex flex-1 items-center gap-2 text-left">
           <span className="text-xs font-semibold text-muted-foreground">{t("roadmap.aria")}</span>

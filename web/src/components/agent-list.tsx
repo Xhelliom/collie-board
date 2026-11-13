@@ -25,7 +25,7 @@ export function AgentRow({ agent, onOpen }: { agent: AgentView; onOpen: (paneId:
     <div className="group flex min-w-0 items-center gap-1">
       <div
         className={cn(
-          "relative flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-sm bg-card px-3.5 py-2 transition-colors hover:bg-muted/40",
+          "relative flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl border bg-card shadow-(--shadow-1) px-3.5 py-2 transition-colors hover:bg-muted/40",
           blocked && "border-status-blocked/40 bg-status-blocked/5 hover:bg-status-blocked/10",
         )}
       >

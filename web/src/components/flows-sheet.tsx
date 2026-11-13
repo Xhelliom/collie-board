@@ -82,7 +82,7 @@ function List({ flows, templates, onView, onChanged }: { flows: Flow[]; template
       {flows.length === 0 && <p className="text-sm text-muted-foreground">{t("flows.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {flows.map((f) => (
-          <li key={f.id} className="flex flex-col gap-2 rounded-sm bg-card p-3">
+          <li key={f.id} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-1) p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 text-sm font-semibold">{flowName(f)}</span>
               {f.builtin && <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("flows.shipped")}</span>}
@@ -173,7 +173,7 @@ function Editor({ flow, templates, onBack, onSaved }: { flow: Flow | null; templ
         <span className="text-xs font-medium text-muted-foreground">{t("flows.field.steps")}</span>
         <ol className="flex flex-col gap-1.5">
           {steps.map((id, i) => (
-            <li key={`${id}-${i}`} className="flex items-center gap-1.5 rounded-sm bg-card px-3 py-1.5 text-sm">
+            <li key={`${id}-${i}`} className="flex items-center gap-1.5 rounded-xl border bg-card shadow-(--shadow-1) px-3 py-1.5 text-sm">
               <span className="font-mono text-xs tabular-nums text-muted-foreground">{i + 1}.</span>
               <span className="min-w-0 flex-1 truncate font-semibold">{nameOf(id)}</span>
               <button type="button" disabled={i === 0} aria-label={t("flows.step.up", { name: nameOf(id) })} onClick={() => move(i, -1)} className="p-1 text-muted-foreground disabled:opacity-30">

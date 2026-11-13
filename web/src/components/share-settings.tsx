@@ -70,7 +70,7 @@ export function ShareSettings({ repo }: { repo: string }) {
           : t("project.share.upToDate");
 
   return (
-    <section aria-label={t("project.share.fold")} className="rounded-sm bg-card p-3.5 text-sm">
+    <section aria-label={t("project.share.fold")} className="rounded-xl border bg-card shadow-(--shadow-2) p-3.5 text-sm">
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-3">
           <span className={info.remotes.length === 0 ? "opacity-50" : undefined}>{t("project.share.on")}</span>

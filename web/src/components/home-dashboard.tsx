@@ -266,7 +266,7 @@ function ProjectRow({ repo, lot, toTest = 0, goal }: { repo: RepoTile; lot?: Til
   return (
     <Link
       to={projectPath(repo.path)}
-      className="flex flex-col gap-2 rounded-sm bg-card p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
+      className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-1) p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
     >
       <span className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
@@ -377,7 +377,7 @@ function ProviderQuota({ p, onRefresh, busy }: { p: ProviderUsage; onRefresh: ()
           <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
         </button>
       </div>
-      <div className="flex flex-col gap-2 rounded-sm bg-card p-3.5">
+      <div className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-2) p-3.5">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-4 text-left">
           <Ring arcs={[{ value: pct, className: `stroke-status-${tone(pct)}` }]} total={100} label={t("home.usage.aria", { label: p.label, percent: pct })} className="size-16">
             <span className="text-sm font-semibold leading-none tabular-nums">{pct}%</span>

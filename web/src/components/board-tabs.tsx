@@ -196,7 +196,7 @@ function MoreMenu({ items, label }: { items: TabItem[]; label: string }) {
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg">
+        <div role="menu" className="absolute right-0 top-full z-30 mt-1 flex min-w-48 flex-col rounded-xl border bg-popover p-1 text-popover-foreground shadow-(--shadow-3)">
           {items.map((tab) => (
             <Link
               key={tab.key}

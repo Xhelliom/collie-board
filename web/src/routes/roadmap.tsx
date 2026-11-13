@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 // rides the root poll, so an orchestrator's PUT shows on the next tick — no timer of its own.
 
 const STATUSES: RoadmapStatus[] = ["planned", "active", "done", "dropped", "later"];
-const PANEL = "rounded-sm bg-card p-4";
+const PANEL = "rounded-xl border bg-card shadow-(--shadow-2) p-4";
 const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 const PILL = cn("inline-flex h-8 items-center gap-1.5 rounded-sm border bg-card/70 px-3 text-sm font-medium hover:border-foreground/25", FOCUS);
 const FIELD = cn("w-full rounded-lg border bg-background px-3 py-2 text-sm", FOCUS);

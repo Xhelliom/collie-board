@@ -44,7 +44,7 @@ export function MoreActions({ label, children, className }: { label: string; chi
             const item = (e.target as HTMLElement).closest("[role=menuitem]");
             if (item && !item.hasAttribute("data-keep-open")) setOpen(false);
           }}
-          className="absolute right-0 top-full z-30 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-xl border bg-popover p-1.5 text-popover-foreground shadow-lg"
+          className="absolute right-0 top-full z-30 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-xl border bg-popover p-1.5 text-popover-foreground shadow-(--shadow-3)"
         >
           {children}
         </div>

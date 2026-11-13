@@ -109,7 +109,7 @@ export function StepItem({
       data-group={group}
       style={{ animationDelay: `${Math.min(index, 20) * 35}ms` }}
       className={cn(
-        "scroll-mt-20 rounded-sm bg-card transition-[border-color,box-shadow] duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both",
+        "scroll-mt-20 rounded-xl border bg-card shadow-(--shadow-1) transition-[border-color,box-shadow] duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:fill-mode-both",
         group === "flight" && "border-status-working/45",
         group === "waiting" && "border-brand/45",
         next && "border-brand/60",

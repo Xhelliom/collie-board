@@ -73,18 +73,42 @@ describe.each([":root", ".dark"] as const)("Balise contrast, %s", (theme) => {
 
   // The light theme's text inks (brand, status-*) are the signal colours a step darker: 4.5:1 is the
   // floor and the operator's own light values sit at 3.4–4.3 as text.
-  it("one colour per meaning: blue works, orange waits, green done, violet review, neutral brand", () => {
+  it("one colour per meaning: blue works, orange waits, red stuck, green done, violet review, neutral brand", () => {
     const want =
       theme === ".dark"
-        ? { "status-done": "#3ccf6e", "status-working": "#4fa3ff", "signal-working": "#4fa3ff", "signal-blocked": "#ff7a1a", "status-review": "#c3adff", "signal-review": "#c3adff", "status-info": "#5cc8e6", brand: "#e6f0ee" }
-        : { "status-done": "#136f37", "status-working": "#1a5fb8", "signal-blocked": "#d85f00", "signal-working": "#1a5fb8", "status-review": "#5a3fd0", "signal-review": "#5a3fd0", brand: "#0b1a1c" };
+        ? { "status-done": "#3fcf7a", "status-working": "#5aa8ff", "signal-working": "#5aa8ff", "signal-blocked": "#ff8a2a", "status-review": "#b597ff", "signal-review": "#b597ff", "signal-stuck": "#ff5a6a", brand: "#eceef1" }
+        : { "signal-blocked": "#d65f00", "signal-working": "#1f6fe0", "signal-review": "#6a43d8", "signal-stuck": "#d42c43", brand: "#14171c" };
     for (const [k, v] of Object.entries(want)) expect(t[k], k).toBe(v);
     expect(t.brand).toBe(t.foreground);
     expect(t["brand-foreground"]).toBe(t.background);
+  });
+
+  // Direction A · Relevé: neutrals carry no hue (the old slate-teal is gone).
+  it("neutrals are the Relevé ones", () => {
+    const want =
+      theme === ".dark"
+        ? { background: "#111317", card: "#191c21", secondary: "#20242a", border: "#2b3038", foreground: "#eceef1", "text-secondary": "#a0a7b3", "button-outline-border": "#3a404a", success: "#178544" }
+        : { background: "#f2f3f5", card: "#ffffff", secondary: "#f7f8fa", border: "#e1e4e9", foreground: "#14171c", "text-secondary": "#5a616d", "button-outline-border": "#c9ced6", success: "#178544" };
+    for (const [k, v] of Object.entries(want)) expect(t[k], k).toBe(v);
+    expect(t["success-foreground"]).toBe("#ffffff");
+  });
+
+  it("white text on the success fill ≥ 4.5:1", () => {
+    expect(contrast(t["success-foreground"]!, t.success!)).toBeGreaterThanOrEqual(4.5);
   });
 });
 
 it("contrast() is WCAG's formula", () => {
   expect(contrast("#000000", "#ffffff")).toBeCloseTo(21, 5);
   expect(contrast("#777777", "#ffffff")).toBeCloseTo(4.48, 2);
+});
+
+it("elevation ladder: shadow-1/2/3 and the button shadows exist in both themes, Classique has none on panels", () => {
+  for (const sel of [":root", ".dark"] as const) {
+    const start = css.indexOf(`\n${sel} {`);
+    const body = css.slice(start, css.indexOf("\n}", start));
+    for (const k of ["shadow-1", "shadow-2", "shadow-3", "shadow-btn", "shadow-btn-hover", "shadow-btn-press"]) expect(body, `${sel} ${k}`).toContain(`--${k}:`);
+  }
+  const classic = css.slice(css.indexOf('html[data-style="classic"]:not(.dark)'));
+  expect(classic).toMatch(/--shadow-2: 0 0 #0000/);
 });
