@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { BoardDb, type Run } from "./db.ts";
 import { runGit, type GitRunner } from "./git.ts";
-import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planTitle, rollingPlanPr } from "./plan-export.ts";
+import { exportPlanAtLotEnd, lotBilanMarkdown, lotSlugOf, openPlanPr, planBody, planTitle, rollingPlanPr } from "./plan-export.ts";
 import { RunCoordinator, type RunPorts } from "./run.ts";
 import type { EngineSnapshot } from "./state-engine.ts";
 
@@ -132,7 +132,13 @@ describe("the rolling docs(plan) PR", () => {
     expect(rollingPlanPr([pr(3, "board/plan-lot-a"), pr(9, "board/plan-lot-b"), pr(12, "board/feat")])?.number).toBe(9);
     expect(rollingPlanPr([pr(12, "board/feat")])).toBeNull();
     expect(planTitle(["A"])).toBe("docs(plan): fin du lot « A »");
-    expect(planTitle(["A", "B", "C"])).toBe("docs(plan): fin des lots A, B, C");
+    expect(planTitle(["A", "B"])).toBe("docs(plan): fin des lots A et B");
+    const names = Array.from({ length: 23 }, (_, i) => `Lot numéro ${i} avec un nom assez long`);
+    expect(planTitle(names)).toBe("docs(plan): fin de 23 lots (dernier : Lot numéro 22 avec un nom assez long)");
+    expect(planTitle([...names, "x".repeat(300)]).length).toBeLessThanOrEqual(120);
+    expect(planTitle(["y".repeat(300)]).length).toBeLessThanOrEqual(120);
+    expect(planBody(names)).toContain("- Lot numéro 0 avec un nom assez long");
+    expect(planBody(names)).toContain("- Lot numéro 22 avec un nom assez long");
   });
 
   it("with 23 open docs(plan) PRs, a lot end commits on the newest and catches up the missing bilans", async () => {
@@ -174,7 +180,7 @@ describe("the rolling docs(plan) PR", () => {
     const first = await exportPlanAtLotEnd(db, a, runGit, gh);
     expect(first).toMatchObject({ ok: true, url: "https://github.com/o/r/pull/7" });
     const branch = `board/plan-${lotSlugOf(a)}`;
-    expect(ghCalls.some((c) => c[1] === "create" && c.includes("docs(plan): fin des lots Lot B, Lot A"))).toBe(true);
+    expect(ghCalls.some((c) => c[1] === "create" && c.includes("docs(plan): fin des lots Lot B et Lot A"))).toBe(true);
     expect(await git(["show", `${branch}:docs/plan/lots/${lotSlugOf(b)}.md`], origin)).toContain("Lot B");
     const tip1 = await git(["rev-parse", branch], origin);
 
@@ -184,7 +190,9 @@ describe("the rolling docs(plan) PR", () => {
     const second = await exportPlanAtLotEnd(db, b, runGit, gh);
     expect(second).toMatchObject({ ok: true });
     expect(ghCalls.some((c) => c[1] === "create")).toBe(false);
-    expect(ghCalls).toContainEqual(["pr", "edit", "7", "--title", "docs(plan): fin des lots Lot A, Lot B"]);
+    const edit = ghCalls.find((c) => c[1] === "edit")!;
+    expect(edit.slice(0, 5)).toEqual(["pr", "edit", "7", "--title", "docs(plan): fin des lots Lot A et Lot B"]);
+    expect(edit[6]).toContain("- Lot A");
     expect(await git(["rev-parse", `${branch}^`], origin)).toBe(tip1);
     expect(await git(["show", `${branch}:docs/plan/lots/${lotSlugOf(a)}.md`], origin)).toContain("Lot A");
     expect(await git(["rev-parse", "main"], origin)).toBe(mainBefore); // the base is never pushed
