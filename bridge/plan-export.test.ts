@@ -101,6 +101,30 @@ describe("plan export at the end of a lot", () => {
   });
 });
 
+describe("export cut short by a restart", () => {
+  const snap = { agents: [], shellPanes: [], workspaces: [], tabs: [], bridge: "connected" } as unknown as EngineSnapshot;
+  const boot = (db: BoardDb) => {
+    const handed: string[] = [];
+    const ports = { reviewing: () => false, direct: () => false, freeSlots: () => 1, lotFinished: (r: Run) => handed.push(r.id) } as unknown as RunPorts;
+    new RunCoordinator(db, ports).update(snap);
+    return handed;
+  };
+
+  it("a finished lot with no successful export is exported again at the next start, once per repo", () => {
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => db.createRun({ repoPath: "/r", cardIds: [db.createCard({ title: name, repoPath: "/r", status: "done" }).id], foldInCap: 0, name }) as Run;
+    const a = mk("A");
+    const b = mk("B");
+    db.recordRunEvent(null, "run.finished", { runId: a.id });
+    db.recordRunEvent(null, "run.finished", { runId: b.id });
+    db.recordRunEvent(null, "plan.exported", { runId: a.id, ok: true });
+    db.recordRunEvent(null, "plan.exported", { runId: b.id, ok: false, error: "push failed" });
+    expect(boot(db)).toEqual([b.id]);
+    db.recordRunEvent(null, "plan.exported", { runId: b.id, ok: true });
+    expect(boot(db)).toEqual([]);
+  });
+});
+
 describe("the rolling docs(plan) PR", () => {
   const pr = (number: number, branch: string) => ({ number, title: "t", url: `https://g/pull/${number}`, branch, createdAt: null, conflicting: false, mergeable: true, checks: null, review: null, draft: false });
 
@@ -109,6 +133,20 @@ describe("the rolling docs(plan) PR", () => {
     expect(rollingPlanPr([pr(12, "board/feat")])).toBeNull();
     expect(planTitle(["A"])).toBe("docs(plan): fin du lot « A »");
     expect(planTitle(["A", "B", "C"])).toBe("docs(plan): fin des lots A, B, C");
+  });
+
+  it("with 23 open docs(plan) PRs, a lot end commits on the newest and catches up the missing bilans", async () => {
+    const { repo, origin } = await repoWithOrigin();
+    const db = new BoardDb(":memory:");
+    const mk = (name: string) => db.createRun({ repoPath: repo, cardIds: [db.createCard({ title: name, repoPath: repo, status: "done" }).id], foldInCap: 0, name }) as Run;
+    const missed = mk("Manqué");
+    const last = mk("Dernier");
+    (db as unknown as { runFinishedAt: (id: string) => number | null }).runFinishedAt = () => Date.UTC(2026, 10, 1);
+    const prs = Array.from({ length: 23 }, (_, i) => ({ number: 380 + i, title: "t", url: `https://g/pull/${380 + i}`, headRefName: `board/plan-lot-old-${i}`, mergeable: "MERGEABLE" }));
+    await git(["push", "origin", "main:refs/heads/board/plan-lot-old-22"], repo);
+    const gh: GitRunner = async (args) => ({ ok: true, stdout: args[1] === "list" ? JSON.stringify(prs) : "", stderr: "" });
+    expect(await exportPlanAtLotEnd(db, last, runGit, gh)).toEqual({ ok: true, url: null });
+    expect(await git(["show", "board/plan-lot-old-22:docs/plan/lots/" + lotSlugOf(missed) + ".md"], origin)).toContain("Manqué");
   });
 
   it("a second lot end pushes a commit on the existing branch, retitles it, catches up missing bilans", async () => {
