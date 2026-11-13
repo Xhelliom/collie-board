@@ -4,3 +4,7 @@
 {"v":1,"hlc":"1794601788250.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Épinglés de l Accueil téléphone au style de l Accueil : titre aligné, lignes en panneau, phase et état","status":"backlog"},"ts":1794601785933}}
 {"v":1,"hlc":"1794601788250.0004.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"5ff73363-96fa-40df-b66e-66a520e24d7a"}}
 {"v":1,"hlc":"1794602636728.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794602640441.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/epingles-de-l-accueil-telephone-au-style-de-l-ac"}}
+{"v":1,"hlc":"1794602640441.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794602640441.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794602639048}}
+{"v":1,"hlc":"1794602640441.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.template","payload":{"templateId":"0971bbc3-7bd3-4786-9c53-ba347970f9d4","name":"Implementer","key":"implementer","kind":"claude","args":["--model","sonnet"],"model":"sonnet"},"ts":1794602639208}}
