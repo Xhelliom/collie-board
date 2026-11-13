@@ -1528,6 +1528,8 @@ export const fetchRoadmap = (repo: string, signal?: AbortSignal): Promise<{ road
 export interface OrchestratorState {
   paneId: string | null;
   running: boolean;
+  /** The agent is mid-turn (not merely present): the pane's Stop shows then. */
+  working?: boolean;
   /** The pane's context occupancy, 0-100; null when unknown (ADR 0023). */
   ctxPct?: number | null;
   /** The pane's model (short label) and effort; each absent when unknown. */

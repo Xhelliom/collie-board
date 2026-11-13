@@ -190,6 +190,7 @@ export async function handleOrchestratorRoute(pathname: string, req: Request, ct
     return ctx.json({
       paneId,
       running: paneId !== null,
+      working: ctx.engine.current().agents.some((a) => a.paneId === paneId && a.status === "working"),
       ctxPct: paneId ? (ctx.paneContext?.(paneId) ?? null) : null,
       ...(paneId && ctx.paneModel?.(paneId)),
       memoryUpdatedAt: ctx.db.getMemory(repo)?.updatedAt ?? null,

@@ -1,6 +1,7 @@
+import { SendButton } from "@/components/ui/chat/send-button";
 import { useT } from "@/i18n";
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, ChevronRight, FileDiff, FileText, MessageSquare, RefreshCw, Send, X } from "lucide-react";
+import { BookOpen, ChevronRight, FileDiff, FileText, MessageSquare, RefreshCw, X } from "lucide-react";
 
 import { useFold } from "@/components/fold";
 import { MarkdownText } from "@/components/markdown-text";
@@ -182,10 +183,7 @@ export function CardDiff({
             </div>
           ))}
           {onSend && (
-            <Button size="sm" className="mt-1 h-9 gap-2" disabled={sending} onClick={() => void send()}>
-              <Send className="size-4" />
-              {sending ? t("diff.comment.sending") : t("diff.comment.send")}
-            </Button>
+            <SendButton onClick={() => void send()} hasContent busy={sending} label={t("diff.comment.send")} className="mt-1 self-end" />
           )}
         </div>
       )}

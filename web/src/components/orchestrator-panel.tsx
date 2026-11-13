@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { StatusSignal } from "@/components/status-signal";
 import { Link, useRevalidator } from "react-router";
-import { Ellipsis, ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
+import { Ellipsis, ImagePlus, Loader2, Maximize2, Package } from "lucide-react";
 
 import { useT } from "@/i18n";
 import { ago } from "@/lib/project-facts";
@@ -12,11 +12,12 @@ import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deli
 import { buttonVariants, Button } from "@/components/ui/button";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { BottomSheet } from "@/components/ui/sheet";
+import { SendButton } from "@/components/ui/chat/send-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
 import { AttachedImages, ImagePreviewSheet } from "@/components/image-attach";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { boardErrorMessage, renewOrchestrator, startOrchestrator, type OrchestratorMemory, type OrchestratorState } from "@/lib/board";
-import { sendReply } from "@/lib/api";
+import { sendKeys, sendReply } from "@/lib/api";
 import { panePath } from "@/lib/nav";
 import { setStatus } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -183,7 +184,7 @@ export function OrchestratorPanel({
     <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-          <StatusSignal status={state.running ? "working" : "idle"} decorative />
+          <StatusSignal status={state.working ? "working" : "idle"} decorative />
           <span className="text-sm font-semibold text-foreground">{t("orch.title")}</span>
           <ModelTag model={state.model} effort={state.effort} className="font-mono text-[11px] normal-case tracking-normal" />
           {typeof state.ctxPct === "number" && (
@@ -370,9 +371,17 @@ export function OrchestratorPanel({
         >
           {upload.uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
         </Button>
-        <Button type="submit" variant="brand" className="size-11 shrink-0 px-0" disabled={busy || draft.trim() === ""} aria-label={t("orch.send")}>
-          <Send className="size-4" />
-        </Button>
+        <SendButton
+          type="submit"
+          label={t("orch.send")}
+          stopLabel={t("pane.stop")}
+          hasContent={draft.trim() !== ""}
+          working={!!state?.working}
+          busy={busy}
+          onStop={() => {
+            if (state?.paneId) void sendKeys(state.paneId, ["Escape"]).then(() => revalidator.revalidate());
+          }}
+        />
       </form>
     </div>
   );
