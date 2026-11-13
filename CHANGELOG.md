@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.320.1] - 2026-11-13
+
+### Fixed
+
+- Téléphone : les épinglés reviennent, sur l'Accueil, sous « Au travail » et avant « Projets en cours » (3b58aa9)
+
 ## [0.320.0] - 2026-11-13
 
 ### Added
