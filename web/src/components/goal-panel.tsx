@@ -106,7 +106,23 @@ function GoalJournal({ goal }: { goal: Goal }) {
 // the bridge refuses them from an agent pane, which may only claim the objective reached.
 /** `noOrchestrator`: the repo has no orchestrator pane, so setting or resuming the objective wakes nobody.
  *  `onGoal`: the open objective as this panel holds it, for the page header to wear. */
-export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { repo: string; titleOf: (cardId: string) => string | undefined; noOrchestrator?: boolean; onGoal?: (g: OpenGoal | null) => void }) {
+export function GoalPanel({
+  repo,
+  titleOf,
+  noOrchestrator = false,
+  onGoal,
+  quietWhenEmpty = false,
+  editSignal = 0,
+}: {
+  repo: string;
+  titleOf: (cardId: string) => string | undefined;
+  noOrchestrator?: boolean;
+  onGoal?: (g: OpenGoal | null) => void;
+  /** Nothing at all when there is no objective, none prepared and none past: the page says it in one line. */
+  quietWhenEmpty?: boolean;
+  /** Bumped by the page's « Set an objective »: opens the form here. */
+  editSignal?: number;
+}) {
   const t = useT();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   // Which form is open: the objective's, or the next one's.
@@ -129,13 +145,22 @@ export function GoalPanel({ repo, titleOf, noOrchestrator = false, onGoal }: { r
   const open = goals?.find((g) => OPEN.has(g.status)) ?? null;
   const openStatus = open && isOpenGoal(open.status) ? open.status : null;
   const openText = open?.text ?? "";
+  // Said once the goals are read: before that, « no objective » would be a guess.
+  const loaded = goals !== null;
   useEffect(() => {
-    onGoal?.(openStatus ? { status: openStatus, text: openText } : null);
-  }, [openStatus, openText, onGoal]);
+    if (loaded) onGoal?.(openStatus ? { status: openStatus, text: openText } : null);
+  }, [loaded, openStatus, openText, onGoal]);
+
+  useEffect(() => {
+    if (!editSignal) return;
+    setEditing("open");
+    requestAnimationFrame(() => document.getElementById("goal")?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
+  }, [editSignal]);
 
   if (!goals) return null;
   const queued = goals.find((g) => g.status === "queued") ?? null;
   const past = goals.filter((g) => g.status === "achieved" || g.status === "abandoned").sort((a, b) => (b.endedAt ?? b.createdAt) - (a.endedAt ?? a.createdAt));
+  if (quietWhenEmpty && !open && !queued && past.length === 0 && editing === null) return null;
   const put = (g: Goal) => setGoals((all) => [g, ...(all ?? []).filter((x) => x.id !== g.id)]);
   const fail = (e: unknown) => setStatus(boardErrorMessage(e), "error", null);
 

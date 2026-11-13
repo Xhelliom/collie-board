@@ -1627,6 +1627,9 @@ export const launchLot = (id: string): Promise<{ run: Lot }> =>
 /** The operator resumes a halted lot: each halted card picks up at the step it stopped on. */
 export const resumeLot = (id: string): Promise<{ resumed: number }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/resume`, { method: "POST" });
+/** Drop a PLANNED lot, releasing its cards (the bridge refuses a launched one). */
+export const deleteLot = (id: string): Promise<{ ok: true }> =>
+  apiRequest(`/api/runs/${encodeURIComponent(id)}`, { method: "DELETE" });
 /** Upsert one decision (`id` present: change it, e.g. settle an open question). */
 export const saveDecision = (repoPath: string, d: Omit<Decision, "id"> & { id?: string }): Promise<{ decision: Decision; revision: number }> =>
   apiRequest("/api/roadmap/decision", { method: "POST", body: JSON.stringify({ repoPath, ...d }) });

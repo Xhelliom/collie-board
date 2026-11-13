@@ -11,7 +11,8 @@ import { cachedPeers, cachedPeerTest, type PeersView, type TestResult } from "@/
 // the peers it drives (peers.toml), each with a reachable dot. Picking a peer OPENS that Collie at its
 // own address — its UI is never proxied through this bridge. Reachability is « Tester la connexion »
 // (#185) run on opening the menu, through a short cache: no loop. Nothing renders without a peer.
-export function MachineSwitcher() {
+/** `menu`: a row of a « ⋯ » menu (the project page on a phone) instead of the header's button. */
+export function MachineSwitcher({ variant = "header" }: { variant?: "header" | "menu" }) {
   const t = useT();
   const [view, setView] = useState<PeersView | null>(null);
   const [open, setOpen] = useState(false);
@@ -28,6 +29,18 @@ export function MachineSwitcher() {
   if (!view || view.outbound.length === 0) return null;
   return (
     <>
+      {variant === "menu" ? (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => setOpen(true)}
+          aria-label={t("machines.label", { name: view.name })}
+          className="flex h-10 items-center gap-2.5 rounded-lg px-3 text-left font-medium hover:bg-muted/60"
+        >
+          <Server className="size-4 text-muted-foreground" />
+          <span className="min-w-0 truncate">{view.name}</span>
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -37,6 +50,7 @@ export function MachineSwitcher() {
         <Server className="size-[18px]" />
         <span className="hidden max-w-32 truncate text-sm sm:inline">{view.name}</span>
       </button>
+      )}
       <BottomSheet open={open} onClose={() => setOpen(false)} title={t("machines.title")}>
         {open && <MachineList view={view} />}
       </BottomSheet>

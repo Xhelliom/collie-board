@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-import { Fold, useStoredFold } from "@/components/fold";
 import { Switch } from "@/components/ui/switch";
 import { useLocale, useT } from "@/i18n";
 import { boardErrorMessage } from "@/lib/board";
@@ -14,7 +13,7 @@ import { cn } from "@/lib/utils";
 export function ExitCriteria() {
   const t = useT();
   const locale = useLocale();
-  const fold = useStoredFold("project-exit");
+  const [open, setOpen] = useState(false);
   const [view, setView] = useState<ExitView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,23 +51,32 @@ export function ExitCriteria() {
   ];
 
   return (
-    <Fold title={t("project.exit.title", { held: rows.filter((r) => r.held).length })} state={fold}>
-      <ol className="flex flex-col divide-y rounded-lg border">
-        {rows.map((r, i) => (
-          <li key={r.id} data-testid={`exit-${r.id}`} className="flex items-center gap-3 px-3 py-2.5">
-            <span className="w-4 shrink-0 text-sm text-muted-foreground tabular-nums">{i + 1}</span>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm">{r.label}</div>
-              {r.note && <div className="text-xs text-muted-foreground">{r.note}</div>}
-            </div>
-            {r.onTick && <Switch checked={r.held} onCheckedChange={r.onTick} aria-label={r.label} />}
-            <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", r.held ? "bg-status-done/15 text-status-done" : "bg-muted text-muted-foreground")}>
-              {t(r.held ? "project.exit.held" : "project.exit.notHeld")}
-            </span>
-          </li>
-        ))}
-      </ol>
+    <div className="flex flex-col gap-2">
+      <p className="flex flex-wrap items-center gap-x-3 text-[13px]">
+        <span>{t("project.exit.title", { held: rows.filter((r) => r.held).length })}</span>
+        <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="min-h-11 font-semibold text-brand sm:min-h-0">
+          {t(open ? "project.hide" : "project.see")}
+        </button>
+      </p>
+      {!open && <p className="text-xs text-muted-foreground">{rows.map((r) => r.label).join(" · ")}</p>}
+      {open && (
+        <ol className="flex flex-col divide-y rounded-lg border">
+          {rows.map((r, i) => (
+            <li key={r.id} data-testid={`exit-${r.id}`} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm">{r.label}</div>
+                {r.note && <div className="text-xs text-muted-foreground">{r.note}</div>}
+              </div>
+              {r.onTick && <Switch checked={r.held} onCheckedChange={r.onTick} aria-label={r.label} />}
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-medium", r.held ? "bg-status-done/15 text-status-done" : "bg-muted text-muted-foreground")}>
+                {t(r.held ? "project.exit.held" : "project.exit.notHeld")}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
       {error && <p className="text-sm text-status-blocked">{error}</p>}
-    </Fold>
+    </div>
   );
 }
