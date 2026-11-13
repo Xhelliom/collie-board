@@ -4,3 +4,10 @@
 {"v":1,"hlc":"1794599723043.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : sur téléphone, les épinglés ont disparu (plus sur la page Projet, jamais sur l Accueil)","status":"backlog"},"ts":1794599714215}}
 {"v":1,"hlc":"1794599723052.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"3bf6da0e-9ecd-46a8-9773-9fc485c6bfee"}}
 {"v":1,"hlc":"1794600424296.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
+{"v":1,"hlc":"1794600434971.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"branch":"board/bug-sur-telephone-les-epingles-ont-disparu-plus"}}
+{"v":1,"hlc":"1794600434972.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"starting"}}
+{"v":1,"hlc":"1794600434972.0001.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"backlog","to":"starting","reason":"card started"},"ts":1794600426622}}
+{"v":1,"hlc":"1794600434972.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.template","payload":{"templateId":"5e3b234d-683c-437d-a829-a57c2229d397","name":"Bug fix","key":"fix","kind":"claude","args":["--model","sonnet"],"model":"sonnet"},"ts":1794600427063}}
+{"v":1,"hlc":"1794600434972.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"status":"working"}}
+{"v":1,"hlc":"1794600434972.0004.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.status","payload":{"from":"starting","to":"working","reason":"agent idle"},"ts":1794600431127}}
+{"v":1,"hlc":"1794600434972.0005.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.prompted","payload":{"chars":3544},"ts":1794600431598}}
