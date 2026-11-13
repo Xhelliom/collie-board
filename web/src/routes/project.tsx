@@ -130,10 +130,13 @@ export function ProjectRoute() {
   // The orchestrator is docked on a wide screen and a sheet on a phone (ADR 0021).
   const [chatOpen, setChatOpen] = useState(false);
   // `chat=1` (an "awaits your decision" tag): open the conversation once, then drop the flag.
+  // `draft=` (the Roadmap's « talk it over »): what the operator's message starts with.
+  const [chatDraft, setChatDraft] = useState("");
   useEffect(() => {
     if (params.get("chat") !== "1") return;
     setChatOpen(true);
-    setParams((p) => (p.delete("chat"), p), { replace: true });
+    setChatDraft(params.get("draft") ?? "");
+    setParams((p) => (p.delete("chat"), p.delete("draft"), p), { replace: true });
   }, [params, setParams]);
   // Validating a phase (ADR 0025): the section being validated, or the "seal the finished steps" sheet.
   const [validating, setValidating] = useState<ProjectPhase | null>(null);
@@ -583,7 +586,7 @@ export function ProjectRoute() {
             onPointerDown={panel.onPointerDown}
             className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none hover:bg-primary/30 active:bg-primary/40"
           />
-          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} />
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} initialDraft={chatDraft} key={chatDraft} />
         </aside>
       </div>
       {validating && (
@@ -607,7 +610,7 @@ export function ProjectRoute() {
           scrolled as a whole with the composer below the fold. */}
       <BottomSheet open={chatOpen} onClose={() => setChatOpen(false)} title={t("orch.title")} className="h-[94dvh] max-h-[94dvh]">
         <div className="flex h-full min-h-0 flex-col">
-          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} onLeave={() => setChatOpen(false)} />
+          <OrchestratorPanel repo={repo} state={data.orchestrator} entries={data.orchestratorEntries ?? []} memory={data.orchestratorMemory} deliverables={deliverables} initialDraft={chatDraft} key={chatDraft} onLeave={() => setChatOpen(false)} />
         </div>
       </BottomSheet>
     </div>

@@ -245,7 +245,13 @@ describe("roadmap", () => {
     expect(parseRoadmapBody({ ...base, repoPath: "r" }).ok).toBe(false);
     expect(parseRoadmapBody({ repoPath: "/r", items: [] }).ok).toBe(false);
     expect(parseRoadmapBody({ ...base, items: [{ name: "" }] }).ok).toBe(false);
-    expect(parseRoadmapBody({ ...base, items: [{ name: "a", status: "later" }] }).ok).toBe(false);
+    expect(parseRoadmapBody({ ...base, items: [{ name: "a", status: "someday" }] }).ok).toBe(false);
+    // A far-horizon idea carries its direction; a planned step what it waits on.
+    expect(parseRoadmapBody({ ...base, items: [{ name: "a", status: "later", direction: " Ouvrir " }, { name: "b", condition: "herdr 0.9" }] })).toMatchObject({
+      ok: true,
+      value: { items: [{ status: "later", direction: "Ouvrir" }, { status: "planned", condition: "herdr 0.9" }] },
+    });
+    expect(parseRoadmapBody({ ...base, items: [{ name: "a", direction: 3 }] }).ok).toBe(false);
     expect(parseRoadmapBody({ ...base, items: [{ id: "i", name: "a" }, { id: "i", name: "b" }] }).ok).toBe(false);
     expect(parseRoadmapBody(base).ok).toBe(true);
     // A Windows repo, in either spelling, is keyed as /api/repos spells it.

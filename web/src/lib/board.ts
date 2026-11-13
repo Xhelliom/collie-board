@@ -606,8 +606,8 @@ export function autonomyPath(repo: string): string {
 }
 
 /** The project's view with its orchestrator's conversation open (`chat=1`, read once by the project route). */
-export function orchestratorPath(repo: string): string {
-  return `${projectPath(repo)}&chat=1`;
+export function orchestratorPath(repo: string, draft?: string): string {
+  return `${projectPath(repo)}&chat=1${draft ? `&draft=${encodeURIComponent(draft)}` : ""}`;
 }
 
 export function prsPath(): string {
@@ -1476,7 +1476,8 @@ export interface Lot {
   createdPair?: string | null;
 }
 
-export type RoadmapStatus = "planned" | "active" | "done" | "dropped";
+/** `later`: a far horizon, a direction not yet a step in order. */
+export type RoadmapStatus = "planned" | "active" | "done" | "dropped" | "later";
 export interface RoadmapItem {
   id: string;
   name: string;
@@ -1484,6 +1485,10 @@ export interface RoadmapItem {
   status: RoadmapStatus;
   /** The phase's long form, Markdown: objective, end-of-phase demo, risk, why here (ADR 0023). */
   detail?: string;
+  /** What it waits on before it can start (« la sortie de herdr 0.9 »). */
+  condition?: string;
+  /** A `later` idea's broad direction, what the roadmap groups them by. */
+  direction?: string;
 }
 /** ✅ decided · 🟡 leaning · ❓ open — the three statuses of the decision journal (ADR 0023). */
 export type DecisionStatus = "decided" | "leaning" | "open";
@@ -1622,6 +1627,9 @@ export const launchLot = (id: string): Promise<{ run: Lot }> =>
 /** The operator resumes a halted lot: each halted card picks up at the step it stopped on. */
 export const resumeLot = (id: string): Promise<{ resumed: number }> =>
   apiRequest(`/api/runs/${encodeURIComponent(id)}/resume`, { method: "POST" });
+/** Upsert one decision (`id` present: change it, e.g. settle an open question). */
+export const saveDecision = (repoPath: string, d: Omit<Decision, "id"> & { id?: string }): Promise<{ decision: Decision; revision: number }> =>
+  apiRequest("/api/roadmap/decision", { method: "POST", body: JSON.stringify({ repoPath, ...d }) });
 export const saveRoadmap = (
   r: { repoPath: string; vision: string; items: RoadmapItem[]; decisions?: Decision[]; revision: number },
 ): Promise<{ roadmap: Roadmap }> => apiRequest("/api/roadmap", { method: "PUT", body: JSON.stringify(r) });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, useLoaderData, useNavigate, useSearchParams } from "react-router";
 import { Check, ChevronDown, ChevronRight, CircleDashed, CircleHelp, GitPullRequest, Images, RotateCcw, Search, SkipForward, X, ZoomIn } from "lucide-react";
 
 import { AppHeader } from "@/components/app-header";
@@ -49,7 +49,11 @@ export function RecetteRoute() {
   const [groups, setGroups] = useState(loaded.groups);
   useEffect(() => setGroups(loaded.groups), [loaded]);
   const { repo } = loaded;
-  const [everything, setEverything] = useState(false);
+  // `phase=<id>` (the Roadmap's « what was delivered »): that phase only, validated entries included.
+  const [params, setParams] = useSearchParams();
+  const phaseId = params.get("phase");
+  const phaseName = phaseId ? groups.flatMap((g) => g.entries).find((e) => e.phaseId === phaseId)?.phase : null;
+  const [everything, setEverything] = useState(!!phaseId);
   const [mineOnly, setMineOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [grouping, setGrouping] = useState(loadGrouping);
@@ -70,6 +74,7 @@ export function RecetteRoute() {
       entries: g.entries.filter(
         (e) =>
           (everything || isPending(e)) &&
+          (!phaseId || e.phaseId === phaseId) &&
           matchesQuery(e, query) &&
           (!mineOnly || assignedToMe(e, identities)) &&
           (!sort || sortOf(e) === sort),
@@ -106,6 +111,7 @@ export function RecetteRoute() {
           <Counter counts={counts} />
           <Help />
           <div className="flex flex-wrap items-center gap-2">
+            {phaseId && <Chip label={`✕ ${phaseName ?? t("recette.filter.phase")}`} active onClick={() => setParams((p) => (p.delete("phase"), p), { replace: true })} />}
             <Chip label={t("recette.filter.todo")} active={!everything} onClick={() => setEverything(false)} />
             <Chip label={t("recette.filter.all")} active={everything} onClick={() => setEverything(true)} />
             {(hasShared || mineOnly) && <Chip label={t("people.toMe")} active={mineOnly} onClick={() => setMineOnly(!mineOnly)} />}
