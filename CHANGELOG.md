@@ -9,6 +9,16 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.313.0] - 2026-11-13
+
+### Changed
+
+- Cartes : colonnes À faire, En cours, À relire, Fini ; une colonne vide se réduit en bande étroite (e82874e)
+- Cartes : Fini ne montre que la semaine, avec un lien « Historique » (e82874e)
+- Cartes : tuile en trois lignes (titre, phase, un état lisible), rouge seulement pour une carte bloquée (e82874e)
+- Cartes : « Nouvelle carte » en bouton principal, « Sélectionner » et « Filtrer » discrets (e82874e)
+- Cartes au téléphone : À faire en tête, colonnes vides en une ligne, « Fini cette semaine » replié en dernier (e82874e)
+
 ## [0.312.0] - 2026-11-13
 
 ### Added
