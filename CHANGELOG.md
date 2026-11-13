@@ -9,6 +9,18 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.322.0] - 2026-11-13
+
+### Added
+
+- PR ouvertes : les anciennes PR docs(plan) sont marquées « remplacée par #N » (à fermer à la main) (d014f19)
+
+### Changed
+
+- Téléphone : les épinglés de l’Accueil en panneaux (projet avec phase et avancement, agent avec signal et machine, carte avec sa colonne), titre au style des autres sections (ad66922)
+- Export du plan : une seule PR docs(plan) roulante par dépôt — une fin de lot pousse sur sa branche et la retitre au lieu d'en ouvrir une autre (d014f19)
+- Elle rattrape les bilans de lots finis absents de la base (d014f19)
+
 ## [0.321.1] - 2026-11-13
 
 ### Changed
