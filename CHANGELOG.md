@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.309.0] - 2026-11-13
+
+### Changed
+
+- Page Agents : un groupe par projet, une ligne par agent (nom, rôle, machine, état et durée, jauge) (3555699)
+- Page Agents : filtres état / machine / orchestrateurs / terminaux retenus par appareil, recherche (3555699)
+- Nouvel agent : liste déroulante des dépôts connus, option « Autre dossier… », sous herdr 0.9 comme sous hc (3555699)
+
 ## [0.308.0] - 2026-11-13
 
 ### Changed
