@@ -177,12 +177,18 @@ A step without `id` gets one from its text: rewording a step asks for a fresh ve
 
 **The verdict is the operator's** — `POST /api/cards/<id>/checks/<stepId>` `{status: ok|ko|skip, note?,
 followUp?}` is refused (403) to any `x-collie-pane`: an agent does not pass its own recette. `by` is
-derived (the pair's git identity on a shared repo, else `operator`). `followUp: true` with a KO and a
-note files a card linked back by `originCardId`. Steps and verdicts travel through the shared journal.
+derived (the pair's git identity on a shared repo, else `operator`). `followUp: true` with a KO (the
+note is optional) files the correction card — in the tested card's phase, linked back by `originCardId`
+— or reuses the one still open for that card; the orchestrator sees it in « quoi de neuf » (`card.check`).
+Steps and verdicts travel through the shared journal.
+
+`POST /api/cards/<id>/checks/<stepId>/prepare` (operator only, 403 to a pane) — « Me préparer le test »:
+the repo's orchestrator receives the step, its expected result and the card, and is asked to bring the
+operator there (open the view, set the state up) and answer in its pane. 409 `no-session` without one.
 
 `GET /api/recette?repo=<path>&since=<epoch ms or date>&all=1` — delivered cards (done/archived) that
 have steps, newest first, grouped by `usageGroup`: `{groups:[{usage, entries:[{cardId, capability,
-state: todo|ok|ko, deliveredAt, phaseId, phase, runId, lot, prUrl, project, steps:[{id, text, expected?,
+state: todo|ok|ko, fixCardId, deliveredAt, phaseId, phase, runId, lot, prUrl, project, steps:[{id, text, expected?,
 shot?, verdict}]}]}]}`. `prUrl` is the card's PR, or its lot's for a one-PR lot; `project` (the repo's
 name) is set only when no `repo` is given. Fully validated cards are left out unless `all=1`.
 

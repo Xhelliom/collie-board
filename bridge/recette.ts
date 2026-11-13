@@ -12,6 +12,8 @@
 import { basename, join } from "node:path";
 
 import type { BoardContext } from "./board-routes.ts";
+import { promptAndConfirm } from "./cards.ts";
+import { findOrchestrator } from "./orchestrator.ts";
 import { deliverablesRoot, listDeliverables, servedAs } from "./deliverables.ts";
 import { CHECK_STATUSES, EVENT_WINDOW, type BoardEvent, type Card, type CardPatch, type CheckStatus, type ManualCheck } from "./db.ts";
 
@@ -84,6 +86,24 @@ export function manualChecksPrompt(cardId: string): string {
 }
 
 const VERDICT_ROUTE = /^\/api\/cards\/([^/]+)\/checks\/([^/]+)$/;
+const PREPARE_ROUTE = /^\/api\/cards\/([^/]+)\/checks\/([^/]+)\/prepare$/;
+
+/** What the orchestrator reads when the operator asks to be brought to a step. Pure. */
+export function prepareMessage(card: Pick<Card, "id" | "title" | "capability">, step: Pick<ManualCheck, "text" | "expected">): string {
+  return [
+    `L'opérateur va vérifier à la main une étape de la recette et te demande de l'y amener.`,
+    `Carte : « ${card.title} » (${card.id})${card.capability ? ` — ce qu'on peut faire maintenant : « ${card.capability} »` : ""}.`,
+    `Étape : ${step.text}`,
+    ...(step.expected ? [`Attendu : ${step.expected}`] : []),
+    "Amène-le au bon endroit : ouvre la bonne vue, prépare l'état qu'il faut, lance ce qui doit tourner. Ne rends pas le verdict à sa place.",
+    "Réponds-lui ici, dans ton panneau, en deux lignes au plus : où aller et quoi faire.",
+  ].join("\n");
+}
+
+/** The open card that fixes a KO of `cardId` — one per tested card, so a second « Pas bon » reuses it. Pure. */
+export function openFixOf(cards: readonly Pick<Card, "id" | "originCardId" | "status">[], cardId: string): string | null {
+  return cards.find((c) => c.originCardId === cardId && c.status !== "done" && c.status !== "archived")?.id ?? null;
+}
 const RECETTE_ROUTE = "/api/recette";
 
 /**
@@ -142,6 +162,9 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     const delivered = (c: Card) => c.status === "done" || c.status === "archived";
     // A KO stays until the card that fixes it is delivered — then it is over too.
     const fixed = new Set(cards.filter((c) => c.originCardId && delivered(c)).map((c) => c.originCardId));
+    // The newest card filed off each one (its correction): the page links it.
+    const fixOf = new Map<string, string>();
+    for (const c of [...cards].sort((a, b) => a.createdAt - b.createdAt)) if (c.originCardId) fixOf.set(c.originCardId, c.id);
     const entries = cards
       .filter((c) => delivered(c) && c.manualChecks.length > 0 && (!repo || c.repoPath === repo))
       .map((c) => {
@@ -166,12 +189,14 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
       groups.get(usage)!.push({
         cardId: card.id,
         capability: card.capability ?? card.title,
+        title: card.title,
         repoPath: card.repoPath,
         assignee: card.assignee,
         // Code or business — the page filters on it.
         category: card.category,
         state,
         followUpDone,
+        fixCardId: fixOf.get(card.id) ?? null,
         shots,
         deliveredAt: at,
         // The thread back to the delivery: project (only when the view spans repos), phase, lot, PR.
@@ -186,6 +211,9 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
     }
     return ctx.json({ groups: [...groups].map(([usage, items]) => ({ usage: usage || null, entries: items })) });
   }
+
+  const prep = PREPARE_ROUTE.exec(pathname);
+  if (prep) return prepareRoute(prep, req, ctx);
 
   const m = VERDICT_ROUTE.exec(pathname);
   if (!m) return null;
@@ -209,28 +237,66 @@ export async function handleRecetteRoute(pathname: string, req: Request, ctx: Bo
   if (body.note !== undefined && body.note !== null && typeof body.note !== "string") return ctx.text("bad note", 400);
   const note = typeof body.note === "string" ? body.note.trim() : "";
   const status = body.status as CheckStatus;
-  if (body.followUp === true && (status !== "ko" || !note)) return ctx.text("a follow-up needs a KO with a note", 400);
+  if (body.followUp === true && status !== "ko") return ctx.text("a follow-up needs a KO", 400);
   // Derived, never declared: the pair's git identity on a shared repo, the operator otherwise.
   const repo = card.repoPath;
   const by = (repo && ctx.db.repoShare(repo) && ctx.db.peerIdentity(repo)) || "operator";
   const updated = ctx.db.setCheckVerdict(cardId, stepId, { status, by, at: Date.now(), ...(note ? { note } : {}) });
-  // The operator's gesture: a KO they explained becomes the card that fixes it, linked back to this one.
-  const followUp =
-    body.followUp === true
-      ? ctx.db.createCard({
-          title: `Recette KO — ${card.capability ?? card.title}`.slice(0, 200),
-          spec: [`Step: ${step.text}`, step.expected ? `Expected: ${step.expected}` : null, `Observed: ${note}`].filter(Boolean).join("\n"),
+  // The operator's « Pas bon »: the card that fixes it, in the tested card's phase, linked back to it.
+  // One per tested card — a second KO, or a note added later, lands in the same one.
+  let followUp: Card | null = null;
+  if (body.followUp === true) {
+    const observed = `Étape : ${step.text}${step.expected ? ` — attendu : ${step.expected}` : ""}${note ? ` — observé : ${note}` : ""}`;
+    const openId = openFixOf(ctx.db.listCards(), card.id);
+    const open = openId ? ctx.db.getCard(openId) : null;
+    followUp = open
+      ? open.spec?.includes(observed)
+        ? open
+        : ctx.db.patchCard(open.id, { spec: [open.spec, observed].filter(Boolean).join("\n") })
+      : ctx.db.createCard({
+          title: `Corriger : ${card.capability ?? card.title}`.slice(0, 200),
+          spec: [`La recette de « ${card.title} » ne passe pas.`, observed].join("\n"),
           repoPath: repo,
           baseRef: card.baseRef,
           phaseId: card.phaseId,
           originCardId: card.id,
-        })
-      : null;
+        });
+  }
   ctx.audit.record({
     action: "card.check",
     session: ctx.session,
     device: ctx.device,
-    detail: { cardId, stepId, status, ...(followUp ? { followUp: followUp.id } : {}) },
+    detail: { cardId, stepId, status, ...(note ? { note } : {}), ...(followUp ? { followUp: followUp.id, followUpTitle: followUp.title } : {}) },
   });
   return ctx.json({ ok: true, card: updated, followUp });
+}
+
+/** `POST /api/cards/<id>/checks/<stepId>/prepare` — the operator asks the project's orchestrator to bring them to a step. */
+async function prepareRoute(m: RegExpExecArray, req: Request, ctx: BoardContext): Promise<Response> {
+  if (req.method !== "POST") return ctx.text("method not allowed", 405);
+  if (req.headers.get("x-collie-pane")?.trim()) return ctx.text("asking for a test to be prepared is the operator's gesture", 403);
+  const denied = ctx.guard("write");
+  if (denied) return denied;
+  let cardId: string, stepId: string;
+  try {
+    cardId = decodeURIComponent(m[1]!);
+    stepId = decodeURIComponent(m[2]!);
+  } catch {
+    return ctx.text("not found", 404);
+  }
+  const card = ctx.db.getCard(cardId);
+  if (!card) return ctx.text("card not found", 404);
+  const step = card.manualChecks.find((s) => s.id === stepId);
+  if (!step) return ctx.text("step not found", 404);
+  const snap = ctx.engine.current();
+  // shortcut: always the project's orchestrator; a per-repo choice of agent can come later.
+  const paneId = card.repoPath && snap.bridge !== "disconnected" ? findOrchestrator(snap, card.repoPath) : null;
+  if (!paneId) return ctx.json({ ok: false, error: "no orchestrator is running for this repo", kind: "no-session" }, 409);
+  try {
+    await promptAndConfirm(ctx.herdr, paneId, prepareMessage(card, step));
+  } catch (err) {
+    return ctx.json({ ok: false, error: (err as Error).message, kind: "herdr" }, 502);
+  }
+  ctx.audit.record({ action: "card.check_prepare", session: ctx.session, device: ctx.device, detail: { cardId, stepId } });
+  return ctx.json({ ok: true, paneId });
 }

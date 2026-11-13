@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { handleBoardRoute } from "./board-routes.ts";
 import { BoardDb } from "./db.ts";
 import { Hlc } from "./journal.ts";
-import { deliveredAt, manualChecksPrompt, parseRecetteBody, recetteState } from "./recette.ts";
+import { deliveredAt, manualChecksPrompt, parseRecetteBody, prepareMessage, recetteState } from "./recette.ts";
 import { wrapupPrompt } from "./wrapup.ts";
 
 const REPO = "/r/app";
@@ -115,17 +115,39 @@ describe("POST /api/cards/:id/checks/:step — the verdict", () => {
     expect((await call(db, "POST", `/api/cards/nope/checks/a`, { status: "ok" })).status).toBe(404);
   });
 
-  test("a KO with a note becomes a follow-up card linked back, at the operator's gesture only", async () => {
+  test("« Pas bon » files ONE correction card in the tested card's phase, linked back — no cause required", async () => {
     const db = board();
     const card = delivered(db);
-    expect((await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", followUp: true })).status).toBe(400);
-    const res = await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", note: "rien ne s'affiche", followUp: true });
-    const { followUp } = (await res.json()) as { followUp: { id: string } };
-    const f = db.getCard(followUp.id)!;
+    expect((await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ok", followUp: true })).status).toBe(400);
+    const first = (await (await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", followUp: true })).json()) as { followUp: { id: string } };
+    const f = db.getCard(first.followUp.id)!;
     expect(f.originCardId).toBe(card.id);
     expect(f.repoPath).toBe(REPO);
-    expect(f.spec).toContain("rien ne s'affiche");
+    expect(f.phaseId).toBe(card.phaseId);
+    expect(f.spec).toContain("Choisir « dev » dans Environnement");
     expect(f.origin).toBeNull();
+    // A note added later, or a second step KO, lands in the same card.
+    const again = (await (await call(db, "POST", `/api/cards/${card.id}/checks/b`, { status: "ko", note: "rien ne s'affiche", followUp: true })).json()) as { followUp: { id: string } };
+    expect(again.followUp.id).toBe(f.id);
+    expect(db.getCard(f.id)!.spec).toContain("rien ne s'affiche");
+    expect(db.listCards().filter((c) => c.originCardId === card.id)).toHaveLength(1);
+  });
+});
+
+describe("POST /api/cards/:id/checks/:step/prepare", () => {
+  test("refused to an agent pane, 409 with no orchestrator", async () => {
+    const db = board();
+    const card = delivered(db);
+    expect((await call(db, "POST", `/api/cards/${card.id}/checks/a/prepare`, {}, { "x-collie-pane": "p1" })).status).toBe(403);
+    expect((await call(db, "POST", `/api/cards/${card.id}/checks/zz/prepare`, {})).status).toBe(404);
+    expect((await call(db, "POST", `/api/cards/${card.id}/checks/a/prepare`, {})).status).toBe(409);
+  });
+
+  test("the message names the step, the expected result and the card", () => {
+    const msg = prepareMessage({ id: "c1", title: "T", capability: "Faire X" }, { text: "Ouvrir Cartes", expected: "les colonnes" });
+    expect(msg).toContain("Ouvrir Cartes");
+    expect(msg).toContain("les colonnes");
+    expect(msg).toContain("« T » (c1)");
   });
 });
 
@@ -143,7 +165,8 @@ describe("GET /api/recette", () => {
     expect(body.groups).toHaveLength(1);
     expect(body.groups[0]!.usage).toBe("Piloter une autre machine");
     expect(body.groups[0]!.entries.map((e) => [e.cardId, e.capability, e.state])).toEqual([[card.id, "Lancer une carte sur dev depuis l'éditeur", "todo"]]);
-    expect(JSON.stringify(body)).not.toContain("/api/node/launch"); // the card's technical title is not the entry
+    // The entry is titled by the capability; the card's own title only rides along for its « carte : … » chip.
+    expect(body.groups[0]!.entries[0]).toMatchObject({ title: "route /api/node/launch", fixCardId: null });
   });
 
   test("fully validated cards are left out unless all=1; since filters by delivery", async () => {
@@ -161,7 +184,7 @@ describe("GET /api/recette", () => {
   test("a KO stays until its follow-up card is delivered", async () => {
     const db = board();
     const card = delivered(db);
-    const res = await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", note: "rien", followUp: true });
+    const res = await call(db, "POST", `/api/cards/${card.id}/checks/a`, { status: "ko", followUp: true });
     const { followUp } = (await res.json()) as { followUp: { id: string } };
     expect((await read(db)).groups[0]!.entries[0]!.state).toBe("ko");
     db.setStatus(followUp.id, "done", "test");

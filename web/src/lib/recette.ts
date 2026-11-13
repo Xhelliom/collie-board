@@ -21,6 +21,10 @@ export interface RecetteEntry {
   cardId: string;
   /** What the user can now do — the entry's title. */
   capability: string;
+  /** The card's own title (optional: an older bridge does not send it). */
+  title?: string;
+  /** The newest card filed off this one — its correction (optional: an older bridge does not send it). */
+  fixCardId?: string | null;
   repoPath: string | null;
   assignee: string | null;
   /** The card's category — `business` makes it a business entry (optional: an older bridge does not send it). */
@@ -60,6 +64,10 @@ export const postVerdict = (
     method: "POST",
     body: JSON.stringify(body),
   });
+
+/** « Me préparer le test »: the project's orchestrator is asked to bring the operator to this step. */
+export const prepareStep = (cardId: string, stepId: string): Promise<{ ok: true; paneId: string }> =>
+  apiRequest(`/api/cards/${encodeURIComponent(cardId)}/checks/${encodeURIComponent(stepId)}/prepare`, { method: "POST", body: "{}" });
 
 export async function recetteLoader({ request }: LoaderFunctionArgs): Promise<{ repo: string | null; groups: RecetteGroup[] }> {
   const repo = new URL(request.url).searchParams.get("repo") ?? loadRepoScope();
@@ -131,14 +139,54 @@ export function prLabel(url: string): string {
   return n ? `PR #${n}` : "PR";
 }
 
-export type Grouping = "usage" | "delivery";
+export type Device = "desktop" | "phone";
+
+/** Where a step is done: the phone when its words say so, the computer otherwise. Pure. */
+export function stepDevice(s: Pick<RecetteStep, "text" | "expected">): Device {
+  return /t[ée]l[ée]phone|mobile|smartphone|\bphone\b/i.test(`${s.text} ${s.expected ?? ""}`) ? "phone" : "desktop";
+}
+
+/** The screens a step's words can name, most specific first: what « Aller voir » opens. */
+const TARGETS = [
+  { re: /recette|testing/i, path: "/board/recette", where: "recette" },
+  { re: /roadmap|feuille de route/i, path: "/board/roadmap", where: "roadmap" },
+  { re: /\bPR\b|pull request/i, path: "/board/prs", where: "prs" },
+  { re: /documents?\b/i, path: "/board/documents", where: "documents" },
+  { re: /\bprojet\b|\bproject\b/i, path: "/board/project", where: "project" },
+  { re: /\bcartes?\b|\bcards?\b|kanban|tableau/i, path: "/board", where: "board" },
+  { re: /r[ée]glages|settings|param[èe]tres/i, path: "/settings", where: "settings" },
+  { re: /accueil|\bhome\b/i, path: "/", where: "home" },
+] as const;
+
+export type TargetWhere = (typeof TARGETS)[number]["where"] | "card";
+
+/**
+ * The PWA screen a step is done on, read off its words — the card's own page when nothing names one.
+ * Board tabs keep the repo in scope. Pure.
+ */
+export function stepTarget(s: Pick<RecetteStep, "text" | "expected">, cardId: string, repo: string | null): { to: string; where: TargetWhere } {
+  const words = `${s.text} ${s.expected ?? ""}`;
+  const hit = TARGETS.find((x) => x.re.test(words));
+  if (!hit) return { to: `/card/${encodeURIComponent(cardId)}`, where: "card" };
+  return { to: hit.path.startsWith("/board") && repo ? `${hit.path}?repo=${encodeURIComponent(repo)}` : hit.path, where: hit.where };
+}
+
+/** « today », « yesterday », or null for an older day — the timeline's day marks. Pure. */
+export function dayMark(ts: number, now = Date.now()): "today" | "yesterday" | null {
+  const day = (t: number) => new Date(t).toDateString();
+  if (day(ts) === day(now)) return "today";
+  return day(ts) === day(now - 86_400_000) ? "yesterday" : null;
+}
+
+export type Grouping = "timeline" | "usage" | "delivery";
 const GROUPING_KEY = "collie-board-recette-grouping";
 
 export function loadGrouping(): Grouping {
   try {
-    return localStorage.getItem(GROUPING_KEY) === "delivery" ? "delivery" : "usage";
+    const g = localStorage.getItem(GROUPING_KEY);
+    return g === "usage" || g === "delivery" ? g : "timeline";
   } catch {
-    return "usage";
+    return "timeline";
   }
 }
 
