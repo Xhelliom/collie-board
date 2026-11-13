@@ -3,3 +3,4 @@
 {"v":1,"hlc":"1794599723043.0002.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"5e3b234d-683c-437d-a829-a57c2229d397"}}
 {"v":1,"hlc":"1794599723043.0003.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : sur téléphone, les épinglés ont disparu (plus sur la page Projet, jamais sur l Accueil)","status":"backlog"},"ts":1794599714215}}
 {"v":1,"hlc":"1794599723052.0000.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"3bf6da0e-9ecd-46a8-9773-9fc485c6bfee"}}
+{"v":1,"hlc":"1794600424296.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
