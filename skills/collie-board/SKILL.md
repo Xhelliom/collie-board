@@ -344,8 +344,11 @@ The project tab's **orchestrator** is this same skill running in a pane the user
 user's quota — and its pane id is what `$HERDR_PANE_ID` carries when it plans.
 
 - **Roadmap** — intents, not cards: a `vision` and ordered `items`
-  (`name`, `goal`, `status`: `planned` | `active` | `done` | `dropped`). Turn an item into a
-  phase only when the user gets to it; do not file forty cards ahead.
+  (`name`, `goal`, `status`: `planned` | `active` | `done` | `dropped` | `later`). Turn an item into a
+  phase only when the user gets to it; do not file forty cards ahead. `later` is the far horizon: an
+  idea or a proposal you have not planned yet, with an optional `direction` (free text, « Ouvrir le
+  projet ») the Roadmap page groups them by — put your unplanned proposals there, not in `planned`. A
+  `planned` item may say what it waits on in `condition` (« la sortie de herdr 0.9 »). Both ≤ 200 chars.
 - **Phase** — groups a repo's cards (not a container). Its progress is derived.
 - **Lot** — a *planned run*: a named, ordered set of one repo's cards inside a phase. It drives
   nothing until the user launches it.
@@ -494,7 +497,8 @@ mark it `done` when the user validates the plan. Cut ONLY the next phase into lo
 ```bash
 # items carry a long form: objective, end-of-phase demo, risk, why here (Markdown, ≤ 20000 chars)
 curl -s -X PUT "$B/api/roadmap" "${H[@]}" -d '{"repoPath":"<repo>","revision":<read>,"vision":"…",
-  "items":[{"id":"p0","name":"Cadrage","status":"active","goal":"…","detail":"## Démo\n…"}]}'
+  "items":[{"id":"p0","name":"Cadrage","status":"active","goal":"…","detail":"## Démo\n…"},
+  {"name":"Plugins tiers","status":"later","direction":"Ouvrir le projet"}]}'
 # write EACH decision the moment it is taken; reuse its id to settle an open question
 curl -s -X POST "$B/api/roadmap/decision" "${H[@]}" -d '{"repoPath":"<repo>","text":"Équipes de 16","status":"decided","itemId":"p0"}'
 #   status: decided (✅) | leaning (🟡) | open (❓)

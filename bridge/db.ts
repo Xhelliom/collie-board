@@ -590,7 +590,8 @@ function toTemplate(r: TemplateRow): AgentTemplate {
   };
 }
 
-export const ROADMAP_STATUSES = ["planned", "active", "done", "dropped"] as const;
+/** `later`: a far horizon — a direction the project means to take, not yet a step in order. */
+export const ROADMAP_STATUSES = ["planned", "active", "done", "dropped", "later"] as const;
 export type RoadmapStatus = (typeof ROADMAP_STATUSES)[number];
 
 /** An intent, never a card — it becomes a phase when the operator gets to it. */
@@ -601,6 +602,10 @@ export interface RoadmapItem {
   status: RoadmapStatus;
   /** The phase's long form, Markdown: objective, end-of-phase demo, risks, why in this order (ADR 0023). */
   detail: string;
+  /** What it waits on before it can start, said plainly (« la sortie de herdr 0.9 »). Absent: nothing. */
+  condition?: string;
+  /** A `later` idea's broad direction (« Ouvrir le projet »), what the roadmap groups them by. */
+  direction?: string;
 }
 
 /** ✅ decided · 🟡 a leaning to confirm · ❓ an open question — the three statuses of a design journal (ADR 0023). */

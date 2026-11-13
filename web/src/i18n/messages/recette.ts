@@ -34,6 +34,7 @@ export const recette = defineMessages({
   "recette.help.change": { en: "A verdict can be changed: click another button.", fr: "Un verdict se change : cliquez un autre bouton." },
   "recette.filter.todo": { en: "To test", fr: "À tester" },
   "recette.filter.all": { en: "Everything", fr: "Tout" },
+  "recette.filter.phase": { en: "This phase", fr: "Cette phase" },
   "recette.search": { en: "Search a capability, a capture, a step", fr: "Chercher une capacité, une capture, une étape" },
   "recette.gallery": { en: { one: "{count} capture", other: "{count} captures" }, fr: { one: "{count} capture", other: "{count} captures" } },
   "recette.empty": {

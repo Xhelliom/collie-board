@@ -12,11 +12,13 @@ import type { TranscriptEntry } from "./types";
 import { fetchFacts, type CardFacts } from "./project-facts";
 import { fetchFlows, type Flow } from "./flows";
 import { fetchTemplates, type TemplatesData } from "./templates";
+import { projectOf } from "./project";
 import {
   loadRepoScope,
   fetchCard,
   fetchCards,
   fetchCardsSummary,
+  fetchGoals,
   fetchLots,
   fetchOpenPrs,
   fetchOrchestrator,
@@ -26,6 +28,7 @@ import {
   type CardCounts,
   type CardDetail,
   type CardView,
+  type Goal,
   type Lot,
   type OpenPr,
   type OrchestratorMemory,
@@ -258,16 +261,29 @@ export interface RoadmapData {
   repo: string | null;
   roadmap: Roadmap | null;
   phases: Phase[];
+  /** The objective in progress (active, paused or claimed), or null. */
+  goal?: Goal | null;
+  /** Each board phase's steps: how many done out of how many — the bar under « Now ». */
+  progress?: Record<string, { done: number; total: number }>;
 }
+
+const OPEN_GOAL = new Set(["active", "paused", "claimed"]);
 
 /** The live roadmap view: read again on every root poll tick, so an orchestrator's PUT shows without a regenerated page. */
 export async function roadmapLoader({ request }: { request?: Request } = {}): Promise<RoadmapData> {
   const repo = (request ? new URL(request.url).searchParams.get("repo") : null) ?? loadRepoScope();
   if (!repo) return { repo: null, roadmap: null, phases: [] };
   const signal = request?.signal;
-  const [roadmap, phases] = await Promise.all([
+  // The objective and the cards are garnish: either failing leaves the roadmap readable.
+  const [roadmap, phases, goal, cards] = await Promise.all([
     fetchRoadmap(repo, signal).then((r) => r.roadmap),
     fetchPhases(repo, signal).then((r) => r.phases, () => []),
+    fetchGoals(repo, signal).then((r) => r.goals.find((g) => OPEN_GOAL.has(g.status)) ?? null, () => null),
+    fetchCards(signal).then((r) => r.cards, () => [] as CardView[]),
   ]);
-  return { repo, roadmap, phases };
+  const view = projectOf(cards.filter((c) => c.repoPath === repo), phases);
+  const progress = Object.fromEntries(
+    [...view.phases, ...view.closed].filter((p) => p.phase).map((p) => [p.phase!.id, { done: p.done, total: p.steps.length }]),
+  );
+  return { repo, roadmap, phases, goal, progress };
 }

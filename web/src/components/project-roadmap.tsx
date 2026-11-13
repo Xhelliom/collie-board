@@ -20,6 +20,7 @@ const DOT: Record<RoadmapStatus, string> = {
   active: "bg-status-working",
   done: "bg-status-done",
   dropped: "bg-muted-foreground/30",
+  later: "border border-dashed border-muted-foreground/50",
 };
 
 const DECISION: Record<DecisionStatus, { mark: string; label: MessageKey; count: MessageKey }> = {

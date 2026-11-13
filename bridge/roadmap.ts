@@ -88,13 +88,19 @@ export function parseRoadmapBody(
     if (typeof goal !== "string" || goal.length > MAX_GOAL) return { ok: false, error: "bad goal" };
     const detail = it.detail ?? "";
     if (typeof detail !== "string" || detail.length > MAX_DETAIL) return { ok: false, error: `detail must be text of at most ${MAX_DETAIL} characters` };
+    const extra: { condition?: string; direction?: string } = {};
+    for (const k of ["condition", "direction"] as const) {
+      const x = it[k] ?? "";
+      if (typeof x !== "string" || x.length > MAX_NAME) return { ok: false, error: `${k} must be text of at most ${MAX_NAME} characters` };
+      if (x.trim()) extra[k] = x.trim();
+    }
     const status = it.status ?? "planned";
     if (!ROADMAP_STATUSES.includes(status as RoadmapStatus)) return { ok: false, error: `status must be one of ${ROADMAP_STATUSES.join(", ")}` };
     if (it.id !== undefined && (typeof it.id !== "string" || it.id.trim() === "")) return { ok: false, error: "bad item id" };
     const id = typeof it.id === "string" ? it.id.trim() : crypto.randomUUID().slice(0, 8);
     if (seen.has(id)) return { ok: false, error: `duplicate item id ${id}` };
     seen.add(id);
-    items.push({ id, name: it.name.trim(), goal: goal.trim(), status: status as RoadmapStatus, detail: detail.trim() });
+    items.push({ id, name: it.name.trim(), goal: goal.trim(), status: status as RoadmapStatus, detail: detail.trim(), ...extra });
   }
   let decisions: Decision[] | undefined;
   if (o.decisions !== undefined) {

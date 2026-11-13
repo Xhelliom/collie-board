@@ -56,6 +56,7 @@ export function OrchestratorPanel({
   entries,
   memory = null,
   deliverables = [],
+  initialDraft = "",
   onLeave,
 }: {
   repo: string | null;
@@ -66,13 +67,15 @@ export function OrchestratorPanel({
   memory?: OrchestratorMemory | null;
   /** The project's recent deliverables, newest first (from the facts the page polls), one button away. */
   deliverables?: RecentDeliverable[];
+  /** What the message field starts with (a question brought from the Roadmap). */
+  initialDraft?: string;
   /** Called when the panel sends the operator to the page (the sheet closes itself). */
   onLeave?: () => void;
 }) {
   const t = useT();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialDraft);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // A screenshot goes up under the orchestrator's own pane, its `[Image #N]` token into the draft — the composer's hook.
   const upload = useImageUpload({ paneId: state?.paneId ?? "orchestrator", disabled: !state?.paneId, text: draft, setText: setDraft, inputRef });
