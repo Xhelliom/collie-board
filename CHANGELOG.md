@@ -9,6 +9,14 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.324.0] - 2026-11-13
+
+### Changed
+
+- Sémaphore, direction « Relevé » : neutres sans teinte, panneaux bordés et ombrés (14 px), boutons secondaires en contour, « Valider » en émeraude à texte blanc. (b6740be)
+- « Ce qui t'attend » : bord orange au lieu du fond teinté ; « Valider la phase » de l'en-tête passe en contour. (b6740be)
+- Couleurs d'état ajustées sur les nouveaux neutres. (b6740be)
+
 ## [0.323.0] - 2026-11-13
 
 ### Added
