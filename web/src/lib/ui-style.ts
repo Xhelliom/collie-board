@@ -1,5 +1,8 @@
 // The board's look: Sémaphore (the default since 13/11) or the classic palette it replaced. Stored
 // like the theme mode, applied as `data-style` on <html>; index.css carries the classic tokens.
+// Rules (orchestrator, 13/11): the style changes TOKENS only — no component branches on it, layout and
+// actions are identical in both (ui-style.test.ts holds the first). TEMPORARY: when the phase
+// « Interface simplifiée » is validated, keep one style and delete the other, this file with it.
 
 export type UiStyle = "semaphore" | "classic";
 

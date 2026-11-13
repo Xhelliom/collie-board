@@ -195,7 +195,8 @@
 /* ── Classic style (Settings › Appearance › Style) ──────────────────────────────────────────────
    The palette, radius and type the board wore before Sémaphore, kept for whoever prefers it. Only
    tokens: the structure (actions as buttons, the state signal's shapes, no tracked capitals) is the
-   same in both styles. `:not(.dark)` so the light block cannot outrank the dark one. Not held to the
+   same in both styles. TEMPORARY: removed (or made the only style) when the phase « Interface
+   simplifiée » is validated — see lib/ui-style.ts. `:not(.dark)` so the light block cannot outrank the dark one. Not held to the
    Balise contrast test: these are the old values, unchanged. */
 html[data-style="classic"]:not(.dark) {
   --radius: 0.65rem;
