@@ -24,7 +24,7 @@ import {
 } from "@/lib/api";
 import { isLostLatched } from "@/lib/connection-health";
 import { navCached, urlKey } from "@/lib/nav-cache";
-import { fetchHerd, type PeerHerdView } from "@/lib/peers";
+import { fetchHerd, type MachineEngine, type PeerHerdView } from "@/lib/peers";
 import { SESSION_PARAM, normalizeSession } from "@/lib/session";
 import type {
   AgentView,
@@ -79,6 +79,8 @@ export interface HomeData {
   shellPanes: AgentView[];
   /** The paired peers' herds (primary session only; empty elsewhere, on an older bridge, or with no peer). */
   peers?: PeerHerdView[];
+  /** This machine's engine as `/api/herd` last read it; null when unknown (older bridge, or a non-primary session). */
+  localEngine?: MachineEngine | null;
   workspaces: WorkspaceView[];
   tabs: TabView[];
   /** The bridge's session registry (primary-first); empty on a single-session / older bridge. */
@@ -174,6 +176,7 @@ function isPaneUrl(url: string | undefined): boolean {
 
 // The peers' herds as last read — kept through a failed refresh, like the snapshot.
 let lastPeers: PeerHerdView[] = [];
+let lastLocalEngine: MachineEngine | null = null;
 
 function toHomeData(snap: SnapshotResponse, session: string | undefined, error: boolean): HomeData {
   return {
@@ -182,6 +185,7 @@ function toHomeData(snap: SnapshotResponse, session: string | undefined, error: 
     agents: snap.agents,
     shellPanes: snap.shellPanes ?? [],
     peers: session ? [] : lastPeers,
+    localEngine: session ? null : lastLocalEngine,
     workspaces: snap.workspaces ?? [],
     tabs: snap.tabs ?? [],
     sessions: snap.sessions ?? [],
@@ -251,7 +255,10 @@ async function loadHome(session: string | undefined, request?: Request): Promise
       fetchSnapshot(session, request?.signal),
       session ? null : fetchHerd(request?.signal).catch(() => null),
     ]);
-    if (herd) lastPeers = herd.peers;
+    if (herd) {
+      lastPeers = herd.peers;
+      lastLocalEngine = herd.local?.engine ?? null;
+    }
     lastSnapshot.set(session ?? "", snap);
     rememberAuthError(session, false);
     return toHomeData(snap, session, false);

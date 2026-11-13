@@ -1,77 +1,78 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { ChevronRight, GitPullRequest, RefreshCw } from "lucide-react";
+import { ChevronRight, GitPullRequest, RefreshCw, Target } from "lucide-react";
 
-import { Kpi } from "@/components/kpi";
 import { Ring } from "@/components/ring";
 import { STEP_TONE } from "@/components/project-step";
-import { useFold } from "@/components/fold";
-import { GoalLine, isOpenGoal, type OpenGoal } from "@/components/goal-chip";
+import { FoldToggle } from "@/components/fold";
+import { firstSentence, isOpenGoal, type OpenGoal, type OpenGoalStatus } from "@/components/goal-chip";
+import { budgetPct } from "@/components/goal-panel";
+import { sectionTitle } from "@/components/agent-list";
 import { useT } from "@/i18n";
-import { getNotifyLog } from "@/lib/api";
-import { boardPath, cardPath, fetchGoals, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
-import { byLot, herdCounts, tileLot, type DashboardView, type OrchestratorMood, type RepoTile, type TileLot } from "@/lib/dashboard";
+import { boardPath, fetchGoals, fetchLots, fetchOpenPrs, fetchPhases, fetchUsage, prsPath, projectPath, type CardView, type Lot, type Phase, type ProviderUsage } from "@/lib/board";
+import { byLot, herdCounts, tileLot, type DashboardView, type RepoTile, type TileLot } from "@/lib/dashboard";
 import { fetchRecette } from "@/lib/recette";
-import { panePath } from "@/lib/nav";
-import { ago, rich } from "@/lib/project-facts";
-import type { AgentView, NotifyLogEntry } from "@/lib/types";
+import { engineName, type MachineEngine, type PeerHerdView } from "@/lib/peers";
+import type { AgentView, BridgeStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// The home dashboard around the herd triage (agent-list.tsx stays the heart of the screen). Every
-// figure here is derived from the cards the loader already polls, or fetched ONCE on mount (quota, PRs,
-// activity) — the same posture as the quota gauge it grew from: no timer of its own.
+// The home: one sentence and the herd's ring, the cards waiting as a line of links, the agents at work,
+// the projects in progress, the machines and the quota. Every figure is derived from the snapshot or the
+// cards the loader already polls, or fetched ONCE on mount (quota, PRs) — no timer of its own.
 
-const sectionTitle = "text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground";
-
-/** The hero: one sentence, and the herd as a ring — rouge = needs you, bleu = working, gris = idle. */
-export function HomeHero({ agents }: { agents: AgentView[] }) {
+/** The title: who waits for you and how many work, as a sentence; the herd at work as the ring beside it. */
+export function HomeHero({ agents, cards }: { agents: AgentView[]; cards: ReactNode }) {
   const t = useT();
-  const [needs, working, idle] = herdCounts(agents);
-  const parts = [
-    agents.length === 0 ? t("home.sum.none") : needs > 0 ? t("home.sum.needs", { count: needs }) : t("home.sum.calm"),
-    working > 0 && t("home.sum.working", { count: working }),
-  ].filter(Boolean);
+  const [needs, working] = herdCounts(agents);
+  const title =
+    agents.length === 0
+      ? t("home.title.none")
+      : `${needs > 0 ? t("home.title.needs", { count: needs }) : t("home.title.calm")}, ${working > 0 ? t("home.title.working", { count: working }) : t("home.title.allIdle")}`;
   return (
-    <header className="flex items-center justify-between gap-5">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.14em] text-status-done">
-          <span className="size-[7px] rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-          {t("home.eyebrow")}
-        </div>
-        <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">{rich(`${parts.join(", ")}.`)}</p>
+    <header className="flex items-center gap-5 sm:gap-7">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.015em] sm:text-3xl">{title}</h1>
+        {cards}
       </div>
-      <Ring
-        arcs={[
-          { value: needs, className: "stroke-status-blocked" },
-          { value: working, className: "stroke-status-working" },
-          { value: idle, className: "stroke-status-idle" },
-        ]}
-        total={agents.length}
-        label={t("home.ring.aria", { needs, working, idle })}
-        className="size-28 sm:size-36"
-      >
-        <span className="text-4xl font-bold leading-none tabular-nums">{agents.length}</span>
-        <span className="text-[11px] text-muted-foreground">{t("home.ring.agents")}</span>
-      </Ring>
+      {agents.length > 0 && (
+        <Ring
+          arcs={[{ value: working, className: "stroke-status-working" }]}
+          total={agents.length}
+          label={t("home.ring.working", { working, total: agents.length })}
+          className="size-[72px] sm:size-24"
+        >
+          <span className="text-xl font-semibold leading-none tabular-nums sm:text-2xl">{working}</span>
+          <span className="text-[11px] text-muted-foreground">{t("home.ring.of", { total: agents.length })}</span>
+        </Ring>
+      )}
     </header>
   );
 }
 
-export function HomeKpis({ dash }: { dash: DashboardView }) {
+/** « 2 cartes à relire, 5 bloquées, 2 prêtes à lancer. », each figure a link to the board filtered on it. */
+export function CardsLine({ dash }: { dash: DashboardView }) {
   const t = useT();
-  // Each figure leads to the board filtered on its status(es); the section title names the object
-  // (cards, not panes — the hero above counts panes).
   const to = (status: string) => `${boardPath()}?${new URLSearchParams({ status })}`;
+  const parts = [
+    { n: dash.review, key: "home.cards.review", status: "review" },
+    { n: dash.stuck, key: "home.cards.stuck", status: "blocked,orphaned" },
+    { n: dash.ready, key: "home.cards.ready", status: "ready" },
+  ] as const;
+  const shown = parts.filter((p) => p.n > 0);
   return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.kpi.title")}>
-      <h2 className={sectionTitle}>{t("home.kpi.title")}</h2>
-      <div className="grid grid-cols-4 gap-2 [&>*]:min-w-0">
-        <Kpi compact to={to("review")} label={t("home.kpi.review")} value={dash.review} tone="bg-brand" />
-        <Kpi compact to={to("blocked,orphaned")} label={t("home.kpi.stuck")} value={dash.stuck} tone="bg-status-blocked" />
-        <Kpi compact to={to("ready")} label={t("home.kpi.ready")} value={dash.ready} tone="bg-muted-foreground" />
-        <Kpi compact to={to("done")} label={t("home.kpi.delivered")} value={dash.delivered} tone="bg-status-done" />
-      </div>
-    </section>
+    <p className="text-[15px] text-muted-foreground">
+      {shown.length === 0
+        ? t("home.cards.none")
+        : shown.map((p, i) => (
+            <span key={p.status}>
+              {i > 0 && ", "}
+              <Link to={to(p.status)} className="underline-offset-2 hover:text-foreground hover:underline">
+                {t(p.key, { count: p.n })}
+              </Link>
+              {i === shown.length - 1 && "."}
+            </span>
+          ))}
+    </p>
   );
 }
 
@@ -79,51 +80,33 @@ export function HomeKpis({ dash }: { dash: DashboardView }) {
 // so nothing below moves when the figures land. Still for people who asked for less motion.
 const pulse = "animate-pulse rounded bg-muted motion-reduce:animate-none";
 
-export function HomeKpisSkeleton() {
+export function CardsLineSkeleton() {
+  return <div aria-busy="true" data-testid="kpis-skeleton" className={cn("h-[22px] w-64 max-w-full", pulse)} />;
+}
+
+export function ProjectRowsSkeleton() {
   const t = useT();
   return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.kpi.title")} aria-busy="true" data-testid="kpis-skeleton">
-      <h2 className={sectionTitle}>{t("home.kpi.title")}</h2>
-      <div className="grid grid-cols-4 gap-2 [&>*]:min-w-0">
-        {(["home.kpi.review", "home.kpi.stuck", "home.kpi.ready", "home.kpi.delivered"] as const).map((k) => (
-          <div key={k} className="rounded-xl border bg-card/70 p-2.5">
-            <span className="block truncate text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t(k)}</span>
-            {/* text-2xl leading-none: the figure is exactly h-6. */}
-            <div className={cn("mt-1.5 h-6 w-8", pulse)} />
-          </div>
-        ))}
-      </div>
+    <section className="flex flex-col gap-1.5" aria-label={t("home.projects.current")} aria-busy="true" data-testid="projects-skeleton">
+      <h2 className={cn(sectionTitle, "mb-1")}>{t("home.projects.current")}</h2>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className={cn("h-16", pulse, "rounded-xl")} />
+      ))}
     </section>
   );
 }
 
-/** ponytail: three tiles of one phase each, the usual fold — a herd of one repo shrinks once, at arrival. */
-export function ProjectTilesSkeleton() {
+/** A card block whose cold-start fetch failed: said in its own slot, the agents untouched. */
+export function CardsError({ label }: { label?: string }) {
   const t = useT();
-  return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.projects")} aria-busy="true" data-testid="projects-skeleton">
-      <h2 className={sectionTitle}>{t("home.projects")}</h2>
-      <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="flex h-[7.25rem] flex-col gap-2.5 rounded-xl border bg-card/70 p-3.5">
-            <div className={cn("h-4 w-1/3", pulse)} />
-            <div className={cn("h-3 w-2/3", pulse)} />
-            <div className={cn("h-[5px] w-full", pulse)} />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** A card block whose cold-start fetch failed: said in its own slot, the triage untouched. */
-export function CardsError({ label }: { label: string }) {
-  const t = useT();
-  return (
-    <section className="flex flex-col gap-2.5" aria-label={label}>
+  const msg = <p role="alert" className="text-sm text-status-blocked">{t("home.cards.error")}</p>;
+  return label ? (
+    <section className="flex flex-col gap-1.5" aria-label={label}>
       <h2 className={sectionTitle}>{label}</h2>
-      <p role="alert" className="text-sm text-status-blocked">{t("home.cards.error")}</p>
+      {msg}
     </section>
+  ) : (
+    msg
   );
 }
 
@@ -142,66 +125,6 @@ function PhaseBar({ steps }: { steps: CardView[] }) {
         <i key={x.key} style={{ flexGrow: x.n }} className={cn("h-[5px] min-w-[3px] basis-0 rounded-[3px] bg-border", x.tone)} />
       ))}
     </div>
-  );
-}
-
-/** Phases a tile lists before « +n »: a repo with five in flight must not take a screen on a phone. */
-const PHASES_SHOWN = 2;
-
-/** The tile's lead line: the lot running (name, merged / total, blocked), or the one that just finished. */
-function LotLine({ lot }: { lot: TileLot }) {
-  const t = useT();
-  const name = lot.name ?? t("home.lot.unnamed");
-  const blocked = lot.blocked > 0 && <span className="font-semibold text-status-blocked">{t("home.lot.blocked", { count: lot.blocked })}</span>;
-  return lot.finishedAt === null ? (
-    <div className="flex items-baseline gap-2 text-xs">
-      <span className="min-w-0 flex-1 truncate font-medium text-status-working">{t("home.lot.running", { name })}</span>
-      {blocked}
-      <span className="shrink-0 tabular-nums text-muted-foreground">{t("home.lot.merged", { done: lot.done, total: lot.total })}</span>
-    </div>
-  ) : (
-    <div className="flex items-baseline gap-2 text-xs">
-      <span className="min-w-0 flex-1 truncate font-medium text-status-done">{t("home.lot.finished", { name, when: ago(lot.finishedAt) })}</span>
-      {blocked || <span className="shrink-0 tabular-nums text-muted-foreground">{t("home.lot.merged", { done: lot.done, total: lot.total })}</span>}
-    </div>
-  );
-}
-
-const MOOD_TONE: Record<OrchestratorMood, string> = { idle: "text-muted-foreground", working: "text-status-working", waiting: "font-semibold text-status-blocked" };
-
-function ProjectTile({ repo, lot, mood, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; mood?: OrchestratorMood; toTest?: number; goal?: OpenGoal }) {
-  const t = useT();
-  return (
-    <Link
-      to={projectPath(repo.path)}
-      className={cn(
-        "flex flex-col gap-2.5 rounded-xl border bg-card/70 p-3.5 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25",
-      )}
-    >
-      <div className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{ago(repo.updatedAt)}</span>
-      </div>
-      {goal && <GoalLine goal={goal} className="-mt-1.5 text-xs" />}
-      {lot && <LotLine lot={lot} />}
-      {repo.current.slice(0, PHASES_SHOWN).map((p) => (
-        <div key={p.key} className="flex flex-col gap-1.5">
-          <div className="flex items-baseline gap-2 text-xs">
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">{p.title || t("home.project.loose")}</span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">{p.done} / {p.steps.length}</span>
-          </div>
-          <PhaseBar steps={p.steps} />
-        </div>
-      ))}
-      <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-        {repo.current.length > PHASES_SHOWN && <span>+{repo.current.length - PHASES_SHOWN}</span>}
-        {repo.current.length === 0 && <span>{t("home.project.idle", { count: repo.closedCount })}</span>}
-        {repo.active > 0 && <span className="text-status-working">{t("home.project.flight", { count: repo.active })}</span>}
-        {repo.waiting > 0 && <span className="font-semibold text-brand">{t("home.project.waiting", { count: repo.waiting })}</span>}
-        {toTest > 0 && <span className="font-semibold text-brand">{t("recette.chip", { count: toTest })}</span>}
-      </div>
-      {mood && <div className={cn("text-xs", MOOD_TONE[mood])}>{t(`home.orch.${mood}`)}</div>}
-    </Link>
   );
 }
 
@@ -261,16 +184,17 @@ export function useRepoToTest(paths: string[], stamp: string): Record<string, nu
 }
 
 /** Each repo's open objective status (ADR 0056), in one request for every repo, on the lots' `stamp`. */
-export function useRepoGoals(paths: string[], stamp: string): Record<string, OpenGoal> {
-  const [goals, setGoals] = useState<Record<string, OpenGoal>>({});
+export function useRepoGoals(paths: string[], stamp: string): Record<string, HomeGoal> {
+  const [goals, setGoals] = useState<Record<string, HomeGoal>>({});
   const key = paths.join("\n");
   useEffect(() => {
     if (!key) return setGoals({});
     const ac = new AbortController();
     void fetchGoals(undefined, ac.signal).then((r) => r.goals, () => []).then((all) => {
       if (ac.signal.aborted) return;
-      const out: Record<string, OpenGoal> = {};
-      for (const g of all) if (isOpenGoal(g.status)) out[g.repoPath] = { status: g.status, text: g.text };
+      const out: Record<string, HomeGoal> = {};
+      for (const g of all)
+        if (isOpenGoal(g.status)) out[g.repoPath] = { status: g.status, text: g.text, lots: g.spent.lots, maxLots: g.budget.maxLots, pct: budgetPct(g) };
       setGoals(out);
     });
     return () => ac.abort();
@@ -278,20 +202,154 @@ export function useRepoGoals(paths: string[], stamp: string): Record<string, Ope
   return goals;
 }
 
-export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {}, goals = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; moods?: Record<string, OrchestratorMood>; toTest?: Record<string, number>; goals?: Record<string, OpenGoal> }) {
+/** What a project row says of its open objective: its words, and how much of its budget is gone. */
+export interface HomeGoal extends OpenGoal {
+  lots: number;
+  maxLots: number;
+  pct: number;
+}
+const GOAL_TONE: Record<OpenGoalStatus, string> = { active: "text-status-done", paused: "text-status-working", claimed: "text-brand" };
+
+function GoalCell({ goal, lot }: { goal?: HomeGoal; lot?: TileLot | null }) {
   const t = useT();
-  const repos = byLot(all, lots);
-  const { shown, toggle } = useFold(repos, 3);
+  if (!goal)
+    return (
+      // A phone's card says nothing of an absent objective: the phase line below is enough.
+      <span className="hidden min-w-0 flex-col text-sm text-muted-foreground sm:flex">
+        <span>{t("home.project.noGoal")}</span>
+        {lot && lot.finishedAt === null && <span className="hidden truncate sm:block">{t("home.project.lot", { name: lot.name ?? t("home.lot.unnamed") })}</span>}
+      </span>
+    );
+  return (
+    <span className="flex min-w-0 items-start gap-2 text-sm" data-goal={goal.status}>
+      <Target className={cn("mt-0.5 size-[15px] shrink-0", GOAL_TONE[goal.status])} aria-hidden="true" />
+      <span className="flex min-w-0 flex-col">
+        <span className="sr-only">{t("goal.title")} :</span>
+        <span className="truncate">{firstSentence(goal.text)}</span>
+        <span className="hidden text-muted-foreground sm:block">{t("home.project.goalBudget", { spent: goal.lots, max: goal.maxLots, pct: goal.pct })}</span>
+      </span>
+    </span>
+  );
+}
+
+function PhaseCell({ repo }: { repo: RepoTile }) {
+  const t = useT();
+  const p = repo.current[0];
+  if (!p) return <span className="text-sm text-muted-foreground">{t("home.project.nothing")}</span>;
+  return (
+    <span className="flex min-w-0 flex-col gap-1.5 text-sm">
+      <span className="flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate">{p.title || t("home.project.loose")}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">{t("home.project.steps", { done: p.done, total: p.steps.length })}</span>
+      </span>
+      <PhaseBar steps={p.steps} />
+    </span>
+  );
+}
+
+function Activity({ repo, toTest, brief }: { repo: RepoTile; toTest: number; brief?: boolean }) {
+  const t = useT();
+  const at = repo.active > 0 ? <span className="text-status-working">{t("home.project.working", { count: repo.active })}</span> : <span className="text-muted-foreground">{t("home.project.resting")}</span>;
+  if (brief) return repo.active > 0 ? at : null;
+  return (
+    <span className="flex flex-col gap-0.5 text-sm">
+      {at}
+      {repo.waiting > 0 && <span className="font-medium text-brand">{t("home.project.forYou", { count: repo.waiting })}</span>}
+      {repo.blocked > 0 && <span className="font-medium text-status-blocked">{t("home.project.blocked", { count: repo.blocked })}</span>}
+      {toTest > 0 && <span className="font-medium text-brand">{t("recette.chip", { count: toTest })}</span>}
+    </span>
+  );
+}
+
+/** One project, one line of aligned columns on a wide screen; a small stacked card on a phone. */
+function ProjectRow({ repo, lot, toTest = 0, goal }: { repo: RepoTile; lot?: TileLot | null; toTest?: number; goal?: HomeGoal }) {
+  return (
+    <Link
+      to={projectPath(repo.path)}
+      className="flex flex-col gap-2 rounded-xl border bg-card/70 p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
+    >
+      <span className="flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
+        <span className="shrink-0 text-sm sm:hidden">
+          <Activity repo={repo} toTest={toTest} brief />
+        </span>
+      </span>
+      <GoalCell goal={goal} lot={lot} />
+      <PhaseCell repo={repo} />
+      <span className="hidden sm:block">
+        <Activity repo={repo} toTest={toTest} />
+      </span>
+    </Link>
+  );
+}
+
+const ROWS = 5;
+
+/** « Projets en cours »: the ones where something runs first, five rows, the rest a tap away. */
+export function ProjectRows({ repos: all, lots = {}, toTest = {}, goals = {} }: { repos: RepoTile[]; lots?: Record<string, TileLot | null>; toTest?: Record<string, number>; goals?: Record<string, HomeGoal> }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const running = (r: RepoTile) => r.active > 0 || lots[r.path]?.finishedAt === null;
+  // sort is stable: within each half, byLot's order (running lots, then the day's, then dashboardOf's).
+  const repos = byLot(all, lots).sort((a, b) => Number(running(b)) - Number(running(a)));
   if (repos.length === 0) return null;
   return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.projects")}>
-      <h2 className={sectionTitle}>{t("home.projects")}</h2>
-      <div className="grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 lg:grid-cols-1">
-        {shown.map((r) => (
-          <ProjectTile key={r.path} repo={r} lot={lots[r.path]} mood={moods[r.path]} toTest={toTest[r.path]} goal={goals[r.path]} />
+    <section className="flex flex-col gap-1.5" aria-label={t("home.projects.current")}>
+      <h2 className={cn(sectionTitle, "mb-1")}>{t("home.projects.current")}</h2>
+      {(open ? repos : repos.slice(0, ROWS)).map((r) => (
+        <ProjectRow key={r.path} repo={r} lot={lots[r.path]} toTest={toTest[r.path]} goal={goals[r.path]} />
+      ))}
+      {repos.length > ROWS && <FoldToggle open={open} onClick={() => setOpen(!open)} label={t("home.projects.all", { count: repos.length })} lessLabel={t("fold.less")} />}
+    </section>
+  );
+}
+
+interface Machine {
+  name: string;
+  state: "up" | "down" | "pending";
+  engine: string | null;
+  agents: number;
+}
+
+/** This machine first, then every paired peer, each with its state — from the snapshot, no request. */
+export function machinesOf(local: { bridge: BridgeStatus | undefined; engine: MachineEngine | null | undefined; agents: number }, peers: readonly PeerHerdView[], here: string): Machine[] {
+  return [
+    { name: here, state: local.bridge === "connected" ? "up" : local.bridge === undefined ? "pending" : "down", engine: engineName(local.engine), agents: local.agents },
+    ...peers.map((p): Machine => ({ name: p.peer, state: p.state === "connected" ? "up" : p.state === "pending" ? "pending" : "down", engine: engineName(p.engine), agents: p.agents.length })),
+  ];
+}
+
+const MACHINE_DOT = { up: "bg-status-done", pending: "bg-status-idle", down: "border-2 border-status-blocked" } as const;
+
+/** « Machines »: a list in the side column of a wide screen, a line of dots at the foot of a phone's. */
+export function Machines({ machines, strip, className }: { machines: Machine[]; strip?: boolean; className?: string }) {
+  const t = useT();
+  const dot = (m: Machine) => <span aria-hidden className={cn("size-2 shrink-0 rounded-full", MACHINE_DOT[m.state])} />;
+  const note = (m: Machine) =>
+    m.state === "down" ? t("home.machines.down") : m.state === "pending" ? t("home.machines.pending") : t("home.machines.agents", { engine: m.engine ?? "herdr", count: m.agents });
+  if (strip)
+    return (
+      <section className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", className)} aria-label={t("home.machines")}>
+        <h2 className={sectionTitle}>{t("home.machines")}</h2>
+        {machines.map((m) => (
+          <span key={m.name} title={note(m)} className={cn("flex items-center gap-1.5", m.state === "down" && "text-status-blocked")}>
+            {dot(m)}
+            {m.name}
+            {m.state === "down" && <span className="sr-only">{note(m)}</span>}
+          </span>
         ))}
-      </div>
-      {toggle}
+      </section>
+    );
+  return (
+    <section className={cn("flex flex-col", className)} aria-label={t("home.machines")}>
+      <h2 className={cn(sectionTitle, "mb-1.5")}>{t("home.machines")}</h2>
+      {machines.map((m) => (
+        <div key={m.name} className="flex min-h-9 items-center gap-2.5">
+          {dot(m)}
+          <span className="max-w-[60%] shrink-0 truncate">{m.name}</span>
+          <span className={cn("min-w-0 flex-1 truncate text-right text-sm", m.state === "down" ? "text-status-blocked" : "text-muted-foreground")}>{note(m)}</span>
+        </div>
+      ))}
     </section>
   );
 }
@@ -299,42 +357,54 @@ export function ProjectTiles({ repos: all, lots = {}, moods = {}, toTest = {}, g
 const CRITICAL = 85;
 const tone = (pct: number) => (pct >= CRITICAL ? "blocked" : pct >= 70 ? "working" : "done");
 
-function ProviderRing({ p }: { p: ProviderUsage }) {
+function ProviderQuota({ p, onRefresh, busy }: { p: ProviderUsage; onRefresh: () => void; busy: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   // The limit that decides is the one closest to its wall — it fills the ring; the rest are the tap's.
-  const worst = p.limits.reduce((hi, l) => Math.max(hi, l.percent), 0);
+  const worst = p.limits.reduce((hi, l) => (l.percent > (hi?.percent ?? -1) ? l : hi), p.limits[0]);
+  const pct = worst?.percent ?? 0;
   return (
-    <div className="flex flex-col items-center gap-2">
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex flex-col items-center gap-1.5">
-        <Ring
-          arcs={[{ value: worst, className: `stroke-status-${tone(worst)}` }]}
-          total={100}
-          label={t("home.usage.aria", { label: p.label, percent: worst })}
-          className="size-24"
+    <section className="flex flex-col gap-1.5" aria-label={t("home.usage.account", { label: p.label })}>
+      <div className="flex items-center">
+        <h2 className={cn(sectionTitle, "flex-1")}>{t("home.usage.account", { label: p.label })}</h2>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={busy}
+          aria-label={t("home.usage.refresh")}
+          className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-50"
         >
-          <span className="text-2xl font-bold leading-none tabular-nums">{worst}%</span>
-        </Ring>
-        <span className="text-xs text-muted-foreground">{worst >= CRITICAL ? t("home.usage.atLimit") : p.label}</span>
-      </button>
-      {open && (
-        <ul className="w-full space-y-1 text-xs text-muted-foreground">
-          {p.limits.map((l) => (
-            <li key={l.label} className="flex items-baseline gap-2">
-              <span className="truncate">{l.label.replace(/^Current\s+/i, "")}</span>
-              <span className="tabular-nums text-foreground">{l.percent}%</span>
-              {l.resetsAt && <span className="ml-auto truncate text-[11px]">{t("home.usage.resets", { when: l.resetsAt })}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+          <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
+        </button>
+      </div>
+      <div className="flex flex-col gap-2 rounded-xl border bg-card/70 p-3.5">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-4 text-left">
+          <Ring arcs={[{ value: pct, className: `stroke-status-${tone(pct)}` }]} total={100} label={t("home.usage.aria", { label: p.label, percent: pct })} className="size-16">
+            <span className="text-sm font-semibold leading-none tabular-nums">{pct}%</span>
+          </Ring>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate font-medium">{pct >= CRITICAL ? t("home.usage.atLimit") : (worst?.label.replace(/^Current\s+/i, "") ?? p.label)}</span>
+            {worst?.resetsAt && <span className="truncate text-sm text-muted-foreground">{t("home.usage.resets", { when: worst.resetsAt })}</span>}
+          </span>
+        </button>
+        {open && (
+          <ul className="w-full space-y-1 text-xs text-muted-foreground">
+            {p.limits.map((l) => (
+              <li key={l.label} className="flex items-baseline gap-2">
+                <span className="truncate">{l.label.replace(/^Current\s+/i, "")}</span>
+                <span className="tabular-nums text-foreground">{l.percent}%</span>
+                {l.resetsAt && <span className="ml-auto truncate text-[11px]">{t("home.usage.resets", { when: l.resetsAt })}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
 
-/** One ring per provider the bridge can read (Claude today). Fetched on mount; nothing when there is no reading. */
+/** « Ton compte Claude »: one quota per provider the bridge can read. Fetched on mount; nothing without a reading. */
 export function UsageRings() {
-  const t = useT();
   const [providers, setProviders] = useState<ProviderUsage[]>([]);
   const [busy, setBusy] = useState(false);
   const load = useCallback(async (refresh: boolean, signal?: AbortSignal) => {
@@ -355,37 +425,15 @@ export function UsageRings() {
   }, [load]);
   if (providers.length === 0) return null;
   return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.usage")}>
-      <div className="flex items-center">
-        <h2 className={cn(sectionTitle, "flex-1")}>{t("home.usage")}</h2>
-        <button
-          type="button"
-          onClick={() => void load(true)}
-          disabled={busy}
-          aria-label={t("home.usage.refresh")}
-          className="flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-50"
-        >
-          <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
-        </button>
-      </div>
-      <div className="flex flex-wrap justify-around gap-4 rounded-xl border bg-card/70 p-3.5">
-        {providers.map((p) => (
-          <ProviderRing key={p.id} p={p} />
-        ))}
-      </div>
-    </section>
+    <>
+      {providers.map((p) => (
+        <ProviderQuota key={p.id} p={p} busy={busy} onRefresh={() => void load(true)} />
+      ))}
+    </>
   );
 }
 
-const VERB = {
-  blocked: "home.activity.blocked",
-  done: "home.activity.done",
-  stalled: "home.activity.stalled",
-  ready: "home.activity.ready",
-  note: "home.activity.note",
-} as const;
-
-/** Open PRs, read once on arrival — nothing at zero or on an older bridge. */
+/** « PR ouvertes 27 » on one line, read once on arrival — nothing at zero or on an older bridge. */
 export function OpenPrs() {
   const t = useT();
   const [prs, setPrs] = useState(0);
@@ -394,57 +442,11 @@ export function OpenPrs() {
   }, []);
   if (prs === 0) return null;
   return (
-    <Link to={prsPath()} className="flex items-center gap-2 rounded-xl border bg-card/70 p-3.5 text-sm hover:border-foreground/25">
-      <GitPullRequest className="size-4 text-muted-foreground" />
+    <Link to={prsPath()} className="flex min-h-9 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+      <GitPullRequest className="size-4" />
       <span className="flex-1">{t("home.prs")}</span>
-      <b className="tabular-nums">{prs}</b>
-      <ChevronRight className="size-4 text-muted-foreground" />
+      <b className="font-semibold tabular-nums text-foreground">{prs}</b>
+      <ChevronRight className="size-4" />
     </Link>
-  );
-}
-
-/** The last few alerts (the bell's log), read once on arrival. Degrades to nothing on an older bridge. */
-export function HomeActivity({ session }: { session: string | undefined }) {
-  const t = useT();
-  const [log, setLog] = useState<NotifyLogEntry[] | null>(null);
-  useEffect(() => {
-    let live = true; // the reply can land after unmount (or test teardown)
-    void getNotifyLog().then((e) => live && setLog(e.slice(0, 5)), () => live && setLog([]));
-    return () => { live = false; };
-  }, []);
-  return (
-    <section className="flex flex-col gap-2.5" aria-label={t("home.activity")}>
-      <h2 className={sectionTitle}>{t("home.activity")}</h2>
-      {log === null ? (
-        <div aria-hidden className="h-9 rounded-md bg-muted/50 motion-safe:animate-pulse" />
-      ) : log.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("home.activity.empty")}</p>
-      ) : (
-        <ul className="flex flex-col">
-          {log.map((e) => {
-            const to = e.paneId ? panePath(e.paneId, session) : e.cardId ? cardPath(e.cardId) : null;
-            const body = (
-              <>
-                <span className="min-w-0 flex-1 truncate">
-                  <b className="font-semibold">{e.cardTitle ?? e.workspaceLabel ?? e.agent ?? ""}</b> {t(VERB[e.status])}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{ago(e.ts)}</span>
-              </>
-            );
-            return (
-              <li key={e.id}>
-                {to ? (
-                  <Link to={to} className="flex min-h-9 items-baseline gap-2 text-sm hover:text-foreground">
-                    {body}
-                  </Link>
-                ) : (
-                  <div className="flex min-h-9 items-baseline gap-2 text-sm">{body}</div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
   );
 }

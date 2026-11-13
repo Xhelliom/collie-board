@@ -13,9 +13,9 @@ export interface Arc {
 }
 
 /**
- * A donut of consecutive arcs over `total`, anything left over reading as the empty track. The one
- * ring of the dashboard — the herd's three states and a provider's quota are both just arcs. The arcs
- * grow from nothing on mount (still for reduced motion), like the project view's ring.
+ * The one ring of the app: the project's progress, the herd at work, a provider's quota. Arcs run
+ * one after the other over `total`; each is drawn from the top up to its own end, the first on top,
+ * so round caps never leave a gap. They grow from nothing on mount (still for reduced motion).
  */
 export function Ring({ arcs, total, label, children, className }: { arcs: Arc[]; total: number; label: string; children: ReactNode; className?: string }) {
   const [armed, setArmed] = useState(calm());
@@ -23,27 +23,30 @@ export function Ring({ arcs, total, label, children, className }: { arcs: Arc[];
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setArmed(true)));
     return () => cancelAnimationFrame(id);
   }, []);
-  let start = 0;
+  let end = 0;
+  const ends = arcs.map((a) => (end += a.value));
+  const off = (n: number) => (armed && total ? C * (1 - Math.min(n, total) / total) : C);
   return (
-    <div className={cn("relative grid shrink-0 place-items-center", className ?? "size-36 sm:size-40")} role="img" aria-label={label}>
+    <div className={cn("relative grid shrink-0 place-items-center", className ?? "size-24 sm:size-40")} role="img" aria-label={label}>
       <svg viewBox="0 0 156 156" className="absolute inset-0 -rotate-90">
         <circle cx="78" cy="78" r={R} className="fill-none stroke-border stroke-[9]" />
-        {arcs.map((a, i) => {
-          const len = armed && total ? Math.min(C, (C * a.value) / total) : 0;
-          const offset = -start;
-          start += total ? (C * a.value) / total : 0;
-          return len > 0 || !armed ? (
+        {arcs
+          .map((a, i) => (
             <circle
               key={i}
               cx="78"
               cy="78"
               r={R}
-              strokeDasharray={`${len} ${C - len}`}
-              strokeDashoffset={offset}
-              className={cn("fill-none stroke-[9] [stroke-linecap:butt] transition-[stroke-dasharray] duration-[1200ms] ease-out motion-reduce:transition-none", a.className)}
+              strokeDasharray={C}
+              strokeDashoffset={off(ends[i]!)}
+              className={cn(
+                "fill-none stroke-[9] [stroke-linecap:round] transition-[stroke-dashoffset] duration-[1400ms] ease-out motion-reduce:transition-none",
+                a.className,
+                (!a.value || !total) && "hidden",
+              )}
             />
-          ) : null;
-        })}
+          ))
+          .reverse()}
       </svg>
       <div className="grid gap-0.5 text-center">{children}</div>
     </div>

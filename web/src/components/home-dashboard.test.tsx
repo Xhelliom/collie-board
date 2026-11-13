@@ -5,7 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { server } from "@/test/setup";
 import { MemoryRouter } from "react-router";
 import type { DashboardView } from "@/lib/dashboard";
-import { HomeActivity, HomeHero, HomeKpis, OpenPrs, UsageRings } from "./home-dashboard";
+import type { RepoTile } from "@/lib/dashboard";
+import type { AgentView } from "@/lib/types";
+import { CardsLine, HomeHero, Machines, machinesOf, OpenPrs, ProjectRows, UsageRings } from "./home-dashboard";
 
 const dash = { review: 2, stuck: 3, ready: 1, delivered: 4, repos: [] } as unknown as DashboardView;
 
@@ -49,36 +51,78 @@ describe("UsageRings", () => {
   });
 });
 
-describe("HomeKpis", () => {
-  it("leads each figure to the board, filtered on its status", () => {
-    render(<MemoryRouter><HomeKpis dash={dash} /></MemoryRouter>);
+describe("CardsLine", () => {
+  it("says the waiting cards as a sentence of links to the filtered board, skipping what is at zero", () => {
+    render(<MemoryRouter><CardsLine dash={{ ...dash, ready: 0 }} /></MemoryRouter>);
     const href = (name: RegExp) => screen.getByRole("link", { name }).getAttribute("href");
-    expect(href(/to review/i)).toBe("/board?status=review");
-    expect(href(/stuck/i)).toBe("/board?status=blocked%2Corphaned");
-    expect(href(/ready/i)).toBe("/board?status=ready");
-    expect(href(/delivered/i)).toBe("/board?status=done");
-  });
-
-  it("names the object — these are cards, not panes — and drops the redundant notes", () => {
-    render(<MemoryRouter><HomeKpis dash={dash} /></MemoryRouter>);
-    expect(screen.getByText("Cards")).toBeInTheDocument();
-    expect(screen.queryByText("can start now")).not.toBeInTheDocument();
+    expect(href(/2 cards to review/)).toBe("/board?status=review");
+    expect(href(/3 stuck/)).toBe("/board?status=blocked%2Corphaned");
+    expect(screen.queryByText(/ready/)).toBeNull();
   });
 });
+
+const ag = (status: AgentView["status"]): AgentView => ({ paneId: status, workspaceId: "w", workspaceLabel: "w", workspaceNumber: 1, tabId: "t", agent: "claude", status, cwd: "/r", focused: false, kind: "agent" });
 
 describe("HomeHero", () => {
-  it("does not repeat the review count the KPI already shows", () => {
-    render(<HomeHero agents={[]} />);
-    expect(screen.queryByText(/to review/i)).not.toBeInTheDocument();
+  it("titles the screen with the herd's state, and rings who works out of all", () => {
+    render(<HomeHero agents={[ag("working"), ag("working"), ag("idle")]} cards={null} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Nothing needs you, 2 agents are working");
+    expect(screen.getByRole("img", { name: "2 working out of 3" })).toHaveTextContent("of 3");
+  });
+
+  it("leads with who waits", () => {
+    render(<HomeHero agents={[ag("blocked"), ag("idle")]} cards={null} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("1 agent needs you, all at rest");
   });
 });
 
-describe("HomeActivity", () => {
-  it("is titled as the alerts it lists", async () => {
-    server.use(http.get("/api/notifications/log", () => HttpResponse.json({ entries: [] })));
-    render(<MemoryRouter><HomeActivity session={undefined} /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: "Latest alerts" })).toBeInTheDocument();
-    expect(await screen.findByText("Nothing yet.")).toBeInTheDocument();
+const repo = (i: number, extra: Partial<RepoTile> = {}): RepoTile => ({
+  path: `/r/${i}`, name: `repo${i}`, active: 0, waiting: 0, blocked: 0, closedCount: 0, updatedAt: 1, current: [], ...extra,
+});
+
+describe("ProjectRows", () => {
+  it("puts the projects where something runs first, five rows, the rest behind « All projects »", async () => {
+    render(<MemoryRouter><ProjectRows repos={[0, 1, 2, 3, 4, 5].map((i) => repo(i, i === 4 ? { active: 2 } : {}))} /></MemoryRouter>);
+    expect(screen.getAllByText(/^repo\d$/).map((e) => e.textContent)).toEqual(["repo4", "repo0", "repo1", "repo2", "repo3"]);
+    await userEvent.click(screen.getByRole("button", { name: "All projects (6)" }));
+    expect(screen.getAllByText(/^repo\d$/)).toHaveLength(6);
+  });
+
+  it("shows the objective with its budget, the current phase and the activity", () => {
+    const step = { id: "s", status: "done" } as never;
+    render(
+      <MemoryRouter>
+        <ProjectRows
+          repos={[repo(0, { waiting: 1, blocked: 1, current: [{ key: "p", title: "Fortress", done: 1, steps: [step, { id: "t", status: "working" } as never] }] }), repo(1)]}
+          goals={{ "/r/0": { status: "active", text: "Hold the siege. Then more.", lots: 2, maxLots: 10, pct: 68 } }}
+          toTest={{ "/r/0": 3 }}
+        />
+      </MemoryRouter>,
+    );
+    const row = screen.getByText("repo0").closest("a")!;
+    expect(row.querySelector("[data-goal]")).toHaveTextContent("Hold the siege.");
+    expect(row.querySelector("[data-goal]")).not.toHaveTextContent("Then more");
+    expect(row.querySelector("[data-goal] svg")).toHaveClass("text-status-done");
+    expect(row).toHaveTextContent("lot 2 of 10, budget 68 %");
+    expect(row).toHaveTextContent("Fortress");
+    expect(row).toHaveTextContent("1 of 2");
+    expect(row).toHaveTextContent("1 for you");
+    expect(row).toHaveTextContent("1 stuck");
+    expect(row).toHaveTextContent("3 to test");
+    expect(screen.getByText("repo1").closest("a")).toHaveTextContent("No objective");
+  });
+});
+
+describe("Machines", () => {
+  it("lists this machine and every peer, an unreachable one in words", () => {
+    const peers = [
+      { peer: "dev", state: "connected" as const, error: null, agents: [ag("idle")], engine: { engine: "herdr09" as const, hc: null } },
+      { peer: "dell", state: "disconnected" as const, error: "timeout", agents: [] },
+    ];
+    render(<Machines machines={machinesOf({ bridge: "connected", engine: { engine: "hc", hc: null }, agents: 22 }, peers, "This PC")} />);
+    expect(screen.getByText("This PC").parentElement).toHaveTextContent("herdr-core, 22 agents");
+    expect(screen.getByText("dev").parentElement).toHaveTextContent("herdr 0.9, 1 agent");
+    expect(screen.getByText("dell").parentElement).toHaveTextContent("unreachable");
   });
 });
 
