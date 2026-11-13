@@ -1,6 +1,6 @@
 import type { CardView, Lot, Phase } from "@/lib/board";
 import { repoName } from "@/lib/board";
-import { AGENT_GROUPS, groupMembers, isOrchestrator } from "@/lib/agent-groups";
+import { AGENT_GROUPS, groupMembers } from "@/lib/agent-groups";
 import { projectOf, stepGroup } from "@/lib/project";
 import type { AgentView } from "@/lib/types";
 
@@ -56,6 +56,8 @@ export interface RepoTile {
   /** Steps an agent is on / that wait for you, over the current phases only. */
   active: number;
   waiting: number;
+  /** Steps stuck without an agent (blocked or orphaned), over the current phases only. */
+  blocked: number;
   /** Validated milestones, for a repo with nothing in progress. */
   closedCount: number;
   updatedAt: number;
@@ -92,6 +94,7 @@ export function dashboardOf(cards: CardView[], now = Date.now(), phases: Record<
       current,
       active: shown.filter((s) => stepGroup(s) === "flight").length,
       waiting: shown.filter((s) => stepGroup(s) === "waiting").length,
+      blocked: shown.filter((s) => s.status === "blocked" || s.status === "orphaned").length,
       closedCount: v.closedCount,
       updatedAt: own.reduce((m, c) => Math.max(m, c.updatedAt), 0),
     };
@@ -110,13 +113,4 @@ export function dashboardOf(cards: CardView[], now = Date.now(), phases: Record<
 export function herdCounts(agents: AgentView[]): [number, number, number] {
   const [n, w, o] = AGENT_GROUPS.map((g) => groupMembers(agents, g).length);
   return [n ?? 0, w ?? 0, o ?? 0];
-}
-
-/** What a project's orchestrator is doing, read off the snapshot — no request. Absent counts as at rest. */
-export type OrchestratorMood = "idle" | "working" | "waiting";
-export function orchestratorMood(agents: readonly AgentView[], repoPath: string): OrchestratorMood {
-  // Same match as the bridge's findOrchestrator: its own label AND the repo's directory.
-  const trim = (p: string) => p.replace(/\/+$/, "");
-  const a = agents.find((x) => isOrchestrator(x) && trim(x.cwd) === trim(repoPath));
-  return a?.status === "blocked" ? "waiting" : a?.status === "working" ? "working" : "idle";
 }

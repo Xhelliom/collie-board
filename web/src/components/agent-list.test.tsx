@@ -1,13 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
-
-import type { AgentView } from "@/lib/types";
-import { AgentList, PeersDown } from "./agent-list";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { server } from "@/test/setup";
 
-// The redesigned triage: three different amounts of ink for three urgencies, not one card reused at
-// three tints — see agent-card.tsx. This locks in which component each status group renders as.
+import { server } from "@/test/setup";
+import type { AgentView } from "@/lib/types";
+import { AgentList, IdleAgents } from "./agent-list";
+
 function agent(extra: Partial<AgentView> = {}): AgentView {
   return {
     paneId: "w1:p1",
@@ -23,183 +21,70 @@ function agent(extra: Partial<AgentView> = {}): AgentView {
     ...extra,
   };
 }
+const list = (agents: AgentView[], extra: Partial<Parameters<typeof AgentList>[0]> = {}) => (
+  <AgentList agents={agents} onOpen={() => {}} hasOrch={false} withOrch={false} onWithOrch={() => {}} {...extra} />
+);
 
-describe("AgentList — triage grouping", () => {
-  it("shows the empty placeholder when there are no agents", () => {
-    render(<AgentList agents={[]} bridge="connected" onOpen={() => {}} />);
-    expect(screen.getByText("No agents running.")).toBeInTheDocument();
+describe("AgentList", () => {
+  it("lists who waits for you, then who works — one row each, with its project and machine", () => {
+    render(list([agent({ paneId: "a", cardTitle: "Ship tabs", cwd: "/x/.herdr/worktrees/collie/b" }), agent({ paneId: "b", status: "blocked", paneLabel: "asks" })]));
+    const needs = screen.getByRole("region", { name: "Waiting for you" });
+    expect(within(needs).getByText("asks")).toBeInTheDocument();
+    const work = screen.getByRole("region", { name: "Working" });
+    const row = within(work).getByText("Ship tabs").closest("button")!;
+    expect(row).toHaveTextContent("collie");
+    expect(row).toHaveTextContent("This PC");
+    // No meta line any more: no model, no ctx, no engine label.
+    expect(row).not.toHaveTextContent(/ctx|Opus/);
   });
 
-  it("groups a blocked agent under Needs you, as the loud (solid-chip) card", () => {
-    render(
-      <AgentList agents={[agent({ paneId: "p1", status: "blocked" })]} onOpen={() => {}} />,
-    );
-    expect(screen.getByText("Needs you")).toBeInTheDocument();
-    // The loud chip's own label — STATUS_LABEL.blocked, capitalised by CSS not by the text node.
-    expect(screen.getByText("needs you")).toBeInTheDocument();
+  it("draws no « waiting » section when nobody waits, and says so when nobody works", () => {
+    render(list([]));
+    expect(screen.queryByRole("region", { name: "Waiting for you" })).toBeNull();
+    expect(screen.getByText("No agent is working.")).toBeInTheDocument();
   });
 
-  it("groups a working agent under Working, as the medium card (name + ctx subline)", () => {
-    render(
-      <AgentList
-        agents={[agent({ paneId: "p1", status: "working", ctxPct: 42 })]}
-        onOpen={() => {}}
-      />,
-    );
-    expect(screen.getByText("Working")).toBeInTheDocument();
-    expect(screen.getByText(/ctx 42%/)).toBeInTheDocument();
+  it("offers the orchestrators filter only when the herd has one", async () => {
+    const toggled: boolean[] = [];
+    const { rerender } = render(list([agent()], { hasOrch: true, onWithOrch: (v) => toggled.push(v) }));
+    await userEvent.click(screen.getByRole("button", { name: "With the orchestrators" }));
+    expect(toggled).toEqual([true]);
+    rerender(list([agent()]));
+    expect(screen.queryByRole("button", { name: "With the orchestrators" })).toBeNull();
   });
 
-  it("groups an idle agent under Idle · done, as a bare row naming its status", () => {
-    render(<AgentList agents={[agent({ paneId: "p1", status: "idle" })]} onOpen={() => {}} />);
-    const section = screen.getByText("Idle · done").closest("section")!;
-    expect(within(section).getByText("idle")).toBeInTheDocument();
-  });
-
-  // jsdom does no layout, so the overflow itself can't be asserted here — this locks in the class
-  // that prevents it. Without `min-width:0` a grid item never shrinks below its min-content, and a
-  // card of `truncate` text has a min-content as wide as the untruncated string: the card grew past
-  // the viewport instead of ellipsising (measured in headless Chrome: 574px card in a 468px column).
-  it("lets the card shrink below its text: the grid items are min-w-0", () => {
-    render(
-      <AgentList
-        agents={[
-          agent({ paneId: "p1", status: "blocked" }),
-          agent({ paneId: "p2", status: "working" }),
-        ]}
-        onOpen={() => {}}
-      />,
-    );
-    for (const label of ["Needs you", "Working"]) {
-      const grid = screen.getByText(label).closest("section")!.querySelector("div.grid")!;
-      expect(grid.className).toContain("[&>*]:min-w-0");
-    }
-  });
-
-  it("counts each section correctly", () => {
-    render(
-      <AgentList
-        agents={[
-          agent({ paneId: "p1", status: "blocked" }),
-          agent({ paneId: "p2", status: "working" }),
-        ]}
-        onOpen={() => {}}
-      />,
-    );
-    expect(screen.getByText("Needs you").closest("h2")?.textContent).toMatch(/\(1\)/);
-    expect(screen.getByText("Working").closest("h2")?.textContent).toMatch(/\(1\)/);
-  });
-});
-
-describe("AgentList — pane names", () => {
-  it("titles an unnamed pane by its workspace, not by the agent every row shares", () => {
-    render(<AgentList agents={[agent({ status: "idle", workspaceLabel: "tablee" }), agent({ paneId: "w1:p2", status: "working", workspaceLabel: "collie" })]} onOpen={() => {}} />);
-    expect(screen.getByText("tablee").className).toMatch(/truncate/);
-    expect(screen.getByText("collie").className).toMatch(/truncate/);
-  });
-
-  it("keeps ctx % out of the truncating line", () => {
-    render(<AgentList agents={[agent({ ctxPct: 42 })]} onOpen={() => {}} />);
-    expect(screen.getByText(/ctx 42%/).className).toMatch(/shrink-0/);
-  });
-});
-
-
-describe("AgentList — orchestrators filter", () => {
-  it("narrows to the orchestrators, and draws no chip on a herd without one", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const orch = agent({ paneId: "o", workspaceLabel: "orchestrator-repo", paneLabel: "the-orch" });
-    const other = agent({ paneId: "w", paneLabel: "a-worker" });
-    const { unmount } = render(<AgentList agents={[other, orch]} onOpen={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: "Orchestrators" }));
-    expect(screen.getByText("the-orch")).toBeInTheDocument();
-    expect(screen.queryByText("a-worker")).toBeNull();
-    unmount();
-    render(<AgentList agents={[other]} onOpen={() => {}} />);
-    expect(screen.queryByRole("button", { name: "Orchestrators" })).toBeNull();
-  });
-});
-
-describe("AgentList — pins", () => {
-  it("pins a session from its tile; the list itself no longer carries a Pinned section", async () => {
-    let sent: unknown;
-    server.use(
-      http.post("/api/board/pins", async ({ request }) => {
-        sent = await request.json();
-        return HttpResponse.json({ pins: [{ session: "s1", name: "claude · proj" }] });
-      }),
-    );
-    render(<AgentList agents={[agent({ agentSessionId: "s1", status: "idle" })]} bridge="connected" onOpen={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: "Pin to the sidebar" }));
-    expect(sent).toEqual({ session: "s1", name: "claude · proj", pinned: true });
-    expect(await screen.findByRole("button", { name: "Unpin" })).toBeInTheDocument();
-    expect(screen.queryByText("Pinned")).toBeNull();
-  });
-
-  it("offers no pin on a pane without a session", () => {
-    render(<AgentList agents={[agent()]} bridge="connected" onOpen={() => {}} />);
-    expect(screen.queryByRole("button", { name: "Pin to the sidebar" })).toBeNull();
-  });
-});
-
-// One herd (ADR 0048): a paired peer's agents sit in the same triage, marked « on <peer> », and a peer
-// that can't be read is one greyed line — never ghost agents, never the local list gone.
-describe("AgentList — paired peers", () => {
-  it("lists a remote agent with its machine chip, filterable by machine", async () => {
+  it("filters by machine once a peer has agents, and opens a remote agent by its routed id", async () => {
     const opened: string[] = [];
-    render(
-      <AgentList
-        agents={[
-          agent({ paneId: "w1:p1", status: "working", workspaceLabel: "here" }),
-          agent({ paneId: "w2:p1@dev", peer: "dev", status: "blocked", workspaceLabel: "there" }),
-        ]}
-        onOpen={(id) => opened.push(id)}
-      />,
-    );
-    expect(screen.getByText("on dev")).toBeInTheDocument();
+    render(list([agent({ paneId: "a", paneLabel: "here" }), agent({ paneId: "b@dev", peer: "dev", paneLabel: "there" })], { onOpen: (id) => opened.push(id) }));
     await userEvent.click(screen.getByText("there"));
-    expect(opened).toEqual(["w2:p1@dev"]);
+    expect(opened).toEqual(["b@dev"]);
     await userEvent.click(screen.getByRole("button", { name: "dev" }));
-    expect(screen.queryByText("Working")).not.toBeInTheDocument();
-    expect(screen.getByText("there")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "this machine" }));
-    expect(screen.queryByText("there")).not.toBeInTheDocument();
-    expect(screen.getByText("Working")).toBeInTheDocument();
+    expect(screen.queryByText("here")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "This PC" }));
+    expect(screen.getByText("here")).toBeInTheDocument();
+    expect(screen.queryByText("there")).toBeNull();
   });
 
-  it("shows an unreachable peer as one line with the reason, and nothing for a reachable one", () => {
-    render(
-      <PeersDown
-        peers={[
-          { peer: "dev", state: "disconnected", error: "dev: not reached (timeout)", agents: [] },
-          { peer: "win", state: "connected", error: null, agents: [] },
-        ]}
-      />,
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("dev — unreachable");
-    expect(screen.getByText("dev: not reached (timeout)")).toBeInTheDocument();
-    expect(screen.queryByText(/win/)).not.toBeInTheDocument();
+  it("pins a session from its row", async () => {
+    let sent: unknown;
+    server.use(http.post("/api/board/pins", async ({ request }) => ((sent = await request.json()), HttpResponse.json({ pins: [] }))));
+    render(list([agent({ agentSessionId: "s1" })]));
+    await userEvent.click(screen.getByRole("button", { name: "Pin to the sidebar" }));
+    expect(sent).toMatchObject({ session: "s1", pinned: true });
   });
 });
 
-describe("AgentList — hc agents by project", () => {
-  it("lists hc agents under their project, orchestrator first; 0.9 agents keep the triage", () => {
-    render(
-      <AgentList
-        agents={[
-          agent({ paneId: "w1:p1", status: "working" }),
-          agent({ paneId: "t2", workspaceId: "hc", workspaceLabel: "hc", cwd: "/code/app", paneLabel: "plain", status: "idle" }),
-          agent({ paneId: "t1", workspaceId: "hc", workspaceLabel: "hc", cwd: "/code/app", paneLabel: "orchestrator-app", status: "idle" }),
-        ]}
-        onOpen={() => {}}
-      />,
-    );
-    expect(screen.getByText("Working")).toBeInTheDocument();
-    const app = screen.getByRole("region", { name: "app" });
-    const names = within(app).getAllByRole("button").map((b) => b.textContent ?? "");
-    const orch = names.findIndex((n) => n.includes("orchestrator-app"));
-    const plain = names.findIndex((n) => n.includes("plain"));
-    expect(orch).toBeGreaterThanOrEqual(0);
-    expect(orch).toBeLessThan(plain);
+describe("IdleAgents", () => {
+  it("folds the resting agents behind their count", async () => {
+    render(<IdleAgents agents={[agent({ status: "idle", paneLabel: "rest1" }), agent({ paneId: "p2", status: "done", paneLabel: "rest2" }), agent({ paneId: "p3" })]} onOpen={() => {}} />);
+    expect(screen.queryByText("rest1")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Agents at rest (2)" }));
+    expect(screen.getByText("rest1")).toBeInTheDocument();
+    expect(screen.getByText("rest2")).toBeInTheDocument();
+  });
+
+  it("renders nothing when every agent is busy", () => {
+    const { container } = render(<IdleAgents agents={[agent()]} onOpen={() => {}} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

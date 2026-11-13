@@ -1,4 +1,4 @@
-import { AGENT_GROUPS, groupMembers, isOrchestrator, projectGroups, projectOf, showsSpaces } from "./agent-groups";
+import { AGENT_GROUPS, groupMembers, isOrchestrator, projectOf, showsSpaces } from "./agent-groups";
 import type { AgentStatus, AgentView } from "./types";
 
 const ALL_STATUSES: AgentStatus[] = ["idle", "working", "blocked", "done", "unknown"];
@@ -96,19 +96,6 @@ describe("the hc herd by project (ADR 0052 phase 4)", () => {
   it("an hc orchestrator is known by its pane label, the space label it has none of", () => {
     expect(isOrchestrator(hc("t1", "/code/app", { paneLabel: "orchestrator-app" }))).toBe(true);
     expect(isOrchestrator(hc("t2", "/code/app"))).toBe(false);
-  });
-
-  it("groups by project: orchestrator, then cards' agents, then the other terminals", () => {
-    const groups = projectGroups([
-      hc("t1", "/code/zed"),
-      hc("t2", "/code/app"),
-      hc("t3", "/home/me/.herdr/worktrees/app/board-x", { cardId: "c1" }),
-      hc("t4", "/code/app", { paneLabel: "orchestrator-app" }),
-    ]);
-    expect(groups.map((g) => [g.project, g.members.map((a) => a.paneId)])).toEqual([
-      ["app", ["t4", "t3", "t2"]],
-      ["zed", ["t1"]],
-    ]);
   });
 
   it("shows spaces unless every space is hc's", () => {

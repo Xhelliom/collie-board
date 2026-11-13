@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 
 import type { AgentView } from "@/lib/types";
-import { AgentCard, IdleDoneRow, WorkingCard } from "./agent-card";
+import { AgentCard, WorkingCard } from "./agent-card";
 
 // Focused on the two board-card fields G1/G2 added (branch, ctx%) — everything else about this row
 // is exercised indirectly through the routes that render it.
@@ -49,19 +49,13 @@ describe("AgentCard", () => {
 describe("idle/done age", () => {
   const fiveMinAgo = Date.now() - 5 * 60_000;
 
-  it("shows it next to the state on an idle row and a done card", () => {
-    const { unmount } = render(
-      <IdleDoneRow agent={agent({ status: "idle", statusSince: fiveMinAgo })} onClick={() => {}} />,
-    );
-    expect(screen.getByText(/idle · 5m ago/)).toBeInTheDocument();
-    unmount();
-
+  it("shows it next to the state on a done card", () => {
     render(<AgentCard agent={agent({ status: "done", statusSince: fiveMinAgo })} onClick={() => {}} />);
     expect(screen.getByText("5m ago")).toBeInTheDocument();
   });
 
   it("omits it when the switch-over instant is unknown", () => {
-    render(<IdleDoneRow agent={agent({ status: "done" })} onClick={() => {}} />);
+    render(<AgentCard agent={agent({ status: "done" })} onClick={() => {}} />);
     expect(screen.queryByText(/ago/)).toBeNull();
   });
 

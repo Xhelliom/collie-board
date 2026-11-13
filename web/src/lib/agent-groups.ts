@@ -74,19 +74,3 @@ export function projectOf(cwd: string): string {
 /** Where a pane lives, as a label: its space under herdr 0.9; under hc, whose one space is named "hc", its project. */
 export const placeOf = (a: Pick<AgentView, "workspaceId" | "workspaceLabel" | "cwd">): string =>
   isHcAgent(a) ? projectOf(a.cwd) : a.workspaceLabel;
-
-/**
- * The hc herd by project (ADR 0052 phase 4): projects by name, and in each the orchestrator first,
- * then the cards' agents, then every other terminal. Sort is stable, so the bridge's order holds within a rank.
- */
-export function projectGroups(agents: AgentView[]): { project: string; members: AgentView[] }[] {
-  const rank = (a: AgentView) => (isOrchestrator(a) ? 0 : a.cardId ? 1 : 2);
-  const byProject = new Map<string, AgentView[]>();
-  for (const a of agents) {
-    const p = projectOf(a.cwd);
-    byProject.set(p, [...(byProject.get(p) ?? []), a]);
-  }
-  return [...byProject]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([project, members]) => ({ project, members: members.sort((x, y) => rank(x) - rank(y)) }));
-}

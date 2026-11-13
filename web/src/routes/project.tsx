@@ -25,6 +25,7 @@ import { ProjectRoadmap } from "@/components/project-roadmap";
 import { RepoFlow } from "@/components/repo-flow";
 import { ClosedPhases, SealSheet, ValidateSheet } from "@/components/project-milestones";
 import { Kpi, calm, useCountUp } from "@/components/kpi";
+import { Ring } from "@/components/ring";
 import { StepItem, STEP_TONE } from "@/components/project-step";
 import { boardErrorMessage, CARD_STATUS_LABEL, deletePhase, loadRepoScope, patchCard, repoName, reposOf, type CardView } from "@/lib/board";
 import { forgetProjectSettled, type ProjectData } from "@/lib/board-loaders";
@@ -72,42 +73,25 @@ const store = {
   },
 };
 
-const R = 66;
-const C = 2 * Math.PI * R;
-
-function Ring({ done, active, total }: { done: number; active: number; total: number }) {
+function ProgressRing({ done, active, total }: { done: number; active: number; total: number }) {
   const t = useT();
-  const [armed, setArmed] = useState(calm());
-  useEffect(() => {
-    const id = requestAnimationFrame(() => requestAnimationFrame(() => setArmed(true)));
-    return () => cancelAnimationFrame(id);
-  }, []);
   const pct = useCountUp(total ? Math.round((100 * done) / total) : 0);
-  const off = (n: number) => (armed && total ? C * (1 - n / total) : C);
-  const arc = "fill-none stroke-[9] [stroke-linecap:round] transition-[stroke-dashoffset] duration-[1400ms] ease-out motion-reduce:transition-none";
   return (
-    <div className="relative grid size-24 shrink-0 place-items-center sm:size-40" role="img" aria-label={t("project.ring.aria", { done, total })}>
-      <svg viewBox="0 0 156 156" className="absolute inset-0 -rotate-90">
-        <circle cx="78" cy="78" r={R} className="fill-none stroke-border stroke-[9]" />
-        <circle cx="78" cy="78" r={R} strokeDasharray={C} strokeDashoffset={off(done + active)} className={cn(arc, "stroke-status-working")} />
-        <circle
-          cx="78"
-          cy="78"
-          r={R}
-          strokeDasharray={C}
-          strokeDashoffset={off(done)}
-          className={cn(arc, "stroke-status-done drop-shadow-[0_0_6px_var(--status-done)]")}
-        />
-      </svg>
-      <div className="grid gap-0.5 text-center">
-        <span className="text-2xl font-bold leading-none tabular-nums sm:text-4xl">{pct}%</span>
-        <span className="hidden text-xs leading-snug text-muted-foreground sm:block">
-          {t("project.ring.done", { done, total })}
-          <br />
-          {t("project.ring.flight", { active })}
-        </span>
-      </div>
-    </div>
+    <Ring
+      arcs={[
+        { value: done, className: "stroke-status-done drop-shadow-[0_0_6px_var(--status-done)]" },
+        { value: active, className: "stroke-status-working" },
+      ]}
+      total={total}
+      label={t("project.ring.aria", { done, total })}
+    >
+      <span className="text-2xl font-bold leading-none tabular-nums sm:text-4xl">{pct}%</span>
+      <span className="hidden text-xs leading-snug text-muted-foreground sm:block">
+        {t("project.ring.done", { done, total })}
+        <br />
+        {t("project.ring.flight", { active })}
+      </span>
+    </Ring>
   );
 }
 
@@ -529,7 +513,7 @@ export function ProjectRoute() {
                       )}
                     </p>
                   </div>
-                  <Ring done={v.done} active={v.active} total={v.total} />
+                  <ProgressRing done={v.done} active={v.active} total={v.total} />
                 </header>
 
                 <div className="hidden grid-cols-4 gap-2 sm:grid">

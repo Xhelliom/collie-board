@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
+import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
 import { server } from "@/test/setup";
@@ -27,24 +28,31 @@ function renderHome(agents = data.agents) {
 }
 
 describe("HomeRoute", () => {
+  it("titles the screen with the herd's state, no « Herd » nor space count", async () => {
+    renderHome();
+    expect(await screen.findByRole("heading", { level: 1, name: "1 agent needs you, 1 agent is working" })).toBeInTheDocument();
+    expect(screen.queryByText("2 spaces")).toBeNull();
+    expect(screen.queryByText("Herd")).toBeNull();
+  });
+
   it("pins the content grid to one shrinkable column below lg, so a truncated line cannot widen the page", async () => {
     renderHome();
-    const grid = (await screen.findByText("Working")).closest("section")!.parentElement!.parentElement!.parentElement!;
+    const grid = (await screen.findByRole("region", { name: "Working" })).parentElement!.parentElement!.parentElement!;
     expect(grid.className).toMatch(/\bgrid-cols-1\b/);
     expect(grid.className).toMatch(/\[&>\*\]:min-w-0/);
   });
 
-  it("puts the agent triage before the card KPIs", async () => {
-    renderHome();
-    const triage = await screen.findByText("Needs you");
-    const kpis = screen.getByText("Cards");
-    expect(triage.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("counts spaces only in the subtitle, and says nothing twice for an empty herd", async () => {
-    renderHome([]);
-    expect(await screen.findByText("2 spaces")).toBeInTheDocument();
-    expect(screen.queryByText("No agents running.")).not.toBeInTheDocument();
+  it("leaves the orchestrators out by default — but never one that waits for you — and remembers the choice", async () => {
+    localStorage.removeItem("collie-home-with-orch");
+    const orch = (id: string, status: AgentView["status"]) => agent({ paneId: id, status, workspaceLabel: "orchestrator-repo", paneLabel: `orch-${id}` });
+    renderHome([agent({ paneLabel: "worker" }), orch("o1", "working"), orch("o2", "blocked")]);
+    expect(await screen.findByText("orch-o2")).toBeInTheDocument();
+    expect(screen.queryByText("orch-o1")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("1 agent needs you, 1 agent is working");
+    await userEvent.click(screen.getByRole("button", { name: "With the orchestrators" }));
+    expect(screen.getByText("orch-o1")).toBeInTheDocument();
+    expect(localStorage.getItem("collie-home-with-orch")).toBe("1");
+    localStorage.removeItem("collie-home-with-orch");
   });
 });
 
@@ -71,14 +79,14 @@ describe("HomeRoute cold start", () => {
       await gate;
       return HttpResponse.json({ cards: [card] });
     });
-    expect(await screen.findByText("Needs you")).toBeInTheDocument();
+    expect(await screen.findByText("Waiting for you")).toBeInTheDocument();
     expect(screen.getByTestId("kpis-skeleton")).toBeInTheDocument();
     expect(screen.getByTestId("projects-skeleton")).toBeInTheDocument();
     release();
-    expect(await screen.findByText("repo")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /repo/ })).toBeInTheDocument();
     expect(screen.queryByTestId("kpis-skeleton")).not.toBeInTheDocument();
     expect(screen.queryByTestId("projects-skeleton")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /to review/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "1 card to review" })).toBeInTheDocument();
   });
 
   it("reads every repo's phases in one request (audit perf #11)", async () => {
@@ -90,29 +98,21 @@ describe("HomeRoute cold start", () => {
     expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
   });
 
-  it("shows each project's orchestrator state and its « to test » count, from one recette request for every repo", async () => {
+  it("shows each project's « to test » count, from one recette request for every repo", async () => {
     const urls: string[] = [];
     server.use(http.get("/api/recette", ({ request }) => (urls.push(request.url), HttpResponse.json({ groups: [{ usage: null, entries: [
       { repoPath: "/home/me/repo", state: "todo" }, { repoPath: "/home/me/repo", state: "todo" }, { repoPath: "/home/me/repo", state: "ok" },
     ] }] }))));
-    const orch = { ...data.agents[0], paneId: "o1", workspaceLabel: "orchestrator-repo", cwd: "/home/me/repo", status: "blocked" as const };
-    data.agents.push(orch);
-    try {
-      await coldHome(async () => HttpResponse.json({ cards: [card, { ...card, id: "c2", repoPath: "/home/me/other" }] }));
-      expect(await screen.findByText("2 to test")).toBeInTheDocument();
-      expect(screen.getByText("Orchestrator awaits your decision")).toBeInTheDocument();
-      expect(screen.getByText("Orchestrator at rest")).toBeInTheDocument();
-      expect(urls).toHaveLength(1);
-      expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
-    } finally {
-      data.agents.pop();
-    }
+    await coldHome(async () => HttpResponse.json({ cards: [card, { ...card, id: "c2", repoPath: "/home/me/other" }] }));
+    expect(await screen.findByText("2 to test")).toBeInTheDocument();
+    expect(urls).toHaveLength(1);
+    expect(new URL(urls[0]).searchParams.has("repo")).toBe(false);
   });
 
   it("keeps a cards failure in the card blocks, the triage untouched", async () => {
     await coldHome(async () => HttpResponse.json({ error: "boom" }, { status: 500 }));
     await waitFor(() => expect(screen.getAllByText("Cards unavailable.")).toHaveLength(2));
-    expect(screen.getByText("Needs you")).toBeInTheDocument();
-    expect(screen.getByText("Working")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for you")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Working" })).toBeInTheDocument();
   });
 });

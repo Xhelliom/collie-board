@@ -73,7 +73,7 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
 }
 
 // How much of the budget is gone — the larger of lots and quota, as the bridge's checkpoints read it (goal-mode.ts).
-const budgetPct = (g: Goal) =>
+export const budgetPct = (g: Pick<Goal, "spent" | "budget">) =>
   Math.min(100, Math.round(100 * Math.max(g.spent.lots / g.budget.maxLots, g.spent.quotaPct === null ? 0 : g.spent.quotaPct / g.budget.quotaPct)));
 
 function GoalProgress({ goal }: { goal: Goal }) {

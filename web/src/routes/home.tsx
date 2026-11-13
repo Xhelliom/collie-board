@@ -1,22 +1,23 @@
 import { Await, useLoaderData, useNavigate, useRouteLoaderData } from "react-router";
-import { Suspense, useMemo, type ReactNode } from "react";
+import { Suspense, useMemo, useState, type ReactNode } from "react";
 
 import { AppHeader } from "@/components/app-header";
 import { NavMark } from "@/components/app-nav";
 import { SessionSwitcher } from "@/components/session-switcher";
 import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { useT } from "@/i18n";
-import { AgentList, PeersDown } from "@/components/agent-list";
+import { AgentList, IdleAgents } from "@/components/agent-list";
 import { UpdateBanner } from "@/components/update-banner";
 import {
   CardsError,
-  HomeActivity,
+  CardsLine,
+  CardsLineSkeleton,
   HomeHero,
-  HomeKpis,
-  HomeKpisSkeleton,
+  Machines,
+  machinesOf,
   OpenPrs,
-  ProjectTiles,
-  ProjectTilesSkeleton,
+  ProjectRows,
+  ProjectRowsSkeleton,
   UsageRings,
   useRepoLots,
   useRepoPhases,
@@ -26,36 +27,58 @@ import {
 import type { BoardData, HomeBoardData } from "@/lib/board-loaders";
 import { repoName, reposOf } from "@/lib/board";
 import { useListedRepos } from "@/lib/listed-repos";
-import { dashboardOf, orchestratorMood } from "@/lib/dashboard";
-import type { AgentView } from "@/lib/types";
+import { dashboardOf } from "@/lib/dashboard";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath } from "@/lib/nav";
 import { remoteAgents } from "@/lib/peers";
-import { isFreeShell, showsSpaces } from "@/lib/agent-groups";
+import { isFreeShell, isOrchestrator } from "@/lib/agent-groups";
 
-// Dashboard home screen (redesign §1 "Herd"). Purpose: answer "which agent needs me right now", and
-// nothing else — Spaces and the Board are nav destinations now (app-nav.tsx), not rows on this
-// screen. What's left is purely the triage: Needs you (loud) → Working (medium) → Idle · done
-// (quiet); tapping an agent opens its pane. See agent-list.tsx for the three card treatments and why
-// the ranking itself is the design.
+// « Avec les orchestrateurs », remembered on this device. Off: they are out of the title, the ring and
+// the list — an orchestrator that waits for you stays in « T'attendent » whatever this says.
+const ORCH_KEY = "collie-home-with-orch";
+function useWithOrch(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(ORCH_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(ORCH_KEY, v ? "1" : "0");
+    } catch {
+      /* private window: the choice just isn't remembered */
+    }
+  };
+  return [on, set];
+}
+
+// The home screen: answer « who needs me, who works, where are my projects » in one read. The title is
+// the herd's state as a sentence; the agents line up one per row by state; the projects one per row;
+// the machines and the quota sit in a side column on a wide screen, at the foot on a phone.
 export function HomeRoute() {
   const data = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData;
   const { board } = useLoaderData() as HomeBoardData;
   const navigate = useNavigate();
   const t = useT();
+  const [withOrch, setWithOrch] = useWithOrch();
 
   const open = (id: string) => navigate(panePath(id, data.session));
-  // One herd: the paired peers' agents beside this machine's, each with its « sur <pair> » chip.
+  // One herd: the paired peers' agents beside this machine's, each with its machine chip.
   const herd = useMemo(() => [...data.agents, ...data.shellPanes.filter(isFreeShell), ...remoteAgents(data.peers ?? [])], [data.agents, data.shellPanes, data.peers]);
+  const shown = useMemo(() => herd.filter((a) => withOrch || a.status === "blocked" || !isOrchestrator(a)), [herd, withOrch]);
+  const machines = machinesOf(
+    { bridge: data.bridge, engine: data.localEngine, agents: data.agents.length + data.shellPanes.filter(isFreeShell).length },
+    data.peers ?? [],
+    t("home.machine.this"),
+  );
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm flex-1 flex-col lg:max-w-none">
-      {/* The dashboard toolbar: title + a live pane/space count, the session switcher trailing
-          (also on Spaces, the other session-scoped root screen — it self-hides on a single-session
-          install). Settings is a nav destination now, not a header gear. */}
+      {/* The toolbar keeps the mark and the session switcher; the title is the sentence below. */}
       <AppHeader
-        title={t("home.title")}
-        subtitle={showsSpaces(data.workspaces) ? t("home.spaces", { count: data.workspaces.length }) : undefined}
         icon={
           <span className="lg:hidden">
             <NavMark gallop={false} lost={false} size={32} />
@@ -66,48 +89,46 @@ export function HomeRoute() {
 
       {/* Content region below the header: a viewport-clipped internal scroller. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-12">
-        {/* The screen's one h1. Visually redundant with the toolbar title, so it's sr-only — but
-            without it the triage h2s below are an orphan tree to anyone navigating by heading. */}
-        <h1 className="sr-only">{t("home.title")}</h1>
         <ReadOnlyBanner device={data.device} />
         {/* An available update / needed restart, up where it is seen (not after the last section). */}
         <UpdateBanner className="px-4 pt-3 lg:px-5" />
 
-        <main className="flex-1 px-4 py-5 lg:px-5 lg:py-6">
-          <div className="mx-auto flex max-w-6xl flex-col gap-6">
-            <HomeHero agents={herd} />
-            {/* The triage stays the heart of the screen, the card KPIs under it; the board's context sits
-                beside them on a wide screen and under them on a phone. `grid-cols-1` + `min-w-0`: an
-                implicit track is `auto`, so one `truncate` line would otherwise widen the whole page. */}
-            <div className="grid grid-cols-1 gap-6 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="flex flex-col gap-6">
-                {/* The hero already says "no agent running": no second empty block. */}
-                <AgentList agents={herd} bridge={data.bridge} onOpen={open} emptyState={false} />
-                <PeersDown peers={data.peers ?? []} />
-                <CardBlock board={board} fallback={<HomeKpisSkeleton />} label={t("home.kpi.title")}>
-                  {(b) => <Kpis board={b} />}
-                </CardBlock>
-              </div>
-              <aside className="flex flex-col gap-6">
-                <CardBlock board={board} fallback={<ProjectTilesSkeleton />} label={t("home.projects")}>
-                  {(b) => <Projects board={b} agents={data.agents} />}
-                </CardBlock>
-                <OpenPrs />
-                <UsageRings />
-                <HomeActivity session={data.session} />
-              </aside>
+        <main className="flex-1 px-4 py-5 lg:px-12 lg:py-10">
+          {/* `grid-cols-1` + `min-w-0`: an implicit track is `auto`, so one `truncate` line would
+              otherwise widen the whole page. */}
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-x-12 gap-y-8 [&>*]:min-w-0 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="flex flex-col gap-8">
+              <HomeHero
+                agents={shown}
+                cards={
+                  <CardBlock board={board} fallback={<CardsLineSkeleton />}>
+                    {(b) => <Cards board={b} />}
+                  </CardBlock>
+                }
+              />
+              <AgentList agents={shown} onOpen={open} hasOrch={herd.some(isOrchestrator)} withOrch={withOrch} onWithOrch={setWithOrch} />
+              {/* On a phone the resting agents fold right under the working ones; on a wide screen, below the projects. */}
+              <IdleAgents agents={shown} onOpen={open} className="-mt-6 lg:order-last lg:mt-0" />
+              <CardBlock board={board} fallback={<ProjectRowsSkeleton />} label={t("home.projects.current")}>
+                {(b) => <Projects board={b} />}
+              </CardBlock>
+              <Machines machines={machines} strip className="lg:hidden" />
             </div>
+            <aside className="hidden flex-col gap-6 pt-1.5 lg:flex">
+              <Machines machines={machines} />
+              <OpenPrs />
+              <UsageRings />
+            </aside>
           </div>
         </main>
-
       </div>
     </div>
   );
 }
 
-// The two blocks that read the cards. On a cold start `board` is a promise: each block waits under its own
-// skeleton and fails in its own slot, while the triage above renders from the snapshot (audit perf #3).
-function CardBlock({ board, fallback, label, children }: { board: HomeBoardData["board"]; fallback: ReactNode; label: string; children: (b: BoardData) => ReactNode }) {
+// The blocks that read the cards. On a cold start `board` is a promise: each block waits under its own
+// skeleton and fails in its own slot, while the agents above render from the snapshot (audit perf #3).
+function CardBlock({ board, fallback, label, children }: { board: HomeBoardData["board"]; fallback: ReactNode; label?: string; children: (b: BoardData) => ReactNode }) {
   return (
     <Suspense fallback={fallback}>
       <Await resolve={board} errorElement={<CardsError label={label} />}>
@@ -117,26 +138,24 @@ function CardBlock({ board, fallback, label, children }: { board: HomeBoardData[
   );
 }
 
-function Kpis({ board }: { board: BoardData }) {
-  const dash = useMemo(() => dashboardOf(board.cards, Date.now(), {}, board.counts?.delivered), [board]);
-  return <HomeKpis dash={dash} />;
+function Cards({ board }: { board: BoardData }) {
+  const dash = useMemo(() => dashboardOf(board.cards), [board]);
+  return <CardsLine dash={dash} />;
 }
 
-function Projects({ board, agents }: { board: BoardData; agents: AgentView[] }) {
+function Projects({ board }: { board: BoardData }) {
   const phases = useRepoPhases(useMemo(() => reposOf(board.cards).map((r) => r.path), [board.cards]));
   const listed = useListedRepos();
   const dash = useMemo(() => {
     const d = dashboardOf(board.cards, Date.now(), phases);
-    // A repo the operator added by hand gets its (empty) tile until its first card.
+    // A repo the operator added by hand gets its (empty) row until its first card.
     const extra = listed.filter((path) => !d.repos.some((r) => r.path === path));
-    return { ...d, repos: [...d.repos, ...extra.map((path) => ({ path, name: repoName(path), current: [], active: 0, waiting: 0, closedCount: 0, updatedAt: 0 }))] };
+    return { ...d, repos: [...d.repos, ...extra.map((path) => ({ path, name: repoName(path), current: [], active: 0, waiting: 0, blocked: 0, closedCount: 0, updatedAt: 0 }))] };
   }, [board.cards, phases, listed]);
   const stamp = useMemo(() => board.cards.map((c) => `${c.id}:${c.status}:${c.updatedAt}`).join(), [board.cards]);
   const paths = useMemo(() => dash.repos.map((r) => r.path), [dash.repos]);
   const lots = useRepoLots(paths, stamp);
   const toTest = useRepoToTest(paths, stamp);
   const goals = useRepoGoals(paths, stamp);
-  // This machine's agents only: a peer's orchestrator runs on its own paths.
-  const moods = useMemo(() => Object.fromEntries(paths.map((p) => [p, orchestratorMood(agents, p)])), [paths, agents]);
-  return <ProjectTiles repos={dash.repos} lots={lots} moods={moods} toTest={toTest} goals={goals} />;
+  return <ProjectRows repos={dash.repos} lots={lots} toTest={toTest} goals={goals} />;
 }
