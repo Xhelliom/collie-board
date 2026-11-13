@@ -43,156 +43,60 @@
 - **divers 07/11/2026** — validated 2026-11-07, 27 steps
 - **Nœud Windows fiable** — validated 2026-11-09, 11 steps
 - **Test instable : mcp finish_card « Merge et terminé » dépasse 5 s sur la CI** — validated 2026-11-07, 1 step
+- **Autonomie par objectif** — validated 2026-11-10, 9 steps
+- **Le projet au-delà du code** — validated 2026-11-10, 6 steps
+- **Pilotage robuste** — validated 2026-11-10, 8 steps
+- **Objectif co-écrit, arrêts clairs** — validated 2026-11-10, 2 steps
+- **Merge sûr, phases lisibles** — validated 2026-11-10, 2 steps
+- **Parler aux agents sans accroc** — validated 2026-11-10, 3 steps
+- **Désengagement de l'upstream** — validated 2026-11-11, 4 steps
+- **Fiabilité git et hc** — validated 2026-11-11, 3 steps
+- **Vivre sans herdr 0.9** — validated 2026-11-11, 2 steps
+- **Toutes les machines sur hc** — validated 2026-11-11, 3 steps
+- **Recette et terrain** — validated 2026-11-12, 2 steps
 
-## Phase 38 — Autonomie par objectif
+## Phase 49 — Interface simplifiée
 
-Un lot ne s'arrête plus en silence, et l'orchestrateur reprend seul ce qui est mécanique ; ensuite, l'objet Objectif.
+Moins d informations, plus simple à utiliser : panneau par panneau, en commençant par la navigation.
 
-### Lot — Enchaînement fiable (launched, 3 at a time)
+### Lot — Navigation simplifiée (launched, one at a time)
 
-- **L'orchestrateur reprend un lot arrêté pour une raison mécanique** — done
+- **Onglets du projet : quatre au lieu de sept** — backlog
+  - after: Navigation : une seule entrée Projets, et sous elle seulement ce que j épingle
 
-  Décidé par l'opérateur le 09/11. Aujourd'hui POST /api/runs/:id/resume refuse tout pane (bridge/project-routes.ts:251 « resuming is the operator's gesture »).
+  web/src/components/board-tabs.tsx montre 7 onglets + le sélecteur de dépôt : Board, Projet, Roadmap, PR ouvertes, Recette, Documents, Réglages. Passer à 4 : Projet (page d entrée du projet), Cartes (l actuel Board, avec un filtre « tous les projets » qui remplace l ancien Board global), Recette, et « Plus » (menu : Roadmap, PR ouvertes, Documents, Réglages). Les routes existantes restent (liens et favoris intacts) ; seul l accès change. Même chose sur téléphone. Style : onglets soulignés sur une règle pleine largeur (app-screens §4.4).
   
-  Faire : sous autonomie activée, accepter la reprise depuis le pane orchestrateur quand la raison du halt est mécanique : PR pas à jour, pre-push rouge, lead muet, travail non commité, démarrage raté. Classer les raisons dans une fonction pure. Borne : N reprises par lot (ex. 3), ensuite geste opérateur. Les halts de décision (tours du lead épuisés, lead fini sans commit, verdicts) restent à l'opérateur. Lot d'un autre poste : toujours refusé. Écrire l'ADR qui amende la règle et mettre à jour skills/collie-board/SKILL.md.
+  Téléphone (constat 13/11) : trois couches de navigation s empilent avant le contenu (en-tête titre + Orchestrateur + machine + cloche ; 7 onglets en icônes dont seul l actif a un libellé ; une ligne sélecteur de dépôt + filtre + « + »). Cible : les 4 onglets AVEC libellé, et le sélecteur de dépôt fusionné dans le titre de l en-tête (toucher le nom du projet pour en changer) — la ligne sélecteur disparaît, filtre et « + » vont dans l onglet Cartes où ils servent. Utiliser le skill frontend-design.
 
-  - [x] Depuis le pane orchestrateur, un lot halté « PR pas à jour » se reprend
-  - [x] Un halt « tours épuisés » reste refusé (403)
-  - [x] Au-delà de la borne : 403
-  - [x] Autonomie éteinte : 403 comme aujourd'hui
-  - [x] ADR + SKILL.md + test bun de la classification
-- **Chaque arrêt d'enchaînement est tracé dans le journal** — done
+  - [ ] 4 onglets : Projet, Cartes, Recette, Plus
+  - [ ] Roadmap, PR, Documents, Réglages accessibles depuis Plus, anciennes adresses toujours valides
+  - [ ] Cartes propose « tous les projets »
+  - [ ] Pareil sur téléphone
+- **Navigation : une seule entrée Projets, et sous elle seulement ce que j épingle** — working
 
-  endOfLot() (bridge/autonomy.ts) et idleStart() décident si le lot suivant part ; leur raison (« why ») n'est écrite nulle part sauf dans le message à l'orchestrateur, donc on ne peut pas mesurer pourquoi l'enchaînement s'arrête.
+  Retours opérateur 13/11 sur la barre latérale (web/src/components/app-nav.tsx, et sa version téléphone) :
+  1. « Board » et « Projects » mènent au même endroit : fusionner en UNE entrée « Projets ». Entrées du haut : Accueil (le troupeau), Projets. Spaces seulement si herdr 0.9 est là (déjà le cas), Réglages en bas.
+  2. Sous les entrées : UNIQUEMENT des éléments épinglés par l opérateur. Les sections PROJECTS, ORCHESTRATORS et SPACES automatiques disparaissent de la barre (la liste des projets reste sur la page Projets / l accueil).
+  3. Épingler : un projet (= un dépôt dans Collie : un seul type, l épingle ouvre sa page Projet ; son point dit l état de son orchestrateur, un compte seulement si quelque chose attend l opérateur, ex. « 2 pour toi ») et un agent (les épingles d agents existent déjà : /api/board/pins, sessions). Pas d épingle d orchestrateur séparée : il est le point de son projet. Généraliser /api/board/pins pour accepter un projet (repoPath) à côté d une session, durable en base, documenté dans skills/collie-board/SKILL.md (test skill). Épingler / désépingler depuis la page du projet (et la liste des projets) et depuis le pane d un agent.
+  4. Section épinglés : visible seulement si non vide ; ordre : projets puis agents, réordonnables plus tard (hors périmètre).
+  5. Style (skill design-taste-frontend, app-screens §3.2) : titres de groupe en casse normale, 12-13 px, pas de capitales espacées ; une ligne par élément, pas de 2e ligne de détail ; la version sort de la barre (elle reste dans Réglages).
+  Ne pas toucher aux onglets du projet (carte suivante).
   
-  Faire : un événement run.chain {go, why, next} à chaque fin de lot (et à chaque refus de lancement par l'orchestrateur : autre poste, lot ouvert, borne, rouge). Lisible dans le journal du lot.
-
-  - [x] Fin de lot : un run.chain avec go ou la raison d'arrêt
-  - [x] Un refus de lancement depuis le pane orchestrateur laisse un run.chain avec la raison
-  - [x] Test bun
-- **Le résumé de fin de carte expire à l'heure** — done
-
-  bridge/wrapup.ts a WRAPUP_DEADLINE_MS = 30 min, mais le journal montre wrapup.requested → wrapup.expired après 10 à 35 h : l'expiration ne semble évaluée que quand quelque chose bouge. Vérifier la cause, faire expirer à l'échéance (sans nouvelle boucle : réutiliser un tick existant) et raccourcir le délai à quelques minutes.
-
-  - [x] Un résumé jamais rendu expire quelques minutes après la demande, même si le troupeau est calme
-  - [x] Le nettoyage de la carte suit
-  - [x] Test bun de l'échéance
-- **Merge refusé « branche pas à jour » : le board remet la PR à jour et réessaie** — done
-
-  27 halts « PR not merged: … the head branch is not up to date with the base branch » (surtout CrewDesign), et des PR qui attendent leur merge 6 à 21 h sans halt (run.merge puis automerge_refused, plus rien).
+  Téléphone (constat 13/11, 400 px) : la barre du bas a 5 entrées (Herd, Board, Projects, Spaces, Settings) → 3 : Accueil, Projets, Réglages (Spaces seulement avec herdr 0.9). Les épinglés sur téléphone : en tête de la page Projets.
   
-  Faire : quand le merge est refusé pour une base en avance, mettre la branche à jour (gh pr update-branch, par bridge/git.ts — seul shell-out) puis réessayer une fois la CI verte. Halt seulement en cas de conflit réel. Le board ne laisse plus une PR en attente sans halt ni réveil de l'orchestrateur.
-
-  - [x] Une PR en retard sur la base est mise à jour et mergée sans geste
-  - [x] Un vrai conflit halte toujours avec sa raison
-  - [x] Aucune PR de lot n'attend en silence : soit elle avance, soit halt/réveil
-  - [x] Test de la classification des refus de merge
-- **Un agent de carte bloqué ou muet réveille l'orchestrateur** — done
-
-  Aujourd'hui seul le lead est surveillé (bridge/lead.ts : « the lead is not answering »). Un agent de carte d'un lot qui se bloque (question, permission, modal, quota) ou meurt laisse la carte « en cours » sans aucun événement : le journal montre des attentes de 6 à 32 h que seul un message de l'opérateur débloque.
+  Utiliser le skill frontend-design (plugin officiel Anthropic, installé) : pas de capitales espacées pour les titres, pas de libellés « A · B · C » ni de petites étiquettes en monospace dans la navigation, noms simples côté utilisateur (« Accueil » plutôt que « Herd »).
   
-  Faire : quand une carte d'un lot lancé est « working » et que son pane est blocked, ou idle/absent sans progrès depuis N minutes (constante, ~10 min), réveiller l'orchestrateur du dépôt (voie orchestrator-nudge.ts) avec le titre de la carte, l'état du pane et ses dernières lignes, pour qu'il débloque ou relance. Pas de notification à l'opérateur (ADR 0011 : le pane signale déjà blocked). Une seule fois par épisode : réarmé quand la carte bouge. Accroché à engine.onUpdate, pas de nouvelle boucle ; ignorer un snapshot disconnected.
-
-  - [x] Une carte de lot dont l'agent attend une permission depuis N min réveille l'orchestrateur avec la fin de l'écran
-  - [x] Pas de second réveil tant que la carte n'a pas bougé
-  - [x] Aucune notification opérateur ajoutée
-  - [x] Test bun de la règle pure (seuil, réarmement)
-
-### Lot — Mode objectif (launched, 2 at a time)
-
-- **Pendant un objectif : points d'étape au lieu d'un bilan par lot** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Renommage (opérateur 13/11) : « Spaces » ne parle à personne. L entrée devient « Agents » (même icône ou une icône d agent) : la liste de tous les agents et terminaux en cours, rangés par projet (même regroupement que la barre latérale depuis #373), visible sous hc comme sous herdr 0.9 — plus de gate « seulement avec herdr 0.9 ». Les gestes propres aux espaces herdr 0.9 (ouvrir/créer un espace) restent dedans quand herdr 0.9 est là. Barre du bas téléphone : Accueil, Projets, Agents, Réglages. Mettre à jour libellés i18n (fr/en) et les mots « espace/space » visibles par l utilisateur dans la navigation.
   
-  En mode objectif, l'opérateur n'est plus sollicité à chaque fin de lot : le bilan de lot va au journal de l'objectif, et l'opérateur reçoit un point d'étape regroupé (lots mergés, ce qui bloque, budget consommé, recette ajoutée) seulement aux moments utiles : décision demandée, budget à 50 % et atteint, objectif déclaré. Une page/onglet Objectif montre la progression.
-
-  - [x] Pas de notification par fin de lot en mode objectif
-  - [x] Point d'étape aux seuils et décisions
-  - [x] La page Objectif montre critères, progression, budget
-- **Déclarer l'objectif atteint, l'opérateur valide ou relance** — done
-  - after: Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
+  Ajout (opérateur 13/11) : en plus des épinglés, la barre montre d emblée les agents EN COURS, sans rien épingler : une section « En cours » avec les agents qui travaillent et ceux qui t attendent (bloqués / question), ceux qui t attendent en premier ; une ligne par agent (nom + projet + point d état) ; ni les agents au repos ni les terminaux ; masquée si vide. Lue du snapshot, aucun état persisté. Un agent à la fois épinglé et en cours n apparaît qu une fois (dans « En cours »). Ordre de la barre : entrées, En cours, Épinglés. Sur téléphone, la même section « En cours » en tête de la page Agents.
   
-  L'orchestrateur déclare l'objectif atteint avec une preuve par critère (POST …/claim) : statut claimed, une notification à l'opérateur, qui se retire à sa réponse (ADR 0011). L'opérateur valide (achieved : clôt les phases de l'objectif) ou refuse avec un commentaire (retour en active, le commentaire est remis à l'orchestrateur au réveil suivant).
+  Ajout (opérateur 13/11, maquette validée : https://claude.ai/artifact/R1eVYcR8nTKeUtV26wuEpq) : on peut aussi épingler une CARTE (depuis la carte). Chaque épinglé porte une petite puce de type : « projet », « agent » ou « carte » (11 px, fond discret, une teinte par type), à côté de son nom. Ordre dans Épinglés : projets, cartes, agents. Une carte épinglée ouvre sa fiche ; son point dit son état.
 
-  - [x] La déclaration montre chaque critère avec sa preuve
-  - [x] Valider clôt l'objectif et ses phases
-  - [x] Refuser relance la boucle avec le commentaire
-  - [x] Un pane agent ne peut pas valider
-- **Mode objectif : l'orchestrateur planifie et enchaîne jusqu'au but** — done
-  - after: Un objectif par projet : critères, budget, statut
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  Sous un objectif actif, l'orchestrateur peut créer cartes, lots et phases rattachés à l'objectif et lancer ses propres lots sans geste opérateur (un lot à la fois). À la fin d'un lot, quand rien n'est planifié, endOfLot() ne s'arrête plus : le board réveille l'orchestrateur avec « objectif pas atteint : relis les critères, planifie et lance la suite ». Une décision qui attend l'opérateur ne bloque que sa branche : le réveil le rappelle à l'orchestrateur. Bornes : budget (lots, quota, échéance), stopOnRed après la borne de reprises du lot 1 ; une borne atteinte met l'objectif en pause et prévient l'opérateur une fois. Pas de nouvelle boucle : tout part du réveil de fin de lot (ADR 0028).
-  
-  Tranché le 09/11 par l'opérateur : objectif déclaré (claimed) = arrêt net. Plus aucun lot créé ni lancé, plus de réveil de fin de lot, budget gelé, jusqu'à la réponse de l'opérateur, même après 24 h d'absence. Seul un refus avec commentaire relance la boucle. Pendant un objectif, les phases découpées par l'orchestrateur ne se valident pas une à une (sinon chaque phase attendrait l'opérateur) : la validation de l'objectif les clôt.
-
-  - [x] Objectif actif, plus rien de planifié : l orchestrateur est réveillé pour planifier, et peut lancer le lot qu il a créé
-  - [x] Objectif déclaré : aucun lot lancé, aucun réveil, tant que l opérateur n a pas répondu
-  - [x] Les cartes et lots créés sont rattachés à l objectif
-  - [x] Budget atteint : pause + une notification
-  - [x] Sans objectif : comportement d aujourd hui inchangé
-  - [x] Tests bun du verdict de fin de lot
-- **Un objectif par projet : critères, budget, statut** — done
-
-  Contexte : phase « Autonomie par objectif ». Le lot « Enchaînement fiable » rend les arrêts mécaniques non bloquants ; ce lot ajoute un mode d'autonomie plus agressif. Choix par défaut proposés à l'opérateur (à confirmer, décision ouverte sur la roadmap) : l'opérateur seul valide l'objectif atteint ; pendant un objectif, les phases que l'orchestrateur découpe ne se valident pas une à une, la validation de l'objectif les clôt ; budget par défaut 10 lots, arrêt à 80 % du quota de la semaine (jauge d'usage existante), échéance optionnelle.
-  
-  Faire l'objet Objectif (goal) : texte, critères de réussite (liste), budget {maxLots, quotaPct, deadline?}, statut active / paused / claimed / achieved / abandoned. Routes /api/goals (création, édition, pause, abandon = gestes de l'opérateur ; un pane agent ne crée ni ne valide). Un seul objectif actif par dépôt. UI dans la page projet : définir l'objectif, voir critères, budget consommé et lots/cartes rattachés. Écrire l'ADR du mode objectif (amende 0030/0047). Documenter dans skills/collie-board/SKILL.md.
-
-  - [x] L'opérateur crée un objectif avec critères et budget depuis la page projet
-  - [x] Un pane agent reçoit 403 sur création et validation
-  - [x] Un seul objectif actif par dépôt
-  - [x] ADR + SKILL.md + tests bun
-
-## Phase 39 — Le projet au-delà du code
-
-Collie gère aussi le business d'un projet : pages sur mesure, cartes non-code, décisions produit.
-
-### Lot — Pages du projet (launched, 2 at a time)
-
-- **La page roadmap est générée par le board** — done
-
-  docs/pages/roadmap.html est aujourd'hui produite par un script de l'orchestrateur (hors dépôt). Faire : le board rend une vue roadmap jolie et dynamique (étapes, statut, phases, décisions) depuis /api/roadmap, toujours à jour, sans fichier à régénérer. Peut remplacer la page statique.
-
-  - [x] La vue reflète un changement de roadmap sans régénération
-  - [x] Lisible au téléphone, thème clair et sombre
-- **Une carte « page » produit une page docs/pages à partir d'une brève** — done
-
-  Les pages custom existent (docs/pages/<nom>.html, inertes, ADR 0053). Faire : depuis Documents, « Nouvelle page » demande un nom et une brève (plan marketing, direction artistique, offre…) et crée une carte dont le livrable est docs/pages/<nom>.html ; la spec de la carte rappelle le contrat (pas de script, CSS inline, iframe sandbox). L'agent construit la page, la PR la livre, elle apparaît dans l'explorateur.
-
-  - [x] « Nouvelle page » dans Documents crée la carte avec le contrat dans sa spec
-  - [x] La page livrée s'ouvre en plein écran dans Documents
-  - [x] FR et EN
-
-### Lot — Cartes non-code (planned, 2 at a time)
-
-- **Filtre code / business sur le board** — backlog
-
-  Un filtre sur le board et la recette pour ne voir que les cartes code ou business.
-
-  - [ ] Le filtre sépare les deux sortes et se retient par appareil
-- **Une carte « business » : livrable document, sans CI ni gate** — backlog
-
-  Une sorte de carte pour le travail non-code (rédaction, marketing, offre) : pas de gate, pas de CI requise, son livrable est un document ou une page ; sa recette est une relecture (« à relire ») plutôt qu'un test.
-
-  - [ ] Une carte business se termine sans gate ni CI
-  - [ ] Sa recette apparaît comme « à relire»
-  - [ ] Le lead ne la renvoie pas faute de code
-
-### Lot — Décisions produit (planned, 2 at a time)
-
-- **Les décisions visibles comme une page dans Documents** — backlog
-
-  Une entrée « Décisions » dans l'explorateur de Documents liste les décisions avec statut (ouverte, tranchée) et catégorie, filtrables.
-
-  - [ ] Documents montre les décisions avec statut et catégorie
-  - [ ] Un tap sur une décision ouverte mène à sa carte ou à la roadmap
-- **Décisions classées produit / technique** — backlog
-
-  Les décisions de la roadmap (POST /api/roadmap/decision) prennent une catégorie produit/business ou technique, posée par l'orchestrateur ou l'opérateur.
-
-  - [ ] Une décision porte sa catégorie
-  - [ ] Les anciennes restent valides (technique par défaut ou sans catégorie)
+  - [ ] Une seule entrée Projets, plus d entrée Board séparée
+  - [ ] « Spaces » devient « Agents » : tous les agents et terminaux par projet, sous hc comme sous herdr 0.9
+  - [ ] Sous les entrées, seulement les éléments épinglés (projets et agents), section masquée si vide
+  - [ ] On épingle / désépingle un projet depuis sa page et un agent depuis son pane, et ça reste après redémarrage
+  - [ ] Téléphone : Accueil, Projets, Agents, Réglages
+  - [ ] Titres en casse normale, une ligne par élément, version hors de la barre
+  - [ ] La barre montre d emblée les agents en cours (qui travaillent ou t attendent), sans épingle, masquée si vide
+  - [ ] On épingle aussi une carte ; chaque épinglé porte une puce projet / agent / carte
