@@ -9,6 +9,12 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.321.1] - 2026-11-13
+
+### Changed
+
+- Sémaphore plus coloré : fait en vrai vert, au travail en ambre, t attend en orange franc, info en bleu saturé ; fonds moins verts, cartes plus distinctes (587f517)
+
 ## [0.321.0] - 2026-11-13
 
 ### Changed
