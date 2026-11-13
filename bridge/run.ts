@@ -374,6 +374,9 @@ function stuck(run: Run, card: Card, events: BoardEvent[]): boolean {
   return halted !== null && !after(newest(events, (e) => e.type === "card.status"), halted);
 }
 
+/** A lot finished longer ago than this is not retried: its bilan is caught up by the next export anyway. */
+const PLAN_RETRY_MS = 7 * 24 * 3600 * 1000;
+
 export class RunCoordinator {
   /** Cards with an action in flight, so a 1.5 s tick doesn't ask twice. Memory a restart may lose. */
   private readonly busy = new Set<string>();
@@ -387,6 +390,8 @@ export class RunCoordinator {
   private readonly lotBusy = new Set<string>();
   /** The last snapshot's bare shells: a worker pane among them has lost its agent. */
   private shells = new Set<string>();
+  /** The startup retry of the plan export ran. */
+  private recovered = false;
 
   constructor(
     private readonly db: BoardDb,
@@ -400,6 +405,16 @@ export class RunCoordinator {
     const panes = new Map([...snap.agents, ...snap.shellPanes].map((p) => [p.paneId, p.status as string]));
     this.shells = new Set(snap.shellPanes.map((p) => p.paneId));
     const reviewing = this.ports.reviewing();
+    if (!this.recovered) {
+      // A restart can cut the export short: run.finished is journaled before it. One export per repo (the newest lot) retries it, and catches the rest up.
+      this.recovered = true;
+      const newest = new Map<string, Run>();
+      for (const r of this.db.runsAwaitingPlanExport(this.now() - PLAN_RETRY_MS)) {
+        const seen = newest.get(r.repoPath);
+        if (!seen || (this.db.runFinishedAt(r.id) ?? 0) > (this.db.runFinishedAt(seen.id) ?? 0)) newest.set(r.repoPath, r);
+      }
+      for (const r of newest.values()) this.ports.lotFinished?.(r);
+    }
 
     for (const open of this.db.listOpenRuns()) {
       // ADR 0048 §7: another pair's lot is that pair's coordinator's to drive — seen here, never driven.
@@ -855,9 +870,10 @@ export function runHook(
     openPr: (card, gate) => prForCard(db, prView(card), { autoMerge: true, gate }),
     direct: (repoPath) => db.repoIntegration(repoPath) === "direct",
     lotFinished: (run) =>
-      void exportPlanAtLotEnd(db, run).then((r) =>
-        r.ok ? console.info(`[plan] lot ${run.id}: ${"skipped" in r ? `not exported — ${r.skipped}` : `PR ${r.url ?? "opened"}`}`) : console.warn(`[plan] lot ${run.id}: export failed — ${r.error}`),
-      ),
+      void exportPlanAtLotEnd(db, run).then((r) => {
+        console[r.ok ? "info" : "warn"](`[plan] lot ${run.id}: ${!r.ok ? `export failed — ${r.error}` : "skipped" in r ? `not exported — ${r.skipped}` : `PR ${r.url ?? "opened"}`}`);
+        db.recordRunEvent(null, "plan.exported", { runId: run.id, ok: r.ok, ...(!r.ok ? { error: r.error } : "skipped" in r ? { skipped: r.skipped } : {}) });
+      }),
     mergeDirect: async (card) => {
       const held = await exclusive(integrating, card.id, () => mergeCard(db, db.getCard(card.id) ?? card, undefined, { direct: true }));
       if (held.busy) return { ok: false, error: { kind: "busy", message: "a gesture holds the card" } };

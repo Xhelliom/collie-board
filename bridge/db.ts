@@ -699,6 +699,8 @@ export interface RunEventPayloads {
   "run.merge": { runId: string; merged: boolean; reason: string; wait?: boolean; conflict?: boolean; ci?: { name: string; log: string } };
   /** The worker's bilan as the lead read it at a check — kept here because the worktree is not. Once per new text. */
   "run.report": { runId: string; round: number; text: string; issue: "coded" | "present" | "partial" | "none" | null };
+  /** The lot's end-of-lot « docs(plan) » export, journaled with a null card. `ok: false` is the failure to read; only `ok: true` retires the lot from the startup retry. */
+  "plan.exported": { runId: string; ok: boolean; error?: string; skipped?: string };
   /** Whether the chain goes on (ADR 0030/0047): at each end of lot, and at each launch refused to the orchestrator. Null card: the lot's. */
   "run.chain": { runId: string; go: boolean; why: string | null; next: string | null };
 }
@@ -709,6 +711,7 @@ export const RUN_EVENT_KINDS: readonly RunEventKind[] = [
   "run.decision",
   "run.triaged",
   "run.finished",
+  "plan.exported",
   "run.halted",
   "run.resumed",
   "run.gate",
@@ -2386,6 +2389,19 @@ export class BoardDb {
   /** Whether the coordinator journaled `run.finished` for this run — the end of {@link listOpenRuns}. */
   runFinished(id: string): boolean {
     return this.runFinishedAt(id) !== null;
+  }
+
+  /** The lots this pair finished since `since` whose plan export never succeeded — a restart can cut it short (run.finished is journaled first). */
+  runsAwaitingPlanExport(since: number): Run[] {
+    return this.db
+      .query<{ id: string }, [number]>(
+        `SELECT json_extract(payload, '$.runId') AS id FROM event f WHERE type = 'run.finished' AND ts >= ?1
+           AND NOT EXISTS (SELECT 1 FROM event e WHERE e.type = 'plan.exported' AND json_extract(e.payload, '$.ok') = 1
+                           AND json_extract(e.payload, '$.runId') = json_extract(f.payload, '$.runId'))`,
+      )
+      .all(since)
+      .flatMap((r) => this.getRun(r.id) ?? [])
+      .filter((r) => this.ownsRun(r));
   }
 
   /** When this run finished: the local `run.finished` event's ts, else the shared `finished_at` another pair pushed. */
