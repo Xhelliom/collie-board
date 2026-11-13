@@ -1,6 +1,7 @@
 // The Agents page, as pure data: who is shown, under which project, in what order. The page
 // (components/agents-page.tsx) only draws what this returns.
 import { isOrchestrator, projectOf } from "./agent-groups";
+import { nameOf, stateOf } from "./agent-identity";
 import { paneDisplayName, type AgentView } from "./types";
 
 export type StateFilter = "all" | "needs" | "working" | "idle";
@@ -14,17 +15,6 @@ export interface AgentsFilters {
 }
 
 export const DEFAULT_FILTERS: AgentsFilters = { state: "all", machine: null, hideOrch: false, terminals: false };
-
-export const stateOf = (a: Pick<AgentView, "status">): Exclude<StateFilter, "all"> =>
-  a.status === "blocked" ? "needs" : a.status === "working" ? "working" : "idle";
-
-export type Role = "card" | "orch" | "free" | "terminal";
-export const roleOf = (a: AgentView): Role =>
-  a.cardId || a.cardTitle ? "card" : a.kind === "shell" ? "terminal" : isOrchestrator(a) ? "orch" : "free";
-
-/** The row's name: the card it works on, « Orchestrateur », else what the pane calls itself. `orch` is the translated word. */
-export const nameOf = (a: AgentView, orch: string): string =>
-  a.cardTitle ?? (roleOf(a) === "orch" ? orch : paneDisplayName(a));
 
 export interface ProjectGroup {
   project: string;

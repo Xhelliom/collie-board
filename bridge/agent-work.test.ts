@@ -2,7 +2,7 @@
 // shapes upstream Collie reads (see agent-work.ts).
 import { describe, expect, it } from "bun:test";
 
-import { agentWork } from "./agent-work.ts";
+import { agentWork, lastSaid } from "./agent-work.ts";
 
 const use = (id: string, name: string, input: unknown, sidechain = false) =>
   JSON.stringify({ isSidechain: sidechain, type: "assistant", message: { content: [{ type: "tool_use", id, name, input }] } });
@@ -79,5 +79,18 @@ describe("agentWork — background commands", () => {
 
   it("does not count a foreground Bash call", () => {
     expect(run(use("toolu_A", "Bash", { command: "ls" }), result("toolu_A", { stdout: "x", stderr: "" })).background).toEqual([]);
+  });
+});
+
+describe("lastSaid", () => {
+  const said = (text: unknown, sidechain = false) =>
+    JSON.stringify({ isSidechain: sidechain, type: "assistant", message: { content: [{ type: "text", text }] } });
+  it("reads the newest main-thread text, one line", () => {
+    const text = [said("vieux"), said("Je lis\n  le code."), use("toolu_9", "Bash", { command: "ls" }), said("sous-agent", true), "{partial"].join("\n");
+    expect(lastSaid(text)).toBe("Je lis le code.");
+  });
+  it("caps a long message and says nothing on an empty log", () => {
+    expect(lastSaid(said("x".repeat(300)))).toHaveLength(160);
+    expect(lastSaid("")).toBeNull();
   });
 });

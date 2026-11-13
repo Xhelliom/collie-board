@@ -2,11 +2,10 @@ import { ChevronRight, Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 import { useT } from "@/i18n";
-import { ago, agentsPage, DEFAULT_FILTERS, nameOf, roleOf, stateOf, type AgentsFilters, type ProjectGroup } from "@/lib/agents-page";
+import { agentsPage, DEFAULT_FILTERS, type AgentsFilters, type ProjectGroup } from "@/lib/agents-page";
 import type { AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { CtxBar } from "./ctx-bar";
-import { StatusDot } from "./status-badge";
+import { AgentLine } from "./agent-line";
 import { Button } from "./ui/button";
 import { Chip } from "./ui/chip";
 
@@ -160,58 +159,7 @@ function Group({ group, onOpen }: { group: ProjectGroup; onOpen: (paneId: string
         <span className="min-w-0 truncate">{group.project}</span>
         <span className="shrink-0 text-[13px] font-normal text-muted-foreground">{t("agents.count", { count: group.agents.length })}</span>
       </h2>
-      {group.agents.map((a) => <Row key={a.paneId} agent={a} onOpen={onOpen} />)}
+      {group.agents.map((a) => <AgentLine key={a.paneId} agent={a} onOpen={onOpen} />)}
     </section>
-  );
-}
-
-const STATE_TONE = { needs: "text-status-blocked", working: "text-status-working", idle: "text-muted-foreground" } as const;
-
-function Row({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string) => void }) {
-  const t = useT();
-  const state = stateOf(agent);
-  const name = nameOf(agent, t("agents.orchestrator"));
-  const role = t(`agents.role.${roleOf(agent)}`);
-  const since = agent.statusSince === undefined ? null : ago(Date.now() - agent.statusSince, { min: t("agents.unit.min"), h: t("agents.unit.h"), d: t("agents.unit.d") });
-  const word = state === "needs" ? "needs" : state === "working" ? "working" : agent.status === "done" ? "done" : "idle";
-  const said = since
-    ? t(`agents.state.${({ needs: "needsFor", working: "workingFor", done: "doneAgo", idle: "idleFor" } as const)[word]}`, { duration: since })
-    : t(`agents.state.${word}`);
-  const machine = <span className="shrink-0 justify-self-start rounded-full bg-muted px-2 text-xs leading-5 text-muted-foreground">{agent.peer ?? t("home.machine.this")}</span>;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(agent.paneId)}
-      aria-label={`${name}, ${role}, ${said}`}
-      className={cn(
-        "flex min-h-14 w-full min-w-0 items-center gap-3 rounded-xl px-3.5 py-2 text-left transition-colors",
-        "lg:grid lg:min-h-11 lg:grid-cols-[10px_minmax(0,1fr)_7.5rem_6rem_12rem_6.5rem] lg:gap-x-4",
-        state === "needs"
-          ? "bg-status-blocked/10 hover:bg-status-blocked/15"
-          : state === "working"
-            ? "bg-card/70 hover:bg-muted/60"
-            : "hover:bg-muted/60",
-      )}
-    >
-      <StatusDot status={agent.status} className={cn(state === "idle" && "opacity-55")} />
-      <span className="flex min-w-0 flex-1 flex-col lg:contents">
-        <span className={cn("min-w-0 truncate", state === "idle" ? "text-foreground/75" : "font-medium")}>{name}</span>
-        {/* Phone: the second line. */}
-        <span className={cn("min-w-0 truncate text-[13px] lg:hidden", state === "idle" ? "text-muted-foreground" : STATE_TONE[state])}>
-          {role}, {said}
-        </span>
-        <span className="hidden min-w-0 truncate text-xs text-muted-foreground lg:block">{role}</span>
-      </span>
-      {machine}
-      <span className={cn("hidden min-w-0 truncate text-[13px] lg:block", STATE_TONE[state])}>{said}</span>
-      <span className="hidden items-center gap-2 text-xs tabular-nums text-muted-foreground lg:flex">
-        {agent.ctxPct != null && (
-          <>
-            <CtxBar pct={agent.ctxPct} className="w-auto flex-1" />
-            {Math.round(agent.ctxPct)}%
-          </>
-        )}
-      </span>
-    </button>
   );
 }
