@@ -98,6 +98,7 @@ import { memoOn } from "./http-cache.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
+import { prDetail } from "./pr-detail.ts";
 import { forgetPrRead, notePrOutcome, openPrs, prGesture } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
@@ -141,6 +142,9 @@ const BOARD_USAGE_ROUTE = "/api/board/usage";
 const BOARD_PRS_ROUTE = "/api/board/prs";
 /** `POST /api/board/prs/{merge|close}` `{repo, number}` — the operator's tap on a PR, card or not. */
 const BOARD_PRS_GESTURE = /^\/api\/board\/prs\/(merge|close)$/;
+
+/** `GET /api/board/prs/<number>?repo=` — one open PR's sheet (see pr-detail.ts). */
+const BOARD_PR_SHEET = /^\/api\/board\/prs\/([^/]+)$/;
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
 const BACKUP_ROUTE = "/api/backup";
@@ -749,6 +753,16 @@ async function route(
     const r = await prGesture(ctx.db, repo, number, what);
     ctx.audit.record({ action: `pr.${what}`, session: ctx.session, device: ctx.device, detail: { path: repo, number, ok: r.ok } });
     return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
+  }
+
+  // One open PR's sheet (read-only, panes may ask): `?repo=<path>` must be a repo the board reads.
+  const prSheetMatch = BOARD_PR_SHEET.exec(pathname);
+  if (prSheetMatch) {
+    if (req.method !== "GET") return ctx.text("method not allowed", 405);
+    const denied = ctx.guard("read");
+    if (denied) return denied;
+    const r = await prDetail(ctx.db, new URL(req.url).searchParams.get("repo") ?? "", decodeURIComponent(prSheetMatch[1]!));
+    return r.ok ? ctx.json(r.detail) : ctx.json({ error: r.error }, r.status);
   }
 
   if (pathname === BOARD_LAUNCH_ENGINE_ROUTE && req.method === "GET") {

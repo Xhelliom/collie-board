@@ -13,6 +13,7 @@ import { GalleryRoute } from "@/routes/gallery";
 import { BoardRoute } from "@/routes/board";
 import { CardRoute } from "@/routes/card";
 import { PrsRoute } from "@/routes/prs";
+import { PrRoute } from "@/routes/pr";
 import { RepoSettingsRoute } from "@/routes/repo-settings";
 import { RecetteRoute } from "@/routes/recette";
 import { DocumentsRoute } from "@/routes/documents";
@@ -22,7 +23,7 @@ import { recetteLoader } from "@/lib/recette";
 import { ProjectRoute } from "@/routes/project";
 import { RoadmapRoute } from "@/routes/roadmap";
 import { galleryLoader, historyLoader, rootLoader, paneLoader, paneArtifactsLoader, ROOT_ROUTE_ID } from "@/lib/loaders";
-import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prsLoader, roadmapLoader } from "@/lib/board-loaders";
+import { boardRouteLoader, cardLoader, homeLoader, projectLoader, prDetailLoader, prsLoader, roadmapLoader } from "@/lib/board-loaders";
 import { boardPath } from "@/lib/board";
 import { attachNavCache } from "@/lib/nav-cache";
 
@@ -77,6 +78,14 @@ export const router = createBrowserRouter([
         element: <PrsRoute />,
         errorElement: <RootError to={boardPath()} />,
         // Not polled: GitHub is asked on the Check tap, and the journal only moves on a tap too.
+        shouldRevalidate: () => false,
+      },
+      {
+        path: "board/prs/:number",
+        loader: prDetailLoader,
+        element: <PrRoute />,
+        errorElement: <RootError to={boardPath()} />,
+        // Not polled: read on open, like the list.
         shouldRevalidate: () => false,
       },
       {

@@ -21,6 +21,8 @@ import {
   fetchGoals,
   fetchLots,
   fetchOpenPrs,
+  fetchPrDetail,
+  boardErrorMessage,
   fetchOrchestrator,
   fetchPhases,
   fetchOrchestratorMemory,
@@ -31,6 +33,7 @@ import {
   type Goal,
   type Lot,
   type OpenPr,
+  type PrDetail,
   type OrchestratorMemory,
   type OrchestratorState,
   type Phase,
@@ -286,4 +289,23 @@ export async function roadmapLoader({ request }: { request?: Request } = {}): Pr
     [...view.phases, ...view.closed].filter((p) => p.phase).map((p) => [p.phase!.id, { done: p.done, total: p.steps.length }]),
   );
   return { repo, roadmap, phases, goal, progress };
+}
+
+export interface PrSheetData {
+  repo: string;
+  number: string;
+  detail: PrDetail | null;
+  error: string | null;
+}
+
+/** One PR's sheet, read on open only (GitHub is asked once; the route is not polled). */
+export async function prDetailLoader({ params, request }: { params: { number?: string }; request: Request }): Promise<PrSheetData> {
+  const number = params.number ?? "";
+  const repo = new URL(request.url).searchParams.get("repo") ?? "";
+  try {
+    return { repo, number, detail: await fetchPrDetail(repo, number, request.signal), error: null };
+  } catch (e) {
+    if (isAbortError(e)) throw e;
+    return { repo, number, detail: null, error: boardErrorMessage(e) };
+  }
 }
