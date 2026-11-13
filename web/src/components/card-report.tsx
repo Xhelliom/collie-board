@@ -1,6 +1,5 @@
 import { useT } from "@/i18n";
 import { MarkdownText } from "@/components/markdown-text";
-import { SectionLabel } from "@/components/ui/section-label";
 import type { BilanIssue, CardReport, LeadAnswer } from "@/lib/card-report";
 import { cn } from "@/lib/utils";
 
@@ -23,15 +22,13 @@ function Answer({ answer }: { answer: LeadAnswer }) {
   );
 }
 
-/** « Compte rendu »: the outcome, the lead's last word, then each bilan → answer round, newest open. */
+/** « Compte rendu »: the outcome, the lead's last word, then each bilan → answer round, newest open. Bare: the caller's panel frames it. */
 export function CardReportSection({ report }: { report: CardReport }) {
   const t = useT();
   const issue = report.issue ?? "unknown";
   const n = report.rounds.length;
   return (
-    <section className="flex flex-col gap-2" aria-label={t("report.title")}>
-      <SectionLabel>{t("report.title")}</SectionLabel>
-      <div className="flex flex-col gap-2.5 rounded-xl border bg-card/70 p-3">
+    <div className="flex flex-col gap-2.5" aria-label={t("report.title")} role="group">
         {(report.rounds.length > 0 || report.issue) && (
           <div className="flex flex-wrap items-center gap-2">
             <span data-testid="report-issue" className={cn("rounded-full border px-2.5 py-0.5 text-xs font-semibold", ISSUE_TONE[issue])}>
@@ -49,7 +46,7 @@ export function CardReportSection({ report }: { report: CardReport }) {
             <div className="mt-2 flex flex-col gap-2">
               {r.bilan ? (
                 <div className="text-xs leading-[1.55]">
-                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("report.bilan")}</div>
+                  <div className="mb-1 text-xs font-medium text-muted-foreground">{t("report.bilan")}</div>
                   <MarkdownText text={r.bilan} className="text-xs leading-[1.55]" />
                 </div>
               ) : (
@@ -67,7 +64,6 @@ export function CardReportSection({ report }: { report: CardReport }) {
             </div>
           </details>
         )}
-      </div>
-    </section>
+    </div>
   );
 }

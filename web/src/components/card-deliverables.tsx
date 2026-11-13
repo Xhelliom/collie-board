@@ -5,7 +5,7 @@ import { Download, File, FileCode, FileText, Trash2 } from "lucide-react";
 import { DocViewer, byteSize } from "@/components/artifact-viewer";
 import { GalleryImg } from "@/components/gallery-img";
 import { BottomSheet } from "@/components/ui/sheet";
-import { SectionLabel } from "@/components/ui/section-label";
+import { Panel } from "@/components/card-panel";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { useT } from "@/i18n";
 import {
@@ -75,8 +75,7 @@ export function CardDeliverables({ cardId, version }: { cardId: string; version:
   );
 
   return (
-    <section className="flex flex-col gap-2">
-      <SectionLabel>{t("card.section.deliverables")}</SectionLabel>
+    <Panel title={t("card.section.deliverables")} count={items.length}>
       {images.length > 0 && (
         <ul className="grid grid-cols-3 gap-2">
           {images.map((d, i) => (
@@ -139,7 +138,7 @@ export function CardDeliverables({ cardId, version }: { cardId: string; version:
           </div>
         )}
       </BottomSheet>
-    </section>
+    </Panel>
   );
 }
 

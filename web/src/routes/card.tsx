@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowUp,
   Bug,
+  ChevronDown,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -44,7 +45,6 @@ import { ChatInput } from "@/components/ui/chat/chat-input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BottomSheet } from "@/components/ui/sheet";
-import { SectionLabel } from "@/components/ui/section-label";
 import { CollapsibleText } from "@/components/collapsible-text";
 import { CardReportSection } from "@/components/card-report";
 import { cardReport } from "@/lib/card-report";
@@ -60,8 +60,15 @@ import { claimHolder, useIdentities } from "@/lib/identities";
 import { FlowPicker } from "@/components/flow-picker";
 import { TemplatePicker } from "@/components/template-picker";
 import { NonNominalPanel } from "@/components/non-nominal-panel";
-import { CardJournal, editedByHandSince } from "@/components/card-journal";
-import { CardTimeline } from "@/components/card-timeline";
+import { editedByHandSince } from "@/components/card-journal";
+import { CardHistory } from "@/components/card-history";
+import { Panel, PanelLink, PanelPart } from "@/components/card-panel";
+import { AgentLine } from "@/components/agent-line";
+import { haltSummary } from "@/components/halt-reason";
+import { ficheState, criterionVerdicts } from "@/lib/card-fiche";
+import { tileState } from "@/lib/tile-state";
+import { EFFORTS, type Effort } from "@/lib/agent-identity";
+import { fetchRecette, type RecetteEntry } from "@/lib/recette";
 import { CardDeliverables } from "@/components/card-deliverables";
 import { CardStatusChip } from "@/components/card-status-chip";
 import { holdOf } from "@/lib/lot-hold";
@@ -86,6 +93,8 @@ import {
   createCard,
   deleteCard,
   explainError,
+  fetchPhases,
+  fetchRepoModels,
   fetchCards,
   fetchIntegration,
   fetchPrStatus,
@@ -185,8 +194,11 @@ export function CardRoute() {
   // but here it rides the page's OWN poll: keyed on `data` (a new object every loader run), it
   // refetches each tick, because unlike a link picker's one-off choice this list IS the screen.
   const [boardCards, setBoardCards] = useState<CardView[]>([]);
+  // A container's list IS the screen, so it rides the poll (`data`); any other card reads it once, for
+  // the « Lier » and « Dépend de » pickers of its sub-cards panel.
+  const boardKey = detail && detail.children.length > 0 ? data : card?.id;
   useEffect(() => {
-    if (!card || !detail || detail.children.length === 0) return;
+    if (!card || !detail) return;
     let cancelled = false;
     void fetchCards()
       .then(({ cards }) => {
@@ -198,7 +210,8 @@ export function CardRoute() {
     return () => {
       cancelled = true;
     };
-  }, [data, card, detail]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on boardKey: see above
+  }, [boardKey]);
   const byId = new Map(boardCards.map((c) => [c.id, c]));
   const childCards = card
     ? boardCards
@@ -225,6 +238,47 @@ export function CardRoute() {
     setCommitting(false);
     setTakeOver(false);
   }, [card?.id]);
+
+  // Read once per card, never on the poll: the phase's name, the repo's model, the card's recette.
+  const [phaseName, setPhaseName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!card?.phaseId) return setPhaseName(null);
+    const ctl = new AbortController();
+    const id = card.phaseId;
+    fetchPhases(card.repoPath ?? undefined, ctl.signal).then(
+      (r) => setPhaseName(r.phases.find((p) => p.id === id)?.name ?? null),
+      () => {},
+    );
+    return () => ctl.abort();
+  }, [card?.phaseId, card?.repoPath]);
+
+  const [repoModel, setRepoModel] = useState<string | null>(null);
+  const launchable = !!card && !card.runtime && card.status !== "done" && card.status !== "archived";
+  useEffect(() => {
+    if (!launchable || !card?.repoPath) return setRepoModel(null);
+    const ctl = new AbortController();
+    const kind = card.agentKind;
+    fetchRepoModels(card.repoPath, ctl.signal).then(({ harnesses }) => {
+      // shortcut: no kind chosen reads the first harness the bridge lists, upgrade if the default kind is ever exposed.
+      const v = (kind ? harnesses.find((h) => h.kind === kind) : harnesses[0])?.value;
+      const effort = v?.effort && (EFFORTS as readonly string[]).includes(v.effort) ? t(`agents.effort.${v.effort as Effort}`) : v?.effort;
+      setRepoModel(v?.model ? [v.model, effort].filter(Boolean).join(", ") : null);
+    }, () => setRepoModel(null));
+    return () => ctl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` follows the language, not the card
+  }, [launchable, card?.repoPath, card?.agentKind]);
+
+  const [recette, setRecette] = useState<RecetteEntry | null>(null);
+  useEffect(() => {
+    if (!card?.repoPath || card.status !== "done") return setRecette(null);
+    const ctl = new AbortController();
+    const id = card.id;
+    fetchRecette(card.repoPath, ctl.signal).then(
+      ({ groups }) => setRecette(groups.flatMap((g) => g.entries).find((e) => e.cardId === id) ?? null),
+      () => setRecette(null),
+    );
+    return () => ctl.abort();
+  }, [card?.id, card?.repoPath, card?.status]);
 
   async function move(status: CardStatus) {
     if (!card) return;
@@ -496,717 +550,825 @@ export function CardRoute() {
     navigate(boardPath());
   }
 
+  // ── The page: header, then the panels of the card's face (ficheState) ──────────────────────────
+  if (!card || !detail) {
+    return (
+      <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
+        <AppHeader onBack={back}>
+          <button type="button" onClick={() => navigate(boardPath())} className="text-sm text-muted-foreground">
+            {t("fiche.crumbCards")}
+          </button>
+        </AppHeader>
+        <p className="px-1 py-12 text-center text-sm text-muted-foreground">
+          {data.error ? t("card.unreachable") : t("card.notFound")}
+        </p>
+      </div>
+    );
+  }
+
+  const state = ficheState(card, report);
+  const live = card.runtime;
+  const agentView = live ? root?.agents.find((a) => a.paneId === live.paneId) : undefined;
+  const openPane = (paneId: string) => navigate(panePath(paneId, root?.session));
+  const said = tileState(card, { lot: hold, awaiting: detail.awaiting ?? undefined });
+  const verdicts = state === "done" ? criterionVerdicts(card.acceptance, [report?.handoffMd, ...(report?.rounds.map((r) => r.bilan) ?? [])]) : [];
+  const metCount = verdicts.filter((v) => v?.verdict === "met").length;
+  const judged = verdicts.some(Boolean);
+  const latestReview = detail.reviews.at(-1) ?? null;
+  const olderReviews = detail.reviews.slice(0, -1).reverse();
+  const leadTs = (detail.reportEvents ?? []).filter((e) => e.type === "run.decision" || e.type === "run.halted").at(-1)?.ts;
+  const recetteSteps = recette?.steps ?? [];
+  const toTest = recetteSteps.filter((s) => !s.verdict);
+  const hasLinks = !!(detail.parent || detail.originCard || detail.predecessor || detail.children.length > 0);
+  const canLaunch = !live && card.status !== "done" && card.status !== "archived";
+
+  const sendToAgent = async (text: string) => {
+    await promptCard(card.id, text);
+    revalidator.revalidate();
+  };
+  const restore = async (eventId: number) => {
+    try {
+      await revertCard(card.id, eventId);
+      setStatus(t("card.toast.restored"), "success");
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
+  };
+  const patchField = async (patch: CardInput) => {
+    try {
+      await patchCard(card.id, patch);
+    } catch (e) {
+      setStatus((e as Error).message, "error", null);
+    }
+    revalidator.revalidate();
+  };
+
+  const reviewAgainLink = (
+    <PanelLink disabled={reviewing || card.copilotBusy} onClick={() => void reviewAgain()}>
+      <Sparkles className="size-3.5" />
+      {/* Labelled from the local tap, not `copilotBusy` — that is shared with reformulate/refine. */}
+      {reviewing ? t("card.review.running") : t("card.review.again")}
+    </PanelLink>
+  );
+
+  // One review: its verdict, its notes, and — unless the caller lists them elsewhere — its suggestions.
+  const reviewBlock = (r: (typeof detail.reviews)[number], withTodos = true) => (
+    <div key={r.id} className="flex flex-col gap-2 rounded-xl border bg-background/40 px-3.5 py-3">
+      <div className="flex items-center gap-2 text-sm">
+        <span className={cn(CHIP_SHELL, verdictChip(r.verdict), "normal-case tracking-normal")}>{r.verdict ?? t("card.review.reviewed")}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+      </div>
+      {r.notes && (
+        <CollapsibleText>
+          <MarkdownText text={r.notes} className="text-sm leading-[1.6]" />
+        </CollapsibleText>
+      )}
+      {withTodos && reviewTodos(r)}
+    </div>
+  );
+
+  // A review's suggestions: a filed card (open it, or take it back as an action), a tiny one (finish
+  // it now), or one deleted since.
+  const reviewTodos = (r: (typeof detail.reviews)[number]) =>
+    r.todos.length > 0 && (
+      <div className="flex flex-col gap-1">
+        {r.todos.map((todo, i) =>
+          todo.card ? (
+            <div key={todo.card.id} className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2">
+              <button
+                type="button"
+                onClick={() => navigate(cardPath(todo.card!.id))}
+                className="flex h-10 items-center gap-2 text-left active:scale-[0.99]"
+              >
+                <CardStatusChip status={todo.card.status} className="px-1.5 normal-case tracking-normal" />
+                <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+              {/* Taken back as an action while this card's agent is there to receive it, and only
+                  before the filed card ever ran — past that it holds work of its own. */}
+              {live && convertible(todo.card.status) && (
+                <div className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t("card.tooSmall")}</p>
+                  <ConvertNowButton
+                    id={todo.card.id}
+                    label={t("card.finishInstead")}
+                    confirmLabel={t("card.finishConfirm")}
+                    busy={finishing === todo.card.id}
+                    compact
+                    onConfirm={() => void convertAndFinish(todo.card!.id)}
+                  />
+                </div>
+              )}
+            </div>
+          ) : todo.tiny ? (
+            <TinyTodoRow
+              key={i}
+              title={todo.title}
+              todo={todo.tiny}
+              live={!!live}
+              pending={finishing === busyKey(r.id, todo.title)}
+              onFinish={() => void finishNow(r.id, todo.title)}
+            />
+          ) : (
+            <div key={i} className="truncate rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground line-through">
+              {todo.title}
+            </div>
+          ),
+        )}
+      </div>
+    );
+
+  // ── Panels ──────────────────────────────────────────────────────────────────────────────────────
+
+  const reworkButtons = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2"
+          onClick={() => {
+            // Reformulate re-reads the original dictation, so it discards a hand edit: a second tap.
+            if (!confirmRework && editedByHandSince(detail.events)) {
+              setConfirmRework(true);
+              return;
+            }
+            setConfirmRework(false);
+            void reformulate();
+          }}
+        >
+          <Sparkles className="size-4" />
+          {confirmRework ? t("card.replaceEdits") : t("card.reformulate")}
+        </Button>
+        {/* No confirmation here: it starts from the card as it stands, hand edits included. */}
+        <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setRefining((v) => !v)}>
+          <Sparkles className="size-4" />
+          {refining ? t("card.correctCancel") : t("card.correct")}
+        </Button>
+        {confirmRework && (
+          <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
+            {t("board.cancel")}
+          </Button>
+        )}
+      </div>
+      {confirmRework && (
+        <p className="text-xs text-muted-foreground">
+          {detail.children.length > 0 ? t("card.rework.warnChildren") : t("card.rework.warnText")}
+        </p>
+      )}
+      {refining && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground">{t("card.refine.hint")}</p>
+          <PromptBox placeholder={t("card.refine.placeholder")} sendLabel={t("card.refine.send")} onSend={refine} />
+        </div>
+      )}
+    </div>
+  );
+
+  const VERDICT_TONE = { met: "text-status-done", partial: "text-status-working", not: "text-status-blocked" } as const;
+  const askedPanel = (
+    <Panel
+      title={t("fiche.asked")}
+      actions={
+        <PanelLink onClick={() => setEditing(true)}>
+          <Pencil className="size-3.5" />
+          {t("fiche.modify")}
+        </PanelLink>
+      }
+    >
+      {/* Here, because it is usually why the card is still a bare title. */}
+      {card.copilotBusy && (
+        <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          <Sparkles className="size-3.5 shrink-0" />
+          <span>{t("card.copilotBusy")}</span>
+        </div>
+      )}
+      {card.spec && (
+        // Not launched: the spec is what you are about to send, unfolded. Afterwards: a summary.
+        <CollapsibleText lines={state === "todo" ? 14 : 4} moreLabel={state === "todo" ? undefined : t("fiche.readSpec")}>
+          <MarkdownText text={card.spec} className="max-w-[70ch] text-sm leading-[1.6]" />
+        </CollapsibleText>
+      )}
+      {reworkButtons}
+      <PanelPart
+        title={t("fiche.criteria")}
+        count={
+          card.acceptance.length === 0
+            ? undefined
+            : judged
+              ? t("fiche.criteria.met", { met: metCount, total: card.acceptance.length })
+              : state === "running" || state === "stopped"
+                ? t("fiche.criteria.judged")
+                : card.acceptance.length
+        }
+      >
+        {card.acceptance.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("fiche.criteria.none")}</p>
+        ) : (
+          <CollapsibleText>
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {card.acceptance.map((a, i) => {
+                const v = verdicts[i];
+                return (
+                  <li key={i} className={cn("grid gap-x-2", judged ? "grid-cols-[84px_minmax(0,1fr)]" : "grid-cols-[14px_minmax(0,1fr)]")}>
+                    {judged ? (
+                      <span className={cn("text-[13px]", v ? VERDICT_TONE[v.verdict] : "text-muted-foreground")}>
+                        {t(`fiche.verdict.${v?.verdict ?? "none"}`)}
+                      </span>
+                    ) : (
+                      <span aria-hidden className="text-muted-foreground">
+                        ○
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      {a}
+                      {v && v.reason !== a && <span className="block text-xs text-muted-foreground">{v.reason}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </CollapsibleText>
+        )}
+        {state === "todo" && (
+          <PanelLink onClick={() => setEditing(true)}>
+            <Plus className="size-3.5" />
+            {t("fiche.criteria.add")}
+          </PanelLink>
+        )}
+      </PanelPart>
+    </Panel>
+  );
+
+  const linkRow = (label: string, value: ReactNode) => (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0">{value}</dd>
+    </>
+  );
+  const linkTo = (link: CardLink, icon: ReactNode, tone?: string) => (
+    <button
+      type="button"
+      onClick={() => navigate(cardPath(link.id))}
+      className={cn("inline-flex min-w-0 max-w-full items-center gap-1 text-left", tone)}
+    >
+      {icon}
+      <span className="truncate underline-offset-4 hover:underline">{link.title}</span>
+    </button>
+  );
+  const changeLink = (
+    <PanelLink onClick={() => setEditing(true)}>{t("fiche.link.change")}</PanelLink>
+  );
+  const linksPanel = (
+    <Panel title={t("fiche.links")}>
+      <dl className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 text-sm">
+        {linkRow(
+          t("fiche.link.partOf"),
+          <span className="flex min-w-0 items-center gap-3">
+            {detail.parent ? linkTo(detail.parent, <Layers className="size-3.5 shrink-0" />) : <span className="text-muted-foreground">{t("fiche.link.none")}</span>}
+            {changeLink}
+          </span>,
+        )}
+        {detail.originCard && linkRow(t("fiche.link.from"), linkTo(detail.originCard, <CornerLeftUp className="size-3.5 shrink-0" />))}
+        {linkRow(
+          t("fiche.link.after"),
+          <span className="flex min-w-0 items-center gap-3">
+            {detail.predecessor ? (
+              // Met gets a quiet green check rather than vanishing: a satisfied dependency stays visible.
+              linkTo(
+                detail.predecessor,
+                dependencyMet(detail.predecessor) ? <Check className="size-3.5 shrink-0" /> : <CornerDownRight className="size-3.5 shrink-0" />,
+                dependencyMet(detail.predecessor) ? "text-status-done" : "text-status-blocked",
+              )
+            ) : (
+              <span className="text-muted-foreground">{t("fiche.link.none")}</span>
+            )}
+            {changeLink}
+          </span>,
+        )}
+      </dl>
+      <PanelPart title={t("fiche.link.subcards")} count={detail.children.length || undefined}>
+        <SubtaskList
+          container={card}
+          childCards={childCards}
+          byId={byId}
+          session={root?.session}
+          onOpen={(id) => navigate(cardPath(id))}
+          onReorder={reorderSubtask}
+          onNewSubtask={newSubtask}
+          onLinkExisting={linkExisting}
+          onDetach={detach}
+          onDependsOn={setSubtaskDependsOn}
+          onDelete={deleteSubtask}
+          onConvert={convertSubtask}
+          linkable={boardCards.filter((c) => c.id !== card.id && c.parentId !== card.id && !c.parentId)}
+          dependsOnCandidates={boardCards.filter((c) => c.id !== card.id)}
+        />
+      </PanelPart>
+    </Panel>
+  );
+
+  const launchPanel = canLaunch && (
+    <Panel title={t("fiche.launch")}>
+      <AgentKindPicker value={card.agentKind} onChange={(kind) => void patchField({ agentKind: kind })} />
+      {repoModel && <p className="-mt-1 px-1 text-xs text-muted-foreground">{t("fiche.repoModel", { model: repoModel })}</p>}
+      <TemplatePicker value={card.templateId ?? null} onChange={(templateId) => void patchField({ templateId })} />
+      <FlowPicker value={card.pipelineId ?? null} onChange={(pipelineId) => void patchField({ pipelineId })} />
+      <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)}>
+        {/* ADR 0048 §7: another pair holds this shared card — greyed with why, and « reprendre la main ». */}
+        {claimHolder(card, identities) ? (
+          <ClaimedElsewhere card={card} onChanged={() => revalidator.revalidate()} onMessage={(m, tone) => setStatus(m, tone)} />
+        ) : (
+          <StartButton card={card} pending={starting} onStart={start} predecessor={detail.predecessor} childCount={detail.children.length} />
+        )}
+      </CardEnvironment>
+      {/* The other answer to "start this?": too small for a worktree of its own, and the card it came
+          out of still has an agent. Only while nothing has run here yet. */}
+      {actionTarget && convertible(card.status) && (
+        <div className="flex flex-col gap-1">
+          <ConvertNowButton id={card.id} label={t("card.convert")} confirmLabel={t("card.convertConfirm")} onConfirm={() => void convertToParent(actionTarget)} />
+          <p className="text-xs text-muted-foreground">{t("card.convertHint", { title: actionTarget.title })}</p>
+        </div>
+      )}
+      {detail.lot && state === "todo" && (
+        <p className="text-xs text-muted-foreground">
+          {t("fiche.lotNote")}{" "}
+          <button type="button" onClick={() => navigate(projectPath(card.repoPath))} className="font-medium text-brand">
+            {t("lot.open")}
+          </button>
+        </p>
+      )}
+    </Panel>
+  );
+
+  const moveButtons = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
+          <Button key={s} variant="outline" size="sm" className="h-9 rounded-full" onClick={() => move(s)}>
+            {CARD_STATUS_LABEL[s]}
+          </Button>
+        ))}
+        {/* Ranks the card WITHIN its column — the one move a phone has no drag for. */}
+        {!card.parentId && (
+          <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => void toTop()}>
+            <ArrowUp className="size-3.5" />
+            {t("card.toTop")}
+          </Button>
+        )}
+      </div>
+      {/* A warning, not a gate: only the operator knows whether work merged outside the app is in. */}
+      {integration && integration.ahead > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t(integration.pushed ? "card.doneWarnPushed" : "card.doneWarnLocal", { count: integration.ahead, base: integration.base })}
+        </p>
+      )}
+    </div>
+  );
+  const movePanel = <Panel title={t("fiche.move")}>{moveButtons}</Panel>;
+
+  const agentPanel = (
+    <Panel
+      title={t("fiche.agent")}
+      actions={
+        live && (
+          <Button size="sm" className="h-9" onClick={() => openPane(live.paneId)}>
+            <TerminalSquare className="size-4" />
+            {t("fiche.agent.open")}
+          </Button>
+        )
+      }
+    >
+      {live ? (
+        // The common agent identity (state and age, machine, model and effort, last line, gauge)
+        // when the herd has the pane; the card's own mirror of it otherwise.
+        agentView ? (
+          <div className="overflow-hidden rounded-xl border">
+            <AgentLine agent={agentView} onOpen={openPane} compact />
+          </div>
+        ) : (
+          <LivePane card={card} onOpen={openPane} />
+        )
+      ) : card.status === "orphaned" ? (
+        <LivePane card={card} onOpen={openPane} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("fiche.agent.gone")}</p>
+      )}
+      <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
+      {live && (
+        <>
+          <PromptBox onSend={sendToAgent} />
+          {card.nextStep && (
+            <NextStepButton
+              name={card.nextStep.name}
+              onNext={async () => {
+                try {
+                  await nextStepCard(card.id);
+                  setStatus(t("card.toast.nextStep", { name: card.nextStep!.name }), "success");
+                } catch (e) {
+                  setStatus((e as Error).message, "error", null);
+                }
+                revalidator.revalidate();
+              }}
+            />
+          )}
+          {card.status === "review" && (
+            <ReviewPass
+              card={card}
+              onRun={async (command) => {
+                await promptCard(card.id, command);
+                setStatus(t("card.toast.passSent", { command }), "success");
+                revalidator.revalidate();
+              }}
+            />
+          )}
+          {/* The agent stopped before `git commit`: one tap asks it, in the branch it sits in. */}
+          <RequestCommitRow pending={committing} onAsk={() => void askCommit()} />
+          <HandoffButton
+            card={card}
+            onHandoff={async () => {
+              try {
+                await handoffCard(card.id);
+                setStatus(t("card.toast.handoff"), "info");
+              } catch (e) {
+                setStatus((e as Error).message, "error", null);
+              }
+              revalidator.revalidate();
+            }}
+          />
+          <MigrateHcButton
+            paneId={card.session?.paneId ?? null}
+            watch={card.status}
+            onDone={(message, ok) => {
+              if (ok) setStatus(message, "success");
+              else setStatus(message, "error", null);
+              revalidator.revalidate();
+            }}
+          />
+        </>
+      )}
+    </Panel>
+  );
+
+  const agentDonePanel = (
+    <Panel
+      title={t("fiche.agent")}
+      actions={
+        card.session?.paneId && (
+          <PanelLink onClick={() => openPane(card.session!.paneId!)}>{t("fiche.agent.review")}</PanelLink>
+        )
+      }
+    >
+      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span aria-hidden className="size-2.5 shrink-0 rounded-full bg-muted-foreground/60" />
+        {t("fiche.agent.doneLine", { ago: timeAgo(card.updatedAt), sessions: t("fiche.history.sessions", { count: card.sessionCount }) })}
+      </p>
+    </Panel>
+  );
+
+  const relayPanel = live && (
+    <Panel title={t("fiche.relay")}>
+      <AutoHandoffChoice card={card} onChanged={() => revalidator.revalidate()} bare />
+    </Panel>
+  );
+
+  // Its lot has it: say so, point at the lot (and its one PR), keep the manual gestures one tap away.
+  const holdBox = hold && (
+    <div className="flex flex-col gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3 text-sm">
+      <p>{t("lot.held", { name: hold.lot.name ?? t("lot.fallbackName") })}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => navigate(projectPath(card.repoPath))}>
+          {t("lot.open")}
+        </Button>
+        {hold.prUrl && (
+          <a href={hold.prUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-sm font-medium">
+            <GitPullRequest className="size-4" />
+            {t("lot.pr")}
+          </a>
+        )}
+        {card.branch && (
+          <Button variant="ghost" size="sm" className="h-9 rounded-full" aria-expanded={takeOver} onClick={() => setTakeOver((v) => !v)}>
+            {takeOver ? t("lot.handBack") : t("lot.takeOver")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+  const integrationBody = card.branch && (!hold || takeOver) && (
+    <IntegrationSection card={card} events={detail.events} onState={setIntegration} onDone={() => revalidator.revalidate()} bare />
+  );
+  // No branch left to ask git about: the PR the journal remembers is still one tap.
+  const prOnly = !integrationBody && !hold?.prUrl && card.prUrl && (
+    <a
+      href={card.prUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex h-[38px] w-full items-center justify-center gap-2 rounded-[10px] border bg-background text-sm font-medium shadow-xs hover:bg-accent"
+    >
+      <GitPullRequest className="size-4" />
+      {prLabel(card.prUrl)}
+    </a>
+  );
+  const codePanel = (holdBox || integrationBody || prOnly) && (
+    <Panel title={t("fiche.code")}>
+      {holdBox}
+      {integrationBody}
+      {prOnly}
+    </Panel>
+  );
+
+  const diffPanel = (
+    <CardDiff
+      cardId={card.id}
+      statusKey={card.status}
+      remote={Boolean(card.environment)}
+      alreadyPresent={report?.issue === "present"}
+      onSend={live ? sendToAgent : undefined}
+    />
+  );
+
+  const reviewsPanel = detail.reviews.length > 0 && (
+    <Panel title={t("fiche.reviews")} count={detail.reviews.length > 1 ? detail.reviews.length : undefined} actions={reviewAgainLink}>
+      <p className="text-xs text-muted-foreground">{t("card.review.moved")}</p>
+      {/* Newest first and in front: a re-review exists because the old verdict is the stale one. */}
+      {latestReview && reviewBlock(latestReview)}
+      {olderReviews.length > 0 && (
+        <details className="flex flex-col gap-2">
+          <summary className="cursor-pointer text-[13px] font-medium text-brand">{t("fiche.reviews.previous", { count: olderReviews.length })}</summary>
+          <div className="mt-2 flex flex-col gap-2">{olderReviews.map((r) => reviewBlock(r))}</div>
+        </details>
+      )}
+    </Panel>
+  );
+
+  // Finished: the lead's conclusion, what is left and what to check — each said once. The worker's
+  // bilan and the copilot's reviews in full sit folded under it.
+  const bilanPanel = (report || latestReview) && (
+    <Panel
+      tone="good"
+      title={t("fiche.bilan")}
+      count={report?.conclusion && leadTs ? t("fiche.bilan.byLead", { ago: timeAgo(leadTs) }) : undefined}
+      actions={reviewAgainLink}
+    >
+      {report?.conclusion?.reason ? (
+        <p className="text-[15px] leading-[1.55]">{report.conclusion.reason}</p>
+      ) : (
+        !report && latestReview?.notes && (
+          <CollapsibleText lines={4}>
+            <MarkdownText text={latestReview.notes} className="text-sm leading-[1.6]" />
+          </CollapsibleText>
+        )
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {latestReview && (
+          <span className={cn(CHIP_SHELL, verdictChip(latestReview.verdict), "normal-case tracking-normal")}>
+            {t("fiche.bilan.copilot", { verdict: latestReview.verdict ?? t("card.review.reviewed") })}
+          </span>
+        )}
+      </div>
+      {((latestReview?.todos.length ?? 0) > 0 || toTest.length > 0) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {latestReview && latestReview.todos.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-xl bg-background/50 p-3">
+              <span className="text-sm font-medium">{t("fiche.bilan.notDone")}</span>
+              {reviewTodos(latestReview)}
+            </div>
+          )}
+          {toTest.length > 0 && (
+            <div className="flex flex-col gap-1.5 rounded-xl bg-background/50 p-3 text-sm">
+              <span className="font-medium">{t("fiche.bilan.toCheck")}</span>
+              {toTest.map((s) => (
+                <span key={s.id} className="text-muted-foreground">{s.text}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <details>
+        <summary className="cursor-pointer text-[13px] font-medium text-brand">{t("fiche.bilan.reports")}</summary>
+        <div className="mt-3 flex flex-col gap-3">
+          {report && <CardReportSection report={report} />}
+          {[...detail.reviews].reverse().map((r) => reviewBlock(r, false))}
+        </div>
+      </details>
+    </Panel>
+  );
+
+  const recettePanel = recetteSteps.length > 0 && (
+    <Panel title={t("fiche.recette")} count={toTest.length > 0 ? t("fiche.recette.count", { count: toTest.length }) : undefined}>
+      <ol className="flex flex-col gap-1.5 text-sm">
+        {recetteSteps.map((s) => (
+          <li key={s.id} className="flex items-start gap-2">
+            {s.verdict?.status === "ok" ? (
+              <Check className="mt-0.5 size-4 shrink-0 text-status-done" />
+            ) : (
+              <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground/50" />
+            )}
+            <span className="min-w-0">
+              {s.text}
+              {s.expected && <span className="block text-xs text-muted-foreground">{s.expected}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </Panel>
+  );
+
+  const deliverablesPanel = (
+    // Refetched when the journal counts another publish — the card's own poll, no timer here.
+    <CardDeliverables cardId={card.id} version={detail.events.filter((e) => e.type === "deliverable.published").length} />
+  );
+
+  const historyPanel = (
+    <CardHistory
+      card={card}
+      events={detail.events}
+      milestoneEvents={detail.milestoneEvents}
+      count={
+        [
+          detail.sessions.length > 0 ? t("fiche.history.sessions", { count: detail.sessions.length }) : null,
+          report && report.rounds.length > 0 ? t("fiche.history.rounds", { count: report.rounds.length }) : null,
+        ]
+          .filter(Boolean)
+          .join(", ") || undefined
+      }
+      onRestore={restore}
+      more={
+        <>
+          {detail.sessions.length > 0 && (
+            <Section label={t("card.section.sessions")}>
+              <div className="flex flex-col">
+                {detail.sessions.map((s, i) => (
+                  <SessionRow key={s.id} session={s} index={i} last={i === detail.sessions.length - 1} />
+                ))}
+              </div>
+            </Section>
+          )}
+          {/* Finished, the rounds are in the bilan's reports; before that, here. */}
+          {report && state !== "done" && (
+            <Section label={t("fiche.history.rounds.title")}>
+              <CardReportSection report={report} />
+            </Section>
+          )}
+        </>
+      }
+    />
+  );
+
+  // Stopped: why, in plain words, and the ways out — the raw error stays in the history.
+  const haltReason = report?.conclusion?.kind === "halted" ? haltSummary(report.conclusion.reason).head.join(" ").slice(0, 240) : null;
+  const stoppedPanel = (
+    <Panel tone="bad" title={t("fiche.why")}>
+      {card.status === "orphaned" ? (
+        <NonNominalPanel tone="unknown" title={t("card.orphan.title")}>
+          {t("card.orphan.text")}
+        </NonNominalPanel>
+      ) : (
+        <p className="text-sm leading-[1.5]">{haltReason ? t("fiche.why.halted", { reason: haltReason }) : t("fiche.why.blocked")}</p>
+      )}
+      {live && <RequestCommitRow pending={committing} onAsk={() => void askCommit()} />}
+      {canLaunch && (
+        <StartButton card={card} pending={starting} onStart={start} predecessor={detail.predecessor} childCount={detail.children.length} />
+      )}
+      {holdBox}
+      {integrationBody}
+      <p className="text-xs text-muted-foreground">{t("fiche.why.raw")}</p>
+    </Panel>
+  );
+
+  const duplicateBox = detail.duplicate && (
+    // A question about THIS card's right to exist: answerable before anything else is read.
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
+      <p className="text-xs text-muted-foreground">{t("card.dup.hint")}</p>
+      <button
+        type="button"
+        onClick={() => navigate(cardPath(detail.duplicate!.id))}
+        className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
+      >
+        <Copy className="size-3.5 shrink-0" />
+        <span className="truncate">{detail.duplicate.title}</span>
+      </button>
+      <Button variant="ghost" size="sm" className="h-9 w-fit" onClick={() => void save({ duplicateOf: null })}>
+        {t("card.dup.not")}
+      </Button>
+    </div>
+  );
+
+  const container = detail.children.length > 0 && (
+    <ContainerSidebar childCards={childCards} rawInput={card.rawInput} onOpenPane={openPane} />
+  );
+
+  // Left: what is happening. Right: what is asked and what was delivered.
+  const [left, right]: [ReactNode, ReactNode] =
+    state === "todo"
+      ? [
+          <>{askedPanel}{linksPanel}{historyPanel}</>,
+          <>{container}{launchPanel}{movePanel}{deliverablesPanel}</>,
+        ]
+      : state === "running"
+        ? [
+            <>{agentPanel}{launchPanel}{diffPanel}{reviewsPanel}{historyPanel}</>,
+            <>{askedPanel}{relayPanel}{codePanel}{container}{deliverablesPanel}{hasLinks && linksPanel}</>,
+          ]
+        : state === "stopped"
+          ? [
+              <>{reviewsPanel}{historyPanel}</>,
+              <>{live && agentPanel}{askedPanel}{diffPanel}{relayPanel}{container}{deliverablesPanel}{hasLinks && linksPanel}</>,
+            ]
+          : [
+              <>{agentDonePanel}{bilanPanel}{historyPanel}</>,
+              <>{askedPanel}{recettePanel}{deliverablesPanel}{codePanel}{diffPanel}{container}{hasLinks && linksPanel}</>,
+            ];
+
   return (
-    // No page-level ceiling, matching the board/dashboard now — the mockups show the grid and the
-    // sub-task table using the full width. The one thing that still wants a reading-width cap is
-    // PROSE specifically (Spec/Acceptance), which caps itself at `max-w-[70ch]` below rather than
-    // constraining the whole page around it.
     <div className="mx-auto flex min-h-0 w-full max-w-screen-sm lg:max-w-none flex-1 flex-col">
-      {/* An entered screen (reached from the board), so it gets the back chevron rather than the nav
-          treatment. The breadcrumb (children) carries "Board › title"; Éditer + the "⋯" menu (which
-          holds Danger zone — see the sheet below) are the toolbar's own controls. */}
+      {/* project / Cartes, then the card's own controls: take it over, pin it, its Actions menu. */}
       <AppHeader
         onBack={back}
         rightTrail={
-          card && (
-            <>
-              <PinToggle target={{ cardId: card.id }} name={card.title} className="size-9" />
-              <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)} aria-label={t("card.edit")}>
-                <Pencil className="size-4" />
-                <span className="hidden sm:inline">{t("card.edit")}</span>
-              </Button>
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                aria-label={t("card.more")}
-                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60"
-              >
-                <EllipsisVertical className="size-5" />
-              </button>
-            </>
-          )
+          <>
+            {card.session && <HeldControl cardId={card.id} held={!!card.held} className="max-sm:hidden" />}
+            <PinToggle target={{ cardId: card.id }} name={card.title} className="size-9" />
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setMenuOpen(true)} aria-label={t("fiche.actions")}>
+              <EllipsisVertical className="size-4 sm:hidden" />
+              <span className="hidden sm:inline">{t("fiche.actions")}</span>
+              <ChevronDown className="hidden size-3.5 sm:block" />
+            </Button>
+          </>
         }
       >
-        <button
-          type="button"
-          onClick={() => navigate(boardPath())}
-          className="flex min-w-0 flex-1 items-center gap-1 text-left"
-        >
-          <span className="shrink-0 text-sm text-muted-foreground">{t("board.title")}</span>
-          {/* The <h1> below says the title; on a phone the crumb is only the way back. */}
-          <ChevronRight className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
-          <span className="hidden min-w-0 flex-1 truncate text-[15px] font-semibold sm:block">
-            {card?.title ?? ""}
-          </span>
-        </button>
+        <nav aria-label={t("fiche.crumbCards")} className="flex min-w-0 flex-1 items-center gap-1.5 text-sm text-muted-foreground">
+          {card.repoPath && (
+            <>
+              <button type="button" onClick={() => navigate(projectPath(card.repoPath))} className="min-w-0 truncate hover:text-foreground">
+                {repoName(card.repoPath)}
+              </button>
+              <span aria-hidden>/</span>
+            </>
+          )}
+          <button type="button" onClick={() => navigate(boardPath())} className="shrink-0 hover:text-foreground">
+            {t("fiche.crumbCards")}
+          </button>
+        </nav>
       </AppHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-24 pt-3 lg:px-6 lg:pt-6">
-        {!card ? (
-          <p className="px-1 py-12 text-center text-sm text-muted-foreground">
-            {data.error ? t("card.unreachable") : t("card.notFound")}
-          </p>
-        ) : (
-          <>
-            <header className="flex flex-col gap-2">
-              {/* Where this card came from. A sub-task's spec is an extract of a dictation that
-                  lives on its container — without a way back, that context is unreachable. */}
-              {detail?.parent && (
-                <button
-                  type="button"
-                  onClick={() => navigate(cardPath(detail.parent!.id))}
-                  className="flex min-w-0 items-center gap-1 self-start text-xs text-muted-foreground"
-                >
-                  <Layers className="size-3 shrink-0" />
-                  <span className="truncate">{detail.parent.title}</span>
-                </button>
-              )}
-              {/* Same question for a follow-up, whose spec is an extract of a REVIEW that lives on
-                  the card it was filed against. Its own row rather than merged with the one above:
-                  a card can be both, and "part of" and "came out of" are different answers. */}
-              {detail?.originCard && (
-                <button
-                  type="button"
-                  onClick={() => navigate(cardPath(detail.originCard!.id))}
-                  className="flex min-w-0 items-center gap-1 self-start text-xs text-muted-foreground"
-                >
-                  <CornerLeftUp className="size-3 shrink-0" />
-                  <span className="truncate">{t("tile.from", { source: detail.originCard.title })}</span>
-                </button>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                {hold && (
-                  <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>
-                )}
-                {hold?.step ? (
-                  <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">
-                    {t(`lot.step.${hold.step}`)}
-                  </span>
-                ) : (
-                  <CardStatusChip status={card.status}>
-                    {CARD_STATUS_LABEL[card.status]}
-                  </CardStatusChip>
-                )}
-                {detail?.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
-                {card.session && <HeldControl cardId={card.id} held={!!card.held} />}
-                {card.tag && <TagChip tag={card.tag} />}
-                {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
-                <CopyPromptButton cardId={card.id} />
-              </div>
-              {/* <repo> · <branch> — a container never gets checked out, so a branch name on it is a
-                  promise nothing keeps. The copilot withholds one when IT splits a card, but a card
-                  that became a container by hand-linking children afterwards keeps whatever it
-                  already had — and clearing that is not safe, since it may name a real worktree from
-                  before. */}
-              {(card.repoPath || card.environment || (card.branch && !detail?.children.length)) && (
-                <div className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                  {card.repoPath && <span className="truncate">{repoName(card.repoPath)}</span>}
-                  {card.repoPath && card.branch && !detail?.children.length && <span>·</span>}
-                  {card.branch && !detail?.children.length && (
-                    <span className="flex min-w-0 items-center gap-1 truncate">
-                      <GitBranch className="size-3 shrink-0" />
-                      {card.branch}
-                    </span>
-                  )}
-                  {card.environment && <span className="shrink-0 font-sans">· {t("cardEnv.on", { peer: card.environment.peer })}</span>}
-                  <CardPeople card={card} className="font-sans" />
-                </div>
-              )}
-              <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">
-                {card.title}
-              </h1>
-              {/* Same question the tile answers at a glance: "can I start this" without opening the
-                  editor's "After" picker. Shown whether or not it's still blocking — met gets a quiet
-                  green check rather than vanishing, so a satisfied dependency stays visible. */}
-              {detail?.predecessor && (
-                <button
-                  type="button"
-                  onClick={() => navigate(cardPath(detail.predecessor!.id))}
-                  className={cn(
-                    "flex min-w-0 items-center gap-1 self-start text-xs",
-                    dependencyMet(detail.predecessor) ? "text-status-done" : "text-status-blocked",
-                  )}
-                >
-                  {dependencyMet(detail.predecessor) ? (
-                    <Check className="size-3 shrink-0" />
-                  ) : (
-                    <CornerDownRight className="size-3 shrink-0" />
-                  )}
-                  <span className="truncate">{t("tile.after", { title: detail.predecessor.title })}</span>
-                </button>
-              )}
-            </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-24 pt-3 lg:gap-5 lg:px-6 lg:pt-6">
+        <header className="flex flex-col gap-2">
+          <h1 className="max-w-[46ch] text-[26px] font-semibold leading-[1.15] tracking-[-0.02em]">{card.title}</h1>
+          {/* Where it stands, in words: its column, the lot's step, who filed it and for whom, its tags. */}
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px] text-muted-foreground">
+            {hold && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{hold.label}</span>}
+            {hold?.step ? (
+              <span className="rounded-full bg-status-working/15 px-2 py-0.5 text-xs font-semibold text-status-working">{t(`lot.step.${hold.step}`)}</span>
+            ) : (
+              <CardStatusChip status={card.status} className="normal-case tracking-normal">{CARD_STATUS_LABEL[card.status]}</CardStatusChip>
+            )}
+            {!said.agent && <span className={said.tone === "bad" ? "text-status-blocked" : said.tone === "good" ? "text-status-done" : undefined}>{said.text}</span>}
+            {card.runtime && <StatusBadge status={card.runtime.agentStatus} />}
+            {detail.awaiting && card.repoPath && <AwaitingTag awaiting={detail.awaiting} repo={card.repoPath} />}
+            {phaseName && <span>{phaseName}</span>}
+            {detail.lot && !hold && <span>{t("fiche.lot", { name: detail.lot.name ?? t("lot.fallbackName") })}</span>}
+            {/* A container is never checked out: a branch on it is a promise nothing keeps. */}
+            {card.branch && !detail.children.length && (
+              <span className="flex min-w-0 items-center gap-1 font-mono text-xs">
+                <GitBranch className="size-3 shrink-0" />
+                <span className="truncate">{card.branch}</span>
+              </span>
+            )}
+            {card.environment && <span>{t("cardEnv.on", { peer: card.environment.peer })}</span>}
+            <span>{t("fiche.created", { ago: timeAgo(card.createdAt) })}</span>
+            <CardPeople card={card} />
+            {card.tag && <TagChip tag={card.tag} />}
+          </div>
+          {card.session && <HeldControl cardId={card.id} held={!!card.held} className="sm:hidden" />}
+        </header>
 
-            {/* The card's two halves: what the card IS (spec, acceptance, what happened to it) and
-                what is happening to it RIGHT NOW (its pane, its context budget, the box that talks
-                to it). Document first, live state second — on a phone that is top-to-bottom, on
-                `lg` it is the grid's two columns — on `lg` the doc stays left. A card in flight (`liveFirst`) flips the
-                order on mobile only: its live half is what the phone is opened for. */}
-            <div className="flex flex-col gap-7 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-7">
-              {/* `empty:hidden` + an `auto` track, not a fixed one: a filed card has no pane, no
-                  context gauge and no Start button, so this half renders NOTHING — and a reserved
-                  340px of blank column next to the spec is worse than no column at all. */}
-              <div className={cn("flex min-w-0 flex-col gap-3.5 empty:hidden lg:order-2 lg:w-[340px]", liveFirst(card.status) ? "order-1" : "order-2")}>
-                <LivePane card={card} onOpen={(paneId) => navigate(panePath(paneId, root?.session))} />
+        {duplicateBox}
+        {state === "stopped" && stoppedPanel}
 
-                <ContextGauge pct={card.session?.ctxPct} tokens={card.session?.ctxTokens} />
-
-                <ContainerSidebar
-                  childCards={childCards}
-                  rawInput={card.rawInput}
-                  onOpenPane={(paneId) => navigate(panePath(paneId, root?.session))}
-                />
-
-                {card.runtime ? (
-                  <>
-                    <PromptBox
-                      onSend={async (text) => {
-                        await promptCard(card.id, text);
-                        revalidator.revalidate();
-                      }}
-                    />
-                    {card.nextStep && (
-                      <NextStepButton
-                        name={card.nextStep.name}
-                        onNext={async () => {
-                          try {
-                            await nextStepCard(card.id);
-                            setStatus(t("card.toast.nextStep", { name: card.nextStep!.name }), "success");
-                          } catch (e) {
-                            setStatus((e as Error).message, "error", null);
-                          }
-                          revalidator.revalidate();
-                        }}
-                      />
-                    )}
-                    <HandoffButton
-                      card={card}
-                      onHandoff={async () => {
-                        try {
-                          await handoffCard(card.id);
-                          setStatus(t("card.toast.handoff"), "info");
-                        } catch (e) {
-                          setStatus((e as Error).message, "error", null);
-                        }
-                        revalidator.revalidate();
-                      }}
-                    />
-                    <AutoHandoffChoice card={card} onChanged={() => revalidator.revalidate()} />
-                    <MigrateHcButton
-                      paneId={card.session?.paneId ?? null}
-                      watch={card.status}
-                      onDone={(message, ok) => {
-                        if (ok) setStatus(message, "success");
-                        else setStatus(message, "error", null);
-                        revalidator.revalidate();
-                      }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <AgentKindPicker
-                      value={card.agentKind}
-                      onChange={async (kind) => {
-                        try {
-                          await patchCard(card.id, { agentKind: kind });
-                        } catch (e) {
-                          setStatus((e as Error).message, "error", null);
-                        }
-                        revalidator.revalidate();
-                      }}
-                    />
-                    <TemplatePicker
-                      value={card.templateId ?? null}
-                      onChange={async (templateId) => {
-                        try {
-                          await patchCard(card.id, { templateId });
-                        } catch (e) {
-                          setStatus((e as Error).message, "error", null);
-                        }
-                        revalidator.revalidate();
-                      }}
-                    />
-                    <FlowPicker
-                      value={card.pipelineId ?? null}
-                      onChange={async (pipelineId) => {
-                        try {
-                          await patchCard(card.id, { pipelineId });
-                        } catch (e) {
-                          setStatus((e as Error).message, "error", null);
-                        }
-                        revalidator.revalidate();
-                      }}
-                    />
-                    <CardEnvironment card={card} onChanged={() => revalidator.revalidate()} onError={(m) => setStatus(m, "error", null)}>
-                      {/* ADR 0048 §7: another pair holds this shared card — greyed with why, and « reprendre la main ». */}
-                      {claimHolder(card, identities) ? (
-                        <ClaimedElsewhere card={card} onChanged={() => revalidator.revalidate()} onMessage={(m, tone) => setStatus(m, tone)} />
-                      ) : (
-                        <StartButton
-                          card={card}
-                          pending={starting}
-                          onStart={start}
-                          predecessor={detail?.predecessor}
-                          childCount={detail?.children.length}
-                        />
-                      )}
-                    </CardEnvironment>
-                    {/* The other answer to "start this?", and it belongs next to Start rather than
-                        three taps deep in the "⋯": this is too small for a worktree and an agent of
-                        its own, and the card it came out of still has one. Only while nothing has
-                        run here yet — see `convertible`. */}
-                    {actionTarget && convertible(card.status) && (
-                      <div className="flex flex-col gap-1">
-                        <ConvertNowButton
-                          id={card.id}
-                          label={t("card.convert")}
-                          confirmLabel={t("card.convertConfirm")}
-                          onConfirm={() => void convertToParent(actionTarget)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {t("card.convertHint", { title: actionTarget.title })}
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Action rail, not document — "what can I DO with this card" belongs beside its live
-                    state, not buried mid-document between Spec and Journal (redesign follow-up: the
-                    board-card mockup puts Intégration and Classer here). */}
-                {/* Its lot has it: say so, point at the lot (and its one PR), and keep the manual
-                    gestures one tap away rather than first — they would race the lead. */}
-                {hold && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-brand/40 bg-brand/5 p-3 text-sm">
-                    <p>{t("lot.held", { name: hold.lot.name ?? t("lot.fallbackName") })}</p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" className="h-9 rounded-full" onClick={() => navigate(projectPath(card.repoPath))}>
-                        {t("lot.open")}
-                      </Button>
-                      {hold.prUrl && (
-                        <a
-                          href={hold.prUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-sm font-medium"
-                        >
-                          <GitPullRequest className="size-4" />
-                          {t("lot.pr")}
-                        </a>
-                      )}
-                      {card.branch && (
-                        <Button variant="ghost" size="sm" className="h-9 rounded-full" aria-expanded={takeOver} onClick={() => setTakeOver((v) => !v)}>
-                          {takeOver ? t("lot.handBack") : t("lot.takeOver")}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {card.branch && (!hold || takeOver) && (
-                  <IntegrationSection
-                    card={card}
-                    events={detail?.events ?? []}
-                    onState={setIntegration}
-                    onDone={() => revalidator.revalidate()}
-                  />
-                )}
-
-                <Section label={t("card.section.moveTo")}>
-                  <div className="flex flex-wrap gap-2">
-                    {MANUAL_STATUSES.filter((s) => s !== card.status).map((s) => (
-                      <Button
-                        key={s}
-                        variant="outline"
-                        size="sm"
-                        className="h-9 rounded-full"
-                        onClick={() => move(s)}
-                      >
-                        {CARD_STATUS_LABEL[s]}
-                      </Button>
-                    ))}
-                    {/* The one thing "Classer" could not do: rank the card WITHIN its column. Same
-                        row as the columns because it answers the same question ("where does this
-                        go"), and separated by an icon because it is the only one that stays put. */}
-                    {!card.parentId && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9 rounded-full"
-                        onClick={() => void toTop()}
-                      >
-                        <ArrowUp className="size-3.5" />
-                        {t("card.toTop")}
-                      </Button>
-                    )}
-                  </div>
-                  {/* A warning, not a gate: this used to HIDE "Done", which left no way to file a
-                      card whose work was merged outside the app (a squash or a rebase lands the
-                      commits under new hashes, so `ahead` never reaches 0 and the button never came
-                      back). The hazard it warns about is real — filing sends the agent away — but
-                      only the operator knows whether the work is in. */}
-                  {integration && integration.ahead > 0 && (
-                    <p className="pt-2 text-xs text-muted-foreground">
-                      {t(integration.pushed ? "card.doneWarnPushed" : "card.doneWarnLocal", {
-                        count: integration.ahead,
-                        base: integration.base,
-                      })}
-                    </p>
-                  )}
-                </Section>
-              </div>
-
-              <div className={cn("flex min-w-0 flex-col gap-[22px] lg:order-1", liveFirst(card.status) ? "order-2" : "order-1")}>
-                {/* Right under the title, because it is a question about THIS card's right to exist,
-                    and it has to be answerable before anyone reads the spec below it. */}
-                {detail?.duplicate && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2">
-                    <p className="text-xs text-muted-foreground">
-                      {t("card.dup.hint")}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => navigate(cardPath(detail.duplicate!.id))}
-                      className="flex min-w-0 items-center gap-1 text-left text-sm underline underline-offset-4"
-                    >
-                      <Copy className="size-3.5 shrink-0" />
-                      <span className="truncate">{detail.duplicate.title}</span>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-9 w-fit"
-                      onClick={() => void save({ duplicateOf: null })}
-                    >
-                      {t("card.dup.not")}
-                    </Button>
-                  </div>
-                )}
-
-                {/* What came of the work, before how it was asked for: a diff alone can't say « already there ». */}
-                {report && <CardReportSection report={report} />}
-
-                {/* Above the spec on purpose: this is usually the answer to "why is this card still a
-                    bare title", and that question is asked while looking at the empty space below. */}
-                {card.copilotBusy && (
-                  <div className="flex animate-pulse items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                    <Sparkles className="size-3.5 shrink-0" />
-                    <span>{t("card.copilotBusy")}</span>
-                  </div>
-                )}
-
-                {detail && detail.children.length > 0 && (
-                  <Section label={t("card.section.subtasks")}>
-                    <SubtaskList
-                      container={card}
-                      childCards={childCards}
-                      byId={byId}
-                      session={root?.session}
-                      onOpen={(id) => navigate(cardPath(id))}
-                      onReorder={reorderSubtask}
-                      onNewSubtask={newSubtask}
-                      onLinkExisting={linkExisting}
-                      onDetach={detach}
-                      onDependsOn={setSubtaskDependsOn}
-                      onDelete={deleteSubtask}
-                      onConvert={convertSubtask}
-                      linkable={boardCards.filter(
-                        (c) => c.id !== card.id && c.parentId !== card.id && !c.parentId,
-                      )}
-                      dependsOnCandidates={boardCards.filter((c) => c.id !== card.id)}
-                    />
-                  </Section>
-                )}
-
-                {card.spec && (
-                  <Section label={t("card.section.spec")}>
-                    <CollapsibleText><MarkdownText text={card.spec} className="max-w-[70ch] text-sm leading-[1.6]" /></CollapsibleText>
-                  </Section>
-                )}
-
-                {card.acceptance.length > 0 && (
-                  <Section label={t("card.section.acceptance")}>
-                    <CollapsibleText>
-                      <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
-                        {card.acceptance.map((a, i) => (
-                          <li key={i}>{a}</li>
-                        ))}
-                      </ul>
-                    </CollapsibleText>
-                  </Section>
-                )}
-
-                <CardDiff
-                  cardId={card.id}
-                  statusKey={card.status}
-                  remote={Boolean(card.environment)}
-                  alreadyPresent={report?.issue === "present"}
-                  onSend={
-                    card.runtime
-                      ? async (text) => {
-                          await promptCard(card.id, text);
-                          revalidator.revalidate();
-                        }
-                      : undefined
-                  }
-                />
-
-                <Section label={t("card.section.rework")}>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-2"
-                      onClick={() => {
-                        // Reformulate re-reads the original dictation, so it discards a hand edit. Ask
-                        // once when that is what would happen — a second tap, not a browser dialog,
-                        // which on a PWA is both ugly and easy to dismiss by reflex.
-                        if (!confirmRework && editedByHandSince(detail?.events ?? [])) {
-                          setConfirmRework(true);
-                          return;
-                        }
-                        setConfirmRework(false);
-                        void reformulate();
-                      }}
-                    >
-                      <Sparkles className="size-4" />
-                      {confirmRework ? t("card.replaceEdits") : t("card.reformulate")}
-                    </Button>
-                    {/* No confirmation on this one, unlike its neighbour: it starts from the card as
-                        it stands, so a hand edit is what it corrects rather than what it discards. */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-2"
-                      onClick={() => setRefining((v) => !v)}
-                    >
-                      <Sparkles className="size-4" />
-                      {refining ? t("card.correctCancel") : t("card.correct")}
-                    </Button>
-                    {confirmRework && (
-                      <Button variant="ghost" size="sm" className="h-9" onClick={() => setConfirmRework(false)}>
-                        {t("board.cancel")}
-                      </Button>
-                    )}
-                  </div>
-                  {confirmRework && (
-                    <p className="pt-2 text-xs text-muted-foreground">
-                      {detail.children.length > 0
-                        ? t("card.rework.warnChildren")
-                        : t("card.rework.warnText")}
-                    </p>
-                  )}
-                  {refining && (
-                    <div className="flex flex-col gap-2 pt-2">
-                      <p className="text-xs text-muted-foreground">
-                        {t("card.refine.hint")}
-                      </p>
-                      <PromptBox
-                        placeholder={t("card.refine.placeholder")}
-                        sendLabel={t("card.refine.send")}
-                        onSend={refine}
-                      />
-                    </div>
-                  )}
-                </Section>
-
-                {detail && detail.reviews.length > 0 && (
-                  <Section label={t("card.section.review")}>
-                    <div className="flex flex-col gap-2">
-                      {/* The agent stopped before `git commit`: the review saw the uncommitted files
-                          in the working-tree diff, and filing a card for that would be a worktree
-                          and an agent to run one git command. This asks THIS card's agent instead —
-                          the one still sitting in the branch — in one tap. Shown whenever the agent
-                          is still there, not gated on the verdict: a `complete` with uncommitted
-                          files left behind needs it just as much as a `partial`. */}
-                      {card.runtime && (
-                        <RequestCommitRow pending={committing} onAsk={() => void askCommit()} />
-                      )}
-                      {/* Reopen a `partial`, do the missing work, and the card still shows the old
-                          verdict — nothing on this screen said "look again". This is that tap. Not
-                          gated on the verdict: a `complete` re-read after more commits is the same
-                          question, and one more agent turn is the operator's call to spend. */}
-                      <div className="flex items-center gap-2">
-                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                          {t("card.review.moved")}
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 shrink-0 gap-2"
-                          disabled={reviewing || card.copilotBusy}
-                          onClick={() => void reviewAgain()}
-                        >
-                          <Sparkles className="size-4" />
-                          {/* Labelled from the local tap, not from `copilotBusy` — that set is
-                              shared with reformulate/refine, and a correction running elsewhere on
-                              this card would make this button claim a review nobody asked for. It
-                              still DISABLES on it: `reviewNow` would drop the tap anyway. */}
-                          {reviewing ? t("card.review.running") : t("card.review.again")}
-                        </Button>
-                      </div>
-                      {/* Newest FIRST, unlike every other history on this screen: a re-review exists
-                          precisely because the old verdict is the stale one, and appending it under
-                          the report it replaces would leave the card saying what it said before. */}
-                      {[...detail.reviews].reverse().map((r) => (
-                        <Card key={r.id} className="gap-2 rounded-xl px-3.5 py-3">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className={cn(CHIP_SHELL, verdictChip(r.verdict))}>
-                              {r.verdict ?? t("card.review.reviewed")}
-                            </span>
-                            <span className="ml-auto text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
-                          </div>
-                          {/* The report reads as a report: headings, bullets and fenced blocks all
-                              come out formatted (the prompt now asks for them — copilot.ts
-                              `notesRule`), and a note written before that change is a paragraph,
-                              which renders as a paragraph. Sized like the card's own spec rather
-                              than MarkdownText's default `text-base`: it sits inside a nested card
-                              whose header is text-sm. */}
-                          {r.notes && (
-                            <CollapsibleText>
-                              <MarkdownText text={r.notes} className="text-sm leading-[1.6]" />
-                            </CollapsibleText>
-                          )}
-                          {r.todos.length > 0 && (
-                            <div className="flex flex-col gap-1">
-                              {r.todos.map((todo, i) =>
-                                todo.card ? (
-                                  <div
-                                    key={todo.card.id}
-                                    className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2"
-                                  >
-                                    {/* Same height as the button under it, deliberately: opening the
-                                        card is the usual answer and a shorter row next to a full
-                                        secondary button reads as the lesser of the two. */}
-                                    <button
-                                      type="button"
-                                      onClick={() => navigate(cardPath(todo.card!.id))}
-                                      className="flex h-10 items-center gap-2 text-left active:scale-[0.99]"
-                                    >
-                                      <CardStatusChip status={todo.card.status} className="px-1.5" />
-                                      <span className="min-w-0 flex-1 truncate text-sm">{todo.card.title}</span>
-                                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                                    </button>
-                                    {/* The tap its filed-as-a-card neighbour never had. The suggestion
-                                        got a card; you disagree, and the agent that produced it is
-                                        still at its prompt — so take it back as an action and send it,
-                                        here, rather than opening the card to find the same gesture in
-                                        a "⋯". Offered only while that agent is there to receive it,
-                                        and only before the card was ever started: past that it holds
-                                        work of its own, and losing it is not a two-tap decision. */}
-                                    {card.runtime && convertible(todo.card.status) && (
-                                      <div className="flex items-center gap-2">
-                                        {/* The question the button answers. Without it "instead" has
-                                            no antecedent, and the row it shares reads as padding. */}
-                                        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                                          {t("card.tooSmall")}
-                                        </p>
-                                        <ConvertNowButton
-                                          id={todo.card.id}
-                                          label={t("card.finishInstead")}
-                                          confirmLabel={t("card.finishConfirm")}
-                                          busy={finishing === todo.card.id}
-                                          compact
-                                          onConfirm={() => void convertAndFinish(todo.card!.id)}
-                                        />
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : todo.tiny ? (
-                                  // Never filed, on purpose — the one tap that does it is right here.
-                                  <TinyTodoRow
-                                    key={i}
-                                    title={todo.title}
-                                    todo={todo.tiny}
-                                    live={!!card.runtime}
-                                    pending={finishing === busyKey(r.id, todo.title)}
-                                    onFinish={() => void finishNow(r.id, todo.title)}
-                                  />
-                                ) : (
-                                  // Deleted since — the title is what's left to show.
-                                  <div
-                                    key={i}
-                                    className="truncate rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground line-through"
-                                  >
-                                    {todo.title}
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                          )}
-                        </Card>
-                      ))}
-                    </div>
-                  </Section>
-                )}
-
-                {/* Refetched when the journal counts another publish — the card's own poll, no timer here. */}
-                <CardDeliverables
-                  cardId={card.id}
-                  version={detail?.events.filter((e) => e.type === "deliverable.published").length ?? 0}
-                />
-
-                {card.status === "review" && (
-                  <Section label={t("card.section.reviewPass")}>
-                    <ReviewPass
-                      card={card}
-                      onRun={async (command) => {
-                        await promptCard(card.id, command);
-                        setStatus(t("card.toast.passSent", { command }), "success");
-                        revalidator.revalidate();
-                      }}
-                    />
-                  </Section>
-                )}
-
-                {detail && detail.sessions.length > 0 && (
-                  <Section label={t("card.section.sessions")}>
-                    <div className="flex flex-col">
-                      {detail.sessions.map((s, i) => (
-                        <SessionRow
-                          key={s.id}
-                          session={s}
-                          index={i}
-                          last={i === detail.sessions.length - 1}
-                        />
-                      ))}
-                    </div>
-                  </Section>
-                )}
-
-                {detail && detail.events.length > 0 && (
-                  <Section label={t("timeline.title")}>
-                    <CardTimeline events={detail.milestoneEvents ?? detail.events} />
-                  </Section>
-                )}
-
-                {detail && detail.events.length > 0 && (
-                  <Section label={t("card.section.journal")}>
-                    <CardJournal
-                      events={detail.events}
-                      onRestore={async (eventId) => {
-                        try {
-                          await revertCard(card.id, eventId);
-                          setStatus(t("card.toast.restored"), "success");
-                        } catch (e) {
-                          setStatus((e as Error).message, "error", null);
-                        }
-                        revalidator.revalidate();
-                      }}
-                    />
-                  </Section>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-5">
+          <div className="flex min-w-0 flex-col gap-4">{left}</div>
+          <div className="flex min-w-0 flex-col gap-4">{right}</div>
+        </div>
       </div>
 
-      {/* The toolbar's "⋯" — one destructive action doesn't need its own always-visible section
-          taking up the bottom of the document; a menu is where a rare, dangerous action belongs. */}
-      {card && (
-        <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={t("card.sheetTitle")}>
+      {/* « Actions »: everything about the card as a whole, and what its face leaves out. */}
+      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)} title={t("fiche.actions")}>
+        <div className="flex flex-col gap-1 pb-2">
+          <ActionRow
+            icon={<Pencil className="size-4 shrink-0 text-muted-foreground" />}
+            label={t("card.edit")}
+            onClick={() => {
+              setMenuOpen(false);
+              setEditing(true);
+            }}
+          />
+          <div className="px-3 py-2">
+            <CopyPromptButton cardId={card.id} />
+          </div>
           {actionTarget && (
-            <div className="flex flex-col pb-2">
+            <div className="flex flex-col">
               <ActionRow
                 icon={<Zap className="size-4 shrink-0 text-muted-foreground" />}
                 label={t("card.convertOn", { title: actionTarget.title })}
@@ -1215,18 +1377,19 @@ export function CardRoute() {
                   void convertToParent(actionTarget);
                 }}
               />
-              <p className="px-3 pb-1 text-xs text-muted-foreground">
-                {t("card.convertHint", { title: actionTarget.title })}
-              </p>
+              <p className="px-3 pb-1 text-xs text-muted-foreground">{t("card.convertHint", { title: actionTarget.title })}</p>
             </div>
           )}
-          <DangerZone cardId={card.id} onDelete={remove} />
-        </BottomSheet>
-      )}
+          {state !== "todo" && (
+            <div className="px-3 py-2">
+              <Section label={t("fiche.move")}>{moveButtons}</Section>
+            </div>
+          )}
+        </div>
+        <DangerZone cardId={card.id} onDelete={remove} />
+      </BottomSheet>
 
-      {card && (
-        <CardEditor card={card} open={editing} onClose={() => setEditing(false)} onSave={save} />
-      )}
+      <CardEditor card={card} open={editing} onClose={() => setEditing(false)} onSave={save} />
     </div>
   );
 }
@@ -1527,7 +1690,7 @@ export function PromptBox({
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <SectionLabel>{label}</SectionLabel>
+      <h3 className="text-sm font-medium">{label}</h3>
       {children}
     </section>
   );
@@ -1608,12 +1771,16 @@ export function IntegrationSection({
   events,
   onDone,
   onState,
+  bare = false,
 }: {
   card: CardView;
   events: readonly BoardEvent[];
   onDone: () => void;
   onState: (state: Integration | null | undefined) => void;
+  /** Inside a panel that already names it (« Code », « Pourquoi elle s'est arrêtée »): no heading of its own. */
+  bare?: boolean;
 }) {
+
   const t = useT();
   const [state, setState] = useState<Integration | null | undefined>(undefined);
   const [pr, setPr] = useState<PrStatus | null>(null);
@@ -1653,7 +1820,7 @@ export function IntegrationSection({
             {/* GitHub's own editor: fine for a trivial conflict, no build and no tests (ADR 0014). */}
             {pr?.conflicting && (
               <>
-                {" · "}
+                {", "}
                 <a href={`${pr.url}/conflicts`} target="_blank" rel="noreferrer" className="underline underline-offset-4">
                   {t("int.resolveGh")}
                 </a>
@@ -1831,7 +1998,7 @@ export function IntegrationSection({
   if (state === undefined) return null;
   if (state === null) {
     return (
-      <Section label={t("int.section")}>
+      <IntegrationFrame bare={bare}>
         {history ? (
           <div className="flex flex-col gap-3">
             {history}
@@ -1841,7 +2008,7 @@ export function IntegrationSection({
         ) : (
           <p className="text-xs text-muted-foreground">{t("int.noBranch")}</p>
         )}
-      </Section>
+      </IntegrationFrame>
     );
   }
 
@@ -1868,7 +2035,7 @@ export function IntegrationSection({
   // for the case this exists to make rare: filed first, integrated afterwards.
   const filing = card.status !== "done" && card.status !== "archived";
   return (
-    <Section label={t("int.section")}>
+    <IntegrationFrame bare={bare}>
       <div className="flex flex-col gap-3">
         {history}
         {reopen}
@@ -2143,8 +2310,13 @@ export function IntegrationSection({
           )}
         </div>
       </div>
-    </Section>
+    </IntegrationFrame>
   );
+}
+
+function IntegrationFrame({ bare, children }: { bare: boolean; children: ReactNode }) {
+  const t = useT();
+  return bare ? <div className="flex flex-col gap-3">{children}</div> : <Section label={t("int.section")}>{children}</Section>;
 }
 
 /**
@@ -2216,7 +2388,7 @@ function SessionRow({
           <span className="text-[13px] font-semibold">{t("card.session", { n: index + 1 })}</span>
           <span
             className={cn(
-              "text-[11px] font-semibold uppercase tracking-[0.06em]",
+              "text-[11px] font-semibold",
               running ? "text-status-working" : "text-muted-foreground",
             )}
           >
@@ -2239,7 +2411,7 @@ function SessionRow({
           <div className="mt-2 rounded-xl border-l-2 border-border/70 bg-card/70 px-2.5 py-2 text-xs leading-[1.55]">
             {/* Same column, two different documents: a note written FOR the next agent, and the
                 report an agent writes when the operator files the card. */}
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 text-xs font-medium text-muted-foreground">
               {noteLabel(false, session.outcome === "done")}
             </div>
             <CollapsibleText><MarkdownText text={session.handoffMd} /></CollapsibleText>
@@ -2506,7 +2678,7 @@ function ContainerSidebar({
   return (
     <>
       <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+        <div className="text-sm font-medium">
           {t("card.progress.title")}
         </div>
         <div className="mt-3 flex items-baseline gap-1.5">
@@ -2535,7 +2707,7 @@ function ContainerSidebar({
 
       {blockedChildren.map((child) => (
         <div key={child.id} className="rounded-2xl border border-status-blocked/45 bg-status-blocked/8 p-4">
-          <span className="inline-flex items-center rounded-full bg-status-blocked px-2.5 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground">
+          <span className="inline-flex items-center rounded-full bg-status-blocked px-2.5 py-[3px] text-xs font-semibold text-status-chip-foreground">
             {CARD_STATUS_LABEL.blocked}
           </span>
           <button
@@ -2555,7 +2727,7 @@ function ContainerSidebar({
 
       {rawInput && (
         <div className="rounded-2xl border border-dashed border-border p-4">
-          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <div className="text-sm font-medium">
             {t("card.sidebar.dictation")}
           </div>
           <p className="mt-2.5 whitespace-pre-wrap text-[13px] leading-[1.55] text-foreground/85">
@@ -2674,7 +2846,7 @@ function SubtaskList({
                   one (mobile keeps the loud-only chip further down, since it has no spare column). */}
               <span
                 className={cn(
-                  "hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] lg:block lg:w-24",
+                  "hidden shrink-0 text-xs font-medium lg:block lg:w-24",
                   CARD_STATUS_TEXT[child.status],
                 )}
               >
@@ -2703,7 +2875,7 @@ function SubtaskList({
                 {loud && (
                   <span
                     className={cn(
-                      "mt-1 inline-block shrink-0 rounded-full px-2 py-[3px] text-[length:var(--label-size)] font-bold uppercase tracking-[var(--label-tracking)] text-status-chip-foreground lg:mt-0 lg:hidden",
+                      "mt-1 inline-block shrink-0 rounded-full px-2 py-[3px] text-xs font-semibold text-status-chip-foreground lg:mt-0 lg:hidden",
                       CARD_DOT[child.status],
                     )}
                   >
@@ -2944,7 +3116,7 @@ export function SubtaskActionsSheet({
               label={
                 handingOff
                   ? t("card.sending")
-                  : `Handoff${child.session?.ctxPct != null ? ` · ctx ${Math.round(child.session.ctxPct)}%` : ""}`
+                  : `Handoff${child.session?.ctxPct != null ? `, ctx ${Math.round(child.session.ctxPct)}%` : ""}`
               }
               onClick={() => void handoff()}
             />
