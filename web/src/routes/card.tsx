@@ -636,7 +636,7 @@ export function CardRoute() {
       <div className="flex flex-col gap-1">
         {r.todos.map((todo, i) =>
           todo.card ? (
-            <div key={todo.card.id} className="flex flex-col gap-2 rounded-sm bg-card px-3 py-2">
+            <div key={todo.card.id} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-panel) px-3 py-2">
               <button
                 type="button"
                 onClick={() => navigate(cardPath(todo.card!.id))}

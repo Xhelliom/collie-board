@@ -72,7 +72,7 @@ const store = {
   },
 };
 
-const PANEL = "flex flex-col gap-3 rounded-sm bg-card p-4";
+const PANEL = "flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-(--shadow-panel)";
 const LINK = cn(buttonVariants({ variant: "secondary", size: "sm" }), "shrink-0 text-xs");
 /** A line's own button: 44 px on a phone. */
 const ACT = "h-11 shrink-0 rounded-sm px-3 text-sm font-semibold sm:h-8";
@@ -246,7 +246,7 @@ export function ProjectRoute() {
   const canSeal = (p: ProjectPhase) => !p.phase && Boolean(repo) && p.steps.some((s) => s.status === "done");
   const phaseButton = (p: ProjectPhase) =>
     p.phase && p.steps.length > 0 ? (
-      <Button variant={toValidate(p) ? "success" : "outline"} onClick={() => setValidating(p)} className={cn(ACT, "max-sm:hidden")}>
+      <Button variant="outline" onClick={() => setValidating(p)} className={cn(ACT, "max-sm:hidden")}>
         {toValidate(p) && <Check aria-hidden="true" className="size-3.5" />}
         {t("project.validate")}
       </Button>
@@ -542,8 +542,8 @@ export function ProjectRoute() {
 
             {/* 1. What waits for you — each thing with its own button; nothing: one line, not a panel. */}
             {waits > 0 || recette > 0 ? (
-              <section aria-label={t("project.todo.title")} className={cn(PANEL, "bg-status-blocked/10")}>
-                {heading(t("project.todo.title"), undefined, waits || undefined)}
+              <section aria-label={t("project.todo.title")} className={cn(PANEL, "border-status-blocked")}>
+                {heading(t("project.todo.title"), undefined, waits ? <span className="font-semibold text-status-blocked">{waits}</span> : undefined)}
                 {waits > 0 && (
                   <ul className="flex flex-col gap-2.5">
                     {halted.map((pl) => (

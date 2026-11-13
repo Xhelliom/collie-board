@@ -95,7 +95,7 @@ function List({ data, onView, onChanged }: { data: TemplatesData; onView: (v: Vi
       {data.templates.length === 0 && <p className="text-sm text-muted-foreground">{t("templates.empty")}</p>}
       <ul className="flex flex-col gap-2">
         {data.templates.map((tpl) => (
-          <li key={tpl.id} className="flex flex-col gap-2 rounded-sm bg-card p-3">
+          <li key={tpl.id} className="flex flex-col gap-2 rounded-xl border bg-card shadow-(--shadow-panel) p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="min-w-0 flex-1 text-sm font-semibold">{templateName(tpl)}</span>
               {tpl.builtin && <span className="rounded-sm bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{t("templates.shipped")}</span>}
@@ -353,7 +353,7 @@ function Import({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }
           <p className="text-xs text-muted-foreground">{t("templates.import.found", { count: found.length })}</p>
           <ul className="flex flex-col gap-2">
             {found.map((c, i) => (
-              <li key={`${c.name}-${i}`} className="rounded-sm bg-card p-3">
+              <li key={`${c.name}-${i}`} className="rounded-xl border bg-card shadow-(--shadow-panel) p-3">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"

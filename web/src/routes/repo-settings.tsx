@@ -67,7 +67,7 @@ export function RepoSettingsRoute() {
               <button
                 type="button"
                 onClick={() => setGating(true)}
-                className="flex min-h-12 w-full items-center gap-2 rounded-sm bg-card px-4 py-2 text-left hover:bg-accent/50"
+                className="flex min-h-12 w-full items-center gap-2 rounded-xl border bg-card shadow-(--shadow-panel) px-4 py-2 text-left hover:bg-accent/50"
               >
                 <ShieldCheck className="size-5 shrink-0 text-muted-foreground" />
                 <span className="block min-w-0 flex-1 truncate font-mono text-xs">{gate ?? t("gate.none")}</span>

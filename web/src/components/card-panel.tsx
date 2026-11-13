@@ -27,7 +27,7 @@ export function Panel({
     <section
       aria-label={typeof title === "string" ? title : undefined}
       className={cn(
-        "flex min-w-0 flex-col gap-3 rounded-sm bg-card p-4",
+        "flex min-w-0 flex-col gap-3 rounded-xl border bg-card shadow-(--shadow-panel) p-4",
         tone === "bad" && "bg-destructive/8",
         tone === "good" && "bg-status-done/6",
         className,
