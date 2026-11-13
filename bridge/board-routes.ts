@@ -98,7 +98,7 @@ import { memoOn } from "./http-cache.ts";
 import { exclusive, integrating } from "./integration-lock.ts";
 import { providersUsage, usageTracker } from "./usage.ts";
 import { fileAsDone } from "./wrapup.ts";
-import { prDetail } from "./pr-detail.ts";
+import { prDetail, prRerun } from "./pr-detail.ts";
 import { forgetPrRead, notePrOutcome, openPrs, prGesture } from "./prs.ts";
 import { listRepos, scanRootsFor, withDefaultBaseRef } from "./repos.ts";
 import { handleShareRoute, journalStatus, readOnlyRefusal } from "./journal-sync.ts";
@@ -144,6 +144,7 @@ const BOARD_PRS_ROUTE = "/api/board/prs";
 const BOARD_PRS_GESTURE = /^\/api\/board\/prs\/(merge|close)$/;
 
 /** `GET /api/board/prs/<number>?repo=` — one open PR's sheet (see pr-detail.ts). */
+const BOARD_PR_RERUN = /^\/api\/board\/prs\/([^/]+)\/rerun$/;
 const BOARD_PR_SHEET = /^\/api\/board\/prs\/([^/]+)$/;
 
 /** `/api/backup` — the whole durable state as one JSON document (see backup.ts). */
@@ -752,6 +753,26 @@ async function route(
     const what = prGestureMatch[1] as "merge" | "close";
     const r = await prGesture(ctx.db, repo, number, what);
     ctx.audit.record({ action: `pr.${what}`, session: ctx.session, device: ctx.device, detail: { path: repo, number, ok: r.ok } });
+    return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
+  }
+
+  // Re-run a PR's failed jobs: the operator's tap, never a pane's (as merge/close).
+  const prRerunMatch = BOARD_PR_RERUN.exec(pathname);
+  if (prRerunMatch) {
+    if (req.method !== "POST") return ctx.text("method not allowed", 405);
+    if (req.headers.get(PANE_HEADER)?.trim()) return ctx.text("re-running a check is the operator's gesture — an agent pane may not", 403);
+    const denied = ctx.guard("write");
+    if (denied) return denied;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return ctx.text("bad body", 400);
+    }
+    const { repo, runId } = (body ?? {}) as { repo?: unknown; runId?: unknown };
+    if (typeof repo !== "string") return ctx.text("repo and runId required", 400);
+    const r = await prRerun(ctx.db, repo, decodeURIComponent(prRerunMatch[1]!), runId);
+    ctx.audit.record({ action: "pr.rerun", session: ctx.session, device: ctx.device, detail: { path: repo, number: prRerunMatch[1], runId, ok: r.ok } });
     return r.ok ? ctx.json({ ok: true }) : ctx.json({ error: r.error }, r.status);
   }
 

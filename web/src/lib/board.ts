@@ -1303,6 +1303,15 @@ export function fetchOpenPrs(check = false): Promise<PrsReading> {
 }
 
 /** One open PR's sheet (bridge/pr-detail.ts). */
+export interface PrCheck {
+  name: string;
+  state: "success" | "failure" | "pending" | "skipped" | "cancelled";
+  startedAt: number | null;
+  completedAt: number | null;
+  url: string;
+  runId: string | null;
+}
+
 export interface PrDetail {
   number: number;
   title: string;
@@ -1319,6 +1328,7 @@ export interface PrDetail {
   url: string;
   card: { id: string; title: string } | null;
   files: { path: string; additions: number; deletions: number }[];
+  checks: PrCheck[];
   diff: string;
   diffTruncated: boolean;
 }
@@ -1329,6 +1339,11 @@ export function prPath(repo: string, number: number): string {
 
 export function fetchPrDetail(repo: string, number: string, signal?: AbortSignal): Promise<PrDetail> {
   return apiRequest<PrDetail>(`/api/board/prs/${encodeURIComponent(number)}?repo=${encodeURIComponent(repo)}`, { signal }, INTEGRATION_TIMEOUT_MS);
+}
+
+/** Re-run the failed jobs of one run — the operator's tap. */
+export function rerunPrChecks(repo: string, number: number, runId: string): Promise<{ ok: true }> {
+  return apiRequest(`/api/board/prs/${number}/rerun`, { method: "POST", body: JSON.stringify({ repo, runId }) }, INTEGRATION_TIMEOUT_MS);
 }
 
 /** Merge or close a PR by number — the operator's tap; a card's PR merges through `integrateCard`. */
