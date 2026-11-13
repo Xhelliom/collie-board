@@ -9,6 +9,20 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.318.0] - 2026-11-13
+
+### Added
+
+- Recette en chronologie des livraisons (Aujourd'hui, Hier, date) : phase, « carte : … », visuel et vignettes, étapes cochées / en cours / à faire, mention « téléphone ». (2a23aa0)
+- Filtre « Tout l'historique » : les livraisons validées restent visibles, repliées en vert. (2a23aa0)
+- Chaque étape : « Aller voir » (l'écran où la faire) et « Me préparer le test » (demande à l'orchestrateur du projet, `POST /api/cards/<id>/checks/<step>/prepare`). (2a23aa0)
+- Session « Vérifier une à une » : une étape en grand, touches O / N / P, filtre Tout / Ordinateur / Téléphone. (2a23aa0)
+
+### Changed
+
+- « Pas bon » ne demande plus de cause : il crée (ou complète) une seule carte de correction dans la phase de la carte testée, rattachée à elle ; la page dit où elle va. (2a23aa0)
+- Libellés « C'est bon / Pas bon / Passer », plus de « Faire / Attendu », chaque capture montrée une fois. (2a23aa0)
+
 ## [0.317.0] - 2026-11-13
 
 ### Added
