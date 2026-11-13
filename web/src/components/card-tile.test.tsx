@@ -1,11 +1,10 @@
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import type { CardRuntime, CardView } from "@/lib/board";
-import { assignedToMe, publishIdentities } from "@/lib/identities";
+import type { AgentView } from "@/lib/types";
 import { CardTile } from "./card-tile";
 
-// The redesigned tile (interface homogénéité et couleurs): status row (loud/named/silent), title,
-// then a meta row. cwd is gone on purpose — the branch already says where.
+// The tile in three lines: title, phase, ONE readable state (lib/tile-state.ts). Red is for blocked only.
 function card(over: Partial<CardView> = {}): CardView {
   return {
     id: "c1",
@@ -52,209 +51,76 @@ function runtime(over: Partial<CardRuntime> = {}): CardRuntime {
   };
 }
 
-describe("CardTile — status row (loud / named / silent)", () => {
-  it("blocked is loud: a solid chip naming the column, with the repo beside it", () => {
-    render(<CardTile card={card({ status: "blocked" })} onClick={() => {}} repo="collie-board" />);
-    expect(screen.getByText("Needs you")).toBeInTheDocument();
-    expect(screen.getByText("collie-board")).toBeInTheDocument();
+const stateLine = (text: string | RegExp) => screen.getByText(text);
+const MIN = 60_000;
+
+describe("CardTile — three lines", () => {
+  it("title, phase, and « ready to start » for a plain card", () => {
+    render(<CardTile card={card({ status: "ready" })} onClick={() => {}} phase={{ name: "Simpler UI" }} />);
+    expect(screen.getByText("ship the diff view")).toBeInTheDocument();
+    expect(screen.getByText("Simpler UI")).toBeInTheDocument();
+    expect(stateLine("ready to start")).toBeInTheDocument();
   });
 
-  // The two live columns the repo used to be invisible in: a named chip owned the whole row.
-  it.each(["working", "review"] as const)("%s names the repo next to its status", (status) => {
-    render(<CardTile card={card({ status })} onClick={() => {}} repo="collie-board" />);
-    expect(screen.getByText("collie-board")).toBeInTheDocument();
+  it("says « No phase » when the board knows it has none, and nothing when it doesn't know", () => {
+    const { rerender } = render(<CardTile card={card()} onClick={() => {}} phase={null} />);
+    expect(screen.getByText("No phase")).toBeInTheDocument();
+    rerender(<CardTile card={card()} onClick={() => {}} />);
+    expect(screen.queryByText("No phase")).toBeNull();
   });
 
-  it("working is named: the column label shows, with no pill background of its own", () => {
-    render(<CardTile card={card({ status: "working" })} onClick={() => {}} />);
-    expect(screen.getByText("In progress")).toBeInTheDocument();
+  it("keeps the fiche's details off the tile: no origin badge, no branch, no criteria count", () => {
+    render(<CardTile card={card({ origin: "agent", branch: "fix/diff", acceptance: ["a", "b"] })} onClick={() => {}} />);
+    expect(screen.queryByText("agent")).toBeNull();
+    expect(screen.queryByText("fix/diff")).toBeNull();
+    expect(screen.queryByText("2")).toBeNull();
   });
 
-  it("a silent status (backlog) shows no status label — the repo takes its place instead", () => {
-    render(<CardTile card={card({ status: "backlog" })} onClick={() => {}} repo="collie-board" />);
-    expect(screen.queryByText("Backlog")).toBeNull();
-    expect(screen.getByText("collie-board")).toBeInTheDocument();
+  it("an unmet predecessor reads « waits for: <title> », grey, not red", () => {
+    render(<CardTile card={card()} onClick={() => {}} dependency={{ title: "the panes column", met: false }} />);
+    const line = stateLine("waits for: the panes column");
+    expect(line.className).not.toContain("status-blocked");
   });
 
-  it("a silent status with no repo to show renders no status row at all", () => {
-    const { container } = render(<CardTile card={card({ status: "done" })} onClick={() => {}} />);
-    expect(screen.queryByText("Done")).toBeNull();
-    // Title is still the only text content of substance — no empty row above it.
-    expect(container.textContent).toBe("ship the diff view");
+  it("blocked is the one red state", () => {
+    render(<CardTile card={card({ status: "orphaned" })} onClick={() => {}} />);
+    expect(stateLine("blocked: its agent is gone").className).toContain("text-status-blocked");
   });
 
-  it("a done card's title recedes to the muted tone", () => {
-    render(<CardTile card={card({ status: "done" })} onClick={() => {}} />);
-    expect(screen.getByText("ship the diff view").className).toMatch(/text-muted-foreground/);
-  });
-
-  it("a card the copilot is rewriting says so — even with nothing else on the tile", () => {
-    render(<CardTile card={card({ copilotBusy: true })} onClick={() => {}} />);
-    expect(screen.getByText("copilot")).toBeInTheDocument();
-  });
-
-  it("says nothing once the copilot is done with it", () => {
-    const { container } = render(<CardTile card={card({ copilotBusy: false })} onClick={() => {}} />);
-    expect(container.textContent).toBe("ship the diff view");
-  });
-
-  it("a card the copilot filed on its own says so — with nothing else on the tile, and next to its tag", () => {
-    // The tile it lands on is exactly the one whose status row wouldn't otherwise render: a fresh
-    // backlog card, no pane, no branch. And the tag is still its own — provenance didn't cost it.
-    render(<CardTile card={card({ origin: "copilot", tag: "infra" })} onClick={() => {}} />);
-    expect(screen.getByText("auto")).toBeInTheDocument();
-    expect(screen.getByText("infra")).toBeInTheDocument();
-  });
-
-  it("drops the automatic badge while the copilot is working on that card — one sparkle, not two", () => {
-    render(<CardTile card={card({ origin: "copilot", copilotBusy: true })} onClick={() => {}} />);
-    expect(screen.getByText("copilot")).toBeInTheDocument();
-    expect(screen.queryByText("auto")).toBeNull();
-  });
-
-  it("a card a working session filed says `agent`, not `auto` — a different writer, a different lead", () => {
-    render(<CardTile card={card({ origin: "agent" })} onClick={() => {}} />);
-    expect(screen.getByText("agent")).toBeInTheDocument();
-    expect(screen.queryByText("auto")).toBeNull();
-  });
-
-  it("keeps the agent badge while the copilot is busy — hiding it would credit the card to the copilot", () => {
-    render(<CardTile card={card({ origin: "agent", copilotBusy: true })} onClick={() => {}} />);
-    expect(screen.getByText("agent")).toBeInTheDocument();
-    expect(screen.getByText("copilot")).toBeInTheDocument();
-  });
-
-  it("the tag chip renders alongside whichever status treatment is showing", () => {
-    render(<CardTile card={card({ status: "blocked", tag: "urgent" })} onClick={() => {}} />);
-    expect(screen.getByText("urgent")).toBeInTheDocument();
-  });
-});
-
-describe("CardTile — meta row", () => {
-  it("shows neither cwd nor a pane name for a card with no live pane", () => {
-    render(<CardTile card={card()} onClick={() => {}} />);
-    expect(screen.queryByText(/repo/)).toBeNull();
-  });
-
-  it("never shows cwd, even once a pane backs the card — the branch says where now", () => {
-    render(<CardTile card={card({ runtime: runtime(), branch: "fix/diff" })} onClick={() => {}} />);
-    expect(screen.queryByText(/\/repo/)).toBeNull();
-    expect(screen.getByText("fix/diff")).toBeInTheDocument();
-  });
-
-  it("pairs the card title with the pane's own name when it has a real label", () => {
-    render(<CardTile card={card({ runtime: runtime({ paneLabel: "deploy" }) })} onClick={() => {}} />);
-    expect(screen.getByText("· deploy")).toBeInTheDocument();
-  });
-
-  it("shows no pane name when the pane has only its bare agent slug", () => {
-    render(<CardTile card={card({ runtime: runtime() })} onClick={() => {}} />);
-    expect(screen.queryByText("· claude")).toBeNull();
-  });
-
-  it("shows ctx% and the session count when present", () => {
+  it("a merged card says so in green", () => {
     render(
       <CardTile
-        card={card({
-          runtime: runtime(),
-          session: {
-            id: "s1",
-            cardId: "c1",
-            paneId: "w1:p1",
-            agentSessionId: null,
-            agentKind: null,
-            ctxTokens: null,
-            ctxPct: 42,
-            handoffMd: null,
-            outcome: null,
-            handoffRequestedAt: null,
-            autoHandoffAt: null,
-            startedAt: 0,
-            endedAt: null,
-          },
-          sessionCount: 2,
-        })}
+        card={card({ status: "done", updatedAt: Date.now() - 60 * MIN })}
         onClick={() => {}}
+        facts={{ cardId: "c1", gate: null, lead: null, triage: null, review: null, pr: { url: null, state: "merged" }, sentBack: 0, operatorSaid: 0, startedAt: null, endedAt: null }}
       />,
     );
-    expect(screen.getByText("42%")).toBeInTheDocument();
-    expect(screen.getByText("· 2 sessions")).toBeInTheDocument();
+    expect(stateLine(/^merged /).className).toContain("text-status-done");
   });
 
-  it("renders no meta row at all when there is nothing to say", () => {
-    const { container } = render(<CardTile card={card()} onClick={() => {}} />);
-    expect(container.textContent).toBe("ship the diff view");
-  });
-});
-
-describe("CardTile — source line", () => {
-  it("names the card a follow-up came out of, under its own title", () => {
-    render(<CardTile card={card({ title: "test the feature" })} onClick={() => {}} source="add the diff view" />);
-    expect(screen.getByText("from “add the diff view”")).toBeInTheDocument();
+  it("a live pane reads as the agent's own state and age, from the herd", () => {
+    const agent = { paneId: "w1:p1", status: "working", statusSince: Date.now() - 7 * MIN, agent: "claude" } as AgentView;
+    render(<CardTile card={card({ status: "working", runtime: runtime() })} onClick={() => {}} agent={agent} />);
+    expect(stateLine("working for 7 min")).toBeInTheDocument();
   });
 
-  it("renders nothing at all for a card that came from nowhere — no empty line, no orphan icon", () => {
-    const { container } = render(<CardTile card={card()} onClick={() => {}} />);
-    expect(container.textContent).toBe("ship the diff view");
-    expect(container.querySelector("svg")).toBeNull();
+  it("without the herd, a blocked pane still says it waits for you", () => {
+    render(<CardTile card={card({ status: "blocked", runtime: runtime({ agentStatus: "blocked" }) })} onClick={() => {}} />);
+    expect(stateLine("waiting for you").className).not.toContain("status-blocked");
   });
-});
 
-describe("CardTile — dependency line", () => {
-  it("shows an unmet dependency's title, independent of the status row", () => {
-    render(
-      <CardTile card={card()} onClick={() => {}} dependency={{ title: "ship the diff view", met: false }} />,
+  it("an open question and an open PR each have their sentence", () => {
+    const { rerender } = render(
+      <CardTile card={card({ status: "review" })} onClick={() => {}} awaiting={{ id: "q1", text: "which one?" }} />,
     );
-    expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
-  });
-
-  it("still shows a met dependency — an answered gate, not left for the editor to reveal", () => {
-    render(
-      <CardTile card={card()} onClick={() => {}} dependency={{ title: "ship the diff view", met: true }} />,
+    expect(stateLine("question waiting")).toBeInTheDocument();
+    rerender(
+      <CardTile
+        card={card({ status: "review" })}
+        onClick={() => {}}
+        facts={{ cardId: "c1", gate: null, lead: null, triage: null, review: null, pr: { url: "u", state: "open" }, sentBack: 0, operatorSaid: 0, startedAt: null, endedAt: null }}
+      />,
     );
-    expect(screen.getByText("after “ship the diff view”")).toBeInTheDocument();
-  });
-});
-
-describe("CardTile — the template chip (ADR 0026)", () => {
-  it("names the role the card starts with, dimmer when it only inherits it from its phase", () => {
-    const { rerender } = render(<CardTile card={card()} onClick={() => {}} template={{ name: "Reviewer", inherited: false }} />);
-    expect(screen.getByText("Reviewer")).not.toHaveAttribute("title");
-    rerender(<CardTile card={card()} onClick={() => {}} template={{ name: "Reviewer", inherited: true }} />);
-    expect(screen.getByText("Reviewer")).toHaveAttribute("title");
-    rerender(<CardTile card={card()} onClick={() => {}} />);
-    expect(screen.queryByText("Reviewer")).toBeNull();
-  });
-});
-
-describe("CardTile — who filed it, who it is for (ADR 0048 §5)", () => {
-  afterEach(() => act(() => publishIdentities({})));
-  const shared = () => act(() => publishIdentities({ "/r/s": { me: "me@x", people: ["alice@x", "me@x"] } }));
-
-  it("a colleague's card says « by alice »; an assigned one carries « to me »", () => {
-    shared();
-    render(<CardTile card={card({ repoPath: "/r/s", createdBy: "alice@x", assignee: "me@x" })} onClick={() => {}} />);
-    expect(screen.getByText("by alice")).toBeInTheDocument();
-    expect(screen.getByText("to me")).toBeInTheDocument();
-  });
-
-  it("my own card does not say who filed it", () => {
-    shared();
-    render(<CardTile card={card({ repoPath: "/r/s", createdBy: "me@x", assignee: "alice@x" })} onClick={() => {}} />);
-    expect(screen.queryByText(/^by /)).toBeNull();
-    expect(screen.getByText("to alice")).toBeInTheDocument();
-  });
-
-  it("an unshared repo shows none of it", () => {
-    render(<CardTile card={card({ repoPath: "/r/local", createdBy: "alice@x", assignee: "alice@x" })} onClick={() => {}} />);
-    expect(screen.queryByText(/alice/)).toBeNull();
-  });
-
-  it("« to me » keeps only my cards on a shared repo, and every unshared one", () => {
-    const ids = { "/r/s": { me: "me@x", people: [] } };
-    expect(assignedToMe(card({ repoPath: "/r/s", assignee: "me@x" }), ids)).toBe(true);
-    expect(assignedToMe(card({ repoPath: "/r/s", assignee: "alice@x" }), ids)).toBe(false);
-    expect(assignedToMe(card({ repoPath: "/r/s" }), ids)).toBe(false);
-    expect(assignedToMe(card({ repoPath: "/r/local" }), ids)).toBe(true);
+    expect(stateLine("PR open")).toBeInTheDocument();
   });
 });

@@ -11,7 +11,7 @@ const ids = (cards: { id: string }[]) => cards.map((c) => c.id).sort();
 describe("cardsSummary", () => {
   it("keeps the finished cards open work still needs, and only those", () => {
     // Ten old done steps crowd the newest-five slot, so every other one is kept for a reason of its own.
-    const filler = Array.from({ length: 10 }, (_, i) => card(`f${i}`, { updatedAt: NOW - i }));
+    const filler = Array.from({ length: 10 }, (_, i) => card(`f${i}`, { updatedAt: 1000 - i }));
     const old = { updatedAt: 0 };
     const cards = [
       ...filler,
@@ -28,14 +28,21 @@ describe("cardsSummary", () => {
     ];
     const { cards: kept, counts } = cardsSummary(cards, new Set(["p-open"]), NOW);
     expect(ids(kept)).toEqual(["box", "dep", "f0", "f1", "f2", "f3", "f4", "kid", "live", "open", "openbox", "sib"]);
-    expect(counts.delivered).toBe(10); // the filler: the rest is older than a week
+    expect(counts.delivered).toBe(0); // all of it older than a week
     // Containers are not steps — "box" and "lonebox" are counted by nothing per repo.
     expect(counts.doneByRepo).toEqual({ "/r": 16 });
     expect(counts.doneByPhase).toEqual({ "p-open": 1, "p-shut": 1 });
   });
 
   it("keeps the newest five per repo, not five overall", () => {
-    const cards = ["/a", "/b"].flatMap((r) => Array.from({ length: 6 }, (_, i) => card(`${r}${i}`, { repoPath: r })));
+    const cards = ["/a", "/b"].flatMap((r) => Array.from({ length: 6 }, (_, i) => card(`${r}${i}`, { repoPath: r, updatedAt: i })));
     expect(cardsSummary(cards, new Set(), NOW).cards).toHaveLength(10);
+  });
+
+  it("keeps every step finished this week — the Board's Fini column lists them all", () => {
+    const cards = Array.from({ length: 8 }, (_, i) => card(`w${i}`, { updatedAt: NOW - i * 3600_000 }));
+    const { cards: kept, counts } = cardsSummary(cards, new Set(), NOW);
+    expect(kept).toHaveLength(8);
+    expect(counts.delivered).toBe(8);
   });
 });

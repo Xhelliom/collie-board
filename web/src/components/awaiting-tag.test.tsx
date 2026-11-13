@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 
-import { CardTile } from "@/components/card-tile";
 import { StepItem } from "@/components/project-step";
 import { CardRoute } from "@/routes/card";
 import type { Awaiting, CardDetail, CardView } from "@/lib/board";
@@ -44,7 +43,6 @@ function mount(el: React.ReactElement, path = "/") {
 }
 
 const VIEWS: { name: string; view: (a?: Awaiting) => React.ReactElement }[] = [
-  { name: "the tile", view: (a) => <CardTile card={card} onClick={() => {}} awaiting={a} /> },
   {
     name: "the step",
     view: (a) => (

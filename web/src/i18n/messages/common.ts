@@ -36,7 +36,7 @@ export const common = defineMessages({
   "status.done": { en: "Done", fr: "Terminée" },
   "status.archived": { en: "Archived", fr: "Archivée" },
   "lane.todo": { en: "To do", fr: "À faire" },
-  "lane.doing": { en: "Doing", fr: "Actives" },
+  "lane.doing": { en: "In progress", fr: "En cours" },
   "lane.review": { en: "To review", fr: "À relire" },
-  "lane.done": { en: "Done", fr: "Terminée" },
+  "lane.done": { en: "Done", fr: "Fini" },
 });

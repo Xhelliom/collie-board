@@ -40,7 +40,8 @@ export function summarize(card: CardView): CardSummary {
 /**
  * Which cards the summary carries, and the counts over the rest. Every unfinished card; a finished one
  * only while something on screen still needs it:
- * - the DONE_KEPT newest steps of its repo (the Done column, and the repo's place in the home's order);
+ * - the DONE_KEPT newest steps of its repo (the repo's place in the home's order), and every step finished this
+ *   week (the Board's Fini column);
  * - a step of a phase still open, or of a phase / dictation that still has work left (the progress bars
  *   draw every step of those, and a container with none of its steps listed would read as a step);
  * - the parent or the predecessor of an unfinished card (its name, and "is the dependency met").
@@ -70,6 +71,8 @@ export function cardsSummary(
     counts.doneByRepo[repo] = (counts.doneByRepo[repo] ?? 0) + 1;
     if (c.phaseId) counts.doneByPhase[c.phaseId] = (counts.doneByPhase[c.phaseId] ?? 0) + 1;
     newest.set(repo, [...(newest.get(repo) ?? []), c]);
+    // The Board's Fini column lists this week's steps (web/src/lib/tile-state.ts doneThisWeek).
+    if (now - c.updatedAt < WEEK) keep.add(c.id);
     if (c.phaseId && (openPhaseIds.has(c.phaseId) || livePhases.has(c.phaseId))) keep.add(c.id);
     if (c.parentId && liveParents.has(c.parentId)) keep.add(c.id);
   }

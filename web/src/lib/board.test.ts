@@ -1,10 +1,8 @@
-import { setPreference } from "@/i18n";
 import { describe, expect, it } from "vitest";
 
 import {
   BOARD_COLUMNS,
   BOARD_LANES,
-  CARD_STATUS_LABEL,
   canDropCard,
   MANUAL_STATUSES,
   loadRepoScope,
@@ -42,23 +40,6 @@ describe("BOARD_LANES", () => {
       if (s === "archived") continue; // no column, by design
       expect(laid.has(s)).toBe(true);
     }
-  });
-
-  it("only ever repeats a column's name on its FIRST column, so the heading can dedupe", () => {
-    // board.tsx hides a sub-section heading when it repeats its lane's name. A lane whose name
-    // matched its SECOND column would open with unlabelled tiles belonging to the first one.
-    // A lane whose name matches none of them (e.g. "To do" over ready + backlog) keeps every
-    // sub-heading, which is the honest outcome and what that lane's count depends on.
-    // …in every language: a translation that lines a lane up with a second column breaks the heading.
-    for (const lang of ["en", "fr"] as const) {
-      setPreference(lang);
-      for (const lane of BOARD_LANES) {
-        const repeated = lane.statuses.filter((s) => CARD_STATUS_LABEL[s] === lane.label);
-        if (repeated.length === 0) continue;
-        expect(repeated).toEqual([lane.statuses[0]]);
-      }
-    }
-    setPreference("en");
   });
 });
 

@@ -166,9 +166,9 @@ describe("board drag and drop — desktop", () => {
     expect(patchCard).toHaveBeenCalledWith("Alpha", { position: 3 });
   });
 
-  it("reorders inside the folded Done column by the card's place in the whole column", async () => {
+  it("reorders inside this week's Done column by the card's place in the whole column", async () => {
     // The 5 visible are D0 D2 D4 D6 D8 — a visible tile's slot is not its place in the column.
-    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? 100 : 1 }));
+    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? Date.now() : 1 }));
     await mount(cards);
     lift(tileOf("D0"));
     nextFrame();
@@ -178,8 +178,8 @@ describe("board drag and drop — desktop", () => {
     expect(patchCard).toHaveBeenCalledWith("D0", { position: 8.5 });
   });
 
-  it("drops into the folded Done column where the ghost shows, under the last visible tile", async () => {
-    const done = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? 100 : 1 }));
+  it("drops into this week's Done column where the ghost shows, under the last visible tile", async () => {
+    const done = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: i % 2 === 0 && i < 10 ? Date.now() : 1 }));
     await mount([card("Alpha", "ready", 0), ...done]);
     lift(tileOf("Alpha"));
     nextFrame();
@@ -276,17 +276,17 @@ describe("one rule on every screen (ADR 0022)", () => {
       viewport(wide);
       await mount([
         inRepo("Dictation", "working"),
-        inRepo("Kid done", "done", { parentId: "Dictation" }),
+        inRepo("Kid done", "done", { parentId: "Dictation", updatedAt: Date.now() }),
         inRepo("Kid todo", "backlog", { parentId: "Dictation" }),
       ]);
       // The container's only appearance is the caption on its sub-tasks, never a tile of its own.
-      expect(screen.getAllByText("Dictation")).toHaveLength(2);
+      expect(screen.getAllByText(/Dictation$/)).toHaveLength(2);
       expect(columnOf("Kid done")).not.toBe(columnOf("Kid todo"));
       expect(within(tileOf("Kid todo")).getByText("Dictation")).toBeInTheDocument();
     });
   }
 
-  it("a card in a phase carries its pill with the phase's progress, and ?phase= narrows the board", async () => {
+  it("a card in a phase names its phase, and ?phase= narrows the board", async () => {
     viewport(true);
     const cards = [
       inRepo("In one", "done", { phaseId: "p1" }),
@@ -294,7 +294,7 @@ describe("one rule on every screen (ADR 0022)", () => {
       inRepo("Free", "backlog"),
     ];
     await mount(cards, "/board?repo=/repo&phase=p1", [phase]);
-    expect(within(tileOf("In one")).getByText("Phase un · 1/2")).toBeInTheDocument();
+    expect(within(tileOf("In one too")).getByText("Phase un")).toBeInTheDocument();
     expect(screen.queryByText("Free")).toBeNull();
   });
 
@@ -370,21 +370,20 @@ describe("board filters — code / business", () => {
 });
 
 describe("board — Done column", () => {
-  it("lists the 5 most recently finished cards, wherever they sit in the column", async () => {
-    // D11 sits last by position but was finished long ago; D0 sits first but was finished today.
-    const cards = Array.from({ length: 12 }, (_, i) => ({ ...card(`D${i}`, "done", i), updatedAt: 100 + (11 - i) }));
-    cards[11] = { ...cards[11], updatedAt: 1 };
-    cards[7] = { ...cards[7], updatedAt: 999 };
+  it("lists this week's finished cards only, and « Historique » opens every one", async () => {
+    const week = Date.now() - 2 * 24 * 3600_000;
+    const cards = [card("Recent", "done", 0), card("Old", "done", 1)].map((c, i) => ({ ...c, updatedAt: i ? 1 : week }));
     await mount(cards);
-    expect(screen.getByText("D7")).toBeInTheDocument();
-    expect(screen.queryByText("D11")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Voir les 7 autres" }));
-    expect(await screen.findByText("D11")).toBeInTheDocument();
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+    expect(screen.queryByText("Old")).toBeNull();
+    expect(screen.getAllByText("1 cette semaine").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Historique" }));
+    expect(await screen.findByText("Old")).toBeInTheDocument();
   });
 
-  it("counts the finished cards the summary view leaves out", async () => {
-    const cards = Array.from({ length: 5 }, (_, i) => card(`D${i}`, "done", i));
-    await mount(cards, "/board", [], { delivered: 0, doneByRepo: { "": 12 }, doneByPhase: {} });
-    expect(screen.getByRole("button", { name: "Voir les 7 autres" })).toBeInTheDocument();
+  it("names the four columns in French, and an empty one says so in a short sentence", async () => {
+    await mount(two);
+    for (const name of ["À faire", "En cours", "À relire", "Fini"]) expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+    expect(screen.getByText("Aucune carte en cours.")).toBeInTheDocument();
   });
 });
