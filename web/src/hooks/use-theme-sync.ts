@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 
 import { applyTheme, loadThemeMode } from "@/lib/theme";
-import { applyUiStyle, loadUiStyle } from "@/lib/ui-style";
 
 // Keeps the `.dark` class correct for the app's whole lifetime, independent of whether Settings is
 // on screen: applies the stored preference on mount (index.html's inline script already did this
@@ -10,7 +9,11 @@ import { applyUiStyle, loadUiStyle } from "@/lib/ui-style";
 export function useThemeSync(): void {
   useEffect(() => {
     applyTheme(loadThemeMode());
-    applyUiStyle(loadUiStyle());
+    try {
+      localStorage.removeItem("collie:style"); // the retired Classique choice, from before 13/11
+    } catch {
+      // Private mode: nothing was stored.
+    }
     if (typeof matchMedia === "undefined") return;
     const mq = matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme(loadThemeMode());

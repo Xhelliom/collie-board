@@ -103,12 +103,10 @@ it("contrast() is WCAG's formula", () => {
   expect(contrast("#777777", "#ffffff")).toBeCloseTo(4.48, 2);
 });
 
-it("elevation ladder: shadow-1/2/3 and the button shadows exist in both themes, Classique has none on panels", () => {
+it("elevation ladder: shadow-1/2/3 and the button shadows exist in both themes", () => {
   for (const sel of [":root", ".dark"] as const) {
     const start = css.indexOf(`\n${sel} {`);
     const body = css.slice(start, css.indexOf("\n}", start));
     for (const k of ["shadow-1", "shadow-2", "shadow-3", "shadow-btn", "shadow-btn-hover", "shadow-btn-press"]) expect(body, `${sel} ${k}`).toContain(`--${k}:`);
   }
-  const classic = css.slice(css.indexOf('html[data-style="classic"]:not(.dark)'));
-  expect(classic).toMatch(/--shadow-2: 0 0 #0000/);
 });
