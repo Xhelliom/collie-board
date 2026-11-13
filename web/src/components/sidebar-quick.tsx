@@ -1,112 +1,198 @@
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router";
 
-import { useT } from "@/i18n";
-import { isOrchestrator, placeOf } from "@/lib/agent-groups";
+import { useT, type MessageKey } from "@/i18n";
+import { isOrchestrator, placeOf, projectOf } from "@/lib/agent-groups";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { cardPath, projectPath, repoName } from "@/lib/board";
 import { panePath } from "@/lib/nav";
-import { usePins, type Pin } from "@/lib/pins";
+import { pinId, pinKey, usePins, type Pin } from "@/lib/pins";
 import { useQuickAccess, type QuickAccess } from "@/lib/quick-access";
-import { GonePin, resolvePins } from "./pin-button";
+import { StatusDot } from "./status-badge";
+import { GonePin } from "./pin-button";
 import type { HomeData } from "@/lib/loaders";
-import { paneDisplayName } from "@/lib/types";
+import { paneDisplayName, type AgentStatus, type AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// The sidebar's quick access, on every screen (desktop): the projects first — a lot in flight, then a
-// lot that finished lately — then the sessions the operator pinned (pins.ts), then each live project's
-// orchestrator (its dot says it waits on you), and last what waits for you. Fetched only where it
-// shows (desktop).
-export function SidebarQuick({ data }: { data: HomeData }) {
-  const q = useQuickAccess(data, useIsDesktop());
-  return <QuickList q={q} data={data} pins={usePins(data)} />;
-}
+// Below the sidebar's entries: what the operator pinned (projects, cards, agents), then the agents
+// running right now — nothing else (redesign 13/11). Both read on the root's tick: the pins and the
+// cards that wait on you are fetched throttled, the running agents are the snapshot's.
 
-const ROW = "flex min-w-0 flex-col rounded-[10px] px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground";
-const HEADING = "px-2.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70";
-
-export function QuickList({ q, data, pins = [] }: { q: QuickAccess | null; data: HomeData; pins?: Pin[] }) {
-  const t = useT();
-  const navigate = useNavigate();
-  const orchs = data.agents.filter(isOrchestrator);
-  // An orchestrator already wears its own dot up top: not listed a second time below.
-  const blocked = data.agents.filter((a) => a.status === "blocked" && !isOrchestrator(a));
-  const waiting = q?.waiting ?? [];
-  if (!orchs.length && !pins.length && !q?.projects.length && !waiting.length && !blocked.length) return null;
-
+/** Desktop sidebar: Pinned, then Running. */
+export function SidebarSections({ data }: { data: HomeData }) {
+  const desktop = useIsDesktop();
+  const q = useQuickAccess(data, desktop);
+  const pins = usePins(data);
   return (
     <>
-      {!!q?.projects.length && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.projects")}</span>
-          {q.projects.map((p) => (
-            <button key={p.repoPath} type="button" onClick={() => navigate(projectPath(p.repoPath))} className={ROW}>
-              <span className="flex items-center gap-1.5">
-                <span className="truncate font-medium text-foreground">{repoName(p.repoPath)}</span>
-                {p.lot.blocked && (
-                  <span className="size-2 shrink-0 rounded-full bg-status-blocked" role="img" aria-label={t("quick.blocked")} />
-                )}
-              </span>
-              <span className={cn("flex gap-1 text-xs", p.lot.finished && "text-muted-foreground/70")}>
-                <span className="truncate">{p.lot.name ?? t("quick.lot")}</span>
-                <span className="shrink-0 tabular-nums">
-                  {p.lot.finished ? t("quick.finished") : t("quick.progress", { done: p.lot.done, total: p.lot.total })}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      {pins.length > 0 && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.pinned")}</span>
-          {resolvePins(pins, data.agents).map(({ pin, agent: a }) =>
-            a ? (
-              <button key={pin.session} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
-                <span className="truncate font-medium text-foreground">{paneDisplayName(a)}</span>
-                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>
-                  {t(`quick.orch.${a.status}`)} · {placeOf(a)}
-                </span>
-              </button>
-            ) : (
-              <GonePin key={pin.session} pin={pin} className="py-1 pl-2.5 text-sm" />
-            ),
-          )}
-        </div>
-      )}
-      {orchs.length > 0 && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.orchestrators")}</span>
-          {orchs.map((a) => {
-            const waits = a.status === "blocked" || waiting.some((w) => w.repoPath === a.cwd);
-            return (
-              <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate font-medium text-foreground">{repoName(a.cwd)}</span>
-                  {waits && <span className="size-2 shrink-0 rounded-full bg-status-blocked" role="img" aria-label={t("quick.orchWaits")} />}
-                </span>
-                <span className={cn("truncate text-xs", a.status === "blocked" && "text-status-blocked")}>{t(`quick.orch.${a.status}`)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {(waiting.length > 0 || blocked.length > 0) && (
-        <div className="mt-4 flex flex-col gap-0.5 border-t border-border/60 pt-4">
-          <span className={HEADING}>{t("quick.waiting")}</span>
-          {waiting.map((w) => (
-            <button key={w.cardId} type="button" onClick={() => navigate(cardPath(w.cardId))} className={ROW} title={w.text}>
-              <span className="truncate text-foreground">{w.title}</span>
-              <span className="truncate text-xs text-brand">{t("quick.decision", { repo: repoName(w.repoPath) })}</span>
-            </button>
-          ))}
-          {blocked.map((a) => (
-            <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
-              <span className="truncate text-foreground">{paneDisplayName(a)}</span>
-              <span className="truncate text-xs text-status-blocked">{t("quick.agentBlocked", { space: placeOf(a) })}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <PinnedList pins={pins} data={data} q={q} />
+      <RunningList data={data} />
     </>
+  );
+}
+
+/** The phone's Pinned, at the head of the Projects page. */
+export function PhonePinned({ data }: { data: HomeData }) {
+  const desktop = useIsDesktop();
+  const q = useQuickAccess(data, !desktop);
+  const pins = usePins(data);
+  return desktop ? null : <PinnedList pins={pins} data={data} q={q} />;
+}
+
+/** Working first would bury what needs you: blocked, then working. Idle agents and shells are not "running". */
+export function runningAgents(agents: AgentView[]): AgentView[] {
+  return [...agents.filter((a) => a.status === "blocked"), ...agents.filter((a) => a.status === "working")];
+}
+
+const ROW =
+  "flex min-h-9 w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/60";
+
+const CHIP: Record<"project" | "card" | "agent", string> = {
+  project: "bg-muted text-muted-foreground",
+  card: "bg-brand/15 text-brand",
+  agent: "bg-status-working/15 text-status-working",
+};
+
+/** A card's column, as the dot the agents already wear. */
+function cardDot(status: string | null | undefined): AgentStatus {
+  if (status === "blocked") return "blocked";
+  if (status === "working" || status === "starting") return "working";
+  if (status === "review" || status === "done") return "done";
+  return status === "orphaned" ? "unknown" : "idle";
+}
+
+const STORE = "collie:nav-collapsed:";
+function useCollapsed(key: string): [boolean, () => void] {
+  const [collapsed, set] = useState(() => {
+    try {
+      return localStorage.getItem(STORE + key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    set((c) => {
+      try {
+        if (c) localStorage.removeItem(STORE + key);
+        else localStorage.setItem(STORE + key, "1");
+      } catch {
+        // Private mode: the section still toggles, it just isn't remembered.
+      }
+      return !c;
+    });
+  return [collapsed, toggle];
+}
+
+/** A titled group that folds to its title, its count, and a dot when something in it waits on you. */
+function Section({ id, label, count, alert, children }: { id: string; label: MessageKey; count: number; alert: boolean; children: React.ReactNode }) {
+  const t = useT();
+  const [collapsed, toggle] = useCollapsed(id);
+  if (count === 0) return null;
+  return (
+    <section className="mt-5 flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={!collapsed}
+        className="flex items-center gap-1.5 rounded-md px-2.5 pb-1 text-left text-[13px] text-muted-foreground hover:text-foreground"
+      >
+        <span>{t(label)}</span>
+        {collapsed && <span className="tabular-nums">{count}</span>}
+        {collapsed && alert && <span className="size-2 rounded-full bg-status-blocked" role="img" aria-label={t("quick.waitsHere")} />}
+        <ChevronDown className={cn("ml-auto size-3.5 transition-transform", collapsed && "-rotate-90")} aria-hidden />
+      </button>
+      {!collapsed && children}
+    </section>
+  );
+}
+
+function Chip({ kind }: { kind: "project" | "card" | "agent" }) {
+  const t = useT();
+  return <span className={cn("shrink-0 rounded-full px-1.5 text-[11px] leading-[18px]", CHIP[kind])}>{t(`pin.kind.${kind}`)}</span>;
+}
+
+export function PinnedList({ pins, data, q }: { pins: Pin[]; data: HomeData; q: QuickAccess | null }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const running = new Set(runningAgents(data.agents).map((a) => a.paneId));
+  const waiting = q?.waiting ?? [];
+  // Projects, then cards, then agents; an agent that is running is listed once, under Running.
+  const rows = [
+    ...pins.filter((p) => "repoPath" in p),
+    ...pins.filter((p) => "cardId" in p),
+    ...pins.flatMap((p) => {
+      if (!("session" in p)) return [];
+      const a = data.agents.find((x) => pinKey(x) === p.session);
+      return a && running.has(a.paneId) ? [] : [p];
+    }),
+  ];
+  let alert = false;
+
+  const items = rows.map((p) => {
+    const key = pinId(p);
+    if ("repoPath" in p) {
+      const name = repoName(p.repoPath);
+      const orch = data.agents.find((a) => isOrchestrator(a) && repoName(a.cwd) === name);
+      const forYou =
+        waiting.filter((w) => w.repoPath === p.repoPath).length +
+        data.agents.filter((a) => a.status === "blocked" && projectOf(a.cwd) === name).length;
+      if (forYou) alert = true;
+      return (
+        <button key={key} type="button" onClick={() => navigate(projectPath(p.repoPath))} className={ROW}>
+          <StatusDot status={orch?.status ?? "unknown"} className="size-2" />
+          <span className="truncate">{name}</span>
+          <Chip kind="project" />
+          {forYou > 0 && <span className="ml-auto shrink-0 text-xs text-brand">{t("quick.forYou", { count: forYou })}</span>}
+        </button>
+      );
+    }
+    if ("cardId" in p) {
+      if (p.status === null) return <GonePin key={key} pin={p} className="py-1 pl-2.5 text-sm" />;
+      const waits = waiting.some((w) => w.cardId === p.cardId);
+      if (waits) alert = true;
+      return (
+        <button key={key} type="button" onClick={() => navigate(cardPath(p.cardId))} className={ROW}>
+          <StatusDot status={waits ? "blocked" : cardDot(p.status)} className="size-2" />
+          <span className="truncate">{p.name}</span>
+          <Chip kind="card" />
+        </button>
+      );
+    }
+    const a = data.agents.find((x) => pinKey(x) === p.session);
+    if (!a) return <GonePin key={key} pin={p} className="py-1 pl-2.5 text-sm" />;
+    return (
+      <button key={key} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+        <StatusDot status={a.status} className="size-2" />
+        <span className="truncate">{paneDisplayName(a)}</span>
+        <Chip kind="agent" />
+        <span className="ml-auto shrink-0 truncate text-xs text-muted-foreground">{placeOf(a)}</span>
+      </button>
+    );
+  });
+
+  return (
+    <Section id="pinned" label="quick.pinned" count={rows.length} alert={alert}>
+      {items}
+    </Section>
+  );
+}
+
+export function RunningList({ data }: { data: HomeData }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const agents = runningAgents(data.agents);
+  return (
+    <Section id="running" label="quick.running" count={agents.length} alert={agents.some((a) => a.status === "blocked")}>
+      {agents.map((a) => (
+        <button key={a.paneId} type="button" onClick={() => navigate(panePath(a.paneId, data.session))} className={ROW}>
+          <StatusDot status={a.status} className="size-2" />
+          <span className="truncate">{paneDisplayName(a)}</span>
+          <span className={cn("ml-auto shrink-0 truncate text-xs", a.status === "blocked" ? "text-status-blocked" : "text-muted-foreground")}>
+            {a.status === "blocked" ? t("quick.waits") : placeOf(a)}
+          </span>
+        </button>
+      ))}
+    </Section>
   );
 }

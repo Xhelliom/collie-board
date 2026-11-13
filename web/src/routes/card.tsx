@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import { AgentIcon } from "@/components/agent-icon";
 import { AppHeader } from "@/components/app-header";
+import { PinToggle } from "@/components/pin-button";
 import { AutoHandoffChoice } from "@/components/auto-handoff";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -509,6 +510,7 @@ export function CardRoute() {
         rightTrail={
           card && (
             <>
+              <PinToggle target={{ cardId: card.id }} name={card.title} className="size-9" />
               <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => setEditing(true)} aria-label={t("card.edit")}>
                 <Pencil className="size-4" />
                 <span className="hidden sm:inline">{t("card.edit")}</span>

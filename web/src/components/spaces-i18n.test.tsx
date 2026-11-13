@@ -13,16 +13,16 @@ const overview = () =>
 describe("spaces screens speak the chosen language", () => {
   it("empty overview: English by default, French on demand", () => {
     overview();
-    expect(screen.getByText("No spaces yet.")).toBeInTheDocument();
+    expect(screen.getByText("No agent or terminal yet.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New space" })).toBeInTheDocument();
   });
 
   it("empty overview in French has no English left", () => {
     setPreference("fr");
     overview();
-    expect(screen.getByText("Aucun space pour l'instant.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nouveau space" })).toBeInTheDocument();
-    expect(screen.queryByText("No spaces yet.")).toBeNull();
+    expect(screen.getByText("Aucun agent ni terminal pour l'instant.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nouvel espace" })).toBeInTheDocument();
+    expect(screen.queryByText("No agent or terminal yet.")).toBeNull();
   });
 
   it("read-only banner follows the language", () => {

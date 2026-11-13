@@ -1521,12 +1521,18 @@ export interface JournalEntry {
 /** `board_pref` key for {@link BoardDb.pins}. */
 const PINS_KEY = "pinned_sessions";
 
-/** An agent session the operator pinned to the quick access. `session` is herdr's `agent_session`
- *  (stable across a reboot, unlike the pane id); `name` is what it was called when pinned, so a pin
- *  whose session is gone still says what it was. */
-export interface Pin {
-  session: string;
-  name: string;
+/** What the operator pinned to the sidebar — exactly one of: an agent `session` (herdr's
+ *  `agent_session`, stable across a reboot, unlike the pane id), a project `repoPath`, a `cardId`.
+ *  `name` is what it was called when pinned, so a pin whose target is gone still says what it was. */
+export type PinTarget = { session: string } | { repoPath: string } | { cardId: string };
+export type Pin = PinTarget & { name: string };
+
+/** The one target a pin names, as a comparable key; null for junk. Rows written before projects and
+ *  cards could be pinned are `{session, name}`, still valid. */
+export function pinId(p: unknown): string | null {
+  const o = (p ?? {}) as Record<string, unknown>;
+  const set = (["session", "repoPath", "cardId"] as const).filter((k) => typeof o[k] === "string" && o[k]);
+  return set.length === 1 ? `${set[0]}:${o[set[0]!] as string}` : null;
 }
 
 /** `board_pref` key for {@link BoardDb.autoFollowUps}. */
@@ -3677,24 +3683,25 @@ export class BoardDb {
     this.setPref(MAX_AGENTS_KEY, String(n));
   }
 
-  /** The pinned agent sessions, in pin order. Junk in the row reads as no pins, never a throw. */
+  /** The pins, in pin order. Junk in the row reads as no pins, never a throw. */
   pins(): Pin[] {
     const row = this.db
       .query<{ value: string }, [string]>("SELECT value FROM board_pref WHERE key = ?")
       .get(PINS_KEY);
     try {
       const v: unknown = row ? JSON.parse(row.value) : [];
-      return Array.isArray(v) ? v.filter((p): p is Pin => typeof p?.session === "string" && typeof p?.name === "string") : [];
+      return Array.isArray(v) ? v.filter((p): p is Pin => pinId(p) !== null && typeof p?.name === "string") : [];
     } catch {
       return [];
     }
   }
 
-  /** Pin (or re-pin, refreshing its name) / unpin one session. A toggle, not a list replaced
+  /** Pin (or re-pin, refreshing its name) / unpin one target. A toggle, not a list replaced
    *  wholesale: the phone and the PC each pin from a copy that may be stale. */
-  setPin(session: string, name: string, pinned: boolean): Pin[] {
-    const rest = this.pins().filter((p) => p.session !== session);
-    const next = pinned ? [...rest, { session, name }] : rest;
+  setPin(target: PinTarget, name: string, pinned: boolean): Pin[] {
+    const id = pinId(target);
+    const rest = this.pins().filter((p) => pinId(p) !== id);
+    const next = pinned ? [...rest, { ...target, name }] : rest;
     this.setPref(PINS_KEY, JSON.stringify(next));
     return next;
   }

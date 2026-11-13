@@ -1,22 +1,20 @@
 import { Pin as PinIcon, X } from "lucide-react";
 
 import { useT } from "@/i18n";
-import { pinKey, setPinned, usePins, type Pin } from "@/lib/pins";
+import { pinId, pinKey, setPinned, usePins, type Pin, type PinTarget } from "@/lib/pins";
 import { setStatus } from "@/lib/status";
 import { placeOf } from "@/lib/agent-groups";
 import { paneDisplayName, type AgentView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const toggle = (session: string, name: string, pinned: boolean, failed: string) =>
-  setPinned(session, name, pinned).catch(() => setStatus(failed, "error"));
+const toggle = (target: PinTarget, name: string, pinned: boolean, failed: string) =>
+  setPinned(target, name, pinned).catch(() => setStatus(failed, "error"));
 
-/** Pin / unpin an agent's session to the quick access. Nothing for a pane herdr gave no session (a shell, a fresh agent). */
-export function PinButton({ agent, className }: { agent: AgentView; className?: string }) {
+/** Pin / unpin one target — a project, a card, an agent's session — to the sidebar. */
+export function PinToggle({ target, name, className }: { target: PinTarget; name: string; className?: string }) {
   const t = useT();
   const pins = usePins();
-  const key = pinKey(agent);
-  if (!key) return null;
-  const on = pins.some((p) => p.session === key);
+  const on = pins.some((p) => pinId(p) === pinId(target));
   return (
     <button
       type="button"
@@ -25,7 +23,7 @@ export function PinButton({ agent, className }: { agent: AgentView; className?: 
       title={t(on ? "pin.remove" : "pin.add")}
       onClick={(e) => {
         e.stopPropagation();
-        void toggle(key, `${paneDisplayName(agent)} · ${placeOf(agent)}`, !on, t("pin.failed"));
+        void toggle(target, name, !on, t("pin.failed"));
       }}
       className={cn(
         "flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60",
@@ -38,20 +36,26 @@ export function PinButton({ agent, className }: { agent: AgentView; className?: 
   );
 }
 
-/** A pin whose session no longer exists: greyed, its last name, and the one thing to do with it. */
+/** An agent's pin. Nothing for a pane herdr gave no session (a shell, a fresh agent). */
+export function PinButton({ agent, className }: { agent: AgentView; className?: string }) {
+  const key = pinKey(agent);
+  if (!key) return null;
+  return <PinToggle target={{ session: key }} name={`${paneDisplayName(agent)} · ${placeOf(agent)}`} className={className} />;
+}
+
+/** A pin whose target no longer exists: greyed, its last name, and the one thing to do with it. */
 export function GonePin({ pin, className }: { pin: Pin; className?: string }) {
   const t = useT();
+  const { name, status: _status, ...target } = pin;
   return (
     <div className={cn("flex items-center gap-1.5 text-muted-foreground/60", className)}>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate">{pin.name}</span>
-        <span className="block truncate text-xs">{t("pin.gone")}</span>
-      </span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="shrink-0 text-xs">{t("pin.gone")}</span>
       <button
         type="button"
         aria-label={t("pin.remove")}
         title={t("pin.remove")}
-        onClick={() => void toggle(pin.session, "", false, t("pin.failed"))}
+        onClick={() => void toggle(target as PinTarget, "", false, t("pin.failed"))}
         className="flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-muted/60 hover:text-foreground"
       >
         <X className="size-4" />
@@ -59,7 +63,3 @@ export function GonePin({ pin, className }: { pin: Pin; className?: string }) {
     </div>
   );
 }
-
-/** Each pin with its live pane, or none when the session is gone. */
-export const resolvePins = (pins: Pin[], agents: AgentView[]) =>
-  pins.map((pin) => ({ pin, agent: agents.find((a) => pinKey(a) === pin.session) }));

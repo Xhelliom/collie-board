@@ -11,7 +11,8 @@ interface SpaceOverviewProps {
   shellPanes: AgentView[];
   onOpen: (workspaceId: string) => void;
   onOpenPane: (paneId: string) => void;
-  onNewSpace: () => void;
+  /** herdr 0.9 only: hc has no spaces to create. */
+  onNewSpace?: () => void;
 }
 
 /**
@@ -38,22 +39,22 @@ export function SpaceOverview({
   const t = useT();
   return (
     <section className="flex flex-col px-2 py-3 lg:px-3">
-      <div className="flex items-center justify-between px-2">
-        <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
-          {t("spaces.title")} <span className="opacity-60">({workspaces.length})</span>
-        </h2>
-        <button
-          type="button"
-          onClick={onNewSpace}
-          aria-label={t("spaces.new")}
-          className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
-        >
-          <FolderPlus className="size-4" />
-        </button>
-      </div>
+      {onNewSpace && (
+        <div className="flex justify-end px-2">
+          <button
+            type="button"
+            onClick={onNewSpace}
+            aria-label={t("spaces.new")}
+            title={t("spaces.new")}
+            className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
+          >
+            <FolderPlus className="size-4" />
+          </button>
+        </div>
+      )}
 
       {workspaces.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{t("spaces.none")}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{t("agents.none")}</p>
       ) : (
         <SpacePaneTree
           agents={agents}

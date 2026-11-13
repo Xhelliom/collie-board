@@ -9,8 +9,11 @@ import { useSpaceActions } from "@/hooks/use-spaces";
 import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 import { panePath, spacePath } from "@/lib/nav";
 import { useT } from "@/i18n";
+import { RunningList } from "@/components/sidebar-quick";
+import { showsSpaces } from "@/lib/agent-groups";
 
-// Spaces — a root tab (redesign §9). Extracted from the dashboard (see home.tsx, Phase 3), and
+// Agents (formerly Spaces) — a root tab (redesign §9): every agent and terminal, by project under hc,
+// by space under herdr 0.9, where creating a space stays offered. Extracted from the dashboard (see home.tsx, Phase 3), and
 // since the space regrouping it renders the SAME `SpacePaneTree` as the pane column and the pane
 // switcher: space → branch → panes, worktrees nested under the repo they were cut from. Tapping a
 // space header drills in (that screen owns tab selection and tab creation); tapping a row opens
@@ -32,12 +35,16 @@ export function SpacesRoute() {
           this you'd see another session's spaces only by going back to Herd. It self-hides on a
           single-session install. */}
       <AppHeader
-        title={t("spaces.title")}
+        title={t("nav.agents")}
         rightLead={<SessionSwitcher sessions={data.sessions ?? []} current={data.session} />}
       />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-24 lg:pb-0">
-        <h1 className="sr-only">{t("spaces.title")}</h1>
+        <h1 className="sr-only">{t("nav.agents")}</h1>
+        {/* Phone: what runs now leads the page — on a desktop the sidebar already shows it. */}
+        <div className="px-2 lg:hidden">
+          <RunningList data={data} />
+        </div>
         <main className="flex-1">
           <SpaceOverview
             workspaces={data.workspaces}
@@ -46,7 +53,7 @@ export function SpacesRoute() {
             shellPanes={data.shellPanes}
             onOpen={drillInto}
             onOpenPane={openPane}
-            onNewSpace={() => setNewSpaceOpen(true)}
+            onNewSpace={showsSpaces(data.workspaces) ? () => setNewSpaceOpen(true) : undefined}
           />
         </main>
       </div>

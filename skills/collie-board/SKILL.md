@@ -424,9 +424,11 @@ curl -s "$B/api/board/prs"                    # the cards whose PR is still open
 curl -s "$B/api/cards/<id>/pr"                # one card's PR: state, mergeable, conflicting (asks GitHub)
 #   GET /api/cards/<id> carries `card.prUrl` (its PR, from the journal; null = none). With one, finish_card
 #   mode "merge" merges that PR on GitHub — never the local branch.
-curl -s "$B/api/board/pins"                   # the sessions the user pinned: [{session, name}], session = agentSessionId
+curl -s "$B/api/board/pins"                   # what the user pinned to the sidebar: [{session|repoPath|cardId, name}]
 curl -s -X POST "$B/api/board/pins" -H 'content-type: application/json' \
   -d '{"session":"<agentSessionId>","name":"chat infra","pinned":true}'   # pin (false = unpin; ask first)
+#   exactly one target per pin: "session" (agentSessionId), "repoPath" (a project) or "cardId" (a card;
+#   GET adds its live "status", null once the card is gone)
 ```
 
 The agents of the paired peers (other machines this one drives) are one more herd, read every ~5 s

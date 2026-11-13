@@ -2,75 +2,79 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
-import { QuickList } from "./sidebar-quick";
+import { PinnedList, RunningList, runningAgents } from "./sidebar-quick";
 import { fixtureAgents } from "@/test/handlers";
 import type { HomeData } from "@/lib/loaders";
+import type { Pin } from "@/lib/pins";
 import type { QuickAccess } from "@/lib/quick-access";
+import type { AgentView } from "@/lib/types";
 
-const data = { agents: fixtureAgents, session: undefined } as unknown as HomeData;
-const q: QuickAccess = {
-  projects: [
-    { repoPath: "/code/live", lot: { id: "r1", name: "Auth", done: 1, total: 3, blocked: true, finished: false }, ts: 2 },
-    { repoPath: "/code/over", lot: { id: "r2", name: null, done: 2, total: 2, blocked: false, finished: true }, ts: 1 },
-  ],
-  waiting: [{ cardId: "c1", title: "Pick a DB", repoPath: "/code/live", text: "Which DB?" }],
-};
+const base = fixtureAgents[0]!;
+const ag = (o: Partial<AgentView>): AgentView => ({ ...base, ...o });
+const q: QuickAccess = { projects: [], waiting: [{ cardId: "c-wait", title: "Pick a DB", repoPath: "/code/live", text: "?" }] };
 
-function renderList(quick: QuickAccess | null) {
-  const router = createMemoryRouter([{ path: "*", element: <QuickList q={quick} data={data} /> }], { initialEntries: ["/settings"] });
+function renderBoth(agents: AgentView[], pins: Pin[]) {
+  const data = { agents, session: undefined } as unknown as HomeData;
+  const router = createMemoryRouter(
+    [{ path: "*", element: <><PinnedList pins={pins} data={data} q={q} /><RunningList data={data} /></> }],
+    { initialEntries: ["/settings"] },
+  );
   render(<RouterProvider router={router} />);
   return router;
 }
 
-describe("QuickList", () => {
-  it("shows the projects with their lot, what waits for you, and opens a project on click", async () => {
-    const router = renderList(q);
-    expect(screen.getByText("1/3")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "A card is blocked" })).toBeInTheDocument();
-    expect(screen.getByText("· finished")).toBeInTheDocument();
-    expect(screen.getByText("Pick a DB")).toBeInTheDocument();
-    expect(screen.getAllByText(/Agent blocked/).length).toBe(fixtureAgents.filter((a) => a.status === "blocked").length);
-    await userEvent.click(screen.getByText("live"));
-    expect(router.state.location.pathname + router.state.location.search).toBe("/board/project?repo=%2Fcode%2Flive");
+beforeEach(() => localStorage.clear());
+
+describe("the sidebar sections", () => {
+  it("lists running agents, those that need you first, and leaves idle ones out", () => {
+    const agents = [ag({ paneId: "a", status: "working" }), ag({ paneId: "b", status: "idle" }), ag({ paneId: "c", status: "blocked" })];
+    expect(runningAgents(agents).map((a) => a.paneId)).toEqual(["c", "a"]);
   });
 
-  it("lists each live orchestrator, its dot when it waits on you, and opens its conversation", async () => {
-    const orch = { ...fixtureAgents[0]!, paneId: "orch-1", workspaceLabel: "orchestrator-live", cwd: "/code/live", status: "idle" as const };
-    const router = createMemoryRouter(
-      [{ path: "*", element: <QuickList q={q} data={{ ...data, agents: [orch] } as HomeData} /> }],
-      { initialEntries: ["/settings"] },
-    );
-    render(<RouterProvider router={router} />);
-    expect(screen.getByText("Orchestrators")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Waiting for you" })).toBeInTheDocument(); // the decision on /code/live
-    await userEvent.click(screen.getAllByText("live")[1]!); // [0] is the project, listed above
-    expect(router.state.location.pathname).toBe("/pane/orch-1");
+  it("shows nothing at all with no pin and nothing running", () => {
+    renderBoth([ag({ status: "idle" })], []);
+    expect(screen.queryByText("Pinned")).toBeNull();
+    expect(screen.queryByText("Running")).toBeNull();
   });
 
-  it("lists the pinned sessions: live opens its pane, gone is greyed with its remove", async () => {
-    const live = { ...fixtureAgents[0]!, paneId: "p-chat", paneLabel: "chat infra", agentSessionId: "s-live", status: "idle" as const };
-    const pins = [{ session: "s-live", name: "old name" }, { session: "s-gone", name: "ancienne · perso" }];
-    const router = createMemoryRouter(
-      [{ path: "*", element: <QuickList q={null} data={{ ...data, agents: [live] } as HomeData} pins={pins} /> }],
-      { initialEntries: ["/settings"] },
+  it("orders pins projects, cards, agents, each with its kind chip, Pinned above Running", async () => {
+    const orch = ag({ paneId: "orch", workspaceLabel: "orchestrator-live", cwd: "/code/live", status: "idle" });
+    const idle = ag({ paneId: "p-idle", paneLabel: "chat infra", agentSessionId: "s-idle", status: "idle" });
+    const busy = ag({ paneId: "p-busy", paneLabel: "busy one", agentSessionId: "s-busy", status: "working" });
+    const router = renderBoth(
+      [orch, idle, busy],
+      [
+        { session: "s-idle", name: "x" },
+        { session: "s-busy", name: "y" },
+        { cardId: "c1", name: "Coût sous contrôle", status: "working" },
+        { repoPath: "/code/live", name: "live" },
+      ],
     );
-    render(<RouterProvider router={router} />);
-    expect(screen.getByText("Pinned")).toBeInTheDocument();
-    expect(screen.getByText("ancienne · perso")).toBeInTheDocument();
-    expect(screen.getByText("session ended")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unpin" })).toBeInTheDocument();
-    await userEvent.click(screen.getByText("chat infra"));
-    expect(router.state.location.pathname).toBe("/pane/p-chat");
+    const order = ["live", "Coût sous contrôle", "chat infra"].map((n) => screen.getByText(n));
+    order.slice(1).forEach((el, i) => expect(order[i]!.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
+    expect(screen.getByText("project")).toBeInTheDocument();
+    expect(screen.getByText("card")).toBeInTheDocument();
+    expect(screen.getByText("1 for you")).toBeInTheDocument(); // the decision waiting on /code/live
+    // Pinned and running: listed once, under Running.
+    expect(screen.getAllByText("busy one")).toHaveLength(1);
+    expect(screen.getByText("Pinned").compareDocumentPosition(screen.getByText("Running")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(screen.getByText("Coût sous contrôle"));
+    expect(router.state.location.pathname).toBe("/card/c1");
   });
 
-  it("orders the sections projects, then pins, then orchestrators, then what waits", () => {
-    const orch = { ...fixtureAgents[0]!, paneId: "orch-1", workspaceLabel: "orchestrator-live", agentSessionId: "s-o", cwd: "/code/live", status: "idle" as const };
-    const router = createMemoryRouter(
-      [{ path: "*", element: <QuickList q={q} data={{ ...data, agents: [orch] } as HomeData} pins={[{ session: "s-o", name: "o" }]} /> }],
-      { initialEntries: ["/settings"] },
-    );
-    render(<RouterProvider router={router} />);
-    const headings = ["Projects", "Pinned", "Orchestrators", "Waiting for you"].map((h) => screen.getByText(h));
-    headings.slice(1).forEach((h, i) => expect(headings[i]!.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
+  it("greys a pin whose target is gone, with its remove", () => {
+    renderBoth([], [{ session: "s-gone", name: "ancienne" }, { cardId: "c-gone", name: "old card", status: null }]);
+    expect(screen.getAllByText("gone")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Unpin" })).toHaveLength(2);
+  });
+
+  it("folds a section to its title, count and needs-you dot, and remembers it", async () => {
+    const agents = [ag({ paneId: "a", status: "working" }), ag({ paneId: "c", status: "blocked" })];
+    renderBoth(agents, []);
+    await userEvent.click(screen.getByRole("button", { name: /Running/ }));
+    expect(screen.getByRole("button", { name: /Running/ })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Something waits for you here" })).toBeInTheDocument();
+    expect(localStorage.getItem("collie:nav-collapsed:running")).toBe("1");
   });
 });

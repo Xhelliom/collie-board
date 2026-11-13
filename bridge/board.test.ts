@@ -33,7 +33,7 @@ import {
 } from "./cards.ts";
 import type { Config } from "./config.ts";
 import { handleBoardRoute, PANE_HEADER, parseCardBody } from "./board-routes.ts";
-import { BoardDb, type Card, type CardSession } from "./db.ts";
+import { BoardDb, pinId, type Card, type CardSession } from "./db.ts";
 import {
   adapterFor,
   BUILTIN_ADAPTERS,
@@ -3043,10 +3043,25 @@ describe("CopilotCoordinator.update — what counts as landed work", () => {
   it("pins and unpins a session, re-pinning refreshes its name without a duplicate", () => {
     const store = db();
     expect(store.pins()).toEqual([]);
-    store.setPin("s1", "chat", true);
-    store.setPin("s2", "infra", true);
-    expect(store.setPin("s1", "chat 2", true)).toEqual([{ session: "s2", name: "infra" }, { session: "s1", name: "chat 2" }]);
-    expect(store.setPin("s2", "", false)).toEqual([{ session: "s1", name: "chat 2" }]);
+    store.setPin({ session: "s1" }, "chat", true);
+    store.setPin({ session: "s2" }, "infra", true);
+    expect(store.setPin({ session: "s1" }, "chat 2", true)).toEqual([{ session: "s2", name: "infra" }, { session: "s1", name: "chat 2" }]);
+    expect(store.setPin({ session: "s2" }, "", false)).toEqual([{ session: "s1", name: "chat 2" }]);
+  });
+
+  it("pins a project and a card beside a session, each its own key", () => {
+    const store = db();
+    store.setPin({ session: "/r" }, "agent", true);
+    store.setPin({ repoPath: "/r" }, "r", true);
+    store.setPin({ cardId: "c1" }, "card", true);
+    expect(store.pins()).toHaveLength(3); // a session and a repo that share a string are two pins
+    expect(store.setPin({ repoPath: "/r" }, "", false)).toEqual([{ session: "/r", name: "agent" }, { cardId: "c1", name: "card" }]);
+  });
+
+  it("reads junk and two-target rows as no pin", () => {
+    expect(pinId({ session: "s", repoPath: "/r" })).toBeNull();
+    expect(pinId({ name: "x" })).toBeNull();
+    expect(pinId({ cardId: "c" })).toBe("cardId:c");
   });
 });
 

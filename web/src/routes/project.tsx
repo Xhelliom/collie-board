@@ -1,7 +1,8 @@
 import { GoalPanel } from "@/components/goal-panel";
 import { GOAL_SURFACE, GoalChip, type OpenGoalStatus } from "@/components/goal-chip";
 import { useEffect, useMemo, useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { useLoaderData, useRevalidator, useRouteLoaderData, useSearchParams } from "react-router";
+import { ROOT_ROUTE_ID, type HomeData } from "@/lib/loaders";
 
 import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, ListFilter, MessagesSquare } from "lucide-react";
 
@@ -33,6 +34,8 @@ import { projectOf, proposeMilestoneName, stepGroup, type ProjectPhase, type Ste
 import { lotHold } from "@/lib/lot-hold";
 import { saveLastProject } from "@/lib/quick-access";
 import { setStatus } from "@/lib/status";
+import { PinToggle } from "@/components/pin-button";
+import { PhonePinned } from "@/components/sidebar-quick";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { cn } from "@/lib/utils";
 import { assignedToMe, useIdentities } from "@/lib/identities";
@@ -133,6 +136,8 @@ export function ProjectRoute() {
   const panel = usePanelWidth();
   const t = useT();
   const data = useLoaderData() as ProjectData;
+  // The herd, for the phone's pinned list (absent when the page is mounted alone, as in tests).
+  const root = useRouteLoaderData(ROOT_ROUTE_ID) as HomeData | undefined;
   const revalidator = useRevalidator();
   const [params, setParams] = useSearchParams();
   const repo = params.get("repo") ?? loadRepoScope();
@@ -450,6 +455,8 @@ export function ProjectRoute() {
         // The way back into the chat lives in the header, where the tab bar cannot cover it (a floating
         // button did hide behind it) and where it is on screen whatever the scroll. Docked on a wide screen.
         rightTrail={
+          <>
+          {repo && <PinToggle target={{ repoPath: repo }} name={repoName(repo)} className="size-9" />}
           <button
             type="button"
             onClick={() => setChatOpen(true)}
@@ -462,6 +469,7 @@ export function ProjectRoute() {
               <span className="size-2 rounded-full bg-status-done" title={t("project.chatRunning")} aria-hidden="true" />
             )}
           </button>
+          </>
         }
       />
       <BoardTabs
@@ -487,6 +495,7 @@ export function ProjectRoute() {
           className="pointer-events-none absolute inset-x-0 top-0 h-80 text-foreground/[0.06] [background-image:linear-gradient(currentColor_1px,transparent_1px),linear-gradient(90deg,currentColor_1px,transparent_1px)] [background-size:32px_32px] [mask-image:radial-gradient(ellipse_at_50%_0%,#000_30%,transparent_75%)]"
         />
         <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pb-24 pt-5 lg:px-6 lg:pt-8">
+          {root && <PhonePinned data={root} />}
           {repo && <ProjectOpen repo={repo} />}
           {repo && <MigrateAllHc repo={repo} />}
           {repo && <GoalPanel repo={repo} titleOf={(id) => byId.get(id)?.title} noOrchestrator={data.orchestrator?.paneId === null} onStatus={setGoalStatus} />}

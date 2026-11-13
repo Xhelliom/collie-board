@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 
@@ -7,8 +7,6 @@ import { CONNECTION_LOST_MS, TROUBLE_MS } from "@/hooks/use-connection-lost";
 import { __resetConnectionHealth } from "@/lib/connection-health";
 import { fixtureAgents, fixtureSessions } from "@/test/handlers";
 import type { HomeData } from "@/lib/loaders";
-import type { BoardData } from "@/lib/board-loaders";
-import type { CardView } from "@/lib/board";
 
 // AppNav uses useLoadingStalled (useNavigation/useRevalidator) and useNavigate/useLocation, so it
 // needs a real data router — same pattern as agent-chat.test.tsx.
@@ -46,36 +44,36 @@ function renderAt(path: string, data: HomeData = baseData()) {
 describe("AppNav — sidebar (desktop, always mounted)", () => {
   beforeEach(() => __resetConnectionHealth());
 
-  it("marks the current root screen active and shows the Herd blocked badge", () => {
+  it("marks the current root screen active and shows the Home blocked badge", () => {
     const { sidebar } = renderAt("/board");
-    const boardRow = within(sidebar).getByRole("button", { name: "Board" });
+    const boardRow = within(sidebar).getByRole("button", { name: "Projects" });
     expect(boardRow).toHaveAttribute("aria-current", "page");
-    const herdRow = within(sidebar).getByRole("button", { name: /Herd/ });
+    const herdRow = within(sidebar).getByRole("button", { name: /Home/ });
     expect(within(herdRow).getByText("1")).toBeInTheDocument(); // one blocked agent
   });
 
   it("navigates on tap", async () => {
     const { sidebar, router } = renderAt("/");
-    await userEvent.click(within(sidebar).getByRole("button", { name: "Board" }));
-    expect(router.state.location.pathname).toBe("/board");
+    await userEvent.click(within(sidebar).getByRole("button", { name: "Projects" }));
+    expect(router.state.location.pathname).toBe("/board/project");
   });
 
-  it("stays full on an entered screen: labels and Herd lit on a pane, Spaces on a space", () => {
+  it("stays full on an entered screen: labels and Home lit on a pane, Agents on a space", () => {
     const pane = renderAt("/pane/w1%3Ap1");
     expect(within(pane.sidebar).getByText("Collie Board")).toBeInTheDocument();
-    expect(within(pane.sidebar).getByRole("button", { name: /Herd/ })).toHaveAttribute("aria-current", "page");
+    expect(within(pane.sidebar).getByRole("button", { name: /Home/ })).toHaveAttribute("aria-current", "page");
     pane.router.dispose();
     const space = renderAt("/space/w1");
-    expect(within(space.sidebar).getByRole("button", { name: /Spaces/ })).toHaveAttribute("aria-current", "page");
+    expect(within(space.sidebar).getByRole("button", { name: /Agents/ })).toHaveAttribute("aria-current", "page");
   });
 });
 
 describe("AppNav — mobile tab bar", () => {
   beforeEach(() => __resetConnectionHealth());
 
-  it("keeps the tab bar on a card, Board lit", () => {
+  it("keeps the tab bar on a card, Projects lit", () => {
     const { tabBar } = renderAt("/card/abc");
-    expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabBar!).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
   });
 
   it("renders on every screen, entered ones included", () => {
@@ -84,17 +82,17 @@ describe("AppNav — mobile tab bar", () => {
     }
   });
 
-  it("lights Herd on a pane, Spaces on a space, nothing on a screen of its own", () => {
-    expect(within(renderAt("/pane/w1%3Ap1").tabBar!).getByRole("button", { name: /Herd/ })).toHaveAttribute("aria-current", "page");
-    expect(within(renderAt("/space/w1").tabBar!).getByRole("button", { name: "Spaces" })).toHaveAttribute("aria-current", "page");
+  it("lights Home on a pane, Agents on a space, nothing on a screen of its own", () => {
+    expect(within(renderAt("/pane/w1%3Ap1").tabBar!).getByRole("button", { name: /Home/ })).toHaveAttribute("aria-current", "page");
+    expect(within(renderAt("/space/w1").tabBar!).getByRole("button", { name: "Agents" })).toHaveAttribute("aria-current", "page");
     expect(within(renderAt("/gallery").tabBar!).queryByRole("button", { current: "page" })).toBeNull();
   });
 
-  it("stays visible, with Board lit, on the board's own Open PRs view", () => {
+  it("stays visible, with Projects lit, on the board's own Open PRs view", () => {
     const { tabBar, sidebar } = renderAt("/board/prs");
     expect(tabBar).toBeDefined();
-    expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
-    expect(within(sidebar).getByRole("button", { name: "Board" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabBar!).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+    expect(within(sidebar).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
   });
 
   it("lights Projects on the project page, and the entry reopens the last project", async () => {
@@ -102,7 +100,7 @@ describe("AppNav — mobile tab bar", () => {
     const { tabBar, sidebar, router } = renderAt("/board/project");
     expect(within(tabBar!).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
     expect(within(sidebar).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
-    await userEvent.click(within(sidebar).getByRole("button", { name: /Herd/ }));
+    await userEvent.click(within(sidebar).getByRole("button", { name: /Home/ }));
     await userEvent.click(within(sidebar).getByRole("button", { name: "Projects" }));
     expect(router.state.location.search).toBe("?repo=%2Fcode%2Fx");
     localStorage.removeItem("collie:last-project");
@@ -110,7 +108,7 @@ describe("AppNav — mobile tab bar", () => {
 
   it("marks the current root screen active", () => {
     const { tabBar } = renderAt("/board");
-    expect(within(tabBar!).getByRole("button", { name: "Board" })).toHaveAttribute(
+    expect(within(tabBar!).getByRole("button", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -138,115 +136,27 @@ describe("AppNav — the dog keys on trouble/lost, not the first not-live frame"
     expect(img?.className ?? "").toMatch(/grayscale/);
   });
 
-  it("the Herd tab icon gallops on trouble too (mobile)", () => {
+  it("the Home tab icon gallops on trouble too (mobile)", () => {
     const { tabBar } = renderAt("/", baseData({ error: true }));
     act(() => vi.advanceTimersByTime(TROUBLE_MS));
     expect(tabBar!.querySelector(".dog-gallop")).toHaveClass("dog-gallop--running");
   });
 });
 
-function card(over: Partial<CardView> & { id: string; repoPath: string }): CardView {
-  return {
-    title: "x",
-    spec: null,
-    rawInput: null,
-    acceptance: [],
-    status: "backlog",
-    baseRef: null,
-    branch: null,
-    workspaceId: null,
-    agentKind: null,
-    parentId: null,
-    duplicateOf: null,
-    dependsOn: null,
-    origin: null,
-    originCardId: null,
-    category: null,
-    tag: null,
-    position: 0,
-    createdAt: 0,
-    updatedAt: 0,
-    session: null,
-    runtime: null,
-    sessionCount: 0,
-    copilotBusy: false,
-    wrapupPending: false,
-    keepWorktree: false,
-    autoHandoff: null,
-    ...over,
-  };
-}
-
-// The board's repo scope, spatial in the sidebar (replaces RepoFilter's old strip on desktop — see
-// app-nav.tsx's BoardRepoList). Reads the board loader's data via useMatches, so the router needs an
-// actual nested "board" route (id required) whose loader resolves that data — no Outlet needed, a
-// matched route's loader runs and shows up in useMatches regardless of whether anything renders it.
-function renderBoard(boardData: BoardData, initialPath = "/board") {
-  const router = createMemoryRouter(
-    [
-      {
-        path: "/",
-        element: <AppNav data={baseData()} />,
-        children: [{ id: "board", path: "board", loader: () => boardData }],
-      },
-    ],
-    { initialEntries: [initialPath] },
-  );
-  render(<RouterProvider router={router} />);
-  return { router };
-}
-
-describe("AppNav — BoardRepoList (the sidebar's screen-scoped repo list)", () => {
-  // BoardRepoList only ever renders inside the sidebar, so these text queries are unambiguous
-  // against the whole document — no need to scope to one of the two <nav>s.
-  const twoRepos: BoardData = {
-    cards: [
-      card({ id: "c1", repoPath: "/home/x/alpha" }),
-      card({ id: "c2", repoPath: "/home/x/beta" }),
-    ],
-    error: false,
-    authError: false,
-  };
-
-  it("lists the repos in use once the board route's data resolves", async () => {
-    renderBoard(twoRepos);
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument());
-    expect(screen.getByText("beta")).toBeInTheDocument();
-  });
-
-  it("renders nothing when not on /board", async () => {
-    renderBoard(twoRepos, "/");
-    // Give the loader every chance to resolve regardless — the section must stay absent either way.
-    await new Promise((r) => setTimeout(r, 10));
-    expect(screen.queryByText("Repos")).toBeNull();
-    expect(screen.queryByText("alpha")).toBeNull();
-  });
-
-  it("writes ?repo= when a repo is picked", async () => {
-    const { router } = renderBoard(twoRepos);
-    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("alpha"));
-    expect(router.state.location.search).toContain("repo=");
-  });
-});
-
-describe("AppNav — Spaces are herdr 0.9's", () => {
+describe("AppNav — one entry per destination (operator 13/11)", () => {
   beforeEach(() => __resetConnectionHealth());
 
-  it("drops the Spaces tab when every space is hc's", () => {
+  it("has Home, Projects, Agents, Settings — no Board, Agents under hc too", () => {
     const hcOnly = baseData({ workspaces: [{ workspaceId: "hc", number: 1, label: "hc", focused: false, activeTabId: "hc", tabCount: 1, paneCount: 1 }] });
-    const { sidebar, tabBar } = renderAt("/", hcOnly);
-    expect(within(sidebar).queryByRole("button", { name: /Spaces/ })).toBeNull();
-    expect(within(tabBar!).queryByRole("button", { name: /Spaces/ })).toBeNull();
+    const { tabBar, sidebar } = renderAt("/", hcOnly);
+    const labels = within(tabBar!).getAllByRole("button").map((b) => b.textContent?.replace(/\d+/g, ""));
+    expect(labels).toEqual(["Home", "Projects", "Agents", "Settings"]);
+    expect(within(sidebar).queryByRole("button", { name: "Board" })).toBeNull();
+    expect(within(sidebar).queryByText(/^v\d/)).toBeNull(); // the version lives in Settings
   });
 
-  it("keeps it beside a herdr 0.9 space", () => {
-    const mixed = baseData({
-      workspaces: [
-        { workspaceId: "w1", number: 1, label: "proj", focused: false, activeTabId: "w1:t1", tabCount: 1, paneCount: 1 },
-        { workspaceId: "hc", number: 2, label: "hc", focused: false, activeTabId: "hc", tabCount: 1, paneCount: 1 },
-      ],
-    });
-    expect(within(renderAt("/", mixed).tabBar!).getByRole("button", { name: /Spaces/ })).toBeInTheDocument();
+  it("lists the running agents in the sidebar, the one that needs you first", () => {
+    const { sidebar } = renderAt("/");
+    expect(within(sidebar).getByText("Running")).toBeInTheDocument();
   });
 });
