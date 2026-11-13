@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { setPreference } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CardView, Lot, Phase, Roadmap } from "@/lib/board";
 import type { ProjectData } from "@/lib/board-loaders";
-import type { CardFacts } from "@/lib/project-facts";
 import { server } from "@/test/setup";
 import { ProjectRoute } from "./project";
 
@@ -53,25 +52,6 @@ describe("ProjectRoute", () => {
     expect(screen.getByLabelText("Message to the orchestrator")).toBeInTheDocument();
   });
 
-  it("shows the template a step starts with — dashed when inherited from its phase — and the model that ran", async () => {
-    const t1 = { id: "t1", key: "reviewer", name: "Reviewer", description: "", agentKind: "claude", model: "opus", brief: "B", builtin: true, worker: false };
-    mount(
-      [card({ id: "own", phaseId: "P1", templateId: "t2", status: "working", agentKind: "claude" }), card({ id: "inh", phaseId: "P1", status: "working", agentKind: "claude" })],
-      {
-        phases: [{ ...phase("P1"), templateId: "t1" }],
-        templates: { templates: [t1, { ...t1, id: "t2", key: null, name: "Mine", builtin: false, model: null }], modelKinds: ["claude"] },
-        facts: { inh: { cardId: "inh", gate: null, lead: null, triage: null, review: null, pr: null, sentBack: 0, operatorSaid: 0, startedAt: null, endedAt: null, template: { name: "Reviewer", key: "reviewer", model: "opus" } } },
-      },
-    );
-    await screen.findAllByText("Mine");
-    const chip = (name: string) => screen.getAllByText(name).filter((el) => el.tagName === "SPAN");
-    expect(chip("Mine")[0]).not.toHaveAttribute("title");
-    const inherited = chip("Reviewer").find((el) => el.getAttribute("title") === "from the phase");
-    expect(inherited).toBeDefined();
-    expect(screen.getByRole("combobox", { name: "Default template" })).toHaveValue("t1");
-    expect(screen.getAllByRole("list", { name: "Who did what" }).some((l) => l.textContent?.includes("claude, model opus"))).toBe(true);
-  });
-
   it("keeps the way into the chat in the header, with a dot while the orchestrator runs", async () => {
     mount([card({ id: "a" })], { orchestrator: { paneId: "w1:p2", running: true } });
     const open = await screen.findByRole("button", { name: "Open the orchestrator chat" });
@@ -79,94 +59,123 @@ describe("ProjectRoute", () => {
     expect(open.querySelector('[title="running"]')).not.toBeNull();
   });
 
-  it("speaks French when asked to", async () => {
+  it("speaks French, in sentence case", async () => {
     setPreference("fr");
-    mount([card({ id: "a", status: "done" }), card({ id: "b", status: "blocked" })]);
-    expect(await screen.findByText(/étape terminée sur 2/)).toBeInTheDocument();
-    expect(screen.getAllByText(/t'attend/).length).toBeGreaterThan(0);
+    mount([card({ id: "a", status: "done", phaseId: "P1" }), card({ id: "b", status: "blocked", phaseId: "P1" })], { phases: [phase("P1")] });
+    expect(await screen.findByRole("region", { name: "Ce qui t'attend" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Phases/ })).toBeInTheDocument();
+    expect(screen.getAllByText("phase en cours").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Ouvrir le chat de l'orchestrateur/ })).toBeInTheDocument();
   });
 
-  it("shows the phases, the progress and what waits for you", async () => {
-    mount([
-      card({ id: "Phase one" }),
-      card({ id: "a", parentId: "Phase one", status: "done" }),
-      card({ id: "b", parentId: "Phase one", status: "blocked" }),
-      card({ id: "other", repoPath: "/r/else", status: "done" }),
-    ]);
-    expect((await screen.findAllByText("Phase one")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("50%")).toBeTruthy();
-    expect(screen.getByText(/1 waiting for you/i)).toBeTruthy();
-    expect(screen.queryByText("other")).toBeNull();
-  });
-
-  it("puts what waits for you right under the figures, folds the steps that merely run, and lists « à toi » first in the filters", async () => {
-    mount([card({ id: "a", status: "working" }), card({ id: "b", status: "blocked" }), card({ id: "c", status: "done" })]);
-    const waiting = await screen.findByRole("region", { name: "Waiting for you" });
-    const summary = screen.getByRole("img", { name: /steps done/ }).closest("header")!;
-    expect(summary.compareDocumentPosition(waiting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(document.querySelector("#step-b [aria-expanded]")).toHaveAttribute("aria-expanded", "true");
-    expect(document.querySelector("#step-a [aria-expanded]")).toHaveAttribute("aria-expanded", "false");
-    const names = within(screen.getByRole("group", { name: /filter/i })).getAllByRole("button").map((b) => b.textContent);
-    expect(names[1]).toMatch(/^waiting/i);
+  it("leads with what waits for you, then the objective, the phase in progress, the phases, and what no phase took", async () => {
+    server.use(http.get("*/api/goals", () => HttpResponse.json({ goals: [] })));
+    mount(
+      [
+        card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "working" }),
+        card({ id: "b", title: "Beta", phaseId: "P1", status: "review" }),
+        card({ id: "c", title: "Loose one", status: "backlog" }),
+      ],
+      { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: 1 })] },
+    );
+    const order = [
+      await screen.findByRole("region", { name: "Waiting for you" }),
+      await screen.findByRole("region", { name: "Objective" }),
+      screen.getByRole("region", { name: "P1" }),
+      screen.getByRole("region", { name: "Phases" }),
+      screen.getByRole("region", { name: "1 card outside a phase" }),
+    ];
+    for (let i = 1; i < order.length; i++) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No key figures any more: the bars of the objective and the phases say it.
+    expect(screen.queryByRole("button", { name: "Key figures" })).toBeNull();
+    expect(screen.queryByRole("img", { name: /steps done/ })).toBeNull();
   });
 
   it("offers a way out of an empty project", async () => {
     mount([]);
     expect(await screen.findByRole("button", { name: "Ask the orchestrator" })).toBeInTheDocument();
+    expect(screen.getByText(/no cards in this repo/i)).toBeTruthy();
   });
 
-  it("filters the steps by what they are doing, and remembers it", async () => {
-    mount([card({ id: "a", status: "done" }), card({ id: "b", status: "ready" })]);
-    await screen.findByText("a");
+  it("draws every card as ONE line: its title opens the card, two icons — the card, and the agent while one runs — never unfolded", async () => {
+    mount(
+      [
+        card({ id: "run", title: "Running one", phaseId: "P1", status: "working", spec: "A long spec nobody reads here", acceptance: ["crit"], runtime: { paneId: "w1:p2" } as CardView["runtime"] }),
+        card({ id: "idle", title: "Idle one", phaseId: "P1", status: "ready", spec: "Another spec" }),
+      ],
+      { phases: [phase("P1"), phase("P2", 1)] },
+    );
+    const current = await screen.findByRole("region", { name: "P1" });
+    const row = within(current).getByRole("link", { name: "Running one" }).closest("li")!;
+    expect(within(row).getByRole("link", { name: "Running one" }).getAttribute("href")).toContain("run");
+    expect(within(row).getByRole("link", { name: "Open the card" }).getAttribute("href")).toContain("run");
+    expect(within(row).getByRole("link", { name: "Go to the agent" })).toHaveAttribute("href", "/pane/w1%3Ap2");
+    const idle = within(current).getByRole("link", { name: "Idle one" }).closest("li")!;
+    expect(within(idle).queryByRole("link", { name: "Go to the agent" })).toBeNull();
+    // Nothing unfolds: no spec, no criteria, no phase picker on the page.
+    expect(screen.queryByText(/long spec/)).toBeNull();
+    expect(screen.queryByText("crit")).toBeNull();
+    expect(row.querySelector("[aria-expanded]")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /^phase/i })).toBeNull();
+  });
+
+  it("filters the cards by what they are doing, from the filter button, and remembers it", async () => {
+    mount([card({ id: "a", status: "done", phaseId: "P1" }), card({ id: "b", status: "ready", phaseId: "P1" })], { phases: [phase("P1")] });
+    const current = await screen.findByRole("region", { name: "P1" });
+    await userEvent.click(screen.getByRole("button", { name: "Filter the cards" }));
+    const chips = within(screen.getByRole("group", { name: /filter the steps/i })).getAllByRole("button").map((b) => b.textContent);
+    expect(chips.map((c) => c?.replace(/\d+$/, ""))).toEqual(["all", "to start", "done"]);
     await userEvent.click(screen.getByRole("button", { name: /^done/ }));
-    expect(document.getElementById("step-b")).toBeNull();
-    expect(document.getElementById("step-a")).not.toBeNull();
+    expect(within(current).queryByRole("link", { name: "b" })).toBeNull();
+    expect(within(current).getByRole("link", { name: "a" })).toBeInTheDocument();
+    expect(localStorage.getItem("collie-project-filter")).toBe("done");
   });
 
-  it("says so when the repo has no cards", async () => {
-    mount([]);
-    expect(await screen.findByText(/no cards in this repo/i)).toBeTruthy();
+  it("puts the phase in progress before the phases: the one a lot runs in", async () => {
+    mount(
+      [card({ id: "x", phaseId: "P1" }), card({ id: "y", phaseId: "P2", runId: "L2", status: "working" })],
+      { phases: [phase("P1", 0), phase("P2", 1)], lots: [lot({ id: "L2", phaseId: "P2", name: "Lot B", cardIds: ["y"], launchedAt: 1 })] },
+    );
+    const current = await screen.findByRole("region", { name: "P2" });
+    expect(current).toHaveTextContent("phase in progress");
+    expect(current).toHaveTextContent("goal of P2");
+    const phases = screen.getByRole("region", { name: "Phases" });
+    expect(current.compareDocumentPosition(phases) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Each phase is one line: its name, what happens in it, its bar.
+    expect(within(phases).getByRole("button", { name: /P1.*goal of P1.*0 of 1/ })).toBeInTheDocument();
+    expect(within(phases).getByRole("button", { name: /P2.*Lot B running/ })).toBeInTheDocument();
   });
 
-  it("lists the phase table's phases with their goal and their cards", async () => {
-    mount([card({ id: "x", phaseId: "P1" }), card({ id: "y", phaseId: "P2" })], { phases: [phase("P2", 1), phase("P1", 0)] });
-    await screen.findByText("goal of P1");
-    expect(document.getElementById("phase-P1")).not.toBeNull();
-    expect(document.getElementById("step-x")).not.toBeNull();
+  it("opens a phase of the list in place, with its gestures and its cards", async () => {
+    mount([card({ id: "x", phaseId: "P1" }), card({ id: "y", title: "Later", phaseId: "P2" })], { phases: [phase("P1", 0), phase("P2", 1)] });
+    const phases = await screen.findByRole("region", { name: "Phases" });
+    expect(within(phases).queryByRole("link", { name: "Later" })).toBeNull();
+    await userEvent.click(within(phases).getByRole("button", { name: /^P2/, expanded: false }));
+    expect(within(phases).getByRole("link", { name: "Later" })).toBeInTheDocument();
+    await userEvent.click(within(phases).getByRole("button", { name: "Open all" }));
+    await userEvent.click(within(phases).getByRole("button", { name: "Fold all" }));
+    expect(within(phases).queryByRole("link", { name: "Later" })).toBeNull();
   });
 
-  it("shows the roadmap, or says the orchestrator fills it", async () => {
-    const roadmap: Roadmap = {
-      repoPath: "/r/app",
-      vision: "Ship it",
-      revision: 2,
-      items: [{ id: "1", name: "Scale", goal: "72 players", status: "active", detail: "" }],
-    };
+  it("shows the roadmap behind its link", async () => {
+    const roadmap: Roadmap = { repoPath: "/r/app", vision: "Ship it", revision: 2, items: [{ id: "1", name: "Scale", goal: "72 players", status: "active", detail: "" }] };
     mount([card({ id: "x" })], { roadmap });
+    expect(screen.queryByRole("button", { name: /go to Scale/i })).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Roadmap" }));
     await userEvent.click(await screen.findByRole("button", { name: /go to Scale/i }));
     expect(screen.getByRole("button", { name: /copy the detailed roadmap/i })).toBeTruthy();
   });
 
-  it("explains an empty roadmap", async () => {
-    mount([card({ id: "x" })]);
-    expect(await screen.findByText(/no roadmap yet/i)).toBeTruthy();
-  });
-
-  it("draws a lot as a group that holds its steps, and the rest under \"Not in a lot\"", async () => {
+  it("draws a lot as a line that holds its cards, and the rest under \"Not in a lot\"", async () => {
     mount(
-      [
-        card({ id: "in-lot", phaseId: "P1", runId: "L1" }),
-        card({ id: "also-in", phaseId: "P1", runId: "L1" }),
-        card({ id: "free-one", phaseId: "P1" }),
-      ],
+      [card({ id: "in-lot", phaseId: "P1", runId: "L1" }), card({ id: "also-in", phaseId: "P1", runId: "L1" }), card({ id: "free-one", phaseId: "P1" })],
       { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["in-lot", "also-in"] })] },
     );
     const group = await screen.findByRole("region", { name: "Lot Lot A" });
     expect(group).toHaveTextContent("in-lot");
     expect(group).toHaveTextContent("also-in");
+    expect(group).toHaveTextContent("0 of 2");
     expect(group).not.toHaveTextContent("free-one");
-    expect(group).not.toHaveTextContent("in a run");
     expect(screen.getByText(/not in a lot · 1/i)).toBeInTheDocument();
   });
 
@@ -189,19 +198,20 @@ describe("ProjectRoute", () => {
     await waitFor(() => expect(launched).toBe("L1"));
   });
 
-  it("a planned lot whose cards are all done shows done outside the lot, with no Launch", async () => {
-    mount([card({ id: "by-hand", phaseId: "P1", runId: "L1", status: "done" })], {
+  it("sums the finished lots up in one line, opened on demand", async () => {
+    mount([card({ id: "by-hand", phaseId: "P1", runId: "L1", status: "done" }), card({ id: "next", phaseId: "P1", status: "ready" })], {
       phases: [phase("P1")],
       lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["by-hand"], finished: true, doneOutside: true, done: 1 })],
     });
-    // Its phase only waits to be validated: folded on its heading.
-    await userEvent.click(await screen.findByRole("button", { name: "P1", expanded: false }));
-    const group = await screen.findByRole("region", { name: "Lot Lot A" });
-    expect(group).toHaveTextContent(/done outside the lot/i);
+    const current = await screen.findByRole("region", { name: "P1" });
+    expect(current).toHaveTextContent("Lot A finished, 1 card done.");
+    expect(screen.queryByRole("region", { name: "Lot Lot A" })).toBeNull();
+    await userEvent.click(within(current).getByRole("button", { name: "See" }));
+    expect(await screen.findByRole("region", { name: "Lot Lot A" })).toHaveTextContent(/done outside the lot/i);
     expect(screen.queryByRole("button", { name: /launch this lot/i })).toBeNull();
   });
 
-  it("a halted lot shows why, and Resume posts the operator's gesture", async () => {
+  it("a halted lot waits for you in one plain sentence — never the raw error — and Resume posts the operator's gesture", async () => {
     let resumed = "";
     server.use(
       http.post("*/api/runs/:id/resume", ({ params }) => {
@@ -209,174 +219,125 @@ describe("ProjectRoute", () => {
         return HttpResponse.json({ resumed: 1 });
       }),
     );
-    mount([card({ id: "one", phaseId: "P1", runId: "L1" })], {
+    const raw = "lot merge: 502 Bad Gateway <html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>";
+    mount([card({ id: "one", phaseId: "P1", runId: "L1", status: "blocked" })], {
       phases: [phase("P1")],
-      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["one"], launchedAt: 1, halted: "PR: push rejected" })],
+      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["one"], launchedAt: 1, halted: raw })],
     });
-    const group = await screen.findByRole("region", { name: "Lot Lot A" });
-    expect(group).toHaveTextContent("halted");
-    expect(group).toHaveTextContent("PR: push rejected");
-    await userEvent.click(within(group).getByRole("button", { name: /resume/i }));
+    const waiting = await screen.findByRole("region", { name: "Waiting for you" });
+    expect(waiting).toHaveTextContent("Lot Lot A halted: GitHub did not answer (a passing outage): resuming is enough.");
+    expect(document.body.textContent).not.toContain("<html>");
+    expect(document.body.textContent).not.toContain("nginx");
+    // The card of a halted lot is said once, by its lot.
+    expect(within(waiting).queryByRole("link", { name: "Open" })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Lot Lot A" })).getByText("halted")).toBeInTheDocument();
+    await userEvent.click(within(waiting).getByRole("button", { name: "Resume the lot" }));
     await waitFor(() => expect(resumed).toBe("L1"));
   });
 
-  it("a long coloured halt reason: no ANSI, the error line up front, the rest folded, Resume before it", async () => {
+  it("a long coloured halt reason reads as its error line: no ANSI", async () => {
     const noise = Array.from({ length: 40 }, (_, i) => `\u001b[2m  test ${i} ok\u001b[0m`).join("\n");
     const halted = `\u001b[1mpre-push\u001b[0m\n${noise}\n\u001b[31m✗ pre-push: web tests failed — push aborted.\u001b[0m\n`;
     mount([card({ id: "one", phaseId: "P1", runId: "L1" })], {
       phases: [phase("P1")],
       lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["one"], launchedAt: 1, halted })],
     });
-    const group = await screen.findByRole("region", { name: "Lot Lot A" });
-    const banner = await screen.findByRole("region", { name: "Lot in progress: Lot A" });
-    for (const el of [group, banner]) {
-      expect(el.textContent).not.toContain("\u001b");
-      expect(el.textContent).not.toContain("[31m");
-      const head = within(el).getByText("✗ pre-push: web tests failed — push aborted.");
-      expect(head).not.toHaveTextContent("test 3 ok");
-      expect(within(el).getByText("Show more").closest("details")).not.toHaveAttribute("open");
-    }
-    const resume = within(group).getByRole("button", { name: /resume/i });
-    const head = within(group).getByText("✗ pre-push: web tests failed — push aborted.");
-    expect(resume.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(resume).toBeEnabled();
+    const waiting = await screen.findByRole("region", { name: "Waiting for you" });
+    expect(waiting.textContent).not.toContain("\u001b");
+    expect(waiting).toHaveTextContent("✗ pre-push: web tests failed — push aborted.");
+    expect(waiting).not.toHaveTextContent("test 3 ok");
   });
 
-  it("a running lot gets a banner up top: progress, each card's state, its pane and its PR", async () => {
+  it("lists a card to read with a way to open it, a phase to validate, and the tests waiting in the recette", async () => {
+    server.use(
+      http.get("*/api/recette", () =>
+        HttpResponse.json({ groups: [{ entries: [{ state: "todo" }, { state: "todo" }, { state: "ok" }] }] }),
+      ),
+    );
+    mount([card({ id: "rv", title: "Read me", phaseId: "P2", status: "review" }), card({ id: "d", phaseId: "P1", status: "done" })], { phases: [phase("P1"), phase("P2", 1)] });
+    const waiting = await screen.findByRole("region", { name: "Waiting for you" });
+    const item = within(waiting).getByText(/Read me/).closest("li")!;
+    expect(within(item).getByRole("link", { name: "Open" }).getAttribute("href")).toContain("rv");
+    expect(within(waiting).getByText("P1").closest("li")).toHaveTextContent("to validate");
+    expect(await within(waiting).findByRole("link", { name: "2 tests to do in the acceptance list" })).toHaveAttribute("href", "/board/recette?repo=%2Fr%2Fapp");
+  });
+
+  it("points the cards outside a phase at the Cards tab, filtered", async () => {
+    mount([card({ id: "x", phaseId: "P1" }), card({ id: "l1" }), card({ id: "l2" })], { phases: [phase("P1")] });
+    const line = await screen.findByRole("region", { name: "2 cards outside a phase" });
+    expect(within(line).getByRole("link", { name: "Open in Cards" })).toHaveAttribute("href", "/board?repo=%2Fr%2Fapp&phase=none");
+    expect(within(line).queryByRole("link", { name: "l1" })).toBeNull();
+  });
+
+  // Nothing the old page could do is lost (refonte sans perte): each gesture is on the page or behind one link.
+  it("keeps every action of the page reachable", async () => {
+    const t1 = { id: "t1", key: "reviewer", name: "Reviewer", description: "", agentKind: "claude", model: "opus", brief: "B", builtin: true, worker: false };
+    const closedAt = (id: string): Phase => ({ ...phase(id, 9), closedAt: 1, closedNote: "shipped" });
     mount(
       [
-        card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "done" }),
-        card({ id: "b", title: "Beta", phaseId: "P1", runId: "L1", status: "working", runtime: { paneId: "w1:p2" } as CardView["runtime"] }),
+        card({ id: "w", phaseId: "P1", runId: "L1", status: "working", runtime: { paneId: "w1:p2" } as CardView["runtime"] }),
+        card({ id: "h", phaseId: "P1", runId: "L2", status: "blocked" }),
+        card({ id: "p", phaseId: "P1", runId: "L3" }),
+        card({ id: "f", phaseId: "P1", status: "done" }),
+        card({ id: "old", phaseId: "V1", status: "done" }),
+        card({ id: "Dictation" }),
+        card({ id: "dict-1", parentId: "Dictation", status: "done" }),
+        card({ id: "loose" }),
       ],
       {
-        phases: [phase("P1")],
-        lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a", "b"], launchedAt: 1 })],
-        facts: { b: { pr: { url: "https://github.com/o/r/pull/7", state: "open" } } as CardFacts },
+        phases: [phase("P1", 0), phase("EMPTY", 1), closedAt("V1")],
+        lots: [
+          lot({ id: "L1", phaseId: "P1", name: "Running", cardIds: ["w"], launchedAt: 1 }),
+          lot({ id: "L2", phaseId: "P1", name: "Stopped", cardIds: ["h"], launchedAt: 1, halted: "gate failed" }),
+          lot({ id: "L3", phaseId: "P1", name: "Planned", cardIds: ["p"] }),
+        ],
+        templates: { templates: [t1], modelKinds: ["claude"] },
+        flows: [],
+        orchestrator: { paneId: null, running: false },
       },
     );
-    const banner = await screen.findByRole("region", { name: "Lot in progress: Lot A" });
-    expect(banner).toHaveTextContent("1/2 merged");
-    expect(banner).toHaveTextContent("PR open");
-    expect(within(banner).getByRole("link", { name: "Open its pane" })).toHaveAttribute("href", "/pane/w1%3Ap2");
-    expect(within(banner).getByRole("link", { name: "Open its PR" })).toHaveAttribute("href", "https://github.com/o/r/pull/7");
-  });
-
-  it("no running lot, no banner", async () => {
-    mount([card({ id: "a", phaseId: "P1", runId: "L1" })], {
-      phases: [phase("P1")],
-      lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: null })],
-    });
-    await screen.findByRole("region", { name: "Lot Lot A" });
-    expect(screen.queryByRole("region", { name: /Lot in progress/ })).toBeNull();
-  });
-
-  it("leads with the key figures, then the running lot, what waits for you and the phase in progress; the rest folds below", async () => {
-    mount(
-      [
-        card({ id: "a", title: "Alpha", phaseId: "P1", runId: "L1", status: "working" }),
-        card({ id: "b", title: "Beta", phaseId: "P1", status: "review" }),
-        card({ id: "c", title: "Loose one", status: "backlog" }),
-      ],
-      { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["a"], launchedAt: 1 })] },
-    );
-    const order = [
-      await screen.findByRole("button", { name: "Key figures" }),
-      screen.getByRole("region", { name: "Lot in progress: Lot A" }),
-      screen.getByRole("region", { name: /waiting for you/i }),
-      screen.getByRole("heading", { name: "P1" }),
-      screen.getByRole("button", { name: "Outside a phase · 1 step" }),
-    ];
-    for (let i = 1; i < order.length; i++) expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("remembers a folded section on this device, and opens it for what you asked to see", async () => {
-    const cards = [card({ id: "a", phaseId: "P1" }), card({ id: "c", title: "Loose one", status: "blocked" })];
-    mount(cards, { phases: [phase("P1")] });
-    await userEvent.click(await screen.findByRole("button", { name: "Key figures" }));
-    await userEvent.click(screen.getByRole("button", { name: "Outside a phase · 1 step" }));
-    expect(screen.queryByRole("img", { name: /steps done/ })).toBeNull();
-    expect(document.getElementById("step-c")).toBeNull();
-    cleanup();
-    mount(cards, { phases: [phase("P1")] });
-    expect(await screen.findByRole("button", { name: "Key figures" })).toHaveAttribute("aria-expanded", "false");
-    // "See" on a step waiting outside a phase unfolds that section.
-    const waiting = screen.getByRole("region", { name: /waiting for you/i });
-    await userEvent.click(within(waiting).getByRole("button", { name: /Loose one/ }));
-    expect(screen.getByRole("button", { name: "Outside a phase · 1 step" })).toHaveAttribute("aria-expanded", "true");
-    expect(document.getElementById("step-c")).not.toBeNull();
-  });
-
-  it("files a step under another phase", async () => {
-    let body: unknown = null;
-    server.use(
-      http.patch("*/api/cards/:id", async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({ ok: true, card: {} });
-      }),
-    );
-    mount([card({ id: "x", phaseId: "P1", status: "working" })], { phases: [phase("P1"), phase("P2", 1)] });
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /phase/i }), "P2");
-    await screen.findByRole("combobox", { name: /phase/i });
-    expect(body).toEqual({ phaseId: "P2" });
-  });
-
-  it("shows each phase's long form on demand and the decision journal grouped ✅ 🟡 ❓", async () => {
-    const roadmap: Roadmap = {
-      repoPath: "/r/app",
-      vision: "A game.",
-      revision: 3,
-      items: [
-        { id: "p0", name: "Cadrage", goal: "Decide", status: "active", detail: "La démo : le plan est validé." },
-        { id: "p1", name: "Prototype", goal: "", status: "planned", detail: "Un portail traversé." },
-      ],
-      decisions: [
-        { id: "d1", text: "Équipes de 16", status: "decided", itemId: "p0" },
-        { id: "d2", text: "Véhicules ?", status: "open", itemId: null },
-        { id: "d3", text: "Hitscan d'abord", status: "leaning", itemId: null },
-      ],
-    };
-    mount([card({ id: "a" })], { roadmap });
-    // Folded by default; the quick link opens the roadmap and the first unfinished phase.
-    await userEvent.click(await screen.findByRole("button", { name: /go to Cadrage/i }));
-    expect(await screen.findByText("La démo : le plan est validé.")).toBeInTheDocument();
-    expect(screen.queryByText("Un portail traversé.")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: /Prototype/ }));
-    expect(screen.getByText("Un portail traversé.")).toBeInTheDocument();
-    const journal = screen.getByLabelText("Decision journal");
-    expect(journal).toHaveTextContent("✅ 1 decided");
-    expect(journal).toHaveTextContent("🟡 1 leaning");
-    expect(journal).toHaveTextContent("❓ 1 open questions");
-    expect(within(screen.getByLabelText("Open questions")).getByText("Véhicules ?")).toBeInTheDocument();
-  });
-
-  it("copies the detailed roadmap and the step by step from their own exports", async () => {
-    const asked: string[] = [];
-    const written: string[] = [];
-    Object.assign(navigator, { clipboard: { writeText: async (t: string) => void written.push(t) } });
-    server.use(
-      http.get("*/api/roadmap", ({ request }) => {
-        const f = new URL(request.url).searchParams.get("format") ?? "";
-        asked.push(f);
-        return new HttpResponse(f === "steps" ? "# Étape par étape" : "# Roadmap", { headers: { "content-type": "text/markdown" } });
-      }),
-    );
-    mount([card({ id: "a" })], { roadmap: { repoPath: "/r/app", vision: "", revision: 1, items: [], decisions: [] } });
-    await userEvent.click(await screen.findByRole("button", { name: /^roadmap/i }));
-    await userEvent.click(await screen.findByRole("button", { name: /copy the detailed roadmap/i }));
-    await userEvent.click(screen.getByRole("button", { name: /copy the step by step/i }));
-    await waitFor(() => expect(written).toEqual(["# Roadmap", "# Étape par étape"]));
-    expect(asked).toEqual(["md", "steps"]);
-  });
-
-  it("invites to start the brainstorm when there is no roadmap", async () => {
-    mount([card({ id: "a" })], { roadmap: null });
-    expect(await screen.findByText(/start the brainstorm with the project orchestrator/i)).toBeInTheDocument();
+    const current = await screen.findByRole("region", { name: "P1" });
+    // Header: a new agent, and under « Actions » a new terminal.
+    expect(screen.getByRole("button", { name: "New agent" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+    expect(screen.getByRole("menuitem", { name: "New terminal" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Pin to the sidebar" })).toBeInTheDocument();
+    // The phase in progress: validate it, its lots' gestures, each card's ways out.
+    expect(within(current).getByRole("button", { name: "Validate this phase" })).toBeInTheDocument();
+    expect(within(current).getByRole("button", { name: /launch this lot/i })).toBeInTheDocument();
+    expect(within(current).getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(within(current).getByRole("link", { name: "Go to the agent" })).toBeInTheDocument();
+    expect(within(current).getAllByRole("link", { name: "Open the card" }).length).toBe(4);
+    // Its settings: default template and flow, manage the templates, the repo's default flow.
+    await userEvent.click(within(current).getByRole("button", { name: "Phase settings" }));
+    expect(within(current).getByRole("combobox", { name: "Default template" })).toBeInTheDocument();
+    expect(within(current).getByRole("combobox", { name: "Flow" })).toBeInTheDocument();
+    expect(within(current).getByRole("combobox", { name: "Default flow" })).toBeInTheDocument();
+    expect(within(current).getByRole("button", { name: "Manage templates…" })).toBeInTheDocument();
+    // The phases: open any, delete an empty one from its settings, the roadmap, the validated ones, the filters.
+    const phases = screen.getByRole("region", { name: "Phases" });
+    await userEvent.click(within(phases).getByRole("button", { name: "Open all" }));
+    const empty = within(phases).getByRole("button", { name: /^EMPTY/ }).closest("li")!;
+    await userEvent.click(within(empty).getByRole("button", { name: "Phase settings" }));
+    expect(within(empty).getByRole("button", { name: "Delete this phase" })).toBeInTheDocument();
+    const dictation = within(phases).getByRole("button", { name: /^Dictation/ }).closest("li")!;
+    expect(within(dictation).getByRole("button", { name: "Validate this phase" })).toBeInTheDocument();
+    expect(within(phases).getByRole("button", { name: "Validate everything finished…" })).toBeInTheDocument();
+    expect(within(phases).getByRole("button", { name: "Roadmap" })).toBeInTheDocument();
+    await userEvent.click(within(phases).getByText(/1 validated phase/).parentElement!.querySelector("button")!);
+    await userEvent.click(within(phases).getByRole("button", { name: /^V1/ }));
+    expect(within(phases).getByRole("button", { name: "Reopen" })).toBeInTheDocument();
+    // What no phase took: to the Cards tab.
+    expect(screen.getByRole("link", { name: "Open in Cards" })).toBeInTheDocument();
+    await userEvent.click(within(phases).getByRole("button", { name: "Filter the cards" }));
+    for (const f of [/^all/, /^waiting for you/, /^in flight/, /^to start/, /^done/]) expect(screen.getByRole("button", { name: f })).toBeInTheDocument();
   });
 
   describe("milestones (ADR 0025)", () => {
     const closed = (id: string, position: number, closedAt: number): Phase => ({ ...phase(id, position), closedAt, closedNote: "shipped" });
 
-    it("reads the headline off the open phase only, and says what was delivered", async () => {
+    it("says what was delivered in one line, and the validated phases behind it", async () => {
       mount(
         [
           card({ id: "old1", phaseId: "v1", status: "done" }),
@@ -386,15 +347,14 @@ describe("ProjectRoute", () => {
         ],
         { phases: [closed("v1", 0, Date.UTC(2026, 0, 5)), phase("p2", 1)] },
       );
-      expect(await screen.findByText(/of 2 steps done/)).toBeInTheDocument();
-      expect(screen.getByText(/2 steps delivered in 1 validated phase/)).toBeInTheDocument();
-      // The validated phase is folded away: its steps are not in the list until it is opened.
-      expect(document.getElementById("step-old1")).toBeNull();
+      expect(await screen.findByText("1 validated phase, 2 steps delivered")).toBeInTheDocument();
+      expect(screen.queryByText("shipped")).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "See" }));
       await userEvent.click(screen.getByRole("button", { name: /^v1/ }));
       expect(screen.getByText("shipped")).toBeInTheDocument();
     });
 
-    it("deletes an EMPTY phase after a second tap in place, and offers it on no other phase", async () => {
+    it("deletes an EMPTY phase after a second tap, from its settings, and offers it on no other phase", async () => {
       let deleted = 0;
       server.use(
         http.delete("*/api/phases/empty", () => {
@@ -405,8 +365,18 @@ describe("ProjectRoute", () => {
       mount([card({ id: "a", phaseId: "full", status: "ready" })], {
         phases: [phase("empty", 0), phase("full", 1), phase("lotted", 2)],
         lots: [lot({ id: "L", phaseId: "lotted" })],
+        templates: { templates: [], modelKinds: [] },
       });
-      const buttons = await screen.findAllByRole("button", { name: "Delete this phase" });
+      const phases = await screen.findByRole("region", { name: "Phases" });
+      await userEvent.click(within(phases).getByRole("button", { name: "Open all" }));
+      for (const name of [/^full/, /^lotted/]) {
+        const row = within(phases).getByRole("button", { name }).closest("li")!;
+        await userEvent.click(within(row).getByRole("button", { name: "Phase settings" }));
+        expect(within(row).queryByRole("button", { name: "Delete this phase" })).toBeNull();
+      }
+      const row = within(phases).getByRole("button", { name: /^empty/ }).closest("li")!;
+      await userEvent.click(within(row).getByRole("button", { name: "Phase settings" }));
+      const buttons = within(row).getAllByRole("button", { name: "Delete this phase" });
       expect(buttons).toHaveLength(1);
       await userEvent.click(buttons[0]!);
       expect(deleted).toBe(0);
@@ -422,11 +392,8 @@ describe("ProjectRoute", () => {
           return HttpResponse.json({ phase: closed("p1", 0, 1) });
         }),
       );
-      mount(
-        [card({ id: "a", phaseId: "p1", status: "done" }), card({ id: "b", phaseId: "p1", status: "ready" })],
-        { phases: [phase("p1", 0), phase("p2", 1)] },
-      );
-      await userEvent.click((await screen.findAllByRole("button", { name: "Validate this phase" }))[0]!);
+      mount([card({ id: "a", phaseId: "p1", status: "done" }), card({ id: "b", phaseId: "p1", status: "ready" })], { phases: [phase("p1", 0), phase("p2", 1)] });
+      await userEvent.click(within(await screen.findByRole("region", { name: "p1" })).getByRole("button", { name: "Validate this phase" }));
       expect(await screen.findByText("1 finished, 1 still open")).toBeInTheDocument();
       expect(body).toBeNull();
       // The next open phase is the default; a note rides along.
@@ -456,7 +423,7 @@ describe("ProjectRoute", () => {
       await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "v1", cardIds: ["a", "b"] }));
     });
 
-    it("tidies an old project from the page: a banner counts every finished step outside a validated phase and seals them all", async () => {
+    it("tidies an old project from the page: a line counts every finished step outside a validated phase and seals them all", async () => {
       let body: unknown = null;
       server.use(
         http.post("*/api/phases/seal", async ({ request }) => {
@@ -487,14 +454,10 @@ describe("ProjectRoute", () => {
           return HttpResponse.json({ phase: closed("Dictation", 0, 1), moved: 2 }, { status: 201 });
         }),
       );
-      mount([
-        card({ id: "Dictation" }),
-        card({ id: "in-1", parentId: "Dictation", status: "done" }),
-        card({ id: "in-2", parentId: "Dictation", status: "done" }),
-        card({ id: "free", status: "done" }),
-      ]);
-      const section = (await screen.findByRole("heading", { name: "Dictation" })).closest("li")!;
-      await userEvent.click(within(section).getByRole("button", { name: "Validate this phase" }));
+      mount([card({ id: "Dictation" }), card({ id: "in-1", parentId: "Dictation", status: "done" }), card({ id: "in-2", parentId: "Dictation", status: "done" }), card({ id: "free", status: "done" })]);
+      const row = (await screen.findByRole("button", { name: /^Dictation/ })).closest("li")!;
+      await userEvent.click(within(row).getByRole("button", { name: /^Dictation/ }));
+      await userEvent.click(within(row).getByRole("button", { name: "Validate this phase" }));
       expect(screen.getByLabelText("Name of the milestone")).toHaveValue("Dictation");
       await userEvent.click(screen.getByRole("button", { name: "Validate" }));
       await waitFor(() => expect(body).toEqual({ repoPath: "/r/app", name: "Dictation", cardIds: ["in-1", "in-2"] }));
@@ -509,6 +472,7 @@ describe("ProjectRoute", () => {
         }),
       );
       mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
+      await userEvent.click(await screen.findByRole("button", { name: "See" }));
       await userEvent.click(await screen.findByRole("button", { name: /^v1/ }));
       await userEvent.click(screen.getByRole("button", { name: "Reopen" }));
       await waitFor(() => expect(hit).toBe(true));
@@ -517,85 +481,15 @@ describe("ProjectRoute", () => {
     it("everything validated is a state of its own, not an empty project", async () => {
       mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
       expect(await screen.findByText(/Everything is validated/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "See" }));
       expect(screen.getByText("Validated phases · 1")).toBeInTheDocument();
     });
 
     it("speaks French", async () => {
       setPreference("fr");
       mount([card({ id: "d", phaseId: "v1", status: "done" })], { phases: [closed("v1", 0, 1)] });
-      expect(await screen.findByText("Phases validées · 1")).toBeInTheDocument();
+      expect(await screen.findByText("1 phase validée, 1 étape livrée")).toBeInTheDocument();
       expect(screen.getByText(/Tout est validé/)).toBeInTheDocument();
-    });
-  });
-  describe("what is finished folds (less is better)", () => {
-    it("folds a finished lot of an open phase to one line, in its status colour; a tap opens it, and that survives a reload", async () => {
-      const cards = [card({ id: "shipped", phaseId: "P1", runId: "L1", status: "done" }), card({ id: "next", phaseId: "P1", status: "ready" })];
-      const extra = { phases: [phase("P1")], lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["shipped"], launchedAt: 1, finished: true, done: 1 })] };
-      mount(cards, extra);
-      const group = await screen.findByRole("region", { name: "Lot Lot A" });
-      expect(group).toHaveTextContent(/finished/);
-      expect(group).toHaveTextContent("1 / 1");
-      expect(group.querySelector(".bg-status-done")).not.toBeNull();
-      expect(document.getElementById("step-shipped")).toBeNull();
-      expect(document.getElementById("step-next")).not.toBeNull();
-      await userEvent.click(within(group).getByRole("button", { name: "Lot A", expanded: false }));
-      expect(document.getElementById("step-shipped")).not.toBeNull();
-      cleanup();
-      mount(cards, extra);
-      await screen.findByRole("region", { name: "Lot Lot A" });
-      expect(document.getElementById("step-shipped")).not.toBeNull();
-    });
-
-    it("folds an open phase whose steps are all done on its heading — Validate (green, a check) and its bar kept, a green dot — and drops it from the phase strip", async () => {
-      mount([card({ id: "a", phaseId: "P1", status: "done" }), card({ id: "b", phaseId: "P2", status: "working" })], { phases: [phase("P1"), phase("P2", 1)] });
-      const head = await screen.findByRole("button", { name: "P1", expanded: false });
-      const section = head.closest("li")!;
-      const validate = within(section).getByRole("button", { name: "Validate this phase" });
-      expect(validate).toHaveClass("text-status-done");
-      expect(validate.querySelector("svg")).not.toBeNull();
-      expect(head.querySelector(".bg-status-done")).not.toBeNull();
-      expect(section.querySelector(".bg-amber-500")).toBeNull();
-      const pending = within(screen.getByRole("button", { name: "P2", expanded: true }).closest("li")!).getByRole("button", { name: "Validate this phase" });
-      expect(pending).not.toHaveClass("text-status-done");
-      expect(pending.querySelector("svg")).toBeNull();
-      expect(within(section).getByText("1 / 1")).toBeInTheDocument();
-      expect(document.getElementById("step-a")).toBeNull();
-      expect(screen.getByRole("button", { name: "P2", expanded: true })).toBeInTheDocument();
-      const strip = screen.getByRole("navigation", { name: "Phases" });
-      expect(within(strip).queryByText("P1")).toBeNull();
-      expect(within(strip).getByText("P2")).toBeInTheDocument();
-      await userEvent.click(head);
-      expect(document.getElementById("step-a")).not.toBeNull();
-    });
-
-    it("shows no phase strip once every phase is finished", async () => {
-      mount([card({ id: "a", phaseId: "P1", status: "done" })], { phases: [phase("P1")] });
-      await screen.findByRole("button", { name: "P1" });
-      expect(screen.queryByRole("navigation", { name: "Phases" })).toBeNull();
-    });
-
-    it("opens the folded lot that holds a step when « waiting for you » points at it", async () => {
-      mount([card({ id: "stuck", phaseId: "P1", runId: "L1", status: "blocked" })], {
-        phases: [phase("P1")],
-        lots: [lot({ id: "L1", phaseId: "P1", name: "Lot A", cardIds: ["stuck"], launchedAt: 1, finished: true, done: 0 })],
-      });
-      const waiting = await screen.findByRole("region", { name: "Waiting for you" });
-      expect(document.getElementById("step-stuck")).toBeNull();
-      await userEvent.click(within(waiting).getByRole("button", { name: /stuck/ }));
-      expect(document.getElementById("step-stuck")).not.toBeNull();
-    });
-
-    it("lists the three most recent validated phases, the rest behind « show more »", async () => {
-      const closedAt = (id: string, i: number): Phase => ({ ...phase(id, i), closedAt: i + 1 });
-      mount(
-        ["v1", "v2", "v3", "v4", "v5"].map((id) => card({ id: `s-${id}`, phaseId: id, status: "done" })),
-        { phases: ["v1", "v2", "v3", "v4", "v5"].map(closedAt) },
-      );
-      const list = await screen.findByRole("region", { name: "Validated phases" });
-      expect(within(list).queryByRole("button", { name: /^v1/ })).toBeNull();
-      expect(within(list).getByRole("button", { name: /^v5/ })).toBeInTheDocument();
-      await userEvent.click(within(list).getByRole("button", { name: "Show 2 more" }));
-      expect(within(list).getByRole("button", { name: /^v1/ })).toBeInTheDocument();
     });
   });
 

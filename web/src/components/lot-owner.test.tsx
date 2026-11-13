@@ -13,7 +13,7 @@ const card = (over: Partial<CardView> = {}) => ({ id: "c1", title: "step", statu
 const lot = (over: Partial<Lot> = {}): Lot => ({ id: "l1", repoPath: "/r/s", phaseId: null, name: "L", position: 0, launchedAt: null, cardIds: ["c1"], createdBy: "alice@x", createdPair: ALICE, ...over });
 
 function lots(l: Lot, c = card()) {
-  return render(<PhaseLots lots={[{ lot: l, cards: [c], done: 0 }]} steps={[c]} byId={new Map([[c.id, c]])} onLaunched={() => {}} renderStep={(s) => <li key={s.id}>{s.title}</li>} isOpen={(_, f) => f} onFold={() => {}} />);
+  return render(<PhaseLots lots={[{ lot: l, cards: [c], done: 0 }]} steps={[c]} byId={new Map([[c.id, c]])} onLaunched={() => {}} renderStep={(s) => <li key={s.id}>{s.title}</li>} />);
 }
 
 describe("a lot or card of another pair", () => {

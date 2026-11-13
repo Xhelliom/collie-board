@@ -37,8 +37,11 @@ describe("GoalPanel", () => {
 
     expect(sent).toEqual({ repoPath: "/r", text: "Ship v1", criteria: ["CI green", "docs written"], budget: { maxLots: 4, quotaPct: 80, deadline: null } });
     expect(await screen.findByText("Ship v1")).toBeInTheDocument();
-    expect(screen.getByText("Lots 1 / 4")).toBeInTheDocument();
-    expect(screen.getByText("Quota 30 / 80 %")).toBeInTheDocument();
+    expect(screen.getByText("1 of 4")).toBeInTheDocument();
+    expect(screen.getByText("30 % of 80 %")).toBeInTheDocument();
+    // The details are one link away: the objective reads in a few lines.
+    expect(screen.queryByRole("link", { name: "Step one" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "1 attached card" }));
     expect(screen.getByRole("link", { name: "Step one" })).toBeInTheDocument();
   });
 
@@ -65,13 +68,13 @@ describe("GoalPanel", () => {
     await userEvent.type(screen.getByLabelText("Success criteria — one per line"), "users happy");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(sent).toMatchObject({ text: "Ship v2", next: true });
-    expect(await screen.findByText("Next objective")).toBeInTheDocument();
+    expect(await screen.findByText("Next:")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Validate reached" }));
     expect(await screen.findByRole("button", { name: "Pause" })).toBeInTheDocument();
     expect(screen.getByText("Ship v2")).toBeInTheDocument();
-    expect(screen.queryByText("Next objective")).toBeNull();
+    expect(screen.queryByText("Next:")).toBeNull();
   });
 
   it("says when no orchestrator will start an active objective", async () => {
@@ -132,11 +135,12 @@ describe("GoalPanel", () => {
       ),
     );
     mount();
-    expect(await screen.findByText("Budget 50 % used")).toBeInTheDocument();
+    expect(await screen.findByText("50 % used")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
     expect(screen.getByText("9 cards merged")).toBeInTheDocument();
     expect(screen.getByText("1 blocked")).toBeInTheDocument();
     expect(screen.getByText("2 to test by hand")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Lot journal" }));
     expect(screen.getByText("Checkpoint — half the budget")).toBeInTheDocument();
     expect(screen.getByText("Lot report")).toBeInTheDocument();
     expect(screen.getByText("Lot A merged")).toBeInTheDocument();

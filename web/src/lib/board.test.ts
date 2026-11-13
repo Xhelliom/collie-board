@@ -176,6 +176,12 @@ describe("matchesFilters", () => {
     expect(rows.filter((c) => matchesFilters(c, { tag: null, autoOnly: false, statuses: null }))).toEqual(rows);
   });
 
+  it("`phase: none` keeps the cards no phase has taken", () => {
+    const rows = [card({ phaseId: null }), card({ phaseId: "P1" })];
+    expect(rows.filter((c) => matchesFilters(c, { tag: null, autoOnly: false, phase: "none" }))).toEqual(rows.slice(0, 1));
+    expect(rows.filter((c) => matchesFilters(c, { tag: null, autoOnly: false, phase: "P1" }))).toEqual(rows.slice(1));
+  });
+
   it("isolates the cards the copilot filed on its own", () => {
     expect([auto, hand].filter((c) => matchesFilters(c, { tag: null, autoOnly: true }))).toEqual([
       auto,
