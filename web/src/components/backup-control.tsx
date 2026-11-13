@@ -144,7 +144,7 @@ export function BackupControl({ device }: { device: DeviceAuth | undefined }) {
             {t("settings.backup.readOnly")}
           </span>
         )}
-        {!busy && error && <span className="text-xs text-status-blocked">{error}</span>}
+        {!busy && error && <span className="text-xs text-destructive">{error}</span>}
         {!busy && !error && saved && (
           <span className="truncate text-xs text-muted-foreground">{t("settings.backup.saved", { name: saved })}</span>
         )}

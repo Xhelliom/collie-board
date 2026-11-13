@@ -19,7 +19,7 @@ export function AwaitingTag({ awaiting, repo, nested = false, className }: {
   const t = useT();
   const navigate = useNavigate();
   const cls = cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground",
+    "inline-flex shrink-0 items-center gap-1 rounded-sm bg-brand px-2 py-0.5 text-xs font-semibold text-brand-foreground",
     className,
   );
   const body = (

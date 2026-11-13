@@ -7,7 +7,7 @@ const ISSUE_TONE: Record<BilanIssue | "unknown", string> = {
   coded: "border-status-done/40 bg-status-done/15 text-status-done",
   present: "border-brand/40 bg-brand/10 text-brand",
   partial: "border-status-working/40 bg-status-working/15 text-status-working",
-  none: "border-status-blocked/40 bg-status-blocked/15 text-status-blocked",
+  none: "border-destructive/40 bg-destructive/15 text-destructive",
   unknown: "border-border text-muted-foreground",
 };
 
@@ -31,7 +31,7 @@ export function CardReportSection({ report }: { report: CardReport }) {
     <div className="flex flex-col gap-2.5" aria-label={t("report.title")} role="group">
         {(report.rounds.length > 0 || report.issue) && (
           <div className="flex flex-wrap items-center gap-2">
-            <span data-testid="report-issue" className={cn("rounded-full border px-2.5 py-0.5 text-xs font-semibold", ISSUE_TONE[issue])}>
+            <span data-testid="report-issue" className={cn("rounded-sm border px-2.5 py-0.5 text-xs font-semibold", ISSUE_TONE[issue])}>
               {t(`report.issue.${issue}`)}
             </span>
             {n > 0 && <span className="text-xs text-muted-foreground">{t("report.rounds", { count: n })}</span>}

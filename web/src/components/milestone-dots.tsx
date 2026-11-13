@@ -5,7 +5,7 @@ import type { BoardEvent } from "@/lib/board";
 
 const DOT: Record<MilestoneTone, string> = {
   good: "bg-status-done",
-  bad: "bg-status-blocked",
+  bad: "bg-destructive",
   warn: "bg-brand",
   plain: "bg-muted-foreground/60",
 };

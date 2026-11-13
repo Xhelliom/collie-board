@@ -2,15 +2,8 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { StatusSignal } from "@/components/status-signal";
 import { type AgentStatus, STATUS_LABEL } from "@/lib/types";
-
-const DOT: Record<AgentStatus, string> = {
-  blocked: "bg-status-blocked",
-  working: "bg-status-working",
-  done: "bg-status-done",
-  idle: "bg-status-idle",
-  unknown: "bg-status-unknown",
-};
 
 const CHIP: Record<AgentStatus, string> = {
   blocked: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
@@ -20,33 +13,9 @@ const CHIP: Record<AgentStatus, string> = {
   unknown: "border-status-unknown/30 bg-status-unknown/10 text-status-unknown",
 };
 
-export function StatusDot({
-  status,
-  className,
-  /** Escape hatch for a COMPUTED position — the pane tree lays its dots out on a rail whose offset
-   *  depends on nesting depth, which no static utility class can express. Styling stays in
-   *  `className`; this is geometry only. */
-  style,
-}: {
-  status: AgentStatus;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  return (
-    // The size lives on the WRAPPER (and the fill follows with size-full), so a caller can hand the
-    // dot another size — or a ring — through `className` without the inner disc ignoring it.
-    <span className={cn("relative flex size-2.5 shrink-0 rounded-full", className)} style={style}>
-      {status === "working" && (
-        <span
-          className={cn(
-            "absolute inline-flex size-full animate-ping rounded-full opacity-75",
-            DOT[status],
-          )}
-        />
-      )}
-      <span className={cn("relative inline-flex size-full rounded-full", DOT[status])} />
-    </span>
-  );
+/** The agent's state as the board's one signal (status-signal.tsx). Kept as a name for its callers. */
+export function StatusDot({ status, className, style }: { status: AgentStatus; className?: string; style?: CSSProperties }) {
+  return <StatusSignal status={status} className={className} style={style} />;
 }
 
 export function StatusBadge({
@@ -66,7 +35,7 @@ export function StatusBadge({
       variant="outline"
       className={cn("gap-1.5 transition-opacity", CHIP[status], stale && "opacity-40", className)}
     >
-      <span className={cn("size-1.5 rounded-full", DOT[status])} />
+      <StatusSignal status={status} decorative />
       {STATUS_LABEL[status]}
     </Badge>
   );
@@ -77,7 +46,7 @@ export function ShellBadge({ stale, className }: { stale?: boolean; className?: 
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground transition-opacity",
+        "shrink-0 rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground transition-opacity",
         stale && "opacity-40",
         className,
       )}

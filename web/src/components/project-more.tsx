@@ -32,7 +32,7 @@ export function MoreActions({ label, children, className }: { label: string; chi
         aria-label={label}
         title={label}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex size-11 items-center justify-center rounded-[10px] border bg-background text-muted-foreground shadow-xs hover:bg-accent hover:text-foreground sm:size-8"
+        className="inline-flex size-11 items-center justify-center rounded-sm border bg-background text-muted-foreground shadow-xs hover:bg-accent hover:text-foreground sm:size-8"
       >
         <Ellipsis className="size-4" />
       </button>

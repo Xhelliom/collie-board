@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { StatusSignal } from "@/components/status-signal";
 import { Link, useRevalidator } from "react-router";
 import { Ellipsis, ImagePlus, Loader2, Maximize2, Package, Send } from "lucide-react";
 
@@ -8,7 +9,7 @@ import { ModelTag } from "@/components/model-tag";
 import { ButtonsPaneContext } from "@/components/action-buttons";
 import { TranscriptView } from "@/components/transcript-view";
 import { DeliverableLinks, type RecentDeliverable } from "@/components/card-deliverables";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { MigrateHcButton } from "@/components/migrate-hc-button";
 import { BottomSheet } from "@/components/ui/sheet";
 import { ChatInput } from "@/components/ui/chat/chat-input";
@@ -182,7 +183,7 @@ export function OrchestratorPanel({
     <div data-vaul-no-drag className="flex min-h-0 flex-1 flex-col gap-2 p-3 max-lg:p-0">
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-          <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", state.running ? "bg-status-done" : "bg-muted-foreground/50")} />
+          <StatusSignal status={state.running ? "working" : "idle"} decorative />
           <span className="text-sm font-semibold text-foreground">{t("orch.title")}</span>
           <ModelTag model={state.model} effort={state.effort} className="font-mono text-[11px] normal-case tracking-normal" />
           {typeof state.ctxPct === "number" && (
@@ -207,7 +208,7 @@ export function OrchestratorPanel({
                 setDelivOpen(true);
               }}
               aria-label={t(fresh > 0 ? "orch.deliverablesNew" : "orch.deliverablesCount", { count: deliverables.length, fresh })}
-              className="relative inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-brand"
+              className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "relative text-xs")}
             >
               <Package className="size-3.5" />
               <span className="tabular-nums">{deliverables.length}</span>

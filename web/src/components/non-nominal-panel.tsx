@@ -33,7 +33,7 @@ export function NonNominalPanel({
   return (
     <div
       role="status"
-      className={cn("rounded-[14px] border p-3.5", t.border, t.bg, className)}
+      className={cn("rounded-sm border p-3.5", t.border, t.bg, className)}
     >
       <div className="flex items-center gap-2">
         <span aria-hidden className={cn("size-2 shrink-0 rounded-full", t.dot)} />

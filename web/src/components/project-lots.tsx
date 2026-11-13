@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { StatusSignal } from "@/components/status-signal";
 import { Lock, Play, Rocket, Trash2, TriangleAlert } from "lucide-react";
 
 import { MENU_ITEM, MoreActions } from "@/components/project-more";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { usePendingConfirm } from "@/hooks/use-pending-confirm";
 import { BottomSheet } from "@/components/ui/sheet";
 import { useT } from "@/i18n";
@@ -118,7 +119,7 @@ export function LotAction({ pl, byId, onLaunched, label }: { pl: ProjectLot; byI
       setResuming(false);
     }
   }
-  const cls = "h-11 sm:h-8 shrink-0 gap-1.5 rounded-[10px] px-3 text-sm font-semibold";
+  const cls = "h-11 sm:h-8 shrink-0 gap-1.5 rounded-sm px-3 text-sm font-semibold";
   if (planned)
     return (
       <>
@@ -148,7 +149,7 @@ function startNote(pl: ProjectLot, cardId: string, t: ReturnType<typeof useT>) {
 type Tag = "ready" | "next" | null;
 const TAG_CLS: Record<Exclude<Tag, null>, string> = { ready: "bg-status-done/15 text-status-done", next: "bg-muted text-muted-foreground" };
 const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2";
-const SMALL = "h-11 shrink-0 rounded-[10px] px-3 text-sm font-semibold sm:h-8";
+const SMALL = "h-11 shrink-0 rounded-sm px-3 text-sm font-semibold sm:h-8";
 
 /**
  * A phase's lots, in order, each labelled (v2, 13/11): the running and halted ones with their cards, the
@@ -212,14 +213,11 @@ export function PhaseLots({
     const ownerName = owner ? personName(owner, ids[pl.lot.repoPath]?.me ?? null, t("people.me")) : null;
     return (
       <section key={pl.lot.id} aria-label={t("lot.aria", { name: pl.lot.name ?? "" })} className="flex min-w-0 flex-col gap-1">
-        <div className={cn(ROW, halted ? "border-status-blocked/45 bg-status-blocked/5" : tag === "ready" ? "border-status-done/40 bg-card/40" : "bg-card/40")}>
+        <div className={cn(ROW, halted ? "border-destructive/45 bg-destructive/5" : tag === "ready" ? "border-status-done/40 bg-card/40" : "bg-card/40")}>
           {tag ? (
-            <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", TAG_CLS[tag])}>{t(tag === "ready" ? "lot.tag.ready" : "lot.tag.next")}</span>
+            <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CLS[tag])}>{t(tag === "ready" ? "lot.tag.ready" : "lot.tag.next")}</span>
           ) : (
-            <span
-              aria-hidden="true"
-              className={cn("size-2 shrink-0 rounded-full", finished ? "bg-status-done" : halted ? "bg-status-blocked" : "bg-status-working")}
-            />
+            <StatusSignal status={finished ? "done" : halted ? "stuck" : "working"} decorative />
           )}
           <span className="min-w-0 flex-1 basis-48 text-sm leading-snug">
             <b className="font-semibold">{nameOf(pl)}</b>{" "}
@@ -232,8 +230,8 @@ export function PhaseLots({
           {!planned && (
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-xs font-semibold",
-                finished ? "bg-status-done/15 text-status-done" : halted ? "bg-status-blocked/15 text-status-blocked" : "bg-status-working/15 text-status-working",
+                "rounded-sm px-2 py-0.5 text-xs font-semibold",
+                finished ? "bg-status-done/15 text-status-done" : halted ? "bg-destructive/15 text-destructive" : "bg-status-working/15 text-status-working",
               )}
             >
               {pl.lot.doneOutside ? t("lot.doneOutside") : finished ? t("lot.finished") : halted ? t("lot.halted") : ownerName ? t("people.runningAt", { name: ownerName }) : t("lot.running")}
@@ -244,7 +242,7 @@ export function PhaseLots({
               const title = (id: string) => pl.cards.find((c) => c.id === id)?.title ?? id.slice(0, 8);
               const text = t("lot.overlap", { a: title(o.cardIds[0]), b: title(o.cardIds[1]), files: o.files.join(", ") });
               return (
-                <span key={o.cardIds.join()} role="note" className="flex min-w-0 basis-full items-start gap-1.5 text-xs text-status-blocked">
+                <span key={o.cardIds.join()} role="note" className="flex min-w-0 basis-full items-start gap-1.5 text-xs text-destructive">
                   <TriangleAlert className="mt-px size-3.5 shrink-0" />
                   <span>{text}</span>
                 </span>
@@ -275,7 +273,7 @@ export function PhaseLots({
           block(g, "next")
         ) : (
           <div key={g.pl.lot.id} role="group" aria-label={t("lot.aria", { name: g.pl.lot.name ?? "" })} className={cn(ROW, "bg-card/40")}>
-            <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", TAG_CLS.next)}>{t("lot.tag.next")}</span>
+            <span className={cn("rounded-sm px-2 py-0.5 text-xs font-semibold", TAG_CLS.next)}>{t("lot.tag.next")}</span>
             <span className="min-w-0 flex-1 basis-48 text-sm leading-snug">
               <b className="font-semibold">{nameOf(g.pl)}</b> <span className="text-muted-foreground">{t("lot.nextLine", { count: g.pl.cards.length })}</span>
             </span>
@@ -287,7 +285,7 @@ export function PhaseLots({
       )}
       {empty.length > 0 && (
         <div role="group" aria-label={t("lot.tag.empty")} className={cn(ROW, "border-dashed")}>
-          <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("lot.tag.empty")}</span>
+          <span className="rounded-sm bg-brand/15 px-2 py-0.5 text-xs font-semibold text-brand">{t("lot.tag.empty")}</span>
           <span className="min-w-0 flex-1 basis-48 text-sm leading-snug text-muted-foreground">
             {t("lot.emptyLine", { names: empty.map((g) => nameOf(g.pl)).join(", ") })}
           </span>
@@ -307,7 +305,7 @@ export function PhaseLots({
       {done.length > 0 && (
         <p className="flex flex-wrap items-center gap-x-3 px-1 text-[13px] text-muted-foreground">
           <span>{t("lot.doneLine", { lots: t("project.next.lots", { count: done.length }), cards: t("lot.cards", { count: done.reduce((n, g) => n + g.pl.cards.length, 0) }) })}</span>
-          <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} className="min-h-11 font-semibold text-brand sm:min-h-0">
+          <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "ml-1")}>
             {t(showDone ? "project.hide" : "project.see")}
           </button>
         </p>

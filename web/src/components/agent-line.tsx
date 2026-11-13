@@ -16,7 +16,7 @@ export const STATE_TONE = { needs: "text-status-blocked", working: "text-status-
 /** « dev », or « ce PC ». */
 export function MachineChip({ machine, className }: { machine: string | null; className?: string }) {
   const t = useT();
-  return <span className={cn("shrink-0 rounded-full bg-muted px-2 text-xs leading-5 text-muted-foreground", className)}>{machine ?? t("home.machine.this")}</span>;
+  return <span className={cn("shrink-0 rounded-sm bg-muted px-2 text-xs leading-5 text-muted-foreground", className)}>{machine ?? t("home.machine.this")}</span>;
 }
 
 /** « Opus 5.5, moyen » — nothing at all without a model, and no effort unless the transcript states one. */

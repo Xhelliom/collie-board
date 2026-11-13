@@ -99,7 +99,7 @@ export function ProjectRowsSkeleton() {
 /** A card block whose cold-start fetch failed: said in its own slot, the agents untouched. */
 export function CardsError({ label }: { label?: string }) {
   const t = useT();
-  const msg = <p role="alert" className="text-sm text-status-blocked">{t("home.cards.error")}</p>;
+  const msg = <p role="alert" className="text-sm text-destructive">{t("home.cards.error")}</p>;
   return label ? (
     <section className="flex flex-col gap-1.5" aria-label={label}>
       <h2 className={sectionTitle}>{label}</h2>
@@ -122,7 +122,7 @@ function PhaseBar({ steps }: { steps: CardView[] }) {
   return (
     <div className="flex gap-[3px] overflow-hidden" aria-hidden="true">
       {parts.map((x) => (
-        <i key={x.key} style={{ flexGrow: x.n }} className={cn("h-[5px] min-w-[3px] basis-0 rounded-[3px] bg-border", x.tone)} />
+        <i key={x.key} style={{ flexGrow: x.n }} className={cn("h-[5px] min-w-[3px] basis-0 rounded-sm bg-border", x.tone)} />
       ))}
     </div>
   );
@@ -255,7 +255,7 @@ function Activity({ repo, toTest, brief }: { repo: RepoTile; toTest: number; bri
     <span className="flex flex-col gap-0.5 text-sm">
       {at}
       {repo.waiting > 0 && <span className="font-medium text-brand">{t("home.project.forYou", { count: repo.waiting })}</span>}
-      {repo.blocked > 0 && <span className="font-medium text-status-blocked">{t("home.project.blocked", { count: repo.blocked })}</span>}
+      {repo.blocked > 0 && <span className="font-medium text-destructive">{t("home.project.blocked", { count: repo.blocked })}</span>}
       {toTest > 0 && <span className="font-medium text-brand">{t("recette.chip", { count: toTest })}</span>}
     </span>
   );
@@ -266,7 +266,7 @@ function ProjectRow({ repo, lot, toTest = 0, goal }: { repo: RepoTile; lot?: Til
   return (
     <Link
       to={projectPath(repo.path)}
-      className="flex flex-col gap-2 rounded-xl border bg-card/70 p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
+      className="flex flex-col gap-2 rounded-sm bg-card p-3.5 transition-colors hover:border-foreground/25 sm:grid sm:min-h-16 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_minmax(0,13rem)_7rem] sm:items-center sm:gap-x-5 sm:px-4 sm:py-2.5"
     >
       <span className="flex items-baseline gap-2">
         <span className="min-w-0 flex-1 truncate font-semibold">{repo.name}</span>
@@ -319,7 +319,7 @@ export function machinesOf(local: { bridge: BridgeStatus | undefined; engine: Ma
   ];
 }
 
-const MACHINE_DOT = { up: "bg-status-done", pending: "bg-status-idle", down: "border-2 border-status-blocked" } as const;
+const MACHINE_DOT = { up: "bg-status-done", pending: "bg-status-idle", down: "border-2 border-destructive" } as const;
 
 /** « Machines »: a list in the side column of a wide screen, a line of dots at the foot of a phone's. */
 export function Machines({ machines, strip, className }: { machines: Machine[]; strip?: boolean; className?: string }) {
@@ -332,7 +332,7 @@ export function Machines({ machines, strip, className }: { machines: Machine[]; 
       <section className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 text-sm", className)} aria-label={t("home.machines")}>
         <h2 className={sectionTitle}>{t("home.machines")}</h2>
         {machines.map((m) => (
-          <span key={m.name} title={note(m)} className={cn("flex items-center gap-1.5", m.state === "down" && "text-status-blocked")}>
+          <span key={m.name} title={note(m)} className={cn("flex items-center gap-1.5", m.state === "down" && "text-destructive")}>
             {dot(m)}
             {m.name}
             {m.state === "down" && <span className="sr-only">{note(m)}</span>}
@@ -347,7 +347,7 @@ export function Machines({ machines, strip, className }: { machines: Machine[]; 
         <div key={m.name} className="flex min-h-9 items-center gap-2.5">
           {dot(m)}
           <span className="max-w-[60%] shrink-0 truncate">{m.name}</span>
-          <span className={cn("min-w-0 flex-1 truncate text-right text-sm", m.state === "down" ? "text-status-blocked" : "text-muted-foreground")}>{note(m)}</span>
+          <span className={cn("min-w-0 flex-1 truncate text-right text-sm", m.state === "down" ? "text-destructive" : "text-muted-foreground")}>{note(m)}</span>
         </div>
       ))}
     </section>
@@ -377,7 +377,7 @@ function ProviderQuota({ p, onRefresh, busy }: { p: ProviderUsage; onRefresh: ()
           <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
         </button>
       </div>
-      <div className="flex flex-col gap-2 rounded-xl border bg-card/70 p-3.5">
+      <div className="flex flex-col gap-2 rounded-sm bg-card p-3.5">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-4 text-left">
           <Ring arcs={[{ value: pct, className: `stroke-status-${tone(pct)}` }]} total={100} label={t("home.usage.aria", { label: p.label, percent: pct })} className="size-16">
             <span className="text-sm font-semibold leading-none tabular-nums">{pct}%</span>

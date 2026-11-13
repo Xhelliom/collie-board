@@ -83,7 +83,7 @@ export function CommandPalette({ open, onClose, agent, onInsert, onSubmit }: Com
       </div>
 
       {!q && (
-        <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+        <p className="mb-2 text-xs text-muted-foreground">
           {t("pane.cmd.hint", { count: all.length })}
         </p>
       )}

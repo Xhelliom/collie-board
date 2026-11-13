@@ -17,7 +17,7 @@ describe("lineClass", () => {
 
   it("colours real additions and removals", () => {
     expect(lineClass("+const x = 1;")).toBe("text-status-done");
-    expect(lineClass("-const x = 0;")).toBe("text-status-blocked");
+    expect(lineClass("-const x = 0;")).toBe("text-destructive");
   });
 
   it("marks hunk headers", () => {

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { AGENT_KIND_LABEL, type AgentKindOption } from "@/components/agent-kind-picker";
 import { TemplatesSheet } from "@/components/templates-sheet";
 import { useTemplates } from "@/hooks/use-templates";
@@ -45,7 +47,7 @@ export function TemplatePicker({ value, onChange }: { value: string | null; onCh
           : t("templates.picker.inherit")}
       </p>
       {/* The same sheet Settings opens, without leaving the card: a role you need and do not have is one tap away. */}
-      <button type="button" onClick={() => setManaging(true)} className="self-start px-1 text-xs font-semibold text-brand">
+      <button type="button" onClick={() => setManaging(true)} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "self-start text-xs")}>
         {t("templates.manageLink")}
       </button>
       <TemplatesSheet open={managing} onClose={() => setManaging(false)} data={data} onChanged={reload} />

@@ -357,7 +357,7 @@ export function positionFor(neighbours: number[], index: number): number {
 
 /** The pill every board chip wears — shell only, the colours come from the maps below. */
 export const CHIP_SHELL =
-  "shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium uppercase tracking-wide";
+  "shrink-0 rounded-sm border px-2 py-0.5 text-xs font-medium";
 
 /** Tailwind chip classes per column, reusing the status palette the agent badges already use. */
 export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
@@ -385,7 +385,7 @@ export const CARD_STATUS_CHIP: Record<CardStatus, string> = {
 const REVIEW_VERDICT_CHIP: Record<string, string> = {
   complete: "border-status-done/30 bg-status-done/15 text-status-done",
   partial: "border-status-working/30 bg-status-working/15 text-status-working",
-  drift: "border-status-blocked/30 bg-status-blocked/15 text-status-blocked",
+  drift: "border-destructive/30 bg-destructive/15 text-destructive",
 };
 
 export function verdictChip(verdict: string | null): string {

@@ -25,7 +25,7 @@ export function HaltReason({ reason, className }: { reason: string; className?: 
   const { head, full, more } = haltSummary(reason);
   return (
     <div className={className}>
-      <p className="whitespace-pre-wrap break-words text-sm text-status-blocked">{head.join("\n")}</p>
+      <p className="whitespace-pre-wrap break-words text-sm text-destructive">{head.join("\n")}</p>
       {more && (
         <details className="text-sm">
           <summary className="cursor-pointer select-none text-xs font-semibold text-muted-foreground">{t("common.showMore")}</summary>

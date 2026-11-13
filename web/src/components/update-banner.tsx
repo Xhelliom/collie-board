@@ -70,7 +70,7 @@ export function UpdateBanner({ className }: { className?: string }) {
           href={notice.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-status-working underline decoration-dotted underline-offset-2"
+          className="font-medium text-foreground underline decoration-dotted underline-offset-2"
         >
           {notice.line}
         </a>

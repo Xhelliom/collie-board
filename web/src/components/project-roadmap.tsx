@@ -119,12 +119,12 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
     }
   }
 
-  const copyButton = "inline-flex items-center gap-1.5 rounded-full border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25";
+  const copyButton = "inline-flex items-center gap-1.5 rounded-sm border bg-card/70 px-3 py-1.5 font-mono text-xs font-medium hover:border-foreground/25";
   return (
-    <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-2xl border bg-card/70 p-4">
+    <section aria-label={t("roadmap.aria")} className="flex flex-col gap-2 rounded-sm bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex flex-1 items-center gap-2 text-left">
-          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.aria")}</span>
+          <span className="text-xs font-semibold text-muted-foreground">{t("roadmap.aria")}</span>
           {items.length > 0 && <span className="text-xs tabular-nums text-muted-foreground">{items.length}</span>}
           <ChevronDown className={cn("size-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
         </button>
@@ -170,7 +170,7 @@ export function ProjectRoadmap({ repo, roadmap }: { repo: string; roadmap: Roadm
             {decisions.length > 0 && (
               <div aria-label={t("roadmap.journal")} className="flex flex-col gap-2 border-t pt-3">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("roadmap.decisions")}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{t("roadmap.decisions")}</span>
                   {ORDER.map((s) => (
                     <span key={s} className="tabular-nums text-muted-foreground">
                       {DECISION[s].mark} {t(DECISION[s].count, { count: decisions.filter((d) => d.status === s).length })}

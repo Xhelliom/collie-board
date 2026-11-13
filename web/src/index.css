@@ -3,19 +3,202 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-700.woff2") format("woff2");
+}
+
+/* ── Sémaphore, palette Balise (chosen by the operator, 13/11) ──────────────────────────────────
+   A harbour at night: the dark water of a basin, sea-glass teal for what moves, and the quay's
+   sodium lamp, orange, for what calls you. Light mode is the same quay at low tide. Hex, not oklch:
+   these are the values of the reference board, and `web/src/lib/contrast.test.ts` holds every text
+   pairing to 4.5:1. Surfaces are separated by tone, not by lines; only what floats gets a shadow. */
 :root {
-  /* Tells the browser which palette to use for stuff it renders itself, not through our CSS —
-     scrollbars, form controls. Without it a dark page still gets light-native chrome (a white
-     scrollbar track on a dark board). */
+  /* Tells the browser which palette to use for stuff it renders itself (scrollbars, form controls). */
   color-scheme: light;
 
-  --radius: 0.65rem;
+  /* Square, or nearly: 2 px on panels and buttons (every Tailwind radius rung is pinned to it below). */
+  --radius: 2px;
 
-  /* Base neutral scale — chroma-tinted cold (hue 250, chroma 0.006): matches --status-idle/
-     --status-unknown below and sits close to Tailwind's own zinc scale (~0.006 chroma at the same
-     hue family), which is what the chrome bars below were already borrowing via bg-zinc-800. Was
-     flat oklch(L 0 0) — shadcn's unmodified "neutral" default (R1: 18 tokens, this one hue picked
-     for a cold/technical read over a warm one). Lightness values are unchanged, only chroma/hue. */
+  --background: #eef3f1;
+  --foreground: #0b1a1c;
+  --card: #ffffff;
+  --card-foreground: #0b1a1c;
+  --popover: #ffffff;
+  --popover-foreground: #0b1a1c;
+  /* The strong neutral fill (a selected chip, a solid tab): the ink itself. */
+  --primary: #0b1a1c;
+  --primary-foreground: #ffffff;
+  /* The raised surface a secondary button sits on. */
+  --secondary: #e1e9e6;
+  --secondary-foreground: #0b1a1c;
+  --muted: #e1e9e6;
+  --muted-foreground: #4c625f;
+  --accent: #d5e0dc;
+  --accent-foreground: #0b1a1c;
+  /* « bloqué »: the one red. */
+  --destructive: #b0243f;
+  --destructive-foreground: #ffffff;
+  /* Barely there: tone does the separating, a line only where a list needs one. */
+  --border: #dbe4e1;
+  --input: #b6c6c1;
+  --ring: #a14f00;
+
+  /* Permanent app chrome (header and composer bars): one shade off the page. */
+  --chrome: #e4ece9;
+
+  /* Text one step under the foreground (« secondaire »). */
+  --text-secondary: #2e4442;
+
+  /* The operator's signal colours, exactly: the shapes of status-signal.tsx and the solid marks.
+     A graphic needs 3:1 against the page, and each clears it in both themes. */
+  --signal-blocked: #c25e00;
+  --signal-working: #0e8c78;
+  --signal-stuck: #c42c4e;
+
+  /* Agent lifecycle, as TEXT and tints. `blocked` is herdr's « needs you » — the orange, not the red.
+     In light mode each is the signal colour taken a step darker, to read at 4.5:1 on every surface
+     (the reference board does the same: its orange counter is #9A4A00). */
+  --status-blocked: #a14f00;
+  --status-working: #0a7564;
+  --status-done: #33695f;
+  --status-idle: #4c625f;
+  --status-unknown: #4c625f;
+  --status-info: #1d4f7a;
+
+  --find-hit: oklch(0.879 0.169 91.605 / 70%);
+  --find-hit-current: oklch(0.769 0.188 70.08);
+
+  /* Markdown reader accents: info blue headings, teal inline code, diff in teal/red. */
+  --md-heading: #1d4f7a;
+  --md-code: #08695a;
+  --diff-add: #08695a;
+  --diff-del: #b0243f;
+
+  /* Terminal mirror: pinned dark whatever the theme (D2), on the night palette. */
+  --terminal-background: #0a1316;
+  --terminal-foreground: #e6f0ee;
+  --terminal-muted: #8fa6a3;
+
+  /* The action colour: the active navigation item, the primary action, the focus ring. Never a status.
+     Light: the action orange one step darker, so white reads on it and it reads as text. */
+  --brand: #a14f00;
+  --brand-foreground: #ffffff;
+
+  /* Foreground for a SOLID status chip. */
+  --status-chip-foreground: #ffffff;
+
+  /* Actors (A L C O B T): a letter on a tinted square, one pair per actor. */
+  --actor-agent-bg: #fce2c8;
+  --actor-agent-fg: #8a4300;
+  --actor-lead-bg: #e7dffc;
+  --actor-lead-fg: #4e35a6;
+  --actor-copilot-bg: #d2f1ea;
+  --actor-copilot-fg: #08695a;
+  --actor-orchestrator-bg: #dae8f4;
+  --actor-orchestrator-fg: #1d4f7a;
+  --actor-board-bg: #e1e9e6;
+  --actor-board-fg: #2e4442;
+  --actor-you-bg: #0b1a1c;
+  --actor-you-fg: #ffffff;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #0a1316;
+  --foreground: #e6f0ee;
+  --card: #132227;
+  --card-foreground: #e6f0ee;
+  --popover: #17292f;
+  --popover-foreground: #e6f0ee;
+  --primary: #e6f0ee;
+  --primary-foreground: #0a1316;
+  --secondary: #1d3238;
+  --secondary-foreground: #e6f0ee;
+  --muted: #1d3238;
+  --muted-foreground: #8fa6a3;
+  --accent: #253d44;
+  --accent-foreground: #e6f0ee;
+  --destructive: #f27a92;
+  --destructive-foreground: #1a0509;
+  --border: #1b2e33;
+  --input: #34505a;
+  --ring: #ff8f1f;
+
+  --chrome: #0f1b1f;
+
+  --text-secondary: #bfd0cd;
+
+  --signal-blocked: #ff8f1f;
+  --signal-working: #5ed6c0;
+  --signal-stuck: #e8476a;
+
+  --status-blocked: #ff8f1f;
+  --status-working: #5ed6c0;
+  --status-done: #7fb3aa;
+  --status-idle: #8fa6a3;
+  --status-unknown: #8fa6a3;
+  --status-info: #8ec1f0;
+
+  --find-hit: oklch(0.769 0.188 70.08 / 40%);
+  --find-hit-current: oklch(0.852 0.199 91.936);
+
+  --md-heading: #8ec1f0;
+  --md-code: #5ed6c0;
+  --diff-add: #5ed6c0;
+  --diff-del: #f27a92;
+
+  --brand: #ff8f1f;
+  --brand-foreground: #1e1000;
+
+  --status-chip-foreground: #1e1000;
+
+  --actor-agent-bg: #33230f;
+  --actor-agent-fg: #ffb463;
+  --actor-lead-bg: #2b2140;
+  --actor-lead-fg: #c4adff;
+  --actor-copilot-bg: #0f3330;
+  --actor-copilot-fg: #5ed6c0;
+  --actor-orchestrator-bg: #13283a;
+  --actor-orchestrator-fg: #8ec1f0;
+  --actor-board-bg: #1d3238;
+  --actor-board-fg: #bfd0cd;
+  --actor-you-bg: #e6f0ee;
+  --actor-you-fg: #0a1316;
+}
+
+/* ── Classic style (Settings › Appearance › Style) ──────────────────────────────────────────────
+   The palette, radius and type the board wore before Sémaphore, kept for whoever prefers it. Only
+   tokens: the structure (actions as buttons, the state signal's shapes, no tracked capitals) is the
+   same in both styles. `:not(.dark)` so the light block cannot outrank the dark one. Not held to the
+   Balise contrast test: these are the old values, unchanged. */
+html[data-style="classic"]:not(.dark) {
+  --radius: 0.65rem;
   --background: oklch(1 0.006 250);
   --foreground: oklch(0.145 0.006 250);
   --card: oklch(1 0.006 250);
@@ -35,63 +218,33 @@
   --border: oklch(0.922 0.006 250);
   --input: oklch(0.922 0.006 250);
   --ring: oklch(0.708 0.006 250);
-
-  /* Permanent app chrome (the header and composer bars) — the two surfaces that stay on screen
-     across every route, so they read as a toolbar one shade off --background rather than the page
-     itself. Was a hard-coded bg-zinc-800 in both files; --chrome (dark) keeps that same lightness. */
   --chrome: oklch(0.94 0.006 250);
-
-  /* Agent lifecycle status palette — shared across themes. */
   --status-blocked: oklch(0.66 0.21 24);
   --status-working: oklch(0.78 0.15 80);
   --status-done: oklch(0.7 0.16 152);
   --status-idle: oklch(0.62 0.02 250);
   --status-unknown: oklch(0.55 0.02 250);
-
-  /* Find-in-text highlight — one amber family shared by the live pane mirror (ansi-output) and the
-     transcript/markdown reader, which used to disagree (yellow-400 vs amber-300). */
   --find-hit: oklch(0.879 0.169 91.605 / 70%);
   --find-hit-current: oklch(0.769 0.188 70.08);
-
-  /* Markdown reader accents (markdown-text.tsx) — the terminal's own cues: headings and
-     table headers violet, inline code blue, diff lines green/red. Each clears AA (4.5:1) on both
-     --background and --muted, in both themes. */
   --md-heading: oklch(0.491 0.27 292.6);
   --md-code: oklch(0.5 0.134 242.7);
   --diff-add: oklch(0.527 0.154 150);
   --diff-del: oklch(0.505 0.213 27.5);
-
-  /* Terminal mirror surface (ansi-output.tsx) — pinned dark regardless of the app theme (D2). The
-     mirror's 16-color SGR palette (lib/ansi.ts) is VS Code's dark integrated-terminal palette; it
-     assumes a dark backdrop to read correctly, so the mirror keeps its own fixed surface instead of
-     following --background into light mode. Defined once here, not overridden in .dark. */
-  --terminal-background: oklch(0.145 0.006 250);
-  --terminal-foreground: oklch(0.985 0.006 250);
-  --terminal-muted: oklch(0.708 0.006 250);
-
-  /* Brand accent (interface redesign). The hue of the app's own neutral scale (250) pushed to chroma
-     and nudged to 258, so it cannot collide with a status hue (24 / 82 / 152) and still reads as the
-     same family. Reserved for exactly three things: the active navigation item, the primary action,
-     the focus ring. Never a status. */
   --brand: oklch(0.52 0.17 258);
   --brand-foreground: oklch(0.99 0.01 258);
-
-  /* Uppercase micro-label used by status chips and section headings. Below the text-xs rung on
-     purpose: it is scanned, never read, and the tracking is what makes it legible. */
-  --label-size: 0.656rem; /* 10.5px */
-  --label-tracking: 0.06em;
-
-  /* Foreground for a SOLID status chip (the "loud" card/row treatment — a blocked card, a needs-you
-     row). One value for every tone: chroma 0.03 reads as near-black regardless of hue, and every
-     status tone sits light/saturated enough (L 0.55–0.82 across both themes) that a near-black label
-     clears contrast on all of them without a per-tone lookup. Same value in both themes — the chip's
-     FILL is what already adapts (the token it's painted on), not this. */
   --status-chip-foreground: oklch(0.18 0.03 24);
+  --signal-blocked: oklch(0.66 0.21 24);
+  --signal-working: oklch(0.78 0.15 80);
+  --signal-stuck: oklch(0.577 0.245 27.325);
+  --status-info: oklch(0.5 0.134 242.7);
+  --text-secondary: oklch(0.556 0.006 250);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
-
-.dark {
-  color-scheme: dark;
-
+html.dark[data-style="classic"] {
+  --radius: 0.65rem;
+  --status-chip-foreground: oklch(0.18 0.03 24);
   --background: oklch(0.145 0.006 250);
   --foreground: oklch(0.985 0.006 250);
   --card: oklch(0.205 0.006 250);
@@ -111,32 +264,47 @@
   --border: oklch(1 0.006 250 / 12%);
   --input: oklch(1 0.006 250 / 15%);
   --ring: oklch(0.556 0.006 250);
-
   --chrome: oklch(0.274 0.006 250);
-
   --status-blocked: oklch(0.7 0.2 24);
   --status-working: oklch(0.82 0.15 82);
   --status-done: oklch(0.74 0.16 152);
   --status-idle: oklch(0.65 0.02 250);
   --status-unknown: oklch(0.6 0.02 250);
-
   --find-hit: oklch(0.769 0.188 70.08 / 40%);
   --find-hit-current: oklch(0.852 0.199 91.936);
-
   --md-heading: oklch(0.702 0.183 293.5);
   --md-code: oklch(0.746 0.16 232.7);
   --diff-add: oklch(0.792 0.209 151.7);
   --diff-del: oklch(0.704 0.191 22.2);
-
   --brand: oklch(0.72 0.16 258);
   --brand-foreground: oklch(0.18 0.03 258);
+  --signal-blocked: oklch(0.7 0.2 24);
+  --signal-working: oklch(0.82 0.15 82);
+  --signal-stuck: oklch(0.704 0.191 22.216);
+  --status-info: oklch(0.746 0.16 232.7);
+  --text-secondary: oklch(0.708 0.006 250);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  /* Every rung is the one radius: a stray rounded-2xl cannot round a panel back. rounded-full stays a
+     circle (the beacon, an avatar). */
+  --radius-xs: var(--radius);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+
+  /* No shadow on what sits in the page: tone separates surfaces. What floats (menus, sheets) keeps
+     shadow-md and up. */
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -163,6 +331,11 @@
   --color-status-done: var(--status-done);
   --color-status-idle: var(--status-idle);
   --color-status-unknown: var(--status-unknown);
+  --color-status-info: var(--status-info);
+  --color-signal-blocked: var(--signal-blocked);
+  --color-signal-working: var(--signal-working);
+  --color-signal-stuck: var(--signal-stuck);
+  --color-text-secondary: var(--text-secondary);
 
   --color-find-hit: var(--find-hit);
   --color-find-hit-current: var(--find-hit-current);
@@ -200,11 +373,10 @@
      Two ratios further down (.agent-initials, .code-inline) are NOT rungs: they size themselves
      from whatever hosts them, which no fixed rung can express. */
 
-  /* Was never declared — the app ran on Tailwind’s default and nobody had decided anything (R3).
-     The decision is the system stack: it already ships the optical sizing, hinting and tracking
-     tables the device was tuned for. */
+  /* IBM Plex Sans, self-hosted (public/fonts, OFL — the CSP allows no font CDN). The system stack
+     stays behind it for a glyph outside the latin subset. Monospace stays the platform's (ADR 0004). */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 
   /* "JetBrains Mono" led this list and was NEVER loaded — no @font-face, no preload, no woff2 in
@@ -264,6 +436,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Numbers that change (counters, durations, percentages) must not jitter: tabular figures app-wide. */
+    font-variant-numeric: tabular-nums;
     overscroll-behavior-y: none;
   }
   /* Typographic finish, globally (R5): no orphan word at the end of a paragraph, and headings break
@@ -415,3 +589,105 @@
     animation: busy-bar-pulse 1.1s ease-in-out infinite;
   }
 }
+
+/* ── State signal (components/status-signal.tsx) ─────────────────────────────────────────────────
+   One shape per state, so it reads without colour. A 16 px box the mark sits centred in; the box
+   keeps rows aligned whatever the mark. Motion: the bar's sweep (1.4 s, linear: a light travelling)
+   and the beacon's pulse (1.2 s). Both stop under reduced motion, where the shape alone carries it. */
+.signal {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+}
+.signal__mark {
+  display: block;
+}
+.signal[data-signal="working"] .signal__mark {
+  position: relative;
+  width: 0.875rem;
+  height: 0.25rem;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--signal-working) 25%, transparent);
+}
+.signal[data-signal="working"] .signal__mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--signal-working);
+  animation: signal-sweep 1.4s linear infinite;
+}
+.signal[data-signal="blocked"] .signal__mark {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+  background: var(--signal-blocked);
+  animation: signal-beam 1.2s ease-in-out infinite;
+}
+.signal[data-signal="stuck"] .signal__mark {
+  width: 0.1875rem;
+  height: 0.875rem;
+  background: var(--signal-stuck);
+  transform: rotate(45deg);
+}
+.signal[data-signal="done"] .signal__mark {
+  width: 0.5625rem;
+  height: 0.5625rem;
+  background: var(--signal-working);
+  opacity: 0.55;
+}
+.signal[data-signal="idle"] .signal__mark,
+.signal[data-signal="unknown"] .signal__mark {
+  width: 0.5625rem;
+  height: 0.5625rem;
+  box-shadow: inset 0 0 0 1.5px var(--status-idle);
+}
+.signal[data-signal="unknown"] .signal__mark {
+  opacity: 0.6;
+}
+@keyframes signal-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes signal-beam {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .signal .signal__mark,
+  .signal .signal__mark::after {
+    animation: none;
+  }
+}
+
+/* ── Actor token (components/actor-token.tsx) ────────────────────────────────────────────────────
+   A letter on a tinted square: who did it (Agent, Lead, Copilot, Orchestrator, Board, You). */
+.actor-token {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.actor-token[data-actor="agent"] { background: var(--actor-agent-bg); color: var(--actor-agent-fg); }
+.actor-token[data-actor="lead"] { background: var(--actor-lead-bg); color: var(--actor-lead-fg); }
+.actor-token[data-actor="copilot"] { background: var(--actor-copilot-bg); color: var(--actor-copilot-fg); }
+.actor-token[data-actor="orchestrator"] { background: var(--actor-orchestrator-bg); color: var(--actor-orchestrator-fg); }
+.actor-token[data-actor="board"] { background: var(--actor-board-bg); color: var(--actor-board-fg); }
+.actor-token[data-actor="you"] { background: var(--actor-you-bg); color: var(--actor-you-fg); }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { Link } from "react-router";
 import { Target } from "lucide-react";
 
@@ -61,10 +62,10 @@ function GoalForm({ initial, onSave, onCancel }: { initial: Goal | null; onSave:
         </label>
       </div>
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60">
+        <button type="button" onClick={onCancel} className="rounded-sm border px-3 py-1.5 text-xs hover:bg-muted/60">
           {t("goal.cancel")}
         </button>
-        <button type="submit" className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+        <button type="submit" className="rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
           {t("goal.save")}
         </button>
       </div>
@@ -195,8 +196,8 @@ export function GoalPanel({
       fail(e);
     }
   };
-  const btn = "rounded-full border px-3 py-1.5 text-xs hover:bg-muted/60";
-  const link = "text-xs font-semibold text-brand";
+  const btn = cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-xs");
+  const link = btn;
   const fold = (k: "criteria" | "cards" | "journal" | "next") => setShown((v) => (v === k ? null : k));
   const pct = open ? budgetPct(open) : 0;
   const gauge = (label: string, value: string, fill?: number, tone = "bg-status-done") => (
@@ -217,7 +218,7 @@ export function GoalPanel({
         <h2 className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold">
           <Target className="size-4 text-muted-foreground" />
           {t("goal.title")}
-          {open && <span className="rounded-full border px-2 py-0.5 text-xs font-medium">{t(`goal.status.${open.status}`)}</span>}
+          {open && <span className="rounded-sm border px-2 py-0.5 text-xs font-medium">{t(`goal.status.${open.status}`)}</span>}
           {open?.origin === "agent" && <span className="text-xs font-normal text-muted-foreground">{t("goal.byAgent")}</span>}
         </h2>
         {open && !editing && (
@@ -231,7 +232,7 @@ export function GoalPanel({
       ) : !open ? (
         <>
           <p className="text-xs text-muted-foreground">{t("goal.none")}</p>
-          <button type="button" onClick={() => setEditing("open")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+          <button type="button" onClick={() => setEditing("open")} className="self-start rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
             {t("goal.define")}
           </button>
         </>
@@ -239,7 +240,7 @@ export function GoalPanel({
         <>
           <p className="text-[15px] font-medium leading-snug">{open.text}</p>
           {open.status === "active" && !noOrchestrator && <p className="text-xs font-medium text-status-done">{t("goal.runningHint")}</p>}
-          {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-status-blocked/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
+          {noOrchestrator && open.status === "active" && <p className="rounded-lg border border-destructive/50 p-2 text-xs">{t("goal.noOrchestrator")}</p>}
           <div role="group" aria-label={t("goal.progress")} className="grid grid-cols-3 gap-3">
             {gauge(t("goal.gauge.lots"), t("goal.gauge.lotsOf", { spent: open.spent.lots, max: open.budget.maxLots }), (100 * open.spent.lots) / open.budget.maxLots)}
             <div role="progressbar" aria-label={t("goal.gauge.budget")} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -296,7 +297,7 @@ export function GoalPanel({
             <ul className="flex flex-wrap gap-1.5">
               {open.spent.cardIds.map((id) => (
                 <li key={id}>
-                  <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-full border px-2 py-0.5 text-xs hover:bg-muted/60">
+                  <Link to={cardPath(id)} className="inline-block max-w-[28ch] truncate rounded-sm border px-2 py-0.5 text-xs hover:bg-muted/60">
                     {titleOf(id) ?? id.slice(0, 8)}
                   </Link>
                 </li>
@@ -314,7 +315,7 @@ export function GoalPanel({
             </>
           )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void move("achieve")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+            <button type="button" onClick={() => void move("achieve")} className="rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
               {t("goal.achieve")}
             </button>
             {open.status === "active" ? (
@@ -374,7 +375,7 @@ export function GoalPanel({
               </ul>
               <p className="text-xs text-muted-foreground">{t(open ? "goal.nextHint" : "goal.nextOrphan")}</p>
               {!open && !editing && (
-                <button type="button" onClick={() => void move("activate")} className="self-start rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
+                <button type="button" onClick={() => void move("activate")} className="self-start rounded-sm bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">
                   {t("goal.activate")}
                 </button>
               )}

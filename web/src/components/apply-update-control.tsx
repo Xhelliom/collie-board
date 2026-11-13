@@ -32,7 +32,7 @@ export function ApplyUpdateControl({ latest }: { latest: string }) {
       </Button>
       {state === "updating" && <span className="text-xs text-muted-foreground">{t("settings.updates.applyingHint")}</span>}
       {state === "failed" && (
-        <div className="w-full text-xs text-status-blocked">
+        <div className="w-full text-xs text-destructive">
           {t("settings.updates.applyFailed")}
           <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">{reason}</pre>
         </div>

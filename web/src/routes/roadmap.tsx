@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { Link, useLoaderData, useRevalidator } from "react-router";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Maximize2, MessagesSquare, Pencil, Plus, Search, X } from "lucide-react";
 
@@ -33,9 +34,9 @@ import { cn } from "@/lib/utils";
 // rides the root poll, so an orchestrator's PUT shows on the next tick — no timer of its own.
 
 const STATUSES: RoadmapStatus[] = ["planned", "active", "done", "dropped", "later"];
-const PANEL = "rounded-2xl border bg-card/70 p-4";
+const PANEL = "rounded-sm bg-card p-4";
 const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
-const PILL = cn("inline-flex h-8 items-center gap-1.5 rounded-full border bg-card/70 px-3 text-sm font-medium hover:border-foreground/25", FOCUS);
+const PILL = cn("inline-flex h-8 items-center gap-1.5 rounded-sm border bg-card/70 px-3 text-sm font-medium hover:border-foreground/25", FOCUS);
 const FIELD = cn("w-full rounded-lg border bg-background px-3 py-2 text-sm", FOCUS);
 // Solid segments, one colour per horizon: done, now, ahead.
 const SEG = { done: "bg-status-done", now: "bg-status-working", ahead: "bg-muted-foreground/35" } as const;
@@ -439,7 +440,7 @@ function Path({ h, phases, progress, onOpen, onHistory, historyOpen, onExpand, o
           )}
         </ol>
         {hidden > 0 && (
-          <span className="pointer-events-none absolute right-0 top-6 rounded-full border bg-background px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+          <span className="pointer-events-none absolute right-0 top-6 rounded-sm border bg-background px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
             {t("roadmap.path.more", { count: hidden })}
           </span>
         )}
@@ -542,7 +543,7 @@ function Directions({ later, onOpen, onAdd }: { later: RoadmapItem[]; onOpen: (i
             aria-expanded={open === (g.direction ?? "")}
             onClick={() => setOpen(open === (g.direction ?? "") ? null : (g.direction ?? ""))}
             className={cn(
-              "inline-flex items-center gap-2 rounded-full border-2 border-dashed px-3 py-1 text-sm hover:border-foreground/40",
+              "inline-flex items-center gap-2 rounded-sm border-2 border-dashed px-3 py-1 text-sm hover:border-foreground/40",
               open === (g.direction ?? "") ? "border-foreground/50 bg-muted/60" : "border-muted-foreground/40",
               FOCUS,
             )}
@@ -638,7 +639,7 @@ function NowDetail({ repo, active, next, phases, progress, onOpen }: {
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                     <span className="font-medium">{p.name}</span>
                     <span className="tabular-nums text-muted-foreground">{t("roadmap.now.left", { count: pr.total - pr.done, total: pr.total })}</span>
-                    <Link to={`${projectPath(repo)}#phase-${p.id}`} className="ml-auto text-sm font-medium underline-offset-2 hover:underline">
+                    <Link to={`${projectPath(repo)}#phase-${p.id}`} className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "ml-auto")}>
                       {t("roadmap.now.openPhase")}
                     </Link>
                   </div>
@@ -741,7 +742,7 @@ function StepSheet({ item, items, phases, decisions, onClose, onSave }: {
               <span className="text-sm font-semibold">{t("roadmap.view.phases")}</span>
               <ul className="flex flex-wrap gap-1.5">
                 {mine.map((p) => (
-                  <li key={p.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs", p.closedAt && "border-status-done/50")}>
+                  <li key={p.id} className={cn("inline-flex items-center gap-1 rounded-sm border px-2.5 py-0.5 text-xs", p.closedAt && "border-status-done/50")}>
                     {p.closedAt ? <Check className="size-3 text-status-done" aria-label={t("roadmap.view.validated")} /> : null}
                     {p.name}
                   </li>

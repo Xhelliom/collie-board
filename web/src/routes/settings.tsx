@@ -91,7 +91,7 @@ export function SettingsRoute() {
             aria-selected={tab === name}
             onClick={() => setTab(name)}
             className={cn(
-              "shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "shrink-0 rounded-sm border px-3.5 py-1.5 text-sm font-medium transition-colors",
               tab === name ? "border-foreground/50 bg-accent" : "bg-card/70 text-muted-foreground hover:border-foreground/25",
             )}
           >
@@ -154,7 +154,7 @@ export function SettingsRoute() {
                 </p>
               )}
               {error && (
-                <p className="border-t border-border/60 px-4 py-2.5 text-xs text-status-blocked">
+                <p className="border-t border-border/60 px-4 py-2.5 text-xs text-destructive">
                   {error}
                 </p>
               )}
