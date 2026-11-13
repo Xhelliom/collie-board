@@ -2,3 +2,4 @@
 {"v":1,"hlc":"1794605152004.0001.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"template_id":"5e3b234d-683c-437d-a829-a57c2229d397"}}
 {"v":1,"hlc":"1794605152004.0002.49d81004837e","type":"card.event","by":"stephane.wetterwald@gmail.com","fields":{"type":"card.created","payload":{"title":"Bug : la PR docs(plan) roulante n apparaît pas à la fin d un lot (export muet)","status":"backlog"},"ts":1794605148362}}
 {"v":1,"hlc":"1794608703589.0003.49d81004837e","type":"card.set","by":"stephane.wetterwald@gmail.com","fields":{"run_id":"ce136913-d0fc-4b68-bab8-a66e281cfbf1"}}
+{"v":1,"hlc":"1794608712496.0000.49d81004837e","type":"card.claimed","by":"stephane.wetterwald@gmail.com","fields":{"pair":"49d81004837e","by":"stephane.wetterwald@gmail.com"}}
