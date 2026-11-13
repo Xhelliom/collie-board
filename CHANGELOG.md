@@ -9,6 +9,22 @@ inherited from upstream Collie (AltanS/collie); the fork starts at 0.18.0. The f
 [`changes/`](./changes/) — a branch never cuts an entry here ([ADR 0016](./.adr/0016-the-version-is-cut-on-main-by-ci.md)).
 See [`CLAUDE.md`](./CLAUDE.md) → *Versioning* for the bump policy.
 
+## [0.312.0] - 2026-11-13
+
+### Added
+
+- Vue d'un agent : la colonne des agents se replie (bouton « Replier la colonne », retenu par appareil). (7855d16)
+
+### Changed
+
+- Vue d'un agent : en-tête parlant — vrai nom, état avec sa durée, projet, machine, modèle et effort, sous-agents, jauge de contexte ; plus d'identifiant de pane ni de fil d'Ariane. (7855d16)
+- Vue d'un agent : plus de colonne de droite ; la ligne d'état de l'agent, la carte, la recherche, l'historique et le reste passent dans « ⋯ ». (7855d16)
+- Conversation : colonne de lecture centrée (760 px), gras sans orange, en-têtes « Claude, 10 h 17 », étapes nommées (« 3 étapes : Bash, Read, Read »). (7855d16)
+- Conversation : les messages injectés par l'outil sont repliés derrière « Message système ». (7855d16)
+- Zone de réponse : « Répondre à <nom>… », raccourci « Ctrl + Entrée » / « ⌘ + Entrée », infobulles ; au téléphone image et envoyer visibles, le reste derrière « ⋯ ». (7855d16)
+- Téléphone : la flèche retour mène à la liste des agents. (7855d16)
+- Le réglage « Ligne d'état de l'agent » disparaît : la ligne vit désormais dans « ⋯ ». (7855d16)
+
 ## [0.311.0] - 2026-11-13
 
 ### Changed
