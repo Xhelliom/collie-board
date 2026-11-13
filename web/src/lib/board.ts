@@ -1292,7 +1292,7 @@ export interface GhPr {
 export interface PrsReading {
   prs: OpenPr[];
   /** Open on GitHub, on no card. `plan`: the board's own lot-end export. */
-  others?: (GhPr & { repoPath: string; origin: "plan" | "other" })[];
+  others?: (GhPr & { repoPath: string; origin: "plan" | "other"; replacedBy?: number })[];
   merged?: (GhPr & { repoPath: string; cardId: string | null })[];
   checkedAt?: number;
 }

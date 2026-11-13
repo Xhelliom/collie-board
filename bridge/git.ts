@@ -1419,6 +1419,12 @@ export async function listPrs(repoPath: string, state: "open" | "merged", gh: Gi
   }
 }
 
+/** Retitle a PR by number — the board's rolling `docs(plan)` PR only. */
+export async function editPrTitle(repoPath: string, number: number, title: string, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await gh(["pr", "edit", String(number), "--title", title], repoPath);
+  return r.ok ? { ok: true } : { ok: false, error: (r.stderr || r.stdout).trim().split("\n").slice(0, 4).join("\n") };
+}
+
 /** Close a PR without merging it — the operator's tap, nothing else calls it. Same guard as {@link enableAutoMerge}. */
 export async function closePr(repoPath: string, ref: string, gh: GitRunner = runGh): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!ref || ref.startsWith("-")) return { ok: false, error: `refusing PR ${JSON.stringify(ref)}` };

@@ -1,5 +1,5 @@
 // Le plan dans git, à chaque fin de lot (décision du 06/11). Le board reste l'outil du plan ; à la fin
-// d'un lot, il ouvre UNE PR « docs(plan) » qui pose dans `docs/plan/` la roadmap détaillée (= GET
+// d'un lot, il ouvre UNE PR « docs(plan) » roulante par dépôt (une seconde fin de lot pousse sur sa branche et la retitre ; elle rattrape les bilans absents de la base) qui pose dans `docs/plan/` la roadmap détaillée (= GET
 // /api/roadmap?format=md), les étapes (= format=steps) et le bilan du lot. L'opérateur la merge : le
 // board pousse une branche à lui, jamais la base.
 //
@@ -20,7 +20,7 @@ import { basename } from "node:path";
 
 import { boardBranchPrefix } from "./config.ts";
 import type { BoardDb, Card, Run } from "./db.ts";
-import { createPr, defaultBranchOf, fetchBase, runGh, runGit, type GitRunner } from "./git.ts";
+import { createPr, defaultBranchOf, editPrTitle, fetchBase, listPrs, runGh, runGit, type GhPr, type GitRunner } from "./git.ts";
 import { lotBranchOf } from "./lot.ts";
 import { samePath } from "./paths.ts";
 import { roadmapMarkdown, stepsMarkdown } from "./roadmap.ts";
@@ -62,26 +62,45 @@ export function lotBilanMarkdown(run: Run, cards: BilanCard[], finishedAt: numbe
 }
 
 /** Ce que l'export lit du board pour un lot. Le chemin relatif à la racine du dépôt → son contenu. */
-export function planFiles(db: Pick<BoardDb, "getRoadmap" | "listPhases" | "listRuns" | "listCards" | "runMembers" | "listEvents">, run: Run, now: number): Record<string, string> {
+type PlanDb = Pick<BoardDb, "getRoadmap" | "listPhases" | "listRuns" | "listCards" | "runMembers" | "listEvents" | "runFinishedAt">;
+
+const bilanOf = (db: PlanDb, run: Run, finishedAt: number): string =>
+  lotBilanMarkdown(
+    run,
+    db.runMembers(run.id).map((card): BilanCard => {
+      const events = db.listEvents(card.id, 200);
+      const rep = events.find((e) => e.type === "run.report")?.payload as { issue?: string | null; text?: string } | undefined;
+      const pr = events.find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated")?.payload as { url?: unknown } | undefined;
+      return {
+        card,
+        report: rep?.text ? { issue: rep.issue ?? null, text: rep.text } : null,
+        prUrl: typeof pr?.url === "string" ? pr.url : null,
+      };
+    }),
+    finishedAt,
+  );
+
+export function planFiles(db: PlanDb, run: Run, now: number): Record<string, string> {
   const repo = run.repoPath;
   const name = basename(repo);
   const roadmap = db.getRoadmap(repo) ?? { repoPath: repo, vision: "", items: [], decisions: [], revision: 0, updatedAt: 0 };
   const cards = db.listCards().filter((c) => !!c.repoPath && samePath(c.repoPath, repo));
-  const members = db.runMembers(run.id).map((card): BilanCard => {
-    const events = db.listEvents(card.id, 200);
-    const rep = events.find((e) => e.type === "run.report")?.payload as { issue?: string | null; text?: string } | undefined;
-    const pr = events.find((e) => e.type === "card.pr_opened" || e.type === "card.pr_updated")?.payload as { url?: unknown } | undefined;
-    return {
-      card,
-      report: rep?.text ? { issue: rep.issue ?? null, text: rep.text } : null,
-      prUrl: typeof pr?.url === "string" ? pr.url : null,
-    };
-  });
   return {
     [`${PLAN_DIR}/roadmap.md`]: roadmapMarkdown(name, roadmap),
     [`${PLAN_DIR}/etapes.md`]: stepsMarkdown(name, { phases: db.listPhases(repo), lots: db.listRuns(repo), cards }),
-    [`${PLAN_DIR}/lots/${lotSlugOf(run)}.md`]: lotBilanMarkdown(run, members, now),
+    [`${PLAN_DIR}/lots/${lotSlugOf(run)}.md`]: bilanOf(db, run, now),
   };
+}
+
+/** Les bilans des AUTRES lots finis du dépôt : le rattrapage, que l'export ne pose que s'ils manquent sur la base. */
+export function catchUpBilans(db: PlanDb, run: Run): OptionalFile[] {
+  return db
+    .listRuns(run.repoPath)
+    .filter((r) => r.id !== run.id)
+    .flatMap((r) => {
+      const at = db.runFinishedAt(r.id);
+      return at === null ? [] : [{ path: `${PLAN_DIR}/lots/${lotSlugOf(r)}.md`, content: bilanOf(db, r, at), label: r.name ?? "sans nom" }];
+    });
 }
 
 /** `git ls-tree -z` → ses lignes `mode type sha\tname`. Pur. */
@@ -112,33 +131,66 @@ export async function treeWith(repo: string, treeish: string, files: Record<stri
 
 export type ExportResult = { ok: true; url: string | null } | { ok: true; skipped: string } | { ok: false; error: string };
 
-/** Pose `files` sur origin/<base> dans un commit à part, pousse sa branche, ouvre la PR. Jamais la base. */
+/** Un fichier posé seulement s'il manque sur la base (le rattrapage). */
+export interface OptionalFile {
+  path: string;
+  content: string;
+  label: string;
+}
+
+/** Le plan roule dans UNE PR par dépôt : la plus récente des PR `docs(plan)` ouvertes. Pur. */
+export const rollingPlanPr = (prs: GhPr[]): GhPr | null =>
+  prs.filter((p) => p.branch.startsWith(`${boardBranchPrefix()}plan-`)).sort((a, b) => b.number - a.number)[0] ?? null;
+
+/** « fin du lot « A » » ou « fin des lots A, B, C ». Pur. */
+export const planTitle = (names: string[]): string => (names.length === 1 ? `docs(plan): fin du lot « ${names[0]} »` : `docs(plan): fin des lots ${names.join(", ")}`);
+
+/**
+ * Pose `files` sur origin/<base> dans un commit à part, pousse, ouvre la PR. Jamais la base.
+ * `existing` : la PR roulante — on pousse un commit (jamais forcé) sur SA branche et on retitre la PR.
+ */
 export async function openPlanPr(
   repo: string,
-  input: { base: string; branch: string; title: string; body: string; files: Record<string, string> },
+  input: { base: string; branch: string; title: string | ((labels: string[]) => string); body: string; files: Record<string, string>; optional?: OptionalFile[]; existing?: { number: number; branch: string } },
   git: GitRunner = runGit,
   gh: GitRunner = runGh,
 ): Promise<ExportResult> {
-  if (input.base.startsWith("-") || input.branch.startsWith("-")) return { ok: false, error: "bad ref" };
+  const branch = input.existing?.branch ?? input.branch;
+  if (input.base.startsWith("-") || branch.startsWith("-")) return { ok: false, error: "bad ref" };
   const fetched = await fetchBase(repo, input.base, git);
   if (!fetched.ok) return { ok: true, skipped: `no origin/${input.base}: ${fetched.error}` };
   const parent = await git(["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${input.base}^{commit}`], repo);
   if (!parent.ok) return { ok: true, skipped: `no origin/${input.base}` };
   const sha = parent.stdout.trim();
+  const absent: OptionalFile[] = [];
+  for (const o of input.optional ?? []) if (!(await git(["cat-file", "-e", `${sha}:${o.path}`], repo)).ok) absent.push(o);
+  const title = typeof input.title === "function" ? input.title(absent.map((o) => o.label)) : input.title;
   let tree: string;
   try {
-    tree = await treeWith(repo, `${sha}:`, input.files, git);
+    tree = await treeWith(repo, `${sha}:`, { ...Object.fromEntries(absent.map((o) => [o.path, o.content])), ...input.files }, git);
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
-  const was = await git(["rev-parse", `${sha}^{tree}`], repo);
+  const parents = [sha];
+  if (input.existing) {
+    const ref = `refs/remotes/origin/${branch}`;
+    const f = await git(["fetch", "origin", `+refs/heads/${branch}:${ref}`], repo);
+    const tip = f.ok ? await git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], repo) : f;
+    if (!tip.ok) return { ok: false, error: `cannot read ${branch}` };
+    parents.unshift(tip.stdout.trim());
+  }
+  const was = await git(["rev-parse", `${parents[0]}^{tree}`], repo);
   if (was.ok && was.stdout.trim() === tree) return { ok: true, skipped: "docs/plan already up to date" };
-  const commit = await git(["commit-tree", tree, "-p", sha, "-m", input.title], repo);
+  const commit = await git(["commit-tree", tree, ...parents.flatMap((p) => ["-p", p]), "-m", title], repo);
   if (!commit.ok) return { ok: false, error: commit.stderr.trim() || "commit-tree failed" };
-  // Une branche neuve, jamais forcée : la base n'est jamais poussée.
-  const push = await git(["push", "origin", `${commit.stdout.trim()}:refs/heads/${input.branch}`], repo);
+  // Une branche neuve ou en avance rapide, jamais forcée : la base n'est jamais poussée.
+  const push = await git(["push", "origin", `${commit.stdout.trim()}:refs/heads/${branch}`], repo);
   if (!push.ok) return { ok: false, error: (push.stderr || push.stdout).trim().split("\n").slice(-2).join(" ") || "push failed" };
-  const pr = await createPr(repo, { branch: input.branch, base: input.base, title: input.title, body: input.body }, gh);
+  if (input.existing) {
+    const edit = await editPrTitle(repo, input.existing.number, title, gh);
+    return edit.ok ? { ok: true, url: null } : edit;
+  }
+  const pr = await createPr(repo, { branch, base: input.base, title, body: input.body }, gh);
   return pr.ok ? { ok: true, url: pr.url } : pr;
 }
 
@@ -149,14 +201,19 @@ export async function exportPlanAtLotEnd(db: BoardDb, run: Run, git: GitRunner =
     const base = run.lotBase ?? (await defaultBranchOf(run.repoPath, git));
     if (!base) return { ok: true, skipped: "no base branch" };
     const slug = lotSlugOf(run);
+    const open = await listPrs(run.repoPath, "open", gh);
+    if (!open) return { ok: true, skipped: "cannot list open PRs" };
+    const existing = rollingPlanPr(open);
     return await openPlanPr(
       run.repoPath,
       {
         base,
         branch: `${boardBranchPrefix()}plan-${slug}`,
-        title: `docs(plan): fin du lot « ${run.name ?? "sans nom"} »`,
+        title: (labels) => planTitle([...labels, run.name ?? "sans nom"]),
         body: `Roadmap, étapes et bilan du lot, exportés par Collie Board à la fin du lot. À merger par l'opérateur.\n\nCouper l'export : réglages du projet, « Exporter le plan à chaque fin de lot ».`,
         files: planFiles(db, run, Date.now()),
+        optional: catchUpBilans(db, run),
+        ...(existing ? { existing: { number: existing.number, branch: existing.branch } } : {}),
       },
       git,
       gh,
